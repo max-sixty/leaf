@@ -283,8 +283,51 @@ def activation_read(context, activation: str) -> APIResponse | None:
     return answered(response, activation)
 
 
+def host_addresses() -> tuple:
+    """Read the host interface and address snapshot that can invalidate Chrome sockets."""
+    result = subprocess.run(
+        ["ip", "-j", "address", "show"], capture_output=True, check=True
+    )
+    return tuple(
+        (
+            link["ifindex"],
+            link["ifname"],
+            tuple(
+                (address["family"], address["local"], address["prefixlen"])
+                for address in link["addr_info"]
+            ),
+        )
+        for link in json.loads(result.stdout)
+    )
+
+
+def wait_for_host_network(
+    *, quiet_for: float = 2.5, poll_every: float = 0.1, max_wait: float = 15
+) -> None:
+    """Wait for Docker's host interface changes before another local navigation."""
+    previous = host_addresses()
+    now = time.monotonic()
+    quiet_since = now
+    deadline = now + max_wait
+    while now - quiet_since < quiet_for:
+        check(now < deadline, "host interface addresses did not settle")
+        time.sleep(poll_every)
+        current = host_addresses()
+        now = time.monotonic()
+        if current != previous:
+            previous = current
+            quiet_since = now
+
+
 def verify_page(
-    browser, path: str, kind: str, release: str, activate: bool, *, origin: str
+    browser,
+    path: str,
+    kind: str,
+    release: str,
+    activate: bool,
+    *,
+    origin: str,
+    settle_after_activation: Callable[[], None] | None = None,
 ) -> dict:
     context = browser.new_context()
     page = context.new_page()
@@ -377,6 +420,8 @@ def verify_page(
         isinstance(activation_response.json().get("browser"), dict),
         f"{activation} returned no browser projection",
     )
+    if settle_after_activation is not None:
+        settle_after_activation()
     state_response = answered(
         context.request.get(
             state_url,
@@ -1292,14 +1337,11 @@ def local_worker() -> Iterator[str]:
     Chrome and Docker share this host, which is only ever true here: a user's
     container runs on Cloudflare, so nothing in production starts one on the machine
     drawing the page. Chromium answers a host IP-address change by flushing its
-    socket pools with ERR_NETWORK_CHANGED, loopback included, and starting a
-    container adds a host interface. Prewarm puts that start in the background of
-    the document response, so it lands inside the module loads a pass measures and
-    can abort a page's entry module before it arrives. Without it the only thing that
-    starts a container is the activation read the pass makes and waits on, with no
-    page loading beside it, so the host's interfaces are settled for every load the
-    browser is measured on. Production keeps prewarm, and the pass over the deployed
-    release exercises it there. The patience covers building the container image.
+    socket pools with ERR_NETWORK_CHANGED, loopback included. Starting a container
+    adds a host interface, and its address can change after the activation read
+    answers. The release pass waits for those addresses to settle before the next
+    navigation. Production keeps prewarm, and the pass over the deployed release
+    exercises it there. The patience covers building the container image.
 
     Wrangler stops each session's container when it exits but leaves that
     container's `proxy-everything` sidecar running, and no later run reclaims it, so
@@ -1383,14 +1425,24 @@ def main(target: str, release: str | None, agent: bool) -> None:
     if target == "wrangler":
         built = built_release(release)
         with local_worker() as origin:
-            run_verification(origin, built, agent=agent)
+            run_verification(
+                origin,
+                built,
+                agent=agent,
+                settle_after_activation=wait_for_host_network if not agent else None,
+            )
         return
     origin = target_origin(target)
     run_verification(origin, release if agent else built_release(release), agent=agent)
 
 
 def run_verification(
-    origin: str, release: str | None, *, agent: bool, direct_agent: bool = False
+    origin: str,
+    release: str | None,
+    *,
+    agent: bool,
+    direct_agent: bool = False,
+    settle_after_activation: Callable[[], None] | None = None,
 ) -> None:
     """Run one browser check against explicit transport and release inputs."""
     with sync_playwright() as playwright:
@@ -1411,7 +1463,13 @@ def run_verification(
             )
             for path, kind, activate in PAGES:
                 profile = verify_page(
-                    browser, path, kind, release, activate, origin=origin
+                    browser,
+                    path,
+                    kind,
+                    release,
+                    activate,
+                    origin=origin,
+                    settle_after_activation=settle_after_activation,
                 )
                 print(startup_line(path, profile), flush=True)
             verify_cross_tab_activation(browser, origin=origin)

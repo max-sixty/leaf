@@ -75,7 +75,6 @@ FUNCTIONS = {
     "leaf/render_gate/scheme.py:start_with_pre_upgrade_proof": [],
     "leaf/render_gate/readings.py:_scheme_findings": [],
     "leaf/render_gate/readings.py:sweep": [],
-    "leaf/render_gate/readings.py:margin_cover_advice": [],
     "leaf/render_gate/readings.py:shrunk_label_advice": [],
     "leaf/render_checks.py:wait_for_probe": ["name"],
     "leaf/render_checks.py:one_frame": [],
@@ -124,7 +123,7 @@ def phases(sample: dict) -> tuple[dict[str, float], ...]:
     """The run's phase rows, its render passes split by stage, and its CPU time.
 
     Only main-thread spans count, since the preview server's threads run work of
-    their own (the corpus validates its specimens there) beside the main thread's
+    their own (the corpus validates its samples there) beside the main thread's
     waits. A row is missing when its function never ran in this arm."""
     spans = [span for span in sample["trace"]["spans"] if span["main"]]
 
@@ -161,7 +160,7 @@ def phases(sample: dict) -> tuple[dict[str, float], ...]:
         passes = named("_render_scheme", within=attempts[0])
         once = [
             span
-            for fn in ("sweep", "margin_cover_advice", "shrunk_label_advice")
+            for fn in ("sweep", "shrunk_label_advice")
             for span in named(fn, within=attempts[0])
         ]
         for scheme in passes:

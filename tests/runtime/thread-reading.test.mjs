@@ -10,7 +10,7 @@ import { servedThread, servedWorkflow } from "../served.mjs";
 process.env.TZ = "America/New_York";
 const { moved, readThreadRecords, threadSummary } =
   await import("/runtime/thread/model.js");
-const { inRecentOrder, recentGroup } = await import("/runtime/thread/placement.js");
+const { inRecentOrder } = await import("/runtime/thread/placement.js");
 const { unreadBoundaries } = await import("/runtime/thread/summary-ranges.js");
 const { threadAttention } = await import("/runtime/thread/workflow.js");
 const { DEFAULT_INTENT, createThreadNarrowing, narrowingReading, transition } =
@@ -221,8 +221,7 @@ const recentThread = (id, ts, edited = null) => {
   return { id, root, msgs: [root] };
 };
 
-test("Recent orders by last move and groups by the user's calendar day", () => {
-  // 2026-03-09 00:30 local, the day after the spring-forward Sunday (a 23-hour day).
+test("Recent orders threads by their last move, an edit counting as one", () => {
   mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-03-09T04:30:00Z") });
   try {
     const old = recentThread("old", "2026-03-04T15:00:00Z", {
@@ -237,10 +236,6 @@ test("Recent orders by last move and groups by the user's calendar day", () => {
     assert.deepEqual(
       order.map((thread) => thread.id),
       ["old", "late", "sunday", "saturday"],
-    );
-    assert.deepEqual(
-      order.map((thread) => recentGroup(thread).label),
-      ["Today", "Yesterday", "Yesterday", "Mar 7"],
     );
   } finally {
     mock.timers.reset();
@@ -288,8 +283,10 @@ test("narrowing transitions reset what they contradict and counts name each subs
       resolved: { author: "user" },
     },
   ];
-  const groups = new Map(threads.map((thread) => [thread, { key: "section" }]));
-  const model = narrowingReading(DEFAULT_INTENT, threads, groups);
+  const places = new Map(
+    threads.map((thread) => [thread, { gone: false, section: "" }]),
+  );
+  const model = narrowingReading(DEFAULT_INTENT, threads, places);
   assert.deepEqual(
     model.shown.map((thread) => thread.id),
     ["asks", "working"],
@@ -313,8 +310,8 @@ test("panel narrowing controllers keep independent intent over shared threads", 
     resolved: { author: "user" },
   };
   const threads = [open, resolved];
-  const groups = new Map(
-    threads.map((thread) => [thread, { key: "section", label: "Section" }]),
+  const places = new Map(
+    threads.map((thread) => [thread, { gone: false, section: "Section" }]),
   );
   const makePanel = () => {
     const view = {
@@ -340,14 +337,14 @@ test("panel narrowing controllers keep independent intent over shared threads", 
   const second = makePanel();
 
   await first.view.controls.chooseFacet("status", "resolved");
-  assert.deepEqual(first.narrowing.model(threads, groups).shown, [resolved]);
-  assert.deepEqual(second.narrowing.model(threads, groups).shown, [open]);
+  assert.deepEqual(first.narrowing.model(threads, places).shown, [resolved]);
+  assert.deepEqual(second.narrowing.model(threads, places).shown, [open]);
   assert.equal(first.listRoot.scrollTop, 0);
   assert.equal(second.listRoot.scrollTop, 10);
 
   await second.narrowing.revealThread("resolved");
-  assert.deepEqual(second.narrowing.model(threads, groups).shown, [resolved]);
+  assert.deepEqual(second.narrowing.model(threads, places).shown, [resolved]);
   first.narrowing.widen();
-  assert.deepEqual(first.narrowing.model(threads, groups).shown, [open]);
-  assert.deepEqual(second.narrowing.model(threads, groups).shown, [resolved]);
+  assert.deepEqual(first.narrowing.model(threads, places).shown, [open]);
+  assert.deepEqual(second.narrowing.model(threads, places).shown, [resolved]);
 });

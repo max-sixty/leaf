@@ -890,7 +890,26 @@ function readPage() {
     previousCell = cell;
   }
   if (previousCell) fences.add(raw.length);
-  return { raw, origin, positions, fences: [...fences].sort((a, b) => a - b) };
+  return {
+    raw,
+    origin,
+    positions,
+    fences: [...fences].sort((a, b) => a - b),
+    segments,
+  };
+}
+// The page's text blocks in reading order: each block (`blockAt`) holding a word of the
+// page's reading, once. Kept on the reading it came from, so it moves exactly when the
+// words do and costs nothing to ask again until then.
+export function pageBlocks() {
+  const text = pageText();
+  if (!text.blocks) {
+    const seen = new Set();
+    text.blocks = text.segments
+      .map(({ node }) => blockAt(node))
+      .filter((block) => block && !seen.has(block) && seen.add(block));
+  }
+  return text.blocks;
 }
 // Where a passage's segments start and stop in that reading, as [start, stop). A passage
 // is `{node, start, end}` segments and every question about the region it covers is asked

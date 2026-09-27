@@ -185,7 +185,7 @@ A widget that needs a minimum width to stay usable, such as a board's columns at
 readable size, states it as `min-inline-size` capped by the box it stands in:
 `min(<its floor>, 100cqi, var(--lf-box-cap, 100vw))`. `100cqi` measures the nearest size
 container, which is the page's shell or a framed box around the widget (a pane's body, a
-card), and a specimen, which cannot be one, states `--lf-box-cap`. So in a box
+card), and a sample, which cannot be one, states `--lf-box-cap`. So in a box
 narrower than the floor the widget scrolls inside itself rather than widening the page.
 When a bounded widget's scroller should be a box inside it, such as a listing under a
 caption that stays in view, the package theme moves the bound there under
@@ -396,7 +396,9 @@ moved since (`runtime/reading-place.js`). A widget that adds same-document histo
 entries adds them with `pushEntry(url)` and `replaceEntry(url)`, and places the page
 itself at Back or Forward to one of them by claiming that traversal with
 `claimTraversals(claim, {signal})`. Every other traversal returns the user to the offset
-the entry was left at (`runtime/history.js`).
+the entry was left at (`runtime/history.js`), unless the element the entry's fragment
+names is no longer shown: that one reaches the widget holding it shut as `lf-reveal`
+and lands on it, as a followed link to it does.
 
 A sticky box that covers the top of its scroller declares the room it takes with
 `declareCoverRoom(host, property, covers)`, which keeps `property` on `host` at the
@@ -661,8 +663,10 @@ The call returns the box's one seam onto its draft, and a box holds more than it
 `.value`: an image pasted into one is kept as Markdown and shown as a thumbnail beside
 the words, never in the field. So `sync.value()` reads the whole draft, `sync.load()`
 replaces it — a stored record, a draft arriving from another tab, the emptiness a send
-leaves — and `sync()` repaints the send button and placeholder around whatever stands.
-Write `.value` only to seed the box before wiring it.
+leaves — and `sync()` says the box's standing changed. The send button, placeholder, and
+whatever the widget's own `paint` option draws from the box repaint once, in the
+runtime's next standing paint, before that frame shows. Write `.value` only to seed the
+box before wiring it.
 
 ## User state
 

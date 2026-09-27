@@ -1,4 +1,4 @@
-"""Complete immutable inputs of one authored revision.
+"""Complete immutable inputs of one authored revision, and its one held reading.
 
 Logical resource URLs are rooted at the page (``/page/app.js``,
 ``/runtime/widget-api.js``). Page imports use literal, unescaped URL strings;
@@ -13,6 +13,11 @@ the inputs an already-open document cannot re-evaluate in place. The HTML
 revision file is the commit marker: the complete bundle is made durable before
 that file appears. Users never discover a staged or incomplete revision,
 including after a process crash.
+
+Every reader of a stored revision takes `read_revision`: one held reading per
+revision owning its manifest, captured vocabulary, parsed document, and passage
+readings. `read_artifact` materializes the complete bundle under a bound of its own;
+delivery parses the document it rewrites for serving, which is other text.
 """
 
 import hashlib
@@ -20,6 +25,7 @@ import json
 import os
 import posixpath
 import tempfile
+import threading
 from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import cached_property, lru_cache
@@ -33,7 +39,14 @@ import turbohtml
 from tinycss2.serializer import serialize_string_value
 from tree_sitter import Language, Parser
 
-from leaf.files import file_stamp, fsync_parents, list_revisions, revision_path
+from leaf.files import (
+    file_stamp,
+    fsync_parents,
+    latest_revision,
+    list_revisions,
+    revision_path,
+)
+from leaf.passages import SourceReading, enclosing_ids
 from leaf.schema import BROWSER_DIRS, CONTENT_TYPES, SERVED_PATH, VENDORED_FILES
 from leaf.structure import (
     EXTERNAL_ORIGINS,
@@ -511,7 +524,7 @@ def _capture_artifact(
     entries = []
     documents = [document]
     for authored in documents:
-        documents.extend(specimen["document"] for specimen in authored.specimens)
+        documents.extend(sample["document"] for sample in authored.samples)
         for script in authored.inline_scripts:
             for _, _, specifier in _javascript_imports(
                 script["body"].encode("utf-8"), "/index.html"
@@ -704,43 +717,124 @@ def read_artifact(page_dir: Path, revision: int) -> RevisionArtifact:
     )
 
 
-def read_manifest(page_dir: Path, revision: int) -> dict:
-    """One revision's manifest, without materializing the resources beside it.
+class RevisionReading(SourceReading):
+    """One stored revision, read once for every caller in the process.
 
-    ``read_artifact`` reads every captured byte of a revision, which is what a caller
-    serving one needs and what a caller reading a single manifest field pays for on a
-    cache miss. The active descriptor is that second caller, and it answers every state
-    read.
+    A revision's files never change after its HTML marker appears (`write_artifact`),
+    so everything read from it — the manifest, the captured vocabulary, the parsed
+    document, and the passage readings `SourceReading` derives under that vocabulary
+    — is one fact per revision, held here and keyed by the marker's stamp. Each piece
+    is read on first use, so a caller asking one revision for its registry opens one
+    file, and a caller asking every revision in a long history for its document and
+    registry opens two apiece. The source bytes are not kept beside the parse: the
+    document holds its own (`SourceDocument.data`).
+
+    The complete bundle is not held here. It is a couple of hundred files, several
+    megabytes, and a snapshot or a live shell asks for every revision's, so
+    `read_artifact` materializes it under its own small bound. What the bundle's
+    identity answers, its `digest`, is the manifest's and needs none of it.
+
+    `document` and `registry` are what `SourceReading` reads: here they are read from
+    the revision on first use rather than handed in, so this reading does not run
+    that initializer.
     """
-    bundle = revision_path(page_dir, revision).absolute().with_suffix("")
-    manifest_path = bundle / "manifest.json"
-    return _read_manifest_stamped(manifest_path, file_stamp(manifest_path))
+
+    def __init__(self, marker: Path):
+        self.marker = marker
+        self.bundle = marker.with_suffix("")
+
+    @cached_property
+    def document(self) -> SourceDocument:
+        # Bytes, not text: universal newlines would turn CRLF into LF, and
+        # `document.data` must be the captured bytes the digest and the
+        # unchanged-source check compare.
+        return SourceDocument(self.marker.read_bytes().decode("utf-8"))
+
+    @cached_property
+    def registry(self) -> dict:
+        """The captured vocabulary, shared read-only with every revision that
+        captured the same bytes (`_shared_registry`)."""
+        return _shared_registry(
+            (self.bundle / "resources" / "registry.json").read_bytes()
+        )
+
+    def under(self, registry: dict) -> SourceReading:
+        """This revision's document read under `registry`: this held reading where
+        that is the captured vocabulary itself, else a reading of its own. A caller
+        reading the active revision under the active vocabulary holds the same
+        object (`registry.storage.page_vocabulary`), so it shares these readings."""
+        if registry is self.registry:
+            return self
+        return SourceReading(self.document, registry)
+
+    @cached_property
+    def enclosing(self) -> dict:
+        """Where every id sits, read with no vocabulary (`enclosing_ids`): the answer
+        for a caller that must not depend on the captured registry, such as a
+        delivery or the Stop hook's thread fold."""
+        return enclosing_ids(self.document)
+
+    @cached_property
+    def manifest_bytes(self) -> bytes:
+        return (self.bundle / "manifest.json").read_bytes()
+
+    @cached_property
+    def manifest(self) -> dict:
+        return json.loads(self.manifest_bytes)
+
+    @cached_property
+    def digest(self) -> str:
+        """The captured artifact's identity, `RevisionArtifact.digest`."""
+        return _digest(self.manifest_bytes)
 
 
-@lru_cache(maxsize=8)
-def _read_manifest_stamped(manifest_path: Path, manifest_stamp: tuple | None) -> dict:
-    return json.loads(_read_stamped(manifest_path, manifest_stamp))
+# How much authored source the held readings may stand for. An entry's weight is
+# its document's parse, which scales with the source: the corpus example's 323 KB
+# parses to about 9 MB, and its passage and word readings add about 3 MB more.
+# So entries are charged their source size, whether or not their document has been
+# parsed yet, and this budget keeps resident parses to a few hundred megabytes.
+# A normal history fits whole: some 180 revisions of the largest shipped example
+# page (44 KB), about 700 of the median one (11 KB). A history past it re-parses
+# the revisions a whole-history scan (`validation.admission.version_ids`) reaches
+# after the budget is spent, which is the price of not holding every parse ever
+# made in a long-lived server.
+_READINGS_BUDGET = 8 * 1024 * 1024
+# revision marker → (its stamp, the reading), least recently read first. Endpoints
+# read from a thread pool, so every change to this map and its total is under the
+# lock.
+_readings: dict[Path, tuple[tuple, RevisionReading]] = {}
+_readings_bytes = 0
+_readings_lock = threading.Lock()
 
 
-def read_registry(page_dir: Path, revision: int) -> dict:
-    """One revision's captured vocabulary, without materializing the bundle beside it.
+def read_revision(page_dir: Path, revision: int) -> RevisionReading:
+    """The one held reading of an immutable revision."""
+    global _readings_bytes
+    marker = revision_path(page_dir, revision).absolute()
+    stamp = file_stamp(marker)
+    with _readings_lock:
+        held = _readings.pop(marker, None)
+        if held:
+            _readings_bytes -= held[0][2]
+        reading = held[1] if held and held[0] == stamp else RevisionReading(marker)
+        if stamp:
+            _readings[marker] = (stamp, reading)
+            _readings_bytes += stamp[2]
+            while _readings_bytes > _READINGS_BUDGET and len(_readings) > 1:
+                evicted_stamp, _evicted = _readings.pop(next(iter(_readings)))
+                _readings_bytes -= evicted_stamp[2]
+    return reading
 
-    Validation asks every document in a page's history what its own registry declared,
-    so a single state read consults one resource of every revision. ``read_artifact``
-    answers that by materializing the whole capture — a bundle holds a couple of
-    hundred files — and it retains only a handful of revisions, so a page with a longer
-    history re-reads all of it on every request. This reader opens one file per
-    revision instead.
-    """
-    bundle = revision_path(page_dir, revision).absolute().with_suffix("")
-    registry_path = bundle / "resources" / "registry.json"
-    return _read_registry_stamped(registry_path, file_stamp(registry_path))
 
+def active_enclosing(page_dir: Path) -> dict:
+    """Where every id sits on the page the user is looking at.
 
-@lru_cache(maxsize=512)
-def _read_registry_stamped(registry_path: Path, registry_stamp: tuple | None) -> dict:
-    """Hold one reading per revision, so a whole page history stays resident."""
-    return _shared_registry(registry_path.read_bytes())
+    The newest valid revision is the live page. A page with no valid revision has
+    nowhere for an element to sit."""
+    revision = latest_revision(page_dir)
+    if revision is None:
+        return {}
+    return read_revision(page_dir, revision).enclosing
 
 
 @lru_cache(maxsize=16)
@@ -749,9 +843,9 @@ def _shared_registry(data: bytes) -> dict:
 
     Revisions rewrite the authored page far more often than they re-vendor the layer,
     so a long history holds a handful of distinct registries. Keying the parse on the
-    exact captured bytes keeps what the reader above retains proportional to those
-    rather than to the revision count. A reading is shared, so it is read-only, on the
-    same terms as ``RevisionArtifact.registry``.
+    exact captured bytes keeps what the held revision readings retain proportional to
+    those rather than to the revision count. A reading is shared, so it is read-only,
+    on the same terms as ``RevisionArtifact.registry``.
     """
     return json.loads(data)
 

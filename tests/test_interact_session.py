@@ -50,6 +50,7 @@ from interact_support import (
     stamp,
     start_server_command,
     state_json,
+    take_stream_activity,
     vendored_by_another_leaf,
     wait_for,
     yaml_document,
@@ -89,27 +90,6 @@ from page_fixtures import package_selection_args
 from websockets.exceptions import ConnectionClosedError, WebSocketException
 from websockets.sync.server import serve as serve_websocket
 from websockets.sync.server import unix_serve as serve_unix_websocket
-
-
-def take_stream_activity(monkeypatch, updates: list, clears: list) -> None:
-    """Collect every activity reading a turn writes, instead of a page taking it.
-
-    Two bindings of the same two functions write them: a carrier calls them for the
-    connection it is opening or giving up on, and `leaf.codex` calls them for
-    everything the projection reads off the stream. A test that wants the readings,
-    or wants them to touch nothing, has to say so at both.
-    """
-    for module in (codex_model, codex_adapter_model):
-        monkeypatch.setattr(
-            module,
-            "set_stream_activity",
-            lambda session, turn, detail: updates.append((session, turn, detail)),
-        )
-        monkeypatch.setattr(
-            module,
-            "clear_stream_activity",
-            lambda session, turn=None: clears.append((session, turn)),
-        )
 
 
 def last_deliverable_seq(page_dir: Path) -> int:
@@ -1201,7 +1181,7 @@ def test_embedded_codex_delivery_keeps_steered_input_in_one_claim_turn(page_dir)
     assert claim["turn"] == first_turn
     assert activity["counts"]["handling"] == 2
     assert activity["counts"]["picked_up"] == 0
-    assert all(not item["dropped"] for item in interactions.values())
+    assert all(item["condition"] is None for item in interactions.values())
 
 
 def test_embedded_codex_delivery_retries_the_same_immutable_pointer(page_dir):
@@ -1490,6 +1470,10 @@ def codex_records(session_id: str) -> list[tuple[Path, dict]]:
     return [
         (path, files_model.read_json(path)) for path in sorted(directory.glob("*.json"))
     ]
+
+
+def adapter_log(session_id: str) -> str:
+    return codex_adapter_model.adapter_log_path(session_id).read_text(encoding="utf-8")
 
 
 def current_codex_record(session_id: str) -> tuple[Path, dict]:
@@ -1876,7 +1860,8 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
     only hooks that carry it do, and only while the turn is plausibly running. A
     Codex task's carrier is a process of its own, so its open turn with no adapter
     lease is nobody listening; and a Claude Code turn no Stop closed, as an
-    interrupted one, stops counting once the working grace has passed."""
+    interrupted one, stops counting once nothing in it has renewed it for the
+    working grace: its opening, or a status written during it."""
     now = datetime.now().astimezone()
     for page in (claimed, codex_claimed_page):
         files_model.write_json(
@@ -1925,19 +1910,26 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
         },
     )
     assert page_state(claimed)["activity"]["kind"] == "stalled"
-    files_model.write_json(
-        claimed / "status.json",
-        {"state": "waiting", "detail": "", "ts": now.isoformat(), "after": 0},
-    )
     claim = service_model.page_claim(claimed)
     opened = now - activity_model.WORKING_GRACE - timedelta(minutes=1)
     files_model.write_json(
         service_model.claim_path(claimed),
         {**claim, "turn_opened": opened.isoformat(timespec="seconds")},
     )
+    files_model.write_json(
+        claimed / "status.json",
+        {"state": "waiting", "detail": "", "ts": opened.isoformat(), "after": 0},
+    )
     stale = page_state(claimed)
     assert (stale["turn_takes_input"], stale["turn_closed"]) == (True, None)
     assert stale["activity"]["kind"] == "away"
+
+    # A status the turn writes renews it: the agent is there to have written it.
+    files_model.write_json(
+        claimed / "status.json",
+        {"state": "waiting", "detail": "", "ts": now.isoformat(), "after": 0},
+    )
+    assert page_state(claimed)["activity"]["kind"] == "listening"
 
     # A claim an older Leaf wrote, with no `turn_opened`, owes no belief either.
     files_model.write_json(
@@ -1989,7 +1981,6 @@ def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys)
         transaction.close_turn(claim["id"])
     ended = page_state(claimed)["activity"]
     assert ended["kind"] == "away"
-    assert ended["obligations"][0]["dropped"] is True
     assert ended["obligations"][0]["condition"] == {
         "kind": "ended",
         "operation": "work",
@@ -2042,6 +2033,199 @@ def test_quiet_exact_workflow_has_a_stale_work_condition(claimed):
     assert workflow["condition"] == {"kind": "stale", "operation": "work"}
 
 
+def _activity_at(page, minutes=0):
+    """The page's activity as the server would read it `minutes` from now."""
+    now = datetime.now().astimezone() + timedelta(minutes=minutes)
+    events = events_model.read_events(page)
+    return served_page.full_state(page, events, now_override=now.isoformat())[
+        "activity"
+    ]
+
+
+def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pid):
+    """Claude Code publishes each session's live status in its session registry,
+    dated by its last change: `idle` (or `shell`, with a background command) once no
+    turn runs, `waiting` while a turn holds a dialog open, `busy` otherwise. An
+    interrupt runs no Stop hook, so an `idle` newer than everything that renewed the
+    turn ends it at that moment, and a `waiting` newer than the turn's stamps is
+    a dialog open now. `busy` adds nothing: a background job's record keeps it
+    across turn endings. Without a word from the record the hook stamps answer,
+    believed
+    only while something renewed the turn within the working grace, so a delivered
+    move no Stop closed cannot read working forever."""
+    serving(claimed, 1)
+    registry = host_model.claude_code_sessions()
+    registry.mkdir(parents=True, exist_ok=True)
+
+    live = os.getpid()
+
+    def host_says(status, *, pid=live, ago=0):
+        files_model.write_json(
+            registry / f"{pid}.json",
+            {
+                "pid": pid,
+                "sessionId": "s1",
+                "status": status,
+                "statusUpdatedAt": int((time.time() - ago) * 1000),
+            },
+        )
+
+    session_model.cmd_status(claimed, "waiting", "Pick a layout")
+    comment = events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "Tighten the lede."}
+    )
+    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+    capsys.readouterr()
+
+    # The stamps answer, and nothing renews this turn past the grace; `busy`, and
+    # a record whose process is gone, change nothing.
+    host_says("busy")
+    host_says("waiting", pid=dead_pid)
+    assert _activity_at(claimed)["kind"] == "working"
+    unrenewed = _activity_at(claimed, 16)
+    assert unrenewed["counts"]["handling"] == 0
+    assert unrenewed["obligations"][0]["condition"] == {
+        "kind": "stale",
+        "operation": "work",
+    }
+
+    # A dialog in the terminal is observed work the page announces.
+    host_says("waiting")
+    waiting = _activity_at(claimed)
+    assert (waiting["kind"], waiting["observed_kind"]) == ("working", "awaiting_user")
+
+    # Escape: the turn ended with no Stop hook, and the move it held reads Turn
+    # ended at once.
+    host_says("idle")
+    assert service_model.page_claim(claimed)["turn_closed"] is None
+    assert _activity_at(claimed)["obligations"][0]["condition"] == {
+        "kind": "ended",
+        "operation": "work",
+    }
+
+    # The next prompt renews the turn the interrupt left open, and the move it
+    # holds is handled in it again.
+    host_says("busy")
+    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+    capsys.readouterr()
+    assert _activity_at(claimed)["counts"]["handling"] == 1
+
+    # A status the agent writes after that renews the turn, and work claimed in it
+    # stops being believed once the renewal grace has passed since the next
+    # interrupt.
+    host_says("idle", ago=5)
+    session_model.cmd_status(claimed, "working", "Cutting the lede", on=comment["id"])
+    assert _activity_at(claimed)["counts"]["active"] == 1
+    host_says("idle")
+    assert _activity_at(claimed)["kind"] == "working"
+    ended = _activity_at(claimed, 3)
+    assert (ended["kind"], ended["dropped"]) == ("away", True)
+    assert ended["obligations"][0]["condition"] == {
+        "kind": "stale",
+        "operation": "work",
+    }
+
+    # A status the host has no word on is no reading at all.
+    host_says("compacting")
+    assert host_model.ClaudeCodeHarness("s1", "Claude").live_turn() is None
+
+
+def test_away_asks_for_a_nudge_only_once_input_is_overdue(claimed, capsys):
+    """With nothing taking input, a comment that has only just arrived is the
+    session's next turn to take, and Leaf messages a Claude Code session as it
+    arrives. The page asks the user to nudge the agent only once an owed move has
+    stalled with the agent to act, which `counts.overdue` names: one still Sent
+    past the pickup grace, or one a turn picked up and ended without answering."""
+    serving(claimed, 1)
+    session_model.cmd_status(claimed, "waiting", "Pick a layout")
+
+    def turn_ends():
+        # The first Stop refuses to end the turn over the page's debts; the
+        # repeated one lets it end.
+        for repeated in (False, True):
+            hooks_model.cmd_hook(
+                {
+                    "hook_event_name": "Stop",
+                    "session_id": "s1",
+                    "stop_hook_active": repeated,
+                }
+            )
+        capsys.readouterr()
+
+    turn_ends()
+    assert _activity_at(claimed, 3)["kind"] == "away"
+    assert _activity_at(claimed, 3)["counts"]["overdue"] == 0
+
+    events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "Still there?"}
+    )
+    fresh, late = _activity_at(claimed), _activity_at(claimed, 3)
+    assert (fresh["kind"], fresh["counts"]["overdue"]) == ("away", 0)
+    assert (late["kind"], late["counts"]["overdue"]) == ("away", 1)
+
+    # Picked up by the next turn. A long, silent step past the working grace
+    # leaves nothing to say the turn ended, so it asks for no nudge; the turn
+    # ending without answering does.
+    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+    capsys.readouterr()
+    assert _activity_at(claimed)["counts"]["overdue"] == 0
+    assert _activity_at(claimed, 16)["counts"]["overdue"] == 0
+    turn_ends()
+    stranded = _activity_at(claimed)
+    assert (stranded["kind"], stranded["counts"]["overdue"]) == ("away", 1)
+
+
+def test_a_host_step_waiting_on_the_user_outlasts_the_working_grace():
+    """An App Server observer renews its step on every event, and a wait on the
+    user sends none until the user answers, so that step stands for as long as
+    its observer holds the lease. A turn that completed with no final answer
+    leaves the move it owed reading ended."""
+    now = datetime.now().astimezone()
+    old = (now - timedelta(minutes=30)).isoformat()
+    present = {
+        "status": {"state": "working", "ts": old, "detail": "Revising"},
+        "claims": [],
+        "listening": True,
+        "session_alive": True,
+        "live_turn": None,
+        "claim_session": "session-1",
+        "claim_turn": "turn-1",
+        "turn_opened": old,
+        "turn_closed": None,
+        "turn_takes_input": False,
+    }
+    stream = {"session": "session-1", "turn": "turn-1", "ts": old}
+    waiting = activity_model.canonical_activity(
+        present, [], now.isoformat(), {**stream, "kind": "awaiting_approval"}
+    )
+    assert (waiting["kind"], waiting["observed_kind"]) == (
+        "working",
+        "awaiting_approval",
+    )
+    thinking = activity_model.canonical_activity(
+        present, [], now.isoformat(), {**stream, "kind": "thinking"}
+    )
+    assert (thinking["kind"], thinking["observed_kind"]) == ("stalled", None)
+
+    workflow = {
+        "id": "input-1",
+        "input": "input-1",
+        "seq": 1,
+        "subject": {"kind": "thread", "id": "input-1"},
+        "answer": {"kind": "reply", "to": "input-1", "for": "input-1"},
+        "stage": "picked_up",
+        "ts": now.isoformat(),
+        "condition": None,
+        "next_actor": "agent",
+        "response": None,
+    }
+    reply = {"state": "partial", "session": "session-1", "responds": "input-1"}
+    [ended] = activity_model.canonical_activity(
+        present, [workflow], now.isoformat(), reply=reply
+    )["workflows"]
+    assert ended["condition"] == {"kind": "ended", "operation": "response"}
+
+
 def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
     now = datetime.now().astimezone()
     workflow = {
@@ -2067,7 +2251,6 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
         "turn_closed": None,
         "listening": True,
         "session_alive": True,
-        "unattended": False,
     }
     reply = {
         "state": "active",
@@ -6269,7 +6452,9 @@ def test_a_page_ask_that_settles_a_thread_carries_its_thread(page_dir, capsys):
             page_view_model.PageView(page_dir),
             events[-1],
             event_meaning_model.AdmissionReadings(
-                events, registry_storage.require_registry(page_dir)
+                page_view_model.PageView(page_dir),
+                events,
+                registry_storage.require_registry(page_dir),
             ),
         )
         is None
@@ -8951,20 +9136,15 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             page, {"kind": "comment", "author": "user", "text": "hello adapter"}
         )
         comments = [events_model.read_events(page)[-1]]
-        deadline = time.monotonic() + 10
-        while time.monotonic() < deadline:
-            if files_model.read_json(page / "cursor.json") == {"seq": 1}:
-                break
-            time.sleep(0.05)
-        else:
-            deliveries = codex_records("codex-thread")
-            log_text = codex_adapter_model.adapter_log_path("codex-thread").read_text(
-                encoding="utf-8"
-            )
-            pytest.fail(
+        wait_for(
+            lambda: files_model.read_json(page / "cursor.json"),
+            lambda cursor: cursor == {"seq": 1},
+            failure=lambda: (
                 "the adapter did not acknowledge its batch: "
-                f"deliveries={deliveries!r}; log={log_text!r}"
-            )
+                f"deliveries={codex_records('codex-thread')!r}; "
+                f"log={adapter_log('codex-thread')!r}"
+            ),
+        )
 
         hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
         assert capsys.readouterr().out == ""
@@ -9209,19 +9389,14 @@ def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
         assert status == 200, body
         comment = json.loads(body)["state"]["events"][-1]
 
-        deadline = time.monotonic() + 10
-        while time.monotonic() < deadline:
-            if files_model.read_json(live / "cursor.json") == {"seq": comment["seq"]}:
-                break
-            time.sleep(0.05)
-        else:
-            adapter_log = codex_adapter_model.adapter_log_path(
-                "codex-thread"
-            ).read_text(encoding="utf-8")
-            pytest.fail(
+        wait_for(
+            lambda: files_model.read_json(live / "cursor.json"),
+            lambda cursor: cursor == {"seq": comment["seq"]},
+            failure=lambda: (
                 "the browser comment did not reach the Codex queue: "
-                f"adapter_log={adapter_log!r}"
-            )
+                f"adapter_log={adapter_log('codex-thread')!r}"
+            ),
+        )
 
         calls = [json.loads(line) for line in log.read_text().splitlines()]
         [queued] = [call for call in calls if "--thread" in call]
@@ -9318,19 +9493,18 @@ def test_codex_adapter_exits_when_delivery_retries_outlive_its_claim(
         events_model.append_event(
             page, {"kind": "comment", "author": "user", "text": "hello adapter"}
         )
-        deadline = time.monotonic() + 10
-        while time.monotonic() < deadline:
-            queues = codex_records("codex-thread")
-            calls = (
-                [json.loads(line) for line in log.read_text().splitlines()]
-                if log.exists()
-                else []
-            )
-            if queues and queues[0][1]["state"] == "offering" and len(calls) > 1:
-                break
-            time.sleep(0.05)
-        else:
-            pytest.fail("the adapter did not reach its delivery retry")
+        wait_for(
+            lambda: (
+                codex_records("codex-thread"),
+                log.read_text().splitlines() if log.exists() else [],
+            ),
+            lambda reading: (
+                reading[0]
+                and reading[0][0][1]["state"] == "offering"
+                and len(reading[1]) > 1
+            ),
+            failure="the adapter did not reach its delivery retry",
+        )
 
         claim = service_model.page_claim(page)
         files_model.write_json(
@@ -11261,9 +11435,7 @@ def test_a_user_move_no_carrier_will_pick_up_messages_its_claude_code_session(
         assert messages("s1") is None
 
         # The next closed turn is messaged, whatever is still unacknowledged.
-        record_claim(
-            page_dir, turn="turn-2", turn_closed=closed, messaged_turn="turn-1"
-        )
+        record_claim(page_dir, turn="turn-2", turn_closed=closed)
         react("in the next closed turn")
         assert messages("s1") is not None
 
@@ -11278,6 +11450,50 @@ def test_a_user_move_no_carrier_will_pick_up_messages_its_claude_code_session(
         files_model.write_json(record_path, record)
         react("once it is back")
         assert messages("s1") is not None
+
+        # An interrupted turn runs no Stop hook, so only the session's own record
+        # says it ended. A turn nothing has renewed for longer than the working
+        # grace may still be running a long step, so it is not messaged; once the
+        # record reads idle the input is, once for that ending and again for the
+        # next interrupt under the same turn id.
+        live = os.getpid()
+        files_model.write_json(
+            config / "sessions" / f"{live}.k{live}.key", {"peerToken": "token-s1"}
+        )
+        opened = datetime.now().astimezone() - timedelta(minutes=20)
+        record_claim(page_dir, turn="turn-4", turn_opened=opened.isoformat())
+        files_model.write_json(
+            page_dir / "status.json",
+            {"state": "waiting", "detail": "", "ts": opened.isoformat(), "after": 0},
+        )
+        # `None` leaves the record as it stands: more input after the same ending.
+        # A `shell` flip is the same ending seen again; a new prompt renews the
+        # turn, and the interrupt after it is a new one.
+        for status, prompt, messaged in (
+            ("busy", False, False),
+            ("idle", False, True),
+            (None, False, False),
+            ("shell", False, False),
+            ("busy", True, False),
+            ("idle", False, True),
+        ):
+            if prompt:
+                time.sleep(1)
+                with service_model.PageTransaction(page_dir) as transaction:
+                    transaction.open_turn("s1")
+            if status is not None:
+                time.sleep(0.01)
+                files_model.write_json(
+                    record_path,
+                    {
+                        **record,
+                        "pid": live,
+                        "status": status,
+                        "statusUpdatedAt": int(time.time() * 1000),
+                    },
+                )
+            react(f"while the session's record reads {status}")
+            assert (messages("s1") is not None) is messaged, status
     finally:
         for listener in listeners.values():
             listener.close()
@@ -12482,7 +12698,7 @@ def test_a_prompt_reopens_the_acknowledged_move_it_carries_into_the_new_turn(
     assert activity["kind"] == "working"
     assert activity["obligations"][0]["stage"] == "picked_up"
     assert activity["obligations"][0]["delivery_turn"] == claim["turn"]
-    assert activity["obligations"][0]["dropped"] is False
+    assert activity["obligations"][0]["condition"] is None
 
 
 def test_wait_prints_a_reaction_token_and_ack_covers_it(page_dir, sessionless, capsys):

@@ -102,7 +102,7 @@ export function documentPoint(left, top) {
 // Written twice they disagreed twice, each copy right about one of the two things above
 // and wrong about the other.
 //
-// The element's own document answers, so a specimen can ask it of the containing page's
+// The element's own document answers, so a sample can ask it of the containing page's
 // boxes in that page's viewport coordinates.
 export function shownBand(el) {
   const doc = el.ownerDocument;
@@ -139,8 +139,7 @@ export function shownBand(el) {
 //
 // `visibleBand` is what the user can see through a scroller now: its shown band less
 // the covers stuck over an edge of it. A cover is a sticky box declared through
-// `declareCoverRoom` (below): the thread list's run headings, an `lf-diff` file header,
-// a root `lf-tabs` strip.
+// `declareCoverRoom` (below): an `lf-diff` file header, a root `lf-tabs` strip.
 // Stuck, it paints over the scroller's contents without clipping them, so a band that
 // ignored it would call what is under it shown. The clip walk below applies this band at
 // every ancestor, so `shownRect` and the readings built on it (read acknowledgement, the
@@ -148,7 +147,7 @@ export function shownBand(el) {
 // screen" the same way; the place a re-render holds asks it of its one scroller directly.
 //
 // A cover belongs to the scroller it sticks in, found by climbing out of shadow trees
-// as the clip walk does: a run heading inside the thread list is that list's, not the
+// as the clip walk does: a cover inside a nested scroller is that scroller's, not the
 // document's, though the document holds it too. And a cover does not hide itself or what
 // it holds, so the band a node inside one is read against (`item`) leaves that cover out.
 //
@@ -156,7 +155,6 @@ export function shownBand(el) {
 // `scroll-padding` the scroller declares, which is also what `scrollIntoView` honours.
 // It reserves room for the tallest cover wherever one might stick, so it is never wider
 // than the visible band a landing arrives in.
-export const PINNED = ".lf-pinned";
 const scrolls = (el) => {
   const { overflowX, overflowY } = getComputedStyle(el);
   return /auto|scroll|hidden/.test(`${overflowX} ${overflowY}`);

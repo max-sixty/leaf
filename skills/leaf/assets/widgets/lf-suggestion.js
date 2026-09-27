@@ -212,58 +212,57 @@ customElements.define(
       });
     }
 
-    #entries() {
+    // Which controls the suggestion offers now, as keys: the question a command row's
+    // `when` asks on every keyboard repaint, answered without building the entries, whose
+    // labels read the suggestion's words.
+    #offered() {
       const outcome = this.#outcome();
       if (outcome && !this.#failed) {
         const pending = Boolean(this.#staging || this.#deciding);
-        if (!pending && !this.#undoable(outcome)) return [];
-        return [
+        return pending || this.#undoable(outcome) ? ["undo"] : [];
+      }
+      if (this.#failed) return ["retry", "cancel-failure"];
+      return Object.keys(WORDS);
+    }
+
+    #entries() {
+      const outcome = this.#outcome();
+      const pending = Boolean(this.#staging || this.#deciding);
+      let words;
+      const change = () => (words ??= this.#label());
+      const failed = (key, icon, label, rank) =>
+        marginEntry({
+          key,
+          icon,
+          label,
+          rank,
+          state: "failed",
+          activation: key,
+          scope: this.#commandScope,
+        });
+      const entry = {
+        undo: () =>
           marginEntry({
             key: "undo",
             icon: "undo",
             label: "Undo",
-            accessibleLabel: `Undo ${outcome === "accept" ? "accepting" : "rejecting"} the suggested change: ${this.#label()}`,
+            accessibleLabel: `Undo ${outcome === "accept" ? "accepting" : "rejecting"} the suggested change: ${change()}`,
             rank: "primary",
             state: pending || this.#undoing ? "busy" : "idle",
             disabled: pending || this.#undoing,
             activation: "undo",
             scope: this.#commandScope,
           }),
-        ];
-      }
-
-      if (this.#failed) {
-        return [
-          marginEntry({
-            key: "retry",
-            icon: "retry",
-            label: "Retry",
-            rank: "complete",
-            state: "failed",
-            activation: "retry",
-            scope: this.#commandScope,
-          }),
-          marginEntry({
-            key: "cancel-failure",
-            icon: "cross",
-            label: "Cancel",
-            rank: "escape",
-            state: "failed",
-            activation: "cancel-failure",
-            scope: this.#commandScope,
-          }),
-        ];
-      }
-
-      const state = this.#deciding ? "busy" : "idle";
-      const change = this.#label();
-      return Object.keys(WORDS).map((kind) =>
+        retry: () => failed("retry", "retry", "Retry", "complete"),
+        "cancel-failure": () => failed("cancel-failure", "cross", "Cancel", "escape"),
+      };
+      const decision = (kind) =>
         marginEntry({
           key: kind,
           ...FACE[kind],
           label: WORDS[kind],
-          accessibleLabel: `${WORDS[kind]} the suggested change: ${change}`,
-          state,
+          accessibleLabel: `${WORDS[kind]} the suggested change: ${change()}`,
+          state: this.#deciding ? "busy" : "idle",
           disabled:
             this.#staging ||
             Boolean(this.#deciding) ||
@@ -271,8 +270,8 @@ customElements.define(
           activation: kind,
           className: `lf-sug-${kind}`,
           scope: this.#commandScope,
-        }),
-      );
+        });
+      return this.#offered().map((key) => (entry[key] ?? decision)(key));
     }
 
     #readMargin() {
@@ -350,7 +349,7 @@ customElements.define(
           decision: label,
           does: `${label} the suggested change`,
           line: label.toLowerCase(),
-          when: () => this.#entries().some((entry) => entry.key === key),
+          when: () => this.#offered().includes(key),
           run: () => this.#margin?.activate(key),
         })),
         {

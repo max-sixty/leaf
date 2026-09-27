@@ -48,11 +48,11 @@
         cursor: pointer;
       }
 
-      #bg-panel-specimen {
+      #bg-panel-sample {
         max-width: 30rem;
       }
 
-      #bg-panel-specimen .lf-specimen-frame {
+      #bg-panel-sample .lf-sample-frame {
         min-height: 40rem;
       }
 
@@ -310,9 +310,9 @@
       }
     </style>
     <script type="module">
-      await customElements.whenDefined("lf-specimen");
+      await customElements.whenDefined("lf-sample");
 
-      const specimen = document.querySelector("#bg-panel-specimen");
+      const sample = document.querySelector("#bg-panel-sample");
       let selected = null;
       let selectionVersion = 0;
       const pendingPaints = new Set();
@@ -338,9 +338,9 @@
         });
       }
 
-      async function showPanelView(view, version, ready = specimen.ready) {
+      async function showPanelView(view, version, ready = sample.ready) {
         const child = await ready;
-        if (!specimen.isConnected || version !== selectionVersion) return;
+        if (!sample.isConnected || version !== selectionVersion) return;
         const panel = child.querySelector(".lf-thread-panel");
         if (!panel.open) child.querySelector(".lf-threads-toggle").click();
         child.querySelector(".lf-thread-filter-reset")?.click();
@@ -381,7 +381,7 @@
           row.getBoundingClientRect().top - list.getBoundingClientRect().top;
       }
 
-      function selectPanelView(view, ready = specimen.ready) {
+      function selectPanelView(view, ready = sample.ready) {
         selected = view;
         for (const finish of pendingPaints) finish();
         void showPanelView(view, ++selectionVersion, ready);
@@ -390,9 +390,9 @@
       for (const button of document.querySelectorAll("#bg-panel-presets button")) {
         button.addEventListener("click", () => selectPanelView(button.dataset.view));
       }
-      specimen.addEventListener("click", (event) => {
-        if (!selected || !event.target.closest(".lf-specimen-controls button")) return;
-        queueMicrotask(() => selectPanelView(selected, specimen.ready));
+      sample.addEventListener("click", (event) => {
+        if (!selected || !event.target.closest(".lf-sample-controls button")) return;
+        queueMicrotask(() => selectPanelView(selected, sample.ready));
       });
     </script>
   </head>
@@ -408,7 +408,7 @@
       </aside>
       <p id="bg-start">
         Choose a view below. Its contents spine and Page Map lead to each feature; the
-        eyebrow above a specimen names the <code>lf-*</code> elements it exercises.
+        eyebrow above a sample names the <code>lf-*</code> elements it exercises.
       </p>
 
       <lf-tabs id="bg-gallery-tabs">
@@ -586,7 +586,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                 ><span class="bg-feature-detail">: approve a version</span>
               </h3>
               <p id="bg-signoff-guide">
-                This gallery deliberately leaves specimen Asks unanswered, so
+                This gallery deliberately leaves sample Asks unanswered, so
                 <strong>Approve version</strong> remains unavailable. On a settled page
                 it records approval for the current version; <kbd>z</kbd> takes that
                 approval back.
@@ -657,11 +657,11 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               <button type="button" data-view="resolved">Resolved</button>
               <button type="button" data-view="summary">Long discussion</button>
             </div>
-            <lf-specimen id="bg-panel-specimen" label="workshop threads">
+            <lf-sample id="bg-panel-sample" label="workshop threads">
               <template
-                id="bg-panel-specimen-page"
-                data-specimen
-                data-specimen-threads="72e031c5bf0d485ba9054628e09869d4 2be2443f0bb6cc49fc86b52f340e6073 bab3cdfcfb8c02aacbb27da731de947a 9ee465bb3f9c1fa309ea9cb1767fa365"
+                id="bg-panel-sample-page"
+                data-sample
+                data-sample-threads="72e031c5bf0d485ba9054628e09869d4 2be2443f0bb6cc49fc86b52f340e6073 bab3cdfcfb8c02aacbb27da731de947a 9ee465bb3f9c1fa309ea9cb1767fa365"
               >
                 <h1>Workshop agenda</h1>
                 <p id="bg-thread-pending">
@@ -681,7 +681,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                   keeps its earlier decisions in a summary.
                 </p>
               </template>
-            </lf-specimen>
+            </lf-sample>
           </section>
 
           <section id="bg-threads">
@@ -755,8 +755,9 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                   <p class="eyebrow">Before · title pending</p>
                   <p id="bg-thread-pending">
                     <strong>A title still pending.</strong> The workshop schedule leaves
-                    lunch open. Open Threads to view it. Its title shows three pulsing
-                    dots in its row until the agent gives the thread a short name.
+                    lunch open. Open Threads to view it. Its row reads Generating title,
+                    muted and followed by pulsing dots, until the agent gives the thread
+                    a short name.
                   </p>
                 </section>
                 <section id="bg-thread-title-after">
@@ -870,14 +871,14 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               icon-or-glyph choice, a related-reading count, and the transient label
               with its quieter context. User interaction compares rest, hover or
               keyboard focus, an open disclosure, and a selected page reading. Hover and
-              Tab onto the live specimens to exercise their real feedback. The
-              projection specimen stands at this exhibit's margin; open Page Map to see
-              that same contributed control as a full labeled row. Reload to see the
-              one-time pulse as Working arrives. A control dims only while its user
-              action is waiting for the log to confirm it.
+              Tab onto the live samples to exercise their real feedback. The projection
+              sample stands at this exhibit's margin; open Page Map to see that same
+              contributed control as a full labeled row. Reload to see the one-time
+              pulse as Working arrives. A control dims only while its user action is
+              waiting for the log to confirm it.
             </p>
             <lf-margin-entry-gallery
-              id="bg-margin-controls-specimens"
+              id="bg-margin-controls-samples"
             ></lf-margin-entry-gallery>
             <h3>
               <strong>Margin entry lifecycle</strong
@@ -899,7 +900,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               >
             </p>
             <p id="bg-button-accepted-line">
-              <strong>Already settled.</strong> This second specimen arrives with an
+              <strong>Already settled.</strong> This second sample arrives with an
               accepted decision in its history:
               <lf-suggestion id="bg-button-accepted"
                 ><lf-old>meet outside.</lf-old
@@ -939,7 +940,8 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               no longer holds the rail, about 960px, and every marker becomes a pin.
               Press <kbd>o</kbd> to hide what is drawn over the page, the pins and the
               passage marks; the rail stays, and nothing on the page moves. Press it
-              again to bring them back.
+              again to bring them back. On a touch screen, open More page controls and
+              choose Hide annotations, then Show annotations.
             </p>
             <figure id="bg-margin-layer-figure" data-width="available">
               <table id="bg-margin-layer-table">
@@ -1288,7 +1290,7 @@ gallery/
                 ><span class="bg-feature-detail">: saved panel selection</span>
               </h3>
               <p id="bg-tabs-guide">
-                This embedded specimen is a framed tabbed section. The browser test also
+                This embedded sample is a framed tabbed section. The browser test also
                 presents this same tab set at the root of a page, where it becomes
                 borderless top navigation for page-scale views. Both forms remember the
                 selected panel after reload. At page level, scroll a view and switch
@@ -1417,50 +1419,50 @@ gallery/
 
             <section id="bg-quoted-and-visual">
               <p class="eyebrow bg-feature-elements">
-                lf-specimen · lf-shot · lf-options · lf-option
+                lf-sample · lf-shot · lf-options · lf-option
               </p>
               <h3>
-                <strong>Specimen</strong> and <strong>Shot</strong
+                <strong>Sample</strong> and <strong>Shot</strong
                 ><span class="bg-feature-detail"
                   >: fiction and before/after images</span
                 >
               </h3>
-              <lf-specimen id="bg-specimen" label="an inert multiple-pick decision">
-                <lf-options id="bg-specimen-options" choose multiple>
-                  <lf-option id="bg-specimen-paper">
+              <lf-sample id="bg-sample" label="an inert multiple-pick decision">
+                <lf-options id="bg-sample-options" choose multiple>
+                  <lf-option id="bg-sample-paper">
                     <strong>Paper signs</strong> Nothing to charge.
                   </lf-option>
-                  <lf-option id="bg-specimen-screen">
+                  <lf-option id="bg-sample-screen">
                     <strong>Display signs</strong> Easy to update.
                   </lf-option>
                 </lf-options>
-              </lf-specimen>
+              </lf-sample>
               <section id="bg-live-practice">
-                <h3>Live specimen</h3>
-                <p id="bg-live-specimen-guide">
+                <h3>Live sample</h3>
+                <p id="bg-live-sample-guide">
                   Enter the practice page, accept its suggestion, and add a comment. Its
                   decisions and Threads belong to that page alone. Close any open
                   controls and press Escape to return here; Reset clears the practice
                   page.
                 </p>
-                <lf-specimen id="bg-live-specimen" label="practice release note">
-                  <template id="bg-live-specimen-page" data-specimen>
+                <lf-sample id="bg-live-sample" label="practice release note">
+                  <template id="bg-live-sample-page" data-sample>
                     <p class="eyebrow">practice page</p>
                     <h1>Weekend train service</h1>
-                    <p id="bg-live-specimen-copy">
+                    <p id="bg-live-sample-copy">
                       The sample timetable now
-                      <lf-suggestion id="bg-live-specimen-suggestion"
+                      <lf-suggestion id="bg-live-sample-suggestion"
                         ><lf-old>sometimes includes</lf-old
                         ><lf-new>includes</lf-new></lf-suggestion
                       >
                       the evening shuttle.
                     </p>
                   </template>
-                </lf-specimen>
+                </lf-sample>
               </section>
               <p id="bg-shot-guide">
-                Specimen labels invented content. Choose Before or After above the
-                image, or press the Shot control or image to flip.
+                Sample labels invented content. Choose Before or After above the image,
+                or press the Shot control or image to flip.
               </p>
               <lf-shot
                 id="bg-shot"
@@ -1723,7 +1725,7 @@ switch --readers checkout-api,orders-api</code></pre>
             <lf-tabs id="bg-interaction-tabs">
               <lf-tab id="bg-interaction-accept" label="Accept a suggestion">
                 <figure class="interaction-demo" data-interaction-demo="accept">
-                  <template id="bg-motion-accept-page" data-specimen>
+                  <template id="bg-motion-accept-page" data-sample>
                     <p class="eyebrow">proposed release note</p>
                     <p id="bg-motion-accept-copy">
                       The importer now
@@ -1756,7 +1758,7 @@ switch --readers checkout-api,orders-api</code></pre>
 
               <lf-tab id="bg-interaction-move" label="Move a card">
                 <figure class="interaction-demo" data-interaction-demo="move-card">
-                  <template id="bg-motion-board-page" data-specimen>
+                  <template id="bg-motion-board-page" data-sample>
                     <p class="eyebrow">migration checklist</p>
                     <h1>Schema migration</h1>
                     <lf-board id="bg-motion-board">
@@ -1796,8 +1798,8 @@ switch --readers checkout-api,orders-api</code></pre>
                 >
                   <template
                     id="bg-motion-comment-page"
-                    data-specimen
-                    data-specimen-threads="2be2443f0bb6cc49fc86b52f340e6073"
+                    data-sample
+                    data-sample-threads="2be2443f0bb6cc49fc86b52f340e6073"
                   >
                     <p class="eyebrow">review note</p>
                     <h1>Agenda draft</h1>
@@ -1833,8 +1835,8 @@ switch --readers checkout-api,orders-api</code></pre>
                 <figure class="interaction-demo" data-interaction-demo="open-threads">
                   <template
                     id="bg-motion-threads-page"
-                    data-specimen
-                    data-specimen-threads="2be2443f0bb6cc49fc86b52f340e6073"
+                    data-sample
+                    data-sample-threads="2be2443f0bb6cc49fc86b52f340e6073"
                   >
                     <p class="eyebrow">review workspace</p>
                     <h1>Release notes</h1>

@@ -8,9 +8,9 @@ from leaf.data import read_contracts
 from leaf.data_contracts import data_binding_errors
 from leaf.files import list_revisions
 from leaf.registry.storage import require_registry
-from leaf.revision_artifact import read_registry
+from leaf.revision_artifact import read_revision
 from leaf.schema import MESSAGE_KINDS, THREAD_ANSWER_KINDS
-from leaf.structure import SourceDocument, parse_revision
+from leaf.structure import SourceDocument
 from leaf.thread_context import thread_names, thread_structure
 
 from .instances import reference_errors, thread_markup_contract_errors
@@ -129,7 +129,7 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
 def version_ids(page_dir: Path) -> set:
     ids = set()
     for revision in list_revisions(page_dir):
-        ids |= parse_revision(page_dir, revision).ids
+        ids |= read_revision(page_dir, revision).document.ids
     return ids
 
 
@@ -146,7 +146,7 @@ def pinned_thread_markup_errors(page_dir: Path, fragment: SourceDocument) -> lis
     failures: dict[str, list[int]] = {}
     revisions = list_revisions(page_dir)
     for revision in revisions[:-1]:
-        registry = read_registry(page_dir, revision)
+        registry = read_revision(page_dir, revision).registry
         for error in thread_markup_contract_errors(fragment, registry):
             failures.setdefault(error, []).append(revision)
     return [
@@ -220,7 +220,9 @@ def check_markup(
     revisions = list_revisions(page_dir)
     if page is None:
         page = (
-            parse_revision(page_dir, revisions[-1]) if revisions else SourceDocument("")
+            read_revision(page_dir, revisions[-1]).document
+            if revisions
+            else SourceDocument("")
         )
     clash = sorted(frag.ids & (version_ids(page_dir) | page.ids | thread.ids))
     if clash:

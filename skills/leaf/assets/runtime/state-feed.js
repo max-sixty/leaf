@@ -16,7 +16,7 @@
 import { countTraffic } from "./traffic.js";
 import { activityTransitionDue, tickClock } from "./presence.js";
 import {
-  passiveSpecimen,
+  passiveSample,
   offlineInteractive,
   offlineState,
   pageUrl,
@@ -382,11 +382,11 @@ export function createStateFeed({
     const initialPresentation = readAndPresent();
     if (offlineInteractive) return;
     initialPresentation.finally(() => {
-      // A contained page is a fixed specimen controlled by its parent gallery. It needs
+      // A contained page is a fixed sample controlled by its parent gallery. It needs
       // the first reading to render production chrome, but another news stream and
       // heartbeat would duplicate the outer page's connection for a picture that cannot
       // accept user input or durable updates.
-      if (passiveSpecimen) {
+      if (passiveSample) {
         const retry = () => {
           if (document.body.hasAttribute("data-lf-presented")) return;
           if (!readAnswered) void ask();

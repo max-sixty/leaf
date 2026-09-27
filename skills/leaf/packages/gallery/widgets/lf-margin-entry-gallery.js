@@ -16,7 +16,7 @@ const GROUPS = [
   {
     heading: "Rank and behavior",
     summary: "Every action and disclosure rank · every tone",
-    specimens: [
+    samples: [
       {
         name: "Save",
         detail: "complete · positive action",
@@ -70,7 +70,7 @@ const GROUPS = [
   {
     heading: "Agent workflow",
     summary: "Awaiting agent · picked up · working · awaiting continuation",
-    specimens: [
+    samples: [
       {
         name: "Sent",
         detail: "recorded · awaiting agent",
@@ -135,7 +135,7 @@ const GROUPS = [
   {
     heading: "Face anatomy",
     summary: "Icon or glyph · count badge · transient label and context",
-    specimens: [
+    samples: [
       {
         name: "Glyph face",
         detail: "author-supplied glyph",
@@ -167,7 +167,7 @@ const GROUPS = [
   {
     heading: "User interaction",
     summary: "Resting · hover or focus · open · selected",
-    specimens: [
+    samples: [
       {
         name: "Resting",
         detail: "neutral disclosure",
@@ -215,19 +215,19 @@ function generated(tag, className, words = null) {
   return node;
 }
 
-function specimenNode(specimen, groupIndex, specimenIndex) {
+function sampleNode(sample, groupIndex, sampleIndex) {
   const item = generated("div", "margin-entry-gallery-item");
-  item.dataset.marginEntrySpecimen = specimen.name.toLowerCase();
-  const behavior = specimen.behavior ?? "action";
-  const key = `gallery-${groupIndex}-${specimenIndex}`;
+  item.dataset.marginEntrySample = sample.name.toLowerCase();
+  const behavior = sample.behavior ?? "action";
+  const key = `gallery-${groupIndex}-${sampleIndex}`;
   const control = offer(
     behavior === "status" ? "span" : "button",
     "margin-entry-gallery-face",
   );
-  let expanded = Boolean(specimen.expanded);
+  let expanded = Boolean(sample.expanded);
   let disclosure = null;
-  if (specimen.interactive) {
-    disclosure = generated("span", "margin-entry-gallery-disclosure", specimen.reveals);
+  if (sample.interactive) {
+    disclosure = generated("span", "margin-entry-gallery-disclosure", sample.reveals);
     disclosure.id = `${key}-disclosure`;
   }
   const paint = () => {
@@ -236,30 +236,30 @@ function specimenNode(specimen, groupIndex, specimenIndex) {
       control,
       marginEntry({
         key,
-        label: specimen.name,
-        ...(specimen.icon ? { icon: specimen.icon } : { glyph: specimen.glyph }),
-        context: specimen.context,
+        label: sample.name,
+        ...(sample.icon ? { icon: sample.icon } : { glyph: sample.glyph }),
+        context: sample.context,
         behavior,
-        tone: specimen.tone ?? "neutral",
-        rank: specimen.rank ?? "primary",
-        state: specimen.state ?? "idle",
-        count: specimen.count ?? 1,
-        disabled: !specimen.interactive,
-        workflowReceipt: specimen.workflowStage
+        tone: sample.tone ?? "neutral",
+        rank: sample.rank ?? "primary",
+        state: sample.state ?? "idle",
+        count: sample.count ?? 1,
+        disabled: !sample.interactive,
+        workflowReceipt: sample.workflowStage
           ? {
               id: key,
               subject: { kind: "widget", id: key },
-              stage: specimen.workflowStage,
+              stage: sample.workflowStage,
               detail: "",
             }
           : null,
         relation: disclosure ? { kind: "element", id: disclosure.id, expanded } : null,
       }),
-      { selected: specimen.selected ?? false },
+      { selected: sample.selected ?? false },
     );
   };
   paint();
-  if (specimen.showLabel) control.dataset.marginEntryLabelLive = "";
+  if (sample.showLabel) control.dataset.marginEntryLabelLive = "";
   if (disclosure) {
     control.addEventListener("click", () => {
       expanded = !expanded;
@@ -269,8 +269,8 @@ function specimenNode(specimen, groupIndex, specimenIndex) {
 
   const copy = generated("span", "margin-entry-gallery-copy");
   copy.append(
-    generated("span", "margin-entry-gallery-name", specimen.name),
-    generated("span", "margin-entry-gallery-detail", specimen.detail),
+    generated("span", "margin-entry-gallery-name", sample.name),
+    generated("span", "margin-entry-gallery-detail", sample.detail),
   );
   item.append(control, copy, ...(disclosure ? [disclosure] : []));
   return item;
@@ -285,8 +285,8 @@ function groupNode(group, groupIndex) {
   );
   const items = generated("div", "margin-entry-gallery-items");
   items.append(
-    ...group.specimens.map((specimen, specimenIndex) =>
-      specimenNode(specimen, groupIndex, specimenIndex),
+    ...group.samples.map((sample, sampleIndex) =>
+      sampleNode(sample, groupIndex, sampleIndex),
     ),
   );
   row.append(introduction, items);

@@ -14,6 +14,7 @@ from .files import (
     revision_path,
     version_descriptors,
 )
+from .passages import SourceReading
 from .presence import other_leaves, presence_fingerprint, presence_with_activity
 from .registry.storage import read_page_registry
 from .revision_artifact import (
@@ -21,6 +22,7 @@ from .revision_artifact import (
     artifact_name,
     capture_artifact,
     read_artifact,
+    read_revision,
 )
 from .service import PageTransaction
 from .structure import SourceDocument
@@ -28,7 +30,11 @@ from .structure import SourceDocument
 
 @dataclass(frozen=True, slots=True)
 class PageSnapshot:
-    """The exact page facts an ephemeral browser server may expose."""
+    """The exact page facts an ephemeral browser server may expose.
+
+    Everything it serves is read at capture: each revision's reading has its
+    document and registry in hand, so a later request reads nothing from the page
+    directory for them."""
 
     document: SourceDocument
     active: dict
@@ -39,7 +45,8 @@ class PageSnapshot:
     browser_data: dict
     versions: tuple[dict, ...]
     artifacts: dict[int, RevisionArtifact]
-    documents: dict[int, SourceDocument]
+    # Each revision's document under the registry its artifact captured.
+    readings: dict[int, SourceReading]
     revision_names: dict[int, str]
     presence: dict
     live_stream: dict | None
@@ -85,10 +92,18 @@ def capture_page_snapshot(
         registry = copy.deepcopy(selected.registry)
         data = read_data(page_dir, registry)
         layer = copy.deepcopy(registry["$layer"])
-        documents = {
-            revision: SourceDocument(artifact.html.decode("utf-8"))
-            for revision, artifact in artifacts.items()
+        # Stored revisions take their held readings; a candidate the snapshot
+        # captured is the checked document under its capture's vocabulary.
+        readings = {
+            revision: read_revision(page_dir, revision) for revision in revisions
         }
+        shown = readings.get(active["revision"])
+        if shown is None or shown.digest != selected.digest:
+            readings[active["revision"]] = SourceReading(document, selected.registry)
+        # Read inside the transaction, so a snapshot serves what it froze even if
+        # the page directory later moves or goes away.
+        for reading in readings.values():
+            _ = (reading.document, reading.registry)
         revision_names = {
             revision: revision_path(page_dir, revision).name for revision in revisions
         }
@@ -121,13 +136,7 @@ def capture_page_snapshot(
             )
         ).encode()
     ).hexdigest()[:16]
-    reading = (
-        files_reading
-        + "."
-        + presence_fingerprint(
-            present["listening"], present["session_alive"], list(others)
-        )
-    )
+    reading = files_reading + "." + presence_fingerprint(present, list(others))
     return PageSnapshot(
         document=document,
         active=snapshot_active,
@@ -138,7 +147,7 @@ def capture_page_snapshot(
         browser_data=browser_data,
         versions=versions,
         artifacts=artifacts,
-        documents=documents,
+        readings=readings,
         revision_names=revision_names,
         presence=copy.deepcopy(present),
         live_stream=copy.deepcopy(live_stream),

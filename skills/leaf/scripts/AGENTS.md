@@ -12,7 +12,8 @@ subpackage's initializer is only a marker, never a second API.
 ## Owners
 
 - `files`, `revisioning`, `revision_artifact`, `revision_delivery`: atomic page
-  files, immutable revisions, their captured inputs, and delivery URLs;
+  files, immutable revisions, their captured inputs and held readings, and delivery
+  URLs;
 - `locations`: filesystem path identity, containment, and overlap;
 - `page`: vendored page guidance;
 - `event_log`: append-only JSONL storage, locking, and attempt identity;
@@ -46,7 +47,7 @@ subpackage's initializer is only a marker, never a second API.
   `release_lease`, page claims and serialized transactions, server state, HTTP
   servers, and detached starts;
 - `presence`: page, claim, and neighboring-leaf presence;
-- `specimens`: disposable child pages built from captured templates;
+- `samples`: disposable child pages built from captured templates;
 - `http`: HTTP transport;
 - `layer`, `packages`, `vendoring`: package discovery and composition, package
   authoring gates, and page init and layer transitions;

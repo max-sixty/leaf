@@ -117,7 +117,7 @@ import {
   holdFocus,
   letGo,
 } from "./focus.js";
-import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
+import { el, keeps, keepsHidden, keepsText, offer } from "./widget-elements.js";
 import { setChildren } from "./dom-children.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
@@ -159,7 +159,14 @@ import { anchorLabel } from "./thread/messages.js";
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
 import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
-import { bannerControlDoor } from "./banner-shelf.js";
+import {
+  BANNER_CONTROL_RANK,
+  bannerControlDoor,
+  dismissBannerControls,
+  registerBannerControl,
+  showBannerControl,
+} from "./banner-shelf.js";
+import { coarsePointer } from "./pointer.js";
 import { threadCardGeometry } from "./thread-card-geometry.js";
 import { shownWindow } from "./geometry.js";
 import { placeKeeper } from "./user-place.js";
@@ -176,6 +183,22 @@ import { retainUserIntent } from "./user-intent.js";
 
 // A margin card's reply box.
 const REPLY_BOX = `.lf-say ${TEXT_FIELD}`;
+
+// A pin covers the corner of its block, and `o`, which clears it, has no key under a
+// finger. Wherever the pointer is coarse, More holds the same toggle.
+const annotationsButton = el("button", "lf-btn lf-annotations-toggle");
+annotationsButton.type = "button";
+registerBannerControl({
+  key: "annotations",
+  control: annotationsButton,
+  rank: BANNER_CONTROL_RANK.annotations,
+  present: coarsePointer.matches,
+});
+const paintAnnotationsButton = () =>
+  keepsText(
+    annotationsButton,
+    annotationsHidden() ? "Show annotations" : "Hide annotations",
+  );
 
 export function createMarginProjection({
   panel,
@@ -785,6 +808,8 @@ export function createMarginProjection({
     );
   }
 
+  // A receipt's face is its category's icon and rank under the receipt's own label,
+  // so one reading of a receipt never names a different stage than its text does.
   function agentWorkflowFace(receipt) {
     if (!receipt) return null;
     const label = workflowLabel(receipt);
@@ -797,7 +822,9 @@ export function createMarginProjection({
             ? "activity"
             : receipt.stage === "picked_up"
               ? "pickup"
-              : "sent",
+              : receipt.stage === "queued"
+                ? "queued"
+                : "sent",
       text: label,
       context: [receipt.ts ? ago(receipt.ts) : "", receipt.detail]
         .filter(Boolean)
@@ -927,7 +954,7 @@ export function createMarginProjection({
         kind: face.kind,
         id: `acknowledgment:${receipt.id}`,
         text: labelWords(`${face.text} · ${account}`),
-        workflowFace: KINDS[face.kind],
+        workflowFace: Object.freeze({ ...KINDS[face.kind], label: face.text }),
         workflowReceipt: receipt,
         ...(face.context ? { context: face.context } : {}),
         activate: () =>
@@ -980,15 +1007,8 @@ export function createMarginProjection({
           update.target.kind === "thread"
             ? placedAt(update.target.id)?.element
             : elementById(update.target.id);
-        const quiet =
-          claimActivity.get(`${update.target.kind}:${update.target.id}`)?.quiet ??
-          false;
         const age = ago(update.ts);
-        const account = [
-          update.agent,
-          update.text || humanized(update.action),
-          quiet ? `Was working ${age}` : null,
-        ]
+        const account = [update.agent, update.text || humanized(update.action)]
           .filter(Boolean)
           .join(" · ");
         add(groups, target, {
@@ -1382,7 +1402,18 @@ export function createMarginProjection({
     },
     { capture: true },
   );
+  function toggleAnnotations() {
+    setAnnotationsHidden(!annotationsHidden());
+    notice(
+      !annotationsHidden()
+        ? "Annotations shown"
+        : coarsePointer.matches
+          ? "Annotations hidden"
+          : "Annotations hidden. o shows them",
+    );
+  }
   watchAnnotations((hidden) => {
+    paintAnnotationsButton();
     if (hidden) {
       const holding = closestAcross(document.activeElement, ".lf-margin-cluster");
       if (holding?.dataset.lfPlace === "pin" && holding.lfTarget?.isConnected)
@@ -1400,12 +1431,7 @@ export function createMarginProjection({
     keys: ["o"],
     does: "Hide or show the annotations drawn over the page",
     line: () => (annotationsHidden() ? "show annotations" : "hide annotations"),
-    run: () => {
-      setAnnotationsHidden(!annotationsHidden());
-      notice(
-        annotationsHidden() ? "Annotations hidden. o shows them" : "Annotations shown",
-      );
-    },
+    run: toggleAnnotations,
   });
 
   let marginKeysAvailable = false;
@@ -1739,9 +1765,9 @@ export function createMarginProjection({
   // empty: every cluster folds to nothing, and what has been written down is the medium
   // rather than the page. Nobody sees it on the dialog, where the margin does not print
   // at all, but the fold outlives the print preview and stands on screen until the next
-  // render repairs it. It is the panel's head-room rule on the other surface that
-  // measures: a reading taken where the box is `display: none` is not a measurement. So
-  // a render asked for on paper is refused whole and taken once the screen is back.
+  // render repairs it. A reading taken where the box is `display: none` is not a
+  // measurement, so a render asked for on paper is refused whole and taken once the
+  // screen is back.
   const onPaper = matchMedia("print");
 
   function renderNow() {
@@ -2545,7 +2571,13 @@ export function createMarginProjection({
     [
       ...document.querySelectorAll(`.lf-page-thread[data-thread="${CSS.escape(id)}"]`),
     ].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
-  // The innermost target holding the node whose threads the card would show.
+  // The innermost target holding the node whose threads the card would show. A thread is
+  // about exactly its anchor's target (glossary, Standing target), reached from anywhere
+  // inside it and never from outside: after `a` the user stands on the Ask element, so
+  // the card shows a thread on the Ask but not one on its options or a phrase in its
+  // heading. Treating an Ask as one target for its threads is a possible refinement. It
+  // belongs where a thread's target is decided (anchor-paint's placement), so every
+  // reader keeps one definition, not in this or any other single reader.
   const threadEntryAt = (node) => {
     let standing = null;
     for (const entry of pageInventory) {
@@ -2721,6 +2753,16 @@ export function createMarginProjection({
 
   function mount() {
     mountMarginLayer(toolbar);
+    paintAnnotationsButton();
+    coarsePointer.addEventListener("change", () => {
+      showBannerControl(annotationsButton, coarsePointer.matches);
+      repaint();
+    });
+    annotationsButton.addEventListener("click", () => {
+      dismissBannerControls();
+      bannerControlDoor(annotationsButton)?.focus({ preventScroll: true });
+      toggleAnnotations();
+    });
     onPaper.addEventListener("change", () => {
       if (!onPaper.matches) renderMargin.refresh();
     });

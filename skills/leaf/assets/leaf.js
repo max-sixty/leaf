@@ -4,7 +4,7 @@ import "./runtime/interaction-log.js";
 // Restored panels and the first keyboard gesture share the ordinary synchronous
 // control routes, so their controls must be upgraded before those routes mount.
 import "./vendor/webawesome-chrome.js";
-import { passiveSpecimen, offlineInteractive, runtime } from "./runtime/context.js";
+import { passiveSample, offlineInteractive, runtime } from "./runtime/context.js";
 import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot } from "./runtime/chrome.js";
 import { readingBlock } from "./runtime/reading-place.js";
@@ -536,7 +536,6 @@ selectionComposer = createSelectionComposer({
   beginFabFocus: (...args) => responseSurface.beginFabFocus(...args),
   endFabFocus: (...args) => responseSurface.endFabFocus(...args),
   landFabFocus: (...args) => responseSurface.landFabFocus(...args),
-  refreshFab: (...args) => responseSurface.refreshFab(...args),
   showFab: (...args) => responseSurface.showFab(...args),
   formatGoToAddress: (...args) => goToSequence.formatGoToAddress(...args),
   createComment: app.createComment,
@@ -792,7 +791,6 @@ if (!offlineInteractive) {
     setGoToSequence: goToSequence.setGoToSequence,
     setReact: reactions.setReact,
   });
-  inputs.mount();
   mountKeyboard({
     goToSequenceActive: goToSequence.goToSequenceActive,
     setGoToSequence: goToSequence.setGoToSequence,
@@ -808,9 +806,13 @@ if (!offlineInteractive) {
     pageShifted: pageGeometry.pageShifted,
     paintStandingGeometry: standing.paintStandingGeometry,
   });
+} else {
+  // An interactive export attaches no chrome, so its standing is only what a widget's
+  // own box shows: an options group's addition field paints there as it does live.
+  mountRepaint({ paintStandingGeometry: inputs.paintInputs });
 }
 
-const replayReady = passiveSpecimen
+const replayReady = passiveSample
   ? import("./runtime/interaction-gallery-frame.js").then(({ mountReplay }) =>
       mountReplay({
         toggleBtn,
@@ -855,7 +857,7 @@ if (!offlineInteractive) {
   );
 }
 
-if (!passiveSpecimen && !offlineInteractive) {
+if (!passiveSample && !offlineInteractive) {
   restoreUserView({
     commentsEdge: layout.commentsEdge,
     traysEdge: trays.traysEdge,
@@ -867,7 +869,10 @@ if (!passiveSpecimen && !offlineInteractive) {
   // for the browser to carry on from.
   releaseFocus();
 }
-mountHistory({ followFragment: anchorTravel.followFragment });
+mountHistory({
+  followFragment: anchorTravel.followFragment,
+  returnToFragment: anchorTravel.returnToFragment,
+});
 const landFragment = version.aimArrival();
 const { landArrival, savedView } = offlineInteractive
   ? { landArrival: () => {}, savedView: null }

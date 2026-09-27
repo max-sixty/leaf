@@ -48,10 +48,10 @@ watcher fail on one set in one wording. A quick page never reaches `--render`, a
 static reading says whether a module throws. `render_gate/page_code.py` owns the run.
 
 An ordinary document's thread namespace is the thread ids its log holds,
-including a thread whose opening comment the log lost. A specimen template's
-namespace is its `data-specimen-threads` declaration, so a first version may name
+including a thread whose opening comment the log lost. A sample template's
+namespace is its `data-sample-threads` declaration, so a first version may name
 threads whose seed log has not been written yet. Static validation applies the same
-child-document checks using the selected history currently available. Specimen
+child-document checks using the selected history currently available. Sample
 allocation copies that same available history and no more, so a thread the log does
 not hold leaves the child without it rather than refusing the page. Corpus
 generation selects against the shipped log it is composing from, where a declared
@@ -60,12 +60,14 @@ thread the log lacks is a mistake in the declaration, and refuses it.
 ## Delivery policy
 
 The document policy cannot restrict ancestors when delivered through `<meta>`. Every
-ordinary served HTML response therefore adds `frame-ancestors 'none'`. Historical
-version routes receive the current document policy and the same header. A standalone
+ordinary served HTML response therefore adds `frame-ancestors 'none'`
+(`structure.FRAME_ANCESTORS_CSP`). Historical version routes receive the current
+document policy and the same header. The published site's Worker adds the same header
+to the HTML it serves from its own assets, reading it from the site manifest. A standalone
 file has no response header and cannot make this framing guarantee. The process-scoped
 MCP page server omits the header because its exact, ephemeral origin is intentionally
 framed by the host that approved it; the unguessable page path remains that transport's
-access boundary. A specimen child permits its same-origin parent with
+access boundary. A sample child permits its same-origin parent with
 `frame-ancestors 'self'`; under the MCP transport it inherits the omitted header,
 so the host can frame the complete page hierarchy. Every response carries
 `X-Content-Type-Options: nosniff`; typed data is available only through its JSON
@@ -164,3 +166,10 @@ holds; layout advice also reads the stylesheets the page links from `page/`, as 
 revision's capture resolves them (`RevisionArtifact.page_stylesheets`). A new question about a page becomes a field on one of those readings rather
 than a pattern over the file's text, because a pattern answers something adjacent to
 the question asked.
+
+Immutable inputs are read once per process. A stored revision's document, captured
+vocabulary, and passage readings live on its one `RevisionReading`
+(`revision_artifact.read_revision`); a candidate's live on a `SourceReading` for as
+long as its check. Each logged markup fragment is parsed once
+(`thread_context.logged_fragment`), while markup a writer hands in is parsed afresh
+at its gate.

@@ -26,13 +26,13 @@ from leaf.host import (
     message_identity,
     session_harness,
 )
-from leaf.interaction_log import INTERACTIONS_FILE
 from leaf.locations import page_key
 from leaf.machine import pid_alive, state_home
 from leaf.registry.layer import bookkeeping_kinds
 from leaf.schema import (
     ACTIVITY_GRACE_SECS,
     EVENTS_FILE,
+    INTERACTIONS_FILE,
     STATUS_FILE,
     UNNAMED_AGENT,
 )
@@ -328,6 +328,11 @@ class PageTransaction:
         unloaded task leaves standing, so its handoff is not, and it declines
         this.
 
+        A prompt or delivery into a turn that is already open renews its
+        `turn_opened` instead: it is proof the turn runs now, and an interrupt,
+        which runs no hook and so leaves the turn open, would otherwise leave the
+        next prompt's work judged by the interrupted turn's opening.
+
         Nothing else about the claim moves. What the agent said it was doing
         stays the agent's to write, and the fifteen-minute grace on that claim's
         own age still catches a turn that ends without a Stop to stamp it.
@@ -345,26 +350,32 @@ class PageTransaction:
                 "turn_closed": None,
             }
             write_json(claim_path(self.page_dir), claim)
-        elif claim.get("turn_closed") is not None:
+        elif turn_id is None:
             claim = {
                 **claim,
-                "turn": secrets.token_hex(8),
+                "turn": (
+                    secrets.token_hex(8)
+                    if claim.get("turn_closed") is not None
+                    else claim.get("turn")
+                ),
                 "turn_opened": now_iso(),
                 "turn_closed": None,
             }
             write_json(claim_path(self.page_dir), claim)
         return claim.get("turn")
 
-    def note_messaged_turn(self) -> None:
-        """Record that input reaching this page messaged its session while the
-        claim's turn was closed.
+    def note_messaged(self, ending: str) -> None:
+        """Record that input reaching this page messaged its session after a turn
+        ended.
 
-        Browser-event admission sends at most one such message per closed turn
-        (`session-lifetime.md`, Carriers). The turn id is the exact key: an
-        opening mints a new one whenever it clears a closing, so a later closed
-        turn never matches the turn a message already went out in."""
+        Browser-event admission sends at most one such message per ending of a
+        turn (`session-lifetime.md`, Carriers). `ending` names the claim's turn id
+        and its close stamp, or for an interrupted turn its last opening, so a
+        later ending, whether a close under a new id or an interrupt after a new
+        prompt renewed the same one, never matches the ending a message already
+        went out for."""
         claim = self.claim
-        write_json(claim_path(self.page_dir), {**claim, "messaged_turn": claim["turn"]})
+        write_json(claim_path(self.page_dir), {**claim, "messaged_ending": ending})
 
     @property
     def status(self) -> dict:

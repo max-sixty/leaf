@@ -22,6 +22,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, wait
 from contextlib import contextmanager
 from functools import cache
@@ -33,6 +34,7 @@ import yaml
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from leaf import cli as cli_model
+from leaf import codex as codex_model
 from leaf import data as data_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
@@ -181,6 +183,9 @@ class ModelPage:
     def document(self, revision: int):
         return self.documents[revision]
 
+    def reading(self, revision: int, registry: dict):
+        return passages_model.SourceReading(self.documents[revision], registry)
+
     def registry(self, revision: int | None) -> dict:
         """One layer for every revision: a stated page never re-vendors, so no
         revision of it captured a vocabulary different from the rest."""
@@ -244,8 +249,17 @@ worker happens to be driving Chrome. `SERVED_TIMEOUT_MS` is the browser side's
 counterpart, more generous again for the work a page does."""
 
 
-def wait_for(read, accepts, *, failure: str, timeout: float = STATED_TIMEOUT):
+def wait_for(
+    read,
+    accepts,
+    *,
+    failure: str | Callable[[], str],
+    timeout: float = STATED_TIMEOUT,
+):
     """Return the first accepted reading, or fail with the last one observed.
+
+    `failure` is the message, or a function that composes it at the timeout, for a
+    poll whose diagnosis needs state read only once it has failed (a log, a record).
 
     For pure-Python state polls. Keep a local loop where process exit, cancellation,
     or a deadline shared across several transitions is the contract."""
@@ -255,8 +269,27 @@ def wait_for(read, accepts, *, failure: str, timeout: float = STATED_TIMEOUT):
         if accepts(reading):
             return reading
         if time.monotonic() >= deadline:
-            pytest.fail(f"{failure}; last reading was {reading!r}")
+            said = failure() if callable(failure) else failure
+            pytest.fail(f"{said}; last reading was {reading!r}")
         time.sleep(0.05)
+
+
+def take_stream_activity(monkeypatch, updates: list, clears: list) -> None:
+    """Collect every activity reading a turn writes, instead of a page taking it.
+
+    Every carrier and host calls the writers through `leaf.codex`, so that one binding
+    takes them all. Pass empty lists for a test that wants them to touch nothing.
+    """
+    monkeypatch.setattr(
+        codex_model,
+        "set_stream_activity",
+        lambda session, turn, detail: updates.append((session, turn, detail)),
+    )
+    monkeypatch.setattr(
+        codex_model,
+        "clear_stream_activity",
+        lambda session, turn=None: clears.append((session, turn)),
+    )
 
 
 @contextmanager
@@ -560,6 +593,7 @@ def record_claim(page, harness="claude-code", **fields):
         "ts": "t",
         "released": None,
         "turn": "turn-1",
+        "turn_opened": events_model.now_iso(),
         "turn_closed": None,
         **fields,
     }

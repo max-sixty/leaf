@@ -403,9 +403,13 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                     )
                 ).to_have_count(0)
         for reaction in reacted:
-            item = page.locator(
-                f'.lf-margin-cluster[data-lf-margin-for="{reaction["anchor"]["section"]}"]'
+            section = reaction["anchor"]["section"]
+            tab = page.locator(f"#{section}").evaluate(
+                "el => el.closest('lf-tab')?.getAttribute('label')"
             )
+            if tab:
+                page.get_by_role("tab", name=tab, exact=True).click()
+            item = page.locator(f'.lf-margin-cluster[data-lf-margin-for="{section}"]')
             expect(item).to_have_count(1)
             # A crowded target may expose this exact reaction through overflow. Follow
             # its visible route rather than requiring every margin entry to stand at rest.
@@ -2573,8 +2577,8 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
         const s = getComputedStyle(main), b = main.getBoundingClientRect();
         return { column: b.right - parseFloat(s.paddingRight)
                          - b.left - parseFloat(s.paddingLeft),
-                 loose: box('#in-section'), specimen: box('#quoted'),
-                 quoted: box('#in-specimen'), card: box('#opt-a'),
+                 loose: box('#in-section'), sample: box('#quoted'),
+                 quoted: box('#in-sample'), card: box('#opt-a'),
                  diagram: box('#in-card'),
                  boardCard: box('#ek1'), inBoardCard: box('#in-board-card'),
                  metric: box('#me1'), inMetric: box('#in-metric'),
@@ -2589,12 +2593,12 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
         "a transparent wrapper must not cost the exhibit its room: board "
         f"{boxes['loose']['width']:.0f}px in a {boxes['column']:.0f}px column"
     )
-    assert boxes["quoted"]["left"] >= boxes["specimen"]["left"] - 1, (
+    assert boxes["quoted"]["left"] >= boxes["sample"]["left"] - 1, (
         "the quoted board escaped its frame on the left"
     )
-    assert boxes["quoted"]["right"] <= boxes["specimen"]["right"] + 1, (
+    assert boxes["quoted"]["right"] <= boxes["sample"]["right"] + 1, (
         "the quoted board escaped its frame on the right: board out to "
-        f"{boxes['quoted']['right']:.0f}, frame ends at {boxes['specimen']['right']:.0f}"
+        f"{boxes['quoted']['right']:.0f}, frame ends at {boxes['sample']['right']:.0f}"
     )
     assert boxes["diagram"]["left"] >= boxes["card"]["left"] - 1, (
         "the diagram crossed the card's left edge, where the group's clip cuts it off"

@@ -15,10 +15,10 @@ from .mcp_page import (
 )
 from .passages import TEXT_BLOCK_TAGS
 from .registry.contract import RegistryError
-from .revision_artifact import Resource, read_artifact
+from .revision_artifact import Resource, read_artifact, read_revision
 from .revision_delivery import compose_document
 from .served_state.service import PageStateService
-from .structure import SourceDocument, parse_revision
+from .structure import SourceDocument
 
 APP_MIME = "text/html;profile=mcp-app"
 SNAPSHOT_FORMAT = "leaf.snapshot/v1"
@@ -56,13 +56,13 @@ def app_snapshot(page: str) -> tuple[dict, dict]:
     document = compose_document(
         source,
         revision,
-        None,
+        active["version"],
         executable=artifact.executable,
         widgets=artifact.widgets,
         resources=artifact.resources,
         delivery=embedding(read_resource=read_resource),
     )
-    title = parse_revision(page_dir, revision).title.strip() or page_dir.name
+    title = read_revision(page_dir, revision).document.title.strip() or page_dir.name
     theme = inline_css_assets(
         artifact.resources["/theme.css"].data.decode("utf-8"),
         read_resource=read_resource,

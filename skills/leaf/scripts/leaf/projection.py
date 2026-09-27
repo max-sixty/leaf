@@ -21,7 +21,7 @@ from leaf.registry.state import retirement_slots
 from leaf.structure import SourceDocument
 from leaf.thread_context import (
     ThreadStructure,
-    thread_roots,
+    thread_names,
     thread_structure,
     thread_widgets,
 )
@@ -363,7 +363,7 @@ class FrozenThreadReading(NamedTuple):
 
     structure: ThreadStructure
     spoken: dict
-    roots: dict
+    thread_by_name: dict
     thread_by_widget: dict
     projection: StateProjection
 
@@ -485,16 +485,16 @@ def with_action(
 def frozen_thread_reading(events: list, registry: dict) -> FrozenThreadReading:
     """Project every frozen message fragment through one shared reading."""
     structure = thread_structure(events)
-    roots = thread_roots(events)
+    by_name = thread_names(events)
     spk = {}
     for event in events:
         if markup := event.get("markup"):
             spk.update(spoken(SourceDocument(markup), registry))
-    by_widget = thread_widgets(structure, roots)
+    by_widget = thread_widgets(structure, by_name)
     return FrozenThreadReading(
         structure,
         spk,
-        roots,
+        by_name,
         by_widget,
         state_projection(events, structure.by_id, spk, registry, None, floors={}),
     )

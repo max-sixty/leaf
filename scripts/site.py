@@ -367,7 +367,7 @@ def checked_product_sources(page: Path, env: dict) -> list[tuple[Path, bytes]]:
     for source in product_sources():
         markup = source.read_bytes()
         (page / "index.html").write_bytes(markup)
-        leaf(env, "version", "check", str(page))
+        leaf(env, "page", "check", str(page))
         checked.append((source, markup))
     return checked
 

@@ -24,6 +24,7 @@ from .revision_artifact import (
     read_artifact,
     read_revision,
 )
+from .served_state.reading import join_reading
 from .service import PageTransaction
 from .structure import SourceDocument
 
@@ -136,7 +137,7 @@ def capture_page_snapshot(
             )
         ).encode()
     ).hexdigest()[:16]
-    reading = files_reading + "." + presence_fingerprint(present, list(others))
+    reading = join_reading(files_reading, presence_fingerprint(present, list(others)))
     return PageSnapshot(
         document=document,
         active=snapshot_active,

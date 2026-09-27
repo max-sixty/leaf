@@ -531,7 +531,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                     expect(shown.locator("[data-lf-offer]")).not_to_have_count(0)
 
         # Each carried thread must be disclosed for the gate's geometry readings:
-        # hidden bodies have no boxes. The public version check never opens Threads,
+        # hidden bodies have no boxes. The public page check never opens Threads,
         # so exercise its own probes here against every frozen message's widgets.
         # Assert the control population first so a clean reading cannot be vacuous.
         if carried_ids:

@@ -244,7 +244,7 @@ defines the complete layout.
 ### Validate once and share readings
 
 Validate each input at its boundary: every event at the one append door, whether a
-browser posted it or a command wrote it; authored markup at `version check`; and
+browser posted it or a command wrote it; authored markup at `page check`; and
 message markup at `check_markup`. Admission derives server-owned event meaning
 after validation; downstream code reads those fields directly. Event dependencies name declared identities;
 ordinary detail text is never interpreted as a reference.

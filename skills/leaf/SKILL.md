@@ -52,10 +52,10 @@ directory explicitly; export or copy anything that must outlive the page directo
    `page/`; Leaf alone writes revisions and version mappings.
 3. Check the page by its intended lifetime, whatever its shape and whether or
    not it asks a question. A quick page that will be revised or dropped after an
-   immediate reaction needs only `leaf version check <page>`; fix every failure,
+   immediate reaction needs only `leaf page check <page>`; fix every failure,
    and do not stamp it or delay its handoff for a browser review. For a finished
    record that work will rely on after the conversation, run
-   `leaf version check <page> --render`, read the page as "Pre-handover review"
+   `leaf page check <page> --render`, read the page as "Pre-handover review"
    in `references/page-authoring.md` says, and fix what the reading finds before
    `leaf version stamp <page> --text "<changelog>"`. The reading comes between
    the check and the stamp: the check sees whether the page renders, and only

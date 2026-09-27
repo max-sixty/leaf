@@ -917,7 +917,7 @@ BASH_KINDS = {
     "events": r"\bleaf events\b|/leaf events\b",
     "thread read": r"\bthread read\b",
     "transcript": r"\btranscript\b",
-    "version check": r"\bversion check\b",
+    "page check": r"\bpage check\b",
     "version stamp": r"\bversion stamp\b",
     "thread reply": r"\bthread reply\b",
     "server": r"\bserver (start|run)\b",
@@ -1032,11 +1032,11 @@ def score_cold(run: Run, reply: str, calls: list[str]) -> dict:
         return out
     page = found[0]
     html = (page / "index.html").read_text()
-    checked = run.leaf("version", "check", str(page))
+    checked = run.leaf("page", "check", str(page))
     state = page_state(run, page)
     out |= {
         "valid": checked.returncode == 0,
-        "agent_checked": "version check" in calls,
+        "agent_checked": "page check" in calls,
         "stamped": len(state.get("versions", [])),
         "not_served": "server" not in calls,
         "status": (state.get("status") or {}).get("state"),
@@ -1250,7 +1250,7 @@ def score_package(run: Run, trace: list[dict]) -> dict:
     attrs = dict(re.findall(r'([\w-]+)="([^"]*)"', burn[1])) if burn else {}
     return out | {
         "stamped": True,
-        "valid": run.leaf("version", "check", str(page)).returncode == 0,
+        "valid": run.leaf("page", "check", str(page)).returncode == 0,
         "widget_used": burn is not None,
         "objective": attrs.get("objective") == "99.9",
         "window": attrs.get("window") == "28d",
@@ -1377,7 +1377,7 @@ def score_handoff(run: Run, trace: list[dict]) -> dict:
     )
     out = {
         "served": bool(URL.search(handover.get("result") or "")),
-        "checked": any("version check" in c for c in ran_between(trace, 0, first_end)),
+        "checked": any("page check" in c for c in ran_between(trace, 0, first_end)),
         "handoff_waiting": status.get("state") == "waiting",
         "detail_names_ask": check(
             r"cop(y|ies)|backfill|approach|option|how .*run", status.get("detail") or ""

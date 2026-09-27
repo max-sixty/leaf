@@ -178,8 +178,8 @@ Options:
 Commands:
   report  Report a state change onto a page widget, as a worker.
 
-## leaf version check --help
-Usage: leaf version check [OPTIONS] PAGE
+## leaf page check --help
+Usage: leaf page check [OPTIONS] PAGE
 
   Check PAGE/index.html.
 

@@ -317,7 +317,7 @@ EXTENSION_SCHEMA = {
         # Attributes holding line references into the nearest data body — the element's
         # own <pre>, or its enclosing data element's (lf-note's `at` names a line of its
         # lf-code) — by the numbers x-numbering gives that body, 1-based without it.
-        # `version check` refuses one outside the body (line_ref_errors).
+        # `page check` refuses one outside the body (line_ref_errors).
         "x-lines": _ATTRIBUTE_LIST,
         "x-numbering": _ATTRIBUTE_NAME,
         "x-measured": MEASURED_SCHEMA,

@@ -175,7 +175,7 @@ export const missingThreads = (declarations) =>
 // one reader that did see them read them wrong: shallowSigs excludes exactly the
 // attributes no version can assert, and its exclusion list is the runtime's own paint —
 // so a widget writing beside it is counted as state the author wrote, in the reading
-// `version check --render` uses to decide whether a version overrules the user.
+// `page check --render` uses to decide whether a version overrules the user.
 //
 // Deduped and reported per tag and attribute, because one mistake is on every instance.
 export function undeclaredAttrs(declarations) {

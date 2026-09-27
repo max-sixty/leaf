@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Compare how long `leaf version check --render` takes, base vs HEAD, and where.
+"""Compare how long `leaf page check --render` takes, base vs HEAD, and where.
 
-Each arm is the plugin payload at a ref, built by `leaf_dev.harness.build_arm`: BASE_REF
-(default `main`) and HEAD, so commit what you want measured. For each page in PAGES
-the script builds a page directory from this checkout's example with the arm's own
-launcher (`leaf_dev.page_fixtures.prepare_page`, as `preview.py` does), then runs that arm's
-`bin/leaf version check <page> --render` RUNS times, alternating arms within each
+Each arm is the plugin payload at a ref, built by `leaf_dev.harness.build_arm`:
+BASE_REF (default `main`) and HEAD, so commit what you want measured. For each page in
+PAGES the script builds a page directory from this checkout's example with the arm's
+own launcher (`leaf_dev.page_fixtures.prepare_page`, as `preview.py` does), then runs
+that arm's `bin/leaf page check <page> --render` RUNS times, alternating arms within each
 round so drift in machine load falls on both. One untimed run per arm warms the
 environment, Chrome and the OS file cache first.
 
@@ -34,6 +34,8 @@ Known limits:
 - The rows name functions in the arm's code. A ref that renames or restructures one
   shows `-` for its row and moves that time into `other`; update FUNCTIONS and
   `phases` when the gate's structure changes.
+- Both arms run `page check`, so a base older than that command, which was
+  `version check` until 2026-09, fails every run and says so under its tables.
 - The tracer needs Python 3.12 or newer in the arm's environment.
 - Pages come from this checkout's `examples/` for both arms, so an example that
   needs something the base lacks fails there; a failing check is reported under its
@@ -85,7 +87,7 @@ FUNCTIONS = {
 
 
 def run_check(arm: Path, state: Path, page: Path, trace: Path) -> dict:
-    """One `version check --render` by the arm's launcher, traced."""
+    """One `page check --render` by the arm's launcher, traced."""
     env = environment(
         XDG_STATE_HOME=str(state),
         LEAF_BENCH_TRACE=str(trace),
@@ -98,7 +100,7 @@ def run_check(arm: Path, state: Path, page: Path, trace: Path) -> dict:
     spawned = time.time()
     started = time.perf_counter()
     proc = subprocess.run(
-        [str(arm / "bin/leaf"), "version", "check", str(page), "--render"],
+        [str(arm / "bin/leaf"), "page", "check", str(page), "--render"],
         capture_output=True,
         text=True,
         env=env,

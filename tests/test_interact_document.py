@@ -37,6 +37,7 @@ from interact_support import (
     comment,
     decide,
     declare_data_input,
+    model_layer,
     publish,
     read_page_data,
     stamp,
@@ -738,6 +739,58 @@ def test_rank_rules_match_the_browser_cases():
         assert projection_model.RANK.fullmatch(rank)
     assert all(projection_model.RANK.fullmatch(r) for r in RANK_CASES["valid"])
     assert not any(projection_model.RANK.fullmatch(r) for r in RANK_CASES["invalid"])
+
+
+@pytest.mark.parametrize(
+    "case", RANK_CASES["folds"], ids=[case["name"] for case in RANK_CASES["folds"]]
+)
+def test_the_position_fold_matches_the_browser_cases(case):
+    """`tests/runtime/board-order.test.mjs` folds the same authored containers and
+    standing moves through `foldWidgetStates`, so the two runtimes leave every
+    container in one order."""
+    registry = model_layer()
+    columns = "".join(
+        f'<lf-column id="{column}" label="{column}">'
+        + "".join(f'<lf-card id="{card}">{card}</lf-card>' for card in cards)
+        + "</lf-column>"
+        for column, cards in case["authored"].items()
+    )
+    document = structure_model.SourceDocument(
+        f'<main><lf-board id="board">{columns}</lf-board></main>'
+    )
+    spec = registry["lf-board"]["x-state"]["move"]
+    desired = {
+        ("board", move["card"], "move"): (
+            {
+                "seq": seq,
+                "detail": {key: move[key] for key in ("card", "to", "rank")},
+                # A move is absorbed where the markup authors its container unlike
+                # the units it was made among.
+                "meaning": {"among": []} if move.get("absorbed") else {},
+                "widget": "board",
+            },
+            spec,
+        )
+        for seq, move in enumerate(case["moves"], start=1)
+    }
+    projection = projection_model.StateProjection(
+        actions={},
+        reports={},
+        desired=desired,
+        report_settlements={},
+        classified={},
+        absorbed=frozenset(),
+    )
+    order = projection_model.folded_positions(
+        "board",
+        "move",
+        spec["record"],
+        document.by_id,
+        projection_model.spoken(document, registry),
+        registry,
+        projection,
+    )
+    assert order == case["order"]
 
 
 def test_a_position_is_never_read_as_one_actions_markup_value():

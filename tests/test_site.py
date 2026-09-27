@@ -1318,7 +1318,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
             }"""
     )
     assert gallery.locator(
-        ".interaction-control, .interaction-setting, .interaction-status"
+        ".lf-interaction-control, .lf-interaction-setting, .lf-interaction-status"
     ).evaluate_all("nodes => nodes.map(node => getComputedStyle(node).fontSize)") == [
         "11.5px",
         "11.5px",

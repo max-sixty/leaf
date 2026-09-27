@@ -12,6 +12,7 @@ from leaf.gesture_words import GestureWords, revisions_on_disk
 from leaf.passages import active_enclosing, enclosing_of, spoken
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.storage import active_registry
+from leaf.schema import UNNAMED_AGENT
 from leaf.structure import parse_revision
 from leaf.thread_context import (
     thread_memberships,
@@ -180,14 +181,18 @@ def _thread_heading(thread: dict) -> str:
     if closed and closed["author"] == "agent":
         # Named where the user was not the one who closed it. A transcript is
         # read away from the page, so the panel's own line saying so is not in it.
-        head += "  — resolved by " + closed.get("agent", "Agent")
+        head += "  — resolved by " + (closed.get("agent") or UNNAMED_AGENT)
     elif closed:
         head += "  — resolved"
     return head
 
 
 def _print_message(message: dict, registry: dict) -> None:
-    who = message.get("agent", "Agent") if message["author"] == "agent" else "User"
+    who = (
+        (message.get("agent") or UNNAMED_AGENT)
+        if message["author"] == "agent"
+        else "User"
+    )
     if is_reaction(message):
         # A mark rather than a turn: the token's glyph and word, plus an explanation
         # only when the page's package deliberately supplied one.

@@ -134,6 +134,144 @@ def _rules(nodes, conditional=False):
             yield from _rules(css_block(node.content), conditional or not layered)
 
 
+# At-rules whose block holds style rules. Every other block — keyframes, a font face, a
+# registered property, a page box — holds no selector to narrow.
+_GROUPING_RULES = {"media", "supports", "container", "layer", "scope", "starting-style"}
+# The pseudo-elements CSS2 spelled with one colon.
+_LEGACY_PSEUDO_ELEMENTS = {"before", "after", "first-line", "first-letter"}
+
+
+def _subject_end(member: list) -> int:
+    """Where a complex selector's subject compound ends: before its pseudo-element, or at
+    the end of the selector. The tokens are the selector's top level, so a colon inside
+    :is() or an attribute value sits in a block and is never seen here."""
+    for at, token in enumerate(member[:-1]):
+        after = member[at + 1]
+        if (
+            token.type == "literal"
+            and token.value == ":"
+            and (
+                (after.type == "literal" and after.value == ":")
+                or (
+                    after.type == "ident"
+                    and after.lower_value in _LEGACY_PSEUDO_ELEMENTS
+                )
+            )
+        ):
+            return at
+    end = len(member)
+    while end and member[end - 1].type in {"whitespace", "comment"}:
+        end -= 1
+    return end
+
+
+# The elements every widget stands inside, so none can contain them.
+_ROOT_SUBJECTS = {"html", "body"}
+
+
+def _subject_start(member: list, end: int) -> int:
+    """Where the subject compound starts: after the last top-level combinator."""
+    start = end
+    while start and not (
+        member[start - 1].type == "whitespace"
+        or (member[start - 1].type == "literal" and member[start - 1].value in ">+~")
+    ):
+        start -= 1
+    return start
+
+
+def _confined_selectors(prelude: list, where: str) -> str:
+    members, member = [], []
+    for token in [*prelude, None]:
+        if token is None or (token.type == "literal" and token.value == ","):
+            end = _subject_end(member)
+            subject = member[_subject_start(member, end) : end]
+            if subject and (
+                (
+                    subject[0].type == "ident"
+                    and subject[0].lower_value in _ROOT_SUBJECTS
+                )
+                or (
+                    len(subject) > 1
+                    and subject[0].type == "literal"
+                    and subject[0].value == ":"
+                    and subject[1].type == "ident"
+                    and subject[1].lower_value == "root"
+                )
+            ):
+                raise ValueError(
+                    f"`{tinycss2.serialize(member).strip()}` styles "
+                    f"`{tinycss2.serialize(subject)}`, which no widget contains"
+                )
+            members.append(
+                tinycss2.serialize(member[:end])
+                + where
+                + tinycss2.serialize(member[end:])
+            )
+            member = []
+        else:
+            member.append(token)
+    return ",".join(members)
+
+
+def _states(nodes) -> bool:
+    """Whether a rule's block declares anything for the rule's own subject: directly, or
+    inside a condition such as `@media` nested in it, which applies to the same element."""
+    return any(
+        node.type == "declaration"
+        or (
+            node.type == "at-rule"
+            and node.content is not None
+            and node.lower_at_keyword in _GROUPING_RULES
+            and _states(tinycss2.parse_blocks_contents(node.content))
+        )
+        for node in nodes
+    )
+
+
+def _confined_block(nodes, where: str) -> str:
+    out = []
+    for node in nodes:
+        if node.type == "qualified-rule":
+            inner = tinycss2.parse_blocks_contents(node.content)
+            # A rule with no declarations of its own styles nothing: its selector is
+            # the `&` its nested rules extend, and confining it would confine their
+            # ancestors too, where each of them is confined at its own subject.
+            styles = _states(inner)
+            prelude = (
+                _confined_selectors(node.prelude, where)
+                if styles
+                else tinycss2.serialize(node.prelude)
+            )
+            out.append(f"{prelude}{{{_confined_block(inner, where)}}}")
+        elif (
+            node.type == "at-rule"
+            and node.content is not None
+            and node.lower_at_keyword in _GROUPING_RULES
+        ):
+            inner = tinycss2.parse_blocks_contents(node.content)
+            out.append(
+                f"@{node.at_keyword}{tinycss2.serialize(node.prelude)}"
+                f"{{{_confined_block(inner, where)}}}"
+            )
+        elif node.type == "declaration":
+            out.append(node.serialize() + ";")
+        else:
+            out.append(node.serialize())
+    return "".join(out)
+
+
+def confined(css: str, where: str) -> str:
+    """`css` with every style rule, at every depth, matching only where `where` does too.
+
+    `where` joins the subject compound of each complex selector, ahead of any
+    pseudo-element, so it reads the element the rule styles. Written as a :where(), it
+    weighs nothing, and each rule keeps the rank its author gave it. A rule whose subject
+    is the root or the body can never meet it, so it raises ValueError naming the rule
+    rather than returning a rule that matches nothing."""
+    return _confined_block(tinycss2.parse_stylesheet(css), where)
+
+
 PRESENTATION_PROPERTIES = {
     "all",
     "display",

@@ -24,9 +24,9 @@ leaf package run NAME SCRIPT [ARGS]...
 `package init` creates `registry.json`, `theme.css`, `guidance/`, `runtime/`,
 `widgets/`, and `vendor/` without replacing existing contents. Add `--widget TAG` to
 create one upgraded prose widget at the same time. Leaf adds a valid registry example
-and the matching `widgets/TAG.js` module, which registers the element, upgrades it
-`once`, and subscribes to its `widgetController`; it then checks the resulting
-composition, and leaves a new package's empty theme ready for the widget's presentation.
+and the matching `widgets/TAG.js` module, which registers the element and upgrades it
+`once`; it then checks the resulting composition, and leaves a new package's empty
+theme ready for the widget's presentation.
 An existing theme and other package files remain in place. Leaf refuses a tag or module
 that already exists rather than replacing it. The package author edits that directory,
 then checks its composition before adding the package to a page:
@@ -103,7 +103,16 @@ No individual file is required. The kernel supplies the files every complete lay
 needs. Theme files concatenate into one cascade layer, `lf-base`, so a package's rule
 beats the kernel's by specificity and order as it would unlayered, while the Layouts
 and the page's own stylesheet rank above every package rule whatever its specificity.
-A widget module's adopted sheet joins the same layer. Shadow files concatenate too: a
+A package that declares widgets styles only those widgets: composition narrows each
+rule in its `theme.css` and `shadow.css` to elements that are one of its widgets or
+stand inside one, and in the shadow sheet every declared tree receives, to trees one of
+its widgets hosts. A rule for `p` dresses the paragraphs in its widgets and no other,
+and a rule for the box that holds a widget matches nothing. Composition refuses a rule
+whose subject is `:root`, `html` or `body`, which no widget contains; state a widget's
+tokens on its own element. What several packages' widgets share, such as the pane role
+or a chip row, is the kernel's, and a package without widgets is a theme that reaches
+the whole page as the kernel's does. A widget module's adopted sheet joins the same
+layer. Shadow files concatenate too: a
 declared `x-shadow` root built with `shadowStage` receives every package's `shadow.css`
 in layer order, and the document reads each package's `shadow.css` just ahead of its
 `theme.css`. Runtime, icon, widget,
@@ -318,7 +327,9 @@ availability; `dispatch()` repeats the same check.
 `subscribe(callback)` invokes immediately, returns cleanup, and should be stopped on
 disconnect; reconnecting subscribes again. For each reading the controller calls the
 module's `renderState(state)` first and these subscribers after. Report-only and quoted
-semantic widgets subscribe too, even with no interactive controls.
+semantic widgets subscribe too, even with no interactive controls. What the declaration
+alone determines, such as a holder's settlement (`x-retired-when`), Leaf paints whether
+or not the module subscribes.
 
 `dispatch({kind: "action" | "request", verb, detail, attempt?})` and
 `dispatch({kind: "undo", target})` return `null` when the newest reading refuses the
@@ -332,7 +343,7 @@ current entry's candidates. The server remains final admission for every command
 A pane declares `x-reading-role: pane` and keeps `x-content: markup`: exactly one direct
 body element between an optional native `header` first and an optional native `footer`
 last. The validator reads the role rather than the tag name, and the runtime paints it
-as `data-lf-reading-role`, which the default theme lays out as a pane, so a package's
+as `data-lf-reading-role`, which the kernel's theme lays out as a pane, so a package's
 differently named pane takes the same rules as `lf-pane`; its module registers the
 pane's body as described below.
 

@@ -42,8 +42,9 @@
         font: 600 var(--t-6) / 1.2 var(--sans);
       }
 
-      .query-row input,
-      .query-row select {
+      /* The fields this element's module builds wear the layer's .lf-ui, and a page rule
+         reaches those only by naming the widget they stand in. */
+      release-query-explorer .query-row :is(input, select) {
         min-height: var(--control-h);
         color: var(--ink);
         font: var(--t-5) / 1.25 var(--sans);

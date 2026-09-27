@@ -95,6 +95,7 @@ import {
   whenApplicationPresented,
 } from "./semantic-state.js";
 import { activityTransitionAt } from "./presence.js";
+import { watchArrivals } from "./arrivals.js";
 import { renderingSettled } from "./rendering.js";
 import { highlightBlocks } from "./syntax.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
@@ -371,117 +372,74 @@ function clearExternalLink(link, state) {
   state.note?.remove();
   externalLinkState.delete(link);
 }
-function renderExternalLinks(root) {
-  const links = [...(root.matches?.("a") ? [root] : []), ...root.querySelectorAll("a")];
-  for (const link of links) {
-    // SVG links share this selector but not the HTML anchor API, and they have no
-    // dependable inline box in which an HTML text mark could stand.
-    if (!(link instanceof HTMLAnchorElement)) continue;
-    const external = isExternalPageLink(link);
-
-    if (!external) {
-      const state = externalLinkState.get(link);
-      if (!state) continue;
-      clearExternalLink(link, state);
-      continue;
-    }
-
-    let state = externalLinkState.get(link);
-    if (!state) {
-      state = {
-        baseline: linkAttributes(link),
-        painted: null,
-        noteId: `lf-external-note-${++externalNoteSequence}`,
-        addedNoopener: false,
-      };
-      externalLinkState.set(link, state);
-    } else rememberExternalLinkChanges(link, state);
-    if (!link.querySelector(':scope > .lf-external-mark[data-lf-gen="1"]')) {
-      const mark = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      mark.setAttribute("class", "lf-ui lf-external-mark");
-      mark.setAttribute("viewBox", "0 0 16 16");
-      mark.dataset.lfGen = "1";
-      mark.setAttribute("aria-hidden", "true");
-      const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      line.setAttribute(
-        "d",
-        "M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V9.5M9 3h4v4M13 3 7.5 8.5",
-      );
-      mark.append(line);
-      link.append(mark);
-    }
-    if (!state.note) {
-      state.note = Object.assign(document.createElement("span"), {
-        className: "lf-ui lf-external-note",
-        hidden: true,
-        textContent: "opens in a new tab",
-      });
-      state.note.dataset.lfGen = "1";
-      state.note.id = state.noteId;
-    }
-    if (link.parentNode && state.note.parentNode !== link.parentNode)
-      link.after(state.note);
-    state.addedNoopener = !tokens(state.baseline.rel).some(
-      (value) => value.toLowerCase() === "noopener",
-    );
-    writeLinkAttributes(link, {
-      target: "_blank",
-      rel: withToken(state.baseline.rel, "noopener", true),
-      "aria-describedby": state.note.parentNode
-        ? withToken(state.baseline["aria-describedby"], state.noteId)
-        : state.baseline["aria-describedby"],
-    });
-    state.painted = linkAttributes(link);
+function leaveExternalLink(link) {
+  const state = externalLinkState.get(link);
+  if (state) clearExternalLink(link, state);
+}
+function renderExternalLink(link) {
+  // SVG links share this selector but not the HTML anchor API, and they have no
+  // dependable inline box in which an HTML text mark could stand.
+  if (!(link instanceof HTMLAnchorElement)) return;
+  if (!isExternalPageLink(link)) {
+    leaveExternalLink(link);
+    return;
   }
+  let state = externalLinkState.get(link);
+  if (!state) {
+    state = {
+      baseline: linkAttributes(link),
+      painted: null,
+      noteId: `lf-external-note-${++externalNoteSequence}`,
+      addedNoopener: false,
+    };
+    externalLinkState.set(link, state);
+  } else rememberExternalLinkChanges(link, state);
+  if (!link.querySelector(':scope > .lf-external-mark[data-lf-gen="1"]')) {
+    const mark = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    mark.setAttribute("class", "lf-ui lf-external-mark");
+    mark.setAttribute("viewBox", "0 0 16 16");
+    mark.dataset.lfGen = "1";
+    mark.setAttribute("aria-hidden", "true");
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    line.setAttribute(
+      "d",
+      "M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V9.5M9 3h4v4M13 3 7.5 8.5",
+    );
+    mark.append(line);
+    link.append(mark);
+  }
+  if (!state.note) {
+    state.note = Object.assign(document.createElement("span"), {
+      className: "lf-ui lf-external-note",
+      hidden: true,
+      textContent: "opens in a new tab",
+    });
+    state.note.dataset.lfGen = "1";
+    state.note.id = state.noteId;
+  }
+  if (link.parentNode && state.note.parentNode !== link.parentNode)
+    link.after(state.note);
+  state.addedNoopener = !tokens(state.baseline.rel).some(
+    (value) => value.toLowerCase() === "noopener",
+  );
+  writeLinkAttributes(link, {
+    target: "_blank",
+    rel: withToken(state.baseline.rel, "noopener", true),
+    "aria-describedby": state.note.parentNode
+      ? withToken(state.baseline["aria-describedby"], state.noteId)
+      : state.baseline["aria-describedby"],
+  });
+  state.painted = linkAttributes(link);
 }
 
 // Widget families are open-ended, so their link-producing lifecycle cannot be a list in
-// the runtime. One observer covers authored light DOM and every later widget mutation;
-// shadowStage enrolls each declared shadow root in the same reading. Attribute watching
-// makes a node preserved across renders lose or regain the treatment with its href.
-const externalLinkRoots = new WeakSet();
-const externalLinkObserver = new MutationObserver((records) => {
-  const changed = new Set();
-  const removed = new Set();
-  for (const record of records) {
-    if (record.type === "attributes") changed.add(record.target);
-    else {
-      if (record.target.querySelectorAll) changed.add(record.target);
-      for (const node of record.addedNodes)
-        if (node.nodeType === Node.ELEMENT_NODE) changed.add(node);
-      for (const node of record.removedNodes) {
-        if (!(node instanceof Element)) continue;
-        if (node instanceof HTMLAnchorElement && externalLinkState.has(node))
-          removed.add(node);
-        for (const link of node.querySelectorAll("a"))
-          if (link instanceof HTMLAnchorElement && externalLinkState.has(link))
-            removed.add(link);
-      }
-    }
-  }
-  for (const root of changed) renderExternalLinks(root);
-  for (const link of removed) {
-    const root = link.getRootNode();
-    const enrolled =
-      (root === document &&
-        externalLinkRoots.has(document.body) &&
-        document.body.contains(link)) ||
-      (root instanceof ShadowRoot &&
-        root.host.isConnected &&
-        externalLinkRoots.has(root));
-    const state = externalLinkState.get(link);
-    if (!enrolled && state) clearExternalLink(link, state);
-  }
-});
-export function watchExternalLinks(root) {
-  renderExternalLinks(root);
-  if (externalLinkRoots.has(root)) return;
-  externalLinkRoots.add(root);
-  externalLinkObserver.observe(root, {
-    subtree: true,
-    childList: true,
-    attributes: true,
-    attributeFilter: ["href", ...EXTERNAL_LINK_ATTRIBUTES],
+// the runtime: a link is marked while it stands in the page or a declared shadow root,
+// whoever put it there (arrivals.js). Attribute watching makes a node preserved across
+// renders lose or regain the treatment with its href. Started with the page's install.
+export function watchExternalLinks() {
+  watchArrivals("a", ["href", ...EXTERNAL_LINK_ATTRIBUTES], {
+    arrive: renderExternalLink,
+    leave: leaveExternalLink,
   });
 }
 
@@ -491,11 +449,11 @@ export function watchExternalLinks(root) {
 // reason: the tokenizer is vendored, so a page has it exactly when it has a widget
 // layer at all. Written once because it happens twice, over the page at the upgrade and
 // over each root a live revision brings into it, and a near-copy of it would go stale
-// the day the vocabulary grows a fourth pass.
+// the day the vocabulary grows a fourth pass. A link's treatment is not among them: it
+// is the link's for as long as it stands, whoever rendered it (`watchExternalLinks`).
 export function dress(root) {
   renderSaid(root);
   renderQuiet(root);
-  renderExternalLinks(root);
   return highlightBlocks(root);
 }
 
@@ -555,10 +513,11 @@ export function dress(root) {
 // panel's (see msgNode).
 //
 // Two more are facts of the element wherever it renders. x-bound says it holds its
-// own height and scrolls inside it; `bounds.js` keeps an `end` bound on its newest
-// entry. An occurrence overrides x-bound with data-bound, as a page's data-width
-// overrides x-space. x-reading-role is the structural role the theme and the workspace
-// Layout lay out, so every package's pane takes the same rules.
+// own height and scrolls inside it; `bounds.js` holds each bounded block that arrives
+// in the document as a reading region, and keeps an `end` bound on its newest entry.
+// An occurrence overrides x-bound with data-bound, as a page's data-width overrides
+// x-space. x-reading-role is the structural role the theme and the workspace Layout lay
+// out, so every package's pane takes the same rules.
 const MARKED_IN_MESSAGE = Object.freeze({
   "x-inline": PAGE_PAINT_ATTRIBUTE.inline,
   "x-exhibit": PAGE_PAINT_ATTRIBUTE.exhibit,

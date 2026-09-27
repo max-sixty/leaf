@@ -190,7 +190,7 @@ narrower than the floor the widget scrolls inside itself rather than widening th
 When a bounded widget's scroller should be a box inside it, such as a listing under a
 caption that stays in view, the package theme moves the bound there under
 `[data-lf-bound]` and declares `--lf-bound-box: 1` on that box, which is the one Leaf
-keeps on its newest entry. A box a
+registers as the block's reading region and keeps on its newest entry. A box a
 package scrolls sideways needs no declaration of its own: the runtime
 measures every scroller on each layout and marks each edge with content beyond it.
 Leaf fades the content at those edges, so a widget that has to scroll says so without

@@ -117,7 +117,7 @@ export const userIn = (scope) => !scope.at || scope.at();
 // was the one place it was not true. The sequence is what made it bite: its `when` reaches the
 // decisions fold and then every link on the page, once per keydown, from the first keystroke of
 // the first comment.
-const standing = (scope) => userIn(scope) && pageHas(scope);
+export const standing = (scope) => userIn(scope) && pageHas(scope);
 const nativeBoundary = (claims) => ({
   get rows() {
     return [universalCommandReference()];
@@ -511,6 +511,16 @@ function availableRouteSnapshot() {
 // take this snapshot before that point.
 export const availableCommands = () => availableRouteSnapshot().commands;
 export const availableCommandRoutes = () => availableRouteSnapshot().routes;
+// A control standing in for a press (touch-controls.js) makes that press itself: the
+// binding names which of a routed row's results it is, and a nearer claim on the key is
+// about the key, not the command.
+export function invokePress({ id, row, binding }) {
+  const invocation = invocationFor(row, binding, { id });
+  if (!invocation) return false;
+  announceInvocation(invocation);
+  invocation.run();
+  return true;
+}
 export function executeCommand(id, beforeCommand) {
   const command = commandFor(id);
   if (!command) return false;

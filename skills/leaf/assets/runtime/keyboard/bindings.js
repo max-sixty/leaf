@@ -570,11 +570,3 @@ export const clampedRow = (
   const next = at < 0 ? entry : at + dir;
   return rows[Math.max(0, Math.min(rows.length - 1, next))];
 };
-
-// Focus the clamped row and return it, for a widget's list walk that reads its own
-// position. A runtime list of focusable rows declares `rowWalk` (walk-position.js) instead.
-export const walkRows = (rows, dir) => {
-  const row = clampedRow(rows, document.activeElement, dir, 0);
-  row?.focus();
-  return row;
-};

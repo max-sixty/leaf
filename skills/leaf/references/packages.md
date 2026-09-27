@@ -611,6 +611,11 @@ choice the command reference does not have, such as a generated hint tied to the
 optional `reach` on a row or scope supplies the short place phrase shown when a command
 is not available (for example, `in an open draft editor`).
 
+A list of focusable rows takes its walk from `rowWalk({id, noun, plural, rows})`, whose
+two returned rows go into the list's own scope: ArrowUp and ArrowDown step and clamp,
+Home and End reach the ends, and each landing shows its position, such as `Option 3 of
+7`. `rows()` returns the list as it stands at each press.
+
 A widget-owned composition box is the runtime's text field, `offer(TEXT_FIELD)` from the
 widget API: a Markdown editor that shows the draft the way the sent message will read
 and answers the textarea members a box needs (`value`, the selection, `placeholder`,

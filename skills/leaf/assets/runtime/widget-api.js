@@ -56,13 +56,7 @@ export { threadInput } from "./thread/landing.js";
 export { landInThread, openThread } from "./application.js";
 export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
-export {
-  PRESS,
-  labelOf,
-  submitBindings,
-  submitLabel,
-  walkRows,
-} from "./keyboard/bindings.js";
+export { PRESS, labelOf, submitBindings, submitLabel } from "./keyboard/bindings.js";
 export {
   commandScope,
   focused,
@@ -72,7 +66,7 @@ export {
 } from "./keyboard/scopes.js";
 export { repaint } from "./repaint.js";
 export { cancelRender, nextFrame, nextRender, sizeObserver } from "./rendering.js";
-export { beginWalk, listWalkPosition } from "./walk-position.js";
+export { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
 export {
   MARGIN_ENTRY_SCHEMA,
   marginEntry,

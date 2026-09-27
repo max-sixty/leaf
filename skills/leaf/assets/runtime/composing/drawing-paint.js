@@ -117,15 +117,10 @@ export function createDrawingPaint({ anchors, activeDrawing, draftDrawings }) {
     mounting = new Map();
     for (const thread of threads) {
       if (thread.resolved || !thread.root.drawing) continue;
-      const place = thread.root.anchor ? anchors.placedAt(thread.root.id) : null;
+      const place = thread.root.anchor ? anchors.placedAt(thread.id) : null;
       if (thread.root.anchor && (!place || place.status === "outdated")) continue;
       const target = place ? (place.target ?? place.element) : null;
-      const painted = mark(
-        thread.root.drawing,
-        target,
-        "lf-drawing-posted",
-        thread.root.id,
-      );
+      const painted = mark(thread.root.drawing, target, "lf-drawing-posted", thread.id);
       if (painted) {
         marks.push(painted);
         if (target) nextObserved.add(target);

@@ -27,6 +27,7 @@ const agent = (id, extra = {}) => ({
   ...extra,
 });
 const serverThread = (msgs, extra = {}) => ({
+  id: msgs[0].id,
   root: msgs[0],
   msgs,
   anchor: null,
@@ -149,7 +150,7 @@ test("attention names the outstanding question rather than the latest message", 
 
 const recentThread = (id, ts, edited = null) => {
   const root = { ...agent(id, { ts, ...(edited && { edited }) }), body: { text: id } };
-  return { root, msgs: [root] };
+  return { id, root, msgs: [root] };
 };
 
 test("Recent orders by last move and groups by the user's calendar day", () => {
@@ -166,7 +167,7 @@ test("Recent orders by last move and groups by the user's calendar day", () => {
     const saturday = recentThread("saturday", "2026-03-07T20:00:00Z");
     const order = inRecentOrder([saturday, acrossDst, beforeMidnight, old]);
     assert.deepEqual(
-      order.map((thread) => thread.root.id),
+      order.map((thread) => thread.id),
       ["old", "late", "sunday", "saturday"],
     );
     assert.deepEqual(
@@ -222,7 +223,7 @@ test("narrowing transitions reset what they contradict and counts name each subs
   const groups = new Map(threads.map((thread) => [thread, { key: "section" }]));
   const model = narrowingReading(DEFAULT_INTENT, threads, groups);
   assert.deepEqual(
-    model.shown.map((thread) => thread.root.id),
+    model.shown.map((thread) => thread.id),
     ["asks", "working"],
   );
   const amounts = Object.fromEntries(

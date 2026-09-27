@@ -88,7 +88,7 @@ const authoredMessages = new Map();
 export function prepareAuthoredMessage(message, thread) {
   const key = message.attempt ?? message.id;
   if (typeof thread !== "string" || !thread)
-    throw new TypeError("an authored message needs its canonical thread root");
+    throw new TypeError("an authored message needs its thread's id");
   if (!authoredMessages.has(key)) {
     const template = document.createElement("template");
     template.innerHTML = message.markup ?? "";

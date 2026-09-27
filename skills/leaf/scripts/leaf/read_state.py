@@ -81,7 +81,7 @@ def unread_content(
 ) -> dict[str, list[dict]]:
     """Each thread's agent content versions the user has not taken in, in log order.
 
-    `threads` is the `build_threads` fold keyed by root id; `roots` and `widgets`
+    `threads` is the `build_threads` fold keyed by thread id; `roots` and `widgets`
     are `thread_context.thread_roots` and `thread_widgets` over the same log.
     """
     marked = set()

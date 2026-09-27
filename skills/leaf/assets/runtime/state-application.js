@@ -86,7 +86,7 @@ export function createStateApplication({
     const frozenDocuments = [];
     const threadRoots = new Map(
       state.browser.thread.threads.flatMap((thread) =>
-        thread.msgs.map((message) => [message.id, thread.root.id]),
+        thread.msgs.map((message) => [message.id, thread.id]),
       ),
     );
     const preparations = [
@@ -109,7 +109,7 @@ export function createStateApplication({
       state.browser.thread.threads.flatMap((thread) =>
         thread.msgs.map((message) => {
           const authored = message.markup
-            ? prepareAuthoredMessage(message, thread.root.id).body
+            ? prepareAuthoredMessage(message, thread.id).body
             : null;
           return [
             message.id,

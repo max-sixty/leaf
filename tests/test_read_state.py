@@ -28,7 +28,7 @@ def _unread(state, root):
     return next(
         thread["unread"]
         for thread in state["browser"]["thread"]["threads"]
-        if thread["root"]["id"] == root
+        if thread["id"] == root
     )
 
 

@@ -115,7 +115,7 @@ customElements.define('lf-thread-filter', class extends HTMLElement {
         const item = document.createElement('li');
         const button = document.createElement('button');
         button.textContent = threadSummary(thread).topic;
-        button.onclick = () => openThread(thread.root.id);
+        button.onclick = () => openThread(thread.id);
         item.append(button);
         return item;
       }));
@@ -397,16 +397,14 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     pending = reader.evaluate(
         "node => node.reading.threads.find(thread => thread.root.pending)"
     )
-    expect(
-        page.locator(f'.lf-thread[data-id="{pending["root"]["id"]}"]')
-    ).to_have_count(1)
+    expect(page.locator(f'.lf-thread[data-id="{pending["id"]}"]')).to_have_count(1)
     held.pop().continue_()
     round_trip(page)
     admitted = reader.evaluate(
         "(node, key) => node.reading.threads.find(thread => thread.key === key)",
         pending["key"],
     )
-    assert admitted["root"]["id"] != pending["root"]["id"]
+    assert admitted["id"] != pending["id"]
     assert admitted["root"]["key"] == pending["root"]["key"]
 
     write(box, "Refused words")
@@ -492,7 +490,7 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
     assert removed.evaluate("node => node.updates") == stopped_at
 
     thread_id = second.evaluate(
-        "node => node.reading.threads.find(thread => thread.root.body.text.trim() === 'Delta').root.id"
+        "node => node.reading.threads.find(thread => thread.root.body.text.trim() === 'Delta').id"
     )
     second.locator("button", has_text="Delta").click()
     expect(page.locator(f'.lf-thread[data-id="{thread_id}"]')).to_be_visible()

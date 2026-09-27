@@ -403,9 +403,9 @@ def stamp_decisions(registry: dict) -> dict:
 
     Each composition stamps it (`registry.layer.stamp_composition`), so the browser
     reads which verb decides a widget and what its outcome takes off the page rather
-    than walking the declarations a second time. Python reads `deciding_verb` and `retirement_slots` themselves, the
-    definitions this is derived from, since validation asks them of declarations that
-    no composition has stamped yet."""
+    than walking the declarations a second time. Python reads `deciding_verb` and
+    `retirement_slots` themselves, the definitions this is derived from, since
+    validation asks them of declarations that no composition has stamped yet."""
     slots = retirement_slots(registry)
     registry["$decisions"] = {
         tag: {"verb": verb, "retires": slots.get(tag, {})}

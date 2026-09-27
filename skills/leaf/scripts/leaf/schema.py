@@ -410,11 +410,11 @@ ATTRIBUTE_KEYS = (
 # The declarations a stylesheet reads, each painted on the element as `paint`: the room
 # it takes (x-space), whether it sets inline among words (x-inline), quotes what it holds
 # (x-exhibit), holds its own height (x-bound), and the reading structure it supplies
-# (x-reading-role). A stylesheet cannot read the registry, so something must write each
-# one where a selector can ask. `authored` is the attribute an occurrence writes to
-# override its tag's declaration. `message` says whether the fact holds in a thread's
-# message too: every one is the element's own wherever it renders except the room,
-# which is the document's to hand out, while a message renders in the panel's.
+# (x-reading-role). A stylesheet cannot read the registry, so each is painted where a
+# selector can ask. `authored` is the attribute an occurrence writes to override its
+# tag's declaration. `message` says whether the mark holds in a thread's message too:
+# each is the element's own fact wherever it renders, except the room, which is the
+# document's to hand out; a message renders in the panel, whose width bounds it.
 #
 # Delivery paints a page's document from this (`revision_delivery.mark_declared`).
 # Composition stamps it into the vocabulary as `$marks` (`registry.layer.

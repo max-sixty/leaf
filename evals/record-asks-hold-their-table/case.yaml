@@ -1,0 +1,60 @@
+schema_version: '1.0'
+name: record-asks-hold-their-table
+description: "Asks: on a record page, an Ask that turns on a measurement holds the measured table inside the lf-ask, and long backing follows it."
+tags:
+- asks
+execution:
+  prompt: |
+    You are writing a Leaf status page for a service migration. It has sections for
+    cutover progress, a timeout regression, and the rollback plan. Write the timeout
+    regression section, which puts a question to the user.
+
+    Your notes:
+    - Since the cutover, 2.1% of export requests hit the 5 s gateway timeout, up from
+      0.1%. Exports over 40 MB account for nearly all of them.
+    - Measured over one day of traffic:
+
+      | export size | requests | p50 | p95 | over 5 s |
+      | --- | --- | --- | --- | --- |
+      | under 10 MB | 18,240 | 0.4 s | 1.1 s | 0.0% |
+      | 10–40 MB | 3,112 | 1.9 s | 3.8 s | 0.3% |
+      | over 40 MB | 911 | 4.6 s | 9.2 s | 41% |
+
+    - The user decides between raising the timeout to 15 s for exports only,
+      streaming large exports so the first byte arrives within 5 s, or leaving it
+      while the export team rewrites the job next quarter.
+    - You also have a 60-line gateway log excerpt showing three timed-out requests,
+      and a paragraph on why the new gateway buffers exports where the old one
+      streamed them. Include both.
+
+    The page directory is not reachable from here, so reply with the section's HTML
+    fragment rather than writing a file.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-authoring-asks
+  type: tool_used
+  tool: Read
+  input_match: authoring-asks
+- name: has-asks
+  type: regex
+  pattern: <lf-ask\b
+  flags: i
+- name: judgment
+  type: llm
+  criteria: |
+    Read the HTML fragment as a user who presses `a`, which puts the `lf-ask`'s
+    heading at the top of the screen with everything above it out of view. Pass only
+    if all of these hold:
+    1. There is one `lf-ask` whose first child is a heading stating the question.
+    2. Inside that `lf-ask`, before its `lf-options`, stand the measured table (its
+       rows by export size) and at least one sentence of premise saying what the
+       table shows or why it matters. Its exact content is the author's choice.
+    3. The gateway log excerpt and the buffering paragraph come after the
+       `lf-options`, inside the `lf-ask` after its options or after the `lf-ask`,
+       collapsed or not. Fail if either stands before the `lf-ask` or between its
+       heading and its options.
+    Fail if the table stands before the `lf-ask`, outside it, with the `lf-ask`
+    holding little more than the question and its options.

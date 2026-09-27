@@ -25,7 +25,7 @@ from render_cases_interaction import (
     ASK_PAGE,
     FRAME_BY_FRAME,
     HOLD_MOTION,
-    LIST_RUNS,
+    LIST_ORDER,
     LIST_STATE,
     PANEL_PAGE,
     SEATED_ASK_LAYER,
@@ -36,11 +36,8 @@ from render_cases_interaction import (
 )
 from render_cases_layout import (
     COVERED_TOP,
-    EDGES,
     banner_control,
     button_radius,
-    draw_edge,
-    edge_settled,
     in_threads_scrollport,
     page_at_rest,
     ring_faults,
@@ -1738,8 +1735,8 @@ def test_opening_a_thread_leaves_its_title_where_the_user_pressed_it(browser, se
         f"for this reading to say anything about holding the title still"
     )
     after = title.evaluate("el => el.getBoundingClientRect().top")
-    # A few pixels are the browser's own: pressing a title focuses it, and a focus the
-    # run heading stands over is revealed out from under it by the list's scroll-padding.
+    # A few pixels are the browser's own: pressing a title focuses it, and a focus at
+    # the list's edge is revealed by the list's scroll-padding.
     assert after == pytest.approx(before, abs=8), (
         f"opening the thread carried its title from {before:.1f}px to {after:.1f}px, "
         f"{opened - closed:.0f}px of room having closed above it"
@@ -2532,8 +2529,8 @@ def test_the_panel_reads_the_thread_in_the_pages_own_order(browser, serve):
     the panel is asked for its own, which is only the page's if something sorted it.
 
     A thread with nowhere in the page to be — a comment about the whole of it — comes
-    after the ones that have somewhere, under its own heading, rather than at the
-    moment it happened to be written."""
+    after the ones that have somewhere, rather than at the moment it happened to be
+    written. The list is threads alone: no heading stands among them."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
     whole = events_model.append_event(
@@ -2553,16 +2550,13 @@ def test_the_panel_reads_the_thread_in_the_pages_own_order(browser, serve):
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    assert page.evaluate(LIST_RUNS) == [
-        "§ Shipping offline editing",
+    assert page.evaluate(LIST_ORDER) == [
         lede,
-        "§ How it works",
         cap,
-        "§ The merge rule",
         merge,
-        "§ About the page as a whole",
         whole,
     ], "the panel is not reading in the page's order"
+    expect(page.locator(".lf-threads > :not(.lf-thread)")).to_have_count(0)
 
     # A design comment about the page as a whole has an address to show but no passage
     # to return to. It is a static label, not a broken anchored-thread control.
@@ -2763,7 +2757,7 @@ def test_two_standard_thread_lists_share_updates_but_not_local_state(browser, se
 
 def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
     """Order is the panel's own view, not a filter. Recent puts the thread spoken in
-    last at the top under a day heading. The View control keeps one label whatever is
+    last at the top. The View control keeps one label whatever is
     chosen, and a narrowed summary arriving never moves the choices under the press.
     Reset clears refinements but keeps the order, and with the panel shut t/T still
     walk the page's order."""
@@ -2777,11 +2771,6 @@ def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
             event["anchor"] = anchor
         event["ts"] = (now - timedelta(days=days_ago)).isoformat(timespec="seconds")
         return events_model.append_event(d, event)["id"]
-
-    def day(days_ago):
-        at = now - timedelta(days=days_ago)
-        label = f"{at:%b} {at.day}"
-        return label if at.year == now.year else f"{label}, {at.year}"
 
     lede = comment("Six weeks reads long.", {"section": "lede"}, 10)
     cap = comment("Is forty enough?", {"section": "how-cap"}, 3)
@@ -2801,14 +2790,7 @@ def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
     expect(toggle).to_have_text("View")
     order.get_by_role("button", name="Recent").click()
     expect(toggle).to_have_text("View")
-    assert page.evaluate(LIST_RUNS) == [
-        "§ Today",
-        whole,
-        f"§ {day(3)}",
-        cap,
-        f"§ {day(10)}",
-        lede,
-    ]
+    assert page.evaluate(LIST_ORDER) == [whole, cap, lede]
 
     # Order hides nothing, so it is not part of what Reset puts back. The narrowed
     # summary that the press brings in stands below the choices, not above them.
@@ -2820,10 +2802,10 @@ def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
     anchored.click()
     expect(page.locator(".lf-thread-view")).to_be_visible()
     assert anchored.bounding_box() == before, "the summary moved the choices"
-    shown_runs = LIST_RUNS.replace(".map(", ".filter((n) => !n.hidden).map(", 1)
-    assert page.evaluate(shown_runs)[:2] == [f"§ {day(3)}", cap]
+    shown = LIST_ORDER.replace(".map(", ".filter((n) => !n.hidden).map(", 1)
+    assert page.evaluate(shown)[:1] == [cap]
     page.get_by_role("button", name="Reset thread filters").click()
-    assert page.evaluate(shown_runs)[:2] == ["§ Today", whole]
+    assert page.evaluate(shown)[:1] == [whole]
     expect(order.get_by_role("button", name="Recent")).to_have_attribute(
         "aria-pressed", "true"
     )
@@ -2835,16 +2817,9 @@ def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
         page.locator(f'.lf-thread[data-id="{whole}"] > .lf-thread-summary')
     ).to_be_focused()
 
-    # Page order restores the page's runs.
+    # Page order restores the page's order.
     order.get_by_role("button", name="Page").click()
-    assert page.evaluate(LIST_RUNS) == [
-        "§ Shipping offline editing",
-        lede,
-        "§ How it works",
-        cap,
-        "§ About the page as a whole",
-        whole,
-    ]
+    assert page.evaluate(LIST_ORDER) == [lede, cap, whole]
 
     # The page's walk is the page's order whatever the panel shows.
     # From no place on the page, which is where the walk starts from its first thread:
@@ -2946,50 +2921,6 @@ def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
     )
 
 
-def test_a_page_with_no_headings_gets_the_order_and_no_landmarks(browser, serve):
-    """The order is the page's whether or not the page has an outline; the landmarks are
-    the outline's. A page its author wrote no headings into gets the first without the
-    second, rather than one line reading "Above the first heading" over the whole list —
-    a landmark naming a landmark the page hasn't got."""
-    url = serve(
-        leaf_page(
-            "bare",
-            """
-<p id="one">The first paragraph, with nothing above it.</p>
-<p id="two">The second paragraph, with nothing above it either.</p>
-""",
-        )
-    )
-    d = serve.page_dir
-    second = panel_comment(d, "On the second.", {"section": "two"})
-    first = panel_comment(d, "On the first.", {"section": "one"})
-
-    page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    assert page.evaluate(LIST_RUNS) == [
-        first,
-        second,
-    ], "a page with no outline did not get the page's order, or was given a landmark"
-    expect(page.locator(".lf-group")).to_have_count(0)
-
-
-def test_a_single_section_heading_stays_when_a_thread_has_no_passage_link(
-    browser, serve
-):
-    url = serve(PANEL_PAGE)
-    root = panel_comment(
-        serve.page_dir, "About the heading itself.", {"section": "h-how"}
-    )
-    page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    expect(page.locator(f'.lf-thread[data-id="{root}"] .lf-quote')).to_have_count(0)
-    expect(page.locator('.lf-threads > button.lf-group[data-group="h1"]')).to_have_text(
-        "How it works"
-    )
-
-
 def test_a_thread_on_words_a_widget_renders_stands_where_the_widget_does(
     browser, serve
 ):
@@ -3000,8 +2931,8 @@ def test_a_thread_on_words_a_widget_renders_stands_where_the_widget_does(
     sort and group by something the user has never seen.
 
     The host is the element the page holds, and where the page holds it is where those
-    words are. So the thread reads after the paragraphs above the widget and under the
-    heading the widget itself is under."""
+    words are. So the thread reads after the paragraphs above the widget and before
+    the ones below it."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
     lede = panel_comment(d, "Six weeks reads long.", {"section": "lede"})
@@ -3022,49 +2953,33 @@ def test_a_thread_on_words_a_widget_renders_stands_where_the_widget_does(
                .some((r) => root.contains(r.startContainer));
            }"""
     ), "the fixture's passage is not marked inside a shadow tree"
-    assert page.evaluate(LIST_RUNS) == [
-        "§ Shipping offline editing",
+    assert page.evaluate(LIST_ORDER) == [
         lede,
-        "§ How it works",
         patch,
-        "§ The merge rule",
         both,
     ], "the thread on the widget's words does not stand where the widget does"
 
 
-def test_a_run_of_threads_says_which_part_of_the_page_it_is_about(browser, serve):
-    """A heading over each run, and it stays on screen while the run scrolls past it —
-    which is the whole of what it is for. A list four thousand pixels long is scrolled
-    past its landmarks inside one gesture, so a heading that scrolled away with its own
-    threads would answer "where am I" only at the moment the user already knew.
-
-    Pressing one puts that section's heading at the readable start of the page, where a
-    heading reached through page navigation belongs."""
+def test_a_threads_passage_link_names_its_own_passage(browser, serve):
+    """No heading stands over the list, so each card says where its own thread is: the
+    words of the passage it is on, or the element it names, a heading included."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
-    merge_threads = [
-        panel_comment(d, f"On the merge rule, {i}.", {"section": "merge-both"})
-        for i in range(30)
-    ]
+    merge = panel_comment(d, "On the merge rule.", {"section": "merge-both"})
     heading_thread = panel_comment(d, "On the heading.", {"section": "h-merge"})
     heading_quote_thread = panel_comment(
         d,
         "On the selected heading words.",
         {"section": "h-merge", "quote": "The merge rule"},
     )
-    panel_comment(d, "On the lede.", {"section": "lede"})
 
     page = open_page(browser, url)
     resized(page, 1280, 800)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    heading = page.locator(".lf-group[data-group]", has_text="The merge rule")
-    expect(heading).to_have_count(1)
-    expect(heading).to_have_css("text-transform", "none")
-    quote = page.locator(f'.lf-thread[data-id="{merge_threads[0]}"] .lf-quote-label')
+    quote = page.locator(f'.lf-thread[data-id="{merge}"] .lf-quote-label')
     expect(quote).to_contain_text("Two people editing one document")
-    expect(quote).not_to_contain_text("The merge rule")
-    focus_panel_thread(page.locator(f'.lf-thread[data-id="{merge_threads[0]}"]'))
+    focus_panel_thread(page.locator(f'.lf-thread[data-id="{merge}"]'))
     # Opening the card can restore the list's position after the click.
     scroll_settled(page, ".lf-threads")
     gutter = quote.evaluate(
@@ -3074,51 +2989,10 @@ def test_a_run_of_threads_says_which_part_of_the_page_it_is_about(browser, serve
           return label.getBoundingClientRect().left - box.left - line; }"""
     )
     assert gutter >= 10, f"the quote rail leaves only {gutter}px before its text"
-    expect(
-        page.locator(f'.lf-thread[data-id="{heading_thread}"] .lf-quote-label')
-    ).to_have_count(0)
-    expect(
-        page.locator(f'.lf-thread[data-id="{heading_quote_thread}"] .lf-quote-label')
-    ).to_have_count(0)
-
-    # Scroll the run's own threads up past the top of the list, and the heading is still
-    # there — pinned at the top edge rather than gone with them. Opaque, because what it
-    # covers is the thread passing underneath it.
-    page.evaluate(
-        """() => { const box = document.querySelector('.lf-threads');
-                   box.scrollTop = box.scrollHeight; }"""
-    )
-    page.wait_for_function(
-        """() => { const box = document.querySelector('.lf-threads');
-                   return box.scrollTop + box.clientHeight >= box.scrollHeight - 1; }"""
-    )
-    assert page.evaluate(
-        """() => {
-             const box = document.querySelector('.lf-threads').getBoundingClientRect();
-             const head = [...document.querySelectorAll('.lf-group')]
-               .find((n) => n.textContent === 'The merge rule');
-             const first = document.querySelector('.lf-threads > .lf-thread')
-               .getBoundingClientRect();
-             const paint = getComputedStyle(head).backgroundColor;
-             const r = head.getBoundingClientRect();
-             return { pinned: r.top <= box.top + 1 && r.bottom > box.top + 8,
-                      scrolledPast: first.top < box.top,
-                      opaque: !/rgba\\(.*, 0\\)$/.test(paint) };
-           }"""
-    ) == {
-        "pinned": True,
-        "scrolledPast": True,
-        "opaque": True,
-    }, "the run's heading did not stay over the run"
-
-    heading.click()
-    page.wait_for_function(
-        """() => { const r = document.getElementById('h-merge').getBoundingClientRect();
-                   const clear = parseFloat(
-                     getComputedStyle(document.scrollingElement).scrollPaddingTop
-                   ) || 0;
-                   return Math.abs(r.top - clear) < 2; }"""
-    )
+    for thread in (heading_thread, heading_quote_thread):
+        expect(
+            page.locator(f'.lf-thread[data-id="{thread}"] .lf-quote-label')
+        ).to_contain_text("The merge rule")
 
 
 def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve):
@@ -3169,7 +3043,7 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 3")
 
     # The part of the page a thread is on is one of its words: a user looking for the
-    # merge rule finds the thread under that heading without its message saying so.
+    # merge rule finds the thread in that section without its message saying so.
     page.get_by_role("searchbox", name="Find in threads").fill("merge rule")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{merge}"]')).to_have_count(1)
@@ -5325,7 +5199,7 @@ def test_a_design_thread_about_fixed_chrome_moves_neither_box(browser, serve):
     page = open_page(browser, url, context=context)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(page.locator(".lf-group", has_text="Page design")).to_have_count(1)
+    expect(page.locator('.lf-thread[data-id="fx-on-design"]')).to_have_count(1)
     expect(page.locator(".lf-shortcut-bar")).to_be_visible()
 
     page.evaluate("() => { document.scrollingElement.scrollTop = 1200; }")
@@ -5725,7 +5599,7 @@ def standing_thread(page):
 def test_the_thread_list_ring_paints_above_its_scrolling_contents(
     browser, serve, color_scheme
 ):
-    """Sticky headings and edge-crossing fields cannot cover the list's focus ring."""
+    """Edge-crossing threads and fields cannot cover the list's focus ring."""
     url = serve(PANEL_PAGE)
     for i in range(30):
         panel_comment(
@@ -5792,8 +5666,8 @@ def test_the_thread_list_ring_paints_above_its_scrolling_contents(
         "ownerless strip between their contours"
     )
 
-    # Reproduce the reported paint order: a sticky heading owns the pixels just
-    # inside the top edge while one of the list's controls crosses the bottom edge.
+    # Reproduce the reported paint order: a thread owns the pixels just inside the
+    # top edge while one of the list's controls crosses the bottom edge.
     # The focus outline must remain continuous over both foreground elements. Give
     # those contents an extreme local rank too: the list's stacking context, rather
     # than today's particular z-index values, keeps all of its contents under the cue.
@@ -5807,7 +5681,7 @@ def test_the_thread_list_ring_paints_above_its_scrolling_contents(
                 const bottom = document.elementFromPoint(
                   box.left + box.width / 2, box.bottom - 2
                 );
-                if (top?.closest('.lf-pinned') && bottom !== el && el.contains(bottom))
+                if (top?.closest('.lf-thread') && bottom !== el && el.contains(bottom))
                   return {scrollTop: el.scrollTop, top: top.tagName, bottom: bottom.tagName};
               }
               return null;
@@ -5821,7 +5695,7 @@ def test_the_thread_list_ring_paints_above_its_scrolling_contents(
               const bottom = document.elementFromPoint(
                 box.left + box.width / 2, box.bottom - 2
               );
-              top.closest('.lf-pinned').style.zIndex = '9999';
+              top.closest('.lf-thread').style.zIndex = '9999';
               bottom.style.position = 'relative';
               bottom.style.zIndex = '9999';
             }"""
@@ -5994,8 +5868,8 @@ def test_no_focus_mark_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered
         under = page.evaluate(COVERED_TOP)
         if under:
             faults.append(
-                f"after {walked} presses, the thread landed under a run "
-                f"heading: {under}"
+                f"after {walked} presses, the thread landed past the list's "
+                f"top edge: {under}"
             )
     assert not faults, "\n  ".join([f"{len(faults)} of {walked} landings:"] + faults)
 
@@ -6008,8 +5882,7 @@ def test_no_focus_mark_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered
     )
 
     # The list's own controls, which t and T never reach: Reply and Resolve inside a
-    # card draw their rings outside themselves, as does a run heading, which is a
-    # button. They are what the room reserved at this list's edges is for — the
+    # card draw their rings outside themselves. They are what the room reserved at this list's edges is for — the
     # current thread's paint stays inside its card — so without this pass half of
     # that scroll-padding is unheld. Tab scrolls each stop into view itself,
     # which is the gesture that puts one against an edge.
@@ -6102,8 +5975,7 @@ def test_the_address_sequence_places_a_focused_comment_at_either_list_edge(
 ):
     """A focused thread is one addressable place with two useful placements. `g k`
     and `g j` move that card inside the panel without moving focus or the document,
-    and the list's own scroll padding keeps the landing clear of its pinned heading
-    and focus ring."""
+    and the list's own scroll padding keeps the landing clear of its focus ring."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
     for i in range(32):
@@ -6167,41 +6039,36 @@ def test_the_address_sequence_places_a_focused_comment_at_either_list_edge(
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before_page
 
 
-# What the burial below is aiming at: how deep the heading stands over the first card,
-# the edge that depth has to match, and the box the press is aimed into. `COVERED_TOP`
-# answers the covered question afterwards, by hit test and about the focused card.
-UNDER_HEADING = """() => {
+# What the burial below is aiming at: how far the first card stands past the list's top
+# edge, the edge that depth has to match, and the box the press is aimed into.
+# `COVERED_TOP` answers the covered question afterwards, about the focused card.
+UNDER_EDGE = """() => {
   const list = document.querySelector('.lf-threads');
   const card = list.querySelector('.lf-thread');
-  const head = list.querySelector('.lf-pinned');
+  const top = list.getBoundingClientRect().top + list.clientTop;
   return {
-    covered: head.getBoundingClientRect().bottom - card.getBoundingClientRect().top,
+    covered: top - card.getBoundingClientRect().top,
     edge: parseFloat(getComputedStyle(card).borderTopWidth),
     box: card.getBoundingClientRect().toJSON(),
   };
 }"""
 
-# Scroll by hand until the heading stands over the card by `want`. A pixel at a time,
-# because the heading moves under the gesture: it travels with the flow until it pins,
-# and only what it gains after that lands on the card. Bounded, so a list that never
-# covers its first card fails the precondition rather than spinning.
+# Scroll by hand until the list's top edge cuts the card by `want`. Bounded, so a list
+# that never scrolls its first card away fails the precondition rather than spinning.
 BURY = """(want) => {
   const list = document.querySelector('.lf-threads');
   const card = list.querySelector('.lf-thread');
-  const head = list.querySelector('.lf-pinned');
-  const covered = () =>
-    head.getBoundingClientRect().bottom - card.getBoundingClientRect().top;
+  const covered = () => list.getBoundingClientRect().top + list.clientTop
+    - card.getBoundingClientRect().top;
   for (let i = 0; i < 400 && covered() < want; i++) list.scrollTop += 1;
 }"""
 
 
-def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
-    browser, serve
-):
+def test_a_comment_the_pointer_lands_on_comes_back_from_the_lists_edge(browser, serve):
     """The walk above never sees this, and that is the point of having it twice: t/T
     scroll their landing into the band the list declares unlandable. A click scrolls
-    nothing. The user nudges the list, the run heading pins over the first card of its
-    run, and takes the first strip of the surface that distinguishes the current card.
+    nothing. The user nudges the list, its top edge cuts the first card, and takes the
+    first strip of the surface that distinguishes the current card.
 
     So the gesture here is a real press rather than a locator click, which would scroll
     the card into view for its own actionability check and quietly perform the fix it is
@@ -6226,14 +6093,14 @@ def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
     page.locator(".lf-threads").focus()
 
     # Bury the card by exactly its reserved edge, which is the user's own case: a
-    # list nudged a dozen pixels puts the first card of a run under the heading. The
+    # list nudged a dozen pixels cuts its first card at the top edge. The
     # depth is one pixel rather than a comfortable number on purpose: it leaves the
     # rest of the card visible while hiding the first strip of its current ground.
-    page.evaluate(BURY, page.evaluate(UNDER_HEADING)["edge"])
+    page.evaluate(BURY, page.evaluate(UNDER_EDGE)["edge"])
     rendered(page)
-    buried = page.evaluate(UNDER_HEADING)
+    buried = page.evaluate(UNDER_EDGE)
     assert buried["edge"] <= buried["covered"] <= buried["edge"] + 1, (
-        f"the heading stands over {buried['covered']}px of the first card and its "
+        f"the list's edge cuts {buried['covered']}px of the first card and its "
         f"edge is {buried['edge']}px: the setup wanted the edge buried and the rest "
         "of the card showing, and this is neither"
     )
@@ -6250,13 +6117,13 @@ def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
     mark_fault = thread_mark_fault(standing_thread(page), ring="none")
     assert not mark_fault, mark_fault
     assert not ring_faults(
-        rings_drawn(page), "after a press on a card under the run heading"
+        rings_drawn(page), "after a press on a card the list's edge cut"
     )
     # The panel's own reading of the same question, and the stronger form of it: a
     # hit test at the card's top edge rather than two rectangles subtracted, and it
     # declines outright if the press left the list.
     assert page.evaluate(COVERED_TOP) is None, (
-        f"after the press the card is still under a heading: "
+        f"after the press the card is still past the list's top edge: "
         f"{page.evaluate(COVERED_TOP)}"
     )
 
@@ -6265,7 +6132,7 @@ def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
     # thread around the box; a press into it went the way every other press did.
     page.evaluate(BURY, buried["edge"])
     rendered(page)
-    under = page.evaluate(UNDER_HEADING)
+    under = page.evaluate(UNDER_EDGE)
     assert under["covered"] >= under["edge"], (
         f"the setup put the card back only {under['covered']}px under, which its "
         f"{under['edge']}px edge shows through"
@@ -6279,24 +6146,21 @@ def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
     rendered(page)
     expect(reply).to_be_focused()
     assert page.evaluate(COVERED_TOP) is None, (
-        "a press into the reply box left the current thread under the heading: "
+        "a press into the reply box left the current thread past the list's top edge: "
         f"{page.evaluate(COVERED_TOP)}"
     )
 
 
-# The first closed title the run heading stands partly over, and how deep. The test
-# above reads the list's first card, which it opens; a title is the box the heading
-# buries once every card but one is shut.
+# The first closed title the list's top edge cuts, and how deep. The test above reads
+# the list's first card, which it opens; a title is the box the edge cuts once every
+# card but one is shut.
 BURIED_TITLE = """() => {
   const list = document.querySelector('.lf-threads');
-  const heading = [...list.querySelectorAll('.lf-pinned')]
-    .map((head) => head.getBoundingClientRect())
-    .sort((a, b) => a.top - b.top)[0];
-  if (!heading) return null;
+  const top = list.getBoundingClientRect().top + list.clientTop;
   for (const card of list.querySelectorAll('.lf-thread:not([open])')) {
     const title = card.querySelector('.lf-thread-summary').getBoundingClientRect();
-    if (title.top < heading.bottom && title.bottom > heading.bottom)
-      return {covered: heading.bottom - title.top, box: title.toJSON(), id: card.dataset.id};
+    if (title.top < top && title.bottom > top)
+      return {covered: top - title.top, box: title.toJSON(), id: card.dataset.id};
   }
   return null;
 }"""
@@ -6304,12 +6168,12 @@ BURIED_TITLE = """() => {
 
 def test_a_press_that_opens_a_thread_lands_it_and_holds_it_at_once(browser, serve):
     """Two writers meet inside one press on a thread title. The press lands the thread
-    out from under the pinned run heading at `pointerup`, and the click that follows
+    back inside the list's top edge at `pointerup`, and the click that follows
     opens it, which reflows the list and brings its hold down on `scrollTop` a frame
     later. A `scrollTop` write cancels a smooth scroll rather than composing with it, so
     an animated landing is not superseded by what the gesture asks for next — it is
     dropped, and the user is left with neither: the title held exactly where the
-    heading was covering it. The landing under a press is therefore instant, which is
+    edge was cutting it. The landing under a press is therefore instant, which is
     also what lets the hold take its reference from where the landing put the title.
 
     Motion stays at its default here. The reduced-motion context the test above builds
@@ -6329,8 +6193,7 @@ def test_a_press_that_opens_a_thread_lands_it_and_holds_it_at_once(browser, serv
     page.locator(".lf-thread-summary").first.click()
     rendered(page)
 
-    # Nudge until a closed title is buried a few pixels, the user's own case: the
-    # heading travels with the flow until it pins, so the depth arrives a step at a time.
+    # Nudge until a closed title is cut a few pixels, the user's own case.
     buried = None
     for top in range(0, 400, 3):
         page.evaluate(
@@ -6341,7 +6204,7 @@ def test_a_press_that_opens_a_thread_lands_it_and_holds_it_at_once(browser, serv
         if buried and 3 <= buried["covered"] <= 10:
             break
         buried = None
-    assert buried, "no closed title ended up part-way under the run heading"
+    assert buried, "no closed title ended up part-way past the list's top edge"
 
     box = buried["box"]
     page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
@@ -6352,7 +6215,7 @@ def test_a_press_that_opens_a_thread_lands_it_and_holds_it_at_once(browser, serv
     rendered(page)
 
     assert page.evaluate(COVERED_TOP) is None, (
-        f"the press opened the thread but left its title under the heading: "
+        f"the press opened the thread but left its title past the list's top edge: "
         f"{page.evaluate(COVERED_TOP)}"
     )
     title = page.locator(f'.lf-thread[data-id="{buried["id"]}"] > .lf-thread-summary')
@@ -6366,7 +6229,7 @@ def test_a_press_that_opens_a_thread_lands_it_and_holds_it_at_once(browser, serv
 def test_a_press_on_the_comment_the_user_is_already_in_brings_it_back(browser, serve):
     """The same gesture as the test above, from the state the user is actually in when
     they make it: standing in a comment, the list carried a little, the card's top run
-    gone under the heading. They press the card to bring it back — and a press on the
+    gone past the list's top edge. They press the card to bring it back — and a press on the
     thread that already holds the focus moves no focus at all, so a landing hung off the
     focus event hears nothing and the user presses at a card that will not come.
 
@@ -6393,11 +6256,11 @@ def test_a_press_on_the_comment_the_user_is_already_in_brings_it_back(browser, s
     first = page.locator(".lf-threads > .lf-thread:not([hidden])").first
     focus_panel_thread(first)
     rendered(page)
-    page.evaluate(BURY, page.evaluate(UNDER_HEADING)["edge"])
+    page.evaluate(BURY, page.evaluate(UNDER_EDGE)["edge"])
     rendered(page)
-    under = page.evaluate(UNDER_HEADING)
+    under = page.evaluate(UNDER_EDGE)
     assert under["covered"] >= under["edge"], (
-        f"the list carried only {under['covered']}px under the heading, which the "
+        f"the list carried only {under['covered']}px past the list's top edge, which the "
         f"{under['edge']}px edge shows through — nothing here is cut yet"
     )
     assert page.evaluate(
@@ -6408,8 +6271,8 @@ def test_a_press_on_the_comment_the_user_is_already_in_brings_it_back(browser, s
     page.mouse.click(box["x"] + 6, box["y"] + 80)
     rendered(page)
     assert page.evaluate(COVERED_TOP) is None, (
-        "a press on the card the user was already standing in left it under the "
-        f"heading: {page.evaluate(COVERED_TOP)}"
+        "a press on the card the user was already standing in left it past the "
+        f"list's top edge: {page.evaluate(COVERED_TOP)}"
     )
     assert not ring_faults(
         rings_drawn(page), "after a press on the card already standing in"
@@ -6422,7 +6285,7 @@ def test_a_cancelled_panel_press_does_not_suppress_the_next_focus_landing(
     """A touch scroll begins as a press and ends in ``pointercancel`` when the browser
     takes the gesture. Cancellation must not undo the scroll by landing the card, but it
     must end the provisional press: the next independent focus arrival still brings its
-    thread out from under the run heading.
+    thread back inside the list's top edge.
 
     Dispatch the pointer events directly so the browser does not add a mouse click or a
     default focus after the cancellation. An unrelated pointer first proves which gesture
@@ -6450,8 +6313,8 @@ def test_a_cancelled_panel_press_does_not_suppress_the_next_focus_landing(
     page.evaluate(BURY, 20)
     rendered(page)
     before = page.evaluate("() => document.querySelector('.lf-threads').scrollTop")
-    assert page.evaluate(UNDER_HEADING)["covered"] >= 20, (
-        "the setup did not put the first card under its heading"
+    assert page.evaluate(UNDER_EDGE)["covered"] >= 20, (
+        "the setup did not put the first card past the list's top edge"
     )
 
     page.evaluate(
@@ -6490,7 +6353,7 @@ def test_a_cancelled_panel_press_does_not_suppress_the_next_focus_landing(
     rendered(page)
     assert page.evaluate(COVERED_TOP) is None, (
         "the cancelled press suppressed the next focus landing and left the card "
-        f"under its heading: {page.evaluate(COVERED_TOP)}"
+        f"past the list's top edge: {page.evaluate(COVERED_TOP)}"
     )
 
 
@@ -6603,7 +6466,7 @@ def test_a_drag_across_a_comments_words_leaves_the_list_where_it_was_read(
     page.locator(".lf-thread-summary").first.click()
     page.locator(".lf-threads").focus()
 
-    # Far enough under the heading that a landing would be a visible jump, so the
+    # Far enough past the list's top edge that a landing would be a visible jump, so the
     # drag below is asserting the absence of something this list would otherwise do.
     page.evaluate(BURY, 20)
     rendered(page)
@@ -6630,89 +6493,6 @@ def test_a_drag_across_a_comments_words_leaves_the_list_where_it_was_read(
     assert len(drawn) > 4, (
         f"the drag selected {drawn!r}, so this asserts nothing about a selection"
     )
-
-
-def test_the_room_a_run_heading_takes_follows_the_user_drawing_the_panel(
-    browser, serve
-):
-    """How much of the list's top a stuck heading covers is a measurement, because a long
-    heading wraps — and how long is long is the list's width, which is the user's to
-    set. They set it by dragging the panel's edge, and a drag posts no event, so the
-    reconcile that takes this measurement never comes. The number went on reserving room
-    for the one line the heading had at the width it was written at, and the threads a
-    walk landed on went back under the heading, which is the whole of what the number
-    exists to prevent.
-
-    A heading long enough to wrap at the narrow end and not at the wide one is what makes
-    the drag a single factor: the same list, the same log, one gesture between the two
-    readings."""
-    url = serve(
-        PANEL_PAGE.replace(
-            '<h2 id="h-merge">The merge rule</h2>',
-            '<h2 id="h-merge">The merge rule, and every case two offline editors '
-            "can put it in</h2>",
-        )
-    )
-    d = serve.page_dir
-    for i in range(8):
-        panel_comment(d, f"About the merge, {i}.", {"section": "merge-both"})
-        panel_comment(d, f"About the lede, {i}.", {"section": "lede"})
-
-    context = browser.new_context(
-        viewport={"width": 1400, "height": 900}, reduced_motion="reduce"
-    )
-    page = open_page(browser, url, context=context)
-    edge = next(e for e in EDGES if e.name == "comments")
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    room = (
-        "() => parseFloat(getComputedStyle(document.querySelector('.lf-threads'))"
-        ".getPropertyValue('--lf-head-room'))"
-    )
-    tallest = """() => Math.max(0, ...[...document.querySelectorAll(
-             '.lf-threads .lf-pinned')].map((h) => h.getBoundingClientRect().height))"""
-    assert page.evaluate(room) == pytest.approx(page.evaluate(tallest), abs=0.5)
-
-    # Narrow it until the long heading wraps. The gesture is the user's own.
-    draw_edge(page, edge, -(edge.wide - 320))
-    edge_settled(page, edge)
-    assert page.evaluate(tallest) > 38, (
-        "no heading wrapped at the narrow end, so the drag changed nothing to notice"
-    )
-    assert page.evaluate(room) == pytest.approx(page.evaluate(tallest), abs=0.5), (
-        "the room a heading takes was measured at a width the user has left"
-    )
-
-    # And the walk lands clear of it, which is what the number is for. Standing
-    # nowhere first, said rather than clicked: `c` opens the box belonging to
-    # whatever the user is standing in, and a click on the body lands wherever the
-    # middle of the document happens to be — here a diff, whose `pre` takes focus, so
-    # the press opened that widget's composer and the sixteen keys below were typed
-    # into it as characters. COVERED_TOP answers null for a focus outside the list,
-    # so every one of those landings agreed with the invariant by never being asked.
-    page.evaluate("() => document.activeElement?.blur()")
-    # The named address toggles the panel it names, so from a panel opened by its
-    # visible control the first completion closes it and the second is the arrival.
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    panel_settled(page, open=False)
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
-    faults = []
-    for key in ("t",) * 8 + ("Shift+t",) * 8:
-        page.keyboard.press(key)
-        rendered(page)
-        under = page.evaluate(COVERED_TOP)
-        if under:
-            faults.append(under)
-    assert not faults, "\n  ".join(["landed under a run heading:"] + faults)
-    # Non-vacuity, kept beside the loop it is about: the walk has to have ended on a
-    # thread inside the list, or the loop asked its question sixteen times of a focus
-    # COVERED_TOP declines to answer for.
-    assert page.evaluate(
-        "() => Boolean(document.activeElement?.closest?.('.lf-threads > .lf-thread'))"
-    ), "the walk ends outside the list, so the landings proved nothing"
 
 
 def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
@@ -6938,7 +6718,7 @@ def reply_by_keyboard(page, root):
 
 
 # Where a node stands against the list's landing band: its scrollport less the
-# scroll padding a stuck heading and the focus ring take.
+# scroll padding the focus ring takes.
 IN_LANDING_BAND = """node => {
   const list = document.querySelector('.lf-threads');
   const shown = list.getBoundingClientRect();

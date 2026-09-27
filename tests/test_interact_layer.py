@@ -57,8 +57,8 @@ from page_fixtures import package_selection_args
 
 EXPECTED_PAGE_STATE_FILES = (
     "events.jsonl",
-    "status.json",
     "data.json",
+    "status.json",
     "waiter.lock",
     "cursor.json",
     "viewed.json",

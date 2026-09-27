@@ -3,7 +3,7 @@
  * document-positioned chrome. */
 import { sizeObserver } from "./rendering.js";
 import { setRuntimeRootStyle } from "./root-state.js";
-import { uiInside, under, upFrom } from "./shadow.js";
+import { renderedParent, uiInside, under, upFrom } from "./shadow.js";
 import { overlaps, overlapsAcross, union } from "./rect.js";
 
 /* Shared readings of the boxes the page actually shows.
@@ -26,6 +26,9 @@ import { overlaps, overlapsAcross, union } from "./rect.js";
    - `shownRect` for visible placement of floating chrome and key badges;
    - `clippedRect` for an element's box the caller has adjusted;
    - `clippedContents` when the subject has no element box of its own.
+
+   `skipped` is asked first by a reading that can leave out a box the browser is not
+   drawing, since reading one in skipped content forces that content's style and layout.
 
    Do not read `getBoundingClientRect()` directly when the target may generate no box.
    A `display: contents` element reports an origin-like zero rectangle that does not
@@ -345,6 +348,36 @@ export function insetBand(band, covers) {
     )
       bottom = cover.top;
   return bottom > top ? { ...band, top, bottom } : null;
+}
+// Whether `el` stands in content the browser skips: what a `content-visibility: hidden`
+// box holds, which a hidden tab's panel (`hidden="until-found"`) is, and a closed
+// disclosure's content. The browser leaves skipped content unstyled and unlaid, and one
+// question about any box inside — its computed style, its rect, its scroll offsets —
+// makes it style and lay out that whole subtree first to answer. On the corpus, whose
+// examples each stand in a hidden tab, those forced passes were most of a revision's
+// style time. So a reading that has nothing to say about a box on no screen — where it
+// stands, whether it scrolls, what room it takes — asks this first and leaves the box
+// out until a pass after it is drawn: revealing a panel or opening a disclosure resizes
+// what holds it, which brings those passes round. A reading that marks what the user
+// will see once it is drawn (an anchor's outline) still asks, and pays.
+//
+// Answered without forcing anything: `checkVisibility` reads the tree the browser has,
+// and is false for a box that is not drawn for any reason. The nearest drawn ancestor
+// says which reason — a box skipping what it holds, or `display: none`/`contents` on
+// the way down, which are not skipped and cheap to ask about — and it is drawn, so its
+// own style is not skipped either. A disclosure skips through a pseudo-element of its
+// own, so it is asked by its state rather than by its style.
+export function skipped(el) {
+  if (el.checkVisibility()) return false;
+  let child = el;
+  let box = renderedParent(el);
+  while (box && !box.checkVisibility()) {
+    child = box;
+    box = renderedParent(box);
+  }
+  if (!box) return false;
+  if (box.localName === "details") return !box.open && child.localName !== "summary";
+  return getComputedStyle(box).contentVisibility === "hidden";
 }
 // The box an element shows as. An element that generates none of its own — a
 // display: contents wrapper — shows as what its contents paint, so its bounds are

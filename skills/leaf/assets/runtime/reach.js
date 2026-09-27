@@ -1,6 +1,7 @@
 /* Keyboard reachability and continuation paint for scrollable page and shadow content. */
 
 import { TAB_STOP, TEXT_BOX } from "./focus.js";
+import { skipped } from "./geometry.js";
 import { sizeObserver } from "./rendering.js";
 import { ANCHOR_NOTE_TAG } from "./anchor-note-view.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
@@ -212,33 +213,27 @@ function candidateScrollers(root) {
   return found;
 }
 
-// And only a box the browser is rendering is asked. A hidden tab's panel
-// (`hidden="until-found"`) and a closed disclosure's content are skipped content, which
-// the browser leaves unstyled, and one question about any box inside — its computed
-// style or its geometry — makes it style that whole subtree: on the corpus, whose
-// examples each stand in a hidden tab, asking about one code block or table in each
-// cost 65 ms of recalculation once the page restyled, where `checkVisibility` answers
-// for all of them without forcing anything. So a candidate that is not rendered waits,
-// observed, and is reached when it comes to have a box — the size observer hears that
-// — which is the first moment its answers could matter to anyone.
-const unrendered = new Set();
+// And a box in skipped content is not asked (`skipped`, which says why): a hidden
+// tab's code block would otherwise cost a style pass over its whole panel. Such a
+// candidate waits, observed, and is reached when it comes to have a box — the size
+// observer hears that — which is the first moment its answers could matter to anyone.
+const waiting = new Set();
 
 export function reachScrollers(root) {
   for (const el of candidateScrollers(root)) reach(el);
   paintReach();
 }
 
-// Reached from the size observer's own callback too, when a waiting box comes to have a
-// box. So its observation is dropped only once nothing is left to watch: dropping and
+// Reached from the size observer's own callback too, when a waiting box is drawn. So its observation is dropped only once nothing is left to watch: dropping and
 // taking it again inside the callback is a fresh observation the same delivery cannot
 // reach, which the browser reports as a ResizeObserver loop.
 function reach(el) {
-  if (!el.checkVisibility()) {
-    unrendered.add(el);
+  if (skipped(el)) {
+    waiting.add(el);
     reachSizes.observe(el);
     return;
   }
-  unrendered.delete(el);
+  waiting.delete(el);
   classify(el);
   if (!watched(el)) reachSizes.unobserve(el);
 }
@@ -283,7 +278,7 @@ function classify(el) {
   reachSizes.observe(el);
 }
 const watched = (el) =>
-  mayScroll.has(el) || sideways.has(el) || downwards.has(el) || unrendered.has(el);
+  mayScroll.has(el) || sideways.has(el) || downwards.has(el) || waiting.has(el);
 // Re-read each candidate after layout moves it. A user who widens the window is owed
 // the stop's removal as much as its arrival: a box that fits carries nothing to scroll
 // to, and a tab stop on it is a press that goes nowhere. The candidate sets keep the
@@ -313,16 +308,16 @@ function gone(el) {
   mayScroll.delete(el);
   if (sideways.delete(el)) el.removeEventListener("scroll", sidewaysScrolled);
   downwards.delete(el);
-  unrendered.delete(el);
+  waiting.delete(el);
   reachSizes.unobserve(el);
   return true;
 }
-// A box that stops being rendered keeps what it last wore until it is rendered again,
-// for the reason above: its measurements would force its subtree's style, and a box
-// with no box is no stop and shows no edge.
-const unpainted = (el) => gone(el) || !el.checkVisibility();
+// A box that comes to stand in skipped content keeps what it last wore until it is drawn
+// again: measuring it would force that content's style, and a box on no screen is no
+// stop and shows no edge.
+const unpainted = (el) => gone(el) || skipped(el);
 function paintReach() {
-  for (const el of unrendered) if (!unpainted(el)) reach(el);
+  for (const el of waiting) if (!unpainted(el)) reach(el);
   for (const el of mayScroll) {
     if (unpainted(el)) continue;
     const wanted = overflows(el) && !holdsOwnStop(el) ? 0 : -1;

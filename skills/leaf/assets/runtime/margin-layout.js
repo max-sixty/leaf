@@ -30,7 +30,7 @@
    target has no rendered part to offer. */
 import { TAB_STOP } from "./focus.js";
 import { cancelRender, nextFrame, nextRender, sizeObserver } from "./rendering.js";
-import { shellRight, shownBand, shownExtent, shownParts } from "./geometry.js";
+import { shellRight, shownBand, shownExtent, shownParts, skipped } from "./geometry.js";
 import { under, upFrom } from "./shadow.js";
 import { scrollerFor } from "./reading-regions.js";
 import { pageScroller } from "./scrolling.js";
@@ -126,8 +126,9 @@ function settleResidency() {
   const declared = new Map();
   // A resident a box around it hides (a closed disclosure, a tab not chosen) needs no
   // room. One the page hides itself stays a resident, since a page may hide it until it
-  // stands in the margin.
+  // stands in the margin. One in skipped content is asked nothing (`skipped`).
   for (const aside of main.querySelectorAll("aside")) {
+    if (skipped(aside)) continue;
     const own = getComputedStyle(aside);
     const hiddenItself =
       own.display === "none" && aside.parentElement.checkVisibility();
@@ -532,6 +533,7 @@ export function layoutMarginRows() {
   // The notes hanging in the margin the rail stands in (theme.css, aside.sidenote): a
   // marker level with one would be drawn over it.
   const notes = [...main.querySelectorAll("aside.sidenote")]
+    .filter((note) => !skipped(note))
     .map((note) => note.getBoundingClientRect())
     .filter((note) => note.width && note.left >= columnRect.right - 1);
 
@@ -542,6 +544,14 @@ export function layoutMarginRows() {
   for (const [row, options] of rows) {
     const target = options.anchor();
     if (!target?.isConnected) {
+      reads.push({ row, options, lane: layer.root, shown: false });
+      continue;
+    }
+    // A target in skipped content — a tab not chosen, a closed disclosure — has nowhere
+    // to stand, and every reading below would force that content's style and layout to
+    // say so (`skipped`). Withheld like a target that has gone, it is anchored by the
+    // pass that runs once it is drawn.
+    if (skipped(target)) {
       reads.push({ row, options, lane: layer.root, shown: false });
       continue;
     }

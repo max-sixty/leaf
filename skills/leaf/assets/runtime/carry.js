@@ -10,6 +10,9 @@
  * Nonzero inner scroll offsets, focus, and the focused control's caret also cross,
  * except a reading region's body: where that scrolls to is the region continuity's,
  * which lands it on a passage rather than on a pixel offset the revision has moved.
+ * A box in skipped content (a tab not chosen, a closed disclosure) carries no offset
+ * either: reading one would make the browser style and lay out all of that content
+ * first (`skipped`, geometry.js), a pass per hidden panel on every revision.
  * Restoring this state creates no event and leaves draft values unsent.
  *
  * Value capture supports text boxes (`TEXT_BOX`) and non-file inputs; checked state supports checkbox
@@ -19,6 +22,7 @@
  * lifecycles. `version.js` owns when capture and restoration run for each install.
  */
 import { TEXT_BOX, focusDestination, readCaret } from "./focus.js";
+import { skipped } from "./geometry.js";
 import { readingRegions } from "./reading-regions.js";
 
 const holdsValue = (node) =>
@@ -40,7 +44,7 @@ export function captureCarry(root, authored) {
     if (node === active) record.focus = true;
     if (node.localName === "details" && node.open !== wrote.open)
       record.open = node.open;
-    if (!regionBodies.has(node)) {
+    if (!regionBodies.has(node) && !skipped(node)) {
       if (node.scrollTop) record.scrollTop = node.scrollTop;
       if (node.scrollLeft) record.scrollLeft = node.scrollLeft;
     }

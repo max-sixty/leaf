@@ -31,7 +31,6 @@ const LAYER = "edge-layer";
 const MANIFEST = {
   release: RELEASE,
   routes: {
-    api: "api",
     layer: ["runtime", "widgets", "vendor"],
     session: ["media", "revisions", "versions"],
     files: ["leaf.js", "theme.css", "shadow.css", "registry.json", "icon.svg"],

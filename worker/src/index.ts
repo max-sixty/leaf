@@ -1051,7 +1051,7 @@ export default {
       /^[1-9][0-9]*$/.test(privateRevision ?? "");
     if (
       (request.method === "GET" || request.method === "HEAD") &&
-      !isPageApiRequest(route, manifest) &&
+      !isPageApiRequest(route) &&
       !privateDocumentReload
     ) {
       const response = stampedStaticResponse(

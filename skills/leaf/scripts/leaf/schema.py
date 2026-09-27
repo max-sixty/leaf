@@ -517,11 +517,12 @@ VERSION_NAME = r"v(?P<version>[1-9][0-9]*)"
 # files: its API, its browser layer, and what its session writes after a publish (the
 # media it adds, the revisions it activates, the versions it stamps). The website
 # adapter routes exactly these and those files to a page, and so does the Worker in
-# front of it, which reads each kind from the site manifest `scripts/site.py` writes:
-# a static miss under a session directory is a file the page's container has.
-API_ROUTE_DIR = "api"
+# front of it, which reads the layer and session kinds from the site manifest
+# `scripts/site.py` writes: a static miss under a session directory is a file the
+# page's container has. `api` is the page server's protocol prefix, which the Worker
+# names with the endpoints under it.
 SESSION_ROUTE_DIRS = (MEDIA_DIR, "revisions", "versions")
-PAGE_ROUTE_DIRS = (API_ROUTE_DIR, *BROWSER_DIRS, *SESSION_ROUTE_DIRS)
+PAGE_ROUTE_DIRS = ("api", *BROWSER_DIRS, *SESSION_ROUTE_DIRS)
 # What the server exposes from a page: the browser layer, media, immutable revisions,
 # and event-backed version addresses. Agent-side guidance stays vendored but is read
 # only through the CLI.

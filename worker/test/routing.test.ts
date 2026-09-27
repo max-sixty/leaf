@@ -36,7 +36,6 @@ const pages = {
   "/examples/triage-board": page("example"),
 };
 const routes = {
-  api: "api",
   layer: ["runtime", "widgets", "vendor"],
   session: ["media", "revisions", "versions"],
   files: ["leaf.js", "theme.css", "shadow.css", "registry.json", "icon.svg"],
@@ -90,25 +89,23 @@ describe("website page routing", () => {
     ).toThrow('at pages["/"].image');
   });
 
-  it("reads every directory's kind from the manifest", () => {
-    const renamed = {
+  it("reads which directories the session writes from the manifest", () => {
+    const grown = {
       ...manifest,
-      routes: { ...routes, api: "rpc", session: [...routes.session, "drafts"] },
+      routes: { ...routes, session: [...routes.session, "drafts"] },
     };
-    const at = (pathname: string) => pageRoute(pathname, renamed);
-    expect(isPageApiRequest(at("/examples/rpc/state"), renamed)).toBe(true);
-    expect(at("/examples/api/state")).toBeNull();
-    expect(isPageSessionFileRequest(at("/examples/drafts/d1.html"), renamed)).toBe(true);
-    expect(isPageSessionFileRequest(at("/examples/runtime/a.js"), renamed)).toBe(false);
+    const at = (pathname: string) => pageRoute(pathname, grown);
+    expect(isPageSessionFileRequest(at("/examples/drafts/d1.html"), grown)).toBe(true);
+    expect(isPageSessionFileRequest(at("/examples/runtime/a.js"), grown)).toBe(false);
   });
 
   it("sends product and concrete example routes to Leaf", () => {
     expect(route("/")).not.toBeNull();
     expect(route("/api/state")).not.toBeNull();
     expect(route("/examples/")).not.toBeNull();
-    expect(isPageApiRequest(route("/examples/api/state"), manifest)).toBe(true);
-    expect(isPageApiRequest(route("/examples/triage-board/api/state"), manifest)).toBe(true);
-    expect(isPageApiRequest(route("/examples/triage-board/runtime/state-feed.js"), manifest)).toBe(false);
+    expect(isPageApiRequest(route("/examples/api/state"))).toBe(true);
+    expect(isPageApiRequest(route("/examples/triage-board/api/state"))).toBe(true);
+    expect(isPageApiRequest(route("/examples/triage-board/runtime/state-feed.js"))).toBe(false);
     expect(isPageSessionFileRequest(route("/media/upload.png"), manifest)).toBe(true);
     expect(
       isPageSessionFileRequest(

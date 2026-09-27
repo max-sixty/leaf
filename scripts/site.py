@@ -50,7 +50,6 @@ from leaf.http import scope_document_routes
 from leaf.live_shell import write_live_shell
 from leaf.media import media_name
 from leaf.schema import (
-    API_ROUTE_DIR,
     BROWSER_DIRS,
     MEDIA_DIR,
     SESSION_ROUTE_DIRS,
@@ -453,7 +452,6 @@ def publish_live_shells(
     manifest = {
         "release": release,
         "routes": {
-            "api": API_ROUTE_DIR,
             "layer": list(BROWSER_DIRS),
             "session": list(SESSION_ROUTE_DIRS),
             "files": list(VENDORED_FILES),

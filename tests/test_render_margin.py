@@ -5886,14 +5886,14 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
         """card => ({left: card.getBoundingClientRect().left,
                       top: card.getBoundingClientRect().top,
                       height: card.getBoundingClientRect().height,
-                      placement: card.dataset.lfThreadPlacement,
+                      held: 'lfThreadHeld' in card.dataset,
                       placedLeft: card.style.left, placedTop: card.style.top})"""
     )
     assert placed["left"] == pytest.approx(
         float(placed["placedLeft"].removesuffix("px")), abs=0.5
     ), placed
     positioned_top = float(placed["placedTop"].removesuffix("px"))
-    if placed["placement"] == "right":
+    if placed["held"]:
         positioned_top -= placed["height"]
     assert placed["top"] == pytest.approx(positioned_top, abs=0.5), placed
     expect(thread.locator(".lf-page-thread-body")).to_have_text(COMMENT_ON_ASK["text"])
@@ -6780,17 +6780,15 @@ def test_margin_card_anchors_reading_by_top_and_drafting_by_foot(browser, serve)
         before,
         after,
     )
+    # A draft taller than the room above the foot scrolls inside the editor; the card
+    # stays inside the boundary and its foot does not move.
     write(editor, "\n".join(f"Line {n}" for n in range(30)))
-    page.wait_for_function(
-        """() => {
-          const top = document.querySelector('.lf-margin-preview').getBoundingClientRect().top;
-          return top >= 49 && top <= 51;
-        }"""
-    )
+    rendered(page)
     tall = page.evaluate(measure)
     assert tall["cardTop"] >= 49, tall
-    assert tall["cardBottom"] <= 847.5, tall
-    assert tall["editorBottom"] <= tall["cardBottom"] - 12, tall
+    assert tall["cardBottom"] == pytest.approx(before["cardBottom"], abs=0.5), tall
+    assert tall["editorBottom"] == pytest.approx(before["editorBottom"], abs=0.5), tall
+    assert editor.evaluate("box => box.scrollHeight > box.clientHeight")
 
     write(editor, "Sent")
     preview.get_by_role("button", name="Send", exact=True).click()
@@ -6836,6 +6834,93 @@ def test_open_reply_keeps_its_foot_after_card_moves_to_right_rail(browser, serve
         before["editor"]["bottom"], abs=0.5
     ), (before, after)
     assert after["card"] == pytest.approx(before["card"], abs=0.5), (before, after)
+
+
+def drafting_in_a_short_card(browser, serve, width, height):
+    """A one-comment thread's card at this window, a word typed into its open reply."""
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, width, height)
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    preview.get_by_role("button", name="Reply", exact=True).click()
+    editor = preview.locator("leaf-text")
+    expect(editor).to_be_focused()
+    editor.type("words")
+    rendered(page)
+    return page, preview, editor
+
+
+DRAFTING_CARD = """preview => {
+  const editor = preview.querySelector('leaf-text').getBoundingClientRect();
+  return {side: preview.dataset.lfThreadPlacement,
+          editorTop: Math.round(editor.top), editorFoot: Math.round(editor.bottom)};
+}"""
+
+
+@pytest.mark.parametrize("size", [(800, 520), (1000, 600)])
+def test_a_growing_draft_holds_its_card_s_side_and_the_editor_s_foot(
+    browser, serve, size
+):
+    """Each new line keeps the card on its side and the caret's line where it was.
+
+    The card extends upward from its held foot, within the room above that foot, until
+    the editor fills its share and scrolls, so no keystroke flips the card over its
+    cluster (800x520 stands over it) or slides it along the boundary (1000x600 stands
+    under it, where it once grew down into the boundary's foot)."""
+    page, preview, editor = drafting_in_a_short_card(browser, serve, *size)
+    held = preview.evaluate(DRAFTING_CARD)
+    for line in range(12):
+        editor.press("Shift+Enter")
+        rendered(page)
+        now = preview.evaluate(DRAFTING_CARD)
+        assert (now["side"], now["editorFoot"]) == (
+            held["side"],
+            held["editorFoot"],
+        ), (line, held, now)
+    assert editor.evaluate("box => box.scrollHeight > box.clientHeight"), (
+        "twelve lines never outgrew the editor's room"
+    )
+
+
+@pytest.mark.parametrize("size", [(1200, 900), (800, 520)])
+def test_an_agent_reply_leaves_the_reply_being_typed_where_it_stands(
+    browser, serve, size
+):
+    """News arriving without a gesture moves no control the user is working in."""
+    page, preview, editor = drafting_in_a_short_card(browser, serve, *size)
+    before = preview.evaluate(DRAFTING_CARD)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "parent": LONG_THREAD_ROOT["id"],
+            "responds": LONG_THREAD_ROOT["id"],
+            "text": "An agent answer arriving while the user types. " * 6,
+        },
+    )
+    told(page)
+    expect(preview).to_contain_text("An agent answer arriving while the user types.")
+    rendered(page)
+    expect(editor).to_be_focused()
+    assert preview.evaluate(DRAFTING_CARD) == before
+
+
+@pytest.mark.parametrize("size", [(1200, 900), (800, 520)])
+def test_a_sent_reply_leaves_the_reply_box_where_it_stands(browser, serve, size):
+    """The sent turn joins the transcript above the box the user sent it from."""
+    page, preview, editor = drafting_in_a_short_card(browser, serve, *size)
+    before = preview.evaluate(DRAFTING_CARD)
+    with sending(page, "the reply"):
+        editor.press("Enter")
+    expect(preview.locator(".lf-page-thread-msg").last).to_contain_text("words")
+    rendered(page)
+    expect(editor).to_be_focused()
+    assert preview.evaluate(DRAFTING_CARD) == before
 
 
 def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve):

@@ -20,7 +20,8 @@ and reads each item's outcome from that log rather than the terminal, by phase:
     teardown-failed  its call passed and its teardown failed
     passed, skipped  (an xfail is skipped; a strict xpass is failed)
     hung             unreported when the run passed `TIMEOUT` and was stopped
-    not run          unreported by a run that ended early; the message says why
+    not run          unreported by a run that ended early, a passing call whose
+                     teardown never reported included; the message says why
 
 A message leads with the last line under `tests/` the failure passed through, which
 says which arm of a test walking several routes failed.
@@ -261,7 +262,8 @@ def run(
             return Outcome("error", broken[0])
         if status is None:
             return Outcome("hung", f"stopped after {TIMEOUT}s")
-        return Outcome("not run", f"pytest exited {status}; see {out.with_suffix('.log')}")  # fmt: skip
+        # No path in the message, so copies that ended alike group as one.
+        return Outcome("not run", f"pytest exited {status} before reporting it")
 
     return {
         item: outcome([r for r in reports if r["nodeid"] == item], root)
@@ -271,8 +273,10 @@ def run(
 
 
 def outcome(reports: list[dict], root: Path) -> Outcome | None:
-    """One item's outcome from its reports, one per phase it reached; None when it
-    has none."""
+    """One item's outcome from its reports, one per phase it reached; None when
+    they end before the item did. A passing call counts only once its teardown has
+    reported too: a process that dies in teardown has written the passing call and
+    nothing after it."""
     phases = {r["when"]: r for r in reports}
     # `???` is xdist's report for a worker that crashed under the item.
     if broken := next((r for r in reports if r["when"] in ("setup", "???") and r["outcome"] == "failed"), None):  # fmt: skip
@@ -282,7 +286,9 @@ def outcome(reports: list[dict], root: Path) -> Outcome | None:
         return Outcome("failed", crash(call["longrepr"], root))
     teardown = phases.get("teardown")
     if call and call["outcome"] == "passed":
-        if teardown and teardown["outcome"] == "failed":
+        if not teardown:
+            return None
+        if teardown["outcome"] == "failed":
             return Outcome("teardown-failed", crash(teardown["longrepr"], root))
         return Outcome("passed")
     skipped = any(r["outcome"] == "skipped" for r in reports)

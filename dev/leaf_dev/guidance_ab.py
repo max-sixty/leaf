@@ -44,7 +44,7 @@ from pathlib import Path
 import click
 
 from leaf_dev import ROOT
-from leaf_dev.harness import build_arm, copy_working, environment, merge_base
+from leaf_dev.harness import base_ref, build_arm, copy_working, environment
 
 OUT = ROOT / ".tmp" / "guidance-ab"
 ARMS = ("base", "candidate")
@@ -141,11 +141,14 @@ def of(runs: list[dict]) -> str:
 
 @click.command("guidance-ab")
 @click.argument("case_globs", metavar="[CASE]...", nargs=-1)
-@click.option("--base", "base_ref", help="The base ref; the merge base with main.")
+@click.option("--base", help="The base ref; the merge base with main.")
 @click.option("--runs", type=int, help="Runs per case; each case's own, or 3.")
-def guidance_ab(case_globs: tuple[str, ...], base_ref: str | None, runs: int | None):
-    """Run the eval cases matching the CASE globs, or all of them, on the base's
-    guidance and the working tree's at once, and print each case's passes per arm."""
+def guidance_ab(case_globs: tuple[str, ...], base: str | None, runs: int | None):
+    """Score the guidance cases, base vs the working tree.
+
+    Runs the cases in evals/ matching the CASE globs, or all of them, on the guidance
+    at --base, else the merge base with main, and the working tree's at once. Prints
+    each case's passes per arm, the cost, and a Record row."""
     cases = select_cases(case_globs)
     started = datetime.now().astimezone()
     OUT.mkdir(parents=True, exist_ok=True)
@@ -153,7 +156,7 @@ def guidance_ab(case_globs: tuple[str, ...], base_ref: str | None, runs: int | N
     with tempfile.TemporaryDirectory(prefix="leaf-guidance-ab-") as built:
         arms = {arm: Path(built) / arm for arm in ARMS}
         commits = {
-            "base": build_arm(base_ref or merge_base(), arms["base"]),
+            "base": build_arm(base_ref(base), arms["base"]),
             "candidate": build_arm(None, arms["candidate"]),
         }
         click.echo(f"base       {commits['base'][:9]}")
@@ -182,8 +185,8 @@ def guidance_ab(case_globs: tuple[str, ...], base_ref: str | None, runs: int | N
     rows = [(case, *(of(results[arm].get(case, [])) for arm in ARMS)) for case in cases]
     widths = [max(len(row[i]) for row in [("case", *ARMS), *rows]) for i in range(2)]
     click.echo()
-    for case, base, candidate in [("case", *ARMS), *rows]:
-        click.echo(f"{case:<{widths[0]}}  {base:<{widths[1]}}  {candidate}")
+    for case, before, after in [("case", *ARMS), *rows]:
+        click.echo(f"{case:<{widths[0]}}  {before:<{widths[1]}}  {after}")
     click.echo(f"\ncost ${cost:.2f}")
     for arm in ARMS:
         click.echo(f"{arm} report:\nfile://{out / arm / 'report.html'}")
@@ -192,7 +195,5 @@ def guidance_ab(case_globs: tuple[str, ...], base_ref: str | None, runs: int | N
     times = f" ×{per_case.pop()} per arm" if len(per_case) == 1 else ""
     measured = f"{named}{times}; base at {commits['base'][:9]}, candidate the working "
     measured += "tree, run together"
-    result = "; ".join(
-        f"`{case}` {base} to {candidate}" for case, base, candidate in rows
-    )
+    result = "; ".join(f"`{case}` {before} to {after}" for case, before, after in rows)
     click.echo(f"\n| {started:%m-%d} |  | {measured} | {result}. ${cost:.2f} |")

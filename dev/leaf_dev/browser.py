@@ -1,14 +1,27 @@
-"""Tabs on a served page, opened and settled the same way by every command that reads
-or screenshots one."""
+"""The browser, and tabs on a served page, opened and settled the same way by every
+command that reads or screenshots one."""
 
 from contextlib import contextmanager
 
 from leaf.render_checks import wait_for_probe, wait_until_ready
-from playwright.sync_api import Browser, Page
+from leaf.render_gate.browser import launch_browser
+from playwright.sync_api import Browser, Page, sync_playwright
 
 DESKTOP = (1440, 900)
 # The width of a window beside an editor.
 BESIDE = (900, 900)
+
+
+@contextmanager
+def chrome():
+    """The host's browser, as the render gate launches it (`launch_browser`), closed
+    however the block is left."""
+    with sync_playwright() as playwright:
+        browser, _ = launch_browser(playwright)
+        try:
+            yield browser
+        finally:
+            browser.close()
 
 
 @contextmanager

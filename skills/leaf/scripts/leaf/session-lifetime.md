@@ -10,7 +10,6 @@ and requests another reading at its next deadline; it does not run a second fold
 | Fact | Where | Writer | Stops being believed |
 | --- | --- | --- | --- |
 | work declaration: state, detail, event floor, source message, typed `work` seats | `status.json` | `leaf status`, from a turn of the session driving the page | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
-| exact delivery handling: event, target, detail, event floor | `handling` in `status.json` | `leaf delivery claim`, derived from an immutable delivery and current page state | when the move settles, another delivered move replaces it, the claim expires, or the claimant's lifetime ends |
 | live App Server activity: session, turn, typed kind, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's observer-only client | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
 | live App Server reply: one displayed draft plus delivery attempt bindings by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's plain reply | the displayed draft remains on failure or disconnect and is retired by a logged event naming its delivery attempt or its response address; each binding clears after durable commit or terminal failure, and survives connection and turn transitions until then |
 | turn identity and open or closed state | the page's claim record | a prompt or direct delivery opens an opaque `turn`; the Stop hook stamps `turn_closed` | the next opening mints a turn; the next closing stamps it |
@@ -109,11 +108,12 @@ refines a message workflow. Thinking and tool activity stay page-wide until a ho
 provides an explicit input or subject binding; the current host contract does not.
 
 A work declaration has to be renewed, and `leaf status` renews it. `--on` names the thread
-or widget the work is about. `leaf delivery claim` instead records one event from an
-immutable delivery after checking under the page lock that the exact move remains
-outstanding; it never transfers a claim to newer input on the same subject. A thread
-claim also records the current unanswered message, so one check-in keeps **Working**
-beside the words that prompted the work even when the user adds another comment.
+or widget the work is about, and is how a delivered move reads **Working**. A thread
+claim also records an input the thread holds, a message or a move on a widget in one
+of its messages: the one a standing claim there already names while the thread still
+holds it, and the newest otherwise. So one check-in keeps **Working** beside the input
+that prompted the work even when the user adds another comment, while renewing it
+after the user supersedes a move puts Working on the move that replaced it.
 Nothing in a session touches `status.json` while its turn is over, and its workers
 leave the page to it, so a declaration over work that outlasts the turn stands
 unrenewed until a later turn writes it again.

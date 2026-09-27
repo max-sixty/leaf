@@ -3,7 +3,7 @@
  * degrades readably if rendering fails. The optional renderer loads lazily, once, and
  * only on pages that use this package. */
 import {
-  dataBody,
+  bodyText,
   once,
   failSoft,
   registerVisualParts,
@@ -52,7 +52,7 @@ customElements.define(
     }
 
     async render() {
-      const source = dataBody(this).trim();
+      const source = bodyText(this);
       const renderId = `lf-diagram-${++seq}`;
       try {
         const { renderMermaidSVG } = await loadRenderer();

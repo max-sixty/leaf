@@ -283,7 +283,8 @@ def declares_string(field_schema) -> bool:
 def decides(spec: dict) -> bool:
     """Whether one verb is a deciding verb: its detail declares the reserved
     `outcome`, which says which retirable members leave the page (x-retired-when,
-    x-withdrawn-as). The runtime's `decidingVerb` reads the same field."""
+    x-withdrawn-as). The browser reads the answer from `$decisions`
+    (`registry.state.stamp_decisions`)."""
     return "outcome" in spec["detail"].get("properties", {})
 
 
@@ -313,7 +314,9 @@ WRITERS = {"action": "user", "report": "agent"}
 
 
 def verb_writer(spec: dict) -> str:
-    """The side that writes one x-state verb: `agent` where it says so, else `user`."""
+    """The side that writes one x-state verb: `agent` where it says so, else `user`.
+    The browser's `adoptRegistry` resolves the same default at intake, and
+    `tests/verb_writer_cases.json` holds both to it."""
     return spec.get("writer", "user")
 
 

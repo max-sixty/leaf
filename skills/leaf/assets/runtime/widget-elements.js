@@ -105,12 +105,12 @@ export const HIDDEN = "onbeforematch" in document.body ? "until-found" : "";
 // rate: the mutation stream a screen reader rebuilds its buffer from, a fresh dirty box
 // for whatever reads next, and — for the attributes the document's disclosure watch
 // reads — a repaint of every key on the page. `toggleAttribute` keeps that rule for the
-// flags by construction; these two are the same rule for the names, states, and words
+// flags by construction; these three are the same rule for the names, states, and words
 // that have no such door.
-// The comparison is against what the attribute would read back as, not what the caller
-// held: `getAttribute` answers with a string and `setAttribute` stringifies, so a
-// boolean or a count compared raw is never equal to the attribute already standing and
-// rewrites on every pass — the defect this closes, wearing the shape of the guard.
+// The comparison is against what the node would read back, not what the caller held:
+// `getAttribute` and `textContent` answer with a string and their setters stringify, so
+// a boolean or a count compared raw is never equal to what already stands and rewrites
+// on every pass — the defect this closes, wearing the shape of the guard.
 export function keeps(node, name, value) {
   const said = String(value);
   if (node && node.getAttribute(name) !== said) node.setAttribute(name, said);
@@ -118,6 +118,12 @@ export function keeps(node, name, value) {
 
 export function keepsHidden(node, hidden) {
   if (node && node.hidden !== hidden) node.hidden = hidden;
+}
+
+// Null clears the words, as the `textContent` setter reads it.
+export function keepsText(node, text) {
+  const said = String(text ?? "");
+  if (node && node.textContent !== said) node.textContent = said;
 }
 
 // The user's hand on a widget, in the layer's own word: a drag the log has not taken
@@ -495,8 +501,8 @@ export function relabel(node, label, { says } = {}) {
       `relabel(${label}): say whether this label is the page speaking — ` +
         `true, false, or "echo" for a copy of words it says elsewhere`,
     );
-  node.textContent = label;
-  node.dataset.lfGen = "1";
+  keepsText(node, label);
+  keeps(node, "data-lf-gen", "1");
   node.toggleAttribute("data-lf-said", says === true);
   node.toggleAttribute("data-lf-echo", says === "echo");
 }

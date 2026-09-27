@@ -1370,6 +1370,30 @@ def test_an_excerpt_is_referenced_by_the_numbers_it_quotes(
     assert result.output.count("\n  - ") == len(refusals), result.output
 
 
+BODY_TEXT_CASES = json.loads(
+    (Path(__file__).parent / "body_text_cases.json").read_text()
+)["cases"]
+
+
+def test_a_numbering_counts_the_lines_lf_code_draws(page_dir):
+    """`tests/runtime/body-text.test.mjs` reads the same bodies against `bodyText`, the
+    text lf-code draws and numbers. Each block here numbers exactly those lines, so
+    the gate passes them all only if it trims a body as the module does — the browser's
+    whitespace at the edges, where Python's own `\\s` would count U+FEFF as a line and
+    U+0085 or U+001C as none."""
+    blocks = "\n".join(
+        # The newline after <pre> is the parser's to drop, leaving the body as written.
+        f'<lf-code id="c{i}" lines="1-{text.count(chr(10)) + 1}"><pre>\n{body}</pre>'
+        "</lf-code>"
+        for i, (body, text) in enumerate(BODY_TEXT_CASES)
+    )
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<h2>Plan</h2>", f"<h2>Plan</h2>\n{blocks}")
+    )
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+
+
 def test_the_collapse_class_is_one_set_on_both_sides():
     """COLLAPSE_CHARS (the file side) and the passage reader's COLLAPSE regex
     (the browser side) are two spellings of one set, and everything quote-shaped

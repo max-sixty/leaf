@@ -17,6 +17,7 @@ import { html, render } from "../vendor/browser-runtime.js";
 import { layoutMarginRows } from "./margin-layout.js";
 import { iconElement } from "./icons.js";
 import { keeps, offer } from "./widget-elements.js";
+import { reducedMotion } from "./motion.js";
 import { focused, isCommandScope, projectCommandScope } from "./keyboard/scopes.js";
 
 import {
@@ -144,7 +145,7 @@ function syncAgentArrival(control, claim, stage) {
   const elapsed = performance.now() - claimArrivals.get(claim);
   if (controlArrivals.get(control) === claim) return;
   controlArrivals.set(control, claim);
-  if (elapsed >= 520 || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  if (elapsed >= 520 || reducedMotion()) return;
   control.style.setProperty("--lf-agent-arrival-delay", `${-elapsed}ms`);
   keeps(control, "data-lf-agent-arrival", "1");
   control.addEventListener(

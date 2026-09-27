@@ -367,7 +367,6 @@ class PageTransaction:
         detail: str,
         *,
         work: dict | None = None,
-        handling: dict | None = None,
     ) -> None:
         """Write the page declaration and any typed local evidence it renews.
 
@@ -378,10 +377,8 @@ class PageTransaction:
         together.
 
         Standing work carries across every other status write, so a page-wide
-        status update does not silently drop what a helper is holding. Exact
-        delivery handling carries until another delivered move replaces it; the
-        interaction fold stops using it as soon as that move is settled.
-        A new claim replaces the old claim on its semantic subject; `idle`
+        status update does not silently drop what a helper is holding. A new
+        claim replaces the old claim on its semantic subject; `idle`
         clears them all with the leaf.
         """
         status = {
@@ -394,8 +391,6 @@ class PageTransaction:
         }
         if state != "idle" and (stream := self.status.get("stream")):
             status["stream"] = stream
-        if state != "idle" and (current_handling := self.status.get("handling")):
-            status["handling"] = current_handling
         claims = [] if state == "idle" else list(self.status.get("work", []))
         if work:
             claims = [held for held in claims if held["subject"] != work["subject"]]
@@ -410,14 +405,6 @@ class PageTransaction:
             )
         if claims:
             status["work"] = claims
-        if handling:
-            status["handling"] = {
-                "id": secrets.token_hex(4),
-                **handling,
-                "detail": detail,
-                "ts": status["ts"],
-                **self.voice(),
-            }
         write_json(self.page_dir / STATUS_FILE, status)
 
     def voice(self) -> dict:
@@ -846,24 +833,5 @@ def claim_update_sources(status: dict) -> list[dict]:
             source["event"] = event
         if target["kind"] == "widget":
             source["revision"] = claim["revision"]
-        sources.append(source)
-    if handling := status.get("handling"):
-        target = handling["target"]
-        source = {
-            "id": handling["id"],
-            "target": target,
-            "source": "claim",
-            "scope": "interaction",
-            "action": "working",
-            "detail": {"text": handling["detail"]},
-            "text": handling["detail"],
-            "ts": handling["ts"],
-            "log_floor": handling["after"],
-            "event": handling["event"],
-            "agent": handling.get("agent"),
-            "session": handling.get("session"),
-        }
-        if target["kind"] == "widget":
-            source["revision"] = handling["revision"]
         sources.append(source)
     return sources

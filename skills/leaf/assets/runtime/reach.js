@@ -201,13 +201,27 @@ function scrollingSelectors(rules, parent, scope, into) {
   }
   return into;
 }
+// Read once per sheet, since no sheet's rules change in place: the layer's constructed
+// sheets are built once (stylesheets.js, shadow-stage.js), and a `<style>` or `<link>`
+// whose text changes, as a revision's head does, is a new sheet. Walking every sheet on
+// every call cost a thread-panel pass as much as the element sweep this replaced.
+const sheetScrollers = new WeakMap();
+function scrollersOf(sheet) {
+  let selectors = sheetScrollers.get(sheet);
+  if (!selectors)
+    sheetScrollers.set(
+      sheet,
+      (selectors = scrollingSelectors(sheet.cssRules, null, null, [])),
+    );
+  return selectors;
+}
 const scrollerQuery = (tree) =>
-  `:is(${[...tree.styleSheets, ...tree.adoptedStyleSheets]
-    .reduce(
-      (into, sheet) => scrollingSelectors(sheet.cssRules, null, null, into),
-      ['[style*="overflow" i]', "[popover]", "dialog"],
-    )
-    .join(",")})`;
+  `:is(${[
+    '[style*="overflow" i]',
+    "[popover]",
+    "dialog",
+    ...[...tree.styleSheets, ...tree.adoptedStyleSheets].flatMap(scrollersOf),
+  ].join(",")})`;
 function candidateScrollers(root) {
   const found = new Set();
   const query = scrollerQuery(root.getRootNode());

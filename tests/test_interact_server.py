@@ -5282,6 +5282,8 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
         "claim_session": None,
         "claim_turn": None,
         "turn_closed": None,
+        "turn_opened": None,
+        "turn_takes_input": False,
         "viewed": None,
         "session_cwd": None,
         "workflows": [],

@@ -249,6 +249,9 @@ class PageTransaction:
             # turn cannot become "being handled" merely because a later prompt
             # opened another turn in the same session.
             "turn": previous["turn"] if same_open_turn else secrets.token_hex(8),
+            # When that turn opened, which is how long an open turn can be taken
+            # for one still running when no Stop ever closes it.
+            "turn_opened": previous.get("turn_opened") if same_open_turn else now_iso(),
             # When this session's last turn ended. None until one has, and
             # cleared again when a batch delivered to this session opens the
             # next turn. See close_turn and open_turn.
@@ -335,12 +338,18 @@ class PageTransaction:
         if turn_id is not None and (
             claim.get("turn") != turn_id or claim.get("turn_closed") is not None
         ):
-            claim = {**claim, "turn": turn_id, "turn_closed": None}
+            claim = {
+                **claim,
+                "turn": turn_id,
+                "turn_opened": now_iso(),
+                "turn_closed": None,
+            }
             write_json(claim_path(self.page_dir), claim)
         elif claim.get("turn_closed") is not None:
             claim = {
                 **claim,
                 "turn": secrets.token_hex(8),
+                "turn_opened": now_iso(),
                 "turn_closed": None,
             }
             write_json(claim_path(self.page_dir), claim)

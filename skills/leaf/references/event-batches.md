@@ -34,7 +34,9 @@ wait`'s output, `hook` for the context a host hook adds to the turn it opens,
 
 - `acknowledge` says who confirms receipt and how. On `wait` it is the reader of
   the wait, in the way your host runs the next one; on the other carriers Leaf
-  confirmed receipt itself and it is `null`.
+  confirmed receipt itself and it is `null`. A hook hands over a delivery too
+  large for the turn's context as a pointer to read with `leaf delivery read
+  <id>` instead, and then `acknowledge` says how its reader confirms it.
 - A thread reply's `answer` is `turn` on `app-server`, whose turn writes it with
   its own messages, and `reply`, for `leaf thread reply`, everywhere else.
 
@@ -109,7 +111,8 @@ Process the received events while it waits. If output is truncated or lost,
 acknowledge nothing and rerun with enough output capacity for the whole envelope;
 a scalar cursor cannot represent a missing event in the middle. Acknowledgement
 is monotonic and idempotent; an event posted after capture has a higher sequence
-and stays pending. Until ack, wait repeats the events. `leaf events` reads the
+and stays pending. Until a delivery is confirmed, a wait that prints it repeats
+the events. `leaf events` reads the
 full log without acking it.
 
 Receipt and work have separate evidence. Confirming a direct delivery records its

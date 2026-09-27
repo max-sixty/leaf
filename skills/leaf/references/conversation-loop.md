@@ -92,9 +92,10 @@ Stamping accepts only widget ids with standing work. `status --on` refuses a
 widget with neither an unsettled action receipt nor an `x-work` declaration; use
 the page-wide detail when neither admits a local claim.
 
-Use `status --on` for proactive subject work that did not begin with a delivery. An
-optional delivery claim names an exact delivered event (`references/event-batches.md`,
-"Delivery and acknowledgement").
+Use `status --on` for work on a thread or widget, whether a delivered move asked
+for it or you began it yourself; a delivered event's `answering` clauses name its
+address. An optional delivery claim names an exact delivered event instead
+(`references/event-batches.md`, "Delivery and acknowledgement").
 
 ## Long-running work
 

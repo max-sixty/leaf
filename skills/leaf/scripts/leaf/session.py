@@ -581,32 +581,33 @@ def receive(payload: dict, session_id: str | None) -> list[Path]:
     Sibling turns open after releasing the page locks, so concurrent receipts
     never nest transactions across pages.
     """
-    pages = []
-    for batch in payload["batches"]:
-        page_dir = Path(batch["page"])
-        with (
-            PageTransaction(page_dir) as page,
-            receive_batch(page, batch, session_id=session_id) as events,
-        ):
-            turn = page.open_turn(session_id) if session_id else None
-            record_pickup(page, events, session=session_id, turn=turn)
-        pages.append(page_dir)
+    pages = [receive_one(batch, session_id) for batch in payload["batches"]]
     if session_id:
         open_session_turn(session_id)
     return pages
 
 
-def take_input(session_id: str) -> dict | None:
-    """Freeze and confirm every page's pending input for a session whose harness
-    carries it in a hook, and return the delivery, or None when nothing is
-    pending.
+def receive_one(batch: dict, session_id: str | None) -> Path:
+    """Confirm one page's batch of a delivery and record its entry into
+    `session_id`'s turn, under that page's transaction; raise `ReceiptRefused`
+    when the page no longer matches."""
+    page_dir = Path(batch["page"])
+    with (
+        PageTransaction(page_dir) as page,
+        receive_batch(page, batch, session_id=session_id) as events,
+    ):
+        turn = page.open_turn(session_id) if session_id else None
+        record_pickup(page, events, session=session_id, turn=turn)
+    return page_dir
 
-    The hook's output enters the turn's context whole, so handing the envelope
-    over is receipt: the carrier confirms it here, as the Codex adapter confirms
-    a queued one, and the model runs no acknowledgement. Each page is read under
-    its own transaction and confirmed under another, like any carrier: receipt
-    rechecks ownership and the captured events, and anything appended between the
-    two readings stays pending, above the cursor this advances."""
+
+def pending_batches(session_id: str) -> list[dict]:
+    """Every page's pending input for a session whose hooks carry it, one batch
+    per page, captured under that page's transaction and not yet confirmed.
+
+    Receipt is a separate step, taken when the carrier hands the batches over:
+    it rechecks ownership and the captured events, and anything appended between
+    the two readings stays pending, above the cursor it advances."""
     batches = []
     for page_dir in owned_pages(session_id):
         try:
@@ -615,13 +616,21 @@ def take_input(session_id: str) -> dict | None:
                 if not (
                     claim
                     and claim["id"] == session_id
-                    and claim_harness(claim).hook_delivers
+                    and claim_harness(claim).hooks_carry()
                 ):
                     continue
                 if batch := unacknowledged(page.events, page.cursor):
                     batches.append(batch_data(page_dir, page, batch))
         except FileNotFoundError:
             continue
+    return batches
+
+
+def take_input(session_id: str) -> dict | None:
+    """Freeze and confirm a hook-carried session's pending input as its hook
+    does, and return the delivery, or None when nothing is pending. For a driver
+    standing in for the host, such as the demo recorder."""
+    batches = pending_batches(session_id)
     if not batches:
         return None
     payload = freeze_delivery(batches, carrier="hook")
@@ -655,7 +664,7 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
     def print_delivery(reading: PageTick) -> None:
         """Print immutable input; only the consumer can confirm receipt. Where the
         harness's hook carries input into the turn, the wait only wakes it."""
-        if harness and harness.hook_delivers:
+        if harness and harness.hooks_carry():
             print(
                 f"{reading.page_dir} has new input; Leaf's prompt hook puts it in "
                 "your context with this notification",

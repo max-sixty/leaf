@@ -70,7 +70,7 @@ environment tells Leaf otherwise, so to Leaf it is this session. A page it
 claims, by serving it or naming it to `leaf wait`, is this session's, and this
 session's Stop hook holds its turns open for every user move there. A
 `leaf wait` it starts competes for this session's one watcher: it is refused
-while yours runs, and otherwise takes the batches from every page you hold into
-the subagent's context instead of yours. That is why the page stays with you
+while yours runs, and otherwise wakes the subagent instead of you, so the input
+from every page you hold goes into the subagent's turn. That is why the page stays with you
 (`references/conversation-loop.md`, "Long-running work"). A separate Claude Code
 session has its own id and can drive a page of its own.

@@ -355,15 +355,20 @@ def canonical_activity(
     queued = [item for item in obligations if item["stage"] == "queued"]
     pending = [item for item in obligations if item["stage"] == "sent"]
 
-    # A claimant inside a turn takes new input before that turn ends, whatever
-    # carries it, so between two waits it is still listening rather than away:
-    # a wait that ends to deliver a comment has left the lease, and the turn it
-    # reaches, or the one it opens, takes the comment. Only the banner reads this;
-    # a watch question such as the Stop hook's still asks for the lease.
+    # A claimant whose open turn takes new input before it ends is still
+    # listening between two waits rather than away: a wait that ends to deliver a
+    # comment has left the lease, and the turn it reaches, or the one it opens,
+    # takes the comment. A turn no Stop closed, as an interrupted one, stops
+    # counting after the working grace. The page's `kind` reads this, in the
+    # banner and in neighbouring pages' rows; a watch question such as the Stop
+    # hook's still asks for the lease.
     in_turn = (
         present["session_alive"] is True
+        and present.get("turn_takes_input", False)
         and present.get("claim_turn") is not None
         and present.get("turn_closed") is None
+        and not _quiet(present.get("turn_opened"), now, WORKING_GRACE)
+        and present.get("turn_opened") is not None
     )
     kind = "away"
     detail = ""

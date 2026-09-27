@@ -222,10 +222,7 @@ Claude Code hook:
                 for: 1946b466
     attention: |-
       Leaf needs attention:
-      - /path/to/page: 1 acknowledged user move with no answer (`leaf thread reply <page> --for 1946b466`).
       - /path/to/page: no watcher. Start `leaf wait` in the background for all this session's pages, or run `leaf status <page> idle` if this page is done.
-
-      Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf thread read <page> <id>`.
 
 Codex queue:
   codex queue --message: |-

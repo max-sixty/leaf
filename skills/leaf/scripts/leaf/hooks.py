@@ -9,18 +9,23 @@ model the same way. So these two hooks are the session's carrier
 (`Harness.hook_delivers`): each freezes the input pending on the session's
 pages, confirms it, and hands over the whole envelope, and the `leaf wait` the
 model keeps running only ends to open the turn. The model reads no output file
-and runs no acknowledgement. Claude Code writes a hook's context over 10,000
-characters to a file and hands over a preview and its path instead, so a
-delivery that large costs the model one read."""
+and runs no acknowledgement.
+
+Each hook marks that it ran for its session (`leases.mark_hooks`), and a wait
+only wakes a session so marked (`Harness.hooks_carry`): a session launched
+without these hooks still gets the envelope printed, rather than waking to an
+empty turn. Claude Code writes a hook's context over 10,000 characters to a file
+and hands the turn a preview and its path, so a delivery that large goes as a
+pointer its reader confirms instead of being confirmed unseen."""
 
 import json
 
 from .activity import acknowledged_obligations, blocking_obligations, unanswered
-from .delivery import record_pickup
+from .delivery import ReceiptRefused, freeze_delivery, record_pickup
 from .event_log import read_events
 from .files import next_reading, read_json
-from .host import claim_harness
-from .leases import name_wait_start
+from .host import Harness, claim_harness
+from .leases import hooks_path, mark_hooks, name_wait_start
 from .schema import (
     ANSWER_ASK_INSTRUCTION,
     PREVIEW_FILE,
@@ -35,11 +40,11 @@ from .service import (
     page_claim,
     unacknowledged,
 )
-from .session import take_input
+from .session import pending_batches, receive_one
 
 
 def unattended_pages(
-    session_id: str, *, prompt_open: bool = False
+    session_id: str, *, prompt_open: bool = False, handing: list[dict] = ()
 ) -> list[tuple[str, str | None]]:
     """The pages this session owes something, each with what to do about it.
 
@@ -51,7 +56,13 @@ def unattended_pages(
     Two invariants hold between turns. A page is watched or idle, so anything
     else has quietly stopped listening. And every comment delivered into this
     turn has an answer under it, where `activity.blocking_obligations` says which
-    moves this turn owes."""
+    moves this turn owes.
+
+    `handing` is the input this same hook hands the turn, which is neither
+    unpicked nor owed yet: the reasons describe what is left beside it."""
+    handed = {
+        (batch["page"], event["id"]) for batch in handing for event in batch["events"]
+    }
     reasons = []
     for page_dir in owned_pages(session_id):
         page_reasons = []
@@ -90,7 +101,10 @@ def unattended_pages(
         if not carried:
             # The watcher's whole batch — user events and workers' reports — not the
             # user-facing count, which deliberately leaves reports out.
-            n = len(unacknowledged(events, state["cursor"]))
+            n = sum(
+                (str(page_dir), event["id"]) not in handed
+                for event in unacknowledged(events, state["cursor"])
+            )
             if n:
                 # The harness's own remedy names this page, so it stays on the
                 # line; what follows it is the same for every page in the batch.
@@ -188,16 +202,66 @@ def announce_wait(session_id: str) -> bool:
     )
 
 
-def delivered(delivery: dict) -> str:
-    """The turn context that hands one confirmed delivery to the model."""
+# Claude Code writes a hook's context over this many characters to a file and
+# hands the turn a 2 KB preview and the path instead: measured at 2.1.283, 9,990
+# characters arrived whole and 10,010 did not.
+HOOK_CONTEXT_LIMIT = 10_000
+
+
+def pointer_acknowledgement(delivery_id: str) -> str:
+    """What a delivery too large to hand over inline tells its reader."""
     return (
-        "Leaf delivered this input into your turn and confirmed it, so the user's "
-        "moves read Picked up.\n" + json.dumps(delivery, ensure_ascii=False)
+        "Leaf's hook handed this delivery over as a pointer, because it was too large "
+        "for the turn's context; until it is confirmed, the user's moves read Sent. "
+        "Once all of it is in your context, confirm it: "
+        f"{Harness.run_ack(delivery_id)}: it confirms this delivery and waits for "
+        "the next."
     )
+
+
+def compose(batches: list[dict], attention: list[str]) -> tuple[str, dict | None]:
+    """The turn context for one hook, and the delivery handing it over confirms.
+
+    A delivery that fits goes in whole, and handing it over is receipt. One that
+    would not fit goes as a pointer the model reads and confirms itself, since
+    Claude Code would replace it with a preview and receipt would confirm what
+    the model never saw."""
+    if not batches:
+        return "\n".join(attention), None
+    delivery = freeze_delivery(batches, carrier="hook")
+    message = "\n".join(
+        [
+            (
+                "Leaf delivered this input into your turn and confirmed it, so the "
+                "user's moves read Picked up."
+            ),
+            json.dumps(delivery, ensure_ascii=False),
+            *attention,
+        ]
+    )
+    if len(message) < HOOK_CONTEXT_LIMIT:
+        return message, delivery
+    pointer = freeze_delivery(
+        batches, carrier="hook", acknowledge=pointer_acknowledgement
+    )
+    return "\n".join(
+        [
+            (
+                "Leaf has new input for this turn, too large to hand over inline. "
+                f"Read it with `leaf delivery read {pointer['id']}`, then confirm it "
+                "as its `acknowledge` says."
+            ),
+            *attention,
+        ]
+    ), None
 
 
 def cmd_hook(payload: dict) -> None:
     event, sid = payload.get("hook_event_name"), payload.get("session_id") or ""
+    if sid:
+        # Evidence that this host runs Leaf's hooks for the session, which is what
+        # lets its `leaf wait` only wake it (`Harness.hooks_carry`).
+        mark_hooks(sid)
     if event == "PostToolUse":
         # A foreground wait has returned before the hook runs, so only a
         # background command can leave one running past the turn.
@@ -214,6 +278,7 @@ def cmd_hook(payload: dict) -> None:
             )
         return
     if event == "SessionEnd":
+        hooks_path(sid).unlink(missing_ok=True)
         for page_dir in owned_pages(sid):
             try:
                 with PageTransaction(page_dir) as page:
@@ -227,28 +292,35 @@ def cmd_hook(payload: dict) -> None:
             except FileNotFoundError:
                 continue
         return
-    delivery = None
+    batches = []
     if event == "UserPromptSubmit":
         open_session_turn(sid)
-        delivery = take_input(sid)
-        reasons = unattended_pages(sid, prompt_open=True)
+        batches = pending_batches(sid)
+        reasons = unattended_pages(sid, prompt_open=True, handing=batches)
     elif event == "Stop":
-        # Input that arrived as the turn ends goes into this same turn.
-        delivery = take_input(sid)
-        reasons = unattended_pages(sid)
+        # Input that arrived as the turn ends goes into this same turn. A repeated
+        # Stop takes only the user's: a worker's reports or a page's own errors,
+        # which nobody paces, could otherwise hold a turn open without end, and
+        # the next turn takes them.
+        batches = pending_batches(sid)
+        if payload.get("stop_hook_active") and not any(
+            move["author"] == "user" for batch in batches for move in batch["events"]
+        ):
+            batches = []
+        reasons = unattended_pages(sid, handing=batches)
         # A first Stop blocked on outstanding Leaf work does not end the
         # turn: Claude continues in the same turn with this reason as new
         # context. Stamp only a turn the hook allows to end (cleanly or on
         # the repeated stop that deliberately fails open).
-        if not delivery and (not reasons or payload.get("stop_hook_active")):
+        if not batches and (not reasons or payload.get("stop_hook_active")):
             close_session_turn(sid)
         # A repeated ordinary debt is the same Stop hook asking again; new
         # input is not.
-        if payload.get("stop_hook_active") and not delivery:
+        if payload.get("stop_hook_active") and not batches:
             return
     else:
         reasons = unattended_pages(sid)
-    if not reasons and not delivery:
+    if not reasons and not batches:
         return
     # The message avoids "unattended": a page can be watched and still be owed
     # an answer, and the runtime spends that word on a different fact — a page
@@ -266,7 +338,18 @@ def cmd_hook(payload: dict) -> None:
         if reasons
         else []
     )
-    message = "\n".join([*([delivered(delivery)] if delivery else []), *attention])
+    # The whole context is composed before anything is confirmed, and confirmed
+    # just before it is printed, so a hook that fails on the way confirms
+    # nothing. A page whose receipt is refused keeps its batch pending for the
+    # next hook, which a page and sequence already handled treats as a retry.
+    message, confirmed = compose(batches, attention)
+    if confirmed:
+        for batch in confirmed["batches"]:
+            try:
+                receive_one(batch, sid)
+            except ReceiptRefused:
+                continue
+        open_session_turn(sid)
     if event == "Stop":
         print(json.dumps({"decision": "block", "reason": message}))
     else:

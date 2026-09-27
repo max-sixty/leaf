@@ -204,6 +204,25 @@ def sessions_home() -> Path:
     return sessions
 
 
+def hooks_path(session_id: str) -> Path:
+    """The mark a Leaf hook leaves each time it runs for this session."""
+    return session_state_path(session_id, "hooks")
+
+
+def mark_hooks(session_id: str) -> None:
+    """Record that the host ran a Leaf hook for this session. The mark stands for
+    the session's life, and its SessionEnd hook removes it."""
+    hooks_path(session_id).touch()
+
+
+def hooks_ran(session_id: str) -> bool:
+    """Whether the host has run a Leaf hook for this session. A host whose hooks
+    can carry input carries it only where they run: a session launched without the
+    plugin's hooks, with hooks disabled, or whose hooks read another state home
+    never marks this one."""
+    return hooks_path(session_id).exists()
+
+
 def adapter_is_live(session_id: str) -> bool:
     """Whether this session has a detached delivery carrier right now."""
     return lock_is_held(adapter_lease_path(session_id))

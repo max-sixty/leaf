@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import ClassVar
 
 from leaf.files import read_json
-from leaf.leases import adapter_is_live
+from leaf.leases import adapter_is_live, hooks_ran
 from leaf.machine import ancestry, process_argv
 
 
@@ -58,8 +58,9 @@ class Harness:
     agent: str
 
     name: ClassVar[str]
-    # Whether the host's hooks carry input into the turn: they freeze, confirm, and
-    # hand over the whole delivery, and `leaf wait` only wakes the session.
+    # Whether the host's hooks can carry input into the turn: they freeze, confirm,
+    # and hand over the whole delivery, and `leaf wait` only wakes the session.
+    # `hooks_carry` says whether they do for this session.
     hook_delivers: ClassVar[bool] = False
 
     @classmethod
@@ -85,6 +86,13 @@ class Harness:
         process holding one lease. A carrier that has to prove more overrides
         this."""
         return listening
+
+    def hooks_carry(self) -> bool:
+        """Whether this session's hooks carry its input: its host runs hooks that
+        can, and one has run for this session. Until one has, `leaf wait` prints
+        the delivery for its reader to confirm, so a session whose hooks never run
+        still reads its input rather than being woken to an empty turn."""
+        return self.hook_delivers and hooks_ran(self.session)
 
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
         """What to do about events past this page's cursor that nothing will

@@ -246,8 +246,8 @@ def select_text(page: Page, selector: str, text: str) -> None:
 
 class DemoWaiter:
     """Own one background wait and take each delivery the way this host's agent
-    does: where the harness's hook carries input, the wait only wakes the session
-    and the hook's own `take_input` hands over and confirms the delivery; elsewhere
+    does: where the session's hooks carry input, the wait only wakes it and
+    `take_input`, as the hook does, hands over and confirms the delivery; elsewhere
     the wait prints it and rearming with `--ack` confirms it."""
 
     def __init__(self, page_dir: Path) -> None:
@@ -267,10 +267,10 @@ class DemoWaiter:
         restart twice — so the empty result is the symptom and that line is the
         reason."""
         stdout, stderr = self.process.communicate(timeout=10)
-        harness = session_harness()
-        hooked = harness is not None and harness.hook_delivers
+        # A wait prints the delivery, or only wakes a session whose hooks carry it.
+        hooked = bool(stdout.strip()) and not stdout.lstrip().startswith("{")
         if hooked:
-            payload = take_input(harness.session) if stdout.strip() else None
+            payload = take_input(session_harness().session)
         else:
             payload = json.loads(stdout) if stdout.strip() else None
         if payload is not None and payload.get("format") != DELIVERY_FORMAT:

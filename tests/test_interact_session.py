@@ -23,7 +23,7 @@ from xml.etree import ElementTree
 
 import pytest
 from click.testing import CliRunner
-from conftest import CLAUDE_IDENTITY, CODEX_IDENTITY, LEAF_COMMAND
+from conftest import CLAUDE_IDENTITY, CODEX_IDENTITY, HOOKED_SESSIONS, LEAF_COMMAND
 from interact_support import (
     COMMAND_SUBJECTS,
     HELD_LEASES,
@@ -1834,6 +1834,40 @@ def test_a_claimant_inside_a_turn_is_listening_between_two_waits(claimed):
     with service_model.PageTransaction(claimed) as transaction:
         transaction.close_turn(claim["id"])
     assert page_state(claimed)["activity"]["kind"] == "away"
+
+
+def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
+    claimed, codex_claimed_page
+):
+    """Listening between two waits rests on the open turn taking the input, which
+    only hooks that carry it do, and only while the turn is plausibly running. A
+    Codex task's carrier is a process of its own, so its open turn with no adapter
+    lease is nobody listening; and a Claude Code turn no Stop closed, as an
+    interrupted one, stops counting once the working grace has passed."""
+    now = datetime.now().astimezone()
+    for page in (claimed, codex_claimed_page):
+        files_model.write_json(
+            page / "status.json",
+            {"state": "waiting", "detail": "", "ts": now.isoformat(), "after": 0},
+        )
+    codex = page_state(codex_claimed_page)
+    # Every other clause of the rule holds, so only the carrier can read it away.
+    assert codex["session_alive"] is True
+    assert codex["claim_turn"] and codex["turn_closed"] is None
+    assert codex["turn_opened"] and not codex["turn_takes_input"]
+    assert codex["listening"] is False
+    assert codex["activity"]["kind"] == "away"
+
+    assert page_state(claimed)["activity"]["kind"] == "listening"
+    claim = service_model.page_claim(claimed)
+    opened = now - activity_model.WORKING_GRACE - timedelta(minutes=1)
+    files_model.write_json(
+        service_model.claim_path(claimed),
+        {**claim, "turn_opened": opened.isoformat(timespec="seconds")},
+    )
+    stale = page_state(claimed)
+    assert (stale["turn_takes_input"], stale["turn_closed"]) == (True, None)
+    assert stale["activity"]["kind"] == "away"
 
 
 def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys):
@@ -7688,6 +7722,7 @@ def test_one_wait_watches_every_page_the_session_holds(
     them, and the line that wakes the session says which page spoke."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s9")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    leases_model.mark_hooks("s9")  # its host runs Leaf's hooks
     second = tmp_path / "second"
     vendoring_model.cmd_init(second)
     capsys.readouterr()
@@ -7727,6 +7762,7 @@ def test_a_page_served_mid_wait_joins_the_running_watch(
     puts the page in front of the running wait."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s10")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    leases_model.mark_hooks("s10")  # its host runs Leaf's hooks
     serving(page_dir, 1)
     assert service_model.claim_page(page_dir)
     joined = tmp_path / "joined"
@@ -7897,6 +7933,7 @@ def test_a_host_claim_supersedes_a_bare_shell_wait(page_dir, sessionless, spawn)
         "CLAUDE_CODE_SESSION_ID": "host-owner",
         "CLAUDE_PID": str(os.getpid()),
     }
+    leases_model.mark_hooks("host-owner")  # its host runs Leaf's hooks
     host = spawn(
         [*LEAF_COMMAND, "wait", str(page_dir)],
         env=host_env,
@@ -8281,6 +8318,9 @@ def test_a_codex_adapter_retiring_with_no_page_leaves_only_records_a_page_needs(
     delivery records and removes those whose pages are gone, so an ended task
     leaves nothing; a record over a standing page stays for a later adapter of
     its task."""
+    # The suite's hook marks (`isolated_session`) are not records this test makes.
+    for session in HOOKED_SESSIONS:
+        leases_model.hooks_path(session).unlink()
     for name in CLAUDE_IDENTITY:
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("CODEX_THREAD_ID", "codex-thread")
@@ -9555,6 +9595,7 @@ def test_a_codex_command_claims_the_page_for_its_thread(codex_claimed_page):
         "cwd",
         "ts",
         "turn",
+        "turn_opened",
         "turn_closed",
         "released",
     }
@@ -9974,6 +10015,9 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
     page_dir, monkeypatch, spawn, identity_names
 ):
     """The held lease, not a timestamp or pid, is the wait's liveness."""
+    # The suite's hook marks (`isolated_session`) are not records this test makes.
+    for session in HOOKED_SESSIONS:
+        leases_model.hooks_path(session).unlink()
     for name in identity_names:
         monkeypatch.delenv(name, raising=False)
     serving(page_dir, 1)
@@ -10384,6 +10428,195 @@ def test_a_named_wait_claim_opens_the_turn_without_receiving_its_output(
     assert service_model.page_claim(claimed)["turn_closed"] == closed
 
 
+def test_a_stop_that_hands_over_input_keeps_the_turn_open(claimed, capsys):
+    """Input that arrives as the turn ends goes into that same turn, so the Stop
+    that hands it over blocks, and the turn it hands the input to is the one still
+    running: not closed, and not closed and reopened as another. The repeated Stop
+    that follows with nothing new is the turn really ending."""
+    session_model.cmd_status(claimed, "waiting", "")
+    session = service_model.page_claim(claimed)
+    lease = leases_model.take_lease(
+        leases_model.waiter_lease_path(claimed, session["id"])
+    )
+    assert lease
+    comment = events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "and this?"}
+    )
+
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    answer = json.loads(capsys.readouterr().out)
+    assert answer["decision"] == "block"
+    [batch] = json.loads(answer["reason"].split("\n")[1])["batches"]
+    assert [event["id"] for event in batch["events"]] == [comment["id"]]
+    claim = service_model.page_claim(claimed)
+    assert (claim["turn"], claim["turn_closed"]) == (session["turn"], None)
+    pickup = events_model.read_events(claimed)[-1]
+    assert (pickup["kind"], pickup["turn"]) == ("pickup", session["turn"])
+
+    hooks_model.cmd_hook(
+        {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True}
+    )
+    assert capsys.readouterr().out == ""
+    assert service_model.page_claim(claimed)["turn_closed"]
+    lease.close()
+
+
+def test_a_repeated_stop_is_held_open_only_by_the_users_input(claimed, capsys):
+    """A repeated Stop takes the user's input into the turn, and nothing else. A
+    page's own errors and a worker's reports arrive unpaced, so a turn that
+    blocked on each would never end; they stay pending for the next turn, and go
+    in with the user's move when one arrives."""
+    error = events_model.append_event(
+        claimed, {"kind": "error", "author": "page", "message": "a widget threw"}
+    )
+    repeated = {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True}
+
+    hooks_model.cmd_hook(repeated)
+    assert capsys.readouterr().out == ""
+    assert files_model.read_json(claimed / "cursor.json") is None
+    assert [
+        event["id"]
+        for event in service_model.unacknowledged(events_model.read_events(claimed), 0)
+    ] == [error["id"]]
+
+    comment = events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "is it broken?"}
+    )
+    hooks_model.cmd_hook(repeated)
+    answer = json.loads(capsys.readouterr().out)
+    assert answer["decision"] == "block"
+    [batch] = json.loads(answer["reason"].split("\n")[1])["batches"]
+    assert [event["id"] for event in batch["events"]] == [error["id"], comment["id"]]
+    assert files_model.read_json(claimed / "cursor.json") == {
+        "seq": last_deliverable_seq(claimed)
+    }
+
+
+def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
+    claimed, tmp_path, monkeypatch, capsys
+):
+    """The hook captures every page's input, composes the turn's context, and only
+    then confirms each page. A page another session claimed in between refuses its
+    receipt, and its input stays pending for the new owner; the other page, and
+    the ones after the refusal, are confirmed as usual."""
+    moved = tmp_path / "a-moved"  # ahead of `claimed` in the walk's path order
+    shutil.copytree(claimed, moved)
+    assert service_model.claim_page(moved)
+    comments = {
+        page: events_model.append_event(
+            page, {"kind": "comment", "author": "user", "text": f"on {page.name}"}
+        )
+        for page in (moved, claimed)
+    }
+    compose = hooks_model.compose
+
+    def compose_then_transfer(batches, attention):
+        composed = compose(batches, attention)
+        monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
+        assert service_model.claim_page(moved)
+        monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s1")
+        return composed
+
+    monkeypatch.setattr(hooks_model, "compose", compose_then_transfer)
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    answer = json.loads(capsys.readouterr().out)
+    assert answer["decision"] == "block"
+    delivery = json.loads(answer["reason"].split("\n")[1])
+    assert [batch["page"] for batch in delivery["batches"]] == [
+        str(moved),
+        str(claimed),
+    ]
+
+    assert service_model.page_claim(moved)["id"] == "s2"
+    assert files_model.read_json(moved / "cursor.json") is None
+    assert all(e["kind"] != "pickup" for e in events_model.read_events(moved))
+    assert [
+        event["id"]
+        for event in service_model.unacknowledged(events_model.read_events(moved), 0)
+    ] == [comments[moved]["id"]]
+    assert files_model.read_json(claimed / "cursor.json") == {
+        "seq": last_deliverable_seq(claimed)
+    }
+    pickup = events_model.read_events(claimed)[-1]
+    assert (pickup["kind"], pickup["events"]) == ("pickup", [comments[claimed]["id"]])
+
+
+def test_input_too_large_for_the_turn_goes_as_a_pointer_the_model_confirms(
+    claimed, capsys
+):
+    """Claude Code replaces a hook context of HOOK_CONTEXT_LIMIT characters or more
+    with a preview, so confirming it on handover would confirm what the model never
+    read. Input that large goes as a pointer instead: the hook confirms nothing, and
+    the delivery it names says how the model confirms it once it has read it."""
+    comment = events_model.append_event(
+        claimed,
+        {
+            "kind": "comment",
+            "author": "user",
+            "text": "x" * hooks_model.HOOK_CONTEXT_LIMIT,
+        },
+    )
+
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    answer = json.loads(capsys.readouterr().out)
+    assert answer["decision"] == "block"
+    reason = answer["reason"]
+    assert len(reason) < hooks_model.HOOK_CONTEXT_LIMIT
+    [delivery_id] = re.findall(r"`leaf delivery read (\w+)`", reason)
+    assert files_model.read_json(claimed / "cursor.json") is None
+    assert all(e["kind"] != "pickup" for e in events_model.read_events(claimed))
+
+    pointer = delivery_model.read_delivery(delivery_id)
+    assert pointer["carrier"] == "hook"
+    assert f"leaf wait --ack {delivery_id}" in pointer["acknowledge"]
+    [batch] = pointer["batches"]
+    assert [event["id"] for event in batch["events"]] == [comment["id"]]
+    # Confirming it is what `leaf wait --ack` does first.
+    session_model.receive_delivery(delivery_id)
+    assert files_model.read_json(claimed / "cursor.json") == {
+        "seq": last_deliverable_seq(claimed)
+    }
+
+
+def test_a_wait_only_wakes_a_session_its_hooks_have_run_for(
+    page_dir, monkeypatch, capsys
+):
+    """The wake line assumes a hook will hand the input over, which holds only
+    where the host runs Leaf's hooks for the session. Until one has run, the wait
+    prints the delivery for its reader to confirm, as it does for a bare shell, so
+    a session launched without the hooks still reads its input. The mark lasts for
+    the session, and SessionEnd removes it."""
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "unhooked")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    serving(page_dir, 1)
+    session_model.cmd_status(page_dir, "waiting", "")
+    first = events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "first"}
+    )
+
+    assert session_model.cmd_wait(page_dir) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["carrier"] == "wait"
+    assert f"leaf wait --ack {payload['id']}" in payload["acknowledge"]
+    assert [event["id"] for event in payload["batches"][0]["events"]] == [first["id"]]
+    session_model.receive_delivery(payload["id"])
+
+    hooks_model.cmd_hook(
+        {"hook_event_name": "UserPromptSubmit", "session_id": "unhooked"}
+    )
+    capsys.readouterr()
+    assert leases_model.hooks_ran("unhooked")
+    second = events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "second"}
+    )
+    assert session_model.cmd_wait(page_dir) == 0
+    _, _, shown = woken(capsys.readouterr().out, "unhooked")
+    assert [event["id"] for event in shown] == [second["id"]]
+
+    hooks_model.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "unhooked"})
+    assert not leases_model.hooks_ran("unhooked")
+
+
 def test_the_state_payload_carries_the_clock_its_timestamps_were_written_by(page_dir):
     """Every ts a seat dates is written here, while the user's `Date.now()` is
     another machine's opinion. The payload states the writer's clock so the reading is
@@ -10531,6 +10764,10 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_user(claimed, capsys):
     [batch] = json.loads(reason.split("\n")[1])["batches"]
     assert batch["page"] == str(claimed)
     assert [event["text"] for event in batch["events"]] == ["is this right?"]
+    assert "no watcher" not in reason
+    # Handed over, the comment is owed an answer, and a later Stop holds for it.
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    reason = json.loads(capsys.readouterr().out)["reason"]
     assert f"{claimed}: 1 acknowledged user move with no answer" in reason
     assert "no watcher" not in reason
 
@@ -10710,13 +10947,15 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
             "text": "but why not C?",
         },
     )
-    # The Stop hook carries the follow-up into this same turn, and holds the turn
-    # for an answer to it: the last word, not the root the earlier reply answered.
+    # The Stop hook carries the follow-up into this same turn, and a later Stop
+    # holds for an answer to it: the last word, not the root the earlier reply
+    # answered.
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     reason = json.loads(capsys.readouterr().out)["reason"]
     [batch] = json.loads(reason.split("\n")[1])["batches"]
     assert [event["id"] for event in batch["events"]] == [follow["id"]]
-    assert f"--for {follow['id']}" in reason
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert f"--for {follow['id']}" in json.loads(capsys.readouterr().out)["reason"]
     thread_model.cmd_reply(
         claimed,
         follow["id"],
@@ -11018,6 +11257,7 @@ def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
     which leaves its page unclaimed and every other page working."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s8")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    leases_model.mark_hooks("s8")  # its host runs Leaf's hooks
     # The walk is in path order, so a name ahead of the user's page is what
     # puts the unreadable record in front of the batch the session came for.
     stale = tmp_path / "held-preview"

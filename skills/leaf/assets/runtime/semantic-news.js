@@ -1,9 +1,9 @@
 /* Meaningful news from complete, accepted page readings.
 
-   The server owns thread content, user obligations, request lifecycles,
-   response conditions, and page activity. This module compares those readings after
-   presentation. It remembers which source versions were observed, not a second
-   account of what the page currently means.
+   The server owns thread content, user obligations, response conditions, and page
+   activity. This module compares those readings after presentation. It remembers
+   which source versions were observed, not a second account of what the page
+   currently means.
 
    New agent content is the server's `unread` reading, the same one the Threads panel
    and banner paint: a version is news the first time this tab sees it unread, and
@@ -28,7 +28,6 @@ export function semanticNewsReading(root) {
     thread: state.browser.thread,
     workflows: state.workflows,
     activity: state.activity,
-    requestOutcomes: state.browser.request_outcomes,
   };
 }
 
@@ -108,7 +107,6 @@ export function observeSemanticNews(prior, reading) {
   const first = prior === null;
   const observed = {
     content: new Set(prior?.content),
-    receipts: new Set(prior?.receipts),
     failures: new Set(prior?.failures),
     obligations: new Set(obligations.keys()),
     obligationEpisodes: new Map(prior?.obligationEpisodes),
@@ -127,17 +125,6 @@ export function observeSemanticNews(prior, reading) {
         version,
       });
     observed.content.add(version);
-  }
-  for (const { request, widget, receipt } of reading.requestOutcomes) {
-    if (!first && !observed.receipts.has(receipt.id))
-      news.push({
-        kind: "request_outcome",
-        key: `request:${receipt.id}`,
-        request,
-        widget,
-        receipt,
-      });
-    observed.receipts.add(receipt.id);
   }
   for (const failure of failures.values()) {
     if (!first && !observed.failures.has(failure.key))
@@ -172,8 +159,8 @@ export function observeSemanticNews(prior, reading) {
   return { observed, news };
 }
 
-// A waiting status-line notice keeps the historical receipts but drops assertions
-// that the latest successfully presented reading has since superseded. In particular,
+// A waiting status-line notice drops assertions that the latest successfully
+// presented reading has since superseded. In particular,
 // an answer can replace a failure while the user's own command holds the line.
 export function currentSemanticNews(news, reading, observed) {
   const versions = new Set(unreadContent(reading.thread).map(({ version }) => version));
@@ -183,8 +170,6 @@ export function currentSemanticNews(news, reading, observed) {
     switch (item.kind) {
       case "agent_content":
         return versions.has(item.version) ? [item] : [];
-      case "request_outcome":
-        return [item];
       case "response_failure": {
         const current = failures.get(item.key.slice("response:".length));
         return current ? [{ ...item, condition: current.kind }] : [];
@@ -214,7 +199,6 @@ export function semanticNewsNotice(news) {
   const byKind = (kind) => news.filter((item) => item.kind === kind);
   const content = byKind("agent_content");
   const failures = byKind("response_failure");
-  const requests = byKind("request_outcome");
   const obligations = byKind("user_obligation");
   const availability = byKind("agent_available");
   const clauses = [];
@@ -244,13 +228,6 @@ export function semanticNewsNotice(news) {
         count === 1
           ? `Response ${condition}`
           : `${plural(count, "response")} ${condition}`,
-      );
-  }
-  for (const status of ["failed", "succeeded"]) {
-    const count = requests.filter((item) => item.receipt.status === status).length;
-    if (count)
-      clauses.push(
-        count === 1 ? `Request ${status}` : `${plural(count, "request")} ${status}`,
       );
   }
   if (obligations.length)

@@ -147,7 +147,6 @@
           <a href="#x-patch"><code>x-patch</code></a>
           <a href="#x-reading-role"><code>x-reading-role</code></a>
           <a href="#x-refers"><code>x-refers</code></a>
-          <a href="#x-request"><code>x-request</code></a>
           <a href="#x-required-members"><code>x-required-members</code></a>
           <a href="#x-retired-when"><code>x-retired-when</code></a>
           <a href="#x-says"><code>x-says</code></a>
@@ -172,7 +171,7 @@
               <p>
                 What x-ask-surface declares: a Leaf element is the complete reading and
                 arrival region for exactly one non-quoted nested local Ask declared by
-                x-awaits or x-request.ask.
+                x-awaits.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-ask-surface contract">
@@ -181,14 +180,13 @@
                 <p>
                   The region begins with one direct heading, then carries any context
                   and evidence the user needs before the control; the nested widget
-                  still owns the answer and its fold or Request lifecycle. The banner,
-                  Asks tray, <code>a</code>/<code>A</code> ask walk, standing ring, and
-                  <code>page state</code> name the region while replay and Request
-                  projection name the nested widget. An arrival focuses that widget's
-                  answering control but scrolls to the region's start.
-                  <code>page check</code> requires the leading heading and one
-                  non-quoted nested Ask source so the two identities cannot be
-                  ambiguous.
+                  still owns the answer and its fold. The banner, Asks tray,
+                  <code>a</code>/<code>A</code> ask walk, standing ring, and
+                  <code>page state</code> name the region while replay names the nested
+                  widget. An arrival focuses that widget's answering control but scrolls
+                  to the region's start. <code>page check</code> requires the leading
+                  heading and one non-quoted nested Ask source so the two identities
+                  cannot be ambiguous.
                 </p>
               </details>
             </div>
@@ -530,47 +528,6 @@
                   experimental <code>indicate</code> to reach the named widget, which
                   each resolves in the owner's own authored document first (its
                   message's markup, for a widget in a reply) and then in the page.
-                </p>
-              </details>
-            </div>
-          </section>
-          <section class="reference-entry" id="x-request">
-            <h3><code>x-request</code></h3>
-            <div class="reference-copy">
-              <p>One-shot operations the user asks the external host to perform.</p>
-              <details class="reference-more">
-                <summary aria-label="Full x-request contract">Full contract</summary>
-                <p>
-                  Authored holders use <code>offers</code> to name direct child
-                  controls; each live holder offers at least one verb. A projected
-                  holder uses <code>records</code> to name an <code>x-data</code> input
-                  whose contract declares the row array and stable string key; its verbs
-                  are offered without authored children. <code>verbs</code> declares
-                  each command's complete detail schema. <code>bind</code> checks
-                  required string detail fields against immutable holder attributes or
-                  required string fields in the selected record.
-                  <code>ask: true</code> makes the ready lifecycle a user Ask:
-                  acceptance hands the turn to the host, pending and completed leave the
-                  user's list, and failure returns it. <code>region: true</code> says
-                  the holder supplies the commands but not its own question title, so
-                  every matching Leaf element stands inside an x-ask-surface whose
-                  leading direct heading owns the reading and arrival. Every request has
-                  a document, widget, and unit seat. Authored requests use the holder id
-                  as their unit; projected requests use the record key. A page seat
-                  lasts for its revision, while a thread seat lasts for that document. A
-                  projected holder contributes one Ask while any displayed row is ready.
-                  Pending excludes another request on that seat, failure reopens it, and
-                  success completes it. Each request is durable and not undoable because
-                  the host may already have acted.
-                  <code>leaf experimental receipt</code> appends exactly one linked
-                  <code>succeeded</code> or <code>failed</code> outcome, and the widget
-                  controller supplies the server-projected request seat, exact
-                  request/receipt attempts, latest attempt, and ready/pending/completed
-                  phase to its package module. A projected row reads and dispatches
-                  through <code>request(key)</code> on that controller. Leaf transports
-                  and validates the protocol but does not interpret verbs or execute
-                  them; package-owned guidance tells the host what each verb means, and
-                  external data carries replaceable evidence produced by it.
                 </p>
               </details>
             </div>

@@ -290,8 +290,8 @@ def write_failure_receipt(
     This is the only host writer of `failure`, so a user meets every giving-up
     boundary — the Worker's rate limiter, a dispatch that threw, a turn this
     container followed to nothing — in one shape per move: `fail_answer` writes the
-    failure the move's own answer takes, whether the move was a message, a request,
-    or an answer to a page Ask.
+    failure the move's own answer takes, whether the move was a message or an answer
+    to a page Ask.
 
     Only the move is named. A reply's address is not always the move — a gesture on a
     widget frozen into thread markup is answered on the thread holding it — and
@@ -426,7 +426,6 @@ class HostedTurn(CarriedTurn):
         )
         self.host = host
         self.page_dir = page_dir
-        self.leaf_turn: str | None = None
         self.event_ids = event_ids
         self.fields = agent_event_fields(event_ids)
         self.fault: dict | None = None
@@ -455,7 +454,8 @@ class HostedTurn(CarriedTurn):
         delivery's without anything having to read it back off the stream.
         """
         self.record("turn_following_started")
-        self.leaf_turn = open_app_server_delivery(
+        self.open()
+        open_app_server_delivery(
             self.page_dir,
             self.session_id,
             self.delivery_id,
@@ -553,10 +553,7 @@ class HostedTurn(CarriedTurn):
         try:
             if reply_error is not None:
                 self.record("turn_reply_commit_failed", **fault_fields(reply_error))
-            if self.leaf_turn is not None:
-                self.host._finish_turn(
-                    self.page_dir, self.session_id, self.leaf_turn, terminal
-                )
+            self.host._finish_turn(self.page_dir, self.session_id, terminal)
         finally:
             codex.clear_stream_activity(self.session_id, self.turn_id)
             self._receipt_unanswered()
@@ -564,11 +561,11 @@ class HostedTurn(CarriedTurn):
     def _receipt_unanswered(self) -> None:
         """Tell the user no answer is coming, for each move still owed one.
 
-        A turn that wrote its answers — a final reply, a stamped version, a request
-        receipt — settled those moves, and this passes over them. What is left is
-        every other way a turn can end — failed, interrupted, or completed without
-        writing an answer — where the page would otherwise show a move picked up by a
-        turn that is gone, with no answer and nothing to redeliver it. The receipt
+        A turn that wrote its answers — a final reply or a stamped version — settled
+        those moves, and this passes over them. What is left is every other way a turn
+        can end — failed, interrupted, or completed without writing an answer — where
+        the page would otherwise show a move picked up by a turn that is gone, with no
+        answer and nothing to redeliver it. The receipt
         claims no more than the absence of an answer, because that is all this
         observed.
         """
@@ -846,7 +843,6 @@ class WebsiteCodexHost:
         self,
         page_dir: Path,
         thread_id: str,
-        leaf_turn: str,
         turn: dict,
     ) -> None:
         """Close one observed provider turn without inventing a Leaf response."""
@@ -868,7 +864,7 @@ class WebsiteCodexHost:
                 claim
                 and claim.get("released") is None
                 and claim.get("id") == thread_id
-                and claim.get("turn") == leaf_turn
+                and claim.get("turn") == turn["id"]
             ):
                 page.set_status("waiting", "")
                 page.close_turn(thread_id)

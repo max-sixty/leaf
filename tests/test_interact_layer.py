@@ -143,7 +143,6 @@ def test_agent_interaction_command_help(regtest):
         "thread edit",
         "thread resolve",
         "experimental",
-        "experimental receipt",
         "page check",
         "version stamp",
     ):

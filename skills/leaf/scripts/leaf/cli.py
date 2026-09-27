@@ -872,8 +872,7 @@ def thread_resolve(dir: str, to: str, as_json: bool) -> None:
 def experimental() -> None:
     """Commands that serve optional packages. They may change or be removed.
 
-    `report` moves a widget's worker-written state; `receipt` records a user
-    request's terminal outcome.
+    `report` moves a widget's worker-written state.
     """
 
 
@@ -906,27 +905,6 @@ def report(
         print(json.dumps(accepted, ensure_ascii=False))
         return
     click.echo(f"reported {verb} on {widget}")
-
-
-@experimental.command(short_help="Record the terminal outcome of a user request.")
-@click.argument("dir", metavar="PAGE")
-@click.argument("request", metavar="REQUEST")
-@click.argument(
-    "status",
-    type=click.Choice(["succeeded", "failed"]),
-    metavar="succeeded|failed",
-)
-@click.option("--text", help="host outcome (default: stdin)")
-@click.option("--json", "as_json", is_flag=True, help="print the receipt event instead")
-def receipt(dir: str, request: str, status: str, text: str, as_json: bool) -> None:
-    """Record exactly one terminal host outcome for REQUEST."""
-    from leaf.requests import cmd_receipt
-
-    accepted = cmd_receipt(resolve_dir(dir), request, status, text)
-    if as_json:
-        print(json.dumps(accepted, ensure_ascii=False))
-        return
-    click.echo(f"settled request {request} as {status}")
 
 
 @cli.command(short_help="Print the event log as JSON lines.")

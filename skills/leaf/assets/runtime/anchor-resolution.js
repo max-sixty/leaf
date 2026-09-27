@@ -30,9 +30,7 @@ import {
   inChrome,
   pageDocument,
   pageQueryAll,
-  quoteFrom,
   settledAway,
-  textNodesUnder,
 } from "./passages.js";
 import { registry, tagsDeclaring } from "./registry.js";
 import { PRESSABLE, PRESSES } from "./widget-elements.js";
@@ -289,9 +287,8 @@ export function addressableSays(addressable) {
     registry[addressable.localName]?.["x-word"] === "module"
       ? addressable.lfSays?.()
       : "";
-  return own || elementReading(addressable, readSays);
+  return own || elementReading(addressable);
 }
-const readSays = (addressable) => quoteFrom(textNodesUnder(addressable));
 
 // What names an element, where the authoring contract gives it a name
 // (`../../references/page-authoring.md`): the attribute its registry entry declares
@@ -307,7 +304,7 @@ function leadingTitle(container) {
   for (const node of container.childNodes) {
     if (node.nodeType === Node.TEXT_NODE && node.data.trim()) return "";
     if (node.nodeType !== Node.ELEMENT_NODE || inUi(node)) continue;
-    if (node.matches(TITLES)) return quoteFrom(textNodesUnder(node));
+    if (node.matches(TITLES)) return elementReading(node);
     if (node.localName === "header") return leadingTitle(node);
   }
   return "";
@@ -452,7 +449,7 @@ export function resolveAnchor(anchor, text = "") {
     return segments.length
       ? {
           ...resolvedPassage({
-            place: blockAt(segments[0].node) ?? datums[0],
+            place: segments[0].block ?? datums[0],
             segments,
           }),
           datumElement: datums[0],
@@ -504,7 +501,7 @@ export function resolveAnchor(anchor, text = "") {
   return segments.length
     ? resolvedPassage({
         // Attached chrome belongs beside the passage's readable block or authored item.
-        place: blockAt(segments[0].node) ?? addressableAt(segments[0].node),
+        place: segments[0].block ?? addressableAt(segments[0].node),
         segments,
       })
     : null;

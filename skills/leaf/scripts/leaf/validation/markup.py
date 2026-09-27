@@ -7,7 +7,6 @@ from markdown_it import MarkdownIt
 from leaf.schema import MEDIA_DIR
 from leaf.structure import (
     AUTHORED_ALLOCATIONS,
-    HEADING_TAGS,
     PAGE_ALLOCATIONS,
     SECTIONING_TAGS,
     SourceDocument,
@@ -108,78 +107,6 @@ def unpointable_blocks(parser: SourceDocument) -> list:
     return lines
 
 
-def main_roots(parser: SourceDocument) -> tuple:
-    """`main` and the authored blocks directly in it: text, and elements other than
-    script, style and template."""
-    main = next((node for node in parser.nodes if node["tag"] == "main"), None)
-    if main is None:
-        return None, []
-    return main, [
-        node
-        for node in main["content"]
-        if (isinstance(node, str) and node.strip())
-        or (
-            isinstance(node, dict)
-            and node["tag"] not in {"script", "style", "template"}
-        )
-    ]
-
-
-def sole_workspace(roots: list, registry: dict) -> dict | None:
-    """The workspace that is `main`'s only block, if one is."""
-    if (
-        len(roots) == 1
-        and isinstance(roots[0], dict)
-        and registry.get(roots[0]["tag"], {}).get("x-reading-role") == "workspace"
-    ):
-        return roots[0]
-    return None
-
-
-def missing_outline(parser: SourceDocument, registry: dict) -> list:
-    """A document with several headings and nothing that lists them. Advice, never a
-    gate: the outline widget's own entry states the default — a page with two or
-    more headings carries one — and this is that default's feedback loop, the way
-    unpointable_blocks is the id rule's.
-
-    The registry says which element is the outline (x-outline), so a layer shipping
-    its own navigation gets its own tag back and a layer shipping none stays quiet
-    instead of naming an element the page could not declare. Two headings is a
-    deliberately low bar. An author who reads the line and still leaves the page
-    bare has answered it: on a page short enough to take in whole, a list of its
-    headings says nothing the page has not already said."""
-    main, roots = main_roots(parser)
-    if main is not None:
-        workspace = sole_workspace(roots, registry) is not None
-        # The page's view navigation is a block directly in main that declares it.
-        page_navigation = any(
-            isinstance(node, dict)
-            and registry.get(node["tag"], {}).get("x-page-navigation") is True
-            for node in roots
-        )
-        if workspace or page_navigation:
-            return []
-    outline = sorted(
-        # Widgets only — a $ entry is a layer-wide namespace, not a tag a page can
-        # write, and $keys spells its members in the x- keys' own names.
-        tag
-        for tag, entry in registry.items()
-        if tag.startswith("lf-") and entry.get("x-outline")
-    )
-    if not outline or any(record["tag"] in outline for record in parser.lf_elements):
-        return []
-    headings = [node for node in parser.nodes if node["tag"] in HEADING_TAGS]
-    if len(headings) < 2:
-        return []
-    return [
-        (
-            f"{len(headings)} headings and no <{outline[0]}>: one in an "
-            "aside.sidebar near the opening lists them, unless the page is compact "
-            "enough that its outline is already visible at a glance"
-        )
-    ]
-
-
 def structure_errors(parser: SourceDocument) -> list:
     """Structural complaints and source elements missing a required end tag."""
     errors = list(parser.errors)
@@ -227,16 +154,44 @@ def page_boundary_errors(parser: SourceDocument) -> list:
 def authored_allocation_errors(parser: SourceDocument) -> list:
     """Authored allocations use the layer's named values, and a page's own allocation
     stands on its `main`."""
+    return (
+        [
+            f"{at(item, item['attr'] + '=' + repr(item['value']))} has an invalid value; "
+            f"expected one of {', '.join(AUTHORED_ALLOCATIONS[item['attr']])}"
+            for item in parser.authored_allocations
+            if item["value"] not in AUTHORED_ALLOCATIONS[item["attr"]]
+        ]
+        + [
+            f"{at(item, item['attr'])} belongs on <main>, where it says whether the page "
+            f"keeps a rail"
+            for item in parser.authored_allocations
+            if item["attr"] in PAGE_ALLOCATIONS and item["tag"] != "main"
+        ]
+        + [
+            f"{at(item, item['attr'])} sizes a block in the page's flow, and <main> is the "
+            "page: its width is a Layout class on it (layout-wide, layout-sidebar, "
+            "layout-workspace)"
+            for item in parser.authored_allocations
+            if item["attr"] not in PAGE_ALLOCATIONS and item["tag"] == "main"
+        ]
+    )
+
+
+def unarranged_main(parser: SourceDocument) -> list:
+    """Advice for a `main` with no Layout class. Nothing arranges such a page, so its
+    blocks run the window's width; the page's own CSS may mean exactly that, which is
+    why this is advice rather than an error."""
+    main = next((node for node in parser.nodes if node["tag"] == "main"), None)
+    if main is None or any(
+        name.startswith("layout-") for name in main["attrs"].get("class", "").split()
+    ):
+        return []
     return [
-        f"{at(item, item['attr'] + '=' + repr(item['value']))} has an invalid value; "
-        f"expected one of {', '.join(AUTHORED_ALLOCATIONS[item['attr']])}"
-        for item in parser.authored_allocations
-        if item["value"] not in AUTHORED_ALLOCATIONS[item["attr"]]
-    ] + [
-        f"{at(item, item['attr'])} belongs on <main>, where it says whether the page "
-        f"keeps a rail"
-        for item in parser.authored_allocations
-        if item["attr"] in PAGE_ALLOCATIONS and item["tag"] != "main"
+        (
+            "<main> has no Layout class, so nothing arranges the page and its blocks "
+            'run the window\'s width; class="layout-column" sets the reading column, '
+            "unless the page's own CSS arranges it"
+        )
     ]
 
 

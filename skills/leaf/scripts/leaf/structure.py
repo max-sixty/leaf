@@ -68,13 +68,10 @@ POINTABLE_TAGS = {"section", "article", "aside", "pre", "table", "figure"}
 # Where an aim that found no tighter id has escaped to: naming one of these is
 # naming most of the page.
 SECTIONING_TAGS = {"section", "article", "main", "body"}
-# The headings an outline of the page lists. h1 names the page, so it heads that
-# outline rather than standing in it. The outline widget selects the same set in the
-# browser (its own HEADING_SELECTOR).
-HEADING_TAGS = {"h2", "h3", "h4", "h5", "h6"}
 # The allocations a page occurrence may state, each attribute with the values it takes:
 # a block's width in the page's flow and whether it bounds its own height, and, on
-# `main` alone, whether the page reserves the rail its margin rows stand in.
+# `main` alone, whether the page claims the rail its margin rows stand in or keeps that
+# margin for its own residents.
 AUTHORED_ALLOCATIONS = {
     "data-width": ("column", "wide", "available"),
     "data-bound": ("start", "end"),
@@ -553,7 +550,9 @@ class SourceDocument:
         source = (
             '<!doctype html><html lang="en"><head>'
             '<meta name="viewport" content="width=device-width, initial-scale=1">'
-            f"<title>{escape(attrs.get('id', 'Specimen'))}</title></head><body><main>"
+            f"<title>{escape(attrs.get('id', 'Specimen'))}</title></head>"
+            # A specimen shows a column page; the template is its content, not its frame.
+            '<body><main class="layout-column">'
             # Preserve authored lines, including multiline tags in nested specimens.
             + "\n" * (location.start_tag.end_line - 1)
             + self._source[content_start:content_end]

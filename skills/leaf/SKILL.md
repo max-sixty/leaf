@@ -101,7 +101,8 @@ for what the picture cannot say; `references/page-authoring.md`, "Draw the
 subject", says which points have one. A page that is mostly paragraphs and tables
 has usually described what it should have drawn.
 The visible page follows the subject's shape: prose read in order, regions read side
-by side on a wide page, or a workspace holding regions in view together;
+by side on a wide page, or a workspace holding regions in view together. A Layout class
+on `main` or a block arranges each of these, and the page's own CSS adjusts it;
 `references/page-authoring.md`, "Composing a page", owns the concrete choices, and
 `references/authoring-asks.md` owns where each Ask goes.
 

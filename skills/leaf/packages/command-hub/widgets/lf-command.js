@@ -14,7 +14,6 @@
  * not take the page's readings. */
 import {
   PRESS,
-  clockValue,
   threadBox,
   declarationFor,
   addressableWord,
@@ -26,6 +25,8 @@ import {
   projectData,
   relabel,
   selectableOffer,
+  shortAgo,
+  TEXT_BOX,
   watchUpdates,
 } from "/runtime/widget-api.js";
 import {
@@ -267,7 +268,7 @@ function configureGoal(goal) {
   });
   goal.addEventListener("click", (event) => {
     if (!directCommandRole(goal, "worker").length) return;
-    if (event.target.closest("button, a, textarea, input, summary, [data-lf-offer]"))
+    if (event.target.closest(`button, a, ${TEXT_BOX}, input, summary, [data-lf-offer]`))
       return;
     if (
       closestCommandRole(event.target, "command") !==
@@ -404,17 +405,9 @@ function renderHeader(snapshot) {
   return true;
 }
 
-function age(goal) {
-  return clockValue((now) => {
-    if (!goal.stoppedAt) return "age unknown";
-    const at = new Date(goal.stoppedAt).getTime();
-    if (!Number.isFinite(at)) return "age unknown";
-    const minutes = Math.max(0, Math.floor((now - at) / 60000));
-    if (minutes < 60) return `${minutes}m`;
-    const hours = Math.floor(minutes / 60);
-    return hours < 24 ? `${hours}h` : `${Math.floor(hours / 24)}d`;
-  });
-}
+// `stoppedAt` is a server stamp or a `stopped-at` the registry admitted as a date-time,
+// so the one reading left to make is its absence.
+const age = (goal) => (goal.stoppedAt ? shortAgo(goal.stoppedAt) : "age unknown");
 
 function renderStopped(snapshot) {
   const { plan } = snapshot;

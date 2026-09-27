@@ -8,9 +8,7 @@ recognize a Leaf control by its markup to judge it, belongs in the suite, which 
 Leaf's half."""
 
 import json
-import math
 from dataclasses import dataclass
-from itertools import pairwise
 
 from leaf.passages import page_passages
 from leaf.projection import (
@@ -315,38 +313,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
                     )
                 if holders:
                     retired = evaluate_probe(page, "retiredSlots", holders)
-    # One scheme, the palettes carrying no geometry between them, and before the
-    # medium moves: a box's inset is what it declared in either.
-    #
-    # The document's boxes, not the layer's over them. This is the only reading
-    # here that reaches the runtime's own chrome, and it reaches it by accident:
-    # inside `display: none` an element's own display is still `block` and its
-    # padding and margins still resolve, so a shut panel answers with numbers that
-    # look like the page's. They are not the panel's own. A size container query
-    # does not match in there, so a rule switching a slot between two forms is
-    # stuck on one of them, and a percentage margin comes back unresolved for
-    # `px` to read as its bare number. Every box reading beside this one sees zero
-    # and stops, which is the honest answer.
-    #
-    # And the finding would be one the author cannot act on. Everything in here is
-    # somebody else's: the layer's own parts, told to them in the words of a class
-    # no page of theirs has, and a widget an agent sent in a reply, frozen in an
-    # append-only log and admitted at a door of its own. Either way the version
-    # would stay refused with no edit that clears it, which is why the coarse
-    # question — which document is this in — is the right one to ask here, under the
-    # rule this module's docstring states. The layer's half is leaf's
-    # own to hold, and the suite holds it with the panel open, where the styles are
-    # the panel's and the margin is one somebody can see.
-    trapped = (
-        [t for t in evaluate_probe(page, "trappedMargins") if not t["chrome"]]
-        if scheme == "light"
-        else []
-    )
-    split = (
-        [t for t in evaluate_probe(page, "splitEdges") if not t["chrome"]]
-        if scheme == "light"
-        else []
-    )
     # Last: these probes render temporary complete states. Compare carried actions
     # against the authored baseline, restore current state, then prove idempotence.
     # The caught-up wait ensures they observe the same settled projection as the
@@ -446,34 +412,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
             "form (x-state) if a version is meant to carry it, or write the state "
             "on the chrome the module built"
         )
-    for t in {(x["tag"], x["edge"]): x for x in trapped}.values():
-        box = f"<{t['tag']}" + (f" class={t['cls']!r}" if t["cls"] else "") + ">"
-        path = t.get("through", [])
-        remedy = (
-            "Remove the edge margin that overrides the shared trim"
-            if t["frameDeclared"]
-            else "Declare --lf-block-frame: 1 in the rule that draws the frame"
-        )
-        found.append(
-            f"[{scheme}] {box} draws {t['drawn']:g}px of inset and shows "
-            f"{t['drawn'] + t['margin']:g}px {t['edge']} what it holds "
-            f"(id={t['id']!r}): its {t['edge'] == 'above' and 'first' or 'last'} "
-            f"block is a <{t['child']}> reserving {t['margin']:g}px against a "
-            f"neighbour it hasn't got, and the box is where that margin stops. "
-            f"{remedy}{' (' + ' > '.join(path) + ')' if path else ''}, so the trim "
-            f"in theme.css reaches it"
-        )
-
-    for t in {(x["tag"], x["cls"], x["edge"]): x for x in split}.values():
-        box = f"<{t['tag']}" + (f" class={t['cls']!r}" if t["cls"] else "") + ">"
-        which = "first" if t["edge"] == "above" else "last"
-        found.append(
-            f"[{scheme}] {box} (id={t['id']!r}) lays its children out side by side "
-            f"at a frame's edge, so the trim takes its {which} item's margin while "
-            f"the {t['margin']:g}px beside it stays, and the row no longer lines up. "
-            "Declare --lf-holds-edge: 1 on it, so the trim stops there"
-        )
-
     found += [f"[{scheme}] {r}" for r in retired]
     found += [f"[{scheme}] {u}" for u in unsettled]
     found += [f"[{scheme}] {c}" for c in conflicts]
@@ -529,7 +467,6 @@ def sweep(page, viewports) -> list[tuple[int, dict]]:
                 {
                     "overflow": evaluate_probe(page, "rootOverflow"),
                     "misplaced": evaluate_probe(page, "misplacedBoxes"),
-                    "grids": evaluate_probe(page, "templateGrids"),
                 },
             )
         )
@@ -554,76 +491,6 @@ def swept_overflow(readings, viewports) -> list[str]:
         low, high = min(widths), max(widths)
         span = f"{low}px" if low == high else f"{low}–{high}px"
         found.append(f"at {span} wide, {text}")
-    return found
-
-
-# The window below which a template's stacking is no longer worth an author's attention.
-# Every template stacks somewhere between a phone and the desktop, and a page that
-# follows the wide-page guidance (`2fr 1fr` on a wide page stacks below 757px) would
-# otherwise carry this advice by default. Above it the reader is at a desktop window
-# they keep, a laptop's or half a large screen's, where the regions laid side by side
-# arriving one under another is the layout they get, and a held workspace's panes turn
-# into short boxes the page scrolls past. Over the shipped corpus the templates stack
-# below 520–757px, except the triage board's `3fr 1fr`, which stacks below 1000px.
-STACKING_WINDOW = 800
-
-
-def stacking_advice(readings) -> list[str]:
-    """Advice naming each track template that stacks in a desktop window.
-
-    The module's rule gives the grid width its tracks need, exactly. What maps that onto
-    a window is the page's geometry, which is piecewise: a wide page holds at its cap
-    and then loses 0.92px of grid per pixel of window, a column page holds at 720px,
-    and a nested grid gets its track's share of either. So one reading at 1200px cannot
-    say where a grid stacks: taking a pixel of window for a pixel of grid put a
-    `1fr 2.4fr` template at 882px on an available page and 906px on a wide one, where
-    both stack below 854px. The sweep already lays the page out every 40px, so the
-    window is interpolated between the sweep widths either side of the flip, at no
-    layout of its own; that is exact wherever the geometry has no bend inside those
-    40px, and otherwise off by less than them. A template already stacked at
-    the widest reading stacks in every window, and says so."""
-    by_grid = {}
-    for width, reading in readings:
-        for grid in reading["grids"]:
-            by_grid.setdefault(grid["key"], []).append((width, grid))
-    found = []
-    for seen in by_grid.values():
-        widest_width, widest = seen[0]
-        name = widest["at"]
-        tracks = (
-            f'its columns="{widest["columns"]}" tracks need '
-            f"{round(widest['need'])}px side by side"
-        )
-        if widest["stacked"]:
-            found.append(
-                f"{name} stands in one column at {widest_width}px wide: {tracks}, and "
-                f"it has {round(widest['width'])}px. Give the narrowest track a larger "
-                'share, or the grid more room (page-authoring.md, "A wide page")'
-            )
-            continue
-        flip = next(
-            (
-                (high, above, low, below)
-                for (high, above), (low, below) in pairwise(seen)
-                if below["stacked"]
-            ),
-            None,
-        )
-        if flip is None:
-            continue
-        high, above, low, below = flip
-        grown = above["width"] - below["width"]
-        share = (below["need"] - below["width"]) / grown if grown > 0 else 1
-        window = math.ceil(low + min(max(share, 0), 1) * (high - low))
-        if window < STACKING_WINDOW:
-            continue
-        found.append(
-            f"{name} stacks into one column in a window narrower than {window}px: "
-            f"{tracks}, and it has {round(widest['width'])}px at {widest_width}px. "
-            "Where a reader's window is narrower and the regions should stay side by "
-            'side, give the narrowest track a larger share (page-authoring.md, "A wide '
-            'page")'
-        )
     return found
 
 
@@ -663,23 +530,4 @@ def shrunk_label_advice(page) -> list[str]:
         "nearer the width it is shown at, or give it more room "
         "(authoring-evidence.md, Interactive and visual evidence)"
         for d in evaluate_probe(page, "shrunkLabels", LEGIBLE_LABEL_PX)
-    ]
-
-
-def alignment_advice(page) -> list[str]:
-    """Advice when a page's grids split on more lines than any one of them needs."""
-    reading = evaluate_probe(page, "misalignedSplits")
-    if reading["unshared"] < 1:
-        return []
-    width = page.viewport_size["width"]
-    named = ", ".join(
-        f"{grid['at']} at {', '.join(f'{x}px' for x in grid['splits'])}"
-        for grid in reading["grids"]
-    )
-    return [
-        (
-            f"at {width}px wide the page's grids split at {reading['unshared']} more "
-            f"place(s) than its busiest grid needs — {named}: lay the page's regions on "
-            'one set of tracks (page-authoring.md, "A wide page")'
-        )
     ]

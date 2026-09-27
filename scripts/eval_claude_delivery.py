@@ -35,11 +35,13 @@ For each comment it reads the page log and the session's stream for:
 It also samples what the page tells the user, as an open tab reads it: from the
 served URL onward it reads `/api/state` every SAMPLE_EVERY seconds and saves each
 change of the banner (`activity.kind` and its sentence) and of each workflow's
-stage, or condition, to `states.jsonl`. For each comment, from its post to LINGER
-seconds after its turn ends, it reports the values the comment's workflow and the
-banner took and when; how long after the delivery the page first showed Picked up
-and the agent's work claim, beside the budgets `notes/user-feedback-responsiveness.md`
-sets (1 s and 2 s); and two disagreements with the stream:
+stage and condition (`working/stale`) to `states.jsonl`, keyed by its input, or by
+`claim:` and its subject for a claim that grew from no input. For each comment, from
+its post to LINGER seconds after its turn ends, it reports the values the comment's
+workflow and the banner took and when; how long after the delivery the page first
+showed the comment Picked up, and a work claim on the comment or its thread, beside
+the budgets `notes/user-feedback-responsiveness.md` sets (1 s and 2 s); and two
+disagreements with the stream:
 
 - `quiet`: seconds between the delivery and the agent's last reply in that turn
   during which the banner did not say `working`, though the agent was;
@@ -178,9 +180,10 @@ def sample_page(url: str, path: Path, stop: threading.Event) -> None:
                     "banner": state["activity"]["kind"],
                     "detail": state["activity"]["detail"],
                     "stages": {
-                        w["input"]: w["condition"]["kind"]
-                        if w["condition"]
-                        else w["stage"]
+                        (w["input"] or f"claim:{w['subject']['id']}"): "/".join(
+                            [w["stage"]]
+                            + ([w["condition"]["kind"]] if w["condition"] else [])
+                        )
                         for w in state["workflows"]
                     },
                 }
@@ -540,6 +543,16 @@ def turn_reading(
     def banner(sample: dict) -> str:
         return sample["banner"]
 
+    def stage(sample: dict, key: str = comment) -> str | None:
+        shown = sample["stages"].get(key)
+        return shown and shown.split("/")[0]
+
+    def claimed(sample: dict) -> bool:
+        # A claim matched to the comment makes its own workflow `working`; one made
+        # after the reply that settles it stands on the thread, which the comment
+        # roots. The banner is no witness: it can carry an earlier claim.
+        return "working" in {stage(sample), stage(sample, f"claim:{comment}")}
+
     def first(read: Callable[[dict], object], wanted: Callable[[object], bool]):
         """Seconds from the delivery until `read` first shows a wanted value."""
         return next(
@@ -553,13 +566,8 @@ def turn_reading(
 
     after = spans(samples, banner, ended, until)
     return {
-        "shown_pickup_s": first(
-            lambda s: s["stages"].get(comment), lambda v: v in {"picked_up", "working"}
-        ),
-        # The agent's work claim is what gives the banner a sentence.
-        "shown_claim_s": first(
-            lambda s: (s["banner"], bool(s["detail"])), lambda v: v == ("working", True)
-        ),
+        "shown_pickup_s": first(stage, lambda v: v in {"picked_up", "working"}),
+        "shown_claim_s": first(claimed, bool),
         "turn_s": round(ended - posted, 1),
         "model_s": round(ended - woken - inside, 1),
         "tools_s": round(inside, 1),

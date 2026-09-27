@@ -1,4 +1,4 @@
-import { pageScroller, shownBand, uiInside } from "/runtime/widget-api.js";
+import { pageScroller, shownBand, TEXT_BOX, uiInside } from "/runtime/widget-api.js";
 import { at as element } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
@@ -59,6 +59,10 @@ function marginReading(main) {
         ? "left"
         : "right";
   const isResident = (el, s = getComputedStyle(el), b = el.getBoundingClientRect()) => {
+    // A fixed overlay that takes no presses at rest, such as the contents map, stands over
+    // the page by design and reveals over it; it is a resident of the margin it starts in.
+    if (s.position === "fixed" && s.pointerEvents === "none")
+      return b.left < left - 1 || b.right > right + 1;
     if (s.position === "absolute" || s.position === "fixed")
       return b.right <= left + 1 || b.left >= right - 1;
     if (s.float === "none") return false;
@@ -246,6 +250,10 @@ export function misplacedBoxes() {
     const b = el.getBoundingClientRect();
     const hit = residents.find((r) => {
       if (el.contains(r) || r.contains(el)) return false;
+      // An overlay that takes no presses at rest reveals over the page by design; the
+      // room it takes at rest is what it states to the column's free room.
+      const rs = getComputedStyle(r);
+      if (rs.position === "fixed" && rs.pointerEvents === "none") return false;
       const c = r.getBoundingClientRect();
       return (
         b.left < c.right - 1 &&
@@ -364,111 +372,6 @@ export function misplacedBoxes() {
   return found.filter(({ text }) => !texts.has(text) && texts.add(text));
 }
 
-// Whether a page's grids stand on one set of vertical lines. A wide page reads as one
-// structure when every region shares the same tracks (page-authoring.md, "A wide
-// page"), and reads as a jumble when each row is a grid of its own whose split lands
-// somewhere new.
-// So each split — the midpoint of the gutter between two cells side by side — is a line
-// the page draws, and the count that matters is how many lines the page draws beyond what
-// its busiest grid needs: `unshared` is the distinct splits across the page, clustered at
-// 2px, less the most any one grid has. A page of one grid, or of grids that repeat one
-// grid's tracks, reads 0.
-//
-// Only layout grids are walked into: `main`'s own children, and the cells of each grid
-// among them, recursively. What a widget lays out inside itself — a board's columns, a
-// table — is the widget's structure rather than the page's. Only gutters count, and only
-// in a grid given tracks (a template, or `1` to stack a track's regions): a count grid is a
-// row of equal tiles, whose gutters are wherever its tile count puts them rather than a
-// region boundary the reader is meant to follow down the page. A box placed absolutely,
-// fixed or floated answers for its own position and stands on no track.
-export function misalignedSplits() {
-  const main = document.querySelector("main");
-  if (!main) return { unshared: 0, grids: [] };
-  const layoutGrid = (el) => el.matches('lf-grid, [data-lf-reading-role="grid"]');
-  const tracked = (el) =>
-    /fr/.test(el.getAttribute("columns") || "") || el.getAttribute("columns") === "1";
-  const standing = (el) => {
-    if (!el.checkVisibility()) return false;
-    const s = getComputedStyle(el);
-    if (s.position === "absolute" || s.position === "fixed" || s.float !== "none")
-      return false;
-    const b = el.getBoundingClientRect();
-    return b.width >= 2 && b.height >= 2;
-  };
-  const grids = [];
-  const walk = (parent) => {
-    for (const el of parent.children) {
-      if (!standing(el)) continue;
-      // A workspace and its panes are the page's regions, and a page tab's panel is a
-      // section of the page, so the grids they hold are the page's tracks too.
-      if (!layoutGrid(el) || !tracked(el)) {
-        if (
-          el.matches(
-            '[data-lf-reading-role="workspace"], [data-lf-reading-role="pane"], ' +
-              '[data-lf-tabs-context="root"], [data-lf-root-reading]',
-          )
-        )
-          walk(el);
-        continue;
-      }
-      const rows = new Map();
-      for (const cell of el.children) {
-        if (!standing(cell)) continue;
-        const b = cell.getBoundingClientRect();
-        const top = Math.round(b.top);
-        rows.set(top, [...(rows.get(top) ?? []), b]);
-      }
-      const splits = [];
-      for (const row of rows.values()) {
-        row.sort((a, b) => a.left - b.left);
-        for (let i = 1; i < row.length; i++)
-          splits.push(Math.round((row[i - 1].right + row[i].left) / 2));
-      }
-      if (splits.length) grids.push({ at: at(el), splits: [...new Set(splits)] });
-      walk(el);
-    }
-  };
-  walk(main);
-  // Chained, so a run of splits each within 2px of the last is one line.
-  let lines = 0,
-    last = -Infinity;
-  for (const x of grids.flatMap((g) => g.splits).sort((a, b) => a - b)) {
-    if (x - last > 2) lines++;
-    last = x;
-  }
-  const busiest = Math.max(0, ...grids.map((g) => g.splits.length));
-  return { unshared: lines - busiest, grids };
-}
-
-// Each track template on the page, at the current width: how wide the grid is, the width
-// its tracks need side by side, and whether it stands stacked. The last two are the
-// module's own answers (`stackWidth`, `data-lf-grid-stacked`) rather than its rule
-// restated. Read at every width the sweep takes the page through, because the width a
-// grid gets is the page's geometry and not a fixed share of the window: a wide page
-// holds at its cap and then loses 0.92px of grid per pixel of window, as its gutters
-// are 4% of the shell, a column page holds at 720px, and a nested track gets its share.
-// A grid with no box at this width (an unopened tab) has nothing to say about it.
-//
-// Each grid is keyed by its place among main's grids in document order, counted before
-// any is left out. The sweep only resizes the page, so a key names the same element at
-// every width, which `at` does not: it is words the author can find, and two grids with
-// no id under one named element share them.
-export function templateGrids() {
-  const main = document.querySelector("main");
-  if (!main) return [];
-  return [...main.querySelectorAll("lf-grid").entries()]
-    .filter(([, grid]) => grid.stackWidth != null && grid.checkVisibility())
-    .map(([key, grid]) => ({
-      key,
-      at: at(grid),
-      columns: grid.getAttribute("columns"),
-      width: grid.getBoundingClientRect().width,
-      need: grid.stackWidth,
-      stacked: grid.hasAttribute("data-lf-grid-stacked"),
-    }))
-    .filter((grid) => grid.width > 0);
-}
-
 // A table scrolling sideways with a cell in it wrapped. The theme's three cases for a
 // table — take the measure only when asked, wrap the cells past that, scroll when even
 // wrapping can't fit — are in order, and the third is reached through the second: a
@@ -493,7 +396,7 @@ export function templateGrids() {
 // setting cells `pre-wrap`; `flex-wrap: nowrap` beside it, because a milestone's chips
 // stacked seven deep in a 114px cell with no text wrapping at all; `!important` on the
 // descendants too, because a widget's own rule beats an inherited value — a draft's
-// body is `pre-wrap` by the default package's sheet; and not on a textarea, whose
+// body is `pre-wrap` by the default package's sheet; and not on a text box, whose
 // value wraps inside a box the table never sized. The gate reads its own page, so the
 // probe changes nothing a user sees, and later readings measured the same before
 // and after it.
@@ -613,7 +516,7 @@ export function squeezedTables() {
   const probe = document.createElement("style");
   probe.textContent =
     "th:not([colspan]), td:not([colspan])," +
-    " th:not([colspan]) *:not(textarea), td:not([colspan]) *:not(textarea)" +
+    ` th:not([colspan]) *:not(${TEXT_BOX}), td:not([colspan]) *:not(${TEXT_BOX})` +
     " { text-wrap: nowrap !important; flex-wrap: nowrap !important }";
   document.head.append(probe);
   for (const columns of read.values())

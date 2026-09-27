@@ -59,6 +59,12 @@ from render_harness import (
     told,
     undo,
     wait_for_revision,
+    write,
+)
+
+DRAG_HELD = (
+    "async () => (await window.__lfRuntimeImport("
+    "'/runtime/widget-elements.js')).dragHeld()"
 )
 
 pytestmark = pytest.mark.nightly
@@ -88,8 +94,8 @@ def test_a_refused_message_cannot_present_before_its_thread_reconciles(
     page = open_page(browser, serve(INLINE_PAGE))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    field = page.locator(".lf-general textarea")
-    field.fill("A message the server will refuse")
+    field = page.locator(".lf-general leaf-text")
+    write(field, "A message the server will refuse")
     field.press("ControlOrMeta+Enter")
     holding(page, held, 1, "the optimistic message")
     expect(page.locator(".lf-thread")).to_contain_text(
@@ -1531,7 +1537,7 @@ def test_a_refused_action_waits_for_a_live_gesture_before_reconciling(browser, s
 
     baffle.focus()
     page.keyboard.press("Enter")
-    expect(page.locator("#sprint")).to_have_class(re.compile(r"\blf-dragging\b"))
+    page.wait_for_function(DRAG_HELD)
     attempt = held[0].request.post_data_json["attempt"]
     with page.expect_response(lambda response: "/api/event" in response.url):
         held[0].fulfill(
@@ -2159,7 +2165,7 @@ def test_the_composer_never_stands_on_its_own_mark(browser, serve):
     }""")
     page.locator("#opt-strict").click(click_count=3)
     page.locator(".lf-fab-input").click()
-    page.locator(".lf-composer textarea").fill("what did the trial actually show?")
+    write(page.locator(".lf-composer leaf-text"), "what did the trial actually show?")
     assert mark_shows_beside_composer(page), (
         "the box covered the passage it just opened on"
     )
@@ -2271,7 +2277,7 @@ def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
     page.wait_for_selector(".lf-fab-input", state="visible")
     page.locator(".lf-fab-input").click()
     expect(page.locator(".lf-composer")).to_be_visible()
-    page.locator(".lf-composer textarea").fill("held open across the panel opening")
+    write(page.locator(".lf-composer leaf-text"), "held open across the panel opening")
     # A press on the banner's own button gives the Thread panel the screen and focus.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -2284,8 +2290,8 @@ def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
     page.locator("#p30").click(click_count=3)
     expect(page.locator(".lf-fab-input")).to_be_visible()
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
-    expect(page.locator(".lf-fab-input")).to_have_value(
-        "held open across the panel opening"
+    expect(page.locator(".lf-fab-input")).to_have_js_property(
+        "value", "held open across the panel opening"
     )
 
 
@@ -2298,8 +2304,9 @@ def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, se
 
     page.locator("#p").click(click_count=3)
     page.locator(".lf-fab-input").click()
-    page.locator(".lf-composer textarea").fill(
-        "half-written when the version turned over"
+    write(
+        page.locator(".lf-composer leaf-text"),
+        "half-written when the version turned over",
     )
     passage = " ".join(page.locator("#p").inner_text().split())
     assert not composer_quote(page)["shown"], "the passage is right here, and marked"
@@ -2330,8 +2337,8 @@ def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, se
     navigate(page, url)
     page.locator("#p").click(click_count=3)
     expect(page.locator("#lf-composer-quote")).to_have_text(f"“{passage}”")
-    expect(page.locator(".lf-fab-input")).to_have_value(
-        "half-written when the version turned over"
+    expect(page.locator(".lf-fab-input")).to_have_js_property(
+        "value", "half-written when the version turned over"
     )
     # The words come back; the user's keyboard does not go with them.
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
@@ -2340,13 +2347,13 @@ def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, se
 
 
 def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, serve):
-    """`.lf-dragging` is half of the `z` liveness the runtime declares, and a pointer
+    """A held drag is half of the `z` liveness the runtime declares, and a pointer
     drag is a whole gesture rather than a frame: the focus paint lands on the
     mousedown, `fallbackTolerance` fires the drag's start after it, and on a quiet
     board nothing repaints between the pick-up and the drop. So unpainted, the line
     goes on offering `undo` for as long as the user holds the card, over a press the
     dispatcher is already refusing. The drop is the same gap read backwards: a card
-    put down where it was picked up takes the class off and returns before #send, so
+    put down where it was picked up puts the hand down and returns before #send, so
     there is no send downstream to paint in its place."""
     url = serve(BOARD_PAGE)
     append_command(
@@ -2384,7 +2391,7 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
     page.mouse.move(*start)
     page.mouse.down()
     page.mouse.move(start[0], start[1] + 24, steps=8)  # past fallbackTolerance
-    page.wait_for_selector("lf-board.lf-dragging")  # the gesture is live in the page
+    page.wait_for_function(DRAG_HELD)  # the gesture is live in the page
     # Read once, on the frame the paint coalesces to, rather than through `expect`:
     # a heartbeat two seconds out repaints the line whatever this drag did, so an
     # assertion that re-decisions passes on the poll and says nothing about the edge.
@@ -2393,7 +2400,7 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
     )
 
     page.mouse.up()
-    assert page.locator("lf-board.lf-dragging").count() == 0
+    assert not page.evaluate(DRAG_HELD)
     assert "z undo" in _painted_line(page), (
         "the drop that sent nothing left the line refusing a press that is live"
     )
@@ -2459,8 +2466,8 @@ def test_pending_gestures_survive_an_accepted_view_waiting_for_a_thread_widget(
 
     suggestion_control(page, "sug-thistle", "accept").click()
     expect(page.locator("#sug-thistle")).to_have_attribute("data-lf-state", "accept")
-    page.locator(".lf-general textarea").fill("Keep this newer comment visible.")
-    page.locator(".lf-general textarea").press("ControlOrMeta+Enter")
+    write(page.locator(".lf-general leaf-text"), "Keep this newer comment visible.")
+    page.locator(".lf-general leaf-text").press("ControlOrMeta+Enter")
     message = page.locator(".lf-threads .lf-msg-body").filter(
         has_text="Keep this newer comment visible."
     )

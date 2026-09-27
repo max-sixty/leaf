@@ -3,7 +3,8 @@ import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { buildOutputs, checkModule, checkOutputs } from "./build.mjs";
+import { buildOutputs, checkOutputs } from "./build.mjs";
+import { bundledPackages, checkModule } from "./shipped.mjs";
 import { createApplicationPublisher } from "./snapshot.ts";
 
 const outputs = await buildOutputs();
@@ -72,24 +73,57 @@ test("checking stale output refuses it without changing any bytes", async (conte
   await assert.rejects(checkOutputs(outputs, scratch), /browser-runtime\.js/);
 });
 
-test("the bundle gate rejects unresolved code and runtime compilation", () => {
-  for (const source of [
-    'import { html } from "lit";',
-    'export { html } from "https://cdn.example/lit.js";',
-    'import("./late.js");',
-    'eval("globalThis.changed = true");',
-    'new Function("return 1")();',
-    'require("lit");',
+test("the bundle gate reads the parsed module, not its text", () => {
+  for (const [source, reason] of [
+    ['import { html } from "lit";', 'imports "lit", not a local path'],
+    ['export { html } from "https://cdn.example/lit.js";', "not a local path"],
+    ['export * from "//cdn.example/lit.js";', "not a local path"],
+    ['import("./late.js");', "import() loads a module at run time"],
+    ['eval("globalThis.changed = true");', "calls eval"],
+    ['(0, eval)("1");', "calls eval"],
+    ['globalThis["eval"]("1");', "calls eval"],
+    ['new Function("return 1")();', "calls Function"],
+    ['window.Function("return 1")();', "calls Function"],
+    ['require("lit");', "calls require"],
+    ['setTimeout("document.body.dataset.ready=1", 0);', "passes setTimeout a string"],
+    ["window.setInterval(`tick(${a})`, 9);", "passes setInterval a string"],
+    ['setTimeout("tick(" + a + ")", 9);', "passes setTimeout a string"],
   ]) {
-    assert.throws(() => checkModule(source), /self-contained ESM/, source);
+    assert.throws(
+      () => checkModule(`const a = 1;\n${source}`, "x.js"),
+      (error) =>
+        error.message.startsWith("x.js:2: ") &&
+        error.message.includes(reason) &&
+        error.message.endsWith("which the page CSP forbids"),
+      source,
+    );
   }
-  const siblings = new Set([`${outputRoot}/lit.js`]);
-  checkModule('import { html } from "./lit.js";', `${outputRoot}/x.js`, siblings);
-  assert.throws(
-    () => checkModule('import("./lit.js");', `${outputRoot}/x.js`, siblings),
-    /self-contained ESM/,
-  );
-  checkModule('export const words = "eval and import are ordinary prose here";');
+  checkModule('import { html } from "./lit.js";');
+  checkModule("setTimeout(() => tick(), 9); setInterval(tick, 9 + 1);");
+  checkModule('import { html } from "/vendor/lit.js"; export * from "../a.js";');
+  // Pierre's TextMate grammars carry both as data.
+  checkModule('export const grammar = { begin: "import\\\\(", end: "eval(x)" };');
+});
+
+test("notices name the packages whose code reached an output", () => {
+  const metafile = {
+    inputs: { "node_modules/a/x.js": {}, "node_modules/@s/b/y.js": {} },
+    outputs: {
+      "out.js": {
+        inputs: {
+          "node_modules/a/x.js": { bytesInOutput: 0 },
+          "node_modules/@s/b/node_modules/c/z.js": { bytesInOutput: 3 },
+          "node_modules/@s/b/y.js": { bytesInOutput: 5 },
+          "entry.mjs": { bytesInOutput: 9 },
+        },
+      },
+      "out.js.map": { inputs: {} },
+    },
+  };
+  assert.deepEqual(bundledPackages(metafile, "/w"), [
+    "/w/node_modules/@s/b",
+    "/w/node_modules/@s/b/node_modules/c",
+  ]);
 });
 
 test("publisher replaces one immutable reading before subscribers run", () => {

@@ -94,7 +94,7 @@ lf-task[status="done"] > strong { color: var(--muted); }
 /* The seat in a rail stacks its panels the way the rail's own grid stacks its cells:
  * the gap is the grid's, so a panel the command drew and one the page authored stand
  * the same distance apart. */
-lf-command-readings { display: grid; gap: var(--lf-grid-gap, var(--sp-4)); }
+lf-command-readings { display: grid; gap: var(--sp-4); }
 lf-command-readings > section.panel { margin: 0; }
 .lf-command-outcome { display: grid; gap: var(--sp-2); }
 .lf-command-outcome > strong { font: 600 var(--t-3)/1.25 var(--sans); }

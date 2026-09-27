@@ -676,12 +676,11 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "skills/leaf/scripts/leaf/__main__.py",
     ]:
         assert (PLUGIN_ROOT / relative).is_file()
-    # Claude imports each canonical instruction file without keeping a second copy.
+    # The shipped plugin carries its canonical project instructions.
     instructions = [p for p in shipped_payload() if p.name == "AGENTS.md"]
     assert instructions, "no project instructions in the shipped payload"
     for agents in instructions:
         assert agents.is_file() and not agents.is_symlink()
-        assert agents.with_name("CLAUDE.md").read_text() == "@AGENTS.md\n"
     # A host's copy must not contain links that escape the plugin tree.
     escaping = [
         path
@@ -1490,23 +1489,6 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
 
 
-def test_the_rail_s_floor_is_one_width_in_every_sheet():
-    """theme.css claims the rail in a shell wider than its floor, and chrome.css offers
-    the Page Map toggle at or under it, where the markers are pins. No runtime constant
-    stands behind the number — the runtime reads the posture the claim states — so the
-    two spellings are held to each other."""
-    theme = (schema_model.ASSETS / "theme.css").read_text()
-    chrome = (schema_model.ASSETS / "runtime" / "chrome.css").read_text()
-    floor = re.search(
-        r"@container lf-shell \(width > (\d+)px\) \{\s*html\[data-lf-live\] main\b",
-        theme,
-    ).group(1)
-    spelled = f"@container lf-shell (width <= {floor}px) {{"
-    assert spelled in chrome, (
-        "the Page Map toggle appears at a different floor than the rail"
-    )
-
-
 def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
     """The classic bootstrap cannot import modules, so the layer gate ties the root
     state it writes to the stylesheet that reads it, and the surfaces' default widths
@@ -2116,7 +2098,12 @@ def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monke
     )
     assert selected.exit_code == 0, selected.output
     theme = (page / "theme.css").read_text()
-    assert theme.endswith("/* user package */\n/* project package */\n")
+    # Selected packages follow the kernel in order, and the Layouts close the theme.
+    assert (
+        theme.index("/* user package */")
+        < theme.index("/* project package */")
+        < theme.index("@layer lf-layouts")
+    )
     assert (page / "widgets" / "user.js").is_file()
     assert (page / "widgets" / "project.js").is_file()
     assert not (page / "widgets" / "xdg.js").exists()

@@ -99,7 +99,7 @@
 @layer lf-reset {
   button.lf-ui { appearance: none; margin: 0; padding: 0; border: 0;
     background: none; color: inherit; font: inherit; }
-  .lf-btn, .lf-ui textarea, textarea.lf-ui { font: inherit; }
+  .lf-btn, .lf-ui :is(textarea, leaf-text), :is(textarea, leaf-text).lf-ui { font: inherit; }
 }
 .lf-ui:is([role="button"], [role="checkbox"]):not([data-lf-said]):not(:has([data-lf-said])) { user-select: none; -webkit-user-select: none; }
 /* Words for a user listening, silent on screen: real text, the one thing every
@@ -143,6 +143,33 @@
    correctly. */
 .lf-skip { opacity: 0; pointer-events: none; }
 .lf-quiet { clip-path: inset(50%); white-space: nowrap; }
+/* A pending suggestion still has to say it is proposed when generated controls are
+ * absent. On screen the ✓/✗ row carries that fact and this word stays clipped for
+ * whoever is listening. Paper exposes the word #voice already writes
+ * in each slot, so the proposal remains distinguishable from settled content without
+ * adding another label or moving it elsewhere.
+ *
+ * The page the markup describes is the base, and the live page's clipped version goes
+ * inside the screen guard. `user-select` is not touched: this is the runtime's reading
+ * of the paint rather than authored prose, so copying a published paragraph must not
+ * carry the word with it.
+ *
+ * inline-block, because lf-old is struck and CSS runs a decoration through every
+ * in-flow inline descendant — a descendant cannot cancel it, and `text-decoration:
+ * none` here is inert. Unclipped as a plain inline, the one word saying the change has
+ * *not* been made was itself painted struck in the deletion's red, which is the reading
+ * this whole rule exists to prevent. An atomic inline is where the line stops.
+ *
+ * Here beside `.lf-quiet` rather than in the theme, because the two must meet in one
+ * cascade layer: the chrome's unlayered rule would beat any theme rule in lf-base. */
+lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
+  position: static; width: auto; height: auto; overflow: visible; clip-path: none;
+  display: inline-block; margin-right: 5px; }
+@media screen {
+  html:root lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip-path: inset(50%); margin-right: 0; }
+}
 /* The skip link (leaf.js says why it stands where it does). It rests transparent, the
    way the comment note above does and for the same reason, and on focus takes the face
    the two controls below take, in the same place — a user who has just pressed Tab
@@ -188,29 +215,8 @@
 [aria-busy="true"] :is(button, [role="button"]) {
   cursor: progress;
 }
-/* The general leaf text box, in one rule. The compact response field is excluded
-   because it shares its complete control geometry with the response buttons below.
-   field-sizing does the growing, so no script
-   measures a textarea: the JS that did had to reset height to auto to re-measure,
-   which made the box briefly too small for its own text on every keystroke — and a
-   box that overflows, however briefly, flashes a scrollbar. Past max-height the
-   scrollbar is real and stays — and the ceiling is the viewport's share, not a count
-   of lines: 200px stopped a long comment at ten lines with the screen mostly empty.
-   Both selectors: the panel's boxes sit inside .lf-ui, a widget's own box wears the
-   class itself. */
-.lf-ui textarea:where(:not(.lf-fab-input)),
-textarea.lf-ui:where(:not(.lf-fab-input)) {
-  padding: var(--lf-compose-pad-block, 8px) var(--lf-compose-pad-inline-start, 10px);
-  border: 1px solid var(--border-2);
-  border-radius: 6px; background: var(--card); color: inherit; resize: none;
-  field-sizing: content; max-height: 50vh; overflow-y: auto; }
-.lf-ui :is(input, textarea)::placeholder,
-:is(input, textarea).lf-ui::placeholder { color: var(--muted); opacity: 1; }
-.lf-ui textarea:where(:not(.lf-fab-input)):is(:focus, .lf-focus),
-textarea.lf-ui:where(:not(.lf-fab-input)):is(:focus, .lf-focus) { outline: var(--here-ring);
-  --lf-here-ring: text-box; outline-offset: 0; border-color: transparent; }
 /* Pasted media stays in the draft's Markdown, but the writing surface shows the thing
-   rather than its transport. The strip takes its own row beside every textarea shape;
+   rather than its transport. The strip takes its own row beside every text-box shape;
    the compact response bar overrides that row below. */
 :is(.lf-compose, .lf-general, .lf-say):has(> .lf-composer-media:not([hidden])) {
   flex-wrap: wrap; }
@@ -300,14 +306,6 @@ body[data-lf-draw-mode] main .lf-thread-seat * { cursor: auto !important; }
 /* The glyphs of the reactions standing on a target — a margin entry per reaction,
    revealing a separately named removal action. */
 .lf-react-mark { text-align: center; }
-/* Opening a standing reaction leaves its familiar face in place and reveals the
-   separately named removal action beside it. Its existing contour takes the shared
-   disclosure accent; the mark does not gain a second ring or pretend the reaction
-   itself changed. */
-.lf-react-mark[data-lf-behavior="disclosure"] {
-  border-width: 2px; border-color: var(--border-2); color: var(--ink);
-  box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
-}
 /* The draft's own passage uses the accent contour. An open composer is on screen
    whenever this is, and an already-posted element keeps the posted colour instead, so
    the two states never contend on one element. */
@@ -371,8 +369,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
    the same fact — for a decision the tray lists, which is one the user still owes. It is an outline like every other mark the
    runtime paints on the page's own elements: it moves nothing on arriving, and it
    keeps its place for nothing, being the element's own paint rather than a box in
-   the chrome that would have to chase it down every scroll, reflow and drag. */
-[data-lf-ask] { outline: var(--here-ring); --lf-here-ring: ask; outline-offset: var(--here-ring-gap); }
+   the chrome that would have to chase it down every scroll, reflow and drag. A widget
+   that carries the location itself while the user works inside it stands the band down
+   by declaring `--lf-ask-ring: none` on the decision: its theme is in a cascade layer
+   this sheet outranks whatever the selector, and a declaration still reaches it. */
+[data-lf-ask] { outline: var(--lf-ask-ring, var(--here-ring)); --lf-here-ring: ask;
+                outline-offset: var(--here-ring-gap); }
 /* Paper takes no input, so what a widget injects to be worked goes: the control,
    and the box that holds controls. What stays is a control whose label is words the
    page keeps — one it speaks (data-lf-said: a pick mark reading "chosen" is the only
@@ -1136,26 +1138,23 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     outline: var(--here-ring); --lf-here-ring: summary-fold;
     outline-offset: calc(-1 * var(--here-ring-w)); }
   /* Drafts begin at the sent message's text edge. Send shares the field's row;
-     right padding keeps draft text clear of it as the textarea grows. */
+     right padding keeps draft text clear of it as the field grows. */
   .lf-thread-compact > .lf-compose { margin: 16px 0 8px; }
   .lf-thread-compact > .lf-compose .lf-compose-field {
     border: 1px solid var(--border-2); border-radius: 6px; background: var(--card);
   }
-  .lf-thread-compact > .lf-compose .lf-compose-field:has(> textarea:is(:focus, .lf-focus)) {
+  .lf-thread-compact > .lf-compose .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus)) {
     outline: var(--here-ring); --lf-here-ring: text-box;
     border-color: transparent;
   }
-  .lf-thread-compact > .lf-compose .lf-compose-field > textarea {
+  .lf-thread-compact > .lf-compose .lf-compose-field > leaf-text {
     font-size: 13px; line-height: 1.5; padding: 7px;
     padding-inline-end: calc(var(--lf-icon-action-hit) + 12px);
     border: 0; border-radius: 0; background: transparent;
     max-height: min(50vh, 35cqh);
   }
-  .lf-thread-compact > .lf-compose .lf-compose-field > textarea:is(:focus, .lf-focus) {
+  .lf-thread-compact > .lf-compose .lf-compose-field > leaf-text:is(:focus, .lf-focus) {
     outline: none; border: 0;
-  }
-  .lf-thread-compact > .lf-compose .lf-compose-placeholder {
-    padding-block-start: 7px; padding-inline-start: 7px;
   }
   /* The panel half of the mark the pointer is indicating (paintHover). The quote is
      the bounded panel representation of that passage; painting the card made a long
@@ -1175,7 +1174,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-going .lf-resolve::before { background: var(--ok-tint); }
   /* Direct navigation cues the same bounded box it revealed: a short card, one
      message, the reply row, or an oversized editor. */
-  .lf-thread.flash, .lf-msg.flash, .lf-compose.flash, .lf-compose textarea.flash {
+  .lf-thread.flash, .lf-msg.flash, .lf-compose.flash, .lf-compose leaf-text.flash {
     animation: lf-runtime-4f3c2a8d-flash 1.2s ease-out;
   }
   /* An arrival the reconcile added while the user was watching. Motion, not a
@@ -1274,7 +1273,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      paintAnchors is the one writer. */
   .lf-msg-body a.detached { color: var(--muted-2); text-decoration: underline dashed; cursor: default; }
   .lf-compose { display: block; margin-top: 16px; }
-  .lf-compose textarea { display: block; width: 100%; min-width: 0; }
+  .lf-compose leaf-text { display: block; width: 100%; min-width: 0; }
   /* The foot is a column of its own so the composer and the page's reaction strip keep
      the flex-item margins they had as the panel's own children, and so the one box the
      chrome measures for its lift is the one the user sees standing there. */
@@ -1354,13 +1353,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      one-line minimum, so content cannot re-seat the bar. The room's width caps the
      whole bar, and the field is the flex item that shrinks, so on a narrow screen the
      words wrap sooner and the ellipsis keeps its room. */
-  textarea.lf-fab-input { --lf-response-min-width: 216px; width: auto;
+  leaf-text.lf-fab-input { --lf-response-min-width: 216px; width: auto;
     min-width: min(var(--lf-response-min-width), var(--lf-response-room, 100vw));
     max-width: min(80ch, var(--lf-response-room, 100vw));
     max-height: var(--lf-float-h, 60vh);
     padding-inline: var(--lf-compose-pad-inline-start) calc(max(28px, var(--aim-floor)) + 12px);
-    resize: none;
-    field-sizing: content; overflow-y: auto; }
+    overflow-y: auto; }
   .lf-fab-bar .lf-compose-field {
     --lf-compose-pad-block: calc((var(--lf-response-height) - 1lh - 2px) / 2);
     --lf-compose-pad-inline-start: 12px;
@@ -1599,8 +1597,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      thread column. */
   .lf-margin-thread .lf-page-thread { padding-inline: 12px; }
   /* The reply surround shares the thread's opaque surface, including its focus
-     tint, so pinning the reply cannot introduce a separate background band. */
-  :where(.lf-margin-thread) .lf-page-thread { background: var(--paper); }
+     tint, so pinning the reply cannot introduce a separate background band. The surface
+     is a default the thread's own states paint over (shadow.css), so it stands in their
+     layer, where their selectors outrank it. */
+  @layer lf-base { :where(.lf-margin-thread) .lf-page-thread { background: var(--paper); } }
   /* Pinned to the transcript's foot, the row keeps its controls' ring room as bottom
      padding (the compact ring's room, in this file's header). */
   .lf-margin-thread .lf-say { align-items: stretch; position: sticky; bottom: 0;
@@ -1608,8 +1608,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     padding-block: var(--sp-3) var(--here-ring-room);
     background: inherit; }
   .lf-margin-thread .lf-page-thread > .lf-say > .lf-reply-disclosure,
-  .lf-margin-thread .lf-say textarea { padding-inline-start: 7px; }
-  .lf-margin-thread .lf-say textarea { min-width: 0;
+  .lf-margin-thread .lf-say leaf-text { padding-inline-start: 7px; }
+  .lf-margin-thread .lf-say leaf-text { min-width: 0;
     max-height: min(50vh, var(--lf-thread-editor-room, 50vh)); }
   .lf-margin-preview .lf-margin-thread-body > .lf-page-thread {
     position: static; }
@@ -1693,22 +1693,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-page-map-group:first-child { border-top: 0; }
   .lf-page-map-group h3 { margin: 0 8px 4px; font-size: var(--t-5); line-height: 1.35; }
   .lf-page-map-actions { display: grid; gap: 2px; }
-  /* The banner offers the whole Page Map wherever the rail is not drawn, and asks the
-     same floor the rail does, of the same box: theme.css, at the margin projection. There
-     the markers are pins, small targets over the content, and the searchable map is the
-     better route to them. The thread panel takes no room but stands over the margin
-     below about 1700px, and the layout pass marks the root when it does. A browser that
-     cannot anchor draws no markers at all. */
+  /* The banner offers the whole Page Map wherever the user has no rail to find markers
+     in: where the margin pass stood them as pins, small targets over the content
+     (margin-layout.js), and where the thread panel stands over a margin row
+     (chrome-layout.js). A browser that cannot anchor draws no markers at all. */
   @media screen {
-    @container lf-shell (width <= 863px) {
+    :scope:is([data-lf-rail-covered],
+        :has(> .lf-margin-projection > .lf-margin-toolbar[data-lf-pins]))
       .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
-    }
-    :scope[data-lf-rail-covered] .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
-  }
-  @media screen and (pointer: coarse) {
-    @container lf-shell (width <= 887px) {
-      .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
-    }
   }
   @supports not (anchor-name: --lf-page) {
     .lf-page-map-toggle:not([hidden]) { display: inline-flex; }

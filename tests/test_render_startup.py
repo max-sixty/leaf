@@ -23,6 +23,7 @@ from leaf import hosting as hosting_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf.render_checks import wait_until_ready
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -65,7 +66,6 @@ from render_cases_widgets import (
     TYPED_PARTS_PAGE,
 )
 from render_harness import (
-    BOTH_STAMPS,
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
@@ -81,6 +81,7 @@ from render_harness import (
     open_page,
     open_versions,
     panel_settled,
+    primed,
     refuse,
     rendered,
     round_trip,
@@ -92,6 +93,12 @@ from render_harness import (
     undo,
     wait_for_revision,
     watched,
+    write,
+)
+
+DRAG_HELD = (
+    "async () => (await window.__lfRuntimeImport("
+    "'/runtime/widget-elements.js')).dragHeld()"
 )
 
 pytestmark = pytest.mark.nightly
@@ -277,7 +284,7 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
 
     page.route("**/api/state*", identify)
     page.goto(url, wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(page.locator(".lf-banner .lf-status-detail")).not_to_contain_text(
         "239383829012"
     )
@@ -458,7 +465,7 @@ def test_authored_html_paints_while_runtime_startup_is_held(
         ), "a startup sheet replaced the authored document before runtime arrived"
 
         boot.pop().continue_()
-        page.wait_for_function(BOTH_STAMPS)
+        wait_until_ready(page)
         presented = page.locator("body > main").bounding_box()
         assert {key: presented[key] for key in ("x", "y", "width")} == pytest.approx(
             {key: initial[key] for key in ("x", "y", "width")}, abs=1
@@ -578,7 +585,7 @@ def test_held_keys_after_one_that_opens_a_box_are_typed_into_it(browser, serve):
     )
 
     release()
-    expect(page.locator("textarea:focus")).to_have_value("hi x")
+    expect(page.locator("leaf-text:focus")).to_have_js_property("value", "hi x")
 
 
 @pytest.mark.parametrize("ending", ["Enter", "ControlOrMeta+a"])
@@ -605,10 +612,10 @@ def test_a_key_that_is_not_printed_ends_the_held_run(browser, serve, ending):
     page.keyboard.press(ending)
     expect(echo).to_have_count(0)
     release()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     # A replay would run a frame after presentation; let the repaint it causes land.
     rendered(page)
-    expect(page.locator("textarea:focus")).to_have_count(0)
+    expect(page.locator("leaf-text:focus")).to_have_count(0)
 
 
 @pytest.mark.parametrize("gesture", ["Escape", "pointer"])
@@ -632,7 +639,7 @@ def test_escape_or_a_pointer_press_lets_go_of_held_keys(browser, serve, gesture)
     expect(echo).to_have_count(0)
 
     release()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     # A replay would run a frame after presentation; let the repaint it causes land.
     rendered(page)
     assert page.evaluate("() => !document.activeElement?.closest('[data-thread]')")
@@ -705,9 +712,7 @@ def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
             + content
             + "</template></lf-specimen>"
         )
-    url = serve(
-        leaf_page("Restored surface", content, width="available" if wide else None)
-    )
+    url = serve(leaf_page("Restored surface", content, layout="wide" if wide else None))
     context = browser.new_context(viewport={"width": window, "height": 900})
     if contained:
         host = context.new_page()
@@ -751,7 +756,7 @@ def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
         initial = geometry()
 
         held.pop().continue_()
-        page.wait_for_function(BOTH_STAMPS)
+        wait_until_ready(page)
         expect(page.locator("body")).to_have_attribute(
             "data-lf-auxiliary-surface", surface
         )
@@ -1311,7 +1316,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     assert all(frame["startupSheet"] == "none" for frame in frames), frames
 
     held.pop(0).continue_()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
     expect(authored_note).to_have_text("Ship on Friday from the green room.")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
@@ -1365,7 +1370,7 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     expect(page.locator(".lf-status-detail")).to_have_text(re.compile(r"^Connecting"))
 
     held.pop(0).continue_()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(controls).to_be_visible()
     expect(page.locator(".lf-status-detail")).not_to_have_text(
         re.compile(r"^Connecting")
@@ -1397,7 +1402,7 @@ def test_playground_joins_initial_widget_settlement(browser, serve):
     expect(playground).to_have_attribute("data-playground-format", "status strip")
 
     held.pop(0).continue_()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(submit).to_be_enabled()
     expect(compact).to_be_checked()
     expect(page.locator(".lf-status-detail")).not_to_have_text(
@@ -1468,7 +1473,7 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_tray_during_replay(
     context = browser.new_context(viewport={"width": 1200, "height": 900})
     priming = context.new_page()
     priming.goto(url, wait_until="load")
-    priming.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(priming)
     priming.evaluate("localStorage.setItem('lf-auxiliary-surface', 'asks')")
     priming.close()
 
@@ -1489,10 +1494,10 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_tray_during_replay(
     expect(comments).to_be_enabled()
     comments.click()
     expect(body).not_to_have_attribute("data-lf-auxiliary-surface", "asks")
-    expect(page.locator(".lf-general textarea")).to_be_editable()
+    expect(page.locator(".lf-general leaf-text")).to_be_editable()
 
     held.pop(0).continue_()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
     decisions = page.locator(".lf-asks")
     expect_banner_control_offered(decisions)
@@ -1531,7 +1536,7 @@ def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
     expect(page.locator(".lf-thread")).to_have_count(0)
 
     held.pop(0).continue_()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(page.locator(".lf-empty")).to_have_count(0)
     expect(page.locator(".lf-thread")).to_have_count(1)
     expect(page.locator(".lf-msg-body strong")).to_have_text("comment")
@@ -1867,7 +1872,7 @@ def test_foreign_state_waits_until_a_live_drag_releases_the_page(browser, serve)
     page.mouse.move(grip["x"] + grip["width"] / 2, grip["y"] + grip["height"] / 2)
     page.mouse.down()
     page.mouse.move(grip["x"] + grip["width"] / 2 + 12, grip["y"] + 12, steps=4)
-    expect(page.locator(".lf-dragging")).to_have_count(1)
+    page.wait_for_function(DRAG_HELD)
 
     append_command(
         serve.page_dir,
@@ -2096,7 +2101,7 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator(".lf-empty")).to_have_text("Loading current threads…")
     expect(page.locator(".lf-thread")).to_have_count(0)
-    page.locator(".lf-general textarea").fill("General comment during startup")
+    write(page.locator(".lf-general leaf-text"), "General comment during startup")
     page.locator(".lf-general").get_by_role("button", name="Send").click()
     expect(page.locator(".lf-thread")).to_have_count(0)
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
@@ -2120,7 +2125,7 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     )
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
-    page.locator(".lf-composer textarea").fill("Still anchored?")
+    write(page.locator(".lf-composer leaf-text"), "Still anchored?")
     page.keyboard.press("ControlOrMeta+Enter")
 
     expect(page.locator(".lf-thread")).to_have_count(3)
@@ -2169,7 +2174,6 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     assert modules == [
         "/widgets/lf-activity.js",
         "/widgets/lf-board.js",
-        "/widgets/lf-grid.js",
     ], modules
     assert not [p for p in asked if "pierre-diffs" in p], asked
     assert not [p for p in asked if "agentic-mermaid" in p], asked
@@ -2208,7 +2212,7 @@ def test_floating_ui_loads_only_when_a_user_opens_a_response(browser, serve):
 
 def test_comment_focus_waits_for_the_lazy_placement_module(browser, serve):
     """Comment entered from an already-selected passage keeps its focus request while
-    the positioning dependency loads, rather than focusing a still-hidden textarea."""
+    the positioning dependency loads, rather than focusing a still-hidden text box."""
     page = open_page(browser, serve(LONG_PAGE))
     held = []
     page.route("**/vendor/floating-ui.esm.js", lambda route: held.append(route))
@@ -2244,7 +2248,7 @@ def test_an_unavailable_floating_ui_module_withdraws_the_response(browser, serve
     watched(page)
     page.route("**/vendor/floating-ui.esm.js", lambda route: route.abort())
     page.goto(url, wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
 
     with page.expect_event("pageerror") as raised:
         page.locator("#bg-react-ok").click(modifiers=["Alt"])
@@ -2366,10 +2370,22 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
 def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serve):
     """Sequence order is judged again after the lazy Markdown import. A newer POST
     response can enter that await before an older held poll; when the shared import
-    finishes, the older continuation must not repaint the log backwards."""
-    page = open_page(browser, serve(LONG_PAGE))
+    finishes, the older continuation must not repaint the log backwards. A composer
+    starts that import as it mounts, so the module is held from navigation onward."""
+    marked = []
+    page = open_page(
+        primed(
+            browser,
+            lambda page: page.route(
+                "**/vendor/marked.esm.js", lambda route: marked.append(route)
+            ),
+        ),
+        serve(LONG_PAGE),
+    )
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page)
+    holding(page, marked, 1, "the Markdown module")
+    assert len(marked) == 1
 
     older = []
 
@@ -2396,13 +2412,9 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
     old_route = older[0]
     old_state = old_route.fetch().json()
 
-    marked = []
-    page.route("**/vendor/marked.esm.js", lambda route: marked.append(route))
-    page.locator(".lf-general textarea").fill("Newest **snapshot**")
-    with page.expect_request("**/vendor/marked.esm.js"):
+    write(page.locator(".lf-general leaf-text"), "Newest **snapshot**")
+    with sending(page, "the newer comment"):
         page.locator(".lf-general button").click()
-    holding(page, marked, 1, "the Markdown module")
-    assert len(marked) == 1
 
     old_route.fulfill(json=old_state)
     page.title()  # let the old response join the shared import before releasing it
@@ -3909,7 +3921,7 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_user_saw(
     api.click(click_count=3)
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
-    page.locator(".lf-composer textarea").fill("Which readiness check is this?")
+    write(page.locator(".lf-composer leaf-text"), "Which readiness check is this?")
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
 
@@ -4035,7 +4047,7 @@ customElements.define('lf-feed', class extends HTMLElement {
     page = open_page(browser, url)
     page.locator('[data-lf-datum="a-1"]').click(click_count=3)
     page.locator(".lf-fab-input").click()
-    page.locator(".lf-composer textarea").fill("Check this deployment.")
+    write(page.locator(".lf-composer leaf-text"), "Check this deployment.")
     with sending(page, "the keyed record comment"):
         page.keyboard.press("ControlOrMeta+Enter")
     comment = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
@@ -4057,7 +4069,7 @@ customElements.define('lf-feed', class extends HTMLElement {
 
     page.locator('[data-lf-datum="a-1"]').click(click_count=3)
     draft = page.locator(".lf-fab-input")
-    draft.fill("Keep this draft with the row.")
+    write(draft, "Keep this draft with the row.")
     expect(draft).to_be_focused()
 
     data_model.cmd_data_set(
@@ -4076,7 +4088,7 @@ customElements.define('lf-feed', class extends HTMLElement {
     expect(row).to_have_attribute("data-lf-source-revision", current)
     expect(row).to_contain_text("Alpha 2")
     expect(row).to_have_class(re.compile(r"\blf-mark-el\b"))
-    expect(draft).to_have_value("Keep this draft with the row.")
+    expect(draft).to_have_js_property("value", "Keep this draft with the row.")
     expect(draft).to_be_focused()
     expect(page.locator('[data-lf-datum="b-1"]')).not_to_have_class(
         re.compile(r"\blf-mark-el\b")
@@ -4242,7 +4254,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     expect(healthy).to_contain_text("Discuss healthy first")
     markers = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     expect(markers).to_have_count(0)
-    broken.locator(".lf-page-thread textarea").first.fill("Keep this unsent reply.")
+    write(broken.locator(".lf-page-thread leaf-text").first, "Keep this unsent reply.")
     strip = broken.locator(".lf-react-strip")
     strip.locator(".lf-react-trigger").click()
     expect(strip.locator(".lf-react:visible")).to_have_count(6)
@@ -4279,7 +4291,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     # completion edge before checking that the digit produced no stale send.
     page.keyboard.press("1")
     page.keyboard.press("c")
-    expect(page.locator(".lf-general textarea")).to_be_focused()
+    expect(page.locator(".lf-general leaf-text")).to_be_focused()
     round_trip(page)
     assert not [event for event in sent_events(serve.page_dir) if event.get("token")]
     page.keyboard.press("Escape")  # out of the box, onto the list
@@ -4307,7 +4319,9 @@ customElements.define('lf-test-surface', class extends HTMLElement {
         )
     expect(fallback).to_be_visible()
     expect(fallback).to_contain_text("Discuss broken")
-    expect(fallback.locator("textarea")).to_have_value("Keep this unsent reply.")
+    expect(fallback.locator("leaf-text")).to_have_js_property(
+        "value", "Keep this unsent reply."
+    )
     if failure not in {"unregister", "end-unregister", "disconnect", "target-removed"}:
         page.keyboard.press("Escape")
         broken.evaluate("""widget => {
@@ -4327,8 +4341,8 @@ customElements.define('lf-test-surface', class extends HTMLElement {
         told(page)
         expect(healthy).to_contain_text("A later reading retries the repaired adapter.")
         expect(broken.locator(".lf-page-thread")).to_have_count(2)
-        expect(broken.locator(".lf-page-thread textarea").first).to_have_value(
-            "Keep this unsent reply."
+        expect(broken.locator(".lf-page-thread leaf-text").first).to_have_js_property(
+            "value", "Keep this unsent reply."
         )
         expect(markers).to_have_count(0)
     if failure not in {
@@ -4420,7 +4434,7 @@ customElements.define('lf-derived', class extends HTMLElement {
 
     page.locator('[data-lf-datum="api"]').click(click_count=3)
     page.locator(".lf-fab-input").click()
-    page.locator(".lf-composer textarea").fill("Which readiness check is this?")
+    write(page.locator(".lf-composer leaf-text"), "Which readiness check is this?")
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     comment = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
@@ -4530,7 +4544,7 @@ def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
     expect(page.locator("#lf-composer-quote")).to_have_text("“Original instructions.”")
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     assert composer_quote(page)["text"].strip("“”") == "Original instructions."
-    page.locator(".lf-composer textarea").fill("Keep this exact source.")
+    write(page.locator(".lf-composer leaf-text"), "Keep this exact source.")
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     comment = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
@@ -5280,7 +5294,7 @@ def test_data_written_during_fresh_revision_startup_waits_for_activation(
     expect(page.locator('[data-lf-datum="api"]')).to_have_count(0)
 
     page.evaluate("() => window.__lfReleaseRevisionRegistry()")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     nudge(d)
     expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
     expect(page.locator("#lede")).to_have_text("Live status follows now.")

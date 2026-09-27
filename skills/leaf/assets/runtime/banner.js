@@ -18,9 +18,11 @@ import { announce, notice } from "./notifications.js";
 import { watchProjection } from "./projection-watch.js";
 import { createBannerApprovalFace } from "./banner-approval.js";
 import { createBannerStatusView } from "./banner-status-view.js";
+import { declareBanner } from "./geometry.js";
 
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
+declareBanner(banner);
 const bannerStatus = createBannerStatusView(repaint);
 export const dot = bannerStatus.dot;
 

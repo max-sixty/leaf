@@ -37,6 +37,7 @@ from leaf import schema as schema_model
 from leaf.event_log import _parse_events, read_events
 from leaf.events import bare_reaction, build_threads
 from leaf.passages import enclosing_ids
+from leaf.render_checks import wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.structure import SourceDocument
 from PIL import Image
@@ -46,7 +47,6 @@ from render_cases_layout import banner_control
 # The suite's own page primitives, so a navigation here waits on what every other
 # navigation waits on. tests/AGENTS.md, "A wait consumes a fact the system states".
 from render_harness import (
-    BOTH_STAMPS,
     consume_browser_errors,
     displayed,
     expect_banner_control_offered,
@@ -55,6 +55,7 @@ from render_harness import (
     select,
     sending,
     take_browser_errors,
+    write,
 )
 
 ROOT = Path(__file__).parent.parent
@@ -111,7 +112,7 @@ def authored_examples():
 
 
 def framed_root_examples():
-    """Every example whose whole `main` is one root workspace.
+    """Every example whose `main` is a workspace (`.layout-workspace`).
 
     Derived rather than listed, so a new one is gated without naming it here. The
     reading is `leaf.structure`'s, the one `version check` admits and the browser
@@ -121,13 +122,7 @@ def framed_root_examples():
     for page in authored_examples():
         parsed = SourceDocument(page.read_text(encoding="utf-8"))
         main = next(node for node in parsed.nodes if node["tag"] == "main")
-        children = [
-            child
-            for child in main["content"]
-            if isinstance(child, dict)
-            and child["tag"] not in ("script", "style", "template")
-        ]
-        if len(children) == 1 and children[0]["tag"] == "lf-workspace":
+        if "layout-workspace" in main["attrs"].get("class", "").split():
             framed.append(page.stem)
     assert framed, "the corpus published no framed-root example to check"
     return sorted(framed)
@@ -316,7 +311,7 @@ def test_published_example_has_the_normal_leaf_layout(hosted, browser, serve):
     for width in (390, 1200):
         for page in (normal, published):
             page.set_viewport_size({"width": width, "height": 900})
-            page.wait_for_function(BOTH_STAMPS)
+            wait_until_ready(page)
         assert published.evaluate(layout) == normal.evaluate(layout)
 
 
@@ -629,7 +624,7 @@ def test_a_website_example_keeps_its_version_identity_and_history(
     page.wait_for_url(
         re.compile(r"/examples/log-retention/versions/v1\.html(?:\?pin=)?$")
     )
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
 
     expect(page.locator(".lf-version")).to_have_text("v1")
     expect(page.locator("#ret-cost-keep")).to_have_count(0)
@@ -653,12 +648,14 @@ def test_a_nested_page_keeps_one_draft_across_its_version_addresses(
     _, url = served_example("log-retention")
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()  # the box lives in the panel
-    page.locator(".lf-general textarea").fill("Kept across addresses")
+    write(page.locator(".lf-general leaf-text"), "Kept across addresses")
 
     opened(page, f"{url}versions/v1.html")
     expect(page.locator(".lf-version")).to_have_text("v1")
     # The open panel is the user's standing arrangement, so it is open here too.
-    expect(page.locator(".lf-general textarea")).to_have_value("Kept across addresses")
+    expect(page.locator(".lf-general leaf-text")).to_have_js_property(
+        "value", "Kept across addresses"
+    )
 
 
 def test_the_published_notification_example_runs_its_authored_module(
@@ -717,7 +714,7 @@ def test_a_replaced_ephemeral_server_reloads_the_active_tab(served_example, brow
                   }})), 0);
                 }"""
         )
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
 
 
 def test_a_layer_mismatch_signals_startup_failure_on_window(served_example, browser):
@@ -905,7 +902,7 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
             response = page.goto(url, wait_until="load")
             assert response
             servers.append(response.header_value("Leaf-Server"))
-            page.wait_for_function(BOTH_STAMPS)
+            wait_until_ready(page)
         assert servers[0] and servers[0] == servers[1]
         follower.evaluate(
             """() => {
@@ -945,7 +942,7 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
     )
     for name in names:
         page.goto(product_url(hosted, name), wait_until="load")
-        page.wait_for_function(BOTH_STAMPS)
+        wait_until_ready(page)
         assert page.evaluate("document.compatMode") == "CSS1Compat", name
         source = (DOCS / name).read_text(encoding="utf-8")
         expected_title = re.search(r"<title>(.*?)</title>", source, re.DOTALL)
@@ -1092,7 +1089,7 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
         initial_catalog = catalog.bounding_box()
 
         boot.pop().continue_()
-        page.wait_for_function(BOTH_STAMPS)
+        wait_until_ready(page)
         final = page.locator("main").bounding_box()
         assert {key: final[key] for key in ("x", "y", "width")} == pytest.approx(
             {key: initial[key] for key in ("x", "y", "width")}, abs=1
@@ -1120,14 +1117,13 @@ def test_published_workspaces_keep_their_allocation_without_site_note(
     """A published workspace owns main and keeps its bounded reading regions."""
     page = open_page(browser, f"{hosted}/examples/{name}/")
     page.set_viewport_size({"width": 1200, "height": 900})
-    workspace = page.locator("body > main > lf-workspace")
-    expect(workspace.locator(":scope > header > .sitenote")).to_have_count(0)
-    expect(page.locator("body > main > .sitenote")).to_have_count(0)
+    expect(page.locator("body > main.layout-workspace")).to_have_count(1)
+    expect(page.locator("body > main .sitenote")).to_have_count(0)
     page.wait_for_function(
         """() => {
           const page = document.documentElement;
           const regions = document.querySelectorAll(
-            'body > main > lf-workspace :is(lf-pane, [data-lf-reading-role="pane"])');
+            'body > main.layout-workspace :is(lf-pane, [data-lf-reading-role="pane"])');
           const bodies = [...regions].map(region =>
             [...region.children].find(child => !child.matches('header, footer')));
           return page.scrollHeight === page.clientHeight && bodies.length > 0
@@ -1155,7 +1151,7 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
 
     page = browser.new_page()
     page.goto(f"{hosted}/examples/", wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(page.locator(".lf-chrome")).to_have_count(1)
     entries = page.locator(".example-catalog > li .example-link")
     assert entries.count() == len(expected)
@@ -1455,7 +1451,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
     page.locator(".lf-threads-toggle").click()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     page.reload(wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     gallery = page.locator("#bg-interactions")
     ready = gallery.locator("[data-interaction-frame][data-interaction-ready]")
     expect(ready).to_have_count(4)
@@ -1622,8 +1618,10 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
     expect(comment_input).to_have_attribute(
         "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
     )
-    expect(comment_input).to_have_value(
-        re.compile(r"should the practice exercise come before lunch\?")
+    expect(comment_input).to_have_js_property(
+        "value",
+        "Gallery thread: should the practice exercise come before lunch? "
+        "Try replying here; the agenda is fictional.",
     )
     toggle.click()
     expect(status).to_have_text("Complete", timeout=10_000)
@@ -1753,7 +1751,7 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
         assert held, "no contained state read was held"
         held.pop().continue_()
         page.wait_for_load_state("load")
-        page.wait_for_function(BOTH_STAMPS)
+        wait_until_ready(page)
         expect(gallery.locator("iframe[data-interaction-ready]")).to_have_count(
             4, timeout=20_000
         )
@@ -1964,7 +1962,7 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
             re.compile(r"\blf-rendered\b")
         )
         expect(page.locator("#pr-exact-patch details").first).to_be_visible()
-        page.wait_for_function(BOTH_STAMPS)
+        wait_until_ready(page)
         presented_shell = {
             key: page.locator("body > main").bounding_box()[key]
             for key in initial_shell
@@ -2095,7 +2093,7 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
     # Selection offers the compact field without entering it, so the browser's
     # own selection is still there for a native copy.
     expect(page.locator(".lf-fab-input")).to_be_visible()
-    page.locator(".lf-composer textarea").fill("Can the migration fix ship first?")
+    write(page.locator(".lf-composer leaf-text"), "Can the migration fix ship first?")
     with sending(page, "the anchored comment"):
         page.keyboard.press("ControlOrMeta+Enter")
 
@@ -2113,7 +2111,7 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
     )
     expect(thread.locator(".lf-msg.agent")).to_have_count(0)
     page.reload(wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     thread = page.locator(
         ".lf-thread-panel .lf-thread", has_text="Can the migration fix ship first?"
     )
@@ -2145,7 +2143,7 @@ def test_a_published_decision_survives_reload(served_example, browser):
     assert "heat-opt-floor" in page.evaluate(chosen)
     expect(decisions).to_have_text("Asks 1/1")
     page.reload(wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(decisions).to_have_text("Asks 1/1")
     assert "heat-opt-floor" in page.evaluate(chosen)
 
@@ -2174,7 +2172,7 @@ def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
     _, url = served_example("heat-loss")
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()  # the box lives in the panel
-    page.locator(".lf-general textarea").fill("Where does this go?")
+    write(page.locator(".lf-general leaf-text"), "Where does this go?")
     page.locator(".lf-general .lf-compose-submit").click()
     # One, and typed: this example ships no log, so the count is the comment
     # just written and nothing else.

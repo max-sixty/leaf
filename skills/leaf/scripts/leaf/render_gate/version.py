@@ -5,10 +5,8 @@ from dataclasses import dataclass
 from leaf.render_checks import RENDER_VIEWPORT, SERVED_TIMEOUT_MS
 
 from .readings import (
-    alignment_advice,
     margin_cover_advice,
     shrunk_label_advice,
-    stacking_advice,
     sweep,
     swept_overflow,
 )
@@ -72,17 +70,14 @@ def _render_version_attempt(
     the other), a version that authors widget state the log replays over, a widget whose
     renderState is relative, so a read's replay of the sender's own gesture moves the
     page again (none of the three is CSS), a settled holder whose mark or still-showing
-    slot words disagree with the log's decision (read once, on the premise the
-    trapped-margin reading shares: the palettes carry no geometry between them), an SVG
-    paint token that does not resolve to valid paint in that scheme, and a box drawing one
-    inset and showing another. Once per version, on the settled
-    desktop page in the light scheme, it reads more: as advice, whether the page's grids
-    stand on shared vertical lines, whether a margin pin stands over text, and whether a
+    slot words disagree with the log's decision (read once: the palettes carry no
+    geometry between them), and an SVG paint token that does not resolve to valid paint
+    in that scheme. Once per version, on the settled desktop page in the light scheme, it
+    reads more: as advice, whether a margin pin stands over text, and whether a
     drawing's fit to its box shrinks its labels past reading; and then, resizing that
     loaded page through every width from 360px to 1200px, the sideways readings again:
-    a version holds at each of them, not only at the two it renders. The same sweep says
-    in what window each track template stacks, which is advice where that window is a
-    desktop one. Returns the failures and the advice; no failures is a pass.
+    a version holds at each of them, not only at the two it renders. Returns the failures
+    and the advice; no failures is a pass.
 
     One implementation with two callers — `version check --render` on the page an agent
     just wrote, and the render suite on the shipped examples
@@ -104,12 +99,10 @@ def _render_version_attempt(
 
     def once(page):
         # Advice first, at the viewport it is about; the sweep then resizes the page.
-        advice.extend(alignment_advice(page))
         advice.extend(margin_cover_advice(page))
         advice.extend(shrunk_label_advice(page))
         widths = sweep(page, RENDER_VIEWPORTS)
         swept.extend(swept_overflow(widths, RENDER_VIEWPORTS))
-        advice.extend(stacking_advice(widths))
 
     try:
         for viewport in RENDER_VIEWPORTS:

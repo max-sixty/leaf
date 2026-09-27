@@ -1,6 +1,7 @@
 /*
- * Resolve Shiki and Pierre's theme registry onto Leaf's shims, then derive the
- * accompanying license notices from every package that reached the bundle.
+ * Resolve Shiki and Pierre's theme registry onto Leaf's shims, recording in
+ * `meta.json` what reached the bundle so `scripts/browser/shipped.mjs` can write
+ * its license notices.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -17,7 +18,7 @@ const result = await build({
   minify: true,
   legalComments: "inline",
   banner: {
-    js: `/*! @pierre/diffs ${process.argv[4]} — Apache-2.0 — licenses: pierre-diffs.LICENSES.txt */`,
+    js: `/*! @pierre/diffs ${process.argv[3]} — Apache-2.0 — licenses: pierre-diffs.LICENSES.txt */`,
   },
   plugins: [
     {
@@ -34,30 +35,4 @@ const result = await build({
   ],
   metafile: true,
 });
-
-// An input's package is the directory after its last `node_modules/`: the copy
-// esbuild read, nested or not.
-const packageRoots = new Set();
-for (const input of Object.keys(result.metafile.inputs)) {
-  const at = input.lastIndexOf("node_modules/");
-  if (at === -1) continue;
-  const parts = input.slice(at).split("/");
-  const name = parts.slice(0, parts[1].startsWith("@") ? 3 : 2);
-  packageRoots.add(path.resolve(work, input.slice(0, at), ...name));
-}
-const notices = [...packageRoots].sort().map((root) => {
-  const manifest = JSON.parse(fs.readFileSync(path.join(root, "package.json")));
-  const licenseFile = fs
-    .readdirSync(root)
-    .find((name) => /^(licen[cs]e|copying)(\.|$)/i.test(name));
-  if (licenseFile == null)
-    throw new Error(`No license file shipped by ${manifest.name}`);
-  return [
-    `===== ${manifest.name} ${manifest.version} (${manifest.license}) =====`,
-    fs.readFileSync(path.join(root, licenseFile), "utf8").trim(),
-  ].join("\n");
-});
-fs.writeFileSync(
-  process.argv[3],
-  "Third-party licenses for pierre-diffs.esm.js\n\n" + notices.join("\n\n") + "\n",
-);
+fs.writeFileSync("meta.json", JSON.stringify(result.metafile));

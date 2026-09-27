@@ -72,24 +72,24 @@ item.
 |---|---|
 | **Page shell** | The body-level responsive sizing envelope after chrome reservations |
 | **Content frame** | `body > main`, the root of authored content and its reading column in flow posture |
-| **Wide page** | A content frame that declares its own width (`main[data-width]`), or whose only block is a workspace: every block starts at one left edge and takes the page's width, while text keeps the reading measure. It is a width, not a separate kind of page |
-| **Frame** | A box whose size comes from outside it: `main`, a root tab panel, a workspace, a pane, a grid cell, or any box declaring `--lf-block-frame: 1`. What it holds takes the frame's width, never the page's room |
-| **Grid** | `lf-grid`, which places its direct children in two dimensions |
-| **Cell** | A direct child of a grid; a frame |
-| **Text** and **surface** | How a block uses its frame's width: text keeps the reading measure, a surface (`x-measure: surface`, or `x-space` past the column) fills the frame; a group (`x-measure: group`) passes the measure to what it holds. A members element that draws its members as cells of one block declares `x-measure: text` |
+| **Layout** | A shipped class (`layouts.css`, the `lf-layouts` cascade layer) that arranges the box it is on: `layout-column`, `layout-wide`, `layout-sidebar`, `layout-tiles`, `layout-workspace`. A starting point the page's own CSS adjusts; nothing reads it back |
+| **Wide page** | A content frame carrying a Layout other than `layout-column`: every block starts at one left edge and takes the page's width, while text keeps the reading measure. It is a width, not a separate kind of page |
+| **Frame** | A box whose size comes from outside it: `main`, a root tab panel, a pane, a cell of a Layout or of the page's own grid, or any box declaring `--lf-block-frame: 1`. What it holds takes the frame's width, never the page's room |
+| **Text** and **surface** | How a block uses its frame's width: text (a paragraph, list item, term or description, quote, caption or heading) keeps the reading measure however wide its frame, and every other box is a surface that fills its frame. A surface with `x-space` or `data-width` past the column breaks out of it on a column page |
 | **Bounded block** | A block that holds its own height and scrolls inside it (`x-bound`, `data-bound`); not a reading region |
-| **Workspace** | An authored structural composition that keeps task regions together; as `main`'s only block, or a root tab's, it is the **root workspace** and holds the window |
-| **Pane** | One reading region in a workspace: an optional header, exactly one body element, an optional footer |
+| **Workspace** | A page on `main.layout-workspace`, which keeps task regions together and, where the window is large enough, holds it: header and footer at their content's height, one body taking the rest (**held**, `--lf-held: 1`) |
+| **Pane** | One reading region, typically in a workspace's body: an optional header, exactly one body element, an optional footer |
 | **Reading region** | A stable semantic place used by navigation and reading-position recovery |
 | **Effective reading scroller** | The scroll container currently governing one reading region |
 | **Sticky cover** | A sticky box declared through `declareCoverRoom` that stands over an edge of the scroller it sticks in, such as a thread-list run heading, an `lf-diff` file header, or a root `lf-tabs` strip. What passes under it is not on screen, and a landing arrives clear of it |
-| **Reading posture** | Whether a region's body scrolls on its own (`bounded`) or the region is carried by its container (`flow`); a root workspace's container query decides, and the runtime reads the result |
+| **Reading posture** | Whether a region's body scrolls on its own (`bounded`) or the region is carried by its container (`flow`); the stylesheet decides, for a pane the workspace Layout's media query, and the runtime reads the result |
 
 A root `lf-tabs` and an embedded `lf-tabs` remain the same element type; placement
-changes their presentation rather than creating another structural kind. A root
-workspace, including one that solely occupies a page tab, may produce bounded posture.
-An embedded workspace remains in flow.
-A compound widget may own reading regions without being a pane.
+changes their presentation rather than creating another structural kind. Only a
+held workspace gives a pane bounded posture; a pane anywhere else, a page tab's
+included, remains in flow.
+A compound widget may own reading regions without being a pane, and its own
+stylesheet decides whether their bodies scroll.
 
 ## Chrome and auxiliary surfaces
 
@@ -122,8 +122,8 @@ The margin projection has a separate registration and layout hierarchy:
 
 | Term | Identity criterion |
 |---|---|
-| **Rail** | The right-hand strip a column page reserves beside its column, where margin rows stand beside their targets |
-| **Pin** | A margin row standing over the page inside its target's top-right corner, where no rail stands: the page declared none, the shell is too narrow, or the target sits in a pane that scrolls on its own |
+| **Rail** | The right-hand strip beside `main` where margin rows stand beside their targets. It claims nothing: it stands wherever the room the page leaves right of `main` holds it (`railStands`), and only `data-rail="right"` on `main` makes the shell give it up |
+| **Pin** | A margin row standing over the page inside its target's top-right corner, where no rail stands: the page declared none, the room beside `main` does not hold one, the target sits in a pane that scrolls on its own, the target reaches past the rail's inner edge, or a hanging note stands level with it |
 | **Margin row** | One target-anchored geometry participant whose placement is `rail`, `pin`, or `withheld` |
 | **Margin lane** | The layer holding the margin rows of one scroller: the root lane for the document, one lane per bounded reading region, clipped to what that region shows |
 | **Contributed control** | A margin entry a package puts in a target's cluster, such as a suggestion's Accept and Reject |

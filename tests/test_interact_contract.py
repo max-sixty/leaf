@@ -4377,22 +4377,21 @@ def test_check_requires_the_vendored_layer(tmp_path):
     assert "run `leaf page init` to vendor the layer" in result.output
 
 
-def test_check_advises_page_css_that_scrolls_a_box_or_places_a_layout_element(
+def test_check_advises_page_css_that_scrolls_a_box_and_leaves_arrangement_alone(
     page_dir,
 ):
-    """Page CSS stays free, so both are advice: a scroller Leaf did not make is one its
-    reading features cannot reach, and a grid the page places is geometry the layout
-    no longer owns. Styling a cell, or text inside one, is neither."""
+    """Page CSS stays free, so a scroller is advice: one Leaf did not make is one its
+    reading features cannot reach. Arranging is the page's own business, panes included,
+    so a rule that places a pane, or scrolls only sideways, says nothing."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<title>t</title>",
             "<title>t</title><style>.feed { overflow-y: auto; max-height: 20rem }"
-            " main lf-grid { display: flex } lf-grid > p { color: red }"
-            " .wide { overflow-x: auto } lf-grid::before { display: block }"
-            " #cells { grid-template-columns: 1fr }</style>",
+            " main lf-pane { display: flex; grid-column: 1 / -1 }"
+            " .wide { overflow-x: auto } #cells { grid-template-columns: 1fr }</style>",
         ).replace(
             "<h2>Plan</h2>",
-            '<h2>Plan</h2><lf-grid id="cells"><p>One</p><p>Two</p></lf-grid>'
+            '<h2>Plan</h2><div id="cells"><lf-pane id="queue" label="Queue"><p>One</p></lf-pane></div>'
             '<div class="feed" style="overflow: scroll"><p>Log</p></div>',
         )
     )
@@ -4400,11 +4399,8 @@ def test_check_advises_page_css_that_scrolls_a_box_or_places_a_layout_element(
     assert result.exit_code == 0, result.output
     assert "rule `.feed` sets overflow-y to scroll" in result.output
     assert "sets overflow to scroll" in result.output
-    assert "rule `main lf-grid` sets display on <lf-grid>" in result.output
-    assert "rule `#cells` sets grid-template-columns on <lf-grid>" in result.output
-    assert "lf-grid > p" not in result.output
-    assert ".wide" not in result.output
-    assert "lf-grid::before" not in result.output
+    for quiet in ("main lf-pane", ".wide", "#cells"):
+        assert quiet not in result.output, result.output
 
 
 def test_check_advises_the_same_css_in_a_stylesheet_the_page_links(page_dir):
@@ -4412,31 +4408,30 @@ def test_check_advises_the_same_css_in_a_stylesheet_the_page_links(page_dir):
     as much as its <style>, so the advice reads them and names the file."""
     (page_dir / "page").mkdir(exist_ok=True)
     (page_dir / "page" / "app.css").write_text(
-        '@import "grid.css";\n.feed { overflow-y: auto }\n'
+        '@import "log.css";\n.feed { overflow-y: auto }\n'
     )
-    (page_dir / "page" / "grid.css").write_text("#cells { display: flex }\n")
+    (page_dir / "page" / "log.css").write_text("#log { overflow: scroll }\n")
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<title>t</title>",
             '<title>t</title><link rel="stylesheet" href="/page/app.css">',
         ).replace(
             "<h2>Plan</h2>",
-            '<h2>Plan</h2><lf-grid id="cells"><p>One</p><p>Two</p></lf-grid>'
-            '<div class="feed"><p>Log</p></div>',
+            '<h2>Plan</h2><pre id="log">x</pre><div class="feed"><p>Log</p></div>',
         )
     )
     result = check(page_dir)
     assert result.exit_code == 0, result.output
     assert "/page/app.css rule `.feed` sets overflow-y to scroll" in result.output
-    assert "/page/grid.css rule `#cells` sets display on <lf-grid>" in result.output
+    assert "/page/log.css rule `#log` sets overflow to scroll" in result.output
 
 
-def test_check_rejects_an_invalid_bound_and_loose_grid_text(page_dir):
+def test_check_rejects_an_invalid_bound_and_loose_pane_text(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2><pre data-bound="bottom">log</pre>'
-            '<lf-grid id="cells">loose<p>Two</p></lf-grid>',
+            '<lf-pane id="queue" label="Queue">loose<p>Two</p></lf-pane>',
         )
     )
     result = check(page_dir)
@@ -4445,7 +4440,7 @@ def test_check_rejects_an_invalid_bound_and_loose_grid_text(page_dir):
         "data-bound='bottom'> (line 9) has an invalid value; expected one of start, "
         in (result.output)
     )
-    assert "x-reading-role grid holds its cells as elements" in result.output
+    assert "x-reading-role pane must contain exactly one direct body" in result.output
 
 
 def test_check_rejects_an_unknown_authored_width(page_dir):
@@ -4461,6 +4456,30 @@ def test_check_rejects_an_unknown_authored_width(page_dir):
         "<table data-width='full'> (line 9) has an invalid value; expected one of "
         "column, wide, available" in result.output
     )
+
+
+def test_check_takes_a_page_s_width_from_a_layout_and_not_from_data_width(page_dir):
+    """A page's width is a Layout class on `main`. `data-width` sizes a block in the
+    page's flow, so on `main` it would widen nothing and is refused; a `main` with no
+    Layout at all is advice, since nothing arranges it unless the page's own CSS does."""
+    unarranged = "<main> has no Layout class"
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<main>", '<main class="layout-column">')
+    )
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+    assert unarranged not in result.output
+    (page_dir / "index.html").write_text(PAGE)
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+    assert unarranged in result.output
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<main>", '<main data-width="available">')
+    )
+    result = check(page_dir)
+    assert result.exit_code == 1
+    assert "data-width> (line" in result.output
+    assert "its width is a Layout class on it" in result.output
 
 
 def test_check_takes_a_rail_only_on_main_and_only_by_name(page_dir):
@@ -4518,33 +4537,25 @@ def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
     assert linted == ["page <style>"]
 
 
-def test_the_strip_floor_is_one_number():
-    """Margin posture is a query of the CSS-owned shell, with no mirrored runtime veto."""
+def test_a_margin_resident_s_floor_is_the_column_box_and_its_width_each_side():
+    """A sidebar or sidenote stands in the room free beside the centred column and claims
+    none of it, so it stands where that room holds it on each side: the column box plus
+    twice its width. Container queries cannot read custom properties, so each floor is a
+    pixel copy of tokens; hold the copy to them rather than let a width change strand a
+    resident over the prose or keep it in flow with room to spare."""
     css = (schema_model.ASSETS / "theme.css").read_text()
-    assert "container: lf-shell / inline-size" in css
-    assert re.search(r"@container\s+lf-shell\s*\(min-width:\s*1152px\)", css)
-    assert "data-lf-cramped" not in css
-
-
-def test_the_sidebar_and_note_floor_is_their_sum():
-    """Two opposite margin residents need the largest sidebar claim and ordinary floor.
-
-    Media queries cannot read custom properties, so the combined breakpoint is written
-    as a pixel value beside the sidebar rule. Hold that necessary copy to the two tokens
-    it represents instead of letting a later width change silently squeeze the prose."""
-    css = (schema_model.ASSETS / "theme.css").read_text()
-    floor = 1152
-    sidebar = re.search(r"--sidebar-max:\s*(\d+)px", css)
-    assert sidebar
-    combined = floor + int(sidebar[1])
-    default_theme = (
-        schema_model.ASSETS.parent / "packages" / "default" / "theme.css"
-    ).read_text()
-    assert "--lf-sidebar-claim: var(--sidebar-max)" in default_theme
-    assert re.search(rf"@container\s+lf-shell\s*\(min-width:\s*{combined}px\)", css), (
-        f"a sidebar and sidenote need {combined}px together, but no shell query grants "
-        "their composed posture at that floor"
-    )
+    token = lambda name: int(re.search(rf"{name}:\s*(\d+)px", css)[1])
+    box = token("--col") + 2 * token("--col-pad")
+    for resident, width in (
+        ("aside.sidebar", "--sidebar"),
+        ("aside.sidenote", "--note"),
+    ):
+        floor = box + 2 * token(width)
+        query = rf"@container lf-shell \(min-width: {floor}px\) \{{"
+        # The resident's rules, up to the next query.
+        assert re.search(rf"{query}(?:(?!@container)[\s\S])*?{resident}", css), (
+            f"{resident} does not stand from the {floor}px its {width} leaves each side"
+        )
 
 
 def test_media_names_a_file_by_its_bytes_and_serves_it(page_dir, tmp_path, server):
@@ -4844,23 +4855,6 @@ def test_check_reports_css_syntax_errors_in_every_source_the_page_writes(page_di
     assert "page <style> syntax error" in result.output
     assert re.search(r"<p style> \(line \d+\) syntax error", result.output)
     assert result.output.count("syntax error") == 2
-
-
-def test_check_measures_against_the_column_the_page_sets_for_itself(page_dir):
-    """A page-local <style> is the page's own answer to how wide it reads, so it wins
-    over the vendored theme's 720px and an element wider than the theme allows passes.
-
-    It answers by claiming the column, the same way the theme's own rule does. A page
-    that only sets a width sets a width: which rule is the measure everything else is
-    read against is a thing a stylesheet says, not a thing a reader works out from how
-    the rule is spelled."""
-    (page_dir / "index.html").write_text(
-        styled(
-            "main { --lf-reading-column: 1; max-width: 1000px }",
-            '<svg width="900" height="10"></svg>',
-        )
-    )
-    assert check(page_dir).exit_code == 0
 
 
 def test_an_ask_role_declares_an_addressable_instance(page_dir):

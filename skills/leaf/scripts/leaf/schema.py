@@ -361,7 +361,7 @@ EXTENSION_SCHEMA = {
         "x-guidance": GUIDANCE_SCHEMA,
         "x-inline": {"type": "boolean"},
         "x-language": _ATTRIBUTE_NAME,
-        "x-reading-role": {"enum": ["workspace", "pane", "grid"]},
+        "x-reading-role": {"enum": ["pane"]},
         # Attributes holding line references into the nearest data body — the element's
         # own <pre>, or its enclosing data element's (lf-note's `at` names a line of its
         # lf-code) — by the numbers x-numbering gives that body, 1-based without it.
@@ -369,12 +369,6 @@ EXTENSION_SCHEMA = {
         "x-lines": _ATTRIBUTE_LIST,
         "x-numbering": _ATTRIBUTE_NAME,
         "x-measured": MEASURED_SCHEMA,
-        # Whole-page view navigation when the element is the last root after no more
-        # than one native header. The outline advice recognizes this authored shape.
-        "x-page-navigation": {"const": True},
-        # The element that lists the page's own headings. `version check` advises a
-        # page with two or more headings and no such element (missing_outline).
-        "x-outline": {"const": True},
         # Attributes the theme renders as paint alone — a status marker's tint or an
         # event's kind. The runtime speaks each as a clipped word (renderQuiet), the
         # value or, where a flag carries no value, the attribute's own name.
@@ -423,7 +417,6 @@ EXTENSION_SCHEMA = {
             ]
         },
         "x-space": {"enum": ["wide", "available"]},
-        "x-measure": {"enum": ["text", "surface", "group"]},
         "x-bound": {"enum": ["start", "end"]},
         "x-history": {"const": True},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},

@@ -84,20 +84,14 @@ image, a blocked or mixed-content request, a deprecated API) outside a form cont
 shadow tree, one in an embedded frame placed at that frame, and no fail-soft box;
 every widget upgraded, painted with values that resolve, and given real space;
 words a user can mark, reach, and select, with the registry's verbatim and shadow
-declarations honored; no sideways scroll, clipped control, squeezed table, trapped
-margin, or misplaced box; and standing state that replays without conflict and idempotently.
+declarations honored; no sideways scroll, clipped control, squeezed table, or
+misplaced box; and standing state that replays without conflict and idempotently.
 `render_gate/readings.py` is the list. Those readings run
 at a desktop and a phone viewport; once they are done, the loaded desktop page is
 resized through the widths from 360px to 1200px and the two sideways readings are taken
 again at each: a version holds at every width from the narrowest phone to the desktop,
 not only at the two the gate renders, and each fault the sweep alone finds is reported
-with the widths it spans. The gate also gives
-advice, which never refuses a version: at the desktop viewport, a page whose layout
-grids split at more places than its busiest grid needs is told to lay its regions on
-one set of tracks.
-The sweep's readings also give each track template the window width it stacks below,
-interpolated between the two sweep widths around the flip, and a template that stacks
-in a window of 800px or more is told that window.
+with the widths it spans.
 The invariants live in render_version, which the tests/test_render_*.py modules drive over
 the shipped examples. The suite uses Chromium's headless shell, while its
 end-to-end render-check tests run the launches used here — the installed Chrome

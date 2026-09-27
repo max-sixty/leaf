@@ -18,6 +18,7 @@ from leaf import schema as schema_model
 from leaf import structure as structure_model
 from leaf.passages import enclosing_ids, page_passages
 from leaf.registry import storage as registry_storage
+from leaf.render_checks import wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from PIL import Image, ImageChops, ImageStat
 from playwright.sync_api import expect
@@ -62,7 +63,6 @@ from render_cases_widgets import (
 )
 from render_harness import (
     ANCHOR_SOURCES,
-    BOTH_STAMPS,
     CORPUS_SOURCES,
     EXAMPLE_PACKAGES,
     EXAMPLES,
@@ -85,6 +85,7 @@ from render_harness import (
     stamp_page,
     told,
     wait_for_revision,
+    write,
 )
 
 pytestmark = pytest.mark.nightly
@@ -115,8 +116,8 @@ def test_sort_film_comment_restores_its_input_and_step(browser, serve):
     composer = page.locator(".lf-composer[data-lf-open]")
     expect(composer).to_be_visible()
     expect(composer.locator("blockquote")).to_contain_text("Random, shuffle 7, step 1")
-    composer.locator("textarea").fill("Why does this run start here?")
-    composer.locator("textarea").press("Enter")
+    write(composer.locator("leaf-text"), "Why does this run start here?")
+    composer.locator("leaf-text").press("Enter")
     expect(page.get_by_role("dialog", name=re.compile("Thread for"))).to_be_visible()
     events = [
         json.loads(line)
@@ -784,7 +785,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     expect(thread.locator(".lf-thread-root-meta .lf-msg-head b")).to_have_text("Codex")
     expect(thread.locator(".lf-quote")).to_have_text("“Retries are capped at three”")
 
-    thread.locator("textarea").fill("three is the retry budget, not a guess")
+    write(thread.locator("leaf-text"), "three is the retry budget, not a guess")
     with sending(page, "the reply"):
         thread.get_by_role("button", name="Send", exact=True).click()
     expect(page.locator(".lf-msg.user")).to_have_count(1)
@@ -826,8 +827,8 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
 
     page.locator(".lf-threads-toggle").click()
     page.locator(".lf-thread-summary").first.click()
-    reply_draft = page.locator(".lf-thread textarea")
-    reply_draft.fill("keep this unfinished reply")
+    reply_draft = page.locator(".lf-thread leaf-text")
+    write(reply_draft, "keep this unfinished reply")
     page.locator(".lf-threads-toggle").click()
 
     broken = []
@@ -879,7 +880,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     expect(page.locator(".lf-msg.user .lf-msg-body")).to_have_text(
         "which host answers?"
     )
-    expect(reply_draft).to_have_value("keep this unfinished reply")
+    expect(reply_draft).to_have_js_property("value", "keep this unfinished reply")
 
     version_menu = page.locator(".lf-version-menu")
     banner_control(page, ".lf-version").click()
@@ -914,9 +915,9 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
     )
     page = open_page(browser, live_url(url))
     seat = page.locator("#proposal > .lf-thread-seat")
-    composer = seat.locator(":scope > .lf-say textarea")
+    composer = seat.locator(":scope > .lf-say leaf-text")
     words = "keep this first message" if draft else ""
-    composer.fill(words)
+    write(composer, words)
     composer.evaluate(
         "(input, selection) => input.setSelectionRange(...selection)",
         [3, 12, "backward"] if draft else [0, 0, "none"],
@@ -964,7 +965,7 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
     expect(inline).to_have_count(0)
     expect(composer).to_have_count(1)
     expect(composer).to_be_focused()
-    expect(composer).to_have_value(words)
+    expect(composer).to_have_js_property("value", words)
     assert (
         composer.evaluate(
             "input => [input.selectionStart, input.selectionEnd, input.selectionDirection]"
@@ -978,7 +979,7 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
     expect(inline.locator(".lf-page-thread-body")).to_have_text("candidate root")
     expect(composer).to_have_count(1 if draft else 0)
     if draft:
-        expect(composer).to_have_value(words)
+        expect(composer).to_have_js_property("value", words)
 
 
 def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
@@ -1003,8 +1004,8 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     )
     page = open_page(browser, live_url(url))
     thread = page.locator(f'#proposal > .lf-thread-seat > [data-thread="{root["id"]}"]')
-    reply = thread.locator(":scope > .lf-say textarea")
-    reply.fill("keep this inline reply")
+    reply = thread.locator(":scope > .lf-say leaf-text")
+    write(reply, "keep this inline reply")
     reply.evaluate("node => node.setSelectionRange(5, 16, 'backward')")
     expect(reply).to_be_focused()
 
@@ -1032,7 +1033,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     assert fault.value.text in page.lf_errors
     page.lf_errors.remove(fault.value.text)
 
-    expect(reply).to_have_value("keep this inline reply")
+    expect(reply).to_have_js_property("value", "keep this inline reply")
     expect(reply).to_be_focused()
     assert reply.evaluate(
         "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
@@ -1041,7 +1042,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     page.unroute("**/api/state*")
     nudge(serve.page_dir)
     told(page)
-    expect(thread.locator(":scope > .lf-say textarea")).to_have_count(0)
+    expect(thread.locator(":scope > .lf-say leaf-text")).to_have_count(0)
     expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
 
 
@@ -1061,8 +1062,8 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     page = open_page(browser, live_url(url))
     page.locator(".lf-threads-toggle").click()
     page.locator(".lf-thread-summary").first.click()
-    draft = page.locator(".lf-thread textarea")
-    draft.fill("keep this unfinished reply")
+    draft = page.locator(".lf-thread leaf-text")
+    write(draft, "keep this unfinished reply")
     expect(draft).to_be_focused()
     draft.evaluate("node => node.setSelectionRange(5, 12, 'backward')")
 
@@ -1090,10 +1091,10 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
 
     assert fault.value.text in page.lf_errors
     page.lf_errors.remove(fault.value.text)
-    expect(page.locator(".lf-thread textarea")).to_have_value(
-        "keep this unfinished reply"
+    expect(page.locator(".lf-thread leaf-text")).to_have_js_property(
+        "value", "keep this unfinished reply"
     )
-    expect(page.locator(".lf-thread textarea")).to_be_focused()
+    expect(page.locator(".lf-thread leaf-text")).to_be_focused()
     assert draft.evaluate(
         "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
     ) == [5, 12, "backward"]
@@ -1101,7 +1102,7 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     page.unroute("**/api/state*")
     nudge(page_dir)
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
-    expect(page.locator(".lf-thread textarea")).to_have_count(0)
+    expect(page.locator(".lf-thread leaf-text")).to_have_count(0)
 
 
 def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
@@ -1672,11 +1673,9 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
 ):
     """A drawing's box is the room, and a drawing is placed rather than the box: on the
     column's axis while it fits, out into the margins when it needs the room, and behind
-    a reachable scrollbar when even the room is short. The rail's claim reaches only the
-    rows' own bands, and neither drawing here stands level with the row — the change is
-    a block above them — so both margins are the drawings' to take: the wide one held to
-    the column's right edge with the margin beside it empty was the reading the claim's
-    page-wide form produced, and is now the fault rather than the bargain.
+    a reachable scrollbar when even the room is short. The rail claims nothing, so with
+    a row standing in it both margins are still the drawings' to take: the wide one held
+    to the column's right edge with the margin beside it empty is the fault.
 
     The narrow read is the other half. With the window closed in, the room genuinely
     runs short, the box scrolls, and the overflow must be laid out where the scroll can
@@ -1684,13 +1683,13 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
     drawing's first node is the one a user follows the graph from."""
     page = open_page(browser, serve(DIAGRAM_AND_RAIL_PAGE))
     # Linux's DejaVu labels draw this graph at 1217px. Use a width where the drawing
-    # fits after the control rail and a classic scrollbar have both been taken.
+    # fits the room after a classic scrollbar has been taken, with the rail standing.
     resized(page, 1920, 900)
     at = page.evaluate(DRAWING_PLACEMENT)
 
     assert at["place"] == "rail", (
-        "the row is not in the rail, so there is no claim on the margin and nothing "
-        "here is proved"
+        "the row is not in the rail, so nothing here shows a standing rail leaving the "
+        "margin to the drawing"
     )
     assert at["small"]["width"] < at["col"]["right"] - at["col"]["left"], (
         "the small drawing must fit the column, or its placement says nothing"
@@ -1710,7 +1709,7 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
     assert at["flow"]["box"]["right"] > at["col"]["right"] + 1, (
         f"a drawing no row is level with is held to the column's right edge: its box "
         f"ends at {at['flow']['box']['right']:.0f}px, the column at "
-        f"{at['col']['right']:.0f}px — the rail claims the rows' bands, not the side"
+        f"{at['col']['right']:.0f}px — the rail claims none of the margin"
     )
     assert not at["flow"]["scrolls"], (
         "with both margins the room holds this drawing whole, so a scrollbar here is "
@@ -1735,9 +1734,11 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
 
 
 def test_available_space_uses_the_free_side_of_a_margin_resident(browser, serve):
-    """A resident removes only the side it occupies. The other side receives the
-    allocation that symmetry would otherwise strand, so an available surface reaches
-    the shell edge while remaining clear of the resident."""
+    """A resident removes only the room it takes. The contents map rests as its spine,
+    chrome fixed in the left margin that states the room it takes there
+    (`--lf-taken-l`), and reveals its labels over the page; so an available surface
+    grows left only to stop short of the spine, reaches the shell's right gutter, and
+    takes what symmetry would otherwise strand."""
     source = leaf_page(
         "available beside a contents spine",
         """
@@ -1771,21 +1772,25 @@ graph LR
           right: mb.right - parseFloat(ms.paddingRight),
         },
         toc: {left: toc.left, right: toc.right, width: toc.width},
-        stripRight: (() => {
+        taken: (() => {
           const probe = document.createElement('i');
-          probe.style.cssText = 'position:fixed;visibility:hidden;width:var(--strip-r)';
+          probe.style.cssText = 'position:fixed;visibility:hidden;width:var(--lf-taken-l)';
           main.append(probe);
           const width = probe.getBoundingClientRect().width;
           probe.remove();
           return width;
         })(),
+        roomLeft: body.left + parseFloat(getComputedStyle(document.body).paddingLeft),
         roomRight: body.right - parseFloat(getComputedStyle(document.body).paddingRight),
         sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       };
     }""")
-    assert at["box"]["left"] >= at["toc"]["right"] + 15, at
-    assert at["box"]["left"] <= at["toc"]["right"] + 25, at
-    assert abs(at["box"]["right"] - (at["roomRight"] - at["stripRight"] - 24)) <= 1, at
+    # The spine is the map's resting face, a strip at its left edge the width of its
+    # own inset; the room it states covers that strip and a gutter beyond it.
+    assert at["taken"] >= 24, at
+    assert abs(at["box"]["left"] - (at["roomLeft"] + 24 + at["taken"])) <= 1, at
+    assert at["box"]["left"] >= at["toc"]["left"] + 24, at
+    assert abs(at["box"]["right"] - (at["roomRight"] - 24)) <= 1, at
     assert at["box"]["width"] > 1080, at
     assert at["box"]["left"] < at["column"]["left"] - 100, at
     assert at["sideways"] == 0, at
@@ -2081,21 +2086,20 @@ def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
 def test_the_room_follows_a_margin_taken_after_the_handover(
     browser, serve, tmp_path, monkeypatch
 ):
-    """A wide widget spends the room, the room is measured off the page's own box, and a
-    widget may take a strip of that box at any moment at all. The one here takes it after
-    upgrade has handed over, and the page must still state the room of the box its
-    exhibit stands in — a room too wide is a board that fits everywhere except the page
-    it is on, and nothing would say so.
+    """A wide widget spends the room free beside the column, and whatever stands in a
+    margin states the room it takes there (`--lf-taken-r`, layouts.css) at any moment at
+    all. The widget here states it after upgrade has handed over, and the exhibit must
+    still keep out of it — a room too wide is a board drawn under the thing standing
+    beside it, and nothing would say so.
 
-    The room is the stylesheet's reading of that box (`--lf-room`, off the shell's
-    container), so it follows whatever a widget does to the box, and no list of the ways
-    a widget may behave stands between them.
+    The free room is the stylesheet's reading (`--lf-free-r`, off the shell's
+    container), so it follows whatever a widget states, and no list of the ways a widget
+    may behave stands between them.
 
-    The fixture is the case in its smallest honest form — a project-layer widget claiming
-    the margin theme.css already reserves for one. What holds it to the case is that the
-    claim waits on a request this test answers, and answers only once the page has said it
-    is done: a claim landing any earlier would stand before the handover, and on a fast
-    machine that is where an unheld one would land."""
+    What holds the fixture to the case is that the statement waits on a request this
+    test answers, and answers only once the page has said it is done: one landing any
+    earlier would stand before the handover, and on a fast machine that is where an
+    unheld one would land."""
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-callout", upgrade=True)
     (tmp_path / ".leaf" / "widgets" / "lf-callout.js").write_text(LATE_MARGIN_WIDGET)
@@ -2108,7 +2112,7 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
         # Both stamps, not the first alone: what makes a claim late is not the handover
         # by itself but everything the page finishes around it. The second stamp is the
         # replay the panel's first render waits on.
-        page.wait_for_function(BOTH_STAMPS)
+        wait_until_ready(page)
         answered.append(True)
         route.fulfill(status=204)
 
@@ -2117,17 +2121,18 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
 
     at_stamp = page.evaluate("() => window.__handover")
-    initial_rail = float(at_stamp["rail"].removesuffix("px"))
-    assert 0 < initial_rail < 160, (
-        "the page must start with only its reserved margin entry rail, not the widget's "
-        f"later claim, or the post-handover case is never reached: {at_stamp['rail']}"
+    assert at_stamp["taken"] == "0px", (
+        "the page must start with nothing standing in its margin, or the post-handover "
+        f"case is never reached: {at_stamp}"
     )
-    # Container queries answer the new shell width in the same layout pass. Wait on the
-    # geometry the contract promises, rather than on a JavaScript-written token.
+    assert at_stamp["past"] > 1 - 160, (
+        "the board stood clear of the room the widget goes on to take before it took "
+        f"it, so the statement moves nothing: {at_stamp}"
+    )
     page.wait_for_function(
         "() => { const f = ("
         + RAIL_FIT
-        + ")(); return f.rail === '160px' && f.past <= 1; }"
+        + ")(); return f.taken === '160px' && f.past <= 1; }"
     )
 
     assert answered == [True], (
@@ -2135,27 +2140,22 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
         f"moment it landed was the machine's: {answered}"
     )
     fit = page.evaluate(RAIL_FIT)
-    assert fit["rail"] == "160px", (
-        f"the widget never took its margin, so nothing here is tested: {fit['rail']}"
+    assert fit["taken"] == "160px", (
+        f"the widget never took its margin, so nothing here is tested: {fit}"
     )
-    assert at_stamp["content"] - fit["content"] == 160 - initial_rail, (
-        "the claim must enlarge the existing rail to 160px, not add a second "
-        f"strip or leave the page unchanged: before {at_stamp}, after {fit}"
+    assert fit["right"] < at_stamp["right"] - 1, (
+        f"the board kept the room the widget took: before {at_stamp}, after {fit}"
     )
     assert fit["past"] <= 1, (
-        f"the board stands {fit['past']:.0f}px outside the page's own box, holding the "
-        f"room of the box the widget then took another {160 - initial_rail:g}px out of "
-        f"({at_stamp['room']} at the "
-        f"handover, {fit['room']} now): {fit['widget']:.0f}px of widget in "
-        f"{fit['content']:.0f}px of page"
+        f"the board stands {fit['past']:.0f}px into the 160px the widget took after the "
+        f"handover: {fit['widget']:.0f}px of widget, before {at_stamp}, after {fit}"
     )
 
 
 def test_a_wide_widget_keeps_its_margins_and_its_comment_lands_on_it(browser, serve):
-    """The rail is reserved out of the right of the page and the controls hang 22px off
-    the column, and those are the same place only when the column is flush against the
-    strip. It never is — the column centres in what the strip leaves — so on any window
-    wider than that a widget grown toward the strip reaches the rail's markers.
+    """The rail claims nothing: its markers hang 22px off the column wherever the room
+    beside it holds them, and a wide widget grows into that same room, so a widget grown
+    toward the right margin reaches the rail's markers.
 
     Nothing Leaf draws moves the page's content, so a comment arriving on a board cannot
     narrow it: both boards grow both ways at every width. The change inside the near
@@ -2164,9 +2164,9 @@ def test_a_wide_widget_keeps_its_margins_and_its_comment_lands_on_it(browser, se
     lands on what it is about. The change above the board keeps the rail. Either way
     the controls stay pressable: they stand over the page, not under it.
 
-    A range of windows rather than one, because the gap between the reservation and the
-    occupancy is the column's leftover and grows with the window: a single viewport can
-    be picked where the two happen to agree."""
+    A range of windows rather than one, because what stops the boards' growth changes
+    with the window: the free room beside the column just past where the rail first
+    stands, the wide measure beyond it. A single viewport reads only one of the two."""
     url = serve(RAIL_BAND_PAGE)
     page = open_page(browser, url)
 
@@ -2199,8 +2199,8 @@ def test_a_wide_widget_keeps_its_margins_and_its_comment_lands_on_it(browser, se
 def test_a_contents_map_and_right_rail_leave_the_middle_room(browser, serve):
     """A surface grows into both margins between the contents map at the shell's left
     edge and the rail at its right. A comment on it stands on it as a pin rather than
-    taking its right growth, and the map owns its complete interaction rectangle, so
-    the band between map and prose stays the surface's on the left."""
+    taking its right growth, and the map rests as its spine, which states the room it
+    takes, so the band between the spine and the prose is the surface's on the left."""
     source = RAIL_BAND_PAGE.replace(
         '<h1 id="t">Release</h1>',
         '<aside class="sidebar"><lf-toc id="rail-toc"></lf-toc></aside>'
@@ -2213,8 +2213,18 @@ def test_a_contents_map_and_right_rail_leave_the_middle_room(browser, serve):
     plan = at["plan"]
     toc = page.locator("#rail-toc").bounding_box()
     assert toc is not None
+    taken = page.evaluate(
+        """() => {
+          const probe = document.createElement('i');
+          probe.style.cssText = 'position:fixed;visibility:hidden;width:var(--lf-taken-l)';
+          document.querySelector('main').append(probe);
+          const width = probe.getBoundingClientRect().width;
+          probe.remove();
+          return width;
+        }"""
+    )
     assert plan["right"] > at["column"]["right"] + 1, at
-    assert toc["x"] + toc["width"] + 15 <= plan["left"]
+    assert taken > 0 and toc["x"] + taken <= plan["left"], (taken, toc, plan)
     assert plan["left"] < at["column"]["left"] - 100, at
     card = next(r for r in at["rows"] if r["for"] == "sug-card")
     assert card["place"] == "pin" and card["right"] <= plan["right"] + 1, at
@@ -2737,50 +2747,50 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve):
     )
 
 
-def test_a_note_sets_the_page_axis_at_every_roomy_width(browser, serve):
-    """An authored note sets the right-side strip and the page's axis.
-
-    Possible future threads reserve no empty column, so widening the page past
-    the former thread breakpoint leaves the note's 384px strip as the widest claim.
-    Both widths retain readable prose and the complete note on the page.
+def test_a_note_hangs_in_the_margin_where_the_room_holds_it(browser, serve):
+    """A sidenote claims nothing: the column keeps the page's axis at every width, and
+    the note hangs in the room beside it where that room holds the note's 384px, and
+    stands in the flow as a small indented block where it doesn't.
 
     Every reading is against the page's box rather than the window, the two being the
     same width only where a scrollbar takes no room. Body owns the document's scroll and
     reserves a stable gutter for it, so on most platforms the page is 15px narrower than
     the window and sits 7.5px to its left — a settled fact about the scroll region
-    (leaf.js) that the strip has no part in. Measured from the window this says that
-    instead of what it is about: green wherever scrollbars overlay, red on the runner,
-    and in both a note painted out in the gutter counted as a note still on the page."""
-    url = serve(NOTE_AND_WIDE_PAGE)
-    page = open_page(browser, url)
-
-    strip = 384
-    for width in (1190, 1600):
+    (leaf.js) that the note has no part in."""
+    page = open_page(browser, serve(NOTE_AND_WIDE_PAGE))
+    for width, hangs in ((1190, False), (1600, True)):
         resized(page, width, 900)
         at = page.evaluate(ROOM_GEOMETRY)
-        axis = at["pageBox"]["left"] + (at["pageBox"]["width"] - strip) / 2
+        axis = at["pageBox"]["left"] + at["pageBox"]["width"] / 2
         assert abs(at["column"]["centre"] - axis) <= 1, (
-            f"the widest right claim ({strip}px) did not set the page's axis: "
-            f"column centred at {at['column']['centre']:.0f}px of a "
-            f"{at['pageBox']['width']:.0f}px page"
+            f"the column left the page's axis at {width}px: centred at "
+            f"{at['column']['centre']:.0f}px of a {at['pageBox']['width']:.0f}px page"
         )
-        assert at["note"]["width"] > 0, "the note must still stand in its margin"
-        assert at["note"]["right"] <= at["pageBox"]["right"], (
-            f"the note is off the right edge of a {at['pageBox']['width']:.0f}px "
-            f"page: {at['note']['right']:.0f}px"
+        float_ = page.evaluate(
+            "() => getComputedStyle(document.getElementById('note')).float"
         )
+        assert float_ == ("right" if hangs else "none"), (width, float_)
+        note = at["note"]
+        assert note["width"] > 0, "the note must still stand on the page"
+        if hangs:
+            assert note["left"] >= at["column"]["right"] + 23, (width, at)
+            assert note["right"] <= at["pageBox"]["right"], (
+                f"the note is off the right edge of a {at['pageBox']['width']:.0f}px "
+                f"page: {note['right']:.0f}px"
+            )
+        else:
+            assert note["right"] <= at["column"]["right"] + 1, (width, at)
         assert at["sideways"] == 0
 
 
 def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, serve):
     """The sidebar is a page-level margin resident rather than a narrower prose column.
 
-    On a roomy page it takes an explicit left strip, stands wholly outside the prose, and
-    stays below the fixed banner while the page scrolls. A contents map claims its whole
-    interaction rectangle: the column shifts only as far as that claim requires, then
-    returns to the page axis once both equal gutters can hold it. The release-notes shot
-    is the wide exhibit in the control: it may use the other margins but not the one the
-    sticky sidebar can occupy at any scroll position.
+    On a roomy page a contents map stands in the left margin, fixed below the banner, and
+    rests as its spine: it claims nothing, so the column keeps the page's axis, and its
+    labels reveal over the page without moving anything. The spine states the room it
+    takes, so the release-notes shot, the wide exhibit in the control, grows left only
+    to stop short of it.
 
     The Asks tray stands over the left margin and moves nothing in it. A narrow viewport
     returns the aside to the flow from CSS alone, and print proves paper reserves no
@@ -2822,9 +2832,8 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         probe.remove();
         return width;
       };
-      const strip = measure('var(--strip-l)');
       return {
-        strip, rail: measure('var(--strip-r)'), pageWidth: measure('100cqi'),
+        taken: measure('var(--lf-taken-l, 0px)'), pageWidth: measure('100cqi'),
         float: ss.float, position: ss.position,
         sidebar: {left: sb.left, right: sb.right, top: sb.top, width: sb.width},
         toc: {left: toc.left, right: toc.right, width: toc.width},
@@ -2850,28 +2859,35 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     resized(page, 1400, 900)
     margins_laid_out(page)
     roomy = page.evaluate(reading)
-    assert roomy["strip"] == 344
+    # At rest the map is its spine: it takes a strip of the margin, not its labels' width.
+    assert 0 < roomy["taken"] < roomy["toc"]["width"], roomy
     assert roomy["float"] == "left" and roomy["position"] == "sticky"
     assert roomy["sidebar"]["right"] <= roomy["column"]["left"] - 23, (
-        f"the sidebar entered the prose column: {roomy}"
+        f"the sidebar's box reached into the reading column: {roomy}"
     )
-    assert roomy["sidebar"]["width"] == 320
-    assert abs(roomy["column"]["left"] - roomy["sidebar"]["right"] - 24) <= 1, (
-        f"the contents map shifted the column farther than its rectangle needs: {roomy}"
-    )
-    assert roomy["exhibit"]["left"] >= roomy["sidebar"]["right"] - 1, (
-        f"a wide exhibit painted into the sidebar's standing margin: {roomy}"
+    assert (
+        abs(
+            (roomy["column"]["left"] + roomy["column"]["right"]) / 2
+            - roomy["pageWidth"] / 2
+        )
+        <= 1
+    ), f"the contents map moved the reading column off the page's axis: {roomy}"
+    assert roomy["toc"]["width"] == 320
+    assert roomy["exhibit"]["left"] >= roomy["toc"]["left"] + roomy["taken"] - 1, (
+        f"a wide exhibit painted over the contents map's spine: {roomy}"
     )
     assert page.evaluate(sideways) == 0
 
     # The real pointer route reveals labels inside the map's settled rectangle. Its
     # complete reservation and every unrelated box remain fixed under the user's aim.
-    page.locator("lf-toc").hover()
+    # At rest the map takes the pointer on its spine alone.
+    nav_box = page.locator("lf-toc .lf-toc-nav").bounding_box()
+    page.mouse.move(nav_box["x"] + 2, nav_box["y"] + nav_box["height"] / 2)
     page.wait_for_function(
         "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 1"
     )
     expanded = page.evaluate(reading)
-    assert expanded["strip"] == 344 and expanded["sidebar"]["width"] == 320
+    assert expanded["taken"] == roomy["taken"]
     assert expanded["toc"]["width"] == 320
     assert expanded["nav"]["width"] == 320
     assert expanded["column"] == roomy["column"]
@@ -2934,25 +2950,6 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_hidden()
 
-    # The sidebar and rail use the outer gutters before taking width from the reading
-    # column, so the page narrowed to exactly what the two residents and a whole column
-    # need still holds all three. The window adds back whatever the root scrollport
-    # holds outside the container query's own width.
-    exact = max(1188, roomy["strip"] + 720 + roomy["rail"])
-    resized(page, math.ceil(exact + roomy["viewportWidth"] - roomy["pageWidth"]), 900)
-    margins_laid_out(page)
-    tighter = page.evaluate(reading)
-    assert exact <= tighter["pageWidth"] <= exact + 1, (
-        f"the narrowed page is not the width the residents and column need: {tighter}"
-    )
-    assert tighter["column"]["right"] - tighter["column"]["left"] == 720, (
-        f"the page still had room for the column it narrowed: {tighter}"
-    )
-    assert tighter["sidebar"]["left"] >= -1
-    assert tighter["marginCount"] > 0
-    assert tighter["marginRight"] <= tighter["viewportWidth"] + 1
-    assert page.evaluate(sideways) == 0
-
     resized(page, 1400, 900)
 
     # Halfway through the stretch where the box stands on its own offset: past the
@@ -2998,41 +2995,27 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     page = open_page(browser, serve(example))
     resized(page, 700, 900)
     narrow = page.evaluate(reading)
-    assert narrow["strip"] == 0
+    assert narrow["taken"] == 0
     assert narrow["float"] == "none" and narrow["position"] == "static"
     assert abs(narrow["sidebar"]["left"] - narrow["column"]["left"]) <= 1
     assert page.evaluate(sideways) == 0
 
-    # Two 368px gutters hold the 344px map claim, its 24px gap, and a centred
-    # 720px reading column exactly. Above that floor the narrower window's shift ends.
-    centred_floor = 2 * (roomy["strip"] + 24) + 720
-    resized(page, centred_floor, 900)
-    margins_laid_out(page)
-    centred = page.evaluate(reading)
-    assert (
-        abs(
-            (centred["column"]["left"] + centred["column"]["right"]) / 2
-            - centred["viewportWidth"] / 2
-        )
-        <= 1
-    ), f"the contents map kept the reading column off axis after both fit: {centred}"
-
     resized(page, 1400, 900)
     page.emulate_media(media="print")
     printed = page.evaluate(reading)
-    assert printed["strip"] == 0
+    assert printed["taken"] == 0
     assert printed["float"] == "none" and printed["position"] == "static"
     assert abs(printed["sidebar"]["left"] - printed["column"]["left"]) <= 1
 
 
-def test_opposite_margin_residents_wait_for_the_room_they_need(browser, serve):
-    """One margin floor buys one resident, not two strips at once.
-
-    At the ordinary 1152px floor, the sidenote keeps its established right margin and
-    the sidebar remains in flow. Giving both their full strips there leaves only 504px
-    for prose. At the combined floor of the page's own box, both may stand outside a
-    full ordinary column; a window short of that floor by a live platform's stable
-    scrollbar gutter has the veto hand the strips back.
+def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
+    browser, serve
+):
+    """Neither resident claims room from the column: each stands in the margin on its
+    side where the room free beside a centred column holds it, a sidebar's 264px from
+    1296px of shell and a note's 384px from 1536px, and in the flow where it doesn't.
+    So the column keeps its measure and its axis at every width, and each resident
+    arrives on its own.
 
     The second sidebar is the other composition case: only the first direct child of
     main may take the sticky page-level slot, so an accidental second one remains in
@@ -3074,66 +3057,44 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(browser, serve):
           right: mb.right - parseFloat(ms.paddingRight),
           width: mb.width - parseFloat(ms.paddingLeft) - parseFloat(ms.paddingRight),
         },
-        padding: {
-          left: length('--strip-l'),
-          right: length('--strip-r'),
-        },
-        gutter: innerWidth - document.documentElement.clientWidth,
+        taken: length('--lf-taken-l, 0px'),
+        shell: document.body.clientWidth,
         sideways: document.documentElement.scrollWidth
           - document.documentElement.clientWidth,
       };
     }"""
 
     page = open_page(browser, url)
-    resized(page, 1200, 800)
-    tight = page.evaluate(reading)
-    assert [side["float"] for side in tight["sidebars"]] == ["none", "none"]
-    assert tight["noteFloat"] == "right"
-    assert tight["padding"] == {"left": 0, "right": 384}
-    assert tight["column"]["width"] == 720
-    assert tight["sideways"] == 0
-
-    # The floor is a fact about the page's box, and the window is not that box wherever
-    # the platform draws a classic scrollbar: the root scrollport's client width already
-    # excludes its bar before the strips and the column divide the room. The column
-    # keeps its full measure on both sides of that, which is what the strip is floored to
-    # protect: given the room, both strips stand outside a full column, and short of it by
-    # a bar's width the veto hands them back. So neither read subtracts a bar from what it
-    # expects — the widths the page is driven at are where the bar is accounted for, and a
-    # measure that fell short of 720 anywhere here would be the fault this floor exists to
-    # prevent rather than a tolerance to write down.
-    resized(page, 1496, 800)
-    at_floor = page.evaluate(reading)
-    assert at_floor["column"]["width"] == 720, (
-        "the strip came out of the column at the combined floor, which is the one width "
-        f"the floor exists to keep it out of: {at_floor}"
+    residents = lambda at: (
+        [(side["float"], side["position"]) for side in at["sidebars"]],
+        at["noteFloat"],
     )
-
-    # The root's client width is the runtime's authority, so a classic scrollbar has
-    # already come out of the floor. Add the platform-reported difference to give the
-    # document exactly 1496 usable pixels; overlay-scrollbar platforms add zero.
-    bar = at_floor["gutter"]
-    resized(page, 1496 + bar, 800)
-    roomy = page.evaluate(reading)
-    assert [(s["float"], s["position"]) for s in roomy["sidebars"]] == [
-        ("left", "sticky"),
-        ("none", "static"),
-    ]
-    assert roomy["noteFloat"] == "right"
-    assert roomy["padding"] == {"left": 264, "right": 384}
-    assert roomy["column"]["width"] == 720, (
-        f"the two strips took the live page's stable scrollbar gutter from the column: {roomy}"
-    )
-    assert roomy["sidebars"][0]["right"] <= roomy["column"]["left"] - 23
-    assert roomy["sidebars"][1]["left"] >= roomy["column"]["left"] - 1
-    assert roomy["sideways"] == 0
+    in_flow = [("none", "static"), ("none", "static")]
+    sidebar = [("left", "sticky"), ("none", "static")]
+    for width, expected in (
+        (1200, (in_flow, "none")),
+        (1400, (sidebar, "none")),
+        (1600, (sidebar, "right")),
+    ):
+        resized(page, width, 800)
+        at = page.evaluate(reading)
+        assert residents(at) == expected, (width, at)
+        assert at["column"]["width"] == 720, (width, at)
+        centre = (at["column"]["left"] + at["column"]["right"]) / 2
+        assert abs(centre - at["shell"] / 2) <= 1, (width, at)
+        assert at["sideways"] == 0, (width, at)
+        if expected[0] == sidebar:
+            # Sticky, the sidebar can stand level with any band, so it takes its side.
+            assert at["taken"] > 0, (width, at)
+            assert at["sidebars"][0]["right"] <= at["column"]["left"] - 23, (width, at)
+            assert at["sidebars"][1]["left"] >= at["column"]["left"] - 1, (width, at)
 
     # The Asks tray stands over the page and grants or withdraws no margin.
     toggle_asks(page)
     panelled = page.evaluate(reading)
-    assert panelled["sidebars"] == roomy["sidebars"]
-    assert panelled["padding"] == roomy["padding"]
-    assert panelled["column"] == roomy["column"]
+    assert panelled["sidebars"] == at["sidebars"]
+    assert panelled["taken"] == at["taken"]
+    assert panelled["column"] == at["column"]
 
 
 def test_the_handed_over_url_opens_the_latest_version(browser, serve):

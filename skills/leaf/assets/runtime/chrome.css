@@ -969,15 +969,19 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     outline-offset: calc(-1 * var(--here-ring-w)); --lf-here-ring: thread-summary; }
   .lf-thread-topic { grid-column: 1; grid-row: 1; min-width: 0; overflow: hidden;
     text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-  .lf-thread-topic[data-lf-pending-title] { display: inline-flex; align-items: center;
-    gap: 3px; color: var(--ink-2); }
-  .lf-thread-pending-dot { display: inline-block; width: 5px; height: 5px;
-    border-radius: 50%; background: currentColor; font-size: 0;
+  /* A placeholder stands in the title's place: muted, regular weight, and italic, so it
+     never reads as a title. */
+  .lf-thread-topic[data-lf-pending-title] { color: var(--muted); font-weight: 400;
+    font-style: italic; }
+  .lf-thread-pending-dots { display: inline-flex; gap: 3px; margin-inline-start: 4px;
+    vertical-align: middle; }
+  .lf-thread-pending-dots > span { width: 4px; height: 4px; border-radius: 50%;
+    background: currentColor;
     animation: lf-runtime-4f3c2a8d-title-pulse 1.2s ease-in-out infinite; }
-  .lf-thread-pending-dot:nth-child(2) { animation-delay: .15s; }
-  .lf-thread-pending-dot:nth-child(3) { animation-delay: .3s; }
+  .lf-thread-pending-dots > span:nth-child(2) { animation-delay: .15s; }
+  .lf-thread-pending-dots > span:nth-child(3) { animation-delay: .3s; }
   @media (prefers-reduced-motion: reduce) {
-    .lf-thread-pending-dot { animation: none; }
+    .lf-thread-pending-dots > span { animation: none; }
   }
   .lf-thread-meta { grid-column: 1 / -1; grid-row: 2; display: flex; align-items: center;
     gap: 8px; min-width: 0; }
@@ -1555,10 +1559,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* The banner offers the whole Page Map wherever the user has no rail to find markers
      in: where the margin pass stood them as pins, small targets over the content
      (margin-layout.js), and where the thread panel stands over a margin row
-     (chrome-layout.js). A browser that cannot anchor draws no markers at all. */
+     (chrome-layout.js). A browser that cannot anchor draws no markers at all. Both
+     owners say it on the chrome root, since a `:has()` there would restyle the whole
+     chrome on every write inside it. */
   @media screen {
-    :scope:is([data-lf-rail-covered],
-        :has(> .lf-margin-projection > .lf-margin-toolbar[data-lf-pins]))
+    :scope:is([data-lf-rail-covered], [data-lf-pins])
       .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
   }
   @supports not (anchor-name: --lf-page) {

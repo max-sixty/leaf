@@ -344,7 +344,7 @@ def action_contract_error(view, event: dict, readings: AdmissionReadings):
         return None
 
     if page_rec:
-        reading = readings.page(document, revision)
+        reading = readings.page(revision)
         if record_kind == "position" and (
             stale := stale_move_error(view, event, spec, reading, readings)
         ):
@@ -386,7 +386,7 @@ def stale_move_error(view, event: dict, spec: dict, reading, readings):
     record = spec["record"]
     owner, container = event["widget"], event["detail"][record["value"]]
     registry = readings.registry
-    now = readings.page(view.document(newest), newest)
+    now = readings.page(newest)
     if authored_positions(
         owner, record, reading.document.by_id, reading.spoken, registry
     ).get(container) == authored_positions(
@@ -471,7 +471,7 @@ def _approval_error(view, event: dict, events: list, registry: dict):
             '<meta name="lf-review" content="sign-off">, so it has no '
             "approval to record"
         )
-    page = page_reading(document, events, registry, revision)
+    page = page_reading(view.reading(revision, registry), events, revision)
     threads = build_threads(events, page.within)
     document_state = read_document(page, threads)
     thread, _reading = browser_thread(events, registry, threads)
@@ -543,7 +543,9 @@ def _anchored_comment_error(
             return error
     if not recapture:
         return None
-    page = page_reading(document, events, registry, event["revision"])
+    page = page_reading(
+        view.reading(event["revision"], registry), events, event["revision"]
+    )
     try:
         canonical = capture_anchor(
             document,
@@ -602,7 +604,7 @@ def _withdrawal_error(
     if event["kind"] != "undo":
         return None
     newest = view.revisions[-1]
-    absorbed = readings.page(view.document(newest), newest).projection.absorbed
+    absorbed = readings.page(newest).projection.absorbed
     return undo_error(event, events, view.within, absorbed)
 
 
@@ -652,7 +654,7 @@ def admitted_event(
     kind = event.get("kind")
     if kind not in contracts:
         raise EventRefused(f"kind must be one of {sorted(contracts)}")
-    readings = AdmissionReadings(events, registry)
+    readings = AdmissionReadings(view, events, registry)
     if error := admission_error(
         view, events, event, registry, readings, capture_anchors=capture_anchors
     ):

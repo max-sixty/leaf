@@ -183,6 +183,9 @@ class ModelPage:
     def document(self, revision: int):
         return self.documents[revision]
 
+    def reading(self, revision: int, registry: dict):
+        return passages_model.SourceReading(self.documents[revision], registry)
+
     def registry(self, revision: int | None) -> dict:
         """One layer for every revision: a stated page never re-vendors, so no
         revision of it captured a vocabulary different from the rest."""
@@ -590,6 +593,7 @@ def record_claim(page, harness="claude-code", **fields):
         "ts": "t",
         "released": None,
         "turn": "turn-1",
+        "turn_opened": events_model.now_iso(),
         "turn_closed": None,
         **fields,
     }

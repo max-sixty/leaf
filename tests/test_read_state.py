@@ -157,7 +157,6 @@ def test_read_does_not_nudge_a_closed_agent_turn(page_dir, monkeypatch):
             "agent": "Agent",
             "turn": "closed-turn",
             "turn_closed": service_model.now_iso(),
-            "messaged_turn": None,
         },
     )
     nudges = []
@@ -168,7 +167,6 @@ def test_read_does_not_nudge_a_closed_agent_turn(page_dir, monkeypatch):
             return True
 
     monkeypatch.setattr(endpoint_model, "claim_harness", lambda claim: Harness())
-    monkeypatch.setattr(endpoint_model, "wait_is_live", lambda *args: False)
     status, answer = endpoint_model.accept_event(
         page_dir,
         {

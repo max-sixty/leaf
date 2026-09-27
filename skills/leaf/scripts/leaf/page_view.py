@@ -20,9 +20,10 @@ from pathlib import Path
 
 from .data import read_contracts
 from .files import list_revisions
-from .passages import active_enclosing
+from .passages import SourceReading
 from .registry.storage import page_vocabulary
-from .structure import SourceDocument, parse_revision
+from .revision_artifact import active_enclosing, read_revision
+from .structure import SourceDocument
 
 
 class PageView:
@@ -44,7 +45,12 @@ class PageView:
 
     def document(self, revision: int) -> SourceDocument:
         """The authored markup one immutable revision froze."""
-        return parse_revision(self._page_dir, revision)
+        return read_revision(self._page_dir, revision).document
+
+    def reading(self, revision: int, registry: dict) -> SourceReading:
+        """That markup read under `registry`, held across appends where it is the
+        vocabulary the revision captured (`RevisionReading.under`)."""
+        return read_revision(self._page_dir, revision).under(registry)
 
     def registry(self, revision: int | None) -> dict | None:
         """The vocabulary a revision captured, or the candidate's where the page has

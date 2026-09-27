@@ -9,9 +9,9 @@ from ..events import UndoReading, build_threads, taken_back
 from ..files import list_revisions, stamped_version
 from ..gesture_words import GestureWords, RevisionReader, revisions_on_disk
 from ..history import history, wants_history
+from ..passages import SourceReading
 from ..projection import FrozenThreadReading, canonical_updates, page_reading
-from ..revision_artifact import read_registry
-from ..structure import SourceDocument, parse_revision
+from ..revision_artifact import read_revision
 from ..workflows import canonical_workflows
 from .document import browser_document, browser_undo_candidates
 from .thread import browser_thread
@@ -146,35 +146,28 @@ def _apply_thread_attention(
 
 
 def browser_state(
-    documents: dict[int, SourceDocument],
+    readings: dict[int, SourceReading],
     events: list,
-    registry: dict,
     active_revision: int,
     present: dict,
     active: dict,
     view_revisions: set[int],
     now: str,
     live_stream: dict | None = None,
-    registries: dict[int, dict] | None = None,
     revisions: RevisionReader | None = None,
 ) -> tuple[dict, BrowserReading]:
     """The browser's derived reading of one transaction-consistent page snapshot.
 
-    Documents and the append-only log remain the authorities. This object is an
+    Documents and the append-only log remain the authorities. Each of `readings`
+    is one revision's document under the registry it is read in. This object is an
     ephemeral transport projection, keyed by the exact log sequence and revisions
     from which it was read. `revisions` reads a revision a gesture names that is
-    not among `documents`; without it every such revision must be there.
+    not among `readings`; without it every such revision must be there.
     """
     through_seq = events[-1]["seq"] if events else 0
 
-    def registry_for(revision):
-        return (registries or {}).get(revision, registry)
-
-    active_document = documents[active_revision]
-    active_registry = registry_for(active_revision)
-    active_page = page_reading(
-        active_document, events, active_registry, active_revision
-    )
+    active_page = page_reading(readings[active_revision], events, active_revision)
+    active_registry = active_page.registry
     active_within = active_page.within
     withdrawn = taken_back(events)
     threads = build_threads(events, active_within, withdrawn=withdrawn)
@@ -191,16 +184,15 @@ def browser_state(
     thread_projection = thread_reading.projection
 
     views = {}
-    readings = {}
+    documents = {}
     for revision in sorted(view_revisions):
-        document = documents[revision]
         page = (
             active_page
             if revision == active_revision
-            else page_reading(document, events, registry_for(revision), revision)
+            else page_reading(readings[revision], events, revision)
         )
         document, reading = browser_document(page, threads)
-        readings[revision] = reading
+        documents[revision] = reading
         projection = reading.projection
         classified = {
             **projection.classified,
@@ -262,14 +254,8 @@ def browser_state(
     )
     workflows = served_workflows(activity.pop("workflows"), thread_reading)
     _apply_thread_attention(thread["threads"], thread["asks"], workflows)
-    served = [(revision, documents[revision]) for revision in view_revisions]
-    if wants_history(served, registry_for):
-        words = GestureWords(
-            events,
-            active_registry,
-            revisions
-            or (lambda revision: (documents[revision], registry_for(revision))),
-        )
+    if wants_history(readings[revision] for revision in view_revisions):
+        words = GestureWords(events, active_registry, revisions or readings.__getitem__)
         page_history = {
             "history": history(
                 events,
@@ -295,7 +281,7 @@ def browser_state(
             if event["kind"] == "note"
         },
     }
-    return wire, BrowserReading(threads, thread_reading, readings)
+    return wire, BrowserReading(threads, thread_reading, documents)
 
 
 def project_browser_state(
@@ -306,9 +292,7 @@ def project_browser_state(
     present: dict,
     now: str,
     *,
-    documents_override: dict[int, SourceDocument] | None = None,
-    registry_override: dict | None = None,
-    registries_override: dict[int, dict] | None = None,
+    readings_override: dict[int, SourceReading] | None = None,
     include_active_view: bool = True,
     live_stream: dict | None = None,
 ) -> tuple[dict, BrowserReading] | None:
@@ -324,41 +308,29 @@ def project_browser_state(
     active_revision = active["revision"]
     requested_revision = view_revision or active_revision
     revisions = (
-        set(documents_override)
-        if documents_override is not None
+        set(readings_override)
+        if readings_override is not None
         else set(list_revisions(page_dir))
     )
     if requested_revision not in revisions:
         raise ValueError(f"unknown view revision r{requested_revision}")
     wanted = {requested_revision, active_revision}
-    documents = {
+    readings = {
         revision: (
-            documents_override[revision]
-            if documents_override is not None
-            else parse_revision(page_dir, revision)
+            readings_override[revision]
+            if readings_override is not None
+            else read_revision(page_dir, revision)
         )
         for revision in sorted(wanted)
     }
-    registries = registries_override
-    if registries is None and registry_override is None:
-        registries = {
-            revision: read_registry(page_dir, revision) for revision in wanted
-        }
-    registry = (
-        registry_override
-        if registry_override is not None
-        else registries[active_revision]
-    )
     return browser_state(
-        documents,
+        readings,
         events,
-        registry,
         active_revision,
         present,
         active,
         wanted if include_active_view else {requested_revision},
         now,
         live_stream,
-        registries,
         revisions_on_disk(page_dir),
     )

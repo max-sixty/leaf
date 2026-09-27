@@ -571,6 +571,39 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     expect(expand).to_have_attribute("aria-expanded", "true")
 
 
+def test_a_summary_gathering_the_message_the_user_is_on_keeps_them_on_it(
+    browser, serve
+):
+    """A checkpoint arriving over the message the user stands on opens around it.
+
+    The message moves into the checkpoint's originals, and the user moves with it
+    rather than dropping to the page."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Start with the measured constraint.")
+    first = append_agent_reply(serve.page_dir, root, "The constraint still applies.")
+    held = append_user_reply(serve.page_dir, root, "It holds for the camera too.")
+    append_agent_reply(serve.page_dir, root, "The later result remains visible.")
+
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    card.locator(":scope > .lf-thread-summary").click()
+    message = card.locator(f'.lf-msg[data-mid="{held["id"]}"]')
+    message.focus()
+    expect(message).to_be_focused()
+
+    summary = summarize_thread(
+        serve.page_dir, root, first["id"], held["id"], "The constraint was confirmed."
+    )
+    told(page)
+    checkpoint = card.locator(f'[data-summary-id="{summary["id"]}"]')
+    expect(
+        checkpoint.locator(f'.lf-summary-originals > .lf-msg[data-mid="{held["id"]}"]')
+    ).to_be_visible()
+    expect(message).to_be_focused()
+
+
 def test_a_root_summary_keeps_thread_actions_outside_its_fold(browser, serve):
     """A checkpoint may cover the root turn without hiding thread actions."""
     url = serve(PANEL_PAGE)
@@ -7393,9 +7426,9 @@ def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
     panel_settled(page)
     thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
     topic = thread.locator(".lf-thread-topic")
-    expect(topic).to_have_text("...")
-    expect(topic).to_have_attribute("aria-label", "Title pending")
-    dots = topic.locator(".lf-thread-pending-dot")
+    expect(topic).to_have_text("Generating title")
+    assert topic.evaluate("element => getComputedStyle(element).fontStyle") == "italic"
+    dots = topic.locator(".lf-thread-pending-dots > span")
     expect(dots).to_have_count(3)
     assert (
         dots.first.evaluate("element => getComputedStyle(element).animationName")

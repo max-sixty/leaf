@@ -606,12 +606,12 @@ def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):
             },
         },
     )
-    spk = passages_model.spoken(
+    spk = passages_model.SourceReading(
         structure_model.SourceDocument(
             (page_dir / "index.html").read_text(encoding="utf-8")
         ),
         registry_storage.require_registry(page_dir),
-    )
+    ).spoken
     threads = event_folds_model.build_threads(
         events_model.read_events(page_dir), passages_model.enclosing_of(spk)
     )
@@ -1750,9 +1750,10 @@ def test_candidate_vocabulary_keeps_every_page_action_an_undo_can_expose(page_di
         },
     ]
     projected = page_reading(
-        structure_model.SourceDocument(source),
+        passages_model.SourceReading(
+            structure_model.SourceDocument(source), historical.registry
+        ),
         after_undo,
-        historical.registry,
         revision,
     )
     assert next(iter(projected.projection.desired.values()))[0]["id"] == first["id"]
@@ -1768,7 +1769,7 @@ def test_candidate_vocabulary_keeps_every_page_action_an_undo_can_expose(page_di
 def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(page_dir):
     """A retracted action on a removed sender is interpreted only in its old revision."""
     from leaf.projection import page_reading
-    from leaf.revision_artifact import read_artifact
+    from leaf.revision_artifact import read_revision
 
     authored = page_dir / "page" / "registry.json"
     declaration = _stateful_page_declaration(page_dir)
@@ -1816,9 +1817,11 @@ def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(pa
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert revendored.exit_code == 0, revendored.output
     historical = page_reading(
-        structure_model.SourceDocument(original),
+        passages_model.SourceReading(
+            structure_model.SourceDocument(original),
+            read_revision(page_dir, first_revision).registry,
+        ),
         events,
-        read_artifact(page_dir, first_revision).registry,
         first_revision,
     )
     assert (
@@ -2301,9 +2304,9 @@ def test_containment_reads_the_same_with_a_vocabulary_and_without_one(page_dir):
     html = (page_dir / "index.html").read_text(encoding="utf-8")
     document = structure_model.SourceDocument(html)
     registry = registry_storage.require_registry(page_dir)
-    full = passages_model.spoken(document, registry)
+    full = passages_model.SourceReading(document, registry).spoken
     assert passages_model.enclosing_ids(document) == passages_model.enclosing_of(full)
-    bare = passages_model.spoken(document, {})
+    bare = passages_model.SourceReading(document, {}).spoken
     assert any(full[wid].words != bare[wid].words for wid in full)
 
 
@@ -2343,7 +2346,9 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
             "restated": ["c1"],
         },
     )
-    spk = passages_model.spoken(document, registry_storage.require_registry(page_dir))
+    spk = passages_model.SourceReading(
+        document, registry_storage.require_registry(page_dir)
+    ).spoken
     assert "sug-a" in spk["c1"].within  # the namesake really is inside the widget
     folds = [passages_model.enclosing_of(spk), passages_model.enclosing_ids(document)]
     events = events_model.read_events(page_dir)
@@ -5160,7 +5165,11 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
     }
     events = [{**COMMENT, "seq": 1}, {**ACCEPT, "id": "accept1", "seq": 2}, event]
     html = '<lf-suggestion id="sug-a"><lf-new><p>Proposed</p></lf-new></lf-suggestion>'
-    page = page_reading(structure_model.SourceDocument(html), events, registry, 1)
+    page = page_reading(
+        passages_model.SourceReading(structure_model.SourceDocument(html), registry),
+        events,
+        1,
+    )
     winner, _ = page.projection.actions[("sug-a", "sug-a", "decide")]
     assert winner["id"] == "accept1"
     threads = event_folds_model.build_threads(events, page.within)

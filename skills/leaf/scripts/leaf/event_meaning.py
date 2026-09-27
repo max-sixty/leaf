@@ -24,7 +24,8 @@ class AdmissionReadings:
     The contract gates and the meaning stamped after them read the same log, so
     they share one fold of it rather than each paying for their own."""
 
-    def __init__(self, events: list, registry: dict):
+    def __init__(self, view, events: list, registry: dict):
+        self.view = view
         self.events = events
         self.registry = registry
         self._pages: dict = {}
@@ -33,10 +34,10 @@ class AdmissionReadings:
     def thread(self):
         return frozen_thread_reading(self.events, self.registry)
 
-    def page(self, document, revision: int):
+    def page(self, revision: int):
         if revision not in self._pages:
             self._pages[revision] = page_reading(
-                document, self.events, self.registry, revision
+                self.view.reading(revision, self.registry), self.events, revision
             )
         return self._pages[revision]
 
@@ -99,7 +100,7 @@ def answer_meaning(
     withdrawn = entry.get("x-withdrawn-as")
     declined = withdrawn is not None and event["detail"].get("outcome") == withdrawn
     if event_document(event)["kind"] == "page":
-        reading = readings.page(sender, event["revision"])
+        reading = readings.page(event["revision"])
         byid = sender.by_id
     else:
         reading = readings.thread
@@ -141,9 +142,7 @@ def admit_widget_event(sender, event: dict, readings: AdmissionReadings) -> dict
         # document: a later document that authors them differently has placed
         # the unit itself (`projection.move_absorbed`).
         reading = (
-            readings.page(sender, event["revision"])
-            if scope == "page"
-            else readings.thread
+            readings.page(event["revision"]) if scope == "page" else readings.thread
         )
         byid = reading.document.by_id if scope == "page" else reading.by_id
         admitted["meaning"]["among"] = authored_positions(

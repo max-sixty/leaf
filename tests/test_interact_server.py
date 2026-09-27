@@ -59,6 +59,7 @@ from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf import media as media_model
 from leaf import page_snapshot as page_snapshot_model
+from leaf import passages as passages_model
 from leaf import presence as presence_model
 from leaf import projection as projection_model
 from leaf import publishing as publishing_model
@@ -161,7 +162,7 @@ def test_interaction_trace_is_writable_from_a_read_only_page_preview(page_dir):
     active = files_model.active_descriptor(page_dir, event_model.read_events(page_dir))
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
-        structure_model.parse_revision(page_dir, active["revision"]),
+        artifact_model.read_revision(page_dir, active["revision"]).document,
         active,
     )
     before = event_model.read_events(page_dir)
@@ -966,7 +967,7 @@ def test_historical_deferred_reads_keep_the_document_revision_and_layer(
         '@@ -1 +1 @@\n-return "old"\n+return "new"\n'
     )
     data_model.cmd_data_set(page_dir, "review-patch", patch_manifest(patch))
-    first_layer = artifact_model.read_artifact(page_dir, first.revision).registry[
+    first_layer = artifact_model.read_revision(page_dir, first.revision).registry[
         "$layer"
     ]["generation"]
 
@@ -975,7 +976,7 @@ def test_historical_deferred_reads_keep_the_document_revision_and_layer(
     (page_dir / "index.html").write_text(source.replace("<h1>A</h1>", "<h1>B</h1>"))
     second = revisioning_model.activate_source(page_dir)
     assert second.error is None and second.revision != first.revision
-    second_layer = artifact_model.read_artifact(page_dir, second.revision).registry[
+    second_layer = artifact_model.read_revision(page_dir, second.revision).registry[
         "$layer"
     ]["generation"]
     assert second_layer != first_layer
@@ -2214,9 +2215,11 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
 
     def reading(active_revision):
         state, _reading = served_browser.browser_state(
-            documents,
+            {
+                revision: passages_model.SourceReading(document, registry)
+                for revision, document in documents.items()
+            },
             events,
-            registry,
             active_revision,
             presence_model.presence(page_dir, events),
             {},
@@ -2343,10 +2346,13 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
         },
     )
     events = event_model.read_events(page_dir)
+    registry = registry_storage.require_registry(page_dir)
     views = served_browser.browser_state(
-        documents,
+        {
+            revision: passages_model.SourceReading(document, registry)
+            for revision, document in documents.items()
+        },
         events,
-        registry_storage.require_registry(page_dir),
         2,
         presence_model.presence(page_dir, events),
         {},
@@ -3582,7 +3588,7 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     active = files_model.active_descriptor(page_dir, event_model.read_events(page_dir))
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
-        structure_model.parse_revision(page_dir, active["revision"]),
+        artifact_model.read_revision(page_dir, active["revision"]).document,
         active,
     )
     preview = hosting_model.LeafHTTPServer(
@@ -3808,7 +3814,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
     active = files_model.active_descriptor(page_dir, events)
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
-        structure_model.parse_revision(page_dir, active["revision"]),
+        artifact_model.read_revision(page_dir, active["revision"]).document,
         active,
     )
     projection = served_service.PageStateService(
@@ -4591,6 +4597,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
         id="s9",
         agent="Codex",
         cwd="/work/api",
+        turn_opened="2026-01-01T00:00:00-08:00",
     )
     # A server that died leaves its record behind and its lock with the kernel:
     # the file says served and nothing holds it, which is what reads as stale.
@@ -4621,7 +4628,11 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     # list. Untitled, so the title falls back to the directory's name.
     scratch = tmp_path / "scratch"
     claimed_url = neighbour_page(scratch)
-    record_claim(scratch, released="2026-01-01T00:00:00-08:00")
+    record_claim(
+        scratch,
+        released="2026-01-01T00:00:00-08:00",
+        turn_opened="2026-01-01T00:00:00-08:00",
+    )
 
     state = json.loads(fetch(f"{server}/api/state")[1])
     # A directory holding no claims at all is still a complete answer: every
@@ -4630,10 +4641,11 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
         "status": {"state": "idle", "detail": "", "ts": None, "after": 0},
         "claims": [],
         "listening": False,
+        "session_alive": None,
+        "live_turn": None,
         "cursor": 0,
         "pending": 0,
         "agent": "Agent",
-        "session_alive": None,
         "claim_session": None,
         "claim_turn": None,
         "turn_closed": None,
@@ -4645,7 +4657,6 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
         "activity": {
             "kind": "closed",
             "held": True,
-            "quiet": False,
             "dropped": False,
             "detail": "",
             "observed": "",
@@ -4656,6 +4667,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
                 "queued": 0,
                 "picked_up": 0,
                 "pending": 0,
+                "overdue": 0,
                 "total": 0,
             },
             "ts": None,
@@ -4687,6 +4699,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
             "session_alive": False,
             "claim_session": "s1",
             "claim_turn": "turn-1",
+            "turn_opened": "2026-01-01T00:00:00-08:00",
             "session_cwd": str(Path.cwd()),
             "activity": {**unclaimed["activity"], "held": False},
         },
@@ -4704,11 +4717,11 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
             "session_alive": True,
             "claim_session": "s9",
             "claim_turn": "turn-1",
+            "turn_opened": "2026-01-01T00:00:00-08:00",
             "session_cwd": "/work/api",
             "activity": {
                 "kind": "away",
                 "held": True,
-                "quiet": True,
                 "dropped": False,
                 "detail": "measuring",
                 "observed": "",
@@ -4719,6 +4732,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
                     "queued": 0,
                     "picked_up": 0,
                     "pending": 0,
+                    "overdue": 0,
                     "total": 0,
                 },
                 "ts": "2026-01-01T00:00:00-08:00",

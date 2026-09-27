@@ -9,8 +9,8 @@ from leaf.registry.contract import RegistryError, read_registry_declarations
 from leaf.registry.layer import merge_layer_declarations
 from leaf.registry.state import stamp_decisions
 from leaf.registry.validation import validate_registry
-from leaf.revision_artifact import read_registry
-from leaf.structure import SourceDocument, parse_revision
+from leaf.revision_artifact import read_revision
+from leaf.structure import SourceDocument
 from leaf.thread_context import thread_structure
 
 from .instances import fragment_errors, thread_markup_contract_errors
@@ -74,18 +74,18 @@ def candidate_vocabulary_gaps(
     tokens = incoming.get("$reactions", {}).get("tokens", {})
     contracts = incoming["$events"]["kinds"]
     thread = thread_structure(events)
-    revisions = {}
-    registries = {}
+    readings = {}
+
+    def revision_reading(revision):
+        if revision not in readings:
+            readings[revision] = read_revision(page_dir, revision)
+        return readings[revision]
 
     def page(revision):
-        if revision not in revisions:
-            revisions[revision] = parse_revision(page_dir, revision)
-        return revisions[revision]
+        return revision_reading(revision).document
 
     def registry(revision):
-        if revision not in registries:
-            registries[revision] = read_registry(page_dir, revision)
-        return registries[revision]
+        return revision_reading(revision).registry
 
     def page_event_participates(event):
         return (

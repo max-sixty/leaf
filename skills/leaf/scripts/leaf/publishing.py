@@ -10,6 +10,7 @@ from leaf.files import (
 )
 from leaf.host import message_identity
 from leaf.leases import contract_writer
+from leaf.passages import SourceReading
 from leaf.projection import folded_value, markup_value, page_reading
 from leaf.revisioning import activate_checked_source
 from leaf.service import PageTransaction
@@ -32,7 +33,7 @@ def _stamp_reading(events: list, checked, revision: int):
     registry = checked.registry
     if registry is None:
         sys.exit("refusing to stamp index.html: the page has no registry.json")
-    page = page_reading(checked.document, events, registry, revision)
+    page = page_reading(SourceReading(checked.document, registry), events, revision)
     return registry, page.projection, page.document, page.spoken
 
 

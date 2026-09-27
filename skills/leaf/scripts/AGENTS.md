@@ -12,7 +12,8 @@ subpackage's initializer is only a marker, never a second API.
 ## Owners
 
 - `files`, `revisioning`, `revision_artifact`, `revision_delivery`: atomic page
-  files, immutable revisions, their captured inputs, and delivery URLs;
+  files, immutable revisions, their captured inputs and held readings, and delivery
+  URLs;
 - `locations`: filesystem path identity, containment, and overlap;
 - `page`: vendored page guidance;
 - `event_log`: append-only JSONL storage, locking, and attempt identity;

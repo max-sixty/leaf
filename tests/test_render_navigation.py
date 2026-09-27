@@ -1043,9 +1043,8 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
         '.lf-thread[data-id="72e031c5bf0d485ba9054628e09869d4"] .lf-thread-topic'
     )
     expect(page.locator("#bg-thread-states")).to_be_visible()
-    expect(pending_title).to_have_text("...")
-    expect(pending_title).to_have_attribute("aria-label", "Title pending")
-    dots = pending_title.locator(".lf-thread-pending-dot")
+    expect(pending_title).to_have_text("Generating title")
+    dots = pending_title.locator(".lf-thread-pending-dots > span")
     expect(dots).to_have_count(3)
     animation = dots.first.evaluate(
         "element => getComputedStyle(element).animationName"

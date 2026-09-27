@@ -18,7 +18,6 @@ from .schema import DATA_DIR, DATA_FILE
 from .served_state.page import read_served_page
 from .server import running_server
 from .service import PageTransaction, unacknowledged
-from .structure import SourceDocument
 
 
 def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
@@ -387,7 +386,7 @@ def _write_page_state(
             if fragment is None:
                 continue
             passages = page_passages(
-                SourceDocument(event["markup"]),
+                fragment,
                 registry,
                 retirement_outcomes(thread_reading.projection.actions),
             )

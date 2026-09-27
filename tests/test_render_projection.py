@@ -1924,7 +1924,7 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     # of the following to get there. A composer the user opened is one of the gestures
     # a revision install defers to and does not end when focus moves; words in a box the
     # user merely has focus in do, and the draft store rather than a hold is what
-    # carries those across the install (`skills/leaf/assets/CLAUDE.md`, "Runtime
+    # carries those across the install (`skills/leaf/assets/AGENTS.md`, "Runtime
     # ownership").
     page.locator("#live-reading").click(click_count=3)
     page.locator(".lf-fab-input").click()

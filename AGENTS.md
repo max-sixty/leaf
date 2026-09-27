@@ -264,6 +264,10 @@ Layer-wide facts live under `$` keys; each tag entry is one complete schema.
 
 ## Working on the repository
 
+When the user is to choose among designs, show them the candidates in a
+playground, which is one HTML file and one preview command (`/developing-leaf`,
+"Explore an open design").
+
 Before finishing a feature:
 
 - Give every action a keyboard route, without spending a page-level binding on

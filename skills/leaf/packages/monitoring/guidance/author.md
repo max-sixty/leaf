@@ -10,8 +10,9 @@ notes, owners and rollback procedure in the `aside` or below in ordinary flow, w
 the reference material in `details`. Keep release identity and summary in
 authored markup so a feed update cannot silently change the page's conclusion.
 
-When rollback is genuinely available, put one `lf-release-actions` holder around an
-`lf-release-action verb="rollback"` beside the current state; set the holder's
-`candidate` and `stable` to the exact releases, and state the consequence in the action's prose.
-This sends a durable host request and waits for its receipt. Do not present a local
-choice or decorative button as rollback.
+When rollback is genuinely available, ask for it beside the current state: an
+`lf-ask` whose heading asks whether to roll back, holding an `lf-options choose` group
+with a rollback option and the alternative the release policy allows, such as holding
+until its deadline. Name the exact candidate and stable releases in the rollback
+option and state its consequence. The pick reaches the coordinator as the operator's
+answer. Do not present a decorative button as rollback.

@@ -1,6 +1,6 @@
 """The browser the render gate launches.
 
-`version check --render` draws the page in a real browser, and should reach
+`page check --render` draws the page in a real browser, and should reach
 whichever one the host has. Playwright's
 `channel="chrome"` finds a Google Chrome release-channel install at a fixed OS
 path and nothing else, so a Chrome for Testing, a distro or Homebrew Chromium,

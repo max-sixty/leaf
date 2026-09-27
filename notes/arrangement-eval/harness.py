@@ -31,11 +31,11 @@ arm's launcher as `$LEAF`, and keeps its pages and claims under the run's own st
 home. Phase 2 resumes the phase-1 session with the standing preference. A round starts
 every subject × arm pair at once, so load on the machine lands on both arms alike.
 
-Scoring, per run and phase: turns, output tokens, cost and minutes; `version check`
+Scoring, per run and phase: turns, output tokens, cost and minutes; `page check`
 runs, those with `--render`, those whose output carries a ✗, and page writes; the
 references and registry keys read; page CSS lines (`<style>` plus `page/*.css`), style
 attributes, JavaScript lines and each arrangement term used; and an independent
-`version check --render` with the arm's launcher, cached in `gate-<phase>.json`. A
+`page check --render` with the arm's launcher, cached in `gate-<phase>.json`. A
 run's phase counts only when every trace through it reached its result, with `is_error`
 false and no auto-memory loaded (`Run.usable`); `score` marks the others, and `review`
 and `summarize` leave them out alike.
@@ -243,7 +243,7 @@ def arms(ref: str, name: str):
         run_leaf(out / "plain", state, "page", "init", str(page), check=True)
         (page / "index.html").write_text(smoke)
         run_leaf(
-            out / "plain", state, "version", "check", str(page), "--render", check=True
+            out / "plain", state, "page", "check", str(page), "--render", check=True
         )
     subprocess.run(
         ["chmod", "-R", "a-w", out / "leaf/skills", out / "plain/skills"], check=True
@@ -261,7 +261,7 @@ that file first and follow it, resolving the references it names from
 
 Write the page at {page}. This run is non-interactive: nobody will read the page in a
 browser or answer in it. Treat the page as a finished record the user will rely on:
-write it, run the pre-handover review including `$LEAF version check {page} --render`,
+write it, run the pre-handover review including `$LEAF page check {page} --render`,
 fix what the checks report, and stamp it. Don't start a server, set a status, or wait
 for feedback. When the stamped page passes, reply with one line naming its path.
 
@@ -276,7 +276,7 @@ def second_prompt(page: Path) -> str:
 {PREFERENCE}
 
 Revise the page at {page} to follow this preference. Check it again with
-`$LEAF version check {page} --render`, fix what the checks report, and stamp it. As
+`$LEAF page check {page} --render`, fix what the checks report, and stamp it. As
 before, don't start a server or wait for feedback. When it passes, reply with one line.
 """
 
@@ -360,7 +360,7 @@ def trace_scores(stream: Path) -> dict:
         name, inp = call["name"], call.get("input", {})
         if name == "Bash":
             cmd = inp.get("command", "")
-            if "version check" in cmd and "--help" not in cmd:
+            if "page check" in cmd and "--help" not in cmd:
                 checks += 1
                 renders += "--render" in cmd
                 # The exit status is often masked by a pipe or a chained command, so
@@ -432,10 +432,10 @@ def page_scores(page: Path) -> dict:
 
 
 def gate(run: Run, phase: int, page: Path) -> dict:
-    """An independent `version check --render` of the phase's page, cached per phase."""
+    """An independent `page check --render` of the phase's page, cached per phase."""
     cached = run.dir / f"gate-{phase}.json"
     if not cached.exists():
-        proc = run.leaf("version", "check", str(page), "--render", timeout=900)
+        proc = run.leaf("page", "check", str(page), "--render", timeout=900)
         out = proc.stdout + proc.stderr
         cached.write_text(
             json.dumps({"passed": proc.returncode == 0, "output": out[-4000:]})

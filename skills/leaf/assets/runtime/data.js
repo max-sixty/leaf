@@ -138,7 +138,7 @@ export function watchData(element, input, callback) {
       );
     const revision = source ? (sourceStore?.revision ?? null) : null;
     // A value that fails its contract is the server's reading to report, in `page
-    // state` and `version check`; the page shows the source as holding nothing.
+    // state` and `page check`; the page shows the source as holding nothing.
     if (!source || !sourceStore || !Object.hasOwn(sourceStore, "value"))
       return deliver(null, revision, mounting);
     return deliver(

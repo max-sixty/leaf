@@ -1,4 +1,11 @@
-"""Filesystem change readings for a served page."""
+"""The readings that name one served view of a page.
+
+A served reading is the page's file stamp (`page_reading`, or a snapshot's own)
+followed by a fingerprint of who is present (`presence.presence_fingerprint`), which
+moves on its own clock. `/api/state` answers with one, the news stream says one each
+time it changes, and the browser compares them whole. `join_reading` builds the form
+and `reading_files` takes the file stamp back out; nothing else spells it.
+"""
 
 import hashlib
 from pathlib import Path
@@ -17,6 +24,22 @@ from ..service import claim_path
 # while a visible tab holds the news stream and `interactions.jsonl` for every request
 # it answers; counting either would make a read say it changed itself.
 UNWATCHED = frozenset({VIEWED_FILE, INTERACTIONS_FILE})
+
+
+def join_reading(files: str, presence: str) -> str:
+    """The served reading of one view: its file stamp, then its presence.
+
+    Both halves are hex digests, so the dot is the only one in the reading."""
+    return f"{files}.{presence}"
+
+
+def reading_files(reading: str) -> str:
+    """The file stamp a served reading was joined from (`join_reading`).
+
+    Two readings with the same file stamp were taken over the same page, whoever
+    was present at each."""
+    files, _, _ = reading.partition(".")
+    return files
 
 
 def page_reading(page_dir: Path) -> str:

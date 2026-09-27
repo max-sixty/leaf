@@ -94,7 +94,7 @@ def _render_version_attempt(
     change.
     Returns the failures and the advice; no failures is a pass.
 
-    One implementation with two callers — `version check --render` on the page an agent
+    One implementation with two callers — `page check --render` on the page an agent
     just wrote, and the render suite on the shipped examples
     (the tests/test_render_*.py modules) — so the gate and the suite hold one set of
     invariants. Returns ordinary failures, ResizeObserver notices, whether every

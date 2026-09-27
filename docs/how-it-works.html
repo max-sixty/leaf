@@ -161,7 +161,7 @@ initialized /home/you/review
 
 # the agent writes ./review/index.html — an ordinary file write
 
-$ leaf version check ./review
+$ leaf page check ./review
 ✓ index.html: parses, widgets, authored modules, and styles validate, protected ids and decisions carried over
 
 $ leaf version stamp ./review --text "Two ways to shed load — which?"
@@ -343,9 +343,9 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
                 makes that move's label read Working.
               </li>
               <li id="response-evidence">
-                <strong>Response</strong>: what settled the move: a reply in its thread,
-                a revision, or a request's outcome. Receipt and work leave it open. Once
-                it is answered, the agent names your next move with a waiting status.
+                <strong>Response</strong>: what settled the move: a reply in its thread
+                or a revision. Receipt and work leave it open. Once it is answered, the
+                agent names your next move with a waiting status.
               </li>
             </ul>
           </section>
@@ -421,7 +421,7 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
             </p>
             <lf-diagram
               id="updates-diagram"
-              parts="node:Reply node:Awaits node:Stamp node:Receipt node:Status node:Pickup node:Turn node:Banner node:Beside node:Thread node:Asks node:Versions node:Widget"
+              parts="node:Reply node:Awaits node:Stamp node:Report node:Status node:Pickup node:Turn node:Banner node:Beside node:Thread node:Asks node:Versions node:Widget"
             >
               <pre>
 flowchart LR
@@ -429,7 +429,7 @@ flowchart LR
     Reply["agent: leaf thread reply · leaf thread open"]
     Awaits["agent: leaf thread reply --awaits"]
     Stamp["agent: leaf version stamp"]
-    Receipt["agent: leaf experimental report · receipt"]
+    Report["agent: leaf experimental report"]
     Status["agent: leaf status"]
     Pickup["Leaf: how far your input got"]
     Turn["Leaf: the agent's turn and watcher"]
@@ -445,7 +445,7 @@ flowchart LR
   Reply --&gt; Thread
   Awaits --&gt; Asks
   Stamp --&gt; Versions
-  Receipt --&gt; Widget
+  Report --&gt; Widget
   Status --&gt; Banner
   Status -.-&gt; Beside
   Turn --&gt; Banner
@@ -510,10 +510,8 @@ flowchart LR
               </li>
             </ul>
             <p id="updates-written-experimental">
-              <code>leaf experimental report</code> and
-              <code>leaf experimental receipt</code> let optional packages' widgets show
-              a worker's progress and the outcome of a request you made. Both may
-              change.
+              <code>leaf experimental report</code> lets optional packages' widgets show
+              a worker's progress. It may change.
             </p>
 
             <h3 id="updates-observed-heading">Written by Leaf beside your input</h3>
@@ -805,10 +803,6 @@ flowchart TD
                     The agent's host reports that an answer to you failed or stopped.
                   </td>
                 </tr>
-                <tr id="updates-notice-request">
-                  <td>Request succeeded, Request failed</td>
-                  <td>A request you made from a widget gets its outcome.</td>
-                </tr>
                 <tr id="updates-notice-active">
                   <td>Agent active on this page</td>
                   <td>
@@ -854,7 +848,7 @@ flowchart TD
               source's structure, vocabulary, dependencies, and your standing decisions.
               An invalid save leaves the last valid revision live and shows its
               diagnostic. For a finished record,
-              <code>leaf version check --render</code> also opens the page in Chrome in
+              <code>leaf page check --render</code> also opens the page in Chrome in
               both color schemes, catching console errors, invisible widgets, and
               horizontal overflow.
             </p>

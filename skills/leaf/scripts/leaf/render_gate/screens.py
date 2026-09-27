@@ -1,4 +1,4 @@
-"""The screens `version check --render` saves for the author to read.
+"""The screens `page check --render` saves for the author to read.
 
 The gate's findings say what is broken; they cannot say whether the page reads well,
 which is the author's judgment of a picture. So the check saves the page as a reader

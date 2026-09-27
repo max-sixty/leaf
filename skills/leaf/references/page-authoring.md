@@ -383,7 +383,7 @@ Page modules follow `references/packages.md`, "What a behavior module owes". In
 particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-state
 rules keep authored controls correct after reconnection and thread quoting.
 
-`leaf version check` runs a page's own code, a module script or a page widget the
+`leaf page check` runs a page's own code, a module script or a page widget the
 document places, once in the host's browser: through upgrade, presentation, and one
 frame after it. It fails on every error the page would report to you through the
 watcher, an uncaught exception or a rejected promise with the source location it came
@@ -470,7 +470,7 @@ user comparing this version with an earlier one: the id is how the comparison
 finds what the block said before, so a rewritten paragraph keeps the id it had.
 Stay out of the `lf-` prefix: it is the runtime's
 namespace for ids and for classes alike, and `data-lf-` is the same for
-attributes. `version check` refuses all three, including a name the runtime does
+attributes. `page check` refuses all three, including a name the runtime does
 not write today — the namespace is reserved, not the list of names in it.
 
 A code block, table, figure, or aside that a user will point at as a whole also
@@ -504,7 +504,7 @@ source activation already runs the deterministic markup check; this review adds 
 browser gate and a reading:
 
 ```bash
-leaf version check <page> --render
+leaf page check <page> --render
 ```
 
 It runs the browser gate in both color schemes, including when the host gives you
@@ -538,7 +538,7 @@ Without a way to inspect the rendered page, read `leaf page state <page>`'s
 `state` and `asks` alongside the active HTML to review the words, evidence, and
 available choices. Report the render command's result separately from the visual
 and keyboard review you could not perform. If the command cannot launch a browser,
-run `leaf version check <page>` for the markup and report the render check as
+run `leaf page check <page>` for the markup and report the render check as
 unfinished; for a page with code of its own, that check needs the browser too, so
 report the run of its code as unfinished as well. A text reading does not establish
 layout or interaction quality.

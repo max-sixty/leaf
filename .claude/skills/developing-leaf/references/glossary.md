@@ -6,8 +6,8 @@ references. When an existing name disagrees with this glossary, change the name;
 not add an alias.
 
 This reference does not define the protocol between the page and its agent. Events,
-comments, threads, replies, Asks, requests, receipts, activity, and their
-lifecycles are owned by their protocol references.
+comments, threads, replies, Asks, activity, and their lifecycles are owned by
+their protocol references.
 
 ## How to use the vocabulary
 
@@ -28,7 +28,7 @@ uses the same word.
 | **User session** | One browser tab's temporary interaction with a page instance |
 
 Core Leaf owns revision activation, scoped serving, executable and inert-input
-boundaries, target identity, event admission, requests, comments, and export. A
+boundaries, target identity, event admission, comments, and export. A
 package owns reusable declarations, widgets, browser modules, styles, data contracts,
 and guidance. A page instance owns its content, page-local modules, styles, assets, and
 declarations, semantic target choices, drafts, and package selection. A user session

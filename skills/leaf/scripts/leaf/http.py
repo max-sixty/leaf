@@ -52,9 +52,15 @@ from .interaction_log import append_interactions, client_records, now_iso
 from .layer import foreign_runtime
 from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
+from .passages import SourceReading
 from .registry.storage import layer_metadata, require_registry
 from .render_checks import PROBE_SOURCES
-from .revision_artifact import Resource, RevisionArtifact, read_artifact, read_registry
+from .revision_artifact import (
+    Resource,
+    RevisionArtifact,
+    read_artifact,
+    read_revision,
+)
 from .revision_delivery import (
     Delivery,
     DeliveryAddress,
@@ -69,6 +75,7 @@ from .schema import (
     BINARY_TYPES,
     CONTENT_TYPES,
     KEY_COOKIE,
+    KEY_COOKIE_MAX_AGE,
     NO_KEY,
     REVISION_NAME,
     SERVED_PATH,
@@ -451,8 +458,7 @@ class PageEndpoint:
                 now = time.monotonic()
                 if self.page_snapshot is not None:
                     reading = self.page_snapshot.reading
-                    files = reading
-                    presence = ""
+                    files = served_reading.reading_files(reading)
                 else:
                     files = served_reading.page_reading(self.page_dir)
                     # Presence is re-read on its own clock, and again whenever the files
@@ -460,7 +466,7 @@ class PageEndpoint:
                     if files != files_said or now - looked >= PRESENCE_S:
                         presence = presence_model.presence_reading(self.page_dir)
                         looked = now
-                    reading = f"{files}.{presence}"
+                    reading = served_reading.join_reading(files, presence)
                 # Before the word goes out, so a listener that has heard the first
                 # one is a browser the page already counts as holding it open.
                 if (
@@ -484,9 +490,10 @@ class PageEndpoint:
     def authorized(self) -> bool:
         """The key, from the handover URL or from the cookie an earlier request
         set out of it. One arrival is enough: the runtime's own fetches are
-        relative and carry no query, and a user who reloads or bookmarks the bare
-        address is the same user. So nothing has to thread the key through the
-        page, and `leaf.js` never learns there is one."""
+        relative and carry no query, and the bootstrap leaves only the bare
+        address in the tab, which the cookie authorizes on reload or from a
+        bookmark. So nothing has to thread the key through the page, and
+        `leaf.js` never learns there is one."""
         if secrets.compare_digest(self.query.get("t", [""])[0], self.token):
             self.set_cookie = True
         else:
@@ -514,7 +521,8 @@ class PageEndpoint:
                 headers["Leaf-Release"] = self.release
         if self.set_cookie:
             headers["Set-Cookie"] = (
-                f"{KEY_COOKIE}={self.token}; Path=/; HttpOnly; SameSite=Strict"
+                f"{KEY_COOKIE}={self.token}; Path=/; Max-Age={KEY_COOKIE_MAX_AGE}; "
+                "HttpOnly; SameSite=Strict"
             )
         if self.body_unread:
             headers["Connection"] = "close"
@@ -728,11 +736,15 @@ class PageEndpoint:
             return self.page_snapshot.artifacts[revision]
         return read_artifact(self.page_dir, revision)
 
-    def _registry(self, revision: int) -> dict:
-        """One revision's captured vocabulary, without materializing its bundle."""
+    def _reading(self, revision: int) -> SourceReading:
+        """One revision's document under its captured vocabulary, without
+        materializing its bundle."""
         if self.page_snapshot is not None:
-            return self.page_snapshot.artifacts[revision].registry
-        return read_registry(self.page_dir, revision)
+            return self.page_snapshot.readings[revision]
+        return read_revision(self.page_dir, revision)
+
+    def _registry(self, revision: int) -> dict:
+        return self._reading(revision).registry
 
     def _artifact_root(self, revision: int) -> str:
         name = self._revision_name(revision).removesuffix(".html")
@@ -758,6 +770,7 @@ class PageEndpoint:
             executable=artifact.executable,
             widgets=artifact.widgets,
             resources=artifact.resources,
+            registry=artifact.registry,
             delivery=self._delivery(artifact, revision),
         )
         return self._content(200, "text/html; charset=utf-8", projected.encode())
@@ -855,7 +868,7 @@ class PageEndpoint:
             name = Path(path).name
             revision = revision_num(name)
             revisions = (
-                set(self.page_snapshot.documents)
+                set(self.page_snapshot.readings)
                 if self.page_snapshot is not None
                 else set(list_revisions(self.page_dir))
             )
@@ -1054,6 +1067,7 @@ class PageEndpoint:
                 identity = self.server.samples.create(
                     self.page_dir,
                     artifact,
+                    self._reading(revision).document,
                     events,
                     data,
                     template,

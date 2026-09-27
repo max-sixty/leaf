@@ -36,7 +36,7 @@
 # metadata when `package check` holds it to the dependency policy (`packages.py`).
 #
 # Playwright is a runtime dependency because the skill's own flow runs the
-# browser: `version check --render` gates every finished page and `version
+# browser: `page check --render` gates every finished page and `version
 # export` copies one. Its wheel lands in each version's environment as links
 # into uv's shared cache, so the disk it takes is paid once per machine, not
 # per install. A `--with` overlay carries no console scripts, so it is not a

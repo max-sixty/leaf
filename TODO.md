@@ -105,7 +105,7 @@ and its chrome coordinate.
   rail's width at every width, so on a phone it leaves a 295px column. The margin pass
   admits residents by measuring the room they leave (`settleResidency`), which a rail
   the shell has already reserved never fails.
-- **Make the outcome checks the gate.** `version check` passed a page that scrolled
+- **Make the outcome checks the gate.** `page check` passed a page that scrolled
   sideways at 520px. Check sideways scroll and leaking minimums (a box whose content,
   not its declared minimum, sets its holder's floor) across swept widths. The corpus
   (`scripts/corpus.py`) sets every example's body in one column page, so only the
@@ -147,14 +147,14 @@ and its chrome coordinate.
 
 ### The agent's text interface
 
-- **Read the render checks after handover.** `version check --render` blocks the
+- **Read the render checks after handover.** `page check --render` blocks the
   agent for the whole browser pass, so quick pages skip it and get none of its
   advice. Run the render readings on the server when a version goes live and
   deliver the findings through `leaf wait`: the agent hands the page over at once
   and refines it if a reading warrants, while a failure still blocks a record's
   stamp. **Unconfirmed:** measure how long the pass takes on a typical page, and
   whether agents act on findings that arrive after handover, before building it.
-- **Consider loading a page once per render check.** `version check --render` loads
+- **Consider loading a page once per render check.** `page check --render` loads
   the page afresh for each of its four passes, including dark mode and the narrow
   viewport. Switching those in place would save at most about 1.4 s on
   `triage-board` and 12.6 s on the corpus, measured with
@@ -175,19 +175,6 @@ and its chrome coordinate.
   several open Asks and an informational page before choosing how the banner
   explains who owes the next move. Keep explicit agent status available when the
   Ask alone does not explain the wait.
-- **Decide whether requests earn their weight.** A request (`x-request`, `leaf
-  receipt`) is a non-undoable one-shot operation the user asks the host to run, with
-  one pending attempt per control and a `succeeded`/`failed` receipt. Leaf never
-  runs it, and a receipt carries no structured result. Its users are Command Hub's
-  `lf-operations`, monitoring's `lf-release-actions` and the developer gallery's
-  `lf-job-requests`, none backed by a real integration, while the lifecycle reaches
-  `requests.py`, workflows, Asks, admission, the runtime's pending model and margin,
-  and the Codex adapter's failure receipts. Once the Command Hub redesign settles
-  whether its operations stay, either remove requests and recast the remaining
-  operations as Asks, or keep them and cut what only the gallery uses: projected
-  holders (`records`, one seat per data row). Kept requests also need one owner for
-  whether a seat is open, which `application.ts`, `widget-controller.js`,
-  `application.js` and `request-elements.js` each restate.
 
 ### Shared definitions
 
@@ -203,14 +190,6 @@ and its chrome coordinate.
   cannot reach page CSS. The note sits there to follow the block in tab and reading
   order, so the fix is a route to the block's comments from that position that adds
   no element to authored content.
-- **Say which panes the workspace holds without naming `lf-pane`.** `layouts.css`
-  holds an authored pane only as the workspace body or a cell of it (a pane in a
-  section flows), and a generated pane at any depth. It tells the two apart by the
-  `lf-pane` tag, so a package's authored pane takes the generated rule, and it names
-  the tag for first paint too: the runtime paints `data-lf-reading-role` about half a
-  second after the panes first draw. Both need a mark the stylesheet can read before
-  the script: an authored/generated distinction in the paint, and the role in the
-  first paint.
 
 ## Etc
 

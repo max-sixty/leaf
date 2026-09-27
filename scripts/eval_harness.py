@@ -3,7 +3,7 @@
     uv run scripts/eval_harness.py REF DEST
 
 builds one arm at DEST from git REF. `eval_claude_delivery.py`,
-`bench_render_check.py`, `bench_page_latency.py`,
+`bench_render_check.py`, `bench_page_latency.py`, `stills.py`,
 `notes/arrangement-eval/harness.py` and `notes/usability-eval/harness.py` import the
 rest, and `evals/README.md`'s A/B recipe builds its other arm with the command.
 
@@ -51,6 +51,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Iterable
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Self
@@ -101,6 +102,36 @@ def run_leaf(
             f"leaf {' '.join(args)} exited {proc.returncode}:\n{proc.stdout}{proc.stderr}"
         )
     return proc
+
+
+@contextmanager
+def serving(arm: Path, state: Path, page: Path):
+    """Serve `page` with the arm's `leaf server run --temporary` under the state home
+    `state`, and yield the tokened address it prints; a first load of that address
+    sets the page's cookie."""
+    server = subprocess.Popen(
+        [str(arm / "bin" / "leaf"), "server", "run", "--temporary", str(page)],
+        env=environment(XDG_STATE_HOME=str(state)),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+    )
+    try:
+        yield server.stdout.readline().strip()
+    finally:
+        server.terminate()
+        server.wait(10)
+
+
+def merge_base() -> str:
+    """The commit HEAD branched from `main`: the base an A/B script compares HEAD
+    against unless it is handed another."""
+    return subprocess.run(
+        ["git", "-C", ROOT, "merge-base", "HEAD", "main"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
 
 
 def build_arm(ref: str, dest: Path) -> str:

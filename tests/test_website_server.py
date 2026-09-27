@@ -23,7 +23,6 @@ import pytest
 import verify_site
 from click.testing import CliRunner
 from interact_support import (
-    COMMAND_SUBJECTS,
     PAGE,
     STATED_TIMEOUT,
     Prose,
@@ -34,7 +33,6 @@ from interact_support import (
     yaml_document,
 )
 from leaf import codex as leaf_codex
-from leaf.cli import cli
 from leaf.codex import AppServerRequestRejected, accept_codex_delivery, delivery_records
 from leaf.delivery import current_responses
 from leaf.event_log import append_event, read_events
@@ -42,13 +40,12 @@ from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
 from leaf.http import page_delivery
 from leaf.machine import pid_alive
-from leaf.requests import request_lifecycles
 from leaf.revision_artifact import Resource
 from leaf.revision_delivery import compose_document
-from leaf.revisioning import activate_source
 from leaf.schema import ASSETS
 from leaf.served_state import page as served_page
-from leaf.service import delivery_reply_attempt
+from leaf.served_state.reading import join_reading
+from leaf.service import delivery_reply_attempt, open_session_turn
 from leaf.thread import cmd_reply, cmd_resolve
 from playwright.sync_api import expect
 from render_harness import LONG_PAGE, consume_browser_errors, open_page, told, write
@@ -65,6 +62,13 @@ _previews_spec = importlib.util.spec_from_file_location(
 )
 example_previews = importlib.util.module_from_spec(_previews_spec)
 _previews_spec.loader.exec_module(example_previews)
+
+
+def accept_in_turn(thread_id: str, turn: str = "app-server-turn") -> None:
+    """Open the provider turn and accept the offered delivery into it, as
+    `HostedTurn.begin` does."""
+    open_session_turn(thread_id, turn)
+    accept_codex_delivery(thread_id, turn)
 
 
 @pytest.fixture(autouse=True)
@@ -252,6 +256,7 @@ def test_a_published_document_names_its_page_to_a_crawler(page_root, kind, url):
         executable="sha256:executable",
         widgets={},
         resources=resources,
+        registry={},
         delivery=replace(delivery, head=addition),
     )
     head = served[: served.index("</head>")]
@@ -449,7 +454,7 @@ def test_an_active_thread_has_its_unwatched_turn_stopped_before_the_next_starts(
         {"kind": "comment", "author": "user", "text": "first"},
     )
     website_server.prepare_codex_delivery(page_dir, harness)
-    accept_codex_delivery("hosted-thread", turn="active-turn")
+    accept_in_turn("hosted-thread", "active-turn")
     second = append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "second"},
@@ -519,7 +524,7 @@ def test_attach_accepts_its_named_event_after_an_older_reply_slice(
     process = Process()
     deliveries = []
 
-    def accept(phase, turn):
+    def accept(turn):
         prepared = website_server.prepare_codex_delivery(
             page_dir, website_server.website_harness("hosted-thread", process.pid)
         )
@@ -530,14 +535,14 @@ def test_attach_accepts_its_named_event_after_an_older_reply_slice(
                 for event in batch["events"]
             ]
         )
-        accept_codex_delivery("hosted-thread", phase=phase, turn=turn)
+        accept_in_turn("hosted-thread", turn)
 
     def start_thread(*args):
-        accept("opened", "first-turn")
+        accept("first-turn")
         return "hosted-thread"
 
     def resume_and_start(*args):
-        accept("queued", None)
+        accept("second-turn")
         return True
 
     monkeypatch.setattr(host, "_ensure_server", lambda: process)
@@ -793,43 +798,17 @@ def test_a_start_that_fails_on_its_connection_is_recorded_like_any_other(
     )
 
 
-@pytest.mark.parametrize("response_kind", ["reply", "receipt"])
 def test_hosted_agent_receives_the_response_instructions_and_delivery(
-    page_dir, monkeypatch, snapshot, response_kind
+    page_dir, monkeypatch, snapshot
 ):
     """Capture real instructions and deliveries at the App Server wire boundary.
 
     Only the external App Server connection is replaced. Event admission, delivery
     preparation, response addressing, and both request builders run normally.
     """
-    command = {"kind": "comment", "author": "user", "text": "Use backfill first."}
-    if response_kind == "receipt":
-        source = page_dir / "index.html"
-        controls = (
-            '<lf-command id="hub"><lf-task id="goal" status="active">'
-            "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
-            '<lf-ask id="recovery"><h3>Restart the worker?</h3>'
-            '<lf-operations id="commands" target="goal" worker="worker" '
-            'worktree="tree">'
-            '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-            "</lf-operations></lf-ask>"
-        )
-        source.write_text(
-            source.read_text().replace("</section>", controls + "</section>")
-        )
-        activated = activate_source(page_dir)
-        assert activated.error is None
-        command = {
-            "kind": "request",
-            "author": "user",
-            "revision": activated.revision,
-            "widget": "commands",
-            "action": "restart",
-            "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
-        }
-        event = append_command(page_dir, command)
-    else:
-        event = append_event(page_dir, command)
+    event = append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "Use backfill first."}
+    )
     host = website_server.WebsiteCodexHost("codex")
     outgoing = {}
 
@@ -852,10 +831,7 @@ def test_hosted_agent_receives_the_response_instructions_and_delivery(
     payload = json.loads(outgoing["turn/start"]["toolOutput"]["output"])
     [delivered] = payload["batches"][0]["events"]
     # Frozen for App Server, a reply is the turn's to write with its messages.
-    assert (
-        delivered["answer"]["kind"]
-        == {"reply": "turn", "receipt": "receipt"}[response_kind]
-    )
+    assert delivered["answer"]["kind"] == "turn"
     replacements = {
         str(page_dir): "/page",
         event["id"]: "user-event",
@@ -880,31 +856,6 @@ def test_hosted_agent_receives_the_response_instructions_and_delivery(
             recorded,
         )
     )
-    if response_kind == "receipt":
-        # The host's scope forbids restarting a worker outside this page. Its
-        # command route must still let it report failure and reopen the request.
-        result = CliRunner().invoke(
-            cli,
-            [
-                "experimental",
-                "receipt",
-                str(page_dir),
-                event["id"],
-                "failed",
-                "--text",
-                "The worker is outside this hosted page's scope.",
-                "--json",
-            ],
-        )
-        assert result.exit_code == 0, result.output
-        receipt = json.loads(result.output)
-        assert (receipt["request"], receipt["status"]) == (event["id"], "failed")
-        assert (
-            website_server.full_state(page_dir, read_events(page_dir))["activity"][
-                "obligations"
-            ]
-            == []
-        )
 
 
 def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
@@ -1178,7 +1129,7 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     # the status to the host.
     instructions = " ".join(website_server.CODEX_INSTRUCTIONS.split())
     assert "Leave the page's status to the host" in instructions
-    assert "leaf version check" not in instructions
+    assert "leaf page check" not in instructions
 
 
 def test_a_timed_out_app_server_is_stopped_before_startup_retries(
@@ -1768,34 +1719,6 @@ def _page_pick(page_dir: Path) -> dict:
     )
 
 
-def _request(page_dir: Path) -> dict:
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "</section>",
-            '<lf-command id="hub"><lf-task id="goal" status="blocked">'
-            "<strong>Goal</strong>"
-            + COMMAND_SUBJECTS
-            + '<lf-ask id="commands-decision"><h3>What next?</h3>'
-            '<lf-operations id="commands" target="goal" worker="worker" '
-            'worktree="tree">'
-            '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-            "</lf-operations></lf-ask></lf-task></lf-command></section>",
-        )
-    )
-    publish(page_dir)
-    return append_command(
-        page_dir,
-        {
-            "kind": "request",
-            "author": "user",
-            "revision": 1,
-            "widget": "commands",
-            "action": "restart",
-            "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
-        },
-    )
-
-
 def _message(page_dir: Path) -> dict:
     publish(page_dir)
     return append_event(
@@ -1811,18 +1734,17 @@ def _message(page_dir: Path) -> dict:
 
 @pytest.mark.parametrize(
     ("answer", "owed_move"),
-    (("markup", _page_pick), ("receipt", _request), ("reply", _message)),
+    (("markup", _page_pick), ("reply", _message)),
 )
 def test_a_failed_turn_hands_every_kind_of_owed_move_back(
     page_dir, monkeypatch, answer, owed_move
 ):
     """A turn that ends without answering settles what it was given, whatever it was.
 
-    The hosted site starts a turn for every move that owes an answer: a message, a
-    request, an answer to a page Ask. Each takes the failure its own answer takes,
-    and each leaves the next step with the user, so none stays owed with no turn
-    coming for it. A request's failed receipt is its lifecycle's own outcome and
-    reopens its seat. A pick keeps standing on the page, and the workflow says it was
+    The hosted site starts a turn for every move that owes an answer: a message or
+    an answer to a page Ask. Each takes the failure its own answer takes, and each
+    leaves the next step with the user, so none stays owed with no turn coming for
+    it. A pick keeps standing on the page, and the workflow says it was
     not answered until the user answers again. A message is told in its own
     thread.
     """
@@ -1865,18 +1787,6 @@ def test_a_failed_turn_hands_every_kind_of_owed_move_back(
     returned = [
         workflow for workflow in state["workflows"] if workflow["input"] == move["id"]
     ]
-    if answer == "receipt":
-        [receipt] = [event for event in events if event["kind"] == "receipt"]
-        assert (
-            receipt["request"],
-            receipt["status"],
-            receipt["failure"],
-            receipt["agent"],
-        ) == (move["id"], "failed", "turn_failed", website_server.WEBSITE_AGENT)
-        [lifecycle] = request_lifecycles(events)
-        assert lifecycle["phase"] == "ready"
-        assert returned == []
-        return
     if answer == "markup":
         [gave_up] = [
             event
@@ -2008,7 +1918,6 @@ def test_a_turn_whose_stream_drops_is_stopped_and_its_move_receipted(
     activity = website_server.full_state(page_dir, events)["activity"]
 
     assert interrupts == [("hosted-thread", "app-server-turn")]
-    assert follow.leaf_turn is not None
     [reply] = [event for event in events if event["kind"] == "reply"]
     assert (reply["responds"], reply["failure"]) == (comment["id"], "turn_failed")
     assert reply["text"] == website_server.FAILURE_RECEIPTS["turn_failed"]
@@ -2282,7 +2191,6 @@ def test_notifications_before_start_response_reach_the_turn_follower(
         (
             page_dir,
             "hosted-thread",
-            "leaf-turn",
             {"id": "initial-turn", "status": "completed"},
         )
     ]
@@ -2358,7 +2266,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
                         "item": {
                             "id": "command-1",
                             "type": "commandExecution",
-                            "command": "leaf version check .",
+                            "command": "leaf page check .",
                         },
                     },
                 }
@@ -2373,7 +2281,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
                         "item": {
                             "id": "command-1",
                             "type": "commandExecution",
-                            "command": "leaf version check .",
+                            "command": "leaf page check .",
                             "status": "completed",
                             "exitCode": 0,
                         },
@@ -2477,7 +2385,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
         (
             "hosted-thread",
             "initial-turn",
-            {"kind": "tool", "detail": "Running leaf version check ."},
+            {"kind": "tool", "detail": "Running leaf page check ."},
         ),
         ("hosted-thread", "initial-turn", {"kind": "working"}),
         ("hosted-thread", "initial-turn", {"kind": "replying"}),
@@ -2536,7 +2444,6 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
         (
             page_dir,
             "hosted-thread",
-            website_server.page_claim(page_dir)["turn"],
             {
                 "id": "initial-turn",
                 "status": "completed",
@@ -2730,18 +2637,17 @@ def test_a_native_final_message_never_becomes_a_leaf_reply(page_dir):
         page_dir,
         website_server.website_harness("hosted-thread", os.getpid()),
     )
-    [delivery] = accept_codex_delivery("hosted-thread")
+    accept_in_turn("hosted-thread")
     website_server.WebsiteCodexHost("codex")._finish_turn(
         page_dir,
         "hosted-thread",
-        delivery["turn"],
         {"id": "app-server-turn", "status": "completed", "error": None},
     )
 
     events = read_events(page_dir)
     assert not any(event["kind"] == "reply" for event in events)
     claim = website_server.page_claim(page_dir)
-    assert claim["turn"] == delivery["turn"]
+    assert claim["turn"] == "app-server-turn"
     assert claim["turn_closed"] is not None
     assert [
         obligation["input"]
@@ -2760,19 +2666,18 @@ def test_an_invalid_source_still_releases_a_finished_website_turn(page_dir):
         page_dir,
         website_server.website_harness("hosted-thread", os.getpid()),
     )
-    [delivery] = accept_codex_delivery("hosted-thread")
+    accept_in_turn("hosted-thread")
     (page_dir / "index.html").write_text("<main>unfinished")
 
     with pytest.raises(ValueError):
         website_server.WebsiteCodexHost("codex")._finish_turn(
             page_dir,
             "hosted-thread",
-            delivery["turn"],
             {"id": "app-server-turn", "status": "completed", "error": None},
         )
 
     claim = website_server.page_claim(page_dir)
-    assert claim["turn"] == delivery["turn"]
+    assert claim["turn"] == "app-server-turn"
     assert claim["turn_closed"] is not None
     assert website_server.PageTransaction(page_dir).status["state"] == "waiting"
     assert [
@@ -2981,7 +2886,7 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
         page_dir,
         website_server.website_harness("hosted-thread", os.getpid()),
     )
-    [delivery] = accept_codex_delivery("hosted-thread")
+    accept_in_turn("hosted-thread")
     cmd_reply(
         page_dir,
         comment["id"],
@@ -2997,7 +2902,6 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
     website_server.WebsiteCodexHost("codex")._finish_turn(
         page_dir,
         "hosted-thread",
-        delivery["turn"],
         {"id": "app-server-turn", "status": "completed", "error": None},
     )
 
@@ -3014,7 +2918,7 @@ def test_a_host_receipt_does_not_answer_input_an_agent_turn_already_claimed(
     )
     harness = website_server.website_harness("hosted-thread", os.getpid())
     website_server.prepare_codex_delivery(page_dir, harness)
-    accept_codex_delivery("hosted-thread")
+    accept_in_turn("hosted-thread")
 
     reply = website_server.write_failure_receipt(
         page_dir, comment["id"], "startup_failed"
@@ -3072,7 +2976,7 @@ def test_a_receipt_waits_for_external_turn_acceptance_to_be_recorded(
         )
         turn_started.set()
         record_acceptance.wait(timeout=STATED_TIMEOUT)
-        accept_codex_delivery("hosted-thread")
+        accept_in_turn("hosted-thread")
         return "hosted-thread"
 
     monkeypatch.setattr(host, "_start_thread", start_thread)
@@ -3104,24 +3008,23 @@ def test_an_old_website_completion_does_not_close_the_new_leaf_turn(page_dir):
     )
     harness = website_server.website_harness("hosted-thread", os.getpid())
     website_server.prepare_codex_delivery(page_dir, harness)
-    [old_delivery] = accept_codex_delivery("hosted-thread")
+    accept_in_turn("hosted-thread", "old-app-turn")
     website_server.close_session_turn("hosted-thread")
     second = append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "second"},
     )
     website_server.prepare_codex_delivery(page_dir, harness)
-    [new_delivery] = accept_codex_delivery("hosted-thread")
+    accept_in_turn("hosted-thread", "new-app-turn")
 
     website_server.WebsiteCodexHost("codex")._finish_turn(
         page_dir,
         "hosted-thread",
-        old_delivery["turn"],
         {"id": "old-app-turn", "status": "failed", "error": None},
     )
 
     claim = website_server.page_claim(page_dir)
-    assert claim["turn"] == new_delivery["turn"]
+    assert claim["turn"] == "new-app-turn"
     assert claim["turn_closed"] is None
     replies = {
         event["parent"]: event["text"]
@@ -3638,7 +3541,7 @@ def test_a_retried_agent_start_returns_the_accepted_task(page_dir, tmp_path):
         published,
         website_server.website_harness("already-started-thread", os.getpid()),
     )
-    accept_codex_delivery("already-started-thread")
+    accept_in_turn("already-started-thread")
     agent_host = FakeCodexHost()
     httpd = LeafHTTPServer(
         ("127.0.0.1", 0), website_server.site_endpoint(site, agent_host)
@@ -3920,13 +3823,16 @@ def test_an_undrawn_reply_says_whether_the_page_took_the_answer_in():
     got an answer, or took the answer in and drew nothing. The page paints the reading it
     last applied, so the message says which.
     """
+    current = join_reading("abc123", "p1")
+    presence_moved = join_reading("abc123", "p2")
+    older = join_reading("0bd999", "p1")
     drew_nothing = verify_site.undrawn_reply(
         "https://leaf.page/examples/triage-board/",
         {
             "panel": True,
             "visibility": "visible",
             "presented": True,
-            "reading": "abc123.p1",
+            "reading": current,
             "traffic": '{"asked":9,"heard":9}',
             "revision": "1",
             "status": "Codex is listening",
@@ -3942,7 +3848,7 @@ def test_an_undrawn_reply_says_whether_the_page_took_the_answer_in():
                 }
             ],
         },
-        "abc123.p2",
+        presence_moved,
     )
     assert "the answer reached it and was not drawn" in drew_nothing
     # The identity the panel is standing on, which says a stream placeholder outlived
@@ -3953,16 +3859,16 @@ def test_an_undrawn_reply_says_whether_the_page_took_the_answer_in():
 
     behind = verify_site.undrawn_reply(
         "https://leaf.page/examples/triage-board/",
-        {"reading": "older.p1", "messages": []},
-        "abc123.p1",
+        {"reading": older, "messages": []},
+        current,
     )
     assert "never took the answer in" in behind
-    assert "older.p1" in behind and "abc123.p1" in behind
+    assert older in behind and current in behind
 
     silent = verify_site.undrawn_reply(
         "https://leaf.page/examples/triage-board/",
         {"reading": None, "messages": []},
-        "abc123.p1",
+        current,
     )
     assert "applied no state at all" in silent
 
@@ -3984,7 +3890,7 @@ def test_the_deploy_gate_waits_on_the_page_rather_than_its_own_clock(page_dir):
         page_dir,
         website_server.website_harness("hosted-thread", os.getpid()),
     )
-    [delivery] = accept_codex_delivery("hosted-thread")
+    accept_in_turn("hosted-thread")
 
     handling = website_server.full_state(page_dir, read_events(page_dir))
     assert handling["activity"]["kind"] == "working"
@@ -3995,7 +3901,6 @@ def test_the_deploy_gate_waits_on_the_page_rather_than_its_own_clock(page_dir):
     website_server.WebsiteCodexHost("codex")._finish_turn(
         page_dir,
         "hosted-thread",
-        delivery["turn"],
         {"id": "app-server-turn", "status": "completed", "error": None},
     )
 

@@ -1,16 +1,15 @@
 """Text-passage readings of authored HTML."""
 
 import re
+from functools import cached_property
 from html.parser import HTMLParser
-from pathlib import Path
 from typing import NamedTuple
 from urllib.parse import urlsplit
 
 import turbohtml
 from markdown_it import MarkdownIt
 
-from .files import latest_revision
-from .structure import VOID_TAGS, SourceDocument, parse_revision
+from .structure import VOID_TAGS, SourceDocument
 
 # ---------- passages: the text an anchor points at ----------
 # The runtime resolves an anchor against the DOM; `leaf thread open` writes one down
@@ -584,29 +583,9 @@ class Spoken(NamedTuple):
 EMPTY = Spoken("", ())
 
 
-def spoken(document: SourceDocument, registry: dict) -> dict:
-    """id → Spoken, for every element the version carries.
-
-    This is the version's own reading of itself, so it is `page_passages` sliced by
-    id rather than a second walk: chrome skipped, x-says attributes counted (a
-    picked option's `effort` is a word on the page now, so changing it changes what
-    the user decided about), whitespace collapsed the way a captured quote is.
-    Asking whether two versions still say the same thing has to mean the same text a
-    user could have selected, or the question is about something else.
-
-    `section_span` answers this for one id by scanning the page; every id at once is
-    that same scan, done once.
-
-    The two halves come from different readings because they are different facts,
-    and taking both off the character scan cost the second one. Words are what the
-    scan holds. Where an element *sits* is structure, so it comes from the parser's
-    record of what was open — and an element that says nothing is somewhere all the
-    same. Keyed on words, an image-only option and a card holding one diagram were
-    in no chain at all, so `action_rests_on` dropped them from what an action rests
-    on (a floor stopped replaying), and `markup_value` read a version that honoured a
-    pick on such an option as showing no pick, which is the state gate refusing the
-    very version that agreed with the user."""
-    p = page_passages(document, registry)
+def _spoken(p: Passages) -> dict:
+    """id → Spoken, for every element the reading `p` carries: the passage reading
+    sliced by id rather than a second walk (see `SourceReading.spoken`)."""
     first, last = {}, {}
     for i, ids in enumerate(p.owner):
         for wid in ids:
@@ -617,6 +596,90 @@ def spoken(document: SourceDocument, registry: dict) -> dict:
     # boundary rather than saying anything.
     said = {wid: p.text[lo : last[wid] + 1].strip() for wid, lo in first.items()}
     return {wid: Spoken(said.get(wid, ""), chain) for wid, chain in p.enclosing.items()}
+
+
+class SourceReading:
+    """One document read under one vocabulary, each reading taken once.
+
+    A document and its registry are immutable once read, so what the file side
+    says of them is a function of the pair: the authored passage reading, its
+    words by id, and where each id sits. Holders keep one of these rather than
+    walking the document again per question. A stored revision's is held across
+    requests (`revision_artifact.read_revision`); a candidate's lives as long as
+    the check that built it.
+
+    The log never reaches this object. A reading under standing outcomes is the
+    same `page_passages` walk with `decided`, taken by `decided_passages`, which
+    returns the authored reading where no outcome names an element this document
+    carries: the parser consults `decided` only by the id of an element it opens,
+    so outcomes naming no such id leave every field as authored."""
+
+    # The last outcomes read and their reading: outcomes change only when a user
+    # decides, so one held pair answers every read between two decisions.
+    _decided: tuple | None = None
+
+    def __init__(self, document: SourceDocument, registry: dict | None):
+        self.document = document
+        self.registry = registry or {}
+
+    @cached_property
+    def passages(self) -> Passages:
+        """The version as authored: every slot pending, every body the agent's."""
+        return page_passages(self.document, self.registry)
+
+    @cached_property
+    def spoken(self) -> dict:
+        """id → Spoken, for every element the version carries.
+
+        This is the version's own reading of itself, so it is `page_passages`
+        sliced by id rather than a second walk: chrome skipped, x-says attributes
+        counted (a picked option's `effort` is a word on the page now, so changing
+        it changes what the user decided about), whitespace collapsed the way a
+        captured quote is. Asking whether two versions still say the same thing has
+        to mean the same text a user could have selected, or the question is about
+        something else.
+
+        `section_span` answers this for one id by scanning the page; every id at
+        once is that same scan, done once.
+
+        The two halves come from different readings because they are different
+        facts, and taking both off the character scan cost the second one. Words
+        are what the scan holds. Where an element *sits* is structure, so it comes
+        from the parser's record of what was open — and an element that says
+        nothing is somewhere all the same. Keyed on words, an image-only option and
+        a card holding one diagram were in no chain at all, so `action_rests_on`
+        dropped them from what an action rests on (a floor stopped replaying), and
+        `markup_value` read a version that honoured a pick on such an option as
+        showing no pick, which is the state gate refusing the very version that
+        agreed with the user."""
+        return _spoken(self.passages)
+
+    @property
+    def within(self) -> dict:
+        """id → the ids enclosing it, outermost first, itself last: the
+        containment half of `spoken`, which the walk records before it asks the
+        vocabulary anything (`enclosing_ids`)."""
+        return self.passages.enclosing
+
+    def decided_passages(self, decided: dict) -> Passages:
+        """The passage reading under standing retirement outcomes
+        (`projection.retirement_outcomes`)."""
+        carried = tuple(
+            sorted(
+                (widget, outcome)
+                for widget, outcome in decided.items()
+                if widget in self.passages.enclosing
+            )
+        )
+        if not carried:
+            return self.passages
+        # One read of the pair: threads share a held reading, and another's
+        # outcomes may replace it between a check and a second read.
+        held = self._decided
+        if held is None or held[0] != carried:
+            held = (carried, page_passages(self.document, self.registry, dict(carried)))
+            self._decided = held
+        return held[1]
 
 
 def enclosing_of(spk: dict) -> dict:
@@ -637,14 +700,3 @@ def enclosing_ids(document: SourceDocument) -> dict:
     is the reading for a caller that may not raise on the registry gate — it can
     have where an element sits, and must not ask what it says."""
     return page_passages(document, {}).enclosing
-
-
-def active_enclosing(page_dir: Path) -> dict:
-    """Where every id sits on the page the user is looking at.
-
-    The newest valid revision is the live page. A page with no valid revision has
-    nowhere for an element to sit."""
-    revision = latest_revision(page_dir)
-    if revision is None:
-        return {}
-    return enclosing_ids(parse_revision(page_dir, revision))

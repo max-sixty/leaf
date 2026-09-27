@@ -3,12 +3,10 @@
 import hashlib
 import re
 from html import escape
-from pathlib import Path
 from urllib.parse import urlsplit
 
 import turbohtml
 
-from .files import file_stamp, revision_path
 from .schema import MEDIA_DIR
 
 DELIVERY_ENCODING_META = '<meta charset="utf-8" data-lf-runtime>'
@@ -81,7 +79,7 @@ AUTHORED_ALLOCATIONS = {
 PAGE_ALLOCATIONS = frozenset({"data-rail"})
 # Page-level declarations the runtime reads from <meta name="lf-*"> in the head,
 # name → allowed content values (None = free-form). A misspelled name or value
-# would silently declare nothing in the browser, so `version check` owns this
+# would silently declare nothing in the browser, so `page check` owns this
 # vocabulary the way the registry owns lf-* elements.
 LF_META = {"lf-review": frozenset({"sign-off"})}
 # The public CDNs a page may load from, the set a Claude artifact page is given:
@@ -792,21 +790,6 @@ def links_with_rel(links: list[dict], rel: str) -> list[dict]:
     """The indexed links declaring one relation. `rel` carries a space-separated
     token list, so a relation is a token in it rather than a substring of it."""
     return [link for link in links if rel.lower() in rel_tokens(link["attrs"])]
-
-
-_revisions = {}  # revision file -> (its stamp, the parsed source document)
-
-
-def parse_revision(page_dir: Path, revision: int) -> SourceDocument:
-    """One cached source document for an immutable working revision."""
-    path = revision_path(page_dir, revision)
-    stamp = file_stamp(path)
-    if stamp and (held := _revisions.get(path)) and held[0] == stamp:
-        return held[1]
-    parser = SourceDocument(path.read_text(encoding="utf-8"))
-    if stamp:
-        _revisions[path] = (stamp, parser)
-    return parser
 
 
 def review_mode(document: SourceDocument):

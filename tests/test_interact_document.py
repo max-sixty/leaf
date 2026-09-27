@@ -783,6 +783,7 @@ def test_the_position_fold_matches_the_browser_cases(case):
         report_settlements={},
         classified={},
         absorbed=frozenset(),
+        standing=frozenset(),
     )
     order = projection_model.folded_positions(
         "board",

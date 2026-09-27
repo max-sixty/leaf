@@ -35,6 +35,9 @@ def browser_projection(
                 "restated": restated,
                 # A later revision absorbed this move; its markup places the unit.
                 "absorbed": event["id"] in projection.absorbed,
+                # An action nothing has taken back or retracted, which stands at its
+                # coordinate once every newer one is withdrawn.
+                "stands": event["id"] in projection.standing,
             }
         )
     return {

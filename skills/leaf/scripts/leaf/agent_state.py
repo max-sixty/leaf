@@ -432,7 +432,7 @@ def _write_page_state(
         workflows = [
             workflow
             for workflow in state["workflows"]
-            if thread_reading.subject_thread(workflow["subject"]) == thread_id
+            if workflow["thread"] == thread_id
         ]
         obligations = set(state["activity"]["obligations"])
         state = {

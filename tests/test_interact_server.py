@@ -2257,7 +2257,9 @@ def test_undo_candidates_keep_only_standing_user_gestures():
             "text": "answered",
         },
     ]
-    empty = projection_model.StateProjection({}, {}, {}, {}, {}, frozenset())
+    empty = projection_model.StateProjection(
+        {}, {}, {}, {}, {}, frozenset(), frozenset()
+    )
     document = document_reading_model.DocumentReading(
         None, empty, {}, None, [], {}, {}, {}
     )

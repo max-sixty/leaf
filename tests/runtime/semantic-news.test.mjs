@@ -61,6 +61,7 @@ const responseFailure = (source, kind = "failed") =>
     id: "input",
     input: "input",
     subject: { kind: "thread", id: "t" },
+    thread: "t",
     coordinate: ["thread", "t"],
     seq: 3,
     answer: null,
@@ -206,6 +207,21 @@ test("current content versions and admitted messages determine arrivals", () => 
     }),
   );
   assert.deepEqual(same.news, []);
+});
+
+test("a failed answer to a move in a thread's markup is news about that thread", () => {
+  const baseline = observeSemanticNews(null, reading());
+  // The server stamps the thread the widget was frozen into.
+  const move = {
+    ...responseFailure({ attempt: "attempt" }),
+    subject: { kind: "widget", id: "pick" },
+    coordinate: ["pick", "pick", "choose"],
+  };
+  const failed = observeSemanticNews(baseline.observed, reading({ workflows: [move] }));
+  assert.deepEqual(
+    failed.news.map(({ kind, thread }) => [kind, thread]),
+    [["response_failure", "t"]],
+  );
 });
 
 test("every canonical receipt survives one read and failed requests reopen asks", () => {

@@ -171,7 +171,7 @@ import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
 import { offer } from "./runtime/widget-elements.js";
 
-const panelElements = createThreadPanelElements();
+const panelElements = createThreadPanelElements({ id: "lf-threads" });
 const { panel, closeBtn, panelFoot, threadsBox, narrowingView } = panelElements;
 const threadListController = createThreadListController(panelElements);
 const panelIsOpen = () => auxiliarySurfaces.selectedSurface() === panel;

@@ -11,7 +11,11 @@ import { under } from "../shadow.js";
 import { declareOccluder } from "../geometry.js";
 import { textField } from "../composing/text-field.js";
 
-export function createThreadPanelElements({ id = "lf-threads" } = {}) {
+let nextPanelId = 0;
+
+export function createThreadPanelElements({
+  id = `lf-thread-panel-${++nextPanelId}`,
+} = {}) {
   const panel = el("dialog", "lf-ui lf-thread-panel");
   panel.id = id;
   const panelHead = el("div", "lf-thread-panel-head");

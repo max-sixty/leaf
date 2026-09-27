@@ -2635,8 +2635,8 @@ def test_two_standard_thread_lists_share_updates_but_not_local_state(browser, se
           const host = document.createElement('div');
           host.style.cssText = 'display:flex; gap:24px; position:relative; z-index:50';
           document.body.append(host);
-          const mount = (id) => {
-            const elements = createThreadPanelElements({ id });
+          const mount = () => {
+            const elements = createThreadPanelElements();
             const { panel, threadsBox, narrowingView } = elements;
             panel.style.cssText = 'position:relative; inset:auto; width:420px; height:560px; margin:0';
             host.append(panel);
@@ -2671,13 +2671,15 @@ def test_two_standard_thread_lists_share_updates_but_not_local_state(browser, se
             controller.mountThreadList(() => true);
             return { ...elements, handle };
           };
-          window.__testThreadPanels = [mount('test-panel-a'), mount('test-panel-b')];
+          window.__testThreadPanels = [mount(), mount()];
           await refreshThread();
         }"""
     )
 
-    a = page.locator("#test-panel-a")
-    b = page.locator("#test-panel-b")
+    ids = page.evaluate("() => window.__testThreadPanels.map(({ panel }) => panel.id)")
+    assert len({"lf-threads", *ids}) == 3
+    a = page.locator(f"#{ids[0]}")
+    b = page.locator(f"#{ids[1]}")
     expect(a.locator(".lf-thread")).to_have_count(2)
     expect(b.locator(".lf-thread")).to_have_count(2)
     expect(

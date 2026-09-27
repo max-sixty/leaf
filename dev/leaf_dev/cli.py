@@ -8,10 +8,14 @@ from pathlib import Path
 
 import click
 
+from leaf_dev.bench_check import bench_check
+from leaf_dev.bench_latency import bench_latency
 from leaf_dev.bugback import bugback
+from leaf_dev.delivery_ab import delivery_ab
 from leaf_dev.flake import flake
 from leaf_dev.harness import build_arm
 from leaf_dev.probe import probe
+from leaf_dev.profile import profile
 from leaf_dev.stills import stills
 
 
@@ -32,3 +36,7 @@ cli.add_command(bugback)
 cli.add_command(flake)
 cli.add_command(probe)
 cli.add_command(stills)
+cli.add_command(bench_latency)
+cli.add_command(profile)
+cli.add_command(bench_check)
+cli.add_command(delivery_ab)

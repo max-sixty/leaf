@@ -13,14 +13,14 @@ Everything lives under `.tmp/arrangement-eval/`, and commands take names:
   scorer's and the camera's.
 - `runs/<batch>/scores.json`, `reviews/` and `reviews-flip/`: one per batch.
 
-Arms. Both are `scripts/eval_harness.py`'s payload at one git ref, so neither carries
+Arms. Both are `dev/leaf_dev/harness.py`'s payload at one git ref, so neither carries
 the history or the worked corpus that would show an author the other arm's vocabulary.
 `plain_arm.build` takes the arrangement vocabulary out of `plain`, and `arms` renders
 its smoke page, which uses the plain guide's width hook, so a theme that stops
 honouring the hook fails the build rather than every plain run. `skills/` is made
 read-only, so no author writes into a payload another run reads.
 
-Runs. A child is `eval_harness.claude_child`, isolated from the user's `CLAUDE.md`,
+Runs. A child is `leaf_dev.harness.claude_child`, isolated from the user's `CLAUDE.md`,
 their memory and the installed Leaf plugin as that module describes. An author reads the
 arm's `SKILL.md` by path, as a host that loaded the skill would hand it over, runs the
 arm's launcher as `$LEAF`, and keeps its pages and claims under the run's own state
@@ -52,7 +52,6 @@ import re
 import shutil
 import statistics
 import subprocess
-import sys
 import tempfile
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -62,11 +61,7 @@ from pathlib import Path
 
 import click
 import plain_arm
-
-HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
-from eval_harness import (
+from leaf_dev.harness import (
     blocks,
     build_arm,
     completed,
@@ -76,8 +71,10 @@ from eval_harness import (
     run_leaf,
     scratch,
 )
-from eval_harness import trace_result as result
+from leaf_dev.harness import trace_result as result
 
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parents[1]
 DATA = ROOT / ".tmp/arrangement-eval"
 SUBJECTS = ("document", "dashboard", "queue")
 ARMS = ("leaf", "plain")

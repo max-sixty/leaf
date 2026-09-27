@@ -1859,6 +1859,21 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
     assert codex["activity"]["kind"] == "away"
 
     assert page_state(claimed)["activity"]["kind"] == "listening"
+    # The fresh turn is someone there under a working declaration gone stale too,
+    # so that old work reads stalled rather than away.
+    files_model.write_json(
+        claimed / "status.json",
+        {
+            "state": "working",
+            "detail": "an old task",
+            "ts": "2020-01-01T00:00:00+00:00",
+        },
+    )
+    assert page_state(claimed)["activity"]["kind"] == "stalled"
+    files_model.write_json(
+        claimed / "status.json",
+        {"state": "waiting", "detail": "", "ts": now.isoformat(), "after": 0},
+    )
     claim = service_model.page_claim(claimed)
     opened = now - activity_model.WORKING_GRACE - timedelta(minutes=1)
     files_model.write_json(

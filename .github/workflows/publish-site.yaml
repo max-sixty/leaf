@@ -23,10 +23,10 @@ on:
       - 'dev/leaf_dev/__init__.py'
       - 'dev/leaf_dev/harness.py'
       - 'dev/leaf_dev/example_data.py'
-      - 'scripts/example_assets.py'
+      - 'dev/leaf_dev/example_assets.py'
       - 'dev/leaf_dev/page_fixtures.py'
       - 'scripts/preview.py'
-      - 'scripts/site.py'
+      - 'dev/leaf_dev/site.py'
       - 'scripts/verify_site.py'
       - 'worker/**'
       - 'Dockerfile.website'
@@ -72,7 +72,7 @@ jobs:
         run: |
           release=$(printf '%s:%s:%s' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" | sha256sum | cut -d' ' -f1)
           echo "LEAF_SITE_RELEASE=$release" >> "$GITHUB_ENV"
-          LEAF_SITE_RELEASE="$release" uv run scripts/site.py
+          LEAF_SITE_RELEASE="$release" uv run leaf-dev site
 
       - run: npm run typecheck
         working-directory: worker

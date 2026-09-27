@@ -15,7 +15,8 @@ the rest of the tree.
 ## Where tooling goes
 
 When agents keep writing the same throwaway script, the job becomes a `leaf-dev`
-command: a module here that owns its mechanism, registered in `cli.py`. A mechanism
+command: a module here that owns its mechanism, registered in `cli.py`. Standing
+tooling that CI, a hook or an alias runs is a command here too. A mechanism
 two tools need, such as building an arm or serving a page, lives in one module here
 and the others import it; a script under `scripts/` imports it too.
 
@@ -32,3 +33,19 @@ and the others import it; a script under `scripts/` imports it too.
   reached by input, on a base runtime and HEAD's, and crops each state that changed
   into a before/after pair under `.tmp/stills/`.
 - `leaf-dev arm REF DEST` builds one arm, for an eval's A/B (`evals/README.md`).
+
+## Website and demo
+
+These commands write what a committed file or a deploy reads, so CI, `worker/`'s npm
+scripts and `.config/wt.toml` call them. Their output lands under `.tmp/` except the
+catalog pin in `example-previews.json` and the demo frames the README and site cards
+draw.
+
+- `leaf-dev site [--serve]` builds <https://leaf.page/> into `.tmp/site`;
+  `scripts/verify_site.py` verifies what it built.
+- `leaf-dev fetch-previews` fetches the catalog previews pinned in
+  `example-previews.json` (`example_assets.py`, which the site build also calls).
+  `leaf-dev refresh-previews`, run as `wt refresh-previews`, recaptures them,
+  republishes them to `max-sixty/leaf-assets`, and updates the pin.
+- `leaf-dev record-demo` regenerates `docs/demo.gif`, the README stills, and
+  `docs/session-card.png`.

@@ -763,7 +763,7 @@ export default [
     },
   },
   {
-    files: ["scripts/record-demo-browser.js"],
+    files: ["dev/leaf_dev/record_demo_browser.js"],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
     rules: { "no-undef": "error" },
   },

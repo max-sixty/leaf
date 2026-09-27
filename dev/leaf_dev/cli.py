@@ -1,15 +1,20 @@
 """`leaf-dev`: the commands Leaf's developers run, and agents run for them.
 
-A command belongs here once agents keep rewriting it as a throwaway script. Each
-lives in the module that owns its mechanism and is registered below.
+A command belongs here once agents keep rewriting it as a throwaway script, or once
+CI, a hook or an alias runs it. Each lives in the module that owns its mechanism and
+is registered below; `python -m leaf_dev` runs the same group (`__main__.py`).
 """
 
 from pathlib import Path
 
 import click
 
+from leaf_dev.example_assets import fetch_previews
+from leaf_dev.example_previews import refresh_previews
 from leaf_dev.harness import build_arm
 from leaf_dev.probe import probe
+from leaf_dev.record_demo import record_demo
+from leaf_dev.site import site
 from leaf_dev.stills import stills
 
 
@@ -28,3 +33,7 @@ def arm(ref: str, dest: Path) -> None:
 
 cli.add_command(probe)
 cli.add_command(stills)
+cli.add_command(site)
+cli.add_command(fetch_previews)
+cli.add_command(refresh_previews)
+cli.add_command(record_demo)

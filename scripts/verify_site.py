@@ -49,6 +49,8 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = ROOT / ".tmp" / "site" / "_leaf" / "site.json"
+# The site build, run from ROOT, which writes ROOT/.tmp/site (`leaf_dev.site`).
+BUILD_SITE = [sys.executable, "-m", "leaf_dev", "site"]
 VERIFIER_SCRIPT = ROOT / "scripts" / "verify-site-browser.js"
 PAGES = (
     ("/", "product", True),
@@ -1271,7 +1273,7 @@ def local_adapter():
             (ROOT / "worker" / "codex-config.toml").read_text(),
         )
         subprocess.run(
-            [sys.executable, str(ROOT / "scripts" / "site.py")],
+            BUILD_SITE,
             cwd=ROOT,
             stdout=output,
             stderr=subprocess.STDOUT,
@@ -1378,7 +1380,7 @@ def local_worker() -> Iterator[str]:
 
 
 def built_release(requested: str | None) -> str:
-    """The release `site.py` last built, which a requested release must match."""
+    """The release `leaf-dev site` last built, which a requested release must match."""
     built = json.loads(MANIFEST.read_text(encoding="utf-8"))["release"]
     check(
         requested is None or requested == built,

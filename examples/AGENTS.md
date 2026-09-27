@@ -97,5 +97,5 @@ Draw a before/after pair rather than capturing it. Draw both images at one heigh
 at twice the width the shot gets on the page as measured from the layout, and take
 the palette from the pair already here. A mock's generator belongs in scratch, since
 nothing can make a depicted console false. A generator for images that depict Leaf
-itself, such as `scripts/record-demo.py`, stays in `scripts/` because a change to
-Leaf can make them stale.
+itself, such as `leaf-dev record-demo`, is tracked tooling rather than scratch,
+because a change to Leaf can make those images stale and they need regenerating.

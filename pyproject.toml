@@ -15,7 +15,7 @@
 # passed on.
 #
 # The dev group is what the suite and `scripts/` need on top of the runtime:
-# pytest, the accessibility checks, the demo recorder's frames, and the filesystem
+# pytest, the accessibility checks, screenshot assertions, and the filesystem
 # watcher behind `scripts/preview.py`. These run here rather than carrying
 # dependency headers of their own — developer tools like the suite, so one environment
 # covers both. `bin/leaf` passes `--no-dev`, so an install never fetches the group,
@@ -82,7 +82,7 @@ dev = [
   "pytest-xdist>=3",
   "axe-playwright-python>=0.1.4",
   "pre-commit>=4.6.2",
-  # Browser screenshot assertions and scripts/record-demo.py's frames.
+  # Browser screenshot assertions.
   "pillow>=12.1",
   "pytest-regtest>=2.7",
   # The YAML snapshots `interact_support.yaml_document` writes.

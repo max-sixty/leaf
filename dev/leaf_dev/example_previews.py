@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Regenerate the public catalog's stills from the live example routes.
 
 The public gallery shows a real first viewport for each example, but the site build
@@ -8,11 +7,10 @@ server with an isolated state home, publishes the asset commit, updates Leaf's e
 pin and catalog links, then rebuilds the site from the pinned bytes. Host pages are
 not part of the captured scene.
 
-Usage: wt refresh-previews
+    uv run leaf-dev refresh-previews    (or `wt refresh-previews`)
 """
 
 import hashlib
-import importlib.util
 import io
 import json
 import os
@@ -25,15 +23,18 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from example_assets import LOCK, specification
-from example_assets import example_previews as locked_previews
+import click
 from leaf.hosting import LeafHTTPServer
 from leaf.render_checks import wait_until_ready
-from leaf_dev.example_data import catalog_sources
 from PIL import Image
 from playwright.sync_api import Page, sync_playwright
 
-ROOT = Path(__file__).resolve().parent.parent
+from leaf_dev import ROOT
+from leaf_dev import site as site_build
+from leaf_dev.example_assets import LOCK, specification
+from leaf_dev.example_assets import example_previews as locked_previews
+from leaf_dev.example_data import catalog_sources
+
 DOCS = ROOT / "docs"
 VIEWPORT = {"width": 1120, "height": 700}
 # docs/index.html and docs/examples.html reserve this 8:5 box before a preview loads.
@@ -42,17 +43,6 @@ REQUIRED_FONTS = {
     ".lf-status-text": ".SF NS",
     ".lede": "Charter",
 }
-
-_spec = importlib.util.spec_from_file_location(
-    "leaf_site", ROOT / "scripts" / "site.py"
-)
-site_build = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(site_build)
-_server_spec = importlib.util.spec_from_file_location(
-    "website_server", ROOT / "worker" / "server.py"
-)
-website_server = importlib.util.module_from_spec(_server_spec)
-_server_spec.loader.exec_module(website_server)
 
 
 @contextmanager
@@ -65,9 +55,9 @@ def serve_examples(site: Path) -> Iterator[str]:
     with tempfile.TemporaryDirectory(prefix="leaf-preview-state-") as state_home:
         os.environ["XDG_STATE_HOME"] = state_home
         try:
-            website_server.page_binding.cache_clear()
+            site_build.worker_server.page_binding.cache_clear()
             server = LeafHTTPServer(
-                ("127.0.0.1", 0), website_server.site_endpoint(site)
+                ("127.0.0.1", 0), site_build.worker_server.site_endpoint(site)
             )
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
@@ -199,7 +189,9 @@ def publish(checkout: Path) -> str:
     return revision
 
 
-def main() -> None:
+@click.command("refresh-previews")
+def refresh_previews() -> None:
+    """Recapture, publish and repin the catalog previews."""
     captures: dict[str, bytes] = {}
 
     with (
@@ -245,9 +237,5 @@ def main() -> None:
             catalog_previews=checkout / "examples",
         )
         revision = publish(checkout)
-        print(f"  max-sixty/leaf-assets@{revision}")
-    print(f"✓ {len(catalog_sources())} previews")
-
-
-if __name__ == "__main__":
-    main()
+        click.echo(f"  max-sixty/leaf-assets@{revision}")
+    click.echo(f"✓ {len(catalog_sources())} previews")

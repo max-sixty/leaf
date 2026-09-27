@@ -91,7 +91,7 @@ import {
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
-import { LIVE_ROOT, PAGE_SCOPE, tabStore, versionUrl } from "./storage.js";
+import { LIVE_ROOT, PAGE_SCOPE, tabStore } from "./storage.js";
 import { alignInlineText } from "./text-alignment.js";
 import { el, keeps, layoutChanged, quoted, reveal } from "./widget-elements.js";
 import { showNews } from "./banner-shelf.js";
@@ -102,6 +102,7 @@ import { reportPageError } from "./layer-client.js";
 import { projectView, readApplication } from "./semantic-state.js";
 
 import { anchoringIsReady, fragmentTarget } from "./anchor-resolution.js";
+import { scrollToFragment } from "./anchor-travel.js";
 import { rowWalk } from "./walk-position.js";
 import {
   domValue,
@@ -1013,14 +1014,15 @@ export function createVersionController({
     const mine = ++diffRequest;
     diffPendingBase = base;
     presentChooser();
-    const baseRevision = stamped(base)?.revision;
+    const baseVersion = stamped(base);
+    const baseRevision = baseVersion?.revision;
     if (baseRevision == null) {
       diffPendingBase = null;
       presentChooser();
       notice(`Couldn't load v${base}`);
       return;
     }
-    const documentRequest = authoredDocument(versionUrl(base));
+    const documentRequest = authoredDocument(baseVersion.url);
     let doc;
     let reading;
     try {
@@ -1819,14 +1821,15 @@ export function createVersionController({
   // disclosure over it, or declares a strip that covers it, and before presentation
   // adds controls above it; so the arrival lands it again at each step that changes
   // the page's geometry: once widgets upgrade, before the first state read, and once
-  // the page presents. Each landing is the browser's own rule, the target's start at
-  // its scroller's landing edge, taken in the geometry of that step, so a target nothing
-  // moved stays where it is. The fragment is read before widgets upgrade, since a widget
-  // may write its own view into the URL (a root tab set names its open panel), and that
-  // is display state, not a destination. A reload or history traversal keeps the
-  // browser's restored offset instead, and input during the arrival ends it. A fragment
-  // followed once the page is here is travel's (anchor-travel.js, `followFragment`),
-  // which reads the same destination and reveals it the same way.
+  // the page presents. Each landing is the browser's own rule (`scrollToFragment`), the
+  // target's start at its scroller's landing edge, taken in the geometry of that step,
+  // so a target nothing moved stays where it is. The fragment is read before widgets
+  // upgrade, since a widget may write its own view into the URL (a root tab set names
+  // its open panel), and that is display state, not a destination. A reload or history
+  // traversal keeps the browser's restored offset instead, and input during the arrival
+  // ends it. A fragment followed once the page is here is travel's (anchor-travel.js,
+  // `followFragment`), as is Back or Forward to one the page has hidden since
+  // (`returnToFragment`); both read the same destination and reveal it the same way.
   let aimedAt = null;
   function aimArrival() {
     const fresh = performance.getEntriesByType("navigation")[0]?.type === "navigate";
@@ -1836,11 +1839,7 @@ export function createVersionController({
       aimedAt ??= fresh && fragmentTarget(arrivedAt);
       if (!aimedAt || !currentIntent()) return;
       reveal(aimedAt, currentIntent);
-      aimedAt.scrollIntoView({
-        block: "start",
-        inline: "nearest",
-        behavior: "instant",
-      });
+      scrollToFragment(aimedAt);
     };
   }
 

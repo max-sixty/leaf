@@ -30,6 +30,7 @@ from interact_support import (
     append_command,
     publish,
     running_http_server,
+    take_stream_activity,
     yaml_document,
 )
 from leaf import codex as leaf_codex
@@ -127,23 +128,6 @@ def write_manifest(site: Path, pages: dict[str, tuple[str, str]]) -> None:
     target = site / website_server.SITE_MANIFEST
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(manifest), encoding="utf-8")
-
-
-def take_stream_activity(monkeypatch, updates: list, clears: list) -> None:
-    """Collect every activity reading a turn writes, instead of a page taking it.
-
-    Two bindings of the same two functions write them: the host calls them for a
-    turn it is starting or giving up on, and `leaf.codex` calls them for everything
-    the projection reads off the stream. A test that wants the readings, or wants
-    them to touch nothing, has to say so at both.
-    """
-    for module in (website_server, leaf_codex):
-        monkeypatch.setattr(
-            module, "set_stream_activity", lambda *args: updates.append(args)
-        )
-        monkeypatch.setattr(
-            module, "clear_stream_activity", lambda *args: clears.append(args)
-        )
 
 
 def hosted_follower(
@@ -2336,7 +2320,7 @@ def test_the_website_host_keeps_its_claim_listening_through_the_agent_turn(
         assert state["activity"]["observed_kind"] == "working"
         assert state["activity"]["obligations"][0]["input"] == comment["id"]
 
-        website_server.set_stream_activity(
+        leaf_codex.set_stream_activity(
             "hosted-thread",
             "app-server-turn",
             {"kind": "tool", "detail": "Editing index.html"},

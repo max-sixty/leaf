@@ -30,6 +30,7 @@ const RELEASE = "a".repeat(64);
 const LAYER = "edge-layer";
 const MANIFEST = {
   release: RELEASE,
+  frame_ancestors: "frame-ancestors 'none'",
   routes: {
     layer: ["runtime", "widgets", "vendor"],
     session: ["media", "revisions", "versions"],
@@ -235,7 +236,7 @@ describe("product-site delivery", () => {
       expect(assetFetch).toHaveBeenCalledOnce();
       expect(getContainer).not.toHaveBeenCalled();
       expect(response.headers.get("Content-Security-Policy")).toBe(
-        "frame-ancestors 'none'",
+        MANIFEST.frame_ancestors,
       );
       expect(response.headers.get("Set-Cookie")).toMatch(
         /^__Host-leaf-page=[0-9a-f]{32}; Path=\/; Secure; HttpOnly; SameSite=Lax$/,

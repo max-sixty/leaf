@@ -201,6 +201,22 @@ def test_interaction_trace_does_not_change_page_or_presence_readings(page_dir):
     assert presence_model._page_stamp(page_dir) != presence_stamp
 
 
+@pytest.mark.parametrize("name", schema_model.SESSION_FILES)
+def test_a_session_write_does_not_revalidate_the_source(page_dir, monkeypatch, name):
+    """Declaring status, acknowledging a delivery, or taking a wait writes a session
+    file, and the next state read holds the activation it had rather than validating
+    the whole page again: on a large page that re-validation was most of the time a
+    status took to reach the banner."""
+    assert revisioning_model.activate_source(page_dir).error is None
+
+    def revalidated(*_args, **_kwargs):
+        raise AssertionError(f"writing {name} re-validated the source")
+
+    monkeypatch.setattr(revisioning_model, "check_source", revalidated)
+    (page_dir / name).write_text("{}")
+    assert revisioning_model.activate_source(page_dir).error is None
+
+
 def test_a_staged_write_moves_neither_the_page_nor_its_presence_reading(page_dir):
     """An atomic write stages its bytes beside the target before the rename, and a
     look between the two sees a file the page never has. Both readings of the page

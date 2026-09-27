@@ -17,14 +17,12 @@ from datetime import datetime
 from pathlib import Path
 
 from .event_log import jsonl_line, require_cross_process_locking
+from .schema import INTERACTIONS_FILE
 
 try:
     import fcntl
 except ImportError:  # pragma: no cover - unsupported non-POSIX platform
     fcntl = None
-
-
-INTERACTIONS_FILE = "interactions.jsonl"
 
 
 def now_iso() -> str:

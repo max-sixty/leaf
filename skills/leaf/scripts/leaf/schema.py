@@ -498,6 +498,8 @@ NO_KEY = "open the link leaf printed; it carries the key"
 DATA_FILE = "data.json"
 DATA_DIR = "data"
 EVENTS_FILE = "events.jsonl"
+# The diagnostic request and interaction trace (`interaction_log.py`).
+INTERACTIONS_FILE = "interactions.jsonl"
 PREVIEW_FILE = "preview.json"
 VIEWED_FILE = "viewed.json"
 # One name, because there is one key (`host_key`). Cookies are scoped by host and
@@ -509,10 +511,12 @@ CURSOR_FILE = "cursor.json"
 SERVICE_FILE = "service.json"
 SERVER_LOCK = "server.lock"
 WAITER_LOCK = "waiter.lock"
-PAGE_STATE_FILES = (
-    EVENTS_FILE,
+# What a page records about who is working on it and how it is served, as against what
+# its author wrote (the source) and what it has accumulated (the log and its revisions).
+# Neither validation nor a revision's capture reads these, so a write to one is news to
+# an open tab and never a candidate revision.
+SESSION_FILES = (
     STATUS_FILE,
-    DATA_FILE,
     WAITER_LOCK,
     CURSOR_FILE,
     VIEWED_FILE,
@@ -520,6 +524,9 @@ PAGE_STATE_FILES = (
     SERVER_LOCK,
     PREVIEW_FILE,
 )
+# The files Leaf writes in a page directory as it runs. With the author's index.html,
+# the vendored files, and PAGE_OWNED_DIRS, the whole of page-storage.md's "Files".
+PAGE_STATE_FILES = (EVENTS_FILE, INTERACTIONS_FILE, DATA_FILE, *SESSION_FILES)
 PAGE_OWNED_FILES = ("index.html", *VENDORED_FILES, *PAGE_STATE_FILES)
 PAGE_OWNED_DIRS = ("revisions", *PACKAGE_DIRS, MEDIA_DIR, DATA_DIR, "page")
 # A revision's and a version's file name, without `.html`.

@@ -863,12 +863,12 @@ function recordAcceptedEvent(
   });
 }
 
-function staticAssetResponse(response: Response): Response {
+function staticAssetResponse(response: Response, manifest: SiteManifest): Response {
   const contentType = response.headers.get("Content-Type")?.split(";", 1)[0].trim();
   if (contentType?.toLowerCase() !== "text/html") return response;
 
   const headers = new Headers(response.headers);
-  headers.append("Content-Security-Policy", "frame-ancestors 'none'");
+  headers.append("Content-Security-Policy", manifest.frame_ancestors);
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -895,12 +895,12 @@ async function siteManifest(request: Request, env: Env): Promise<SiteManifest> {
 function stampedStaticResponse(
   response: Response,
   route: PageRoute,
-  release: string,
+  manifest: SiteManifest,
 ): Response {
-  const staticResponse = staticAssetResponse(response);
+  const staticResponse = staticAssetResponse(response, manifest);
   const headers = new Headers(staticResponse.headers);
   headers.set("Leaf-Layer", route.layer);
-  headers.set("Leaf-Release", release);
+  headers.set("Leaf-Release", manifest.release);
   return new Response(staticResponse.body, {
     status: staticResponse.status,
     statusText: staticResponse.statusText,
@@ -993,7 +993,7 @@ export default {
       const response = stampedStaticResponse(
         await env.ASSETS.fetch(new Request(assetUrl, request)),
         releasedAsset.route,
-        manifest.release,
+        manifest,
       );
       const headers = new Headers(response.headers);
       headers.set("Cache-Control", "public, max-age=31536000, immutable");
@@ -1005,7 +1005,7 @@ export default {
     }
     const route = pageRoute(pathname, manifest);
     if (route === null) {
-      return staticAssetResponse(await env.ASSETS.fetch(request));
+      return staticAssetResponse(await env.ASSETS.fetch(request), manifest);
     }
     if (needsPageSlash(pathname, route)) {
       const canonical = new URL(request.url);
@@ -1057,7 +1057,7 @@ export default {
       const response = stampedStaticResponse(
         await env.ASSETS.fetch(request),
         route,
-        manifest.release,
+        manifest,
       );
       if (
         response.status !== 404 ||

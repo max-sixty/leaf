@@ -10,22 +10,22 @@
  * instead (measured: Back to `#s2` after reading 3000px down landed on `#s2` at 666).
  * So every same-document traversal comes through here, through the Navigation API. An
  * owner that claims the destination (`claimTraversals`) places the page itself, as a
- * root tab set does for the entry of each of its views. Any other traversal is
+ * root tab set does for the entry of each of its views. Travel takes the traversal next
+ * (`mountHistory`'s `returnToFragment`, anchor-travel.js) where the entry's fragment
+ * names a place the page no longer shows: the offset was saved over a page that has
+ * changed, so travel reveals the place and lands on it. Any other traversal is
  * intercepted only so the browser restores the entry's saved offset, which it does for
- * an intercepted traversal. The one exception is an entry whose fragment names an
- * element the page no longer shows (a tab or disclosure closed since): the offset was
- * saved over a page that has changed, so the browser's own fragment landing, which
- * reveals the element, answers instead. Focus stays where it is either way, as an
- * unintercepted traversal leaves it.
+ * an intercepted traversal. Focus stays where it is either way, as an unintercepted
+ * traversal leaves it.
  *
  * A fragment navigation, a followed `#id` link, is not a traversal: it adds its entry
- * and is a trip to the element it names. The travel owner claims it (`mountHistory`'s
- * `followFragment`, anchor-travel.js) where the fragment names an element of the page,
- * and lands it through the browser's own fragment scroll once travel has cleared and
- * revealed the way; any other fragment keeps native landing. An entry this document
- * writes through `pushEntry` or `replaceEntry`, as travel and a tab set do, is not a
- * fragment navigation and is never claimed. A browser without the Navigation API keeps its own traversals and
- * fragment landings. */
+ * and is a trip to the element it names. Travel claims it (`followFragment`) where the
+ * fragment names an element of the page, and lands it through the browser's own
+ * fragment scroll once travel has cleared and revealed the way; any other fragment
+ * keeps native landing. An entry this document writes through `pushEntry` or
+ * `replaceEntry`, as travel and a tab set do, is not a fragment navigation and is never
+ * claimed. A browser without the Navigation API keeps its own traversals and fragment
+ * landings. */
 
 const claims = new Set();
 
@@ -59,43 +59,33 @@ export function claimTraversals(claim, { signal } = {}) {
 }
 
 let mounted = false;
-export function mountHistory({ followFragment }) {
+export function mountHistory({ followFragment, returnToFragment }) {
   if (mounted) return;
   mounted = true;
   window.navigation?.addEventListener("navigate", (event) => {
     if (!event.destination.sameDocument || !event.canIntercept) return;
     const url = new URL(event.destination.url);
-    if (event.navigationType !== "traverse") {
-      // A followed link again to the fragment already shown is a `replace` with no
-      // hash change, and still a trip: its target may have been shut since.
-      if (writing || event.formData || !url.hash) return;
-      const arrive = followFragment(url);
-      if (arrive)
-        event.intercept({
-          scroll: "manual",
-          focusReset: "manual",
-          handler: () => arrive(() => event.scroll()),
-        });
+    if (event.navigationType === "traverse") {
+      const handler = claimed(url) ?? returnToFragment(url);
+      event.intercept(
+        handler
+          ? { scroll: "manual", focusReset: "manual", handler }
+          : { focusReset: "manual" },
+      );
       return;
     }
-    for (const claim of claims) {
-      const handler = claim(url);
-      if (!handler) continue;
-      event.intercept({ scroll: "manual", focusReset: "manual", handler });
-      return;
-    }
-    if (hiddenTarget(url.hash)) return;
-    event.intercept({ focusReset: "manual" });
+    // A followed link again to the fragment already shown is a `replace` with no hash
+    // change, and still a trip: its target may have been shut since.
+    if (writing || event.formData || !url.hash) return;
+    const handler = followFragment(url, () => event.scroll());
+    if (handler) event.intercept({ scroll: "manual", focusReset: "manual", handler });
   });
 }
 
-function hiddenTarget(hash) {
-  let id;
-  try {
-    id = decodeURIComponent(hash.slice(1));
-  } catch {
-    return false;
+function claimed(url) {
+  for (const claim of claims) {
+    const handler = claim(url);
+    if (handler) return handler;
   }
-  const target = id && document.getElementById(id);
-  return Boolean(target) && !target.checkVisibility();
+  return null;
 }

@@ -502,7 +502,7 @@ def suggestion_errors(lf_elements: list, registry: dict, thread_ids: set) -> lis
 
 def fragment_errors(parser: SourceDocument, registry: dict) -> list:
     """Structural + registry validation of a markup fragment (an agent reply
-    carrying widgets): the discussion-side analog of `version check`. The declared-word
+    carrying widgets): the discussion-side analog of `page check`. The declared-word
     checks come along because the schema stopped carrying the lists: a reply's
     <lf-code language=…> is colored by the same tokenizer a version's is, and its chips
     are tinted by the same theme, and nothing else would now refuse either a word its

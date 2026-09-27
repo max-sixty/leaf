@@ -59,7 +59,7 @@ const rowSpan = (row) =>
     ? [Number(row.dataset.from), Number(row.dataset.to)]
     : [Number(row.dataset.line)];
 
-// The numbers the body's lines carry, in body order. `version check` holds `lines` to
+// The numbers the body's lines carry, in body order. `page check` holds `lines` to
 // one strictly ascending number per body line (x-numbering), so the two agree here.
 const numbering = (el, count) =>
   el.hasAttribute("lines")
@@ -114,7 +114,7 @@ customElements.define(
         // The gutter fits the widest number, so an excerpt from deep in a file keeps
         // its code aligned with its notes.
         pre.style.setProperty("--lf-code-digits", String(numbers.at(-1)).length);
-        // Every note's line has a row: `version check` refuses an `at` outside the
+        // Every note's line has a row: `page check` refuses an `at` outside the
         // block (x-lines), so there is no leftover to sweep up.
         lines.forEach((tokens, i) => {
           const n = numbers[i];

@@ -557,7 +557,7 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
     assert transcript.exit_code == 0, transcript.output
     assert "> § flow · node:A" in transcript.output
 
-    checked = CliRunner().invoke(cli_model.cli, ["version", "check", str(page_dir)])
+    checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert checked.exit_code == 0, checked.output
 
 
@@ -640,7 +640,7 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
     ]
     stored_root = next(event for event in events if event["id"] == root["id"])
     assert stored_root["anchor"] == root["anchor"]
-    checked = CliRunner().invoke(cli_model.cli, ["version", "check", str(page_dir)])
+    checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert checked.exit_code == 0, checked.output
 
     reattached = CliRunner().invoke(
@@ -837,7 +837,7 @@ def test_a_moving_reply_validates_markup_against_the_prospective_revision(page_d
     assert "reply widget ids already taken" in moved.output and "answer" in moved.output
     assert all(event["kind"] != "reply" for event in events_model.read_events(page_dir))
     assert files_model.latest_revision(page_dir) == 1
-    checked = CliRunner().invoke(cli_model.cli, ["version", "check", str(page_dir)])
+    checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert checked.exit_code == 0, checked.output
 
 
@@ -962,7 +962,7 @@ def test_a_moved_thread_releases_the_visual_part_it_left(page_dir):
 def test_a_resolved_thread_releases_the_visual_part_it_held(page_dir):
     """Closing a thread is the ordinary end of one, and it releases the part on the
     same terms a detach does — the same terms that already release the section id,
-    which `version check` lets a resolved thread's page drop as advice. Held past
+    which `page check` lets a resolved thread's page drop as advice. Held past
     the close, the everyday route out of a thread would be the one route that
     pins a node to its diagram for good."""
     root = json.loads(
@@ -1010,7 +1010,7 @@ def test_reopening_a_thread_does_not_reclaim_a_released_visual_part(page_dir):
     undoable, so a closed thread can come back after the author has already
     published the part away on the licence the close granted. The coordinate cannot
     be restored — no revision declares it any more — so re-asserting it would leave
-    `version check` refusing every later edit, and the only move out would be a
+    `page check` refusing every later edit, and the only move out would be a
     detach that overrides the decision the user just made."""
     root = json.loads(
         comment(
@@ -1409,7 +1409,7 @@ def test_a_decision_the_user_took_back_hands_its_slot_back(page_dir):
 def test_a_version_may_not_honor_a_decision_the_user_took_back(page_dir):
     """The sharpest reading of whether a withdrawal actually undid anything, because
     it is the one the user never sees: honoring a decision is how a version drops
-    the ids the decision retired, and `version check` licenses that only from the
+    the ids the decision retired, and `page check` licenses that only from the
     standing fold. The same v2 is therefore accepted while the accept stands and
     refused the moment it is taken back — which is the file side saying the page is
     pending again, in the one place it could not be saying it out of politeness."""

@@ -1674,7 +1674,7 @@ RING_NAMES = """() => {
 # response bar and the browsed target hint as boxes with no ring on them at all.
 RINGS_DRAWN = f"""async () => {{
   // shownBand, rather than a fourth reading of what a box clips to. Its own comment
-  // carries why: version check --render imports it so the band a handover is refused
+  // carries why: page check --render imports it so the band a handover is refused
   // against and the band the page paints to are one reading, and written twice they
   // disagreed twice. This was the third copy and it was wrong in both of the ways that
   // comment names — it asked only about overflow, so paint containment and

@@ -8,6 +8,7 @@ import re
 import pytest
 from click.testing import CliRunner
 from interact_support import (
+    add_test_widget,
     record_claim,
 )
 from leaf import cli as cli_model
@@ -70,7 +71,6 @@ from render_harness import (
     LONG_PAGE,
     REPLY_HOST_PAGE,
     TOKEN,
-    author_test_widget,
     consume_browser_errors,
     leaf_page,
     margins_laid_out,
@@ -81,6 +81,7 @@ from render_harness import (
     refuse,
     rendered,
     resized,
+    root_overflow,
     sending,
     stamp_page,
     told,
@@ -119,10 +120,7 @@ def test_sort_film_comment_restores_its_input_and_step(browser, serve):
     write(composer.locator("leaf-text"), "Why does this run start here?")
     composer.locator("leaf-text").press("Enter")
     expect(page.get_by_role("dialog", name=re.compile("Thread for"))).to_be_visible()
-    events = [
-        json.loads(line)
-        for line in (serve.page_dir / "events.jsonl").read_text().splitlines()
-    ]
+    events = events_model.read_events(serve.page_dir)
     assert next(event for event in events if event["kind"] == "comment")["anchor"] == {
         "section": "sort-film",
         "visual": "moment:random:7:0",
@@ -776,7 +774,9 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     page = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     toggle = page.locator(".lf-threads-toggle")
-    expect(toggle).to_have_text("Threads (1)")  # counted as open, like any other thread
+    expect(toggle).to_have_text(
+        "Open threads: 1"
+    )  # counted as open, like any other thread
     toggle.click()
     page.locator(".lf-thread-summary").first.click()
     thread = page.locator(".lf-thread").first
@@ -820,7 +820,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
         },
     )
     page = open_page(browser, live_url(url))
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 1")
     stamp_page(d, TWIN_V2, "a twin")
     wait_for_revision(page, 2)
     expect(page.locator(".lf-notice")).not_to_have_class(re.compile(r"\bshow\b"))
@@ -1533,7 +1533,7 @@ def test_a_diagram_takes_the_room_and_scrolls_only_past_it(browser, serve):
     assert wide["board"] > wide["column"] + 1, (
         "and the board must still be growing, or its half of this proves nothing"
     )
-    assert wide["sideways"] == 0, "the page itself must not scroll sideways"
+    assert root_overflow(page) == 0, "the page itself must not scroll sideways"
 
     resized(page, 1000, 900)
     narrow = page.evaluate(DIAGRAM_ROOM)
@@ -1544,7 +1544,7 @@ def test_a_diagram_takes_the_room_and_scrolls_only_past_it(browser, serve):
         "a drawing that no longer fits is still not scaled down"
     )
     assert narrow["scrolls"], "a drawing wider than the room must scroll inside its box"
-    assert narrow["sideways"] == 0, "nor may the page scroll sideways for it"
+    assert root_overflow(page) == 0, "nor may the page scroll sideways for it"
 
 
 def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve):
@@ -1730,7 +1730,7 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
         f"it: drawing from {at['flow']['left']:.0f}px, box from "
         f"{at['flow']['box']['left']:.0f}px"
     )
-    assert at["sideways"] == 0, "the page must not scroll sideways for either"
+    assert root_overflow(page) == 0, "the page must not scroll sideways for either"
 
 
 def test_available_space_uses_the_free_side_of_a_margin_resident(browser, serve):
@@ -1782,7 +1782,6 @@ graph LR
         })(),
         roomLeft: body.left + parseFloat(getComputedStyle(document.body).paddingLeft),
         roomRight: body.right - parseFloat(getComputedStyle(document.body).paddingRight),
-        sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       };
     }""")
     # The spine is the map's resting face, a strip at its left edge the width of its
@@ -1793,7 +1792,7 @@ graph LR
     assert abs(at["box"]["right"] - (at["roomRight"] - 24)) <= 1, at
     assert at["box"]["width"] > 1080, at
     assert at["box"]["left"] < at["column"]["left"] - 100, at
-    assert at["sideways"] == 0, at
+    assert root_overflow(page) == 0, at
 
 
 def test_available_space_is_a_generic_package_capacity(browser, serve):
@@ -1838,14 +1837,13 @@ lf-roomy > section { min-height: 80px; border: 1px solid currentColor; }
           probe.remove();
           return width;
         })(),
-        sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       };
     }""")
     assert abs(at["width"] - at["room"]) <= 1, at
     assert at["width"] > 1600, at
     assert abs(at["children"][0] - at["children"][1]) <= 1, at
     assert at["children"][0] > 750, at
-    assert at["sideways"] == 0, at
+    assert root_overflow(page) == 0, at
     page.close()
 
     source = leaf_page(
@@ -1873,13 +1871,12 @@ lf-roomy > section { min-height: 300px; border: 1px solid currentColor; }
                   top: sidebar.top, bottom: sidebar.bottom},
         surface: {left: surface.left, right: surface.right,
                   top: surface.top, bottom: surface.bottom, width: surface.width},
-        sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       };
     }""")
     assert at["surface"]["top"] < at["sidebar"]["bottom"], at
     assert at["surface"]["left"] >= at["sidebar"]["right"] + 23, at
     assert at["surface"]["width"] > 1080, at
-    assert at["sideways"] == 0, at
+    assert root_overflow(page) == 0, at
 
 
 def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
@@ -1922,7 +1919,7 @@ def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
     assert abs(wide["prose"]["width"] - wide["column"]["width"]) <= 1, (
         "prose keeps its measure whatever the exhibits beside it do"
     )
-    assert wide["sideways"] == 0, "the page must not scroll sideways"
+    assert root_overflow(page) == 0, "the page must not scroll sideways"
 
     # Under the column's own width there is no room to take, and the rule has to come out
     # as the layout the page already had — the same edge, not an inset approximation of it.
@@ -1939,7 +1936,7 @@ def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
         "and be the column exactly: board "
         f"{narrow['board']['width']:.0f}px, column {narrow['column']['width']:.0f}px"
     )
-    assert narrow["sideways"] == 0, "nor scroll sideways on a narrow window"
+    assert root_overflow(page) == 0, "nor scroll sideways on a narrow window"
 
 
 def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
@@ -1981,9 +1978,7 @@ def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
     assert at["nested-column"]["left"] > at["wide"]["left"]
     assert at["board"]["width"] == pytest.approx(at["prose"]["width"], abs=1)
     assert page.locator("#table").evaluate("el => el.tagName") == "TABLE"
-    assert page.evaluate("document.documentElement.scrollWidth") == page.evaluate(
-        "document.documentElement.clientWidth"
-    )
+    assert root_overflow(page) == 0
 
     next_source = source.replace(' data-width="wide"', "", 1)
     stamp_page(serve.page_dir, next_source, "remove an authored width")
@@ -1995,9 +1990,7 @@ def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
         "el => ({box: el.getBoundingClientRect().width, viewport: innerWidth})"
     )
     assert narrow["box"] < narrow["viewport"]
-    assert page.evaluate("document.documentElement.scrollWidth") == page.evaluate(
-        "document.documentElement.clientWidth"
-    )
+    assert root_overflow(page) == 0
 
 
 def test_paper_keeps_the_column(browser, serve):
@@ -2101,7 +2094,7 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
     earlier would stand before the handover, and on a fast machine that is where an
     unheld one would land."""
     monkeypatch.chdir(tmp_path)
-    author_test_widget(tmp_path, "lf-callout", upgrade=True)
+    add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     (tmp_path / ".leaf" / "widgets" / "lf-callout.js").write_text(LATE_MARGIN_WIDGET)
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
@@ -2193,7 +2186,7 @@ def test_a_wide_widget_keeps_its_margins_and_its_comment_lands_on_it(browser, se
             assert b["right"] <= at["pageRight"] + 1, (
                 f"at {width}px the {name} board is past the page's box as well"
             )
-        assert at["sideways"] == 0, f"at {width}px the page scrolls sideways"
+        assert root_overflow(page) == 0, f"at {width}px the page scrolls sideways"
 
 
 def test_a_contents_map_and_right_rail_leave_the_middle_room(browser, serve):
@@ -2229,7 +2222,7 @@ def test_a_contents_map_and_right_rail_leave_the_middle_room(browser, serve):
     card = next(r for r in at["rows"] if r["for"] == "sug-card")
     assert card["place"] == "pin" and card["right"] <= plan["right"] + 1, at
     assert all(r["pressable"] for r in at["rows"]), at
-    assert at["sideways"] == 0
+    assert root_overflow(page) == 0
 
 
 def test_a_drawing_the_room_can_hold_is_shown_whole(browser, serve):
@@ -2738,7 +2731,7 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve):
         f"{wide['column']['right']:.0f}px. A note claims the margin at its own height, "
         f"not down the whole page."
     )
-    assert wide["sideways"] == 0, (
+    assert root_overflow(page) == 0, (
         "the page scrolls sideways, so the room it took was not the room it had"
     )
     assert wide["board"]["width"] >= wide["column"]["width"] - 1, (
@@ -2780,7 +2773,7 @@ def test_a_note_hangs_in_the_margin_where_the_room_holds_it(browser, serve):
             )
         else:
             assert note["right"] <= at["column"]["right"] + 1, (width, at)
-        assert at["sideways"] == 0
+        assert root_overflow(page) == 0
 
 
 def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, serve):
@@ -2851,11 +2844,6 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         exhibit: {left: eb.left, right: eb.right},
       };
     }"""
-    sideways = (
-        "() => document.documentElement.scrollWidth"
-        " - document.documentElement.clientWidth"
-    )
-
     resized(page, 1400, 900)
     margins_laid_out(page)
     roomy = page.evaluate(reading)
@@ -2876,7 +2864,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert roomy["exhibit"]["left"] >= roomy["toc"]["left"] + roomy["taken"] - 1, (
         f"a wide exhibit painted over the contents map's spine: {roomy}"
     )
-    assert page.evaluate(sideways) == 0
+    assert root_overflow(page) == 0
 
     # The real pointer route reveals labels inside the map's settled rectangle. Its
     # complete reservation and every unrelated box remain fixed under the user's aim.
@@ -2998,7 +2986,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert narrow["taken"] == 0
     assert narrow["float"] == "none" and narrow["position"] == "static"
     assert abs(narrow["sidebar"]["left"] - narrow["column"]["left"]) <= 1
-    assert page.evaluate(sideways) == 0
+    assert root_overflow(page) == 0
 
     resized(page, 1400, 900)
     page.emulate_media(media="print")
@@ -3059,8 +3047,6 @@ def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
         },
         taken: length('--lf-taken-l, 0px'),
         shell: document.body.clientWidth,
-        sideways: document.documentElement.scrollWidth
-          - document.documentElement.clientWidth,
       };
     }"""
 
@@ -3082,7 +3068,7 @@ def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
         assert at["column"]["width"] == 720, (width, at)
         centre = (at["column"]["left"] + at["column"]["right"]) / 2
         assert abs(centre - at["shell"] / 2) <= 1, (width, at)
-        assert at["sideways"] == 0, (width, at)
+        assert root_overflow(page) == 0, (width, at)
         if expected[0] == sidebar:
             # Sticky, the sidebar can stand level with any band, so it takes its side.
             assert at["taken"] > 0, (width, at)

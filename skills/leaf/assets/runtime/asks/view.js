@@ -119,7 +119,7 @@ import {
 import { scrollerFor } from "../reading-regions.js";
 import { el, reserve, reveal } from "../widget-elements.js";
 import { asksBtn, asksList, asksOffered, asksPanel, trayIsOpen } from "../trays.js";
-import { decidingVerb, registry, tagsDeclaring } from "../registry.js";
+import { decisionFor, registry, tagsDeclaring } from "../registry.js";
 import {
   allAsks as readAllAsks,
   askEntry,
@@ -212,7 +212,7 @@ export function createAskView({
       for (const ask of openAsks()) {
         if (askEntry(ask)?.all !== outcome) continue;
         const { source } = await materializeAsk(ask);
-        await source?.[decidingVerb(ask.sourceTag)]?.(outcome);
+        await source?.[decisionFor(ask.sourceTag)?.verb]?.(outcome);
       }
     } finally {
       answeringAll.delete(outcome);

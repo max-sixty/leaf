@@ -7,7 +7,7 @@ The user follows your work on the page:
 | Surface | What it shows | Written by |
 | --- | --- | --- |
 | Banner | one sentence for the whole page: what you are doing, or what you want back | `leaf status <page> <state> "<detail>"` |
-| Beside a thread or widget | **Working** and your sentence, above the message or on the control the work answers | `leaf delivery claim`, `leaf status … --on <id>` |
+| Beside a thread or widget | **Working** and your sentence, above the message or on the control the work answers | `leaf status … --on <id>` |
 | Thread | your answer to the user's message | `leaf thread reply` |
 | Page | the revised content in place, and a stamp's changelog | saving `index.html`, `leaf version stamp` |
 | Request | the outcome of a request the user made | `leaf experimental receipt` |
@@ -91,9 +91,10 @@ Stamping accepts only widget ids with standing work. `status --on` refuses a
 widget with neither an unsettled action receipt nor an `x-work` declaration; use
 the page-wide detail when neither admits a local claim.
 
-Use `status --on` for proactive subject work that did not begin with a delivery. An
-optional delivery claim names an exact delivered event (`references/event-batches.md`,
-"Delivery and acknowledgement").
+Use `status --on` for work on a thread or widget, whether a delivered move asked
+for it or you began it yourself. It takes whatever id a delivered event names as
+its address: a thread by any message in it, a page widget, or a widget in a thread
+message. The delivered move then reads **Working**.
 
 ## Long-running work
 

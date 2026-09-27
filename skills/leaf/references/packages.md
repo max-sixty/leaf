@@ -24,7 +24,8 @@ leaf package run NAME SCRIPT [ARGS]...
 `package init` creates `registry.json`, `theme.css`, `guidance/`, `runtime/`,
 `widgets/`, and `vendor/` without replacing existing contents. Add `--widget TAG` to
 create one upgraded prose widget at the same time. Leaf adds a valid registry example
-and the matching `widgets/TAG.js` registration/`once` module, checks the resulting
+and the matching `widgets/TAG.js` module, which registers the element, upgrades it
+`once`, and subscribes to its `widgetController`; it then checks the resulting
 composition, and leaves a new package's empty theme ready for the widget's presentation.
 An existing theme and other package files remain in place. Leaf refuses a tag or module
 that already exists rather than replacing it. The package author edits that directory,
@@ -222,6 +223,7 @@ widget's role on the page:
 | `x-visual`           | `lf-chart` declares `whole`, `lf-diagram` in `diagram` `parts`  |
 | `x-bound`            | `lf-activity`                                                  |
 | `x-history`          | `lf-activity`                                                  |
+| `x-patch`            | `lf-tabs`                                                      |
 | `x-thread-surface`   | `lf-diff` in `diff`, `lf-visual-review` in `visual-review`     |
 
 A visual with generated part ids declares accepted `x-visual.prefixes` and calls
@@ -609,6 +611,11 @@ Use `runFromCommandReference: false` only for a parameterized step that cannot b
 choice the command reference does not have, such as a generated hint tied to the live viewport. An
 optional `reach` on a row or scope supplies the short place phrase shown when a command
 is not available (for example, `in an open draft editor`).
+
+A list of focusable rows takes its walk from `rowWalk({id, noun, plural, rows})`, whose
+two returned rows go into the list's own scope: ArrowUp and ArrowDown step and clamp,
+Home and End reach the ends, and each landing shows its position, such as `Option 3 of
+7`. `rows()` returns the list as it stands at each press.
 
 A widget-owned composition box is the runtime's text field, `offer(TEXT_FIELD)` from the
 widget API: a Markdown editor that shows the draft the way the sent message will read

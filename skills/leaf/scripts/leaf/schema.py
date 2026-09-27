@@ -373,6 +373,7 @@ EXTENSION_SCHEMA = {
         # event's kind. The runtime speaks each as a clipped word (renderQuiet), the
         # value or, where a flag carries no value, the attribute's own name.
         "x-paints": _ATTRIBUTE_LIST,
+        "x-patch": {"enum": ["members"]},
         "x-owners": {
             "type": "array",
             "items": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
@@ -428,6 +429,11 @@ EXTENSION_SCHEMA = {
     "dependentRequired": {
         "x-retired-when": ["x-owners"],
         "x-measured": ["x-data"],
+    },
+    # Only an upgraded container has members its module could leave in place.
+    "if": {"required": ["x-patch"]},
+    "then": {
+        "properties": {"x-content": {"const": "members"}, "x-upgrade": {"const": True}}
     },
     "additionalProperties": False,
 }

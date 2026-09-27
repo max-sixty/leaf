@@ -5,7 +5,7 @@ import math
 import re
 
 import pytest
-from interact_support import append_command
+from interact_support import add_test_widget, append_command
 from leaf import event_log as events_model
 from leaf import projection as projection_model
 from leaf import schema as schema_model
@@ -40,7 +40,6 @@ from render_harness import (
     Traffic,
     _traffic,
     _until,
-    author_test_widget,
     banner_control,
     consume_browser_errors,
     expect_banner_control_offered,
@@ -52,6 +51,7 @@ from render_harness import (
     panel_settled,
     refuse,
     resized,
+    root_overflow,
     round_trip,
     sending,
     stamp_page,
@@ -961,7 +961,7 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     project's outer board must not capture cards owned by a nested shipped board merely
     because both record positions within lf-column."""
     monkeypatch.chdir(tmp_path)
-    author_test_widget(tmp_path, "lf-outer-board", upgrade=True)
+    add_test_widget(tmp_path / ".leaf", "lf-outer-board", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
     outer = declarations["lf-outer-board"]
@@ -2282,9 +2282,7 @@ def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator(".lf-composer")).to_be_hidden()
-    page.wait_for_function(
-        "() => document.body.scrollWidth - document.body.clientWidth === 0"
-    )
+    assert root_overflow(page) == 0
 
     page.get_by_role("button", name="Close threads").click()
     page.locator("#p30").click(click_count=3)

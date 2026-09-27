@@ -10,6 +10,7 @@ import {
 } from "../banner-shelf.js";
 import { bindings } from "../keyboard/bindings.js";
 import { el, LAYOUT } from "../widget-elements.js";
+import { coarsePointer } from "../pointer.js";
 import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
 
 import {
@@ -52,7 +53,6 @@ import {
 // the platform's rather than a keyboard interaction's imitation of one.
 export const targetChooserHintLayer = el("div", "lf-ui lf-target-chooser-hints");
 targetChooserHintLayer.setAttribute("aria-hidden", "true");
-const coarsePointer = matchMedia("(pointer: coarse)");
 const targetChooserCancel = el("button", "lf-btn", "Cancel selection");
 targetChooserCancel.type = "button";
 targetChooserCancel.setAttribute("aria-label", "Cancel selecting an element");

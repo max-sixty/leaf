@@ -1,6 +1,7 @@
 """Drawing-comment browser journeys."""
 
 import base64
+import json
 import re
 
 import pytest
@@ -18,6 +19,7 @@ from render_cases_navigation import (
 from render_harness import (
     EXAMPLE_MEDIA,
     FEATURE_GALLERY,
+    draft_key,
     leaf_page,
     nudge,
     open_page,
@@ -958,15 +960,18 @@ def test_a_malformed_page_drawing_draft_keeps_its_words_without_the_mark(
     ignored while the independently valid words remain sendable."""
     page = open_page(browser, serve(TARGETS_PAGE))
     page.evaluate(
-        """record => localStorage.setItem('lf-draft:general', JSON.stringify(record))""",
-        {
-            "text": "Keep these words.",
-            "attempt": "a" * 32,
-            "base": None,
-            "payload": {
-                "drawing": {"format": "leaf-drawing/2", "strokes": "not-strokes"}
+        """([key, record]) => localStorage.setItem(key, JSON.stringify(record))""",
+        [
+            draft_key(page, "general"),
+            {
+                "text": "Keep these words.",
+                "attempt": "a" * 32,
+                "base": None,
+                "payload": {
+                    "drawing": {"format": "leaf-drawing/2", "strokes": "not-strokes"}
+                },
             },
-        },
+        ],
     )
 
     page.reload(wait_until="load")
@@ -990,11 +995,12 @@ def test_a_malformed_anchored_drawing_draft_keeps_its_words_without_the_mark(
     """The selection draft has its own serialized envelope and applies the same
     drawing validation before page presentation or submission."""
     page = open_page(browser, serve(TARGETS_PAGE))
+    # The composer's draft is keyed on the passage it is on.
+    ctx = "composer:" + json.dumps([["section", "prose"]], separators=(",", ":"))
     page.evaluate(
-        """record => {
+        """([key, record]) => {
           const anchor = {section: 'prose'};
-          const ctx = 'composer:' + JSON.stringify([['section', 'prose']]);
-          localStorage.setItem('lf-draft:' + ctx, JSON.stringify({
+          localStorage.setItem(key, JSON.stringify({
             text: JSON.stringify({
               text: 'Keep these anchored words.',
               anchor,
@@ -1007,7 +1013,7 @@ def test_a_malformed_anchored_drawing_draft_keeps_its_words_without_the_mark(
             base: null,
           }));
         }""",
-        {"attempt": "b" * 32},
+        [draft_key(page, ctx), {"attempt": "b" * 32}],
     )
 
     page.reload(wait_until="load")

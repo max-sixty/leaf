@@ -17,6 +17,7 @@ from leaf import files as files_model
 from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
+from leaf.schema import ELEMENT_ID
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -24,7 +25,6 @@ from render_cases_interaction import (
     SUGGESTION_PAGE,
     THREAD_ASKS,
     live_url,
-    sent_events,
 )
 from render_cases_layout import (
     AIM_SEAM,
@@ -1187,7 +1187,9 @@ def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
     # And the file behind that answer, read back through Python's UTF-8 decoder, which is
     # the user a half character has no bytes for.
     comments = [
-        event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
     ]
     assert [comment["anchor"]["quote"] for comment in comments] == [captured]
 
@@ -1505,7 +1507,7 @@ def test_every_language_returns_the_source_it_was_given(browser, serve):
     pierre_bad = page.evaluate(
         """async (langs) => {
           const { parsePatchFiles, preloadDiffHTML } =
-            await import('/vendor/pierre-diffs.esm.js');
+            await window.__lfRuntimeImport('/vendor/pierre-diffs.esm.js');
           const source = [
             'diff --git a/example.txt b/example.txt',
             '--- a/example.txt',
@@ -3448,9 +3450,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
             "lf-decoration": {
                 "description": "Generated prose and a graphic with its own marker.",
                 "type": "object",
-                "properties": {
-                    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
-                },
+                "properties": {"id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"}},
                 "required": ["id"],
                 "additionalProperties": False,
                 "x-content": "markup",
@@ -4671,7 +4671,9 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
         page.keyboard.press("ControlOrMeta+Enter")
 
     comments = [
-        event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
     ]
     assert [comment["anchor"] for comment in comments] == [
         {
@@ -4931,7 +4933,9 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     )
 
     comments = [
-        event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
     ]
     assert [comment["anchor"] for comment in comments] == [
         {

@@ -68,7 +68,7 @@
 
 import { runtime } from "./context.js";
 import { PENDING } from "./thread/identity.js";
-import { PAGE_SCOPE, draftStore } from "./storage.js";
+import { draftStore } from "./storage.js";
 
 // ---------- draft persistence ----------
 // Text the user typed but hasn't sent must survive navigation, reload, version switches,
@@ -105,6 +105,10 @@ import { PAGE_SCOPE, draftStore } from "./storage.js";
 // the older shared attempt. The log still outranks both: an attempt already present in
 // `events` is settled whatever stale active record storage hands back on reload.
 const DRAFT = "lf-draft:";
+// Where the draft at `ctx` is kept, as the store says (`where`): the page scope is in
+// the key. The storage listener below reads other tabs' writes by it, and a test that
+// seeds or reads a stored draft asks it rather than spelling the key.
+export const whereDraft = (ctx) => draftStore.where(DRAFT + ctx);
 const DRAFT_NEWS = "lf-drafts";
 const draftCache = new Map(); // context -> {record, durable}
 export const tellDraft = (ctx, value, payload = undefined) =>
@@ -391,7 +395,7 @@ export function watchDraft(ctx, callback) {
   return () => document.removeEventListener(DRAFT_NEWS, update);
 }
 addEventListener("storage", (ev) => {
-  const prefix = PAGE_SCOPE + DRAFT;
+  const prefix = whereDraft("").key;
   // Null where the whole store was cleared, and every key of another page on this origin
   // besides — a published site serves each example from one root.
   if (!ev.key?.startsWith(prefix)) return;

@@ -4,6 +4,7 @@ import {
   synNodes,
   syntax,
   watchData,
+  keepsText,
 } from "/runtime/widget-api.js";
 
 customElements.define(
@@ -59,7 +60,7 @@ function sourceNode(widget, { snapshot, tokens }, prior) {
   }
   const label = widget.getAttribute("label") ?? widget.getAttribute("source");
   const heading = snapshot ? label : `${label} · no data`;
-  if (caption.textContent !== heading) caption.textContent = heading;
+  keepsText(caption, heading);
   const code = pre.querySelector("code");
   const source = tokens.map(({ text }) => text).join("");
   if (code.textContent !== source) code.replaceChildren(...synNodes(tokens));

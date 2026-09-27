@@ -16,6 +16,7 @@ from leaf import session as session_model
 from leaf import thread as thread_model
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate import version as render_gate_model
+from leaf.schema import ELEMENT_ID
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ALL_ASKS_IN_ORDER,
@@ -42,7 +43,6 @@ from render_cases_interaction import (
     SWAP_PAGE,
     THREAD_DIFF_PAGE,
     live_url,
-    sent_events,
 )
 from render_cases_layout import (
     banner_control,
@@ -94,6 +94,7 @@ from render_harness import (
     regions_side_by_side,
     rendered,
     resized,
+    root_overflow,
     round_trip,
     scroll_settled,
     select,
@@ -498,10 +499,7 @@ def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
     page = open_page(browser, serve(ROOT_TABS_PAGE) + "#plan-tab")
     resized(page, 1280, 720)
     READ = """async () => {
-      const entry = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
-      const geometry = await import(
-        new URL('runtime/geometry.js', new URL(entry, location.href)).href
-      );
+      const geometry = await window.__lfRuntimeImport('/runtime/geometry.js');
       const strip = document
         .querySelector('#root-tabs > .lf-tabstrip').getBoundingClientRect();
       const behind = document.querySelector('#plan-stages h2');
@@ -3304,7 +3302,7 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
 ):
     page = open_page(browser, serve(PLAYGROUND_PAGE))
     playground = page.locator("#card-playground")
-    before = len(sent_events(serve.page_dir))
+    before = len(events_model.read_events(serve.page_dir))
     changes = playground.evaluate(
         """root => {
           window.playgroundChanges = [];
@@ -3333,7 +3331,7 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
     picker.get_by_role("textbox").press("Escape")
     page.locator('lf-playground-control[name="title"] input').fill("Ridge note; alert")
 
-    assert len(sent_events(serve.page_dir)) == before
+    assert len(events_model.read_events(serve.page_dir)) == before
     assert playground.evaluate("root => root.values") == {
         "accent": "#8b4a5f",
         "compact": True,
@@ -3363,7 +3361,7 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
 
     with sending(page, "the playground configuration"):
         playground.get_by_role("button", name="Use these settings").click()
-    action = sent_events(serve.page_dir)[-1]
+    action = events_model.read_events(serve.page_dir)[-1]
     assert action["action"] == "choose"
     assert action["detail"] == {
         "values": {
@@ -3755,7 +3753,7 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
         playground.get_by_role("button", name="Build query").click()
     action = next(
         event
-        for event in reversed(sent_events(serve.page_dir))
+        for event in reversed(events_model.read_events(serve.page_dir))
         if event.get("widget") == "release-query-playground"
     )
     assert action["detail"] == {
@@ -3866,7 +3864,7 @@ def test_built_code_comparison_drives_both_candidates_and_composes_targeting(
         playground.get_by_role("button", name="Apply treatment").click()
     action = next(
         event
-        for event in reversed(sent_events(serve.page_dir))
+        for event in reversed(events_model.read_events(serve.page_dir))
         if event.get("widget") == "code-comparison-playground"
     )
     assert action["detail"] == {
@@ -3923,7 +3921,7 @@ def test_playground_composed_structural_target_resolves_in_the_next_revision(
 
     action = next(
         event
-        for event in reversed(sent_events(serve.page_dir))
+        for event in reversed(events_model.read_events(serve.page_dir))
         if event.get("widget") == "code-comparison-targeting"
     )
     assert action["detail"]["targets"][0]["reference"] == {
@@ -3984,7 +3982,7 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
     expect(playground.get_by_role("button", name="Create notification")).to_be_enabled()
     action = next(
         event
-        for event in reversed(sent_events(serve.page_dir))
+        for event in reversed(events_model.read_events(serve.page_dir))
         if event.get("widget") == "notification-playground"
     )
     assert action["detail"]["values"] == {
@@ -4142,7 +4140,7 @@ body { font-family: system-ui, sans-serif; }
     round_trip(page)
     comment = next(
         event
-        for event in reversed(sent_events(serve.page_dir))
+        for event in reversed(events_model.read_events(serve.page_dir))
         if event["kind"] == "comment"
     )
     assert comment["anchor"]["section"] == "notification-simulator"
@@ -5871,7 +5869,7 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
         "() => [...document.querySelectorAll('[data-lf-margin-for^=sug-]')]"
         ".every(r => r.dataset.lfPlace === 'pin')"
     )
-    assert page.evaluate("() => document.body.scrollWidth <= document.body.clientWidth")
+    assert root_overflow(page) == 0
     for widget in ("sug-refill", "sug-in-card"):
         stands = page.locator(f"[data-lf-margin-for='{widget}']").evaluate(
             """row => {
@@ -6963,10 +6961,10 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
     expect(page.locator("#storage-options .lf-pick").first).to_be_focused()
     picks = page.locator("#storage-options .lf-pick")
     expect(picks.nth(0)).to_have_attribute(
-        "aria-keyshortcuts", "ArrowUp ArrowDown Space 1"
+        "aria-keyshortcuts", "ArrowUp ArrowDown Home End Space 1"
     )
     expect(picks.nth(1)).to_have_attribute(
-        "aria-keyshortcuts", "ArrowUp ArrowDown Space 2"
+        "aria-keyshortcuts", "ArrowUp ArrowDown Home End Space 2"
     )
 
     # And nothing of the borrowed stop is left behind: PAGE_PAINT_ATTRIBUTES is the whole
@@ -8955,8 +8953,6 @@ def test_the_asks_tray_covers_the_page_only_where_it_leaves_no_usable_page(
       column: Math.round(document.querySelector('main').getBoundingClientRect().left),
       tray: Math.round(
         document.querySelector('.lf-asks-panel').getBoundingClientRect().right),
-      sideways: document.documentElement.scrollWidth
-                - document.documentElement.clientWidth,
     })"""
 
     resized(page, 1200, 800)
@@ -8967,12 +8963,12 @@ def test_the_asks_tray_covers_the_page_only_where_it_leaves_no_usable_page(
     expect(covering).to_have_count(0)
     wide = page.evaluate(geometry)
     assert wide["column"] == closed["column"], "the tray moved the column"
-    assert wide["sideways"] == 0, "the page scrolls sideways with the tray up"
+    assert root_overflow(page) == 0, "the page scrolls sideways with the tray up"
 
     # At 610 the default 300px tray would leave 310, short of a usable page.
     resized(page, 610, 800)
     expect(covering).to_have_count(1)
-    assert page.evaluate(geometry)["sideways"] == 0
+    assert root_overflow(page) == 0
     resized(page, 1200, 800)
     expect(covering).to_have_count(0)
 
@@ -10114,7 +10110,9 @@ def test_a_comment_on_a_wrapped_diff_line_names_the_line_an_unwrapped_one_names(
         page.keyboard.press("ControlOrMeta+Enter")
 
     anchors = [
-        event["anchor"] for event in sent_events(serve.page_dir) if event.get("anchor")
+        event["anchor"]
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("anchor")
     ]
     assert len(anchors) == 2, anchors
     assert (
@@ -10297,8 +10295,8 @@ POINTER_REGISTRY = {
         "description": "Points at lines of the code block its `for` names.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
-            "for": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "for": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
         },
         "required": ["id", "for"],
         "additionalProperties": False,

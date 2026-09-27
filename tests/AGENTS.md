@@ -67,7 +67,11 @@ puts the gate's geometry readings to it, asserting each population and planting 
 fault there first.
 
 A render-gate test calls `render_version`, not one of its probes. Where the product already answers a reading's question, such as `shownBand` for the
-band a box shows, consume that answer instead of copying it.
+band a box shows, consume that answer instead of copying it: `root_overflow` for
+whether the page scrolls sideways, `draft_key` for where a draft is stored, and
+`event_log.read_events` for what the log holds. Page-side code reaches a runtime
+module through `window.__lfRuntimeImport`; a bare `/runtime/…` import loads a second
+instance that shares none of the page's module state.
 
 A corpus source gets its own case only when its content is the cause under test. Put
 a probe's independent faults on one composed page beside clean controls, assert the

@@ -1818,7 +1818,7 @@ def test_suggestion_rejects_malformed_shapes(page_dir):
                 '<lf-suggestion id="sug-a" resolves="nosuch"><lf-new><p>x</p></lf-new>'
                 "</lf-suggestion><lf-options>"
             ),
-            "names no comment in this document",
+            "names no thread in this document",
         ),
     ]:
         (page_dir / "index.html").write_text(PAGE.replace("<lf-options>", markup))
@@ -1834,6 +1834,20 @@ def test_suggestion_resolves_accepts_a_real_comment(page_dir):
     markup = '<lf-suggestion id="sug-a" resolves="c1"><lf-new><p>x</p></lf-new></lf-suggestion>'
     (page_dir / "index.html").write_text(before_choice(PAGE, markup))
     assert check(page_dir).exit_code == 0
+
+
+def test_suggestion_resolves_a_thread_whose_opening_comment_was_lost(page_dir):
+    """`resolves` names a thread by its id, which is the page state's `threads[].id`.
+    A torn line can lose the comment that opened a thread while its reply survives,
+    and the thread keeps the lost comment's id, so the suggestion an agent writes
+    from that id validates."""
+    events_model.append_event(
+        page_dir,
+        {"kind": "reply", "author": "agent", "parent": "c0ffee", "text": "kept"},
+    )
+    markup = '<lf-suggestion id="sug-a" resolves="c0ffee"><lf-new><p>x</p></lf-new></lf-suggestion>'
+    (page_dir / "index.html").write_text(before_choice(PAGE, markup))
+    assert check(page_dir).exit_code == 0, check(page_dir).output
 
 
 def test_accepting_licenses_retiring_the_replaced_markup(page_dir):

@@ -21,7 +21,7 @@ from leaf.styles import (
     inline_style_at,
     scroller_css_advice,
 )
-from leaf.thread_context import specimen_events, thread_ids, thread_structure
+from leaf.thread_context import sample_events, thread_ids, thread_structure
 from leaf.validation.compatibility import candidate_vocabulary_gaps
 from leaf.validation.instances import (
     addressable_instance_errors,
@@ -284,19 +284,17 @@ def check_source(
     errors.extend(document_errors)
     documents = [(document, events, "")]
     for parent, parent_events, parent_name in documents:
-        for specimen in parent.specimens:
-            name = (
-                parent_name + f"specimen {specimen['attrs'].get('id', '<unnamed>')!r}: "
-            )
-            child = specimen["document"]
-            selected = set(specimen["attrs"].get("data-specimen-threads", "").split())
+        for sample in parent.samples:
+            name = parent_name + f"sample {sample['attrs'].get('id', '<unnamed>')!r}: "
+            child = sample["document"]
+            selected = set(sample["attrs"].get("data-sample-threads", "").split())
             # A template may precede its seed log, and the selection reads against
             # whatever the log holds — so the child checked here is the child
             # allocation would build from this document and this history.
             child_events = [
                 {**event, "seq": index}
                 for index, event in enumerate(
-                    specimen_events(parent, parent_events, selected), 1
+                    sample_events(parent, parent_events, selected), 1
                 )
             ]
             documents.append((child, child_events, name))

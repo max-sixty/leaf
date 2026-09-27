@@ -283,18 +283,13 @@ export function addressableWord(addressable) {
 // The label is rooted at the addressable and reads its authored words. Generated annotation
 // chrome is excluded by the same passage reader used for anchor resolution. Display
 // surfaces constrain these complete words to their available space.
-export function addressableSays(addressable, omitted = null) {
+export function addressableSays(addressable) {
   if (!addressable) return "";
-  const subtracts = Boolean(omitted && addressable.contains(omitted));
   const own =
-    !subtracts && registry[addressable.localName]?.["x-word"] === "module"
+    registry[addressable.localName]?.["x-word"] === "module"
       ? addressable.lfSays?.()
       : "";
-  if (own) return own;
-  if (!subtracts) return elementReading(addressable, readSays);
-  return quoteFrom(
-    textNodesUnder(addressable).filter((segment) => !omitted.contains(segment.node)),
-  );
+  return own || elementReading(addressable, readSays);
 }
 const readSays = (addressable) => quoteFrom(textNodesUnder(addressable));
 

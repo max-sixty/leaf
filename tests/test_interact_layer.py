@@ -24,6 +24,7 @@ from interact_support import (
     PAGE_PACKAGES,
     PLUGIN_ROOT,
     ROOT,
+    SHIPPED_PACKAGES,
     SKILL_ROOT,
     add_test_widget,
     case_alias,
@@ -55,27 +56,26 @@ from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from page_fixtures import package_selection_args
 
-EXPECTED_PAGE_STATE_FILES = (
-    "events.jsonl",
-    "data.json",
-    "status.json",
-    "waiter.lock",
-    "cursor.json",
-    "viewed.json",
-    "service.json",
-    "server.lock",
-    "preview.json",
-)
-EXPECTED_PAGE_DIRECTORIES = (
-    "revisions",
-    "runtime",
-    "widgets",
-    "vendor",
-    "guidance",
-    "media",
-    "data",
-    "page",
-)
+
+def storage_contract() -> tuple[list[str], list[str]]:
+    """The files and directories page-storage.md's "Files" section puts in a page.
+
+    Each entry is a bullet opening on its name in a code span; a name beneath a
+    directory (`revisions/rN-H.html`) is that directory's entry. A virtual address
+    (`/versions/…`) and state kept outside the page (`<state-home>/…`) are not in it.
+    """
+    text = (SKILL_ROOT / "scripts" / "leaf" / "page-storage.md").read_text()
+    section = text.split("\n## Files\n", 1)[1].split("\n## ", 1)[0]
+    files, directories = set(), set()
+    for name in re.findall(r"^- `([^`]+)`", section, re.MULTILINE):
+        if name.startswith(("/", "<")):
+            continue
+        head, beneath, _ = name.partition("/")
+        (directories if beneath else files).add(head)
+    return sorted(files), sorted(directories)
+
+
+STORAGE_FILES, STORAGE_DIRECTORIES = storage_contract()
 
 
 def test_cli_help_groups_commands_with_complete_summaries(regtest):
@@ -1408,19 +1408,12 @@ def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
     )
 
 
-# The layer's page-side order, as layer.py's `composed_sheets` builds it: each root's
-# shadow.css and then its theme.css, the assets root before every package.
+# The page-side order `composed_sheets` reads a composed example's layer in: each
+# root's own sheets, root by root in layer order.
 _LAYER_SHEET_ORDER = [
     sheet
-    for source in [
-        schema_model.ASSETS,
-        *sorted(
-            package
-            for package in schema_model.BUNDLED_PACKAGES.iterdir()
-            if package.is_dir()
-        ),
-    ]
-    for sheet in (source / "shadow.css", source / "theme.css")
+    for root in SHIPPED_PACKAGES
+    for sheet in (root / name for name in layer_model.ROOT_SHEETS)
     if sheet.is_file()
 ]
 
@@ -2319,36 +2312,27 @@ def test_path_overlap_respects_case_sensitive_future_names(tmp_path, monkeypatch
     assert interact_locations.paths_same(upper, lower)
 
 
-@pytest.mark.parametrize("name", EXPECTED_PAGE_STATE_FILES)
-def test_initialized_page_owns_runtime_state_paths(tmp_path, monkeypatch, name):
-    monkeypatch.chdir(tmp_path)
-    page = tmp_path / "page"
-    initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
-    assert initialized.exit_code == 0, initialized.output
-
-    assert packages_model.initialized_page_owning(page / name) == page
-    assert packages_model.initialized_page_owning(page / ".leaf" / name) is None
-
-
-def test_page_state_inventory_matches_the_storage_contract():
-    assert schema_model.PAGE_STATE_FILES == EXPECTED_PAGE_STATE_FILES
-
-
-@pytest.mark.parametrize("directory", EXPECTED_PAGE_DIRECTORIES)
-def test_initialized_page_owns_declared_directory_trees(
-    tmp_path, monkeypatch, directory
+def test_an_initialized_page_owns_what_the_storage_contract_names(
+    tmp_path, monkeypatch
 ):
+    """page-storage.md's "Files" is the page directory's whole inventory: the page
+    owns each file it names and everything beneath each directory, which `page init`
+    creates, and nothing else is Leaf's there. The same name one level down belongs
+    to no page."""
+    assert sorted(schema_model.PAGE_OWNED_FILES) == STORAGE_FILES
+    assert sorted(schema_model.PAGE_OWNED_DIRS) == STORAGE_DIRECTORIES
+
     monkeypatch.chdir(tmp_path)
     page = tmp_path / "page"
     initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
-
-    assert (page / directory).is_dir()
-    assert packages_model.initialized_page_owning(page / directory / "future") == page
-
-
-def test_page_directory_inventory_matches_the_storage_contract():
-    assert schema_model.PAGE_OWNED_DIRS == EXPECTED_PAGE_DIRECTORIES
+    owner = packages_model.initialized_page_owning
+    for name in STORAGE_FILES:
+        assert owner(page / name) == page, name
+        assert owner(page / ".leaf" / name) is None, name
+    for directory in STORAGE_DIRECTORIES:
+        assert (page / directory).is_dir(), directory
+        assert owner(page / directory / "future") == page, directory
 
 
 def test_replace_files_rejects_case_aliased_future_targets(tmp_path, monkeypatch):
@@ -2612,7 +2596,7 @@ def test_init_does_not_partially_revendor_on_a_destination_conflict(
     assert (page / "registry.json").read_bytes() == registry_before
 
 
-@pytest.mark.parametrize("sub", EXPECTED_PAGE_DIRECTORIES)
+@pytest.mark.parametrize("sub", STORAGE_DIRECTORIES)
 def test_init_refuses_a_symlinked_page_directory(tmp_path, monkeypatch, sub):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()

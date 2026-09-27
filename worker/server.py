@@ -24,17 +24,18 @@ from functools import cache, partial
 from html import escape
 from pathlib import Path
 
+# The stream-activity writers are called as `codex.<name>`, so `leaf.codex` holds their
+# one binding: whatever takes a turn's readings there takes the host's too.
+from leaf import codex
 from leaf.codex import (
     CarriedTurn,
     abandon_codex_delivery,
     app_server_connect,
     app_server_handshake,
     app_server_request,
-    clear_stream_activity,
     delivery_owed_moves,
     open_app_server_delivery,
     prepare_codex_delivery,
-    set_stream_activity,
     start_app_server_delivery,
     stop_app_server,
     stream_reply_target,
@@ -463,7 +464,7 @@ class HostedTurn(CarriedTurn):
         )
         self.record("turn_delivery_bound", deliveryId=self.delivery_id)
         self.open_reply()
-        set_stream_activity(self.session_id, self.turn_id, {"kind": "working"})
+        codex.set_stream_activity(self.session_id, self.turn_id, {"kind": "working"})
 
     def observe(self, message: dict, update: dict | None) -> None:
         """Record what one notification said, before its readings reach the page."""
@@ -557,7 +558,7 @@ class HostedTurn(CarriedTurn):
                     self.page_dir, self.session_id, self.leaf_turn, terminal
                 )
         finally:
-            clear_stream_activity(self.session_id, self.turn_id)
+            codex.clear_stream_activity(self.session_id, self.turn_id)
             self._receipt_unanswered()
 
     def _receipt_unanswered(self) -> None:
@@ -1332,14 +1333,14 @@ class WebsitePageEndpoint(PageEndpoint):
             head=site_metadata(self.page_root, self.pages[self.page_root or "/"]),
         )
 
-    def _specimen_asset_root(self, revision: int) -> str:
+    def _sample_asset_root(self, revision: int) -> str:
         page = self.pages[self.page_root or "/"]
         # Published revisions share the public shell's release-captured graph.
         # User-created revisions belong to this container, not that release.
         if str(revision) in page["states"]:
             name = self._revision_name(revision).removesuffix(".html")
             return f"{page['assets']}/revisions/{name}"
-        return super()._specimen_asset_root(revision)
+        return super()._sample_asset_root(revision)
 
     def _post(self) -> Response:
         path = self.path

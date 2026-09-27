@@ -447,6 +447,8 @@ NO_KEY = "open the link leaf printed; it carries the key"
 DATA_FILE = "data.json"
 DATA_DIR = "data"
 EVENTS_FILE = "events.jsonl"
+# The diagnostic request and interaction trace (`interaction_log.py`).
+INTERACTIONS_FILE = "interactions.jsonl"
 PREVIEW_FILE = "preview.json"
 VIEWED_FILE = "viewed.json"
 # One name, because there is one key (`host_key`). Cookies are scoped by host and
@@ -471,7 +473,9 @@ SESSION_FILES = (
     SERVER_LOCK,
     PREVIEW_FILE,
 )
-PAGE_STATE_FILES = (EVENTS_FILE, DATA_FILE, *SESSION_FILES)
+# The files Leaf writes in a page directory as it runs. With the author's index.html,
+# the vendored files, and PAGE_OWNED_DIRS, the whole of page-storage.md's "Files".
+PAGE_STATE_FILES = (EVENTS_FILE, INTERACTIONS_FILE, DATA_FILE, *SESSION_FILES)
 PAGE_OWNED_FILES = ("index.html", *VENDORED_FILES, *PAGE_STATE_FILES)
 PAGE_OWNED_DIRS = ("revisions", *PACKAGE_DIRS, MEDIA_DIR, DATA_DIR, "page")
 # A revision's and a version's file name, without `.html`.

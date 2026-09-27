@@ -50,6 +50,7 @@ from interact_support import (
     stamp,
     start_server_command,
     state_json,
+    take_stream_activity,
     vendored_by_another_leaf,
     wait_for,
     yaml_document,
@@ -89,27 +90,6 @@ from page_fixtures import package_selection_args
 from websockets.exceptions import ConnectionClosedError, WebSocketException
 from websockets.sync.server import serve as serve_websocket
 from websockets.sync.server import unix_serve as serve_unix_websocket
-
-
-def take_stream_activity(monkeypatch, updates: list, clears: list) -> None:
-    """Collect every activity reading a turn writes, instead of a page taking it.
-
-    Two bindings of the same two functions write them: a carrier calls them for the
-    connection it is opening or giving up on, and `leaf.codex` calls them for
-    everything the projection reads off the stream. A test that wants the readings,
-    or wants them to touch nothing, has to say so at both.
-    """
-    for module in (codex_model, codex_adapter_model):
-        monkeypatch.setattr(
-            module,
-            "set_stream_activity",
-            lambda session, turn, detail: updates.append((session, turn, detail)),
-        )
-        monkeypatch.setattr(
-            module,
-            "clear_stream_activity",
-            lambda session, turn=None: clears.append((session, turn)),
-        )
 
 
 def last_deliverable_seq(page_dir: Path) -> int:
@@ -1490,6 +1470,10 @@ def codex_records(session_id: str) -> list[tuple[Path, dict]]:
     return [
         (path, files_model.read_json(path)) for path in sorted(directory.glob("*.json"))
     ]
+
+
+def adapter_log(session_id: str) -> str:
+    return codex_adapter_model.adapter_log_path(session_id).read_text(encoding="utf-8")
 
 
 def current_codex_record(session_id: str) -> tuple[Path, dict]:
@@ -8918,20 +8902,15 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             page, {"kind": "comment", "author": "user", "text": "hello adapter"}
         )
         comments = [events_model.read_events(page)[-1]]
-        deadline = time.monotonic() + 10
-        while time.monotonic() < deadline:
-            if files_model.read_json(page / "cursor.json") == {"seq": 1}:
-                break
-            time.sleep(0.05)
-        else:
-            deliveries = codex_records("codex-thread")
-            log_text = codex_adapter_model.adapter_log_path("codex-thread").read_text(
-                encoding="utf-8"
-            )
-            pytest.fail(
+        wait_for(
+            lambda: files_model.read_json(page / "cursor.json"),
+            lambda cursor: cursor == {"seq": 1},
+            failure=lambda: (
                 "the adapter did not acknowledge its batch: "
-                f"deliveries={deliveries!r}; log={log_text!r}"
-            )
+                f"deliveries={codex_records('codex-thread')!r}; "
+                f"log={adapter_log('codex-thread')!r}"
+            ),
+        )
 
         hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
         assert capsys.readouterr().out == ""
@@ -9176,19 +9155,14 @@ def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
         assert status == 200, body
         comment = json.loads(body)["state"]["events"][-1]
 
-        deadline = time.monotonic() + 10
-        while time.monotonic() < deadline:
-            if files_model.read_json(live / "cursor.json") == {"seq": comment["seq"]}:
-                break
-            time.sleep(0.05)
-        else:
-            adapter_log = codex_adapter_model.adapter_log_path(
-                "codex-thread"
-            ).read_text(encoding="utf-8")
-            pytest.fail(
+        wait_for(
+            lambda: files_model.read_json(live / "cursor.json"),
+            lambda cursor: cursor == {"seq": comment["seq"]},
+            failure=lambda: (
                 "the browser comment did not reach the Codex queue: "
-                f"adapter_log={adapter_log!r}"
-            )
+                f"adapter_log={adapter_log('codex-thread')!r}"
+            ),
+        )
 
         calls = [json.loads(line) for line in log.read_text().splitlines()]
         [queued] = [call for call in calls if "--thread" in call]
@@ -9285,19 +9259,18 @@ def test_codex_adapter_exits_when_delivery_retries_outlive_its_claim(
         events_model.append_event(
             page, {"kind": "comment", "author": "user", "text": "hello adapter"}
         )
-        deadline = time.monotonic() + 10
-        while time.monotonic() < deadline:
-            queues = codex_records("codex-thread")
-            calls = (
-                [json.loads(line) for line in log.read_text().splitlines()]
-                if log.exists()
-                else []
-            )
-            if queues and queues[0][1]["state"] == "offering" and len(calls) > 1:
-                break
-            time.sleep(0.05)
-        else:
-            pytest.fail("the adapter did not reach its delivery retry")
+        wait_for(
+            lambda: (
+                codex_records("codex-thread"),
+                log.read_text().splitlines() if log.exists() else [],
+            ),
+            lambda reading: (
+                reading[0]
+                and reading[0][0][1]["state"] == "offering"
+                and len(reading[1]) > 1
+            ),
+            failure="the adapter did not reach its delivery retry",
+        )
 
         claim = service_model.page_claim(page)
         files_model.write_json(

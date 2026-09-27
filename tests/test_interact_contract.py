@@ -220,12 +220,12 @@ STATED_KIT = """<!doctype html>
 </head>
 <body>
 <main>
-<lf-specimen id="last-year" label="the kit we took last year">
+<lf-sample id="last-year" label="the kit we took last year">
   <lf-options id="quoted-pick" choose>
     <lf-option id="quoted-paper"><strong>Paper maps</strong> Nothing to charge.</lf-option>
     <lf-option id="quoted-gps"><strong>Dedicated GPS</strong> Offline maps.</lf-option>
   </lf-options>
-</lf-specimen>
+</lf-sample>
 <lf-ask id="kit-decision">
   <h2>Which navigation kit this year?</h2>
   <lf-options id="live-pick" choose>
@@ -4445,11 +4445,11 @@ def test_source_reading_preserves_foreign_graphics_as_exact_markup():
     assert after["content"] == ["After"]
 
 
-def test_source_reading_keeps_a_specimen_out_of_its_parent_identity_space():
+def test_source_reading_keeps_a_sample_out_of_its_parent_identity_space():
     """Child documents keep their own ids, widgets, passages, and validation reading."""
     html = (
         '<main><p id="visible">Visible words.</p>'
-        '<template id="practice" data-specimen><lf-ask id="nested-ask">'
+        '<template id="practice" data-sample><lf-ask id="nested-ask">'
         '<h2>Hidden question</h2><lf-options id="nested-options" choose>'
         '<lf-option id="nested-choice">Hidden answer</lf-option>'
         "</lf-options></lf-ask></template></main>"
@@ -4460,9 +4460,9 @@ def test_source_reading_keeps_a_specimen_out_of_its_parent_identity_space():
     assert parser.lf_elements == []
     assert "nested-options" not in parser.by_id
     assert passages_model.page_passages(parser).text == "Visible words."
-    [specimen] = parser.specimens
-    assert "nested-options" in specimen["document"].by_id
-    assert specimen["document"].main_elements == [(1, True)]
+    [sample] = parser.samples
+    assert "nested-options" in sample["document"].by_id
+    assert sample["document"].main_elements == [(1, True)]
 
 
 @pytest.mark.parametrize(
@@ -4471,60 +4471,60 @@ def test_source_reading_keeps_a_specimen_out_of_its_parent_identity_space():
         ("<noscript>invisible</noscript>", "the browser renders none of its content"),
         ('<lf-unknown id="bad">Unknown</lf-unknown>', "unknown widget"),
         ('<lf-draft id="change" restated><pre>Text</pre></lf-draft>', "restated"),
-        ("<template data-specimen><h1>Child</h1></template>", "needs a stable id"),
+        ("<template data-sample><h1>Child</h1></template>", "needs a stable id"),
         ('<p id="duplicate">One</p><p id="duplicate">Two</p>', "duplicate"),
         (
-            '<template id="nested" data-specimen><noscript>hidden</noscript></template>',
-            "specimen 'nested'",
+            '<template id="nested" data-sample><noscript>hidden</noscript></template>',
+            "sample 'nested'",
         ),
     ],
 )
-def test_check_validates_each_specimen_document(page_dir, markup, error):
+def test_check_validates_each_sample_document(page_dir, markup, error):
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "</main>",
-            f'<template id="practice" data-specimen>{markup}</template></main>',
+            f'<template id="practice" data-sample>{markup}</template></main>',
         )
     )
     result = check(page_dir)
     assert result.exit_code != 0, result.output
-    assert "specimen 'practice'" in result.output
+    assert "sample 'practice'" in result.output
     assert error in result.output
 
 
 @pytest.mark.parametrize("nested", [False, True])
-def test_specimen_diagnostics_report_authored_lines(page_dir, nested):
+def test_sample_diagnostics_report_authored_lines(page_dir, nested):
     markup = '<lf-unknown\n id="bad">Unknown</lf-unknown>\n<noscript>Hidden</noscript>'
     if nested:
-        markup = f'<template\n id="nested"\n data-specimen>\n{markup}</template>'
+        markup = f'<template\n id="nested"\n data-sample>\n{markup}</template>'
     source = PAGE.replace(
         "</main>",
-        f'<template\n id="practice"\n data-specimen>\n{markup}</template></main>',
+        f'<template\n id="practice"\n data-sample>\n{markup}</template></main>',
     )
     (page_dir / "index.html").write_text(source)
     result = check(page_dir)
     assert result.exit_code != 0, result.output
-    assert "specimen 'practice'" in result.output
+    assert "sample 'practice'" in result.output
     if nested:
-        assert "specimen 'nested'" in result.output
+        assert "sample 'nested'" in result.output
     line = source[: source.index("<noscript>")].count("\n") + 1
     assert f"<noscript> at line {line}:" in result.output
 
 
-def test_check_keeps_parent_and_sibling_specimen_ids_independent(page_dir):
+def test_check_keeps_parent_and_sibling_sample_ids_independent(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "</main>",
             '<p id="shared">Parent</p>'
-            '<template id="first" data-specimen><h1 id="shared">First</h1></template>'
-            '<template id="second" data-specimen><h1 id="shared">Second</h1></template></main>',
+            '<template id="first" data-sample><h1 id="shared">First</h1></template>'
+            '<template id="second" data-sample><h1 id="shared">Second</h1></template></main>',
         )
     )
     result = check(page_dir)
     assert result.exit_code == 0, result.output
 
 
-def test_specimen_data_bindings_use_copied_data_but_not_parent_history(page_dir):
+def test_sample_data_bindings_use_copied_data_but_not_parent_history(page_dir):
     declare_data_input(
         page_dir, "shared", {"type": "string"}, contract="parent", tag="lf-parent-data"
     )
@@ -4539,7 +4539,7 @@ def test_specimen_data_bindings_use_copied_data_but_not_parent_history(page_dir)
     )
     child = '<lf-child-data id="test-data" source="shared"></lf-child-data>'
     markup = source.replace(
-        "</main>", f'<template id="practice" data-specimen>{child}</template></main>'
+        "</main>", f'<template id="practice" data-sample>{child}</template></main>'
     )
     (page_dir / "index.html").write_text(markup)
     result = check(page_dir)
@@ -4550,14 +4550,14 @@ def test_specimen_data_bindings_use_copied_data_but_not_parent_history(page_dir)
     data_model.cmd_data_set(page_dir, "shared", "parent value")
     result = check(page_dir)
     assert result.exit_code != 0
-    assert "specimen 'practice'" in result.output
+    assert "sample 'practice'" in result.output
     assert "it was recorded with 'parent'" in result.output
 
 
 @pytest.mark.parametrize("seeded", [False, True])
 @pytest.mark.parametrize("available", [False, True])
 @pytest.mark.parametrize("nested", [False, True])
-def test_specimen_references_see_only_selected_threads(
+def test_sample_references_see_only_selected_threads(
     page_dir, seeded, available, nested
 ):
     if available:
@@ -4570,14 +4570,14 @@ def test_specimen_references_see_only_selected_threads(
                 "text": "A question",
             },
         )
-    selection = ' data-specimen-threads="aabb0011"' if seeded else ""
+    selection = ' data-sample-threads="aabb0011"' if seeded else ""
     child = '<lf-suggestion id="answer" resolves="aabb0011"><lf-new>Answer</lf-new></lf-suggestion>'
     if nested:
-        child = f'<template id="nested" data-specimen{selection}>{child}</template>'
+        child = f'<template id="nested" data-sample{selection}>{child}</template>'
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "</main>",
-            f'<template id="practice" data-specimen{selection}>{child}</template></main>',
+            f'<template id="practice" data-sample{selection}>{child}</template></main>',
         )
     )
     result = check(page_dir)
@@ -4586,7 +4586,7 @@ def test_specimen_references_see_only_selected_threads(
         assert "names no thread in this document" in result.output
 
 
-def test_specimen_checks_available_history_beside_forward_thread_references(
+def test_sample_checks_available_history_beside_forward_thread_references(
     page_dir,
 ):
     events_model.append_event(
@@ -4606,7 +4606,7 @@ def test_specimen_checks_available_history_beside_forward_thread_references(
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "</main>",
-            '<template id="practice" data-specimen data-specimen-threads="aabb0011 aabb0022">'
+            '<template id="practice" data-sample data-sample-threads="aabb0011 aabb0022">'
             '<h1 id="duplicate">Child</h1></template></main>',
         )
     )

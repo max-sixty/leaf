@@ -65,6 +65,9 @@ const pageRoutesSchema = z.object({
 const siteManifestSchema = z
   .object({
     release: z.string().check(z.regex(RELEASE)),
+    // The header policy every HTML response adds, since a document's own <meta>
+    // policy cannot govern its ancestors (`structure.FRAME_ANCESTORS_CSP`).
+    frame_ancestors: z.string().check(z.startsWith("frame-ancestors ")),
     routes: pageRoutesSchema,
     pages: z.record(z.string().check(z.regex(PAGE_ROOT)), sitePageSchema),
   })

@@ -151,8 +151,8 @@ sequenceDiagram
               a queue backs up. Each wait runs in the background, so the agent can
               answer while the next input is being watched.
             </p>
-            <lf-specimen
-              id="loop-transcript-specimen"
+            <lf-sample
+              id="loop-transcript-sample"
               label="direct loop with a captured delivery"
             >
               <pre id="loop-transcript"><code>$ leaf page init ./review
@@ -294,7 +294,7 @@ $ leaf wait
 # revise ./review/index.html; a valid save goes live at once
 $ leaf thread reply ./review --for ebe8f367 --text "Done: [the shed section](#shed-premise) now drops the oldest work for the batch importer and keeps rejection at the API boundary."
 $ leaf status ./review waiting "Does the API/importer split match what you need?"</code></pre>
-            </lf-specimen>
+            </lf-sample>
             <p id="loop-shell-read">
               The batch carries a pick and a comment. The comment names the passage it
               was left on, so the agent receives the objection with its context, and
@@ -841,12 +841,11 @@ flowchart LR
             <h2>Widgets you can operate</h2>
             <p id="dogfood">
               This page runs the plugin's own theme and widget modules. Each example
-              sits in an <code>lf-specimen</code>, the gutter that marks quoted
-              material, so an example decision never reads as one the page is asking you
-              to make.
+              sits in an <code>lf-sample</code>, the gutter that marks quoted material,
+              so an example decision never reads as one the page is asking you to make.
             </p>
             <figure id="options-demo">
-              <lf-specimen id="spec-options-frame" label="lf-options">
+              <lf-sample id="spec-options-frame" label="lf-options">
                 <lf-options id="spec-options">
                   <lf-option id="so-rewrite"
                     ><lf-chip>effort: high</lf-chip><lf-chip>risk: med</lf-chip
@@ -876,7 +875,7 @@ flowchart LR
                   >
                   <lf-option id="sj-fallback">A read fallback behind a flag</lf-option>
                 </lf-options>
-              </lf-specimen>
+              </lf-sample>
               <figcaption>
                 The form follows the options, and nothing declares it: options that
                 argue their own case render as cards, bare labels as rows — a question
@@ -888,7 +887,7 @@ flowchart LR
             </figure>
 
             <figure id="board-demo">
-              <lf-specimen id="spec-board-frame" label="lf-board">
+              <lf-sample id="spec-board-frame" label="lf-board">
                 <lf-board id="spec-board">
                   <lf-column id="sb-incoming" label="Incoming">
                     <lf-card id="sc-flaky"
@@ -910,7 +909,7 @@ flowchart LR
                     >
                   </lf-column>
                 </lf-board>
-              </lf-specimen>
+              </lf-sample>
               <figcaption>
                 In a live leaf, cards drag between columns by a grip, and each drop
                 reaches the agent as a structured move.

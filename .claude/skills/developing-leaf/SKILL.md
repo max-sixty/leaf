@@ -41,7 +41,7 @@ When the subject already exists, implement each candidate in the runtime and
 theme that own the surface and present it through a shipped example or fixture.
 When the user asks for sketches without implementation, keep the current surface
 as the baseline, derive each sketch from its actual controls, copy, and styling,
-and embed the operable current surface with a live `lf-specimen`
+and embed the operable current surface with a live `lf-sample`
 (`skills/leaf/references/page-authoring.md`).
 
 ## Prove and hand off a visible change
@@ -63,9 +63,11 @@ interaction-only change, keep both previews live and hand off the labeled URL
 pair with the action that reveals the difference.
 
 Exercise the same journey in baseline and candidate at the same fragment,
-viewport, theme, and interaction state. A live preview handed to the user
-carries the fragment of the semantic block it is about (a titled section's own
-id) and stays running.
+viewport, theme, and interaction state. Capture each state that draws a box the
+change touches, not only the page at rest: a padding moved for layout can put a
+row over a focus ring that is drawn only while the element is focused. A live
+preview handed to the user carries the fragment of the semantic block it is
+about (a titled section's own id) and stays running.
 
 ## Preview a shipped example
 
@@ -153,7 +155,7 @@ To make an existing page exercise the current checkout, re-vendor it with the
 checkout launcher (`<root>/skills/leaf/references/serving-pages.md`); fix or
 report a compatibility refusal rather than falling back to the installed plugin.
 A page that explains how a Leaf interface behaves lets the user operate it
-(`references/specimen-explainers.md`).
+(`references/sample-explainers.md`).
 
 ## Refresh the public catalog stills
 

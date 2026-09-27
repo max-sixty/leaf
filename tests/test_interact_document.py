@@ -5035,9 +5035,9 @@ def test_a_quoted_ask_does_not_hide_a_real_request_in_the_same_goal(page_dir):
     markup = (
         '<lf-command id="hub">'
         '<lf-task id="goal" status="blocked"><strong>Blocked goal</strong>'
-        '<lf-specimen id="sample"><lf-options id="example" choose>'
+        '<lf-sample id="sample"><lf-options id="example" choose>'
         '<lf-option id="example-a"><strong>Example only</strong></lf-option>'
-        "</lf-options></lf-specimen>"
+        "</lf-options></lf-sample>"
         '<lf-ask id="real-decision"><h3>What next?</h3>'
         '<lf-options id="real" choose><lf-option id="real-a">A</lf-option>'
         '<lf-option id="real-b">B</lf-option></lf-options></lf-ask>'

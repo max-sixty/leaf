@@ -30,6 +30,7 @@ const RELEASE = "a".repeat(64);
 const LAYER = "edge-layer";
 const MANIFEST = {
   release: RELEASE,
+  frame_ancestors: "frame-ancestors 'none'",
   routes: {
     layer: ["runtime", "widgets", "vendor"],
     session: ["media", "revisions", "versions"],
@@ -173,11 +174,11 @@ describe("product-site delivery", () => {
     expect(env.ASSETS.fetch).toHaveBeenCalledTimes(3);
   });
 
-  it("routes specimen documents, assets, and events to the private container without agent work", async () => {
+  it("routes sample documents, assets, and events to the private container without agent work", async () => {
     const sessionId = "03".repeat(16);
-    const specimen = `/examples/triage-board/api/specimens/${"04".repeat(16)}`;
+    const sample = `/examples/triage-board/api/samples/${"04".repeat(16)}`;
     const eventId = "05".repeat(16);
-    const attempt = "specimen-comment";
+    const attempt = "child-sample-comment";
     const containerFetch = vi.fn(async () => Response.json({
       ok: true,
       state: {
@@ -189,11 +190,11 @@ describe("product-site delivery", () => {
     const waitUntil = vi.fn();
     const env = environment();
     for (const [method, path] of [
-      ["POST", "/examples/triage-board/api/specimens"],
-      ["GET", `${specimen}/`],
-      ["GET", `${specimen}/revisions/r1-0123456789abcdef/leaf.js`],
-      ["GET", `${specimen}/api/state`],
-      ["POST", `${specimen}/api/event`],
+      ["POST", "/examples/triage-board/api/samples"],
+      ["GET", `${sample}/`],
+      ["GET", `${sample}/revisions/r1-0123456789abcdef/leaf.js`],
+      ["GET", `${sample}/api/state`],
+      ["POST", `${sample}/api/event`],
     ]) {
       const response = await worker.fetch(new Request(`https://leaf.page${path}`, {
         method,
@@ -235,7 +236,7 @@ describe("product-site delivery", () => {
       expect(assetFetch).toHaveBeenCalledOnce();
       expect(getContainer).not.toHaveBeenCalled();
       expect(response.headers.get("Content-Security-Policy")).toBe(
-        "frame-ancestors 'none'",
+        MANIFEST.frame_ancestors,
       );
       expect(response.headers.get("Set-Cookie")).toMatch(
         /^__Host-leaf-page=[0-9a-f]{32}; Path=\/; Secure; HttpOnly; SameSite=Lax$/,

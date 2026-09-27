@@ -1286,7 +1286,7 @@ EMPTY_QUOTED_SWIPE_PAGE = leaf_page(
     "completed swipe deck",
     """
 <h1>Completed triage</h1>
-<lf-specimen id="swipe-example" label="completed triage">
+<lf-sample id="swipe-example" label="completed triage">
   <lf-swipe-deck id="completed-swipe">
     <lf-swipe-pile id="completed-queue" verdict="unseen"></lf-swipe-pile>
     <lf-swipe-pile id="completed-pass" verdict="pass"></lf-swipe-pile>
@@ -1294,7 +1294,7 @@ EMPTY_QUOTED_SWIPE_PAGE = leaf_page(
       <lf-swipe-card id="kept-card"><strong>Keep the expiry bound</strong></lf-swipe-card>
     </lf-swipe-pile>
   </lf-swipe-deck>
-</lf-specimen>
+</lf-sample>
 """,
 )
 
@@ -4467,8 +4467,8 @@ def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(
 ):
     source = PLAYGROUND_PAGE.replace(
         '<lf-ask id="card-playground-ask">',
-        '<lf-specimen id="playground-example" label="card playground">',
-    ).replace("</lf-ask>", "</lf-specimen>")
+        '<lf-sample id="playground-example" label="card playground">',
+    ).replace("</lf-ask>", "</lf-sample>")
     page = open_page(browser, serve(source))
     playground = page.locator("#card-playground")
 
@@ -5741,8 +5741,8 @@ def test_swipe_deck_reloads_replays_and_undoes_absolute_placement(browser, serve
 def test_a_quoted_swipe_deck_is_a_static_labeled_exhibit(browser, serve):
     source = SWIPE_PAGE.replace(
         '<lf-ask id="session-triage-decision">',
-        '<lf-specimen id="swipe-example" label="session triage">',
-    ).replace("</lf-ask>", "</lf-specimen>")
+        '<lf-sample id="swipe-example" label="session triage">',
+    ).replace("</lf-ask>", "</lf-sample>")
     page = open_page(browser, serve(source))
     deck = page.locator("#session-triage")
 
@@ -6768,7 +6768,7 @@ def test_the_banner_counts_completed_asks_against_the_active_total(browser, serv
     it wrong: a group whose pick the version already carries (`chosen`, with nothing in
     the log — a fold-only reading counts it as open on every shipped example), one the
     author has settled, one that takes no picks at all, an exhibited decision inside a
-    lf-specimen, and a milestone at `blocked`, which is the same word on a widget whose
+    lf-sample, and a milestone at `blocked`, which is the same word on a widget whose
     entry does not declare it."""
     page = open_page(browser, serve(ASKS_PAGE))
     decisions = page.locator(".lf-asks")
@@ -8313,12 +8313,6 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
     label = thread.locator(".lf-quote").inner_text()
     assert "Which store should I write up?" in label, label
     assert "ps-decision-region" not in label, label
-    # The heading over it, and the layer's own name kept for the layer's own parts.
-    groups = page.evaluate(
-        "() => [...document.querySelectorAll('.lf-group')].map((g) => g.textContent)"
-    )
-    assert "Sent in the thread" in groups, groups
-    assert "The page's own layer" not in groups, groups
 
 
 def test_a_change_says_which_of_the_three_it_is(browser, serve):
@@ -9916,8 +9910,8 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     nothing on screen saying whose lines these were, because the file's header stood in
     flow and scrolled away with its own first rows.
 
-    Pinned, the header stands exactly where the banner ends, which is the slot the thread
-    panel's run headings take over their own list. A press then has to land past it:
+    Pinned, the header stands exactly where the banner ends. A press then has to land
+    past it:
     `scrollIntoView` reads the document's scroll-padding, which reserves the banner, and
     the header's own height is added to that as the rows' scroll-margin — measured,
     because a long path wraps and no stylesheet can work that number out.

@@ -215,6 +215,10 @@ def widget_confinement(root: Path) -> tuple[str, str] | None:
     return f":where({listed}, :is({listed}) *)", f":where({host}, {host} *)"
 
 
+# A root's own stylesheets, in the order the document's theme.css reads them.
+ROOT_SHEETS = ("shadow.css", "theme.css")
+
+
 def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     """The layer's two stylesheets, each in layer precedence order.
 
@@ -240,7 +244,7 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     shadow = []
     for position, root in enumerate(inputs):
         where = widget_confinement(root) if position else None
-        for name in ("shadow.css", "theme.css"):
+        for name in ROOT_SHEETS:
             source = root / name
             if not source.is_file():
                 continue

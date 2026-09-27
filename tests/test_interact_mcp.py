@@ -24,8 +24,8 @@ from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
 
-def test_mcp_specimens_keep_the_parent_capability_and_their_own_log(page_dir):
-    template = '<template id="practice" data-specimen><h1>Practice</h1><p id="child-text">A child page.</p></template>'
+def test_mcp_samples_keep_the_parent_capability_and_their_own_log(page_dir):
+    template = '<template id="practice" data-sample><h1>Practice</h1><p id="child-text">A child page.</p></template>'
     (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
     activation = activate_source(page_dir)
     assert activation.error is None
@@ -35,14 +35,14 @@ def test_mcp_specimens_keep_the_parent_capability_and_their_own_log(page_dir):
         with urllib.request.urlopen(urljoin(parent, "api/state")) as response:
             state = json.load(response)
         request = urllib.request.Request(
-            urljoin(parent, "api/specimens"),
+            urljoin(parent, "api/samples"),
             data=b'{"template":"practice"}',
             headers={"Leaf-Layer": state["layer"]["generation"]},
         )
         with urllib.request.urlopen(request) as response:
             path = json.load(response)["url"]
         child = urljoin(parent, path)
-        assert child.startswith(parent + "api/specimens/")
+        assert child.startswith(parent + "api/samples/")
         with urllib.request.urlopen(child) as response:
             document = response.read()
             assert b"A child page." in document
@@ -79,9 +79,9 @@ def test_mcp_specimens_keep_the_parent_capability_and_their_own_log(page_dir):
         trace = list(interaction_model.lines(page_dir))
         capability = urllib.parse.urlsplit(parent).path.split("/")[2]
         assert all(capability not in row for row in trace)
-        specimen = path.rstrip("/").split("/")[-1]
+        sample = path.rstrip("/").split("/")[-1]
         assert any(
-            json.loads(row).get("page") == f"/api/specimens/{specimen}" for row in trace
+            json.loads(row).get("page") == f"/api/samples/{sample}" for row in trace
         )
     finally:
         pages.close()

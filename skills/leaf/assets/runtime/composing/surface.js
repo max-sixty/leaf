@@ -603,6 +603,11 @@ export function createResponseSurface({
       fabSideFootOffset === null
         ? target.top - 6
         : target.top + fabSideFootOffset - height;
+    // Above or below, the field starts where the compact control would, ended on the
+    // passage's right edge, and grows rightward from there. The start is the minimum's,
+    // not the bar's first measured width, which a restored draft's words widen: one draft
+    // then gets the same lane wherever it is opened.
+    const inlineConnection = () => fabInlineConnection ?? -minimumFabWidth();
     void floatingUi()
       .then(
         ({ autoUpdate, computePosition, flip, limitShift, offset, shift, size }) => {
@@ -621,9 +626,7 @@ export function createResponseSurface({
                   // above or below, preserve the initial inline start.
                   crossAxis: beside
                     ? sideTop(rects.floating.height) - keepClear.top
-                    : fabInlineConnection === null
-                      ? 0
-                      : fabInlineConnection + rects.floating.width,
+                    : inlineConnection() + rects.floating.width,
                 };
               }),
               // Size precedes the one initial flip so the decision sees the width into
@@ -640,9 +643,7 @@ export function createResponseSurface({
                       ? boundary.right - keepClear.right - 6
                       : side === "left"
                         ? keepClear.left - boundary.left - 6
-                        : fabInlineConnection === null
-                          ? availableWidth
-                          : boundary.right - (keepClear.right + fabInlineConnection);
+                        : boundary.right - (keepClear.right + inlineConnection());
                   // A side placement consumes its current rail. Above or below, the
                   // relative connection preserves the field's inline start as its content
                   // grows while allowing target reflow to carry that start with it.

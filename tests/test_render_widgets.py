@@ -2566,7 +2566,8 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
         "hidden sidebar map",
         """
 <style>
-  @container lf-shell (max-width: 847px) { #route { display: none; } }
+  main:not([data-lf-margin~="map"], [data-lf-margin~="sidebar"]) #route {
+    display: none; }
 </style>
 <h1>Migration plan for the readers already in flight</h1>
 <aside class="sidebar" id="route"><lf-toc id="contents"></lf-toc></aside>

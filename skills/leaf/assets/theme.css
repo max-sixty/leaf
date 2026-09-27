@@ -57,14 +57,13 @@
    Typography is presentation, not passage permission. A chip or code annotation may look
    like apparatus and still be a page word the user can quote.
 
-   A floor asks about the room its rule governs. One granting a posture out of the room
-   left beside a standing surface is a container query on `lf-shell`, inside `@media screen`
-   since paper has no tray and no margin to grant: 1296 and 1536 for the sidebar and the
-   sidenote, each the column box plus its width on either side, and 640 for a narrow
-   column's facts. The margin projection's rail is measured instead (`railStands`,
-   margin-layout.js), since what it asks is the room a page's Layout left beside `main`.
-   One answering to the device, such as a phone's vertical rhythm, asks the window, and a
-   package's widget asks its own box (references/packages.md).
+   A floor asks about the room its rule governs. Whether a margin resident (the rail, a
+   contents map, a sidebar, a sidenote) stands in the margin is measured, since what it
+   asks is the room the page's Layout and CSS left beside `main`: the margin pass writes
+   the answer on `main` (`settleResidency`, margin-layout.js) and the rules below key on
+   it. A narrow column's facts ask `lf-shell` (640), one answering to the device, such as
+   a phone's vertical rhythm, asks the window, and a package's widget asks its own box
+   (references/packages.md).
 
    Text may break at any character needed to keep the page inside its column.
    `overflow-wrap` is inherited from the page. Any token that must remain one unit, such
@@ -236,8 +235,10 @@
      while the document moves, so the whole left edge is spoken for wherever it is in
      margin form. Its 240px box plus the ordinary 24px gutter is enough for short link
      labels without making a second prose column. The rule beside aside.sidebar spends
-     it; the shell's container query decides when the page can afford it. */
+     it; the margin pass decides when the page can afford it (`settleResidency`). */
   --sidebar: 264px;
+  /* A contents map at rest in the margin: its spine and the gutter beside it. */
+  --map: 48px;
   /* The widest left-margin allocation any sidebar posture can request: the contents
      map's, whose labels reveal over the page (the default package). */
   --sidebar-max: 344px;
@@ -1210,67 +1211,69 @@ section.panel > :last-child { margin-bottom: 0; }
 .callout:is(.ok, .warn, .danger) > strong:first-child { color: var(--lf-tone-ink); }
 /* A sidebar is page-level supporting material rather than an annotation on one block:
    contents, a facts list, a short aside. In flow it is a block where it was written. A
-   column's first sidebar stands in the room free beside the column where that room holds
-   it, sticky below the banner, and claims nothing: the column never moves for it, and a
-   wide exhibit keeps the room on its other side. A contents map rests as a spine a few
-   pixels wide and reveals its labels over the page, so it stands out there from a much
-   narrower shell (below); anything else needs --sidebar beside the 768px
-   column box, 1296px of shell. Direct-child margins are trimmed because a sidebar is a
+   column's first sidebar is a margin resident, as is every sidenote: each states which it
+   is (`--lf-resident`), and the margin pass admits it where the room beside the column
+   holds it (margin-layout.js, `settleResidency`), moving the column over where one side
+   lacks it. Each names the postures it may take, in order of preference; the stylesheet
+   reads the answer off `main`'s `data-lf-margin`, one token per posture standing. Screen
+   only: paper has no tray and no margin to grant. A sidebar in the margin stands sticky
+   below the banner in the room its --sidebar takes left of the column box. A contents
+   map rests as a spine a few pixels wide and reveals its labels over the page, so with a
+   fine pointer a sidebar holding one can stand as the map alone, in --map, where the
+   sidebar does not fit. Direct-child margins are trimmed because a sidebar is a
    placement wrapper, not a second rhythm around what it holds. */
+@property --lf-resident { syntax: "*"; inherits: false; }
 aside.sidebar { display: flow-root; margin: var(--sp-4) 0 30px; }
 aside.sidebar > :first-child { margin-top: 0; }
 aside.sidebar > :last-child { margin-bottom: 0; }
 main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; }
+main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-resident: sidebar; }
+main.layout-column aside.sidenote { --lf-resident: note; }
 @media screen {
-  @container lf-shell (min-width: 1296px) {
-    /* Sticky, it can stand level with any band of the page, so it takes its whole
-     * side: a breakout grows only rightward past it. */
-    html:root main.layout-column:has(> aside.sidebar) {
-      --lf-sidebar-posture: margin; --lf-taken-l: var(--lf-beside); }
-    html:root main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar) {
-      float: left; clear: left; position: sticky;
-      top: calc(var(--lf-top) + var(--sp-4));
-      width: calc(var(--sidebar) - var(--sp-4));
-      max-height: calc(var(--lf-view-height) - 2 * var(--sp-4));
-      overflow-y: auto;
-      margin: 0 var(--sp-4) var(--sp-4) calc(-1 * var(--sidebar));
-    }
+  /* Sticky, it can stand level with any band of the page, so it takes its whole side: a
+   * breakout grows only rightward past it. */
+  main.layout-column[data-lf-margin~="sidebar"] {
+    --lf-sidebar-posture: margin; --lf-taken-l: calc(var(--lf-beside) + var(--lf-shift)); }
+  main.layout-column[data-lf-margin~="sidebar"] > aside.sidebar:nth-child(1 of aside.sidebar) {
+    float: left; clear: left; position: sticky;
+    top: calc(var(--lf-top) + var(--sp-4));
+    width: calc(var(--sidebar) - var(--sp-4));
+    max-height: calc(var(--lf-view-height) - 2 * var(--sp-4));
+    overflow-y: auto;
+    margin: 0 var(--sp-4) var(--sp-4) calc(-1 * var(--sidebar));
   }
 }
 /* A contents map in that slot rests as a spine a few pixels wide and reveals its labels
- * over the page, so it stands out from a much narrower shell; the default package draws
- * it there once this says the slot is in the margin. */
+ * over the page; the default package draws it there once this says the slot is in the
+ * margin, as the map alone or in a sidebar standing there. The map is fixed to the
+ * window, so standing alone it leaves its wrapper in flow, which gives up its margins
+ * rather than opening a gap under the header. */
 @media screen and (hover: hover) and (pointer: fine) {
-  @container lf-shell (min-width: 848px) {
-    html:root main.layout-column:has(> aside.sidebar:nth-child(1 of aside.sidebar) lf-toc) {
-      --lf-sidebar-posture: margin;
-      /* At rest the map is its spine, chrome fixed in the left margin, so a breakout
-       * stops short of it (layouts.css, the column's free room); its labels reveal over
-       * the page. */
-      --lf-taken-l: calc(2 * var(--sp-4));
-    }
-  }
+  main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has(lf-toc) {
+    --lf-resident: sidebar map; }
+  main.layout-column[data-lf-margin~="map"] { --lf-sidebar-posture: margin; }
+  /* At rest the map is its spine, chrome fixed in the left margin, so a breakout stops
+   * short of it (layouts.css, the column's free room); its labels reveal over the page. */
+  main.layout-column:is([data-lf-margin~="map"], [data-lf-margin~="sidebar"]):has(
+    > aside.sidebar:nth-child(1 of aside.sidebar) lf-toc) { --lf-taken-l: var(--map); }
+  main.layout-column[data-lf-margin~="map"] > aside.sidebar:nth-child(1 of aside.sidebar) {
+    margin-block: 0; }
   main:has(> aside.sidebar:nth-child(1 of aside.sidebar) lf-toc) {
     --lf-sidebar-claim: var(--sidebar-max);
-    --lf-sidebar-free-left: calc(var(--lf-beside) + var(--lf-shift)
-      - var(--lf-gutter-l));
   }
 }
-/* A sidenote hangs in the column's right margin where the room free beside the column
-   holds it, 1536px of shell for the note's 384px on each side of the 768px column box,
+/* A sidenote hangs in the column's right margin where the margin pass admits it (above),
    and is a small indented block where it was written otherwise, and on paper. It claims
    nothing: a wide exhibit level with a note drops below it (`clear`) and then takes the
    room, and a margin row level with a note stands on it as a pin (margin-layout.js). */
 aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
                  margin: 12px 0 12px var(--sp-4); }
 @media screen {
-  @container lf-shell (min-width: 1536px) {
-    main.layout-column :is([data-lf-space]:not([data-lf-space="column"]),
-      [data-width]:not([data-width="column"])) { clear: right; }
-    main.layout-column aside.sidenote {
-      float: right; clear: right; width: calc(var(--note) - var(--sp-4));
-      margin: 0 calc(-1 * var(--note)) 12px 0; }
-  }
+  main.layout-column[data-lf-margin~="note"] :is([data-lf-space]:not([data-lf-space="column"]),
+    [data-width]:not([data-width="column"])) { clear: right; }
+  main.layout-column[data-lf-margin~="note"] aside.sidenote {
+    float: right; clear: right; width: calc(var(--note) - var(--sp-4));
+    margin: 0 calc(-1 * var(--note)) 12px 0; }
 }
 .facts { display: grid; grid-template-columns: max-content 1fr; align-items: baseline;
          gap: var(--sp-1) var(--sp-3); margin: 14px 0; }

@@ -987,6 +987,38 @@ def test_a_comment_rechooses_after_target_width_reflow(browser, serve):
     )
 
 
+def test_a_draft_below_its_passage_keeps_its_lane_whatever_it_holds(browser, serve):
+    """Above or below a passage the field starts where the compact control would, ended
+    on the passage's right edge. The bar's first measured width is the draft's, so a
+    start taken from it put a restored draft further left, in a wider lane, than the
+    same draft typed into an empty field."""
+    page = open_page(
+        browser,
+        serve(next(example for example in EXAMPLES if example.stem == "release-notes")),
+    )
+    resized(page, 700, 600)
+    target = page.locator("#rn-console-why")
+    target.scroll_into_view_if_needed()
+    target.click(modifiers=["Alt"], position={"x": 20, "y": 10})
+    field = open_compact_comment(page)
+    bar = page.locator(".lf-fab-bar")
+    rendered(page)
+    placement = bar.get_attribute("data-lf-placement")
+    assert placement in {"top-end", "bottom-end"}, placement
+    empty = bar.bounding_box()
+    draft = "A draft long enough that its own width would widen the bar it opens in."
+    write(field, draft)
+    rendered(page)
+
+    page.reload()
+    wait_until_ready(page)
+    expect(field).to_have_js_property("value", draft)
+    expect(bar).to_have_attribute("data-lf-placement", placement)
+    rendered(page)
+    restored = bar.bounding_box()
+    assert abs(restored["x"] - empty["x"]) <= 1, (empty, restored)
+
+
 def test_a_side_comment_rechooses_its_rail_after_horizontal_target_motion(
     browser, serve
 ):

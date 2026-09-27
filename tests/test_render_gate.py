@@ -120,7 +120,9 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
 )
 
 
-def test_the_render_gate_exercises_both_schemes_at_both_viewports(browser, serve):
+def _rendered(browser, url):
+    """The gate's reading of a page, with each viewport and scheme it rendered in, in
+    order."""
     seen = []
 
     def record_page(page):
@@ -130,18 +132,42 @@ def test_the_render_gate_exercises_both_schemes_at_both_viewports(browser, serve
             (viewport["width"], viewport["height"], "dark" if dark else "light")
         )
 
-    assert (
-        render_gate_model.render_version(
-            primed(browser, record_page), serve(BOUNDED_WORKSPACE_PAGE, packages=())
-        ).failures
-        == []
-    )
+    return render_gate_model.render_version(primed(browser, record_page), url), seen
+
+
+def test_the_render_gate_exercises_both_schemes_at_both_viewports(browser, serve):
+    reading, seen = _rendered(browser, serve(BOUNDED_WORKSPACE_PAGE, packages=()))
+    assert reading.failures == []
     assert seen == [
         (1200, 900, "light"),
         (1200, 900, "dark"),
         (540, 720, "light"),
         (540, 720, "dark"),
+        *((width, 900, "light") for width in reading.margin_widths),
     ]
+
+
+def test_the_render_gate_renders_where_the_margin_content_changes(browser, serve):
+    """A sidebar and a sidenote stand in the margin only where the room beside the column
+    holds them, which is above the desktop viewport for a sidebar beside a note. So the
+    gate finds each width where what stands in the margin changes, the rail's, the
+    sidebar's and the note's, and renders the page there too, where each resident has
+    the least room it will ever have."""
+    source = leaf_page(
+        "margin residents in the gate",
+        """
+<h1>Migration plan</h1>
+<aside class="sidebar" id="route"><nav aria-label="Route"><a href="#move">Move</a></nav></aside>
+<aside class="sidenote" id="frequency">Support runs this twice a month.</aside>
+<h2 id="move">Move</h2>
+<p>Shift one cohort at a time while keeping the old readers available.</p>
+""",
+    )
+    reading, seen = _rendered(browser, serve(source, packages=()))
+    assert reading.failures == []
+    assert len(reading.margin_widths) == 3, reading.margin_widths
+    assert reading.margin_widths == sorted(reading.margin_widths)
+    assert seen[4:] == [(width, 900, "light") for width in reading.margin_widths]
 
 
 def test_the_render_gate_reports_a_defect_specific_to_the_compact_viewport(
@@ -3470,12 +3496,6 @@ def test_the_covered_words_gate_still_reads_a_control_in_the_flow(browser, serve
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a sidenote stands in the margin only from 1536px since the Layouts, and the "
-    "gate reads at 1200px, so it never sees the note leave its box; TODO.md, Layouts, "
-    "'Finish contract 8's margins'",
-)
 def test_the_render_gate_reports_a_sidenote_a_box_clips_away(browser, serve):
     """A choose group clips its own box, so a note pulled into the page's margin from
     inside one is painted nowhere. Every other reading calls that well — the column

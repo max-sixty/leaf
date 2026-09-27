@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from leaf.render_checks import RENDER_VIEWPORT, SERVED_TIMEOUT_MS
 
 from .readings import (
+    margin_changes,
     margin_cover_advice,
     shrunk_label_advice,
     sweep,
@@ -20,24 +21,29 @@ RENDER_VIEWPORTS = (
 
 @dataclass(frozen=True, slots=True)
 class RenderReading:
-    """What the browser gate read of a version: a failure refuses it, advice does not."""
+    """What the browser gate read of a version: a failure refuses it, advice does not.
+    `margin_widths` are the widths, besides the fixed viewports, it rendered because the
+    page's margin content changes there."""
 
     failures: list[str]
     advice: list[str]
+    margin_widths: list[int]
 
 
 def _viewport_label(viewport: dict) -> str:
     return f"{viewport['width']}x{viewport['height']}"
 
 
-def _findings_with_viewports(findings: list[tuple[str, str]]) -> list[str]:
+def _findings_with_viewports(
+    findings: list[tuple[str, str]], rendered: list[dict]
+) -> list[str]:
     """Identify viewport-specific findings without duplicating universal ones."""
     viewports_by_finding = {}
     for finding, viewport in findings:
         viewports = viewports_by_finding.setdefault(finding, [])
         if viewport not in viewports:
             viewports.append(viewport)
-    every_viewport = [_viewport_label(viewport) for viewport in RENDER_VIEWPORTS]
+    every_viewport = [_viewport_label(viewport) for viewport in rendered]
     return [
         (
             finding
@@ -75,9 +81,12 @@ def _render_version_attempt(
     in that scheme. Once per version, on the settled desktop page in the light scheme, it
     reads more: as advice, whether a margin pin stands over text, and whether a
     drawing's fit to its box shrinks its labels past reading; and then, resizing that
-    loaded page through every width from 360px to 1200px, the sideways readings again:
-    a version holds at each of them, not only at the two it renders. Returns the failures
-    and the advice; no failures is a pass.
+    loaded page through every width from 360px to 1920px, the sideways readings again:
+    a version holds at each of them, not only at the two it renders. That pass also
+    finds each width where the page's margin content changes (a sidebar, note or the
+    rail first standing in the margin), and the gate renders the page there too, in the
+    light scheme: what stands in the margin is layout, which the scheme does not change.
+    Returns the failures and the advice; no failures is a pass.
 
     One implementation with two callers — `version check --render` on the page an agent
     just wrote, and the render suite on the shipped examples
@@ -96,6 +105,7 @@ def _render_version_attempt(
     completed = []
     swept = []
     advice = []
+    changes = []
 
     def once(page):
         # Advice first, at the viewport it is about; the sweep then resizes the page.
@@ -103,34 +113,46 @@ def _render_version_attempt(
         advice.extend(shrunk_label_advice(page))
         widths = sweep(page, RENDER_VIEWPORTS)
         swept.extend(swept_overflow(widths, RENDER_VIEWPORTS))
+        height = RENDER_VIEWPORTS[0]["height"]
+        fixed = {viewport["width"] for viewport in RENDER_VIEWPORTS}
+        changes.extend(
+            width
+            for width in margin_changes(page, widths, height)
+            if width not in fixed
+        )
+
+    def render(viewport, scheme, then=None):
+        viewport_label = _viewport_label(viewport)
+        found, found_notices, complete = _render_scheme(
+            browser, url, scheme, viewport, served_timeout_ms, opened_pages, then=then
+        )
+        failures.extend((finding, viewport_label) for finding in found)
+        notices.extend((notice, viewport_label) for notice in found_notices)
+        completed.append(complete)
 
     try:
         for viewport in RENDER_VIEWPORTS:
-            viewport_label = _viewport_label(viewport)
             for scheme in ("light", "dark"):
                 first = viewport is RENDER_VIEWPORTS[0] and scheme == "light"
-                found, found_notices, complete = _render_scheme(
-                    browser,
-                    url,
-                    scheme,
-                    viewport,
-                    served_timeout_ms,
-                    opened_pages,
-                    then=once if first else None,
-                )
-                failures.extend((finding, viewport_label) for finding in found)
-                notices.extend((notice, viewport_label) for notice in found_notices)
-                completed.append(complete)
+                render(viewport, scheme, then=once if first else None)
+        margins = [
+            {"width": width, "height": RENDER_VIEWPORTS[0]["height"]}
+            for width in changes
+        ]
+        for viewport in margins:
+            render(viewport, "light")
     except PlaywrightError:
         for page in opened_pages:
             if not page.is_closed():
                 page.close()
         raise
+    rendered = [*RENDER_VIEWPORTS, *margins]
     return (
-        _findings_with_viewports(failures) + swept,
-        _findings_with_viewports(notices),
+        _findings_with_viewports(failures, rendered) + swept,
+        _findings_with_viewports(notices, rendered),
         all(completed),
         advice,
+        changes,
     )
 
 
@@ -171,25 +193,26 @@ def render_version(
                 [],
                 False,
                 [],
+                [],
             )
 
-    found, notices, complete, advice = attempt()
+    found, notices, complete, advice, widths = attempt()
     retain(found)
     if not complete:
         retain(notices)
-        return RenderReading(failures, advice)
+        return RenderReading(failures, advice, widths)
     if not notices:
-        return RenderReading(failures, advice)
+        return RenderReading(failures, advice, widths)
 
-    found, confirming_notices, complete, _advice = attempt()
+    found, confirming_notices, complete, _advice, _widths = attempt()
     retain(found)
     if not complete:
         for notice in [*notices, *confirming_notices]:
             retain([f"{notice} (the confirming render attempt did not complete)"])
-        return RenderReading(failures, advice)
+        return RenderReading(failures, advice, widths)
     if confirming_notices:
         failures.extend(
             f"{notice} (recurred on the confirming render attempt)"
             for notice in confirming_notices
         )
-    return RenderReading(failures, advice)
+    return RenderReading(failures, advice, widths)

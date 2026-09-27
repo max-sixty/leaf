@@ -301,10 +301,8 @@
         min-inline-size: 0;
       }
 
-      @container lf-shell (max-width: 1151px) {
-        #bg-sidebar {
-          display: none;
-        }
+      main:not([data-lf-margin~="map"], [data-lf-margin~="sidebar"]) #bg-sidebar {
+        display: none;
       }
 
       @media print {

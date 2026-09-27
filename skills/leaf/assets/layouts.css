@@ -13,6 +13,10 @@
    * off that side's free room: the contents map's spine, a sidebar, a project widget's
    * own resident.
    *
+   * The column moves off centre by `--lf-shift` where a sidebar or sidenote needs more
+   * room on one side than centring leaves it; the margin pass measures and writes it
+   * (margin-layout.js, `settleResidency`), and the free room on each side follows.
+   *
    * The free room is the shell's (100cqi), so only a column on `main` has it. A column
    * Layout on a block inside another Layout keeps the measure and centres in its box,
    * and a breakout in it stays in that box rather than reaching past the Layout around
@@ -28,9 +32,14 @@
     --lf-beside: calc((100cqi - var(--lf-width)) / 2);
     --lf-shift: 0px;
     --lf-gutter-l: var(--col-pad);
-    --lf-free-l: max(0px, calc(var(--lf-beside) - var(--col-pad) - var(--lf-taken-l, 0px)));
-    --lf-free-r: max(0px, calc(var(--lf-beside) - var(--col-pad) - var(--lf-taken-r, 0px)));
+    --lf-free-l: max(0px, calc(var(--lf-beside) + var(--lf-shift) - var(--col-pad)
+      - var(--lf-taken-l, 0px)));
+    --lf-free-r: max(0px, calc(var(--lf-beside) - var(--lf-shift) - var(--col-pad)
+      - var(--lf-taken-r, 0px)));
     --lf-room: max(0px, calc(100cqi - 2 * var(--col-pad)));
+  }
+  @media screen {
+    main.layout-column { position: relative; inset-inline-start: var(--lf-shift); }
   }
   /* The page as wide as the window: a gutter that grows with it, a cap at the widest
    * page, and the title a size up, set tighter to hold its line above panels as wide as

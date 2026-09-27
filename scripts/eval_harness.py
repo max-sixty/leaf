@@ -16,8 +16,8 @@ timed run starts.
 A child is `claude -p` from a scratch cwd outside any repository, under a home of its
 own, with no MCP servers, auto-memory off, and none of the variables that identify an
 agent session running the harness (`environment`). Its permissions are bypassed, so
-whatever a child writes to its host's user configuration lands in that home and not the
-user's: a child told of a standing preference saves it where its host keeps them, as
+what a child writes to its host's user configuration by `~` lands in that home and not
+the user's: a child told of a standing preference saves it where its host keeps them, as
 the guidance says to, and children given the user's home appended six copies to the
 user's own `~/.claude/CLAUDE.md`. The home holds nothing the user wrote, so none of the
 user's instructions, settings, plugins or memory load either. The login lives in the
@@ -26,7 +26,9 @@ keeps the user's cache. Claude Code loads project instructions above its cwd, so
 child whose cwd sat in this checkout read its `AGENTS.md` whatever arm it ran.
 `--add-dir` grants reads without loading a directory's project instructions. Two
 phases of one session share a cwd, and so a home, which is where `--resume` finds the
-session.
+session. The home stands beside the cwd rather than in it, so a child listing its own
+files never meets its host's; and `CLAUDE_CONFIG_DIR`, which would point the child
+back at a config directory of the user's, does not reach it.
 The child's `TMPDIR` is inside its cwd, because concurrent children otherwise write the
 same `/tmp` names and can read each other's.
 
@@ -169,7 +171,7 @@ def claude_child(
     `args` follow `-p`, so a prompt goes first. `dirs` are what the child may read
     beyond `cwd`, and `env` adds to `environment()`. Output is verbose stream-json."""
     (cwd / "tmp").mkdir(exist_ok=True)
-    home = cwd / "home"
+    home = cwd.with_name(f"{cwd.name}-home")
     home.mkdir(exist_ok=True)
     if not (home / "Library").exists():
         (home / "Library").symlink_to(Path.home() / "Library")
@@ -178,17 +180,15 @@ def claude_child(
         "--permission-mode", "bypassPermissions", "--output-format", "stream-json",
         "--verbose", *(arg for d in dirs for arg in ("--add-dir", str(d))),
     ]  # fmt: skip
-    return {
-        "args": command,
-        "cwd": cwd,
-        "env": environment(
-            HOME=str(home),
-            UV_CACHE_DIR=os.environ.get("UV_CACHE_DIR", str(Path.home() / ".cache/uv")),
-            CLAUDE_CODE_DISABLE_AUTO_MEMORY="1",
-            TMPDIR=str(cwd / "tmp"),
-            **(env or {}),
-        ),
-    }
+    child_env = environment(
+        HOME=str(home),
+        UV_CACHE_DIR=os.environ.get("UV_CACHE_DIR", str(Path.home() / ".cache/uv")),
+        CLAUDE_CODE_DISABLE_AUTO_MEMORY="1",
+        TMPDIR=str(cwd / "tmp"),
+        **(env or {}),
+    )
+    child_env.pop("CLAUDE_CONFIG_DIR", None)
+    return {"args": command, "cwd": cwd, "env": child_env}
 
 
 def run_claude(

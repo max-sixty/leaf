@@ -26,6 +26,10 @@ this section. What the runs left:
   them. `check_clean` now covers every package's guidance and registry and the
   Layouts' stylesheet, and `score` reports any vocabulary a plain page uses; read that
   column before trusting a batch.
+- The second run's phase-2 children ran with the user's home, read the user's
+  `~/.claude/CLAUDE.md` (and earlier runs' copies of the preference in it), and six appended
+  the preference there. Its phase-2 numbers were made under the user's instructions, not
+  the arm's alone. Children now run under a home of their own (`scripts/eval_harness.py`).
 - The judge reads static screenshots. It cannot see a pane scroll, a rail stick, or
   any interaction, and it reads a pane's first screen as the whole pane.
 - One judge model and three pairs per cell. A batch's authoring costs about $37 and

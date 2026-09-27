@@ -167,9 +167,9 @@ the body when it is what they read first, such as a code review's verdict and th
 files it covers, where it also stands on the left; after it when it follows the work, such
 as a dashboard's checks and log, where it stands on the right. A page read in order is not
 one of these, whatever its length: its contents stand in the margin beside the column
-("The rail and the margin"), and its figures keep the column's measure. Stack each track's regions inside it, so
-every region stands on the same two vertical lines, rather than a new split per row whose
-edges land somewhere new each time.
+("The rail and the margin"), and its figures keep the column's measure. Stack each
+track's regions inside it, so every region stands on the same two vertical lines, rather
+than a new split per row whose edges land somewhere new each time.
 
 A track shorter than the window can stay in view while the body scrolls beside it:
 give the `aside` `align-self: stretch`, so it runs the body's height, and the block it
@@ -512,9 +512,9 @@ leaf page check <page> --render
 It runs the browser gate in both color schemes, including when the host gives you
 no separate browser tool. Fix every failure; a screenshot is not a substitute.
 
-A clean check then saves screens of the page and names them: top to bottom on a desktop,
-in the widest window, where whatever scales with the window is at its largest, and on a
-phone, and one screen at each width where the page's own arrangement is at its
+A clean check then saves screens of the page and names them: top to bottom three times,
+on a desktop, in the widest window, where whatever scales with the window is at its
+largest, and on a phone; and one screen at each width where the page's own arrangement is at its
 tightest before it changes, such as a sidebar page just before its track stacks or a row
 of tiles just before it wraps. Read every one. The gate finds what is broken; only a
 reading finds a drawing whose labels shrink past reading in a narrow body or grow past

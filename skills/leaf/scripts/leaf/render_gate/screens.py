@@ -2,8 +2,9 @@
 
 The gate's findings say what is broken; they cannot say whether the page reads well,
 which is the author's judgment of a picture. So the check saves the page as a reader
-meets it: top to bottom on a desktop, in the widest window the sweep reaches, where what
-scales with the window is at its largest, and on a phone; and one screen at each width
+meets it: top to bottom three times, on a desktop, in the widest window the sweep
+reaches, where what scales with the window is at its largest, and on a phone; and one
+screen at each width
 where the page's own arrangement is at its tightest before it changes, or where its
 margin content changes, with that box in view. The screens go to one directory per page
 under the state home's screens/, which the check names; a check writes a fresh

@@ -96,6 +96,7 @@ import {
   attachApplicationPresentation,
   whenApplicationPresented,
 } from "./semantic-state.js";
+import { activityTransitionAt } from "./presence.js";
 import { renderingSettled } from "./rendering.js";
 import { highlightBlocks } from "./syntax.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
@@ -162,16 +163,21 @@ export function deferredArrival(work) {
 /** Run `work` once the page has presented, as an arrival the page answers for. */
 export const afterPresentation = (work) => deferredArrival(presented.then(work));
 
-// The `/api/state` answer this page last applied, as the reading that names it and the
-// moment the server took it: what the `state` stage below compares with the answer a
-// reader holds.
+// The `/api/state` answer this page last applied: the reading that names it, the moment
+// the server took it, and the moment its activity could next change with no file
+// moving (`activityTransitionAt`), all on the server's clock. The `state` stage below
+// compares these with the answer a reader holds.
 let appliedState = null;
 
 /** Record `state` as applied. Called once per answer, after its document's presentation
     pass and every data subscriber it told have finished. */
 export function markStateApplied(state) {
   setRuntimeRootAttribute(document.body, PAGE_PAINT_ATTRIBUTE.reading, state.reading);
-  appliedState = { reading: state.reading, taken: state.taken };
+  appliedState = {
+    reading: state.reading,
+    taken: state.taken,
+    lapses: activityTransitionAt(state),
+  };
 }
 
 const stamp = (name) => document.body.getAttribute(PAGE_PAINT_ATTRIBUTE[name]);
@@ -184,8 +190,9 @@ const READINESS = [
     "state",
     (held) =>
       !held ||
-      appliedState?.reading === held.reading ||
-      appliedState?.taken >= held.taken,
+      appliedState?.taken >= held.taken ||
+      (appliedState?.reading === held.reading &&
+        held.taken * 1000 < appliedState.lapses),
   ],
   ["presented", () => pagePresented() && applicationPresented()],
   ["arrived", () => arriving.size === 0],
@@ -202,7 +209,10 @@ const READINESS_STAGES = new Set(READINESS.map(([stage]) => stage));
     `rendering`, nothing queued for a rendering update. A reading is a digest with no
     order, and the server may move past the answer held — a source rewritten, a claim
     aged, a neighbour started — so a page that applied an answer the server took later
-    has caught up with it too.
+    has caught up with it too. A reading names files and presence, not the activity the
+    server folds from them against its clock, so an applied answer with the held
+    reading has caught up only if the held one was taken before that activity could
+    change; after it, the page asks again at that moment and catches up by `taken`.
 
     `through` names the last stage the reader needs. A test that writes behind a page
     in the middle of a gesture — a drag holding the projection, a fold still animating

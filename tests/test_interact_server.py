@@ -5252,7 +5252,8 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     corrupt_url = neighbour_page(pages / "corrupt", title="A corrupted page")
     (pages / "corrupt" / "events.jsonl").write_text('{"kind": "note", "author"')
     # Presence belongs to the same isolation boundary as the log and version. A
-    # malformed private claim on another page must not make this page's poll fail.
+    # malformed private claim on another page must not make this page's poll fail:
+    # it is absent from that page's reading, which lists the page with no claims.
     malformed = pages / "malformed-status"
     neighbour_page(malformed, title="Malformed status")
     files_model.write_json(
@@ -5311,7 +5312,12 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
             "obligations": [],
         },
     }
-    assert state["others"] == [
+    [malformed_row] = [
+        row for row in state["others"] if row["title"] == "Malformed status"
+    ]
+    assert malformed_row["status"]["state"] == "working"
+    assert malformed_row["claims"] == [] and malformed_row["workflows"] == []
+    assert [row for row in state["others"] if row is not malformed_row] == [
         {
             "title": "A corrupted page",
             "url": corrupt_url,

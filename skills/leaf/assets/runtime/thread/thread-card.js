@@ -103,7 +103,7 @@ export function threadReading(
     attention: threadAttention(thread),
     resolvedBy:
       thread.resolved?.author === "agent"
-        ? `✓ Resolved by ${thread.resolved.agent || "Agent"}`
+        ? `✓ Resolved by ${thread.resolved.agent}`
         : panel
           ? ""
           : "✓ Resolved",

@@ -1573,6 +1573,15 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
         "disposition": "effective",
     }
 
+    # A claim an older leaf stored without the poster's voice is absent from the
+    # reading: it is neither served without a name nor fails the state read.
+    older = {key: work[key] for key in ("subject", "detail", "ts", "after")}
+    files_model.write_json(
+        page_dir / "status.json", {**status, "work": [older, *status["work"]]}
+    )
+    assert page_state(page_dir)["claims"] == live["claims"]
+    files_model.write_json(page_dir / "status.json", status)
+
     # A later claim about the page as a whole answers nothing on the thread.
     assert _status(page_dir, "waiting", "look at v2").exit_code == 0
     waiting = files_model.read_json(page_dir / "status.json")

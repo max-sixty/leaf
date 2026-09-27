@@ -12,8 +12,7 @@ ORPHAN_GRACE_SECS = 1
 # session pages. Claim renewal and service lifetime: session-lifetime.md.
 ACTIVITY_GRACE_SECS = 4 * 60 * 60
 # The harness-neutral name of an agent nothing names: a page's when no claimant
-# supplies one, and an agent-authored event's that carries no `agent`. context.js
-# uses the same label before a browser has an authoritative state, including exports.
+# supplies one, and an agent-authored event's that carries no `agent` (`agent_name`).
 UNNAMED_AGENT = "Agent"
 # Non-message gesture kinds eligible for withdrawal; events.undo_error handles
 # reactions. The complete eligibility contract is events.md, "Undo".
@@ -567,3 +566,14 @@ CONTENT_TYPES = {
     **MEDIA_TYPES,
 }
 BINARY_TYPES = frozenset(MEDIA_TYPES.values()) - {"image/svg+xml"}
+
+
+def agent_name(event: dict) -> str | None:
+    """The name an agent-authored event is shown under, and None for any other
+    author's: its posting session's `agent`, or `UNNAMED_AGENT` where it was written
+    outside a host session and so carries none. The log stores no placeholder
+    (`host.message_identity`); every reading that shows the event names it through
+    here, so the browser, the margin, the activity feed and the transcript agree."""
+    if event["author"] != "agent":
+        return None
+    return event.get("agent") or UNNAMED_AGENT

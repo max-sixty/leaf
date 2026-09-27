@@ -24,7 +24,7 @@ export function reactionReading(thread, message, complete) {
     key: thread.key,
     latest: latest?.id === message.id,
     parent: message.id,
-    agent: message.agent || "the agent",
+    agent: message.agent,
     choices: Object.freeze(
       Object.entries(registry.$reactions?.tokens ?? {}).map(([name, entry]) =>
         Object.freeze({

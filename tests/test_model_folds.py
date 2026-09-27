@@ -186,6 +186,43 @@ def test_a_retraction_outlives_the_version_that_made_it():
     assert standing(3) == []
 
 
+def test_every_served_agent_record_carries_the_name_it_is_shown_under():
+    """An agent command run outside a host session writes no `agent`, and the
+    reading names it `Agent` wherever it reaches the browser: a thread's messages,
+    its root, the event that closed it, and the activity feed's rows. A named
+    session keeps its own name, and a user's record carries none."""
+    page = model.leaf_page(
+        "Route", '<h1 id="h">Route</h1><lf-activity id="feed"></lf-activity>'
+    )
+    state = model.reading(
+        page,
+        (
+            {"kind": "comment", "text": "Which way?", "anchor": {"section": "h"}},
+            {"kind": "reply", "author": "agent", "parent": "e1", "text": "North."},
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "session": "s-1",
+                "parent": "e2",
+                "text": "Or south.",
+            },
+            {"kind": "resolve", "author": "agent", "parent": "e1"},
+        ),
+    )
+
+    thread = model.threads(state)["e1"]
+    assert [message["agent"] for message in thread["msgs"]] == [None, "Agent", "Codex"]
+    assert thread["root"]["agent"] is None
+    assert thread["resolved"]["agent"] == "Agent"
+    assert [(row["id"], row["agent"]) for row in state["history"]] == [
+        ("e4", "Agent"),
+        ("e3", "Codex"),
+        ("e2", "Agent"),
+        ("e1", None),
+    ]
+
+
 def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it():
     """A card moved on a board the agent sent in a reply is served in that reply's
     thread, so every surface of the thread shows its receipt; but the move owes

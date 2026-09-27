@@ -8,7 +8,8 @@
       "author": "user",
       "revision": 1,
       "kind": "comment",
-      "text": "Is the second step right?"
+      "text": "Is the second step right?",
+      "agent": null
     },
     "title": null,
     "anchor": null,
@@ -21,7 +22,8 @@
         "author": "user",
         "revision": 1,
         "kind": "comment",
-        "text": "Is the second step right?"
+        "text": "Is the second step right?",
+        "agent": null
       },
       {
         "id": "e2",
@@ -91,7 +93,8 @@
             "author": "user",
             "revision": 1,
             "kind": "comment",
-            "text": "Lay the feeder work out on a board."
+            "text": "Lay the feeder work out on a board.",
+            "agent": null
           },
           "title": null,
           "anchor": null,
@@ -104,7 +107,8 @@
               "author": "user",
               "revision": 1,
               "kind": "comment",
-              "text": "Lay the feeder work out on a board."
+              "text": "Lay the feeder work out on a board.",
+              "agent": null
             },
             {
               "id": "e2",

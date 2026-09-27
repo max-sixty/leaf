@@ -221,7 +221,7 @@ export function semanticNewsNotice(news) {
 
   if (content.length === 1) {
     const { message } = content[0];
-    const agent = message.agent || "Agent";
+    const { agent } = message;
     const verb = message.kind === "reply" ? "reply" : "comment";
     clauses.push(
       message.edited

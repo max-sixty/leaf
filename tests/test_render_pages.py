@@ -869,7 +869,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
         )
     assert (
         page.evaluate(
-            "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).agentName()"
+            "async () => (await window.__lfRuntimeImport('/runtime/context.js')).runtime.state.agent"
         )
         == "Agent"
     )

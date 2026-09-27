@@ -21,6 +21,7 @@ carries it when the page's markup holds a widget whose entry declares `x-history
 
 from .events import taken_back
 from .gesture_words import GestureWords
+from .schema import agent_name
 from .thread_context import event_threads
 
 # The newest rows a reading carries.
@@ -116,7 +117,7 @@ def history(
             "ts": event["ts"],
             "kind": kind,
             "author": event["author"],
-            "agent": event.get("agent"),
+            "agent": agent_name(event),
             "undone": event["id"] in withdrawn,
         }
         if kind == "comment":

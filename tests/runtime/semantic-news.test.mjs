@@ -11,11 +11,13 @@ import {
 import { servedThread, servedWorkflow } from "../served.mjs";
 
 // `unread: false` leaves a message out of its thread's server `unread` reading: read
-// already, or not agent content at all (a reaction, a reply still streaming).
+// already, or not agent content at all (a reaction, a reply still streaming). `agent`
+// is the name the server serves an agent's message under.
 const message = (id, extra = {}) => ({
   id,
   seq: 1,
   author: "agent",
+  agent: "Agent",
   kind: "reply",
   ...extra,
 });

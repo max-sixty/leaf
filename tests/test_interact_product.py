@@ -222,17 +222,17 @@ def test_choose_requires_an_id(page_dir):
     assert errs and "'id' is a dependency of 'choose'" in " ".join(errs)
 
 
-def test_specimen_admits_interactive_widgets(page_dir):
-    # The registry marks a specimen's content quoted; the runtime leaves the
+def test_sample_admits_interactive_widgets(page_dir):
+    # The registry marks a sample's content quoted; the runtime leaves the
     # interactive widgets inside unwired. Validation is unchanged by the
     # wrapper: nesting rules (lf-option under lf-options) still hold.
     registry = registry_storage.load_registry(page_dir)
     errs = fragment_errors(
-        '<lf-specimen id="sp" label="a decision">'
+        '<lf-sample id="sp" label="a decision">'
         '<lf-options id="g" choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>'
         '<lf-board id="b"><lf-column id="c" label="To do">'
         '<lf-card id="k"><strong>Card</strong></lf-card></lf-column></lf-board>'
-        "</lf-specimen>",
+        "</lf-sample>",
         registry,
     )
     assert errs == []
@@ -287,8 +287,8 @@ def test_an_ask_surface_frames_exactly_one_source(page_dir):
     # Ask list, so the authored boundary must read the same relation.
     with_evidence = (
         '<lf-ask id="decision-with-evidence"><h2>Choose</h2>'
-        f'{first}<lf-specimen id="request-example" label="another request">'
-        f"{second}</lf-specimen></lf-ask>"
+        f'{first}<lf-sample id="request-example" label="another request">'
+        f"{second}</lf-sample></lf-ask>"
     )
     assert fragment_errors(with_evidence, registry) == []
 
@@ -510,7 +510,7 @@ def test_every_widget_in_the_vocabulary_stands_in_a_corpus_source():
     """Eight sweeps in test_render.py read a widget inside a whole page, and their
     corpus is examples/, so a widget no example holds is one none of the eight has ever
     seen — a gap that reads as coverage, since the widget's own tests are green.
-    lf-shot and lf-specimen were outside them from the day each was written.
+    lf-shot and lf-sample were outside them from the day each was written.
     examples/AGENTS.md carries the rest, including the shapes this floor doesn't
     reach."""
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
@@ -538,7 +538,7 @@ def test_every_default_widget_stands_in_the_feature_gallery():
     assert tags, "the default package declares no widgets"
     missing = [tag for tag in tags if not re.search(rf"<{tag}[\s>]", authored)]
     assert not missing, (
-        f"the feature gallery has no focused specimen for {', '.join(missing)} — "
+        f"the feature gallery has no focused sample for {', '.join(missing)} — "
         "see examples/AGENTS.md"
     )
 
@@ -572,7 +572,7 @@ def test_the_feature_gallery_eyebrows_index_literal_code_names():
         f"feature eyebrows expose gallery apparatus: {', '.join(sorted(apparatus & indexed))}"
     )
     # scripts/corpus.py strips the contents sidebar when it composes the tab, so
-    # lf-toc is page chrome rather than a specimen a section demonstrates.
+    # lf-toc is page chrome rather than a sample a section demonstrates.
     sections = re.sub(
         r'<aside class="sidebar".*?</aside>', "", authored, flags=re.DOTALL
     )
@@ -624,7 +624,7 @@ def test_corpus_is_generated_from_the_examples():
         "example data changed — rerun scripts/corpus.py"
     )
     assert corpus.build_events() == corpus.CORPUS_EVENTS.read_text(), (
-        "specimen threads changed — rerun scripts/corpus.py"
+        "sample threads changed — rerun scripts/corpus.py"
     )
     committed_page = {
         path.relative_to(corpus.CORPUS_PAGE).as_posix(): path.read_bytes()

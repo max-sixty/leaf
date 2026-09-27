@@ -2000,8 +2000,8 @@ RINGS_DRAWN = f"""async () => {{
       here: isHereRing(el, cs),
       ring: name,
       focused: el === focused,
-      specimen: el === focused || holds(el, focused)
-        || el.hasAttribute('data-lf-ring-specimen'),
+      sample: el === focused || holds(el, focused)
+        || el.hasAttribute('data-lf-ring-sample'),
       scrolled,
       cuts,
       covers,

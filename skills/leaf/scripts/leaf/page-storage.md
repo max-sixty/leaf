@@ -67,7 +67,7 @@ other page files and the external state listed below.
   never enters page state or acknowledgement. `leaf interactions PAGE --follow`
   reads it. The server appends request method, path without query, status, and
   duration; `/api/interaction` appends browser batches with a session id, scoped
-  page address, and server receipt time. Specimen activity remains in its parent
+  page address, and server receipt time. Sample activity remains in its parent
   page's trace. The diagnostic file changes neither page/source reading nor
   presence cache keys. It is private page data and is never served as an asset.
   A tab retries failed batches and may resend an in-flight batch on page hide;

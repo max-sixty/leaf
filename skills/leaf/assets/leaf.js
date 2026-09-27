@@ -4,7 +4,7 @@ import "./runtime/interaction-log.js";
 // Restored panels and the first keyboard gesture share the ordinary synchronous
 // control routes, so their controls must be upgraded before those routes mount.
 import "./vendor/webawesome-chrome.js";
-import { passiveSpecimen, offlineInteractive, runtime } from "./runtime/context.js";
+import { passiveSample, offlineInteractive, runtime } from "./runtime/context.js";
 import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot } from "./runtime/chrome.js";
 import { readingBlock } from "./runtime/reading-place.js";
@@ -810,7 +810,7 @@ if (!offlineInteractive) {
   });
 }
 
-const replayReady = passiveSpecimen
+const replayReady = passiveSample
   ? import("./runtime/interaction-gallery-frame.js").then(({ mountReplay }) =>
       mountReplay({
         toggleBtn,
@@ -855,7 +855,7 @@ if (!offlineInteractive) {
   );
 }
 
-if (!passiveSpecimen && !offlineInteractive) {
+if (!passiveSample && !offlineInteractive) {
   restoreUserView({
     commentsEdge: layout.commentsEdge,
     traysEdge: trays.traysEdge,

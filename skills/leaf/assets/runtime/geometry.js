@@ -102,7 +102,7 @@ export function documentPoint(left, top) {
 // Written twice they disagreed twice, each copy right about one of the two things above
 // and wrong about the other.
 //
-// The element's own document answers, so a specimen can ask it of the containing page's
+// The element's own document answers, so a sample can ask it of the containing page's
 // boxes in that page's viewport coordinates.
 export function shownBand(el) {
   const doc = el.ownerDocument;

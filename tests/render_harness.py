@@ -164,8 +164,8 @@ shadow index is ready we set up the comparison job and roll back the old one.</p
 <p id="q">A passage far enough down the page that a composer opened on it leaves the
 first paragraph uncovered, which is what lets a test click a highlight up there.</p>
 <figure id="fig"><svg viewBox="0 0 120 40" width="120" height="40" role="img"
-aria-label="specimen"><rect x="2" y="2" width="116" height="36" fill="none"
-stroke="currentColor"></rect></svg><figcaption>A specimen, for element anchors.</figcaption></figure>
+aria-label="sample"><rect x="2" y="2" width="116" height="36" fill="none"
+stroke="currentColor"></rect></svg><figcaption>A sample, for element anchors.</figcaption></figure>
 """,
 ).format(
     filler="\n".join(
@@ -259,11 +259,11 @@ BOARD_PAGE = leaf_page(
 # the card's answer to the pointer is a lift and the row's is a wash — two rules keyed on
 # the form, and a corpus holding only quoted cards leaves the row's pair matching nothing
 # anywhere.
-SPECIMEN_PAGE = leaf_page(
-    "specimen",
+SAMPLE_PAGE = leaf_page(
+    "sample",
     """
 <h1 id="h">What a decision looks like</h1>
-<lf-specimen id="spec" label="a decision">
+<lf-sample id="spec" label="a decision">
   <lf-options id="quoted-group" choose>
     <lf-option id="q-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
     <lf-option id="q-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
@@ -293,7 +293,7 @@ SPECIMEN_PAGE = leaf_page(
       <lf-old>Refill every feeder each morning.</lf-old>
       <lf-new>Refill when the camera shows it half-empty.</lf-new>
     </lf-suggestion></p>
-</lf-specimen>
+</lf-sample>
 <lf-ask id="live-group-decision"><h2>How should the schema migrate?</h2>
 <lf-options id="live-group" choose>
   <lf-option id="l-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
@@ -337,21 +337,21 @@ REPLY_HOST_PAGE = leaf_page(
 # Claude answering with a question to put and, beside it, the framing that question
 # replaced — quoted, so the reply asks one thing rather than two. The words ride
 # `text` and the widgets ride `markup`, as `leaf thread reply` writes them.
-SPECIMEN_TEXT = (
+SAMPLE_TEXT = (
     "Two shapes for the same question — first the one I'd ship, then, for the "
     "record, the framing it replaces:"
 )
-SPECIMEN_MARKUP = """<lf-ask id="rp-live-decision"><h3>How should the schema migrate?</h3>
+SAMPLE_MARKUP = """<lf-ask id="rp-live-decision"><h3>How should the schema migrate?</h3>
 <lf-options id="rp-live" choose>
   <lf-option id="rp-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="rp-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
 </lf-options></lf-ask>
-<lf-specimen id="rp-spec" label="the April thread">
+<lf-sample id="rp-spec" label="the April thread">
   <lf-options id="rp-quoted" choose>
     <lf-option id="rp-memory"><strong>App memory</strong> Nothing to build.</lf-option>
     <lf-option id="rp-sticky"><strong>Sticky sessions</strong> Until an instance recycles.</lf-option>
   </lf-options>
-</lf-specimen>
+</lf-sample>
 """
 
 # Two decisions for a user to take and a later version to honor, carry, or

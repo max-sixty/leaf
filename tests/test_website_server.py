@@ -3201,7 +3201,7 @@ def test_a_page_fault_is_recorded_where_an_operator_reads_it(
 def test_a_child_page_fault_is_recorded_like_the_page_it_was_opened_from(
     page_dir, tmp_path, monkeypatch, capsys
 ):
-    """A specimen is a page, and its 500 is as unreadable as any other page's.
+    """A sample is a page, and its 500 is as unreadable as any other page's.
 
     The kernel builds the child endpoint itself, so a host that keeps a copy of its
     faults only keeps it for the routes it built the parent for unless the child is
@@ -3210,7 +3210,7 @@ def test_a_child_page_fault_is_recorded_like_the_page_it_was_opened_from(
     """
     source = (page_dir / "index.html").read_text()
     template = (
-        '<template id="practice" data-specimen><h1>Practice</h1>'
+        '<template id="practice" data-sample><h1>Practice</h1>'
         '<p id="child-text">A private child page.</p></template>'
     )
     (page_dir / "index.html").write_text(
@@ -3233,7 +3233,7 @@ def test_a_child_page_fault_is_recorded_like_the_page_it_was_opened_from(
         parent = f"{origin}/examples/decision/"
         state = json.loads(get(f"{parent}api/state")[0])
         child, _ = post(
-            f"{parent}api/specimens",
+            f"{parent}api/samples",
             {"template": "practice"},
             {"Leaf-Layer": state["layer"]["generation"]},
         )
@@ -3250,24 +3250,24 @@ def test_a_child_page_fault_is_recorded_like_the_page_it_was_opened_from(
         for line in capsys.readouterr().out.splitlines()
         if '"page_fault"' in line
     ]
-    specimen = child["url"].removeprefix("/examples/decision")
+    sample = child["url"].removeprefix("/examples/decision")
     assert recorded == {
         "component": "leaf-agent",
         "event": "page_fault",
         "route": "/examples/decision",
         "method": "GET",
-        "path": f"{specimen}api/state",
+        "path": f"{sample}api/state",
         "error": "RuntimeError",
         "detail": "the child projection could not be read",
     }
 
 
 @pytest.mark.parametrize("published_revision", [False, True])
-def test_website_specimens_serve_private_pages_without_starting_an_agent(
+def test_website_samples_serve_private_pages_without_starting_an_agent(
     page_dir, tmp_path, published_revision
 ):
     source = (page_dir / "index.html").read_text()
-    template = '<template id="practice" data-specimen><h1>Practice</h1><p id="child-text">A private child page.</p></template>'
+    template = '<template id="practice" data-sample><h1>Practice</h1><p id="child-text">A private child page.</p></template>'
     (page_dir / "index.html").write_text(
         source.replace("</main>", template + "</main>")
     )
@@ -3290,7 +3290,7 @@ def test_website_specimens_serve_private_pages_without_starting_an_agent(
         parent = origin + "/examples/decision/"
         state = json.loads(get(parent + "api/state")[0])
         child, _ = post(
-            parent + "api/specimens",
+            parent + "api/samples",
             {"template": "practice"},
             {"Leaf-Layer": state["layer"]["generation"]},
         )

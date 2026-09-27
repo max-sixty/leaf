@@ -35,9 +35,9 @@ from render_harness import (
     INLINE_PAGE,
     LONG_PAGE,
     REPLY_HOST_PAGE,
+    SAMPLE_MARKUP,
+    SAMPLE_TEXT,
     SETTLED_PAGE,
-    SPECIMEN_MARKUP,
-    SPECIMEN_TEXT,
     open_page,
     page_registry,
     primed,
@@ -945,8 +945,8 @@ def test_render_reads_a_reply_widgets_own_chrome_and_not_the_panel_around_it(
             "author": "agent",
             "parent": "c-decision",
             "revision": 1,
-            "text": SPECIMEN_TEXT,
-            "markup": SPECIMEN_MARKUP + '<lf-badge id="rp-badge">Weighed.</lf-badge>',
+            "text": SAMPLE_TEXT,
+            "markup": SAMPLE_MARKUP + '<lf-badge id="rp-badge">Weighed.</lf-badge>',
         },
     )
     found = sorted(

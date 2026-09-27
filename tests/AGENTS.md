@@ -34,9 +34,9 @@ nightly tests, and an explicit file, node id, `-k`, `-m`, or `--lf` runs what it
 names. Before handing over a browser-facing change, run its whole browser file, the
 everyday gate, and the smallest nightly selection covering it.
 
-CLI output and agent-facing specimens are regtest recordings in
+CLI output and agent-facing text are regtest recordings in
 `tests/_regtest_outputs/`, normalized for temporary paths and generated identities but
-never for instruction text. Review the affected specimens when changing interaction
+never for instruction text. Review the affected recordings when changing interaction
 guidance, and after an intentional change reset only the affected test and read the
 diff.
 

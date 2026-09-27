@@ -93,8 +93,8 @@ from render_harness import (
     IMPORTER_CARD,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
-    SPECIMEN_MARKUP,
-    SPECIMEN_TEXT,
+    SAMPLE_MARKUP,
+    SAMPLE_TEXT,
     TOKEN,
     ask_actions_hint,
     compare_with,
@@ -2252,12 +2252,12 @@ def test_a_revision_reaches_the_markup_held_inside_a_template(browser, serve):
     `childNodes` is empty on a template however much markup it holds, so a patch that
     read the element alone left every template on a page frozen at the revision it
     arrived in — silently, because the element is there and its attributes even keep
-    up. Specimen templates supply the authored document of an isolated child page.
+    up. Sample templates supply the authored document of an isolated child page.
     """
     first = leaf_page(
         "Template first",
         '<h1 id="tm-title">Template</h1>\n'
-        '<template id="tm-held" data-specimen>'
+        '<template id="tm-held" data-sample>'
         '<p class="tm-line">The first account.</p></template>',
     )
     second = first.replace("Template first", "Template second").replace(
@@ -2287,7 +2287,7 @@ def test_a_revision_patches_one_line_of_a_template_written_over_several(browser,
     first = leaf_page(
         "Lines first",
         '<h1 id="tl-title">Lines</h1>\n'
-        '<template id="tl-held" data-specimen>\n'
+        '<template id="tl-held" data-sample>\n'
         '  <p class="tl-line">The first account.</p>\n'
         '  <p class="tl-line">The <lf-gloss tip="held inside">second</lf-gloss>'
         " account.</p>\n"
@@ -2352,12 +2352,12 @@ def test_a_rewritten_widget_inside_an_exhibit_stays_quoted(browser, serve):
         "Quoted first",
         """
 <h1 id="qt-title">Quoted</h1>
-<lf-specimen id="qt-spec" label="an inert pick">
+<lf-sample id="qt-spec" label="an inert pick">
   <lf-options id="qt-opts" choose>
     <lf-option id="qt-a">Alpha</lf-option>
     <lf-option id="qt-b">Beta</lf-option>
   </lf-options>
-</lf-specimen>
+</lf-sample>
 """,
     )
     second = first.replace("Quoted first", "Quoted second").replace(
@@ -7400,8 +7400,8 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
             "author": "agent",
             "parent": "c-decision",
             "revision": 1,
-            "text": SPECIMEN_TEXT,
-            "markup": SPECIMEN_MARKUP,
+            "text": SAMPLE_TEXT,
+            "markup": SAMPLE_MARKUP,
         },
     )
     decision = append_command(
@@ -8963,9 +8963,9 @@ def test_command_hub_keeps_a_real_request_outside_a_quoted_decision(browser, ser
     command = """<lf-command id="hub-plan" label="Quoted ask">
       <lf-task id="goal" status="blocked" stopped-at="2026-08-21T08:00:00Z">
         <strong>Blocked goal</strong>
-        <lf-specimen id="sample"><lf-options id="example" choose>
+        <lf-sample id="sample"><lf-options id="example" choose>
           <lf-option id="example-a"><strong>Example only</strong></lf-option>
-        </lf-options></lf-specimen>
+        </lf-options></lf-sample>
         <lf-ask id="real-decision-decision"><h3>What should unblock it?</h3>
           <lf-options id="real-decision" choose>
             <lf-option id="real-a"><strong>Proceed</strong></lf-option>
@@ -8998,10 +8998,10 @@ def test_command_hub_quotes_host_operations_without_offering_a_request(browser, 
         <lf-agent id="worker" state="waiting" on="goal"><strong>Worker</strong>
           <lf-worktree id="tree" source="project-worktrees"></lf-worktree>
         </lf-agent>
-        <lf-specimen id="sample"><lf-operations id="example-commands" target="goal"
+        <lf-sample id="sample"><lf-operations id="example-commands" target="goal"
           worker="worker" worktree="tree">
           <lf-operation verb="restart"><strong>Restart</strong></lf-operation>
-        </lf-operations></lf-specimen>
+        </lf-operations></lf-sample>
       </lf-task>
     </lf-command>"""
     html = re.sub(

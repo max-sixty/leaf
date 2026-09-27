@@ -1291,7 +1291,7 @@ EMPTY_QUOTED_SWIPE_PAGE = leaf_page(
     "completed swipe deck",
     """
 <h1>Completed triage</h1>
-<lf-specimen id="swipe-example" label="completed triage">
+<lf-sample id="swipe-example" label="completed triage">
   <lf-swipe-deck id="completed-swipe">
     <lf-swipe-pile id="completed-queue" verdict="unseen"></lf-swipe-pile>
     <lf-swipe-pile id="completed-pass" verdict="pass"></lf-swipe-pile>
@@ -1299,7 +1299,7 @@ EMPTY_QUOTED_SWIPE_PAGE = leaf_page(
       <lf-swipe-card id="kept-card"><strong>Keep the expiry bound</strong></lf-swipe-card>
     </lf-swipe-pile>
   </lf-swipe-deck>
-</lf-specimen>
+</lf-sample>
 """,
 )
 
@@ -4472,8 +4472,8 @@ def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(
 ):
     source = PLAYGROUND_PAGE.replace(
         '<lf-ask id="card-playground-ask">',
-        '<lf-specimen id="playground-example" label="card playground">',
-    ).replace("</lf-ask>", "</lf-specimen>")
+        '<lf-sample id="playground-example" label="card playground">',
+    ).replace("</lf-ask>", "</lf-sample>")
     page = open_page(browser, serve(source))
     playground = page.locator("#card-playground")
 
@@ -5746,8 +5746,8 @@ def test_swipe_deck_reloads_replays_and_undoes_absolute_placement(browser, serve
 def test_a_quoted_swipe_deck_is_a_static_labeled_exhibit(browser, serve):
     source = SWIPE_PAGE.replace(
         '<lf-ask id="session-triage-decision">',
-        '<lf-specimen id="swipe-example" label="session triage">',
-    ).replace("</lf-ask>", "</lf-specimen>")
+        '<lf-sample id="swipe-example" label="session triage">',
+    ).replace("</lf-ask>", "</lf-sample>")
     page = open_page(browser, serve(source))
     deck = page.locator("#session-triage")
 
@@ -6773,7 +6773,7 @@ def test_the_banner_counts_completed_asks_against_the_active_total(browser, serv
     it wrong: a group whose pick the version already carries (`chosen`, with nothing in
     the log — a fold-only reading counts it as open on every shipped example), one the
     author has settled, one that takes no picks at all, an exhibited decision inside a
-    lf-specimen, and a milestone at `blocked`, which is the same word on a widget whose
+    lf-sample, and a milestone at `blocked`, which is the same word on a widget whose
     entry does not declare it."""
     page = open_page(browser, serve(ASKS_PAGE))
     decisions = page.locator(".lf-asks")

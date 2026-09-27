@@ -36,7 +36,7 @@ function mergeIntervals(intervals) {
 // A child viewport does not know how much of it the parent page shows. Walk each
 // containing frame and cut this viewport down to what its owner shows of it, through
 // the owner's viewport and every clipping ancestor, in this window's coordinates. A
-// frame taller than its owner's viewport, as a live specimen is, shows a band of its
+// frame taller than its owner's viewport, as a live sample is, shows a band of its
 // page the way the top page's own viewport does.
 function frameBand() {
   let band = { left: 0, top: 0, right: innerWidth, bottom: innerHeight };

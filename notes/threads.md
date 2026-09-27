@@ -1,7 +1,7 @@
 # Remaining Thread plans
 
 Compact navigation, agent-written summary checkpoints, shared Thread surfaces,
-live specimens, and message workflows are implemented. Leaf suggests an older
+live samples, and message workflows are implemented. Leaf suggests an older
 contiguous range when a discussion grows long; the agent reads it and writes the
 summary. Users can unfold the original messages, and the agent can replace an
 overlapping summary as the discussion grows. Their contracts live in

@@ -355,6 +355,16 @@ def canonical_activity(
     queued = [item for item in obligations if item["stage"] == "queued"]
     pending = [item for item in obligations if item["stage"] == "sent"]
 
+    # A claimant inside a turn takes new input before that turn ends, whatever
+    # carries it, so between two waits it is still listening rather than away:
+    # a wait that ends to deliver a comment has left the lease, and the turn it
+    # reaches, or the one it opens, takes the comment. Only the banner reads this;
+    # a watch question such as the Stop hook's still asks for the lease.
+    in_turn = (
+        present["session_alive"] is True
+        and present.get("claim_turn") is not None
+        and present.get("turn_closed") is None
+    )
     kind = "away"
     detail = ""
     ts = status.get("ts")
@@ -407,7 +417,7 @@ def canonical_activity(
     elif status["state"] == "working":
         detail = status.get("detail", "")
         kind = "stalled" if present["listening"] else "away"
-    elif present["listening"]:
+    elif present["listening"] or in_turn:
         kind, detail, quiet, dropped = (
             "listening",
             status.get("detail", ""),

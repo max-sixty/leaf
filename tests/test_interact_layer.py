@@ -184,10 +184,11 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
         )
         assert code == 200, response
         ids.append(events_model.read_events(page)[-1]["id"])
-    delivery = runner.invoke(cli_model.cli, ["wait", str(page)])
-    assert delivery.exit_code == 0, delivery.output
-    assert len(json.loads(delivery.output)["batches"][0]["events"]) == 2
-    session_model.receive_delivery(json.loads(delivery.output)["id"])
+    woke = runner.invoke(cli_model.cli, ["wait", str(page)])
+    assert woke.exit_code == 0, woke.output
+    assert "has new input" in woke.output
+    [batch] = session_model.take_input("s1")["batches"]
+    assert len(batch["events"]) == 2
     record(["thread", "reply", str(page), "--text", "Answer"], 1)
     record(["thread", "reply", str(page), "--to", ids[0], "--text", "Answer"], 1)
     record(["thread", "reply", str(page), "--for", ids[0], "--text", "Answer"], 0)

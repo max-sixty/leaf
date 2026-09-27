@@ -189,19 +189,24 @@ def cmd_idle(page_dir: Path, detail: str, on: str | None) -> None:
         check_local_claim("idle")
     with PageTransaction(page_dir) as page:
         events = page.events
-        cursor = page.cursor
-        pending = len(unacknowledged(events, cursor))
-        if pending:
-            sys.exit(
-                f"{pending} update{'s' if pending != 1 else ''} nobody has picked up; "
-                "read them with `leaf wait` before idling"
-            )
         state = full_state(page_dir, events)
         claim = page.active_claim
+        harness = claim_harness(claim) if claim is not None else None
+        pending = len(unacknowledged(events, page.cursor))
+        if pending:
+            remedy = (
+                harness.input_unpicked(page_dir, listening=state["listening"])
+                if harness
+                else "`leaf wait` prints them."
+            )
+            sys.exit(
+                f"{pending} update{'s' if pending != 1 else ''} nobody has picked up, "
+                f"so the page cannot idle yet. {remedy}"
+            )
         owed = blocking_obligations(
             state,
-            carried=claim is not None
-            and claim_harness(claim).carrier_live(listening=state["listening"]),
+            carried=harness is not None
+            and harness.carrier_live(listening=state["listening"]),
         )
         if owed:
             sys.exit(

@@ -68,6 +68,7 @@ from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
+from leaf import hooks as hooks_model
 from leaf import host as host_model
 from leaf import media as media_model
 from leaf import page_view as page_view_model
@@ -3739,8 +3740,9 @@ What the agent is told when a user acts on a page
 A test records this file; nobody writes it by hand. The lines starting with `#`
 explain it, and everything else is the recorded data. The walkthrough below is
 one real run: the test serves a page, posts a comment to it the way the browser
-does, and runs `leaf wait`. Only the id, the times and the page's path are
-pinned, so the file stays the same from run to run.
+does, runs `leaf wait` in a Claude Code session, and takes the delivery the way
+Leaf's prompt hook does. Only the id, the times and the page's path are pinned,
+so the file stays the same from run to run.
 
 How this text reaches the agent, by example
 -------------------------------------------
@@ -3760,10 +3762,12 @@ How this text reaches the agent, by example
 
 3. Earlier, the agent started `leaf wait` in the background and went idle. The
    agent does nothing in this step: `leaf wait`, a leaf process, notices the new
-   line and builds a delivery for it. The comment is owed a reply, which the
-   delivery records as its `answer` (step 4): a `reply` for `leaf thread reply` here,
-   where the Codex App Server route would record a `turn`, which the turn's own
-   messages write. For the instructions, `leaf wait` reads the clauses under
+   line, prints one line naming the page, and exits, which opens a turn. Leaf's
+   prompt hook runs as that turn begins and builds a delivery for the comment.
+   The comment is owed a reply, which the delivery records as its `answer` (step
+   4): a `reply` for `leaf thread reply` here, where the Codex App Server route
+   would record a `turn`, which the turn's own messages write. For the
+   instructions, the hook reads the clauses under
    `$events.handling.comment` in the page's copy of registry.json, then those
    under `$events.answering.reply`, the answer it owes. Each clause has a `text`
    and may have a `when`, a JSON Schema that must hold for the clause to apply.
@@ -3773,21 +3777,21 @@ How this text reaches the agent, by example
 
 @CLAUSES@
 
-4. `leaf wait` prints the delivery as JSON and exits. The agent's host hands that
-   output to the agent as the result of the background command, which wakes it.
-   The delivery's event is the log line from step 2 less @DROPPED@, the
+4. The hook adds the delivery as JSON to the turn's context, after one line
+   saying so. The delivery's event is the log line from step 2 less @DROPPED@, the
    browser's retry key, and with these fields added:
    @ADDED@.
    The batch's `handling` maps clause ids to their text, each distinct text
    appearing once. The event's `handling` names its applicable clauses in order.
-   The envelope's `acknowledge` says once, for the whole delivery, how the agent
-   confirms it. The whole output, indented here (leaf prints it on one line):
+   The envelope's `acknowledge` is null: the hook confirmed the delivery as it
+   handed it over, so the comment already reads Picked up. The whole delivery,
+   indented here (the hook writes it on one line):
 
 @DELIVERY@
 
-5. The agent follows `acknowledge`: it starts `leaf wait --ack <delivery-id>` to
-   confirm receipt and wait for the next one. It follows `handling`: it replies in
-   the thread with `leaf thread reply` and edits the page if warranted.
+5. The agent starts `leaf wait` again so later input wakes it, and follows
+   `handling`: it names any work the comment asks for with `leaf status`, does it,
+   and replies in the thread with `leaf thread reply`.
 
 What this file records
 ----------------------
@@ -3846,8 +3850,9 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     in. A wording or condition change shows up as a diff per case. The assertions
     keep the table whole: every declared kind has a case, and every clause reaches
     at least one case, so no `when` is dead. Its header walks one real comment from
-    the HTTP route through `leaf wait`, and holds that the clauses it lists as
-    applying are exactly the `handling` the delivery carries."""
+    the HTTP route through `leaf wait` and the prompt hook's delivery, and holds that
+    the clauses it lists as applying are exactly the `handling` the delivery
+    carries."""
     registry = json.loads((schema_model.ASSETS / "registry.json").read_text())
     # Each case holds its `kind` and the fields some `when` reads, and nothing else:
     # a field no `when` names cannot change what the agent is told.
@@ -3958,7 +3963,8 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         for clause in clauses:
             assert any(clause in matched for matched in reached), (kind, clause)
 
-    # The walkthrough: one comment through the real HTTP route and `leaf wait`.
+    # The walkthrough: one comment through the real HTTP route, `leaf wait`, and the
+    # delivery Claude Code's prompt hook takes.
     (page_dir / "index.html").write_text(WALKTHROUGH_PAGE)
     publish(page_dir)
     session_model.cmd_status(page_dir, "waiting", "")
@@ -3974,8 +3980,9 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     logged = (page_dir / "events.jsonl").read_text().splitlines()[-1]
     capsys.readouterr()
     assert session_model.cmd_wait(page_dir) == 0
-    printed = capsys.readouterr().out
-    record, envelope = json.loads(logged), json.loads(printed)
+    assert "has new input" in capsys.readouterr().out
+    envelope = session_model.take_input(host_model.session_harness().session)
+    record = json.loads(logged)
     [batch] = envelope["batches"]
     [delivered] = batch["events"]
     page_events = registry_storage.load_registry(page_dir)["$events"]
@@ -4070,7 +4077,7 @@ A test records this file; nobody writes it by hand. The lines starting with `#`
 explain it, and everything else is the recorded data. The run below serves the
 page from test_each_case_of_an_event_is_told_what_the_snapshot_shows, posts the
 same comment ("why here?" on "moves to Tuesdays") through POST /api/event, and
-then lets each of Leaf's three carriers deliver it. Only ids, times and the
+then lets each of Leaf's four carriers deliver it. Only ids, times and the
 page's path are pinned, so the file stays the same from run to run.
 
 A carrier is the route that takes new user input to the agent's task:
@@ -4080,8 +4087,15 @@ A carrier is the route that takes new user input to the agent's task:
                      output to the agent as the command's result, which wakes
                      it. The agent acknowledges the delivery itself, with
                      `leaf wait --ack <delivery-id>`, and answers with
-                     `leaf thread reply`. Claude Code uses this carrier, and so does a
-                     Codex task running without Leaf's adapter.
+                     `leaf thread reply`. A Codex task running without Leaf's
+                     adapter uses this carrier, and so does a bare shell.
+  Claude Code hook   The agent keeps `leaf wait` running in the background, and
+                     under Claude Code it prints one line naming the page and
+                     exits, which opens a turn. Leaf's prompt hook runs as that
+                     turn begins, and its Stop hook as a turn ends; either
+                     freezes the delivery, acknowledges it, and adds it to the
+                     turn's context after one line saying so. The agent answers
+                     with `leaf thread reply`.
   Codex queue        Leaf's adapter freezes the delivery and runs `codex queue`
                      with a pointer to it as the task's next user message. The
                      agent reads the delivery with `leaf delivery read <id>`,
@@ -4096,7 +4110,7 @@ A carrier is the route that takes new user input to the agent's task:
                      terminal use this carrier.
 
 Each carrier freezes a delivery of its own. The envelope's shape is the same on
-all three, and it names its `carrier`. Two things differ, each stated once:
+all four, and it names its `carrier`. Two things differ, each stated once:
 `acknowledge` says how the agent confirms the delivery, or is null where the
 carrier confirmed it; and the comment's `answer` is a `reply`, for `leaf thread reply`,
 except on App Server, where it is a `turn` the turn's own messages write. The
@@ -4110,7 +4124,11 @@ What this file records
 
 One top-level key per carrier, holding exactly what reaches the agent's task:
 
-  leaf wait:         its output.
+  leaf wait:         its output, from a bare shell.
+  Claude Code hook:  the line the wait prints, and the prompt hook's
+                     `additionalContext`, split into its instruction line, the
+                     delivery on the next line, and what Leaf asks of the turn
+                     after it.
   Codex queue:       the `--message` given to `codex queue`, and the output of
                      the `leaf delivery read` it points at.
   Codex App Server:  the `turn/start` params. `toolOutput.output` is the
@@ -4118,7 +4136,7 @@ One top-level key per carrier, holding exactly what reaches the agent's task:
                      decoded here.
 
 JSON is shown as YAML, and each clause in a batch's `handling` as wrapped prose,
-so the three read side by side. Every text is exactly what the agent receives.
+so the four read side by side. Every text is exactly what the agent receives.
 
 After changing what a carrier sends, re-record this file and review the diff:
 
@@ -4126,11 +4144,12 @@ After changing what a carrier sends, re-record this file and review the diff:
 
 
 def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
-    snapshot, page_dir, server, capsys
+    snapshot, page_dir, server, capsys, monkeypatch
 ):
     """The snapshot is the page a developer reads to compare what one comment puts
-    in front of the agent on each carrier: `leaf wait`, the Codex
-    queue's pointer and the delivery it names, and the Codex App Server turn. Each
+    in front of the agent on each carrier: `leaf wait`, Claude Code's hooks, the
+    Codex queue's pointer and the delivery it names, and the Codex App Server
+    turn. None but the hook confirms the delivery, so it goes last. Each
     is taken from the code that carrier runs, after one real POST, so a change to
     any carrier's framing or to a delivery's contents shows up as a diff under the
     carrier it reaches."""
@@ -4148,8 +4167,14 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
 
     session_model.cmd_status(page_dir, "waiting", "")
     capsys.readouterr()
+    # A bare shell's wait, the printing kind, which claims nothing.
+    session = host_model.session_harness().session
+    for name in ("CLAUDE_CODE_SESSION_ID", "CLAUDE_PID"):
+        monkeypatch.delenv(name)
     assert session_model.cmd_wait(page_dir) == 0
     waited = capsys.readouterr().out
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", session)
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
 
     # The adapter's queue route: collect the batch, then offer its pointer.
     with service_model.PageTransaction(page_dir) as transaction:
@@ -4173,12 +4198,23 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
         capsys.readouterr().out
     )
 
+    # Claude Code: the wait claims the page and wakes the session, and the prompt
+    # hook of the turn it opens hands the delivery over.
+    assert session_model.cmd_wait(page_dir) == 0
+    woke = capsys.readouterr().out
+    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": session})
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    instruction, hooked, *attention = context.split("\n")
+
     pinned = {
         logged["id"]: "1946b466",
         logged["ts"]: "2026-09-21T20:12:30-07:00",
         json.loads(waited)["id"]: "11111111",
         queued.payload["id"]: "22222222",
         prepared.payload["id"]: "33333333",
+        json.loads(hooked)["id"]: "44444444",
         # The turn's reply attempt is derived from the delivery id.
         service_model.delivery_reply_attempt(
             prepared.payload["id"]
@@ -4209,6 +4245,14 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
             CARRIER_WALKTHROUGH,
             {
                 "leaf wait": {"output": readable(waited)},
+                "Claude Code hook": {
+                    "leaf wait output": pin(woke.rstrip("\n")),
+                    "UserPromptSubmit additionalContext": {
+                        "instruction": Prose(instruction),
+                        "delivery": readable(hooked),
+                        "attention": Prose(pin("\n".join(attention))),
+                    },
+                },
                 "Codex queue": {
                     "codex queue --message": Prose(pin(queued.prompt)),
                     "leaf delivery read 22222222": readable(read),

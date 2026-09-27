@@ -97,9 +97,10 @@ class Harness:
 
     @classmethod
     def run_ack(cls, delivery_id: str) -> str:
-        """How this session runs the `leaf wait --ack` that confirms one delivery
-        and goes on waiting: the verb phrase the delivery's `acknowledge` ends
-        with. A wait held in a background task is the default."""
+        """How the reader of this session's printed delivery runs the `leaf wait
+        --ack` that confirms it and goes on waiting: the verb phrase the
+        delivery's `acknowledge` ends with. A harness whose hook carries input
+        prints no delivery; a wait held in a background task is the default."""
         return f"start `leaf wait --ack {delivery_id}` as the next background task"
 
     def nudge(self, page_dir: Path) -> bool:

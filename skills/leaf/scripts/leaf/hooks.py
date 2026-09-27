@@ -192,9 +192,7 @@ def delivered(delivery: dict) -> str:
     """The turn context that hands one confirmed delivery to the model."""
     return (
         "Leaf delivered this input into your turn and confirmed it, so the user's "
-        "moves read Picked up. If no `leaf wait` is running, start one as a "
-        "background task alongside your first step, so later input wakes you.\n"
-        + json.dumps(delivery, ensure_ascii=False)
+        "moves read Picked up.\n" + json.dumps(delivery, ensure_ascii=False)
     )
 
 

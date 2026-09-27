@@ -133,7 +133,7 @@ sequenceDiagram
   Agent-&gt;&gt;Leaf: authored files · commands
   Leaf-&gt;&gt;Browser: page + current state
   Browser-&gt;&gt;Leaf: comments · drags · picks
-  Leaf-&gt;&gt;Agent: leaf wait carries the event batch
+  Leaf-&gt;&gt;Agent: the host's carrier brings the event batch
 </pre>
             </lf-diagram>
           </section>
@@ -174,14 +174,17 @@ $ leaf version stamp ./review --text "Two ways to shed load — which?"
 stamped v1 — Two ways to shed load — which?
 
 $ leaf wait ./review
-# the background task completes when the user sends input, printing the
-# delivery as one line of JSON; here it is indented as `leaf delivery read` shows it
+/home/you/review has new input; Leaf's prompt hook puts it in your context with this notification
+
+# the background wait ends when the user sends input, which opens a turn; as it
+# begins, Leaf's prompt hook adds the delivery to the turn's context as one line of
+# JSON and confirms it; here it is indented as `leaf delivery read` shows it
 {
   "format": "leaf-delivery-v3",
   "id": "2d5bdcc4",
   "created_at": 1790100943.144468,
-  "carrier": "wait",
-  "acknowledge": "Whoever ran the `leaf wait` that printed this delivery acknowledges it; until then the user's moves read Sent rather than Picked up. If the output was cut off, acknowledge nothing and rerun the wait with room for the whole envelope. If you handle it, acknowledge before any other work; if you forward it, acknowledge once it durably arrives there. To acknowledge, start `leaf wait --ack 2d5bdcc4` as the next background task: it confirms this delivery and waits for the next.",
+  "carrier": "hook",
+  "acknowledge": null,
   "batches": [
     {
       "page": "/home/you/review",
@@ -210,7 +213,7 @@ $ leaf wait ./review
         "h2": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note.",
         "h3": "It answers the page's Ask, so the page shows it as waiting on you until the markup records it. Name the work it selects or unblocks with `leaf status &lt;page&gt; working \"&lt;the work, in a line&gt;\"` before starting it, then do it, write it in, and stamp a version.",
         "h4": "This event's thread has no title yet: name it with `leaf thread title &lt;page&gt; &lt;thread-id&gt; --text \"&lt;a few words&gt;\"`, so the thread panel lists its subject rather than its opening words.",
-        "h5": "Answer with `leaf thread reply &lt;page&gt; --for &lt;event-id&gt;` before any other work, including the work this event asks for: give the answer, or say what you are about to do and where the result will appear. When work follows, name it on the page in the same command, as in `leaf thread reply &lt;page&gt; --for &lt;event-id&gt; --text \"…\" &amp;&amp; leaf status &lt;page&gt; working \"&lt;the work, in a line&gt;\" --on &lt;address&gt;`, where `&lt;address&gt;` is the event's `answer.to`: the line stands beside the thread and in the banner until your next reply there. Once that work lands, put its result on the page, with whatever shows it (captures, a figure, the numbers), then report it with `leaf thread reply &lt;page&gt; --to &lt;address&gt;`: what changed, in a sentence or two, linking the section that shows it. The page carries the work, and the thread only the conversation about it. `leaf thread reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section &lt;id&gt;` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something.",
+        "h5": "When the event asks for work, name that work before any other, including reading the source it concerns: `leaf status &lt;page&gt; working \"&lt;the work, in a line&gt;\" --on &lt;address&gt;`, where `&lt;address&gt;` is the event's `answer.to`. The move then reads Working, and the line stands beside the thread and in the banner until you answer. Do the work and put its result on the page, with whatever shows it (captures, a figure, the numbers), then answer with `leaf thread reply &lt;page&gt; --for &lt;event-id&gt;`: what changed, in a sentence or two, linking the section that shows it. When the event asks for no work, as a question may not, answer it with that reply at once. The page carries the work, and the thread only the conversation about it. `leaf thread reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section &lt;id&gt;` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something.",
         "h6": "Your reply renders as Markdown, so show code or markup in a fenced block."
       },
       "events": [
@@ -290,14 +293,13 @@ $ leaf wait ./review
   ]
 }
 
-# after the complete envelope reaches the agent, start the next background task
-$ leaf wait --ack 2d5bdcc4
-
-# while that wait runs, answer the comment and name the work it starts
-$ leaf thread reply ./review --for ebe8f367 --text "I’ll use drop-oldest for the batch importer and keep rejection at the API boundary." &amp;&amp; leaf status ./review working "splitting the shed policy between the API and the importer" --on ebe8f367
+# the moves already read Picked up; name the work before starting it, and
+# start the next wait in the background in the same step
+$ leaf status ./review working "splitting the shed policy between the API and the importer" --on ebe8f367
+$ leaf wait
 
 # revise ./review/index.html; a valid save goes live at once
-$ leaf thread reply ./review --to ebe8f367 --text "Done: [the shed section](#shed-premise) now splits the policy by caller."
+$ leaf thread reply ./review --for ebe8f367 --text "Done: [the shed section](#shed-premise) now drops the oldest work for the batch importer and keeps rejection at the API boundary."
 $ leaf status ./review waiting "Does the API/importer split match what you need?"</code></pre>
             </lf-specimen>
             <p id="loop-shell-read">
@@ -313,9 +315,10 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
           <section id="delivery">
             <h2>Each host delivers the same envelope</h2>
             <p id="wait-trick">
-              Claude Code receives feedback through <code>leaf wait</code>. In Codex a
-              detached adapter queues it as the task's next message, or, where Leaf is a
-              client of the task's Codex App Server, starts a turn with it. Every route
+              In Claude Code, a background <code>leaf wait</code> ends when feedback
+              arrives, and Leaf's prompt hook puts it in the turn that ending opens. In
+              Codex a detached adapter queues it as the task's next message, or, where
+              Leaf is a client of the task's Codex App Server, starts a turn with it. Every route
               carries a delivery of the same shape, which names the route and says who
               acknowledges it. The host owns delivery, so an open page does not prove
               that an agent received your comments.
@@ -325,12 +328,14 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
             </p>
             <ul id="receipt-work-response">
               <li id="wait-ack">
-                <strong>Receipt</strong>: which input reached the agent. In the direct
-                loop, <code>leaf wait --ack &lt;delivery-id&gt;</code> confirms the
-                whole envelope and waits for the next one; printed output can be lost or
-                cut off, so unconfirmed events stay available to the next wait. On other
-                hosts the adapter acknowledges, and the agent follows its route rather
-                than starting a competing wait.
+                <strong>Receipt</strong>: which input reached the agent. Claude Code's
+                hooks confirm the whole envelope as they put it into the turn. A Codex
+                task running its own wait gets the envelope printed, and
+                <code>leaf wait --ack &lt;delivery-id&gt;</code> confirms it and waits
+                for the next one; printed output can be lost or cut off, so unconfirmed
+                events stay available to the next wait. The Codex adapter acknowledges
+                what it carries, and the agent follows its route rather than starting a
+                competing wait.
               </li>
               <li id="work-evidence">
                 <strong>Work</strong>: what the agent is doing. A delivery entering the
@@ -382,21 +387,20 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
                 <strong>Sent</strong> You comment on the lede. The page shows your
                 comment at once, marked Sent.
               </lf-chronology-entry>
-              <lf-chronology-entry id="updates-picked" at="2s" kind="observation">
-                <strong>Picked up</strong> The agent confirms receipt with
-                <code>leaf wait --ack</code>. Your comment reads Picked up, and until
-                the agent writes its own words the banner reads
+              <lf-chronology-entry id="updates-picked" at="1s" kind="observation">
+                <strong>Picked up</strong> Leaf hands your comment to the agent's turn
+                and confirms it. Your comment reads Picked up, and until the agent
+                writes its own words the banner reads
                 <em>Claude working — on your update</em>.
               </lf-chronology-entry>
-              <lf-chronology-entry id="updates-reply" at="8s" kind="intervention">
-                <strong>A reply says what comes next</strong> Before doing the work, the
-                agent replies in your thread:
-                <em>I’ll cut the lede to two sentences.</em> In the same command,
+              <lf-chronology-entry id="updates-reply" at="5s" kind="intervention">
+                <strong>The work is named</strong> Before doing the work, the agent
+                writes
                 <code
                   >leaf status … working "cutting the lede to two sentences" --on
                   &lt;thread&gt;</code
-                >
-                puts that line beside the thread and in the banner.
+                >, which puts that line beside the thread and in the banner, and your
+                comment reads Working.
               </lf-chronology-entry>
               <lf-chronology-entry id="updates-phase" at="1m" kind="intervention">
                 <strong>Each new phase gets a new line</strong> When the work moves from
@@ -404,8 +408,8 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
                 <em>Claude working — checking the page at phone width</em>.
               </lf-chronology-entry>
               <lf-chronology-entry id="updates-done" at="2m" kind="observation">
-                <strong>Answered</strong> The revision goes live, a second reply reports
-                it, and a waiting status names what the agent wants back:
+                <strong>Answered</strong> The revision goes live, the agent's reply
+                reports it, and a waiting status names what the agent wants back:
                 <em>Claude awaits — does the shorter lede keep enough?</em>
               </lf-chronology-entry>
             </lf-chronology>
@@ -590,9 +594,9 @@ flowchart LR
             <ul id="updates-moments">
               <li id="updates-on-input">
                 <strong>When your input arrives.</strong> Your comment comes before the
-                work in hand: the agent confirms receipt, answers or says what it is
-                about to do, and names that work, all before starting it. Each delivery
-                repeats these steps to the agent beside the events they apply to.
+                work in hand: the agent names the work it asks for before starting it,
+                or answers at once when it asks for none. Each delivery repeats these
+                steps to the agent beside the events they apply to.
               </li>
               <li id="updates-on-phase">
                 <strong>When the work changes.</strong> A new subject, or a new phase

@@ -167,9 +167,12 @@ declaration from that name and asks it what proves the carrier live and what to
 say when it is not, rather than comparing the name itself. There are three
 shapes:
 
-- A sequence of direct watchers the model itself runs, which Claude Code uses:
-  `leaf wait` exits to put a batch in model context, then `leaf wait --ack <delivery-id>` advances
-  the captured cursors and becomes the next watcher.
+- A sequence of direct watchers the model itself runs. Under Claude Code each
+  `leaf wait` exits to open a turn, and the host's prompt or Stop hook puts the
+  batch in that turn's context and advances the cursors; the model starts the next
+  watcher. Where the wait prints the batch instead (a Codex task's own loop, a bare
+  shell), `leaf wait --ack <delivery-id>` advances the captured cursors and becomes
+  the next watcher.
 - One detached process, which a Codex task uses on either transport: it holds the same task-wide wait lease
   plus an adapter lease of its own, and stores exact batches from every page in
   one task-wide delivery.

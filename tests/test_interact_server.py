@@ -3662,7 +3662,7 @@ def test_a_stated_host_restates_the_address_and_nothing_else(page_dir):
     assert access["lifetime"] == "standing"
 
 
-def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir):
+def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir, sessionless):
     """kind "error" through the browser door: the page's runtime reporting a
     live-session fault. Stamped author "page" (the machine speaking, not the
     user), heard by the watcher beside comments and reports, acknowledged

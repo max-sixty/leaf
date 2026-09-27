@@ -30,14 +30,13 @@ from pathlib import Path
 
 import click
 from leaf.render_checks import PageNotReady
-from leaf.render_gate.browser import launch_browser
 from playwright.sync_api import Error as PlaywrightError
-from playwright.sync_api import Page, sync_playwright
+from playwright.sync_api import Page
 
 from leaf_dev import ROOT
-from leaf_dev.browser import DESKTOP, load, settle, tab
+from leaf_dev.browser import DESKTOP, chrome, load, settle, tab
 from leaf_dev.example_data import named_source
-from leaf_dev.harness import build_arm, merge_base, serving_source
+from leaf_dev.harness import base_ref, build_arm, serving_source
 from leaf_dev.stills import DRIVERS
 
 OUT = ROOT / ".tmp" / "probe"
@@ -220,13 +219,9 @@ def probe(source, steps, expression, shot, size, dark, base) -> None:
         scratch = look["scratch"] = Path(built)
         arms = {"worktree": ("worktree", ROOT)}
         if base is not None:
-            commit = build_arm(base or merge_base(), scratch / "base-arm")
+            commit = build_arm(base_ref(base), scratch / "base-arm")
             arms = {"base": (commit, scratch / "base-arm"), **arms}
-        with sync_playwright() as playwright:
-            browser, _ = launch_browser(playwright)
-            try:
-                for arm, (ran, arm_dir) in arms.items():
-                    reading = read_arm(browser, arm, arm_dir, source, look)
-                    click.echo(json.dumps({"arm": arm, "ran": ran, **reading}))
-            finally:
-                browser.close()
+        with chrome() as browser:
+            for arm, (ran, arm_dir) in arms.items():
+                reading = read_arm(browser, arm, arm_dir, source, look)
+                click.echo(json.dumps({"arm": arm, "ran": ran, **reading}))

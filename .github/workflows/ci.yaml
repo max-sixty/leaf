@@ -88,7 +88,7 @@ jobs:
 
       - name: Build website
         if: github.event_name == 'pull_request'
-        run: uv run scripts/site.py
+        run: uv run leaf-dev site
 
       - name: 🧪 Website worker tests
         if: github.event_name == 'pull_request'
@@ -102,11 +102,13 @@ jobs:
         if: github.event_name == 'pull_request'
         run: uv run scripts/verify_site.py wrangler
 
+      # `leaf-dev ci-failures` finds a job's report by this step's name and this
+      # artifact name, in both jobs that run pytest.
       - name: Upload pytest results
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: pytest-results-everyday-${{ github.run_id }}-${{ github.run_attempt }}
+          name: pytest-results-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/test-results/everyday.xml
           if-no-files-found: ignore
           retention-days: 30
@@ -171,7 +173,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: pytest-results-nightly-${{ github.run_id }}-${{ github.run_attempt }}
+          name: pytest-results-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/test-results/nightly.xml
           if-no-files-found: ignore
           retention-days: 30

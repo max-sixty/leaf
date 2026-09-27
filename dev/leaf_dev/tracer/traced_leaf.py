@@ -1,12 +1,19 @@
-"""Per-call wall-clock spans of named functions, for `bench_render_check.py`.
+"""Run `leaf` with per-call wall-clock spans of named functions, for `leaf-dev
+bench-check`.
 
-The benchmark puts this directory on a child's `PYTHONPATH`, so Python imports this
-file at startup inside whichever arm's environment the child runs, and the arm's own
-code is measured as it stands. It does nothing unless `LEAF_BENCH_TRACE` names an
-output file, and it removes that variable so a subprocess never writes over it.
+    python traced_leaf.py TRACE FUNCTIONS ARGS...
 
-`LEAF_BENCH_FUNCTIONS` is a JSON object from `<path suffix>:<qualname>` to the names
-of the locals to record when that function starts, e.g.
+`leaf_dev.bench_check` runs this file with the Python of whichever arm's environment
+the child runs (`uv run --project ARM python`), so the arm's own code is measured as
+it stands. It installs the hooks below, then runs `leaf` as `python -m leaf ARGS...`
+would (`runpy`), so the check sees the same argv and exit. It is a script beside no
+other module, since Python puts a script's own directory first on `sys.path`; that
+directory stands where `python -m` puts the working directory, which the check never
+imports from. A subprocess the check starts runs untraced.
+
+TRACE is the file the reading is written to. FUNCTIONS is a JSON object from
+`<path suffix>:<qualname>` to the names of the locals to record when that function
+starts, e.g.
 `{"render_gate/scheme.py:_render_scheme": ["scheme", "viewport"]}`. Every other code
 object is disabled on first sight through `sys.monitoring` (Python 3.12+), so the
 process runs at full speed outside the named functions. A generator records one span
@@ -25,6 +32,7 @@ import _thread
 import atexit
 import json
 import os
+import runpy
 import sys
 import time
 
@@ -145,5 +153,8 @@ def _install(out: str, functions: dict[str, list[str]]) -> None:
     atexit.register(write)
 
 
-if out := os.environ.pop("LEAF_BENCH_TRACE", None):
-    _install(out, json.loads(os.environ.get("LEAF_BENCH_FUNCTIONS", "{}")))
+if __name__ == "__main__":
+    _, out, functions, *args = sys.argv
+    _install(out, json.loads(functions))
+    sys.argv = [sys.argv[0], *args]
+    runpy.run_module("leaf", run_name="__main__", alter_sys=True)

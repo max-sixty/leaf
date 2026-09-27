@@ -1,7 +1,6 @@
 """The website route adapter preserves Leaf's canonical served-page contract."""
 
 import hashlib
-import importlib.util
 import json
 import os
 import shutil
@@ -19,6 +18,7 @@ from email.message import Message
 from pathlib import Path
 from types import SimpleNamespace
 
+import leaf_website as website_server
 import pytest
 import verify_site
 from click.testing import CliRunner
@@ -47,21 +47,12 @@ from leaf.served_state import page as served_page
 from leaf.served_state.reading import join_reading
 from leaf.service import delivery_reply_attempt, open_session_turn
 from leaf.thread import cmd_reply, cmd_resolve
+from leaf_dev import example_previews
 from playwright.sync_api import expect
 from render_harness import LONG_PAGE, consume_browser_errors, open_page, told, write
 from websockets.exceptions import ConnectionClosedError
 
 ROOT = Path(__file__).parent.parent
-_spec = importlib.util.spec_from_file_location(
-    "website_server", ROOT / "worker" / "server.py"
-)
-website_server = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(website_server)
-_previews_spec = importlib.util.spec_from_file_location(
-    "example_previews", ROOT / "scripts" / "example-previews.py"
-)
-example_previews = importlib.util.module_from_spec(_previews_spec)
-_previews_spec.loader.exec_module(example_previews)
 
 
 def accept_in_turn(thread_id: str, turn: str = "app-server-turn") -> None:
@@ -930,20 +921,22 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
 ):
     """Exercise real build/process/file ownership with a stand-in for the hosted agent."""
     root = tmp_path / "checkout"
-    (root / "scripts").mkdir(parents=True)
-    (root / "worker").mkdir()
+    (root / "worker").mkdir(parents=True)
     host_home = tmp_path / "host-codex"
     host_home.mkdir()
     (host_home / "auth.json").write_text('{"test": "login"}')
     (root / "worker" / "codex-config.toml").write_text('model = "test"')
-    (root / "scripts" / "site.py").write_text(
+    # The build is its own process, run from the checkout, writing `.tmp/site` there.
+    build_site = tmp_path / "build_site.py"
+    build_site.write_text(
         "from pathlib import Path\n"
         "site = Path('.tmp/site/_leaf')\n"
         "site.mkdir(parents=True)\n"
         "(site / 'site.json').write_text('{\"release\": \"' + 'a' * 40 + '\"}')\n"
         "print('built the site')\n"
     )
-    (root / "worker" / "server.py").write_text(
+    serve_site = tmp_path / "serve_site.py"
+    serve_site.write_text(
         "import json, os\n"
         "from pathlib import Path\n"
         "from http.server import BaseHTTPRequestHandler, HTTPServer\n"
@@ -959,6 +952,8 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
         "server.serve_forever()\n"
     )
     monkeypatch.setattr(verify_site, "ROOT", root)
+    monkeypatch.setattr(verify_site, "BUILD_SITE", [sys.executable, str(build_site)])
+    monkeypatch.setattr(verify_site, "SERVE_SITE", [sys.executable, str(serve_site)])
     monkeypatch.setenv("CODEX_HOME", str(host_home))
     urlopen = urllib.request.urlopen
 
@@ -1403,15 +1398,10 @@ while True:
             sys.executable,
             "-c",
             f"""
-import importlib.util, sys
 from pathlib import Path
 
-spec = importlib.util.spec_from_file_location(
-    "website_server", {str(ROOT / "worker" / "server.py")!r}
-)
-module = importlib.util.module_from_spec(spec)
-sys.modules["website_server"] = module
-spec.loader.exec_module(module)
+import leaf_website as module
+
 module.PORT = 0
 module._agent_host = module.WebsiteCodexHost(
     {str(codex)!r}, Path({str(socket_dir / "app-server.sock")!r}),

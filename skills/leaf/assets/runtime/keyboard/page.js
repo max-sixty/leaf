@@ -96,6 +96,7 @@ standingOn("disclosure", "On a disclosure", DISCLOSURE_SELECTOR, [
 
 pageCommand({
   id: "browser.caret",
+  touch: false,
   keys: ["F7"],
   does: "Caret browsing (the browser's): select text by keyboard, then c",
 });

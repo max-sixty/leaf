@@ -132,8 +132,8 @@ and Codex install the tracked tree whole.
 - `dev/`: the `leaf_dev` package those scripts share, and the `leaf-dev` commands
   that probe, screenshot, and compare versions of Leaf;
 - `worker/`: the Cloudflare Worker behind <https://leaf.page/>, which routes each
-  example to the Python server in a per-user container; `worker/README.md` names
-  its tokens and how an unattended agent loads one;
+  example to the Python server (the `leaf_website` package) in a per-user container;
+  `worker/README.md` names its tokens and how an unattended agent loads one;
 - `docs/`: the site's own pages, each a Leaf source, so changing what the site
   says is a page edit;
 - `TODO.md`: the ordered priority list;
@@ -273,7 +273,8 @@ playground, which is one HTML file and one preview command (`/developing-leaf`,
 Before finishing a feature:
 
 - Give every action a keyboard route, without spending a page-level binding on
-  each one.
+  each one, and a route a finger can take (`runtime/keyboard/AGENTS.md`, "Touch
+  routes").
 - Follow `examples/AGENTS.md` when adding or changing a feature, and regenerate
   the derived corpus.
 - If the feature changes what an agent can do or how it should do it, update

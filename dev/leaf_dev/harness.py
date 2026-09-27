@@ -119,8 +119,9 @@ def run_leaf(
 @contextmanager
 def serving(arm: Path, state: Path, page: Path):
     """Serve `page` with the arm's `leaf server run --temporary` under the state home
-    `state`, and yield the tokened address it prints; a first load of that address
-    sets the page's cookie."""
+    `state`, and yield the tokened `url` it prints; a first load of that address
+    sets the page's cookie. An arm is any revision, and one from before the CLI
+    printed JSON prints the bare URL, so the URL is found in the line either way."""
     server = subprocess.Popen(
         [str(arm / "bin" / "leaf"), "server", "run", "--temporary", str(page)],
         env=environment(XDG_STATE_HOME=str(state)),
@@ -129,7 +130,7 @@ def serving(arm: Path, state: Path, page: Path):
         text=True,
     )
     try:
-        yield server.stdout.readline().strip()
+        yield re.search(r"https?://[^\s\"]+", server.stdout.readline())[0]
     finally:
         server.terminate()
         server.wait(10)

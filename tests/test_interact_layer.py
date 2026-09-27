@@ -133,9 +133,7 @@ def test_agent_interaction_command_help(regtest):
         "wait",
         "delivery read",
         "page state",
-        "thread read",
         "thread summarize",
-        "thread title",
         "status",
         "thread open",
         "thread reply",
@@ -167,7 +165,14 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     def record(args, code):
         result = runner.invoke(cli_model.cli, args, prog_name="leaf")
         assert result.exit_code == code, result.output
-        text = f"$ leaf {' '.join(args)}\nexit: {code}\n{result.output}"
+        output = result.output
+        if code == 0:
+            # A write prints its record; its own id and time differ each run.
+            output = "".join(
+                json.dumps({key: record[key] for key in ("kind", "parent")}) + "\n"
+                for record in map(json.loads, output.splitlines())
+            )
+        text = f"$ leaf {' '.join(args)}\nexit: {code}\n{output}"
         text = text.replace(str(page), "/page")
         for number, event_id in enumerate(ids, 1):
             text = text.replace(event_id, f"user-{number}")
@@ -360,15 +365,15 @@ def test_hidden_hook_remains_callable():
     assert result.output == ""
 
 
-def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
-    """Silence cannot tell an agent a no-op from a call that landed, and a raw
-    event leaves it to find the one field it needs next.
+def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
+    """Silence cannot tell an agent a no-op from a call that landed, and a sentence
+    leaves it to guess at the id it needs next.
 
-    Every write command answers with one sentence carrying that field — the
-    thread a message landed in, the version stamped, the widget a report moved,
-    the request a receipt settled — and `--json` keeps the event for a caller that
-    wants to read the rest of it. `test_receipt_settles_one_known_request_once`
-    holds the receipt's, since it needs a page with a request seat.
+    Every write prints what it wrote, as JSON: an appended event exactly as `page
+    events` reads it back, `seq` included, one line per record, and a status as the
+    status file holds it. A command that also names its thread prints both records.
+    `test_receipt_settles_one_known_request_once` holds the receipt's, since it needs
+    a page with a request seat.
 
     The default layer declares no guidance audiences, which is why the page is
     built here rather than taken from the packaged fixture.
@@ -376,110 +381,97 @@ def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     page_dir = tmp_path / "page"
+
+    def written(args) -> list[dict]:
+        result = runner.invoke(cli_model.cli, args)
+        assert result.exit_code == 0, result.output
+        return [json.loads(line) for line in result.output.splitlines()]
+
+    def logged(record: dict) -> dict:
+        return next(
+            event
+            for event in events_model.read_events(page_dir)
+            if event["id"] == record["id"]
+        )
+
     # PAGE holds an lf-diagram, so the page selects the package that widget lives in.
-    initialized = runner.invoke(
-        cli_model.cli, ["page", "init", "--package", "diagram", str(page_dir)]
-    )
-    assert initialized.exit_code == 0, initialized.output
+    assert written(["page", "init", "--package", "diagram", str(page_dir)]) == [
+        {"page": str(page_dir)}
+    ]
     (page_dir / "index.html").write_text(PAGE)
 
     audiences = runner.invoke(cli_model.cli, ["page", "guidance", str(page_dir)])
     assert audiences.exit_code == 0, audiences.output
-    assert audiences.output == "no guidance audiences\n"
+    assert json.loads(audiences.output) == []
 
-    stamped = runner.invoke(
-        cli_model.cli, ["page", "stamp", str(page_dir), "--text", "first cut"]
+    [stamped] = written(["page", "stamp", str(page_dir), "--text", "first cut"])
+    assert stamped == logged(stamped)
+    assert (stamped["kind"], stamped["version"], stamped["seq"]) == ("note", 1, 1)
+
+    again = runner.invoke(
+        cli_model.cli, ["page", "stamp", str(page_dir), "--text", "again"]
     )
-    assert stamped.exit_code == 0, stamped.output
-    assert stamped.output == "stamped v1 — first cut\n"
+    assert again.exit_code != 0  # nothing changed, so there is no second version
+    assert "already stamped as v1" in again.output
 
-    as_json = runner.invoke(
-        cli_model.cli,
-        ["page", "stamp", "--json", str(page_dir), "--text", "again"],
-    )
-    assert as_json.exit_code != 0  # nothing changed, so there is no second version
-    assert "already stamped as v1" in as_json.output
+    [waiting] = written(["status", str(page_dir), "waiting", "pick a storage engine"])
+    assert waiting == json.loads((page_dir / schema_model.STATUS_FILE).read_text())
+    assert (waiting["state"], waiting["detail"]) == ("waiting", "pick a storage engine")
 
-    waiting = runner.invoke(
-        cli_model.cli, ["status", str(page_dir), "waiting", "pick a storage engine"]
-    )
-    assert waiting.exit_code == 0, waiting.output
-    assert waiting.output == "waiting — pick a storage engine\n"
-
-    bare = runner.invoke(cli_model.cli, ["status", str(page_dir), "waiting"])
-    assert bare.exit_code == 0, bare.output
-    assert bare.output == "waiting\n"
-
-    opened = runner.invoke(
-        cli_model.cli,
-        ["thread", "open", "--json", str(page_dir), "--text", "which store?"],
-    )
-    assert opened.exit_code == 0, opened.output
-    root = json.loads(opened.output)["id"]
-
-    # The thread a bare `comment` names is the one every later command addresses.
-    named = runner.invoke(
-        cli_model.cli, ["thread", "open", str(page_dir), "--text", "and the cache?"]
-    )
-    assert named.exit_code == 0, named.output
-    cached = events_model.read_events(page_dir)[-1]["id"]
-    assert named.output == (
-        f"opened thread {cached}\n"
-        f'name it: leaf thread title {page_dir} {cached} --text "<a few words>"\n'
-    )
-
-    replied = runner.invoke(
-        cli_model.cli,
-        ["thread", "reply", str(page_dir), root, "--text", "sqlite"],
-    )
-    assert replied.exit_code == 0, replied.output
-    assert replied.output == f"replied in {root}\n"
-
-    # A reply under the reply still names the thread, not the message answered.
-    followed = runner.invoke(
-        cli_model.cli,
+    # The comment's id is the thread's; --title names it in the same command.
+    opened, title = written(
         [
             "thread",
-            "reply",
-            "--json",
+            "open",
             str(page_dir),
-            root,
             "--text",
-            "and wal mode",
-        ],
+            "which store?",
+            "--title",
+            "Storage",
+        ]
     )
-    assert followed.exit_code == 0, followed.output
-    under = runner.invoke(
+    root = opened["id"]
+    assert opened == logged(opened)
+    assert (title["kind"], title["thread"], title["title"]) == (
+        "thread_title",
+        root,
+        "Storage",
+    )
+
+    # A refused title refuses the whole command, so no message goes up unnamed.
+    before = events_model.read_events(page_dir)
+    unnamed = runner.invoke(
         cli_model.cli,
-        [
-            "thread",
-            "reply",
-            str(page_dir),
-            json.loads(followed.output)["id"],
-            "--text",
-            "with a checkpoint",
-        ],
+        ["thread", "open", str(page_dir), "--text", "and the cache?", "--title", ""],
     )
-    assert under.exit_code == 0, under.output
-    assert under.output == f"replied in {root}\n"
+    assert unnamed.exit_code != 0
+    assert "thread_title event is invalid" in unnamed.output
+    assert events_model.read_events(page_dir) == before
+
+    for command in (
+        ["thread", "reply", str(page_dir), root, "--text", "x", "--title", "a\nb"],
+        ["thread", "edit", str(page_dir), root, "--text", "y", "--title", " "],
+    ):
+        refused = runner.invoke(cli_model.cli, command)
+        assert refused.exit_code != 0
+        assert "thread_title event is invalid" in refused.output
+    assert events_model.read_events(page_dir) == before
+
+    [followed] = written(
+        ["thread", "reply", str(page_dir), root, "--text", "and wal mode"]
+    )
+    assert followed == logged(followed)
+    assert followed["parent"] == root
+    later = followed["id"]
 
     # Every command naming a thread takes any message in it, as reply does.
-    later = json.loads(followed.output)["id"]
-    titled = runner.invoke(
-        cli_model.cli, ["thread", "title", str(page_dir), later, "--text", "Store"]
-    )
-    assert titled.exit_code == 0, titled.output
-    assert titled.output == f"named thread {root}: Store\n"
-    read = runner.invoke(cli_model.cli, ["thread", "read", str(page_dir), later])
+    [renamed] = written(["thread", "edit", str(page_dir), later, "--title", "Store"])
+    assert (renamed["thread"], renamed["title"]) == (root, "Store")
+    [edited] = written(["thread", "edit", str(page_dir), later, "--text", "and WAL"])
+    assert (edited["kind"], edited["message"]) == ("edit", later)
+    read = runner.invoke(cli_model.cli, ["page", "state", str(page_dir), later])
     assert read.exit_code == 0, read.output
     assert json.loads(read.output)["thread"]["id"] == root
-    selected = runner.invoke(
-        cli_model.cli, ["page", "events", str(page_dir), "--thread", later]
-    )
-    assert selected.exit_code == 0, selected.output
-    assert {root, later} <= {
-        json.loads(line)["id"] for line in selected.output.splitlines()
-    }
     both = runner.invoke(
         cli_model.cli,
         ["thread", "reply", str(page_dir), root, "--for", root, "--text", "x"],
@@ -487,17 +479,15 @@ def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
     assert both.exit_code == 2
     assert "THREAD and --for cannot be used together" in both.output
 
-    working = runner.invoke(
-        cli_model.cli,
-        ["status", str(page_dir), "working", "reading the traces", "--on", root],
+    [working] = written(
+        ["status", str(page_dir), "working", "reading the traces", "--on", later]
     )
-    assert working.exit_code == 0, working.output
-    assert working.output == f"working on {root} — reading the traces\n"
+    assert [claim["subject"] for claim in working["work"]] == [
+        {"kind": "thread", "id": root}
+    ]
 
-    # Resolve takes any message in the thread and names the thread it closed.
-    closed = runner.invoke(cli_model.cli, ["thread", "resolve", str(page_dir), cached])
-    assert closed.exit_code == 0, closed.output
-    assert closed.output == f"resolved {cached}\n"
+    [closed] = written(["thread", "resolve", str(page_dir), later])
+    assert (closed["kind"], closed["parent"]) == ("resolve", later)
 
     # `idle` reaches the status write by its own route, so the subject a claim
     # needs is refused before either route runs. Otherwise the line reports a
@@ -3501,7 +3491,7 @@ def test_package_install_makes_a_source_selectable_by_name(tmp_path, monkeypatch
 
     stored = machine_model.package_store() / "callout"
     assert installed.exit_code == 0, installed.output
-    assert installed.output == f"installed {stored}\n"
+    assert json.loads(installed.output) == {"package": str(stored)}
     assert sorted(path.name for path in stored.iterdir()) == [
         "guidance",
         "registry.json",
@@ -4288,7 +4278,7 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
         cli_model.cli, ["page", "guidance", str(page), "worker"]
     )
     assert audiences.exit_code == 0, audiences.output
-    assert audiences.output.splitlines() == ["author", "reviewer", "worker"]
+    assert json.loads(audiences.output) == ["author", "reviewer", "worker"]
     assert worker.exit_code == 0, worker.output
     assert worker.output == "# Package `solo`\n\nReport the result.\n"
     author = CliRunner().invoke(
@@ -4349,13 +4339,13 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
         cli_model.cli, ["page", "guidance", str(plain)]
     )
     assert plain_audiences.exit_code == 0, plain_audiences.output
-    assert plain_audiences.output == "no guidance audiences\n"
+    assert json.loads(plain_audiences.output) == []
     audiences = CliRunner().invoke(cli_model.cli, ["page", "guidance", str(command)])
     coordinator = CliRunner().invoke(
         cli_model.cli, ["page", "guidance", str(command), "coordinator"]
     )
     assert audiences.exit_code == 0, audiences.output
-    assert audiences.output.splitlines() == ["author", "coordinator", "worker"]
+    assert json.loads(audiences.output) == ["author", "coordinator", "worker"]
     assert coordinator.exit_code == 0, coordinator.output
     assert "# Package `command-hub`" in coordinator.output
     assert "# Data contract `lf-worktree`" in coordinator.output

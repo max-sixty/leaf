@@ -162,9 +162,7 @@ def _matching_attempt(events: list[dict], event: dict) -> dict | None:
             raise AttemptConflict(
                 f"attempt {attempt!r} already belongs to another event"
             )
-        accepted = deepcopy(existing)
-        accepted.pop("seq", None)
-        return accepted
+        return deepcopy(existing)
     return None
 
 
@@ -214,7 +212,10 @@ def _append_event_unlocked(f, event: dict, events: list[dict]) -> tuple[dict, bo
     # and events are rare enough that a flush per append costs nothing.
     f.flush()
     os.fsync(f.fileno())
-    return event, True
+    # The record as every reader reads it back: seq is its line number, which the
+    # stored line does not carry.
+    f.seek(0)
+    return {**event, "seq": f.read().count(b"\n")}, True
 
 
 def append_event(page_dir: Path, event: dict) -> dict:

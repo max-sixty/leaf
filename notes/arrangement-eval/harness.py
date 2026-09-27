@@ -175,10 +175,11 @@ class Run:
 
     @contextmanager
     def served(self, page: Path):
-        """Serve `page` with the arm's launcher; yield its URL."""
+        """Serve `page` with the arm's launcher; yield its URL, which an arm from
+        before the CLI printed JSON prints bare."""
         out = self.leaf("server", "start", "--standing", str(page), check=True).stdout
         try:
-            yield re.search(r"https?://\S+", out)[0]
+            yield re.search(r"https?://[^\s\"]+", out)[0]
         finally:
             self.leaf("server", "stop", str(page))
 

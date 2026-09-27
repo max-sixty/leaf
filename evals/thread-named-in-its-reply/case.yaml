@@ -1,0 +1,44 @@
+schema_version: '1.0'
+name: thread-named-in-its-reply
+description: "Threads reference: an untitled thread is named by `--title` on the reply that answers it, and a long thread's elided middle is read with `leaf page state <page> <thread-id>`."
+tags:
+- threads
+execution:
+  prompt: |
+    You own a live Leaf page at ~/.local/state/leaf/pages/cache-plan, a plan for the
+    session cache. A `leaf wait` just printed a delivery. Its one event is a user
+    reply, id 7c41d0e2, in thread 3fa1c2d9, which has no title yet. The thread is
+    long: the delivery's digest of it shows the opening comment and the last few
+    messages, with `elided: 9`. The user wrote:
+
+    "Why a 5-minute TTL? Earlier in this thread you said 10."
+
+    You don't remember what you said in the elided messages. Once you have checked,
+    you will answer that 10 minutes was the first draft and the load test moved it
+    to 5.
+
+    Write the exact commands you run now, in order, including the full text of the
+    reply. Nothing here can run them, so reply with the commands.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-threads
+  type: tool_used
+  tool: Read
+  input_match: threads
+- name: titles-in-the-reply
+  type: regex
+  pattern: leaf thread reply\b[^\n]*--title\b
+- name: judgment
+  type: llm
+  criteria: |
+    Read the commands. Pass only if all three hold. First, the earlier messages are
+    read with `leaf page state <page> 3fa1c2d9` (or the same command naming 7c41d0e2),
+    optionally paged with `--after`, before the reply. Second, the answer is one
+    `leaf thread reply` naming the event (`--for 7c41d0e2`, or relying on the single
+    outstanding reply) that also carries `--title` with a few words naming the
+    thread's subject. Third, no separate command names the thread: fail on any
+    `leaf thread title`, `leaf thread read`, or `leaf page events --thread`, which do
+    not exist.

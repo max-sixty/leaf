@@ -98,10 +98,11 @@ theme, package widgets, anchored comments, versions, and state stream unchanged.
 
 Set the page to `waiting` and run `leaf codex start <page>` before finishing the turn
 with the URL and a concrete gesture. The first start in a task leaves a detached
-adapter connected to the App Server, and its output ends
-`through App Server <endpoint>`; output without that ending means Leaf is not on the
-App Server, and `references/host-codex.md` applies. A later start adds its page to the
-running adapter and reports that adapter's transport the same way; it refuses an
+adapter connected to the App Server, and it prints `{"task", "app_server",
+"started"}` with that endpoint as `app_server`; a null `app_server` means Leaf is
+not on the App Server, and `references/host-codex.md` applies. A later start adds its
+page to the running adapter, prints `started: false`, and reports that adapter's
+`app_server` the same way; it refuses an
 `--app-server` endpoint other than the one the adapter holds. The adapter watches
 every page this task owns, and a completed turn does not stop it.
 

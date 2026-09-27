@@ -453,6 +453,9 @@ Stay out of the `lf-` prefix: it is the runtime's
 namespace for ids and for classes alike, and `data-lf-` is the same for
 attributes. `page check` refuses all three, including a name the runtime does
 not write today — the namespace is reserved, not the list of names in it.
+An id also must not look like the ids the event log mints, exactly eight lowercase
+hex digits such as `4f9e2a1c`: a command's id argument names a widget or a message,
+so `page check` refuses that shape too.
 
 A code block, table, figure, or aside that a user will point at as a whole also
 needs a tight id, either on itself or on its immediate semantic container.

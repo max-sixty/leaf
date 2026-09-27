@@ -495,7 +495,7 @@ def served(browser: Browser, arm: str, arm_dir: Path, source: str, scratch: Path
     thread = json.loads(
         leaf(
             "thread", "open", str(page_dir), "--section", PASSAGE, "--quote", QUOTE,
-            "--text", "Bench thread.", "--json",
+            "--text", "Bench thread.",
         ).stdout
     )["id"]  # fmt: skip
     with serving(arm_dir, state, page_dir) as address:

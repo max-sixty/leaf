@@ -22,26 +22,24 @@ Options:
   --help  Show this message and exit.
 
 ## leaf page state --help
-Usage: leaf page state [OPTIONS] PAGE
+Usage: leaf page state [OPTIONS] PAGE [ID]
 
   Fold the log onto the active revision and print the result as one JSON object:
   the active revision's file, standing state, reports, open Asks, thread
   summaries, versions, presence, and bound data. Read the active revision's HTML
   beside it for the document.
 
-Options:
-  --help  Show this message and exit.
-
-## leaf thread read --help
-Usage: leaf thread read [OPTIONS] PAGE THREAD
-
-  Print one current thread and a page of its exact event history.
-
-  THREAD is any message in the thread.
+  ID narrows the reading to what it names. A message, or a widget frozen into
+  one, names its thread: the reading is that thread with a page of its messages,
+  their frozen markup, and the state on its widgets, paged by --after and
+  --limit. A widget on the page names itself: its element, the moves and reports
+  standing on it, its Asks, and its workflows.
 
 Options:
-  --after SEQ            [default: 0; x>=0]
-  --limit INTEGER RANGE  [default: 50; 1<=x<=100]
+  --after SEQ            a thread's history after this sequence (default: from
+                         its start)  [x>=0]
+  --limit INTEGER RANGE  how many of a thread's messages to print (default: 50)
+                         [1<=x<=100]
   --help                 Show this message and exit.
 
 ## leaf thread summarize --help
@@ -57,21 +55,7 @@ Options:
   --from MESSAGE     [required]
   --through MESSAGE  [required]
   --text TEXT        summary Markdown (default: stdin)
-  --json             print the summary event
   --help             Show this message and exit.
-
-## leaf thread title --help
-Usage: leaf thread title [OPTIONS] PAGE THREAD
-
-  Name THREAD, by any message in it, for the thread panel; repeat to rename it.
-
-  Choose a few descriptive words when first handling a thread. Keep the title
-  stable unless its subject changes. This adds no message or reply.
-
-Options:
-  --text TEXT  short descriptive title (at most 80 characters)  [required]
-  --json       print the title event
-  --help       Show this message and exit.
 
 ## leaf status --help
 Usage: leaf status [OPTIONS] PAGE {working|waiting|idle} [DETAIL]
@@ -102,7 +86,7 @@ Usage: leaf thread open [OPTIONS] PAGE
   the work as a whole.
 
   The user answers it in the browser. Refuses a quote the active revision does
-  not hold, or holds more than once.
+  not hold, or holds more than once. The comment's id is the thread's.
 
 Options:
   --quote TEXT   passage text from the active revision
@@ -110,7 +94,8 @@ Options:
   --part ID      declared visual part within --section
   --text TEXT    comment text (default: stdin)
   --markup TEXT  widget markup to render after the text, validated here
-  --json         print the comment event instead
+  --title TEXT   name the thread for the panel: a few words, at most 80
+                 characters
   --help         Show this message and exit.
 
 ## leaf thread reply --help
@@ -137,21 +122,25 @@ Options:
   --text TEXT     reply text (default: stdin)
   --markup TEXT   widget markup to render after the text, validated here
   --awaits        the reply's prose asks the user a question
-  --json          print the reply event instead
+  --title TEXT    name the thread for the panel: a few words, at most 80
+                  characters
   --help          Show this message and exit.
 
 ## leaf thread edit --help
 Usage: leaf thread edit [OPTIONS] PAGE MESSAGE
 
-  Replace the visible text of MESSAGE, an agent-authored comment or reply.
+  Replace the visible text of MESSAGE, an agent-authored comment or reply, or
+  with --title rename the thread MESSAGE is in, whoever opened it.
 
   The original and every revision remain in the append-only event log. Frozen
-  widget markup is not editable.
+  widget markup is not editable. Keep a title stable unless the thread's subject
+  changes.
 
 Options:
-  --text TEXT  replacement text (default: stdin)
-  --json       print the edit event instead
-  --help       Show this message and exit.
+  --text TEXT   replacement text (default: stdin, unless --title)
+  --title TEXT  rename MESSAGE's thread for the panel: a few words, at most 80
+                characters
+  --help        Show this message and exit.
 
 ## leaf thread resolve --help
 Usage: leaf thread resolve [OPTIONS] PAGE THREAD
@@ -163,7 +152,6 @@ Usage: leaf thread resolve [OPTIONS] PAGE THREAD
   stamped version answers it. The panel names who resolved it.
 
 Options:
-  --json  print the resolve event instead
   --help  Show this message and exit.
 
 ## leaf page report --help
@@ -177,7 +165,6 @@ Usage: leaf page report [OPTIONS] PAGE WIDGET VERB [NAME=VALUE]...
   or overrules it, and the page's watcher wakes to fold it in.
 
 Options:
-  --json  print the report event instead
   --help  Show this message and exit.
 
 ## leaf page check --help
@@ -206,5 +193,4 @@ Usage: leaf page stamp [OPTIONS] PAGE
 Options:
   --text TEXT         changelog text (default: stdin)
   --completes WIDGET  active widget work this version completes (repeatable)
-  --json              print the note event instead
   --help              Show this message and exit.

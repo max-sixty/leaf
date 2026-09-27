@@ -26,7 +26,7 @@ from leaf.projection import (
 from leaf.revision_artifact import active_enclosing, read_revision
 from leaf.schema import MESSAGE_KINDS, THREAD_ANSWER_KINDS
 from leaf.service import PageTransaction, delivery_reply_attempt
-from leaf.thread_context import thread_address, thread_names
+from leaf.thread_context import thread_message, thread_names
 from leaf.validation.admission import (
     check_markup,
     logged_id,
@@ -56,12 +56,17 @@ def _message(page_dir: Path, events: list, to: str) -> dict:
 
 
 def thread_addressed(page_dir: Path, events: list, name: str) -> tuple[str, str]:
-    """`thread_address`, refusing a name that reaches no thread with what the log
-    holds it as instead."""
-    address = thread_address(events, name)
-    if address is None:
+    """The thread `name` names (`work.page_subject`), and the message a write into it
+    names (`thread_context.thread_message`). Refuses a name that reaches no thread,
+    with what the log holds it as instead, and a widget on the page."""
+    from leaf.work import page_subject
+
+    subject = page_subject(page_dir, events, name)
+    if subject is None:
         _unknown_message(page_dir, events, name)
-    return address
+    if subject["kind"] == "widget":
+        sys.exit(f"{name} is a widget on the page, not a thread")
+    return subject["id"], thread_message(events, subject["id"], name)
 
 
 def thread_named(page_dir: Path, events: list, name: str) -> str:
@@ -765,20 +770,42 @@ def cmd_edit(page_dir: Path, to: str, text) -> dict:
         )
 
 
+def _title_event(thread: str, title: str) -> dict:
+    return {
+        "kind": "thread_title",
+        "author": "agent",
+        **message_identity(),
+        "thread": thread,
+        "title": title,
+    }
+
+
+def title_refusal(page_dir: Path, title: str) -> str | None:
+    """What admission would say of `title`, asked before a command posts the message
+    whose thread it names: a command that posts and names does neither when the name
+    is refused, rather than posting and then failing."""
+    from leaf.event_contracts import (
+        APPEND_STAMPED,
+        admitting_registry,
+        event_record_error,
+    )
+    from leaf.page_view import PageView
+
+    event = _title_event("pending", title)
+    registry = admitting_registry(PageView(page_dir), event, read_events(page_dir))
+    error = event_record_error(
+        registry["$events"]["kinds"]["thread_title"], {**APPEND_STAMPED, **event}
+    )
+    return error and f"thread_title event is invalid: {error}"
+
+
 @contract_writer
 def cmd_title(page_dir: Path, thread: str, text: str) -> dict:
     """Name the thread `thread` reaches without adding a turn or changing its
     obligations."""
     with PageTransaction(page_dir) as page:
         return append_admitted(
-            page,
-            {
-                "kind": "thread_title",
-                "author": "agent",
-                **message_identity(),
-                "thread": thread_named(page_dir, page.events, thread),
-                "title": text,
-            },
+            page, _title_event(thread_named(page_dir, page.events, thread), text)
         )
 
 

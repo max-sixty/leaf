@@ -18,11 +18,13 @@ execution:
 
     A probe typed a thirty-line reply into the open card at 1440x900 on each runtime
     and captured the window's right half. `leaf page media` registered the captures and
-    printed each one's page path beside its source file, which sits under the Leaf
+    printed each one's page `path` beside its `source` file, which sits under the Leaf
     plugin's root (two directories above the leaf skill's base directory):
 
-        /media/card-before.png  evals/shot-pair-differs/captures/before.png  (main)
-        /media/card-after.png   evals/shot-pair-differs/captures/after.png   (the branch)
+        {"path": "/media/card-before.png", "source": "evals/shot-pair-differs/captures/before.png"}
+        {"path": "/media/card-after.png", "source": "evals/shot-pair-differs/captures/after.png"}
+
+    The first is main's capture and the second the branch's.
 
     Write the HTML for the page's section on growth, with its before/after pair.
     The page directory is not reachable from here, so reply with the HTML fragment

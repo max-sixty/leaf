@@ -26,7 +26,7 @@ from leaf.requests import receipt_event
 from leaf.schema import MESSAGE_KINDS, THREAD_ANSWER_KINDS
 from leaf.service import PageTransaction, delivery_reply_attempt
 from leaf.structure import SourceDocument, parse_revision
-from leaf.thread_context import thread_roots
+from leaf.thread_context import thread_names
 from leaf.validation.admission import (
     check_markup,
     logged_id,
@@ -51,10 +51,12 @@ def _message(page_dir: Path, events: list, to: str) -> dict:
     return messages[to]
 
 
-def _thread_root(page_dir: Path, events: list, to: str) -> tuple[str, dict | None]:
+def _thread(page_dir: Path, events: list, to: str) -> tuple[str, dict | None]:
+    """The id of the thread holding message `to`, and the comment that opened it,
+    or None where the log lost that comment."""
     _message(page_dir, events, to)
-    root_id = thread_roots(events)[to]
-    return root_id, _messages(events).get(root_id)
+    thread_id = thread_names(events)[to]
+    return thread_id, _messages(events).get(thread_id)
 
 
 def reserve_delivery_reply(session_id: str, delivery_id: str, target: dict) -> None:
@@ -241,7 +243,7 @@ class DeliveryReply:
 
 def thread_of(page_dir: Path, message_id: str) -> str:
     """The thread a message sits in, for a command that has to name it back."""
-    return thread_roots(read_events(page_dir))[message_id]
+    return thread_names(read_events(page_dir))[message_id]
 
 
 def _current_anchor(
@@ -457,7 +459,7 @@ def cmd_reply(
             elif to is None:
                 to = expected["to"]
         assert to is not None
-        root_id, root = _thread_root(page_dir, events, to)
+        thread_id, opening = _thread(page_dir, events, to)
         if for_event is not None:
             expected = responses.get(for_event)
             if (
@@ -478,15 +480,15 @@ def cmd_reply(
                     "finish the reply in your final message"
                 )
         else:
-            standing = thread_obligation(events, responses, root_id)
+            standing = thread_obligation(events, responses, thread_id)
             if standing is not None and standing["kind"] == "turn":
                 sys.exit(
-                    f"thread {root_id!r} is answered by this turn's messages; "
+                    f"thread {thread_id!r} is answered by this turn's messages; "
                     "finish the reply in your final message"
                 )
             if standing is not None:
                 sys.exit(
-                    f"thread {root_id!r} currently requires a response; "
+                    f"thread {thread_id!r} currently requires a response; "
                     f"answer it with `--for {standing['for']}`"
                 )
         if only_if_unclaimed and any(
@@ -498,23 +500,23 @@ def cmd_reply(
         if detach and moving:
             sys.exit("--detach cannot be combined with --quote, --section, or --part")
         relocating = moving or detach
-        if relocating and root is None:
+        if relocating and opening is None:
             sys.exit(
-                f"thread {root_id!r} has no surviving opening comment, so its "
+                f"thread {thread_id!r} has no surviving opening comment, so its "
                 "anchor cannot be changed"
             )
-        if relocating and root.get("holds"):
+        if relocating and opening.get("holds"):
             sys.exit(
-                f"thread {root_id!r} holds the command goal named by its opening "
+                f"thread {thread_id!r} holds the command goal named by its opening "
                 "comment, so its anchor cannot be changed"
             )
         current_thread = (
-            build_threads(events, active_enclosing(page_dir)).get(root_id)
+            build_threads(events, active_enclosing(page_dir)).get(thread_id)
             if detach
             else None
         )
         if detach and (current_thread is None or current_thread["anchor"] is None):
-            sys.exit(f"thread {root_id!r} has no current anchor to detach")
+            sys.exit(f"thread {thread_id!r} has no current anchor to detach")
         reply_revision = None
         prospective_page = None
         prospective_anchor = None

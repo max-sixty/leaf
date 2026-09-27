@@ -14,9 +14,11 @@ from leaf.schema import MESSAGE_KINDS
 from leaf.structure import SourceDocument
 
 
-def comment_ids(events: list[dict]) -> set[str]:
-    """Comment roots present in the log, excluding orphaned reply parents."""
-    return {event["id"] for event in events if event["kind"] == "comment"}
+def thread_ids(events: list[dict]) -> set[str]:
+    """The id of every thread the log holds, including one whose opening message
+    it lost: the namespace a declaration naming a thread (`resolves`,
+    `data-specimen-threads`) is checked against."""
+    return set(thread_names(events).values())
 
 
 def specimen_events(
@@ -27,18 +29,17 @@ def specimen_events(
     The selection is authored markup naming records the log owns, and the document
     is what starts a page: one served before any thread stands in it — a first
     version, or a page re-created from its source without the log it shipped beside
-    — opens its specimens the same as any other. So a root the log does not hold
-    reads here as absent and the child begins without that thread, rather than
-    the template's declaration deciding whether the page works at all.
+    — opens its specimens the same as any other. So a thread the log does not hold
+    reads here as absent and the child begins without it, rather than the
+    template's declaration deciding whether the page works at all.
 
     That leaves a mistyped id to the one reader who can tell it from a page that has
     not been written into yet: `scripts/corpus.py` selects against a history it is
-    generating from, where every declared root exists by construction, and refuses
+    generating from, where every declared thread exists by construction, and refuses
     one that names nothing."""
-    roots = thread_roots(events)
-    selected = selected & comment_ids(events)
+    names = thread_names(events)
     memberships = thread_memberships(
-        events, roots, thread_widgets(thread_structure(events), roots), document.within
+        events, names, thread_widgets(thread_structure(events), names), document.within
     )
     return [
         {
@@ -50,25 +51,30 @@ def specimen_events(
     ]
 
 
-def thread_roots(events: list) -> dict:
-    """Message id → the id of the comment that opened its thread.
+def thread_names(events: list) -> dict:
+    """Every name that reaches a thread → that thread's id.
 
-    Two readings of the panel's own document resolve a reply to its root, and they
-    must answer alike: an Ask and a question naming different threads for one
-    message is a disagreement no reader could account for. (`build_threads` walks the
-    same relation to a different end — the thread object itself, with its resolution —
-    so it keeps its own walk, and answers the same way where the log is torn.)
+    The names are the thread's own id and the id of each message in it, which a
+    reply, edit, or resolve names. A thread's id is the id of the comment that
+    opened it, and it stays so where the log lost that comment: a reply whose
+    parent the log does not hold opens a thread under the parent's id, which the
+    runtime's `threadNames` and `build_threads` key it on too. `read_events` skips
+    a torn line and keeps reading, and a user who can see the reply is owed the
+    rest of the page around it.
 
-    A reply whose root the log lost stands as its own thread rather than raising.
-    `read_events` skips a line nothing could be done with and keeps reading, and a
-    user who can see the reply is owed the rest of the page around it."""
-    root = {}
+    Two readings of the panel's own document resolve a message to its thread, and
+    they must answer alike: an Ask and a question naming different threads for one
+    message is a disagreement no reader could account for. (`build_threads` walks
+    the same relation to a different end — the thread object itself, with its
+    resolution — so it keeps its own walk, and answers the same way where the log
+    is torn.)"""
+    names = {}
     for e in events:
         if e["kind"] == "comment":
-            root[e["id"]] = e["id"]
+            names[e["id"]] = e["id"]
         elif e["kind"] == "reply":
-            root[e["id"]] = root.get(e["parent"], e["parent"])
-    return root
+            names[e["id"]] = names.setdefault(e["parent"], e["parent"])
+    return names
 
 
 class ThreadStructure(NamedTuple):
@@ -89,7 +95,7 @@ def thread_structure(events: list) -> ThreadStructure:
     return ThreadStructure(ids, by_id, fragments)
 
 
-def thread_widgets(structure: ThreadStructure, roots: dict) -> dict:
+def thread_widgets(structure: ThreadStructure, names: dict) -> dict:
     """Widget id → the thread whose frozen markup holds it.
 
     The relation on its own, apart from `frozen_thread_reading`, which carries it
@@ -98,19 +104,19 @@ def thread_widgets(structure: ThreadStructure, roots: dict) -> dict:
     rather than the log, so the caller that already holds them does not parse
     every fragment a second time."""
     return {
-        widget: roots[event_id]
+        widget: names[event_id]
         for event_id, fragment in structure.fragments.items()
-        if event_id in roots
+        if event_id in names
         for widget in fragment.by_id
     }
 
 
-def event_threads(event: dict, roots: dict, widgets: dict) -> list:
+def event_threads(event: dict, names: dict, widgets: dict) -> list:
     """The threads one event belongs to — empty for news about the page.
 
     Every kind that belongs to a thread names it differently, and none of them
     names it outright: a message through the message it answers, a resolve
-    through any message in the thread, an action two ways at once. One reading
+    through any name in `thread_names`, an action two ways at once. One reading
     of that relation, so a delivery and a projection cannot put the same event
     in different threads.
 
@@ -127,14 +133,13 @@ def event_threads(event: dict, roots: dict, widgets: dict) -> list:
     can never name a widget an agent sent."""
     kind = event["kind"]
     if kind in MESSAGE_KINDS:
-        named = [roots.get(event["id"])]
+        named = [names.get(event["id"])]
     elif kind == "edit":
-        named = [roots.get(event["message"])]
+        named = [names.get(event["message"])]
     elif kind in {"summary", "thread_title"}:
         named = [event["thread"]]
     elif kind in {"resolve", "unresolve"}:
-        parent = event["parent"]
-        named = [roots.get(parent) or (parent if parent in roots.values() else None)]
+        named = [names.get(event["parent"])]
     elif kind in {"action", "request"}:
         named = [
             widgets.get(event["widget"]),
@@ -146,7 +151,7 @@ def event_threads(event: dict, roots: dict, widgets: dict) -> list:
 
 
 def thread_memberships(
-    events: list, roots: dict, widgets: dict, within: dict
+    events: list, names: dict, widgets: dict, within: dict
 ) -> dict[str, list[str]]:
     """Event id → every thread whose history that event changes.
 
@@ -170,19 +175,19 @@ def thread_memberships(
         elif event["kind"] == "receipt":
             named = memberships.get(event["request"], [])
         else:
-            named = event_threads(event, roots, widgets)
+            named = event_threads(event, names, widgets)
         if event["kind"] == "action":
             coordinate = event_coordinate(event)
             named = [*named, *settled_by_coordinate.get(coordinate, [])]
-            if root := event["meaning"].get("answer"):
-                settled_by_coordinate.setdefault(coordinate, []).append(root)
-                settling_actions.append((event, root))
+            if answered := event["meaning"].get("answer"):
+                settled_by_coordinate.setdefault(coordinate, []).append(answered)
+                settling_actions.append((event, answered))
         elif event["kind"] == "note" and (restated := set(event.get("restated", []))):
             named = [
                 *named,
                 *(
-                    root
-                    for action, root in settling_actions
+                    answered
+                    for action, answered in settling_actions
                     if event["revision"] > action["revision"]
                     and restated.intersection(action_rests_on(action, within))
                 ),
@@ -310,10 +315,10 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
     what a verb's unit is, and they need no window: thread markup is
     frozen, so no version bounds it and no retraction floor reaches it, and undo
     is the whole of what unseats one."""
-    roots = thread_roots(events)
+    names = thread_names(events)
     structure = thread_structure(events)
-    widgets = thread_widgets(structure, roots)
-    memberships = thread_memberships(events, roots, widgets, within)
+    widgets = thread_widgets(structure, names)
+    memberships = thread_memberships(events, names, widgets, within)
     named = []
     for event in batch:
         for thread in memberships[event["id"]]:

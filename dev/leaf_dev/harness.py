@@ -4,8 +4,7 @@ version of Leaf.
     uv run leaf-dev arm REF DEST
 
 builds one arm at DEST from git REF; `evals/README.md`'s A/B recipe builds its other
-arm with it. `leaf-dev stills` and `leaf-dev probe`, `eval_claude_delivery.py`, the
-two `bench_*.py` scripts, `verify_codex_task.py`, `verify_site.py`,
+arm with it. The other `leaf-dev` commands, `verify_codex_task.py`, `verify_site.py`,
 `notes/arrangement-eval/harness.py` and `notes/usability-eval/harness.py` import the
 rest.
 
@@ -16,22 +15,28 @@ worked corpus. Building runs the launcher once, so uv builds the arm's environme
 before a timed run starts. `extract_payload` alone also copies the working tree's
 payload, which a Codex home (`codex_home`) installs as its plugin.
 
+An A/B command compares two arms, `base` and `head` (`build_pair`). Its base is the
+merge base with `main` unless the caller names another ref (`base_ref`), so a branch
+behind `main` is compared with where it started rather than with changes it has not
+merged. A timed one prints the machine's load average before and after
+(`load_average`), since other processes' load moves every timing.
+
 A child is `claude -p` from a scratch cwd outside any repository, under a home of its
 own, with no MCP servers, auto-memory off, and none of the variables that identify an
-agent session running the harness (`environment`). Its permissions are bypassed, so
-what a child writes to its host's user configuration by `~` lands in that home and not
-the user's: a child told of a standing preference saves it where its host keeps them, as
-the guidance says to, and children given the user's home appended six copies to the
-user's own `~/.claude/CLAUDE.md`. The home holds nothing the user wrote, so none of the
-user's instructions, settings, plugins or memory load either. The login is all it
-takes of the user's: on macOS it lives in the keychain, which the child reaches through a
-link to `~/Library/Keychains` alone, and elsewhere in `~/.claude/.credentials.json`,
-which the home gets a copy of. uv keeps the user's cache. Claude Code loads project instructions above its cwd, so a
-child whose cwd sat in this checkout read its `AGENTS.md` whatever arm it ran.
-`--add-dir` grants reads without loading a directory's project instructions. Two
-phases of one session share a cwd, and so a home, which is where `--resume` finds the
-session. The home stands beside the cwd rather than in it, so a child listing its own
-files never meets its host's; and `CLAUDE_CONFIG_DIR`, which would point the child
+agent session running the harness (`environment`). Its permissions are bypassed, so what
+a child writes to its host's user configuration by `~` lands in that home and not the
+user's: a child told of a standing preference saves it where its host keeps them, as the
+guidance says to, and children given the user's home appended six copies to the user's
+own `~/.claude/CLAUDE.md`. The home holds nothing the user wrote, so none of the user's
+instructions, settings, plugins or memory load either. The login is all it takes of the
+user's: on macOS it lives in the keychain, which the child reaches through a link to
+`~/Library/Keychains` alone, and elsewhere in `~/.claude/.credentials.json`, which the
+home gets a copy of. uv keeps the user's cache. Claude Code loads project instructions
+above its cwd, so a child whose cwd sat in this checkout read its `AGENTS.md` whatever
+arm it ran. `--add-dir` grants reads without loading a directory's project instructions.
+Two phases of one session share a cwd, and so a home, which is where `--resume` finds
+the session. The home stands beside the cwd rather than in it, so a child listing its
+own files never meets its host's; and `CLAUDE_CONFIG_DIR`, which would point the child
 back at a config directory of the user's, does not reach it.
 The child's `TMPDIR` is inside its cwd, because concurrent children otherwise write the
 same `/tmp` names and can read each other's.
@@ -163,7 +168,7 @@ def serving_source(arm: Path, source: Path, scratch: Path):
 
 
 def merge_base() -> str:
-    """The commit HEAD branched from `main`: the base an A/B script compares HEAD
+    """The commit HEAD branched from `main`: the base an A/B command compares HEAD
     against unless it is handed another."""
     return subprocess.run(
         ["git", "-C", ROOT, "merge-base", "HEAD", "main"],
@@ -223,6 +228,25 @@ def build_arm(ref: str, dest: Path) -> str:
         text=True,
         check=True,
     ).stdout.strip()
+
+
+def base_ref(ref: str | None) -> str:
+    """The ref an A/B command compares HEAD against: the one it was handed, else
+    `merge_base()`."""
+    return ref or merge_base()
+
+
+def build_pair(base: str | None, dest: Path) -> tuple[dict[str, Path], dict[str, str]]:
+    """Build an A/B's arms under `dest`: `base` at `base_ref(base)` and `head` at
+    HEAD. Return each arm's directory and its commit, both keyed `base` and `head`."""
+    refs = {"base": base_ref(base), "head": "HEAD"}
+    arms = {arm: dest / arm for arm in refs}
+    return arms, {arm: build_arm(ref, arms[arm]) for arm, ref in refs.items()}
+
+
+def load_average() -> str:
+    """The machine's 1, 5 and 15 minute load averages."""
+    return " ".join(f"{value:.1f}" for value in os.getloadavg())
 
 
 def codex_home(path: Path, config: str = "") -> Path:

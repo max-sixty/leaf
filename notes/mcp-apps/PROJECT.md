@@ -64,4 +64,4 @@ and HTTP boundary checks pass. Source hashes identify the reviewed code.
 
 - Read the direct-resource result: `cat notes/mcp-apps/experiments/56/README.md`
 - Read its machine result: `jq . notes/mcp-apps/experiments/56/results/reference-host.json`
-- Run the current reference-host probe: `bash scripts/mcp-app/run-direct-probe.sh 57`
+- Run the current reference-host probe: `bash notes/mcp-apps/probe/run-direct-probe.sh 57`

@@ -53,10 +53,3 @@ Evidence, previews, staged sites, and probe results leave the tracked tree uncha
   before/after pair under `.tmp/stills/`.
 - `record-demo.py` regenerates `docs/demo.gif`, the README stills, and
   `docs/session-card.png`.
-
-## MCP Apps probe
-
-`mcp-app/run-direct-probe.sh` runs the bundled runtime in the official reference
-host; `mcp-app/README.md` owns it. Its evidence under `.tmp/mcp-app/experiments/`
-is scratch. Copy into `notes/mcp-apps/experiments/<number>/results/` only what a
-written-up result cites.

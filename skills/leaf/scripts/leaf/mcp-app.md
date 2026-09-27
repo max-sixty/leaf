@@ -5,9 +5,9 @@ Leaf interface can be evaluated in shipped MCP Apps hosts. Codex's default
 handoff opens the canonical page in its browser pane; the inline app is an
 explicit experiment, not a prerequisite for full Leaf in Codex.
 
-A developer-only direct-resource probe under `scripts/mcp-app/direct-*` bundles the
-canonical vendored runtime and routes reads/writes through MCP tools to the same
-PageStateService and event admission. The probe uses the Heating Review page with
+A developer-only direct-resource probe under `notes/mcp-apps/probe/direct-*`
+bundles the canonical vendored runtime and routes reads/writes through MCP tools to
+the same PageStateService and event admission. The probe uses the Heating Review page with
 its inline chart data.
 Experiment 56 in `notes/mcp-apps/` established a keyboard choice and an anchored
 comment with no nested Leaf iframe or external resource requests in the official

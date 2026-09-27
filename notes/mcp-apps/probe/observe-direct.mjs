@@ -31,7 +31,7 @@ const newEvent = async (predicate) => {
   throw new Error("No new matching durable event");
 };
 const require = createRequire(import.meta.url);
-const repo = path.resolve(new URL(import.meta.url).pathname, "../../..");
+const repo = path.resolve(new URL(import.meta.url).pathname, "../../../..");
 const playwrightPackage = execFileSync(
   path.join(repo, ".venv/bin/python"),
   [

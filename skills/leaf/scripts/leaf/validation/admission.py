@@ -11,7 +11,7 @@ from leaf.registry.storage import require_registry
 from leaf.revision_artifact import read_registry
 from leaf.schema import MESSAGE_KINDS, THREAD_ANSWER_KINDS
 from leaf.structure import SourceDocument, parse_revision
-from leaf.thread_context import thread_roots, thread_structure
+from leaf.thread_context import thread_names, thread_structure
 
 from .instances import reference_errors, thread_markup_contract_errors
 from .markup import (
@@ -53,14 +53,14 @@ def thread_obligation(events: list, responses: dict, message: str) -> dict | Non
     sent it to a writer refusing it on the thread's obligation, which is the dead end
     a refusal is supposed to end.
     """
-    roots = thread_roots(events)
-    root = roots.get(message, message)
+    names = thread_names(events)
+    thread = names.get(message, message)
     return next(
         (
             response
             for response in responses.values()
             if response["kind"] in THREAD_ANSWER_KINDS
-            and roots.get(response["to"], response["to"]) == root
+            and names.get(response["to"], response["to"]) == thread
         ),
         None,
     )
@@ -84,10 +84,28 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
     itself — `--to` without `--for` is refused while the thread owes a response,
     whichever of its messages is owed it — so it is read through `thread_obligation`, the same
     reading `cmd_reply`'s guard refuses on.
+
+    A thread's id is its opening comment's, so an agent holding a thread id names
+    it as a message. Where the log lost that comment the id names no event, and the
+    thread is answered through the first message it still holds, as the panel
+    answers it.
     """
     event = next((event for event in events if event.get("id") == value), None)
     if event is None:
-        return None
+        surviving = next(
+            (
+                name
+                for name, thread in thread_names(events).items()
+                if thread == value and name != value
+            ),
+            None,
+        )
+        if surviving is None:
+            return None
+        return (
+            f"{value} is a thread whose opening message this page's log lost — "
+            f"`leaf thread reply <page> --to {surviving}` replies in it"
+        )
     kind = event["kind"]
     article = "an" if kind[:1] in "aeiou" else "a"
     held = f"{value} is {article} {kind} in this page's log"

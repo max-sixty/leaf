@@ -47,15 +47,15 @@ intercepted rather than read off the browser's own error channels, so the check 
 watcher fail on one set in one wording. A quick page never reaches `--render`, and no
 static reading says whether a module throws. `render_gate/page_code.py` owns the run.
 
-An ordinary document's comment namespace is the roots present in its log. A
-specimen template's namespace is its `data-specimen-threads` declaration, so a
-first version may name threads whose seed log has not been written yet.
-Static validation applies the same child-document checks using the selected
-history currently available. Specimen allocation copies that same available
-history and no more, so a root the log does not hold leaves the child without
-that thread rather than refusing the page. Corpus generation selects
-against the shipped log it is composing from, where a root naming nothing is a
-mistake in the declaration, and refuses it.
+An ordinary document's thread namespace is the thread ids its log holds,
+including a thread whose opening comment the log lost. A specimen template's
+namespace is its `data-specimen-threads` declaration, so a first version may name
+threads whose seed log has not been written yet. Static validation applies the same
+child-document checks using the selected history currently available. Specimen
+allocation copies that same available history and no more, so a thread the log does
+not hold leaves the child without it rather than refusing the page. Corpus
+generation selects against the shipped log it is composing from, where a declared
+thread the log lacks is a mistake in the declaration, and refuses it.
 
 ## Delivery policy
 

@@ -16,6 +16,7 @@ from leaf import session as session_model
 from leaf import thread as thread_model
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate import version as render_gate_model
+from leaf.schema import ELEMENT_ID
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ALL_ASKS_IN_ORDER,
@@ -10297,8 +10298,8 @@ POINTER_REGISTRY = {
         "description": "Points at lines of the code block its `for` names.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
-            "for": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "for": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
         },
         "required": ["id", "for"],
         "additionalProperties": False,

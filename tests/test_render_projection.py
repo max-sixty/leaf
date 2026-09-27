@@ -12,8 +12,10 @@ from click.testing import CliRunner
 from interact_support import (
     COMMAND_HUB_PACKAGE,
     SHIPPED_PACKAGES,
+    add_test_widget,
     append_command,
     running_http_server,
+    trial_family,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -71,7 +73,6 @@ from render_cases_interaction import (
     executable_revision,
     live_url,
     stale_report,
-    trial_family,
 )
 from render_cases_layout import (
     banner_control,
@@ -98,7 +99,6 @@ from render_harness import (
     SPECIMEN_TEXT,
     TOKEN,
     ask_actions_hint,
-    author_test_widget,
     compare_with,
     consume_browser_errors,
     expect_banner_control_offered,
@@ -3008,7 +3008,8 @@ def test_revision_changes_follow_authored_text_into_declared_shadow_trees(
     the user on the next revision.
     """
     monkeypatch.chdir(tmp_path)
-    package = author_test_widget(tmp_path, "lf-shadow-reading", upgrade=True)
+    package = tmp_path / ".leaf"
+    add_test_widget(package, "lf-shadow-reading", upgrade=True)
     registry_path = package / "registry.json"
     declarations = json.loads(registry_path.read_text())
     declarations["lf-shadow-reading"]["x-shadow"] = True
@@ -5343,7 +5344,8 @@ def test_render_separates_old_and_new_verbs_on_one_element(
     browser, serve, tmp_path, monkeypatch
 ):
     monkeypatch.chdir(tmp_path)
-    package = author_test_widget(tmp_path, "lf-pair", upgrade=True)
+    package = tmp_path / ".leaf"
+    add_test_widget(package, "lf-pair", upgrade=True)
     registry_path = package / "registry.json"
     declarations = json.loads(registry_path.read_text())
     declaration = declarations["lf-pair"]
@@ -5510,7 +5512,7 @@ def test_a_user_verb_and_an_agent_verb_stand_side_by_side(
     ready once its coordinate is committed, and undoing the user's action restores
     the authored value without replacing the node."""
     monkeypatch.chdir(tmp_path)
-    author_test_widget(tmp_path, "lf-tally", upgrade=True)
+    add_test_widget(tmp_path / ".leaf", "lf-tally", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
     declarations["lf-tally"]["properties"]["count"] = {
@@ -5618,7 +5620,7 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
         ("lf-zone", False),
         ("lf-piece", True),
     ):
-        author_test_widget(tmp_path, tag, upgrade=upgrade)
+        add_test_widget(tmp_path / ".leaf", tag, upgrade=upgrade)
 
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
@@ -5785,7 +5787,7 @@ def test_the_render_gate_catches_a_relative_state_renderer(
     is text, which that signature excludes on purpose, so only the verb's declared
     record form reaches it — a limb of the gate that would otherwise never have fired."""
     monkeypatch.chdir(tmp_path)
-    author_test_widget(tmp_path, "lf-tally", upgrade=True)
+    add_test_widget(tmp_path / ".leaf", "lf-tally", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
     declarations["lf-tally"]["properties"]["count"] = {
@@ -6418,7 +6420,7 @@ def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
     holder["properties"]["decision"] = {"enum": ["open", "shelved"]}
     holder.setdefault("required", []).append("decision")
     holder["x-example"] = holder["x-example"].replace(
-        'id="x-trial"', 'id="x-trial" decision="open"'
+        'id="trial-cache"', 'id="trial-cache" decision="open"'
     )
     decide = holder["x-state"]["decide"]
     decide["detail"]["properties"]["decision"] = {"enum": ["open", "shelved"]}

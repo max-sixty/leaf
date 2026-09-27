@@ -441,12 +441,17 @@ export function shownRect(item, clips) {
 }
 // What of an item the user sees: what every box over it lets through, within the room the
 // chrome leaves. `within` keeps a bottom-band box from cutting the item unless it stands
-// across it. Null when none of it shows.
+// across it. The chrome cuts the item's top and foot only; its sides stay shownRect's, the
+// layout viewport's, since a pinch zoom's visual viewport is a pan across the page and not
+// a clip — read with its sides, a message wider than the zoomed view was never seen whole
+// across, and never counted read. Null when none of it shows.
 export function seenRect(item, clips) {
   const shown = shownRect(item, clips);
   if (!shown) return null;
-  const seen = shownWindow({ within: shown });
-  return seen.width > 0 && seen.height > 0 ? seen : null;
+  const room = shownWindow({ within: shown });
+  return room.width > 0 && room.height > 0
+    ? { left: shown.left, top: room.top, right: shown.right, bottom: room.bottom }
+    : null;
 }
 // Where a member begins, as the user sees it: the first of the boxes it paints that
 // survives the clips, rather than the bounds of all of them. They are the same box for

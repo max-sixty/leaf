@@ -30,7 +30,7 @@ Two kinds of move are delivered with no answer of their own. A user input a
 newer input in the same thread covers is answered through the newest, whose one
 answer settles both. A widget move that answers no Ask, such as an edit to a
 user-owned draft or a moved card, owes nothing: the log carries it onto later
-readings of its document, and `version check` holds the next version to any part
+readings of its document, and `page check` holds the next version to any part
 of it that version must write. Its receipt stands until that document takes it
 in: on the page, until the markup records it or a later version supersedes it
 (`page_action_unsettled`); in frozen thread markup, which no version rewrites,

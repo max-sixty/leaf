@@ -160,7 +160,7 @@ initialized /home/you/review
 
 # the agent writes ./review/index.html — an ordinary file write
 
-$ leaf version check ./review
+$ leaf page check ./review
 ✓ index.html: parses, widgets, authored modules, and styles validate, protected ids and decisions carried over
 
 $ leaf version stamp ./review --text "Two ways to shed load — which?"
@@ -759,7 +759,7 @@ flowchart LR
               source's structure, vocabulary, dependencies, and your standing decisions.
               An invalid save leaves the last valid revision live and shows its
               diagnostic. For a finished record,
-              <code>leaf version check --render</code> also opens the page in Chrome in
+              <code>leaf page check --render</code> also opens the page in Chrome in
               both color schemes, catching console errors, invisible widgets, and
               horizontal overflow.
             </p>

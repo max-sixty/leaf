@@ -167,7 +167,7 @@ def check_markup(
     page: SourceDocument | None = None,
 ) -> SourceDocument:
     """A message's widget markup, validated against the vendored registry at post
-    time — the discussion-side `version check`, and the field's one gate: the browser
+    time — the discussion-side `page check`, and the field's one gate: the browser
     door refuses `markup` outright, so nothing reaches the log under that name
     unvalidated. Text needs no vocabulary gate — the runtime renders it with every tag
     escaped, so it cannot claim a widget — but its Markdown can still point at a file,

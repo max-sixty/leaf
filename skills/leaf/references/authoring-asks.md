@@ -11,7 +11,7 @@ follows that item, and an Ask that turns on a claim follows the claim rather
 than the backing collapsed under it. Only an Ask that turns on the whole record
 comes last.
 
-Every Ask is an `lf-ask`: `version check` refuses a widget that takes an answer
+Every Ask is an `lf-ask`: `page check` refuses a widget that takes an answer
 anywhere else. Write related, independently answerable Asks as separate `lf-ask`
 elements in page order. They remain visible as one complete page. The user can press
 `a` to reach the next open Ask and use its displayed `1`–`9` actions. If a later

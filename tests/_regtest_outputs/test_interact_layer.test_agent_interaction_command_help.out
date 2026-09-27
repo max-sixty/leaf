@@ -190,8 +190,8 @@ Options:
   --json       print the receipt event instead
   --help       Show this message and exit.
 
-## leaf version check --help
-Usage: leaf version check [OPTIONS] PAGE
+## leaf page check --help
+Usage: leaf page check [OPTIONS] PAGE
 
   Check PAGE/index.html.
 

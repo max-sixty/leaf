@@ -9,7 +9,7 @@ marked measured, read (from code), or inferred.
 The boundary between the stores is right: typed external values live under `data/`,
 decisions live in the log, and the log names values by source and source revision. Neither a
 document store (Claude Artifacts' `db`, Firestore) nor a CRDT fits: both drop the
-single validating append door, per-event attribution, undo, and `version check`,
+single validating append door, per-event attribution, undo, and `page check`,
 and Leaf already has the coordinator a CRDT exists to avoid. SQLite as the authority
 would be the derived current-state file `AGENTS.md` rules out.
 
@@ -76,7 +76,7 @@ row from the key and `bind`, at the door only (`lf-job-requests.js` repeats it).
 ## Position
 
 `markup_value` compares only a position record's container, so a reorder within one
-container is invisible to `version check`. (read)
+container is invisible to `page check`. (read)
 
 ## Read cost
 

@@ -196,7 +196,7 @@ def test_how_it_works_quotes_the_real_check_and_stamp_lines(page_dir):
     rather than pattern-matched — a renamed field or a changed separator has to be
     written into the page before this passes again.
     """
-    checked = CliRunner().invoke(cli_model.cli, ["version", "check", str(page_dir)])
+    checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert checked.exit_code == 0, checked.output
     success = next(
         line for line in checked.output.splitlines() if line.startswith("✓ index.html:")

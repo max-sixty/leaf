@@ -81,7 +81,7 @@ AUTHORED_ALLOCATIONS = {
 PAGE_ALLOCATIONS = frozenset({"data-rail"})
 # Page-level declarations the runtime reads from <meta name="lf-*"> in the head,
 # name → allowed content values (None = free-form). A misspelled name or value
-# would silently declare nothing in the browser, so `version check` owns this
+# would silently declare nothing in the browser, so `page check` owns this
 # vocabulary the way the registry owns lf-* elements.
 LF_META = {"lf-review": frozenset({"sign-off"})}
 # The public CDNs a page may load from, the set a Claude artifact page is given:

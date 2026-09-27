@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Compare how long `leaf version check --render` takes, base vs HEAD, and where.
+"""Compare how long `leaf page check --render` takes, base vs HEAD, and where.
 
 Each arm is the plugin payload at a ref, built by `eval_harness.build_arm`: BASE_REF
 (default `main`) and HEAD, so commit what you want measured. For each page in PAGES
 the script builds a page directory from this checkout's example with the arm's own
 launcher (`page_fixtures.prepare_page`, as `preview.py` does), then runs that arm's
-`bin/leaf version check <page> --render` RUNS times, alternating arms within each
+`bin/leaf page check <page> --render` RUNS times, alternating arms within each
 round so drift in machine load falls on both. One untimed run per arm warms the
 environment, Chrome and the OS file cache first.
 
@@ -86,7 +86,7 @@ FUNCTIONS = {
 
 
 def run_check(arm: Path, state: Path, page: Path, trace: Path) -> dict:
-    """One `version check --render` by the arm's launcher, traced."""
+    """One `page check --render` by the arm's launcher, traced."""
     env = environment(
         XDG_STATE_HOME=str(state),
         LEAF_BENCH_TRACE=str(trace),
@@ -99,7 +99,7 @@ def run_check(arm: Path, state: Path, page: Path, trace: Path) -> dict:
     spawned = time.time()
     started = time.perf_counter()
     proc = subprocess.run(
-        [str(arm / "bin/leaf"), "version", "check", str(page), "--render"],
+        [str(arm / "bin/leaf"), "page", "check", str(page), "--render"],
         capture_output=True,
         text=True,
         env=env,

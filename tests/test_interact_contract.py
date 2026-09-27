@@ -5106,7 +5106,7 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
 
     The reading is the link or image destination the runtime resolves rather than a scan
     of the words, so the same path quoted in a sentence — a page explaining leaf writes
-    one, and `version check` has always let it through — stays the author's prose. Every
+    one, and `page check` has always let it through — stays the author's prose. Every
     `/media/…` destination is asked about, the predicate the markup door's attribute
     harvest already keeps, and the server answers only a digest name there, so a
     destination that isn't one renders as a picture no request will ever answer."""

@@ -363,7 +363,7 @@ to fill the height it is given, such as a playground's stage, keys its rules on
 generates, such as a playground's controls beside its preview, takes the pane rules by
 marking those boxes `data-lf-reading-role="pane"`, with the pane grammar of one header,
 one body, and one footer. The attribute is the module's to write and never an author's,
-since `version check` refuses `data-lf-` markup. Keep the package theme to placement
+since `page check` refuses `data-lf-` markup. Keep the package theme to placement
 inside that grammar, such as track sizes and chrome; a package copy of the held rules is
 a second posture decision that drifts from the Layout's. Generate boxes rather than
 `lf-pane` elements themselves: those are authored words the render gate pairs with the
@@ -712,7 +712,7 @@ coordinates stand side by side. Swiping a card again therefore replaces that car
 earlier verdict, while verdicts on different cards coexist. `unit` is `"widget"` for a
 verb that states the whole widget's value at once, or the detail field naming the
 element it is per. `record` says how the standing state reads in markup: here, the
-card's position inside a pile. `version check` refuses a version that contradicts
+card's position inside a pile. `page check` refuses a version that contradicts
 it without `restated`, and `authoring-revisions.md`, "Honor user state", says which
 record forms the agent's next version writes back. The `$keys`
 entries in `assets/registry.json` define each key exactly.
@@ -740,7 +740,7 @@ two required fields with no record form. Each added child therefore stands on it
 coordinate: a later action of another verb leaves it in place, and undoing the `add`
 removes it. The child tag admits the sender through `x-owners`, requires only its
 canonical `id`, and has `x-content: markup`. The append door refuses an id the sending
-document already holds, and version checks enforce the declared tag and
+document already holds, and `page check` enforces the declared tag and
 direct-ownership relation once an author writes the child into the markup.
 
 A verb whose state the agent writes rather than the user declares `"writer": "agent"`
@@ -984,7 +984,7 @@ directory, and `data.json` records the contract each source id was first set und
 atomically; a rejected value leaves the file untouched. Once a source has been set,
 any process may rewrite its file with plain JSON. Every reading validates the file
 against the contract, so a value that fails it reaches users as that source's error
-rather than as data, and `version check` and `page state` report it. Tabs hear a
+rather than as data, and `page check` and `page state` report it. Tabs hear a
 rewritten file as they hear any other page change.
 
 A source's revision is a digest of its file's bytes, and its `updated` instant is the
@@ -1069,7 +1069,7 @@ The callback receives `null` while the source has no readable value, otherwise a
 of `{source, contract, revision, updated, value, origin}`. `revision` identifies the
 value itself, so a renderer can distinguish two writes even when their wall clock
 timestamps coincide. It runs immediately and again when that source revision changes.
-A value that fails its contract is delivered as `null`; `page state` and `version check`
+A value that fails its contract is delivered as `null`; `page state` and `page check`
 report why.
 Return the cleanup function from the element's disconnect path. The callback must
 state the whole rendering and remain idempotent.
@@ -1258,7 +1258,7 @@ Escape may return focus. Widgets do not receive draft, submission, or event APIs
 ## Seeing it
 
 After `leaf page init` re-vendors the page (`serving-pages.md`, "Re-vendoring and
-layer epochs"), run `leaf version check <page> --render` on the version that uses
+layer epochs"), run `leaf page check <page> --render` on the version that uses
 the replacement layer. Note the re-vendor in the next stamped version's changelog.
 
 The render gate is where a module's mistakes surface — an upgrade that defines no element, a widget of no

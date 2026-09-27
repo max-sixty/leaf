@@ -144,7 +144,7 @@ def test_agent_interaction_command_help(regtest):
         "thread resolve",
         "experimental",
         "experimental receipt",
-        "version check",
+        "page check",
         "version stamp",
     ):
         result = CliRunner().invoke(
@@ -511,7 +511,7 @@ def test_init_help_names_the_source_revision_and_version_layout():
 @pytest.mark.parametrize(
     "args",
     [
-        ["version", "check", "page", "--render"],
+        ["page", "check", "page", "--render"],
         ["thread", "reply", "page", "--to", "c1", "--for", "c1", "--text", "export"],
     ],
 )
@@ -1561,7 +1561,7 @@ def test_the_browser_gate_refuses_a_page_another_leaf_vendored(tmp_path, monkeyp
     vendored["$layer"]["runtime"] = before
     stamp.write_text(json.dumps(vendored), encoding="utf-8")
 
-    result = runner.invoke(cli_model.cli, ["version", "check", "--render", str(page)])
+    result = runner.invoke(cli_model.cli, ["page", "check", "--render", str(page)])
 
     assert result.exit_code != 0, result.output
     assert before in result.output
@@ -1573,7 +1573,7 @@ def test_the_browser_gate_refuses_a_page_another_leaf_vendored(tmp_path, monkeyp
     stamp.write_text(json.dumps(vendored), encoding="utf-8")
 
     unstamped = runner.invoke(
-        cli_model.cli, ["version", "check", "--render", str(page)]
+        cli_model.cli, ["page", "check", "--render", str(page)]
     )
 
     assert unstamped.exit_code != 0, unstamped.output
@@ -3612,7 +3612,7 @@ def test_package_init_starts_one_checked_upgraded_widget(
     # Rendering owns a Playwright loop; a session browser may already own this
     # process's loop when the full suite reaches this CLI integration.
     rendered = subprocess.run(
-        [*LEAF_COMMAND, "version", "check", str(page), "--render"],
+        [*LEAF_COMMAND, "page", "check", str(page), "--render"],
         capture_output=True,
         text=True,
         check=False,

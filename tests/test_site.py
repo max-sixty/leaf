@@ -117,7 +117,7 @@ def framed_root_examples():
     """Every example whose `main` is a workspace (`.layout-workspace`).
 
     Derived rather than listed, so a new one is gated without naming it here. The
-    reading is `leaf.structure`'s, the one `version check` admits and the browser
+    reading is `leaf.structure`'s, the one `page check` admits and the browser
     takes, so an omitted `</p>` cannot split the two counts.
     """
     framed = []

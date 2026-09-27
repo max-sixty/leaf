@@ -130,7 +130,7 @@ moves stand, and undoing or superseding one unit's move never moves another. The
 lies among the container's authored units on the revision the move was made on,
 which admission records in order as `meaning.among`. The key places the unit while
 a revision authors that container the same way; a revision that authors it
-differently absorbs the move (`projection.move_absorbed`), and `version check`
+differently absorbs the move (`projection.move_absorbed`), and `page check`
 holds its markup, and every later revision's, to the move's container and to the
 nearest unit both revisions list before it unless the unit is `restated`. The
 absorbed move still stands, as a written-back pick does, and it can no longer be

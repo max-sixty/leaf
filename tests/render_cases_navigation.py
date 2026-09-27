@@ -511,7 +511,7 @@ def bucket_key(request):
 <pre><code class="language-bash"># apply the migration, then run the marked suite
 cd gateway &amp;&amp; alembic upgrade head</code></pre>
 <lf-code id="plain-code"><pre>
-$ leaf version check ./page --render
+$ leaf page check ./page --render
 v1.html: renders clean
 </pre></lf-code>
 </section>

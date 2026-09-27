@@ -4428,7 +4428,7 @@ def test_a_page_source_can_be_shared_but_cannot_change_contract_silently(page_di
     )
     data_model.cmd_data_set(page_dir, "project-feed", [])
 
-    shared = CliRunner().invoke(cli_model.cli, ["version", "check", str(page_dir)])
+    shared = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert shared.exit_code == 0, shared.output
 
     registry_path = page_dir / "registry.json"
@@ -4451,7 +4451,7 @@ def test_a_page_source_can_be_shared_but_cannot_change_contract_silently(page_di
         )
     )
 
-    conflict = CliRunner().invoke(cli_model.cli, ["version", "check", str(page_dir)])
+    conflict = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert conflict.exit_code != 0
     assert "bound to both contract 'rows'" in conflict.output
     state = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])

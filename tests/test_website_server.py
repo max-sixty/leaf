@@ -1178,7 +1178,7 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     # the status to the host.
     instructions = " ".join(website_server.CODEX_INSTRUCTIONS.split())
     assert "Leave the page's status to the host" in instructions
-    assert "leaf version check" not in instructions
+    assert "leaf page check" not in instructions
 
 
 def test_a_timed_out_app_server_is_stopped_before_startup_retries(
@@ -2358,7 +2358,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
                         "item": {
                             "id": "command-1",
                             "type": "commandExecution",
-                            "command": "leaf version check .",
+                            "command": "leaf page check .",
                         },
                     },
                 }
@@ -2373,7 +2373,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
                         "item": {
                             "id": "command-1",
                             "type": "commandExecution",
-                            "command": "leaf version check .",
+                            "command": "leaf page check .",
                             "status": "completed",
                             "exitCode": 0,
                         },
@@ -2477,7 +2477,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
         (
             "hosted-thread",
             "initial-turn",
-            {"kind": "tool", "detail": "Running leaf version check ."},
+            {"kind": "tool", "detail": "Running leaf page check ."},
         ),
         ("hosted-thread", "initial-turn", {"kind": "working"}),
         ("hosted-thread", "initial-turn", {"kind": "replying"}),

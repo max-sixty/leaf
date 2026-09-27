@@ -97,7 +97,7 @@ export function documentPoint(left, top) {
 // nothing about either, and a box drawn under a border is drawn nowhere as surely as one
 // past the edge.
 //
-// `version check --render` imports this to ask which container cut a box away, so the
+// `page check --render` imports this to ask which container cut a box away, so the
 // band a handover is refused against and the band the page paints to are one reading.
 // Written twice they disagreed twice, each copy right about one of the two things above
 // and wrong about the other.

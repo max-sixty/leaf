@@ -3814,6 +3814,74 @@ def test_a_failed_verifier_page_reports_its_browser_errors(browser):
     )
 
 
+def test_local_release_verification_recovers_once_from_a_browser_network_change(
+    monkeypatch,
+):
+    @contextmanager
+    def worker():
+        yield "http://127.0.0.1:8787"
+
+    attempts = []
+
+    def verify(origin, release, *, agent):
+        attempts.append((origin, release, agent))
+        if len(attempts) == 1:
+            raise verify_site.UnpresentedPage(
+                "entry module did not load; browser errors: "
+                "['Failed to load resource: net::ERR_NETWORK_CHANGED']",
+                ["Failed to load resource: net::ERR_NETWORK_CHANGED"],
+            )
+
+    monkeypatch.setattr(verify_site, "built_release", lambda release: "release")
+    monkeypatch.setattr(verify_site, "local_worker", worker)
+    monkeypatch.setattr(verify_site, "run_verification", verify)
+
+    result = CliRunner().invoke(verify_site.main, ["wrangler"])
+
+    assert result.exit_code == 0, result.output
+    assert attempts == [
+        ("http://127.0.0.1:8787", "release", False),
+        ("http://127.0.0.1:8787", "release", False),
+    ]
+
+
+@pytest.mark.parametrize(
+    "failures,agent,expected_attempts",
+    [
+        (
+            ["Failed to load resource: net::ERR_NETWORK_CHANGED", "script failed"],
+            False,
+            1,
+        ),
+        (["Failed to load resource: net::ERR_NETWORK_CHANGED"], True, 1),
+        (["Failed to load resource: net::ERR_NETWORK_CHANGED"], False, 2),
+    ],
+)
+def test_local_verification_limits_recovery_to_one_network_change(
+    monkeypatch, failures, agent, expected_attempts
+):
+    @contextmanager
+    def worker():
+        yield "http://127.0.0.1:8787"
+
+    attempts = []
+
+    def verify(origin, release, *, agent):
+        attempts.append(agent)
+        raise verify_site.UnpresentedPage("page did not present", failures)
+
+    monkeypatch.setattr(verify_site, "built_release", lambda release: "release")
+    monkeypatch.setattr(verify_site, "local_worker", worker)
+    monkeypatch.setattr(verify_site, "run_verification", verify)
+
+    result = CliRunner().invoke(
+        verify_site.main, ["wrangler", *(["--agent"] if agent else [])]
+    )
+
+    assert isinstance(result.exception, verify_site.UnpresentedPage)
+    assert attempts == [agent] * expected_attempts
+
+
 def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):
     page = browser.new_page()
     verify_site.observe_startup(page)

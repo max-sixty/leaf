@@ -237,6 +237,14 @@ def observe_startup(page: Page) -> list[str]:
     return failures
 
 
+class UnpresentedPage(RuntimeError):
+    """A page missed startup, carrying the browser faults that explain the miss."""
+
+    def __init__(self, message: str, failures: list[str]):
+        super().__init__(message)
+        self.failures = failures.copy()
+
+
 def await_presentation(
     page, url: str, failures: list[str], timeout: int = 30_000
 ) -> None:
@@ -244,7 +252,7 @@ def await_presentation(
         page.locator("body[data-lf-presented]").wait_for(timeout=timeout)
     except PlaywrightTimeout:
         reached = page.evaluate("window.__leafVerifier.startupMilestones")
-        raise RuntimeError(unpresented(url, reached, failures)) from None
+        raise UnpresentedPage(unpresented(url, reached, failures), failures) from None
 
 
 def activation_url(page_url: str, state: dict) -> str:
@@ -1383,7 +1391,23 @@ def main(target: str, release: str | None, agent: bool) -> None:
     if target == "wrangler":
         built = built_release(release)
         with local_worker() as origin:
-            run_verification(origin, built, agent=agent)
+            try:
+                run_verification(origin, built, agent=agent)
+            except UnpresentedPage as error:
+                # Docker can change the host interfaces after an activation read
+                # answers. Chrome then aborts in-flight loopback module requests.
+                # A fresh browser pass checks the complete release once more.
+                if agent or not error.failures or any(
+                    failure != "Failed to load resource: net::ERR_NETWORK_CHANGED"
+                    for failure in error.failures
+                ):
+                    raise
+                print(
+                    "Chrome lost local module requests to a host network change; "
+                    "rechecking the complete release in a fresh browser",
+                    file=sys.stderr,
+                )
+                run_verification(origin, built, agent=agent)
         return
     origin = target_origin(target)
     run_verification(origin, release if agent else built_release(release), agent=agent)

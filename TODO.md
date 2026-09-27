@@ -40,12 +40,11 @@ has tried; settle that before building it.
 
 ### Agent and author experience
 
-- **Extend the agent-usability baseline, including #19.** The
-  [first slice](notes/agent-usability-evals.md#first-baseline-2026-09-27) passed every
-  check, so it calls for no new reading interface. Add the cases it leaves uncovered:
-  a live handoff with its status and the delivery-receipt loop, the elided thread, the
-  mixed event batch, the unfamiliar package and the shared-source record. Compare
-  authoring and a feedback cycle with plain HTML before improving Leaf's authoring guidance;
+- **Compare Leaf authoring with plain HTML (#19).** The
+  [agent-usability baseline](notes/agent-usability-evals.md#second-slice-2026-09-27)
+  now covers the live loop, a mixed batch, an elided thread, an unfamiliar package and a
+  shared data source, and calls for no new interface. Compare authoring and a feedback
+  cycle with plain HTML before improving Leaf's authoring guidance;
   **#20** then [teaches the compositions that prove useful](notes/workspace-followups.md#item-20),
   including how authors discover diagram comparison suggestions.
 - **Keep agent activity intelligible throughout a task.** Run the

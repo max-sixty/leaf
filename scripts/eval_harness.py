@@ -261,14 +261,15 @@ def commands(record: dict) -> list[str]:
 
 
 def waits_started(record: dict) -> list[str]:
-    """The ids of the backgrounded `leaf wait` calls one stream record makes."""
+    """The ids of the backgrounded `leaf wait` calls one stream record makes, however
+    the command spells the launcher: `leaf`, its path, or a variable holding it."""
     content = (record.get("message") or {}).get("content")
     return [
         block["id"]
         for block in (content if isinstance(content, list) else ())
         if block.get("type") == "tool_use"
         and block["name"] == "Bash"
-        and "leaf wait" in block["input"].get("command", "")
+        and re.search(r"(\bleaf|\$\{?\w+\}?) wait\b", block["input"].get("command", ""))
         and block["input"].get("run_in_background")
     ]
 

@@ -99,6 +99,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from html import unescape
 from pathlib import Path
 
 import click
@@ -1230,13 +1231,21 @@ def element_html(html: str, element: str) -> str:
 
 
 def element_text(html: str, element: str) -> str:
-    """The text of the element with id `element`, tags dropped and space collapsed."""
-    return " ".join(re.sub(r"<[^>]+>", " ", element_html(html, element)).split())
+    """The text of the element with id `element`, as `text` reads it."""
+    return text(element_html(html, element))
 
 
-# A tool call that writes `index.html`: the Write or Edit tool, or a shell redirect,
-# heredoc or in-place edit.
-WRITES_PAGE = r"^(Write|Edit)\b.*index\.html|>\s*\S*index\.html|index\.html.*<<|sed -i.*index\.html"
+def text(markup: str) -> str:
+    """Markup's text: tags dropped, entities decoded and space collapsed."""
+    return " ".join(unescape(re.sub(r"<[^>]+>", " ", markup)).split())
+
+
+# A tool call that writes `index.html`: the Write or Edit tool, a shell redirect or
+# in-place edit, or a script fed through a heredoc that names the file.
+WRITES_PAGE = (
+    r"^(Write|Edit)\b.*index\.html|>\s*\S*index\.html|sed -i.*index\.html"
+    r"|(?s:<<.*index\.html|index\.html.*<<)"
+)
 
 
 def score_package(run: Run, trace: list[dict]) -> dict:
@@ -1272,8 +1281,12 @@ def score_shared_source(run: Run, traces: list[list[dict]], replies: list[str]) 
     else in the snapshot touched."""
     lines = answered_lines(replies[0] if replies else "")
     out = {
-        "finch_branch": check(r"cdata-escapes(?!-v1)", lines.get(1, ""))
-        and not check(r"-v1", lines.get(1, "")),
+        # The first branch the answer names is finch's; it may go on to name the
+        # stale record's.
+        "finch_branch": (
+            re.findall(r"cdata-escapes(-v1)?", lines.get(1, "")) or ["missing"]
+        )[0]
+        == "",
         "finch_failing": check(r"fail|not passing|no\b", lines.get(1, "")),
         "wren_ahead": check(r"\b4\b|\bfour\b", lines.get(2, "")),
         # The join from widget to record came from the declarations: no look at
@@ -1460,20 +1473,29 @@ def score_mixed(run: Run, trace: list[dict]) -> dict:
                 for s in state.get("state", [])
             )
         ),
-        # Two treatments follow the guidance: the paragraph shortened and the
-        # reaction closed, or a shorter wording put to the user as a suggestion that
-        # closes the reaction's thread when decided.
+        # The reaction is acted on, by shortening the paragraph in place or by
+        # proposing a shorter one as a suggestion, and closed, by the agent or by the
+        # suggestion that `resolves` it once the user decides.
         "reaction_handled": (
             0 < len(element_text(html, "why-now").split()) < 0.7 * fixture_words
-            and any(
+            or any(
+                "every dashboard that reads" in text(old)
+                and len(text(new).split()) < 0.7 * fixture_words
+                for old, new in re.findall(
+                    r"<lf-old\b.*?>(.*?)</lf-old\s*>\s*<lf-new\b.*?>(.*?)</lf-new\s*>",
+                    html,
+                    re.DOTALL,
+                )
+            )
+        )
+        and (
+            any(
                 e["kind"] == "resolve"
                 and e["author"] == "agent"
                 and e["parent"] == reaction["id"]
                 for e in events
             )
-        )
-        or bool(
-            re.search(rf'<lf-suggestion\b[^>]*\bresolves="{reaction["id"]}"', html)
+            or f'resolves="{reaction["id"]}"' in html
         ),
         "reaction_unreplied": not answered(events, reaction["id"]),
         "undo_kept": "card-lag-alert" in column_cards(html, "col-open")

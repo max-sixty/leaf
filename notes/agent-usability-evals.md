@@ -50,7 +50,88 @@ What the traces show:
   pending; in one run the Stop hook made the agent wait and receive them again.
 - **Lifecycle varies on the decision page.** One of three `cold-decision` runs
   stamped the page twice; the other two left it unstamped. The headless prompt
-  withholds the handoff, so the status and handoff criteria were not measured.
+  withholds the handoff, so the status and handoff criteria were not measured here;
+  the second slice's `handoff` measures them.
+
+### Second slice, 2026-09-27
+
+The same harness added five cases at 64186bcb9, three runs each after pilots that fixed
+the fixtures and scorers. In the three live cases the child serves the page from its
+own session and the harness plays the user, posting moves through the served page as a
+tab does, one round each time a turn ends; the other two are headless. The harness
+docstring describes each case. Every run completed. Per-run scores are in
+`usability-eval/results/extension.json`; the scored runs cost $5.71, and $8.76 with the
+pilots.
+
+| Case | What the user does | Checks | Cost and input per run |
+| --- | --- | --- | --- |
+| `handoff` | asks for a drafted page to be handed over, asks for an edit, then asks a question | 54/54 | $0.30, 324k tokens |
+| `mixed` | sends a comment, an Ask's pick, a `shorten` reaction, a card move and its undo, and a page error, in one delivery | 41/42 | $0.38, 362k tokens |
+| `elided` | asks, in a closed 24-message thread, a question whose premise is in the part the delivery leaves out | 27/27 | $0.43, 408k tokens |
+| `package` | asks for a widget that only the page's own package supplies, without naming it | 22/24 | $0.25, 284k tokens |
+| `shared-source` | asks about, then updates, one of two worktree widgets whose shared source also holds a look-alike record | 21/24 | $0.54, 309k tokens |
+
+What the traces show:
+
+- **The live loop runs as the references describe.** Every round reached its agent
+  through the prompt hook, which confirmed receipt, so no agent ran `leaf wait --ack`
+  or invented another acknowledgement. Every turn that took a delivery re-armed the
+  wait, ended on a `waiting` status and repeated the URL. The first handoff's status named the
+  decision ("Pick how the backfill copy runs: …") in 3 of 3, and each edit request
+  was claimed on its thread before the reply.
+- **A mixed batch gets each event's treatment.** No run wrote the undone card move
+  into the markup, every run fixed the non-global regular expression the page error
+  named, and every run answered the pick in markup and stamped it, with `chosen` on the option or
+  `settled` on the group. The `shorten` reaction was handled both ways the guidance
+  allows: shortened in place and closed, or proposed as an `lf-suggestion` that
+  `resolves` it. One run named all four pieces of work in one page-wide status and
+  claimed nothing on the comment's thread, so that comment read Picked up rather than
+  Working until its reply landed.
+- **The elision never bound.** Every agent picking up the page read the closed thread
+  (`leaf events`, `leaf thread read` or `events.jsonl`) before serving it, and two
+  rewrote the page body to record what the thread had settled, so the question
+  reached an agent that already held the premise. All three answered 22:00 UTC. The
+  delivery's `elided` count and `leaf thread read` serve an agent that has lost the
+  middle, as a compacted session has; this harness cannot produce one.
+- **Package widgets are used from their entry.** All three found `lf-burn` by listing
+  the page registry and wrote `consumed="0.62"` from the entry's fraction rule, valid
+  on the first check. Two looked at the widget's source before writing, one in the
+  same command that read the entry and one by searching for the package directory;
+  all three read it or tried to, to tell the user what the widget draws, which the
+  entry does not say. The markup did not need it.
+- **The shared-source join is followed, and confirmed in the renderer.** All six
+  answers and three updates took finch's record by its widget id, left the look-alike
+  `tree-finch-old` and wren's record untouched, and put nothing into the markup. Every
+  reading agent also opened `widgets/lf-worktree.js` to confirm the join. None had
+  loaded the skill or read the registry at that point, and the element's description
+  said only that it "projects the matching record".
+
+Three checks failed, and no run gave a wrong answer, wrote to the wrong place or lost
+a user's state. Classified:
+
+- **The unclaimed comment is a guidance miss.** The comment's own `answering` clause
+  asks for a claim `--on` its thread, and the other runs made one, though some folded
+  the rest of the batch's work into that one claim.
+- **The renderer reads on `shared-source` are missing information.** The selection
+  rule, a record keyed by the element's id, is stated in the registry's
+  `lf-worktree` contract and in the renderer. The element's description, which a
+  lookup of the tag returns, says "the matching record".
+- **The source reads on `package` have no Leaf owner.** The entry was enough for the
+  markup; the agents wanted the widget's rendered words, which the fixture's own
+  entry leaves out.
+
+Two fixes were tried as a paired A/B, both arms started together
+(`results/ab.json`, $7.11): the base, and a candidate that added to
+`conversation-loop.md`, "When to write", that each move in a batch takes its own
+claim, and changed the `lf-worktree` description to say it shows "the one record its
+source keys by this element's id". `mixed` ran five times per arm and `shared-source`
+three. Neither changed the result. Both arms claimed the comment on its thread 5 of 5
+times, and both folded the other work into one claim in 2 of 5. The base read the
+renderer in 2 of 3 `shared-source` runs and the candidate in 3 of 3, where every
+candidate run opened the renderer before the registry, so the new description was
+never read first. Both changes were reverted, and the evidence calls for no new
+interface: the join is followed correctly, as the "Measured reading gaps" section
+below asked to establish before adding one.
 
 The former `leaf page catalog` output was 92,130 bytes, 13,058 words, or about
 22,500 tokens under both `o200k_base` and `cl100k_base`. Before selective
@@ -106,9 +187,10 @@ standing user state and raw data were unchanged. This checks one successful
 edit route, not a paired comparison or a general comprehension score.
 
 Long threads add a smaller version of the same problem. A delivered batch
-may elide the middle of a thread. The agent has to notice the marker, use the
-thread id from `page state`, and retrieve `leaf events --thread ID` before
-answering a question that depends on the missing records.
+may elide the middle of a thread. An agent that no longer holds that middle has to
+notice the `elided` count and read the thread with `leaf thread read` before
+answering a question that depends on the missing records. In the second slice every
+agent that picked a page up read the whole thread first, so the elision never bound.
 
 ## Canonical agent access
 
@@ -218,22 +300,25 @@ choices. The first baseline is under "Current observations".
    `index.html` candidate that changes a date, a resolved and an open thread, and a
    pick no markup records. Phase 1 asks for the current truth and the next action;
    phase 2 asks for the revision.
+4. **The live loop** (`handoff`, `mixed`, `elided`). The child serves the page and
+   waits; the harness posts the user's moves through the served page and scores each
+   delivered round. Results are under "Second slice".
+5. **Unfamiliar vocabulary and shared data** (`package`, `shared-source`), headless.
 
 `arrangement-eval/` is the other authoring case: fresh agents write three subjects
 with and without Leaf's arrangement vocabulary, revise each for a standing
 preference, and a blind reviewer compares screenshots at three widths.
 
-Not yet covered: the unfamiliar package, competing authorities beyond the invalid
-candidate, the elided thread, the mixed event batch, and a live handoff with its
-status, since the headless prompts withhold the server and the wait.
+Not yet covered: competing authorities beyond the invalid candidate, and a session
+that has lost a long thread's middle, which only a compacted session can.
 
 ## Evaluate the integrated inspection path
 
 The first paired run below compared the HTML-plus-state path with the
 construction-linked tree on the same reading and revision tasks, scoring mutations as
 well as answers: a user who understands a value but edits a derived display has not
-recovered its construction. Context cost with large data manifests and long threads,
-including exact thread selection, is still unmeasured.
+recovered its construction. Context cost with large data manifests is still
+unmeasured.
 
 A browser or accessibility snapshot can check the oracle for rendered semantics.
 It omits some inactive content and includes generated presentation, so keep it as
@@ -272,9 +357,10 @@ rendered the correct records and stamped their exact paths. The former tree
 repeated all three records under each widget with `path: []`; the registry contract
 states that records are selected by authored widget id, and the value file keys each
 record by that id, so the edit target is recoverable without reading widget source.
-This is an indirect join, not missing semantics or a wrong-target ambiguity. Test
-whether cold agents follow it before adding another abstraction; do not duplicate the
-renderer in Python.
+This is an indirect join, not missing semantics or a wrong-target ambiguity. The
+second slice's `shared-source` case tested whether cold agents follow it: they did in
+every run, confirming it in the renderer's code, so it needs no further abstraction; do
+not duplicate the renderer in Python.
 
 ### Next paired check
 
@@ -313,7 +399,8 @@ value (its CSV). `board` covers the one join the tree made that the compact stat
 leaves to the reader: the user moved two cards into a column at ranks between the
 authored cards and moved a third, then undid that move. It asks for the column's order,
 then for a card added to another column, which obliges the version to write the moved
-cards where the fold puts them. The shared-source record case is not covered.
+cards where the fold puts them. The shared-source record case came later, in the
+second slice.
 
 | Case | Arm | Checks passed | `page state` bytes read per run | Cost per run |
 | --- | --- | --- | --- | --- |

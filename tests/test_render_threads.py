@@ -7103,6 +7103,11 @@ def pressed_send_surface(browser, serve, surface):
             page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
             holder = page.locator(".lf-margin-preview")
             box = holder.locator(".lf-say leaf-text")
+        elif surface == "composer":
+            page.locator("#how-cap").click(click_count=3)
+            page.locator(".lf-fab-input").click()
+            holder = page.locator(".lf-composer")
+            box = holder.locator("leaf-text")
         else:
             page.locator(".lf-threads-toggle").click()
             panel_settled(page)
@@ -7114,21 +7119,37 @@ def pressed_send_surface(browser, serve, surface):
                 holder = page.locator(".lf-general")
                 box = holder.locator("leaf-text")
         send = holder.locator(".lf-compose-submit")
-        after = box
+        # A first anchored comment lands the user on the thread it starts, as Enter
+        # does (#961); every other box keeps them.
+        after = (
+            page.locator(".lf-margin-preview .lf-page-thread")
+            if surface == "composer"
+            else box
+        )
     write(box, "Sent from the box.")
     rendered(page)
     return page, box, send, after
 
 
-@pytest.mark.parametrize("how", ["pointer", "keyboard"])
-@pytest.mark.parametrize("surface", ["card", "panel", "general", "pause", "handoff"])
+@pytest.mark.parametrize(
+    ("surface", "how"),
+    [
+        (surface, how)
+        for surface in ["card", "panel", "general", "pause", "handoff", "composer"]
+        for how in ["pointer", "keyboard"]
+        # The anchored composer's Tab walks its field and response options
+        # (`response.tab`), so its Send takes no keyboard press; Enter is that route.
+        if (surface, how) != ("composer", "keyboard")
+    ],
+)
 def test_a_pressed_send_leaves_the_user_in_the_box(browser, serve, surface, how):
     """Pressing a box's submit control is its send key pressed from the box: the user
     goes on typing where Enter would leave them. A pointer press left the focus on the
     button, so the `o` and `k` of an "ok" typed next hid every mark and closed the
     margin card, and neither letter reached the box. A keyboard press on the button
     ends in the box too, so after any send the user is in it — or, where the seat gives
-    its box up, in the reply of the thread it started, as after Enter."""
+    its box up, in the reply of the thread it started, as after Enter. The anchored
+    composer hands the user to the thread its comment starts, as Enter does there."""
     page, box, send, after = pressed_send_surface(browser, serve, surface)
     if how == "keyboard":
         # Tab reaches the control from the box; `Send & pause` stands one past `Send`.
@@ -7148,12 +7169,45 @@ def test_a_pressed_send_leaves_the_user_in_the_box(browser, serve, surface, how)
             page.mouse.up()
     rendered(page)
     expect(after).to_be_focused()
-    page.keyboard.type("ok")
-    expect(after).to_have_js_property("value", "ok")
+    if surface != "composer":
+        page.keyboard.type("ok")
+        expect(after).to_have_js_property("value", "ok")
     expect(after).to_be_visible()
     expect(page.locator("html")).not_to_have_attribute("data-lf-annotations", "hidden")
     sent = events_model.read_events(serve.page_dir)
     assert any(event.get("text") == "Sent from the box." for event in sent), sent
+
+
+def test_a_pointer_send_finishes_the_words_an_input_method_holds(browser, serve):
+    """A press on Send while an input method holds unfinished words takes the focus, as
+    leaving the box is what finishes them: the send carries the finished words, and the
+    box it empties stays empty. Held in the box, the words went out unfinished and the
+    input method's commit afterwards wrote them back into the emptied box."""
+    page, box, send, after = pressed_send_surface(browser, serve, "general")
+    ended = box.evaluate_handle(
+        """box => {
+          const ended = {count: 0};
+          box.addEventListener('compositionend', () => (ended.count += 1));
+          return ended;
+        }"""
+    )
+    ime = page.context.new_cdp_session(page)
+    ime.send(
+        "Input.imeSetComposition",
+        {"text": "にほ", "selectionStart": 2, "selectionEnd": 2},
+    )
+    expect(box).to_have_js_property("value", "Sent from the box.にほ")
+    at = send.bounding_box()
+    page.mouse.move(at["x"] + at["width"] / 2, at["y"] + at["height"] / 2)
+    with sending(page, "the send pressed mid-composition"):
+        page.mouse.down()
+        page.mouse.up()
+    rendered(page)
+    assert ended.evaluate("ended => ended.count") == 1
+    expect(after).to_be_focused()
+    expect(after).to_have_js_property("value", "")
+    sent = events_model.read_events(serve.page_dir)
+    assert any(event.get("text") == "Sent from the box.にほ" for event in sent), sent
 
 
 def test_a_seat_send_puts_the_user_in_the_thread_it_started(browser, serve):

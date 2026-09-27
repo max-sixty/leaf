@@ -352,6 +352,15 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // or a pointer press while the user stood elsewhere, puts the user in the box before
     // the submission, so what the send does next starts from the state Enter starts it
     // from — a composer that gives way to its thread hands the user on the same way.
+    //
+    // Except while an input method holds unfinished words: leaving the box is what
+    // finishes them, so there the press takes the focus as it always did, and the words
+    // are committed before the click sends them. Held in the box, they were sent
+    // unfinished, and the input method's later commit wrote them back into the box the
+    // send had just emptied. Enter never meets this, since the input method takes Enter.
+    let composing = false;
+    ta.addEventListener("compositionstart", () => (composing = true));
+    ta.addEventListener("compositionend", () => (composing = false));
     const pressed = (sender) => {
       if (focused() !== ta) ta.focus({ preventScroll: true });
       submit(sender);
@@ -361,7 +370,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       [altBtn, altSend],
     ]) {
       if (!button) continue;
-      button.addEventListener("mousedown", (event) => event.preventDefault());
+      button.addEventListener("mousedown", (event) => {
+        if (!composing) event.preventDefault();
+      });
       button.addEventListener("click", () => pressed(sender));
     }
     return sync;

@@ -310,13 +310,13 @@ interpretation of it.
 
 The gates judge contracts, not how the page looks. A change to what the page
 draws, including one made for geometry, is proved with before/after screenshots
-of each state it touches. `uv run scripts/stills.py` takes them for a catalogue of
+of each state it touches. `uv run leaf-dev stills` takes them for a catalogue of
 states and crops the ones that changed (`/developing-leaf`, "Prove and hand off a
 visible change").
 
 ## Working on the runtime
 
-`scripts/browser/build.mjs` compiles the TypeScript foundation into
+`build/browser/build.mjs` compiles the TypeScript foundation into
 `vendor/browser-runtime.js` and writes `vendor/lit.js`, the page's one copy of Lit
 (`scripts/AGENTS.md` owns the commands). What a module decides on its own is
 tested under `tests/runtime/` (`npm run test:runtime`; `tests/AGENTS.md` says

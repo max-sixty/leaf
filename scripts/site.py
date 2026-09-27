@@ -43,7 +43,6 @@ from pathlib import Path
 from urllib.parse import unquote, urljoin, urlsplit
 
 from example_assets import example_previews
-from example_data import catalog_sources
 from leaf.files import latest_revision, list_revisions
 from leaf.host import IDENTITY_VARIABLES
 from leaf.live_shell import write_live_shell
@@ -56,7 +55,8 @@ from leaf.schema import (
     VENDORED_FILES,
 )
 from leaf.structure import FRAME_ANCESTORS_CSP, SourceDocument
-from page_fixtures import prepare_page, read_fixture
+from leaf_dev.example_data import catalog_sources
+from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -380,7 +380,7 @@ def publish_product_pages(
         target = product_page(out, source.name)
         shutil.copytree(page, target)
         (target / "index.html").write_bytes(markup)
-        leaf(env, "version", "stamp", str(target), "--text", "As published")
+        leaf(env, "page", "stamp", str(target), "--text", "As published")
         leaf(env, "status", str(target), "idle")
 
 

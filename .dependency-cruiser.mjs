@@ -26,7 +26,7 @@ const isOneOf = (names) => `^${runtime}(?:${names.map(escaped).join("|")})$`;
 // and return values; the keyboard dispatcher resolves a key against the register and
 // the focused scope. If one of them reached a painter or an application service, every
 // caller would acquire that owner's initialization graph. image-difference.js reaches
-// nothing because `scripts/stills.py` loads it into a blank page on its own.
+// nothing because `leaf-dev stills` loads it into a blank page on its own.
 const exactClosures = {
   "image-difference.js": [],
   "margin-entry-model.js": [],

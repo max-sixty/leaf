@@ -24,7 +24,7 @@ import { watchExternalLinks } from "./presentation.js";
 
 // A third-party stylesheet that arrives with an on-demand bundle belongs wherever that
 // bundle can draw: the document and every declared shadow stage. The vendored Web
-// Awesome bundle calls this as it evaluates (scripts/vendor-src/webawesome/build.mjs).
+// Awesome bundle calls this as it evaluates (build/webawesome/build.mjs).
 // Keep one constructable sheet per name so a page parses it once, existing stages
 // receive a late-loaded bundle, and stages built after registration inherit the sheet.
 const widgetSheets = new Map();

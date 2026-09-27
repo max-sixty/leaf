@@ -6,6 +6,7 @@ import json
 import re
 import shlex
 import subprocess
+import sys
 from pathlib import Path
 
 import click
@@ -204,7 +205,7 @@ def test_how_it_works_quotes_the_real_check_and_stamp_lines(page_dir):
 
     changelog = "Two ways to shed load — which?"
     stamped = CliRunner().invoke(
-        cli_model.cli, ["version", "stamp", str(page_dir), "--text", changelog]
+        cli_model.cli, ["page", "stamp", str(page_dir), "--text", changelog]
     )
     assert stamped.exit_code == 0, stamped.output
 
@@ -276,7 +277,7 @@ def code_block(source: str, block_id: str) -> str:
 
 def shown_log(records: list[dict]) -> str:
     """Stored records as the event-log page prints them: each record's JSON as
-    `leaf events` writes it, broken before and after each object-valued field and
+    `leaf page events` writes it, broken before and after each object-valued field and
     before `id`, so a record reads in a few lines rather than one wide one. An
     object too long for one line puts each of its members on a line of its own."""
     width = 96
@@ -322,7 +323,7 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
         f"<body><main>{template.group(1)}</main></body></html>"
     )
     stamped = CliRunner().invoke(
-        cli_model.cli, ["version", "stamp", str(page_dir), "--text", "v1"]
+        cli_model.cli, ["page", "stamp", str(page_dir), "--text", "v1"]
     )
     assert stamped.exit_code == 0, stamped.output
 
@@ -553,14 +554,14 @@ def test_demo_recording_drives_the_browser_journey(tmp_path):
     # same nothing. This is `open_page`'s complaint about "Failed to load
     # resource" one file over — carry what failed into the failure.
     recorded = subprocess.run(
-        [ROOT / "scripts" / "record-demo.sh", "--output", output],
+        [sys.executable, ROOT / "scripts" / "record-demo.py", "--output", output],
         capture_output=True,
         text=True,
         check=False,
     )
 
     assert recorded.returncode == 0, (
-        f"record-demo.sh exited {recorded.returncode}\n"
+        f"record-demo.py exited {recorded.returncode}\n"
         f"{recorded.stdout}{recorded.stderr}".rstrip()
     )
     assert recorded.stdout.strip() == f"Recorded {output}"

@@ -307,6 +307,19 @@ stroke="currentColor"></rect></svg><figcaption>A figure, for element anchors.</f
 )
 
 
+# A list whose last item the page's own rule sets apart, for a comment on the list.
+COMMENTED_LIST_PAGE = leaf_page(
+    "commented list",
+    """
+<h1 id="t">Commented list</h1>
+<div id="list" class="list"><p id="one">The first item.</p><p id="two">The second
+item, which the page's rule gives room below.</p></div>
+<p id="after">The paragraph after the list.</p>
+""",
+    head="<style>.list > :last-child { margin-bottom: 80px; }</style>",
+)
+
+
 def standing_mark(page):
     """Which passage the page is painting as the comment the user is standing in, and
     which elements wear the same fact as an outline. One reading, because the two are one
@@ -781,7 +794,7 @@ def _publish(page_dir, version, html, note):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "version",
+            "page",
             "stamp",
             "--json",
             str(page_dir),

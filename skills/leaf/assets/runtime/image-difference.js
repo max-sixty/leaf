@@ -26,7 +26,7 @@
  * it changed.
  *
  * A before/after widget outlines the regions over both frames of its pair, and
- * `scripts/stills.py` loads this module into its browser on its own and crops a
+ * `leaf-dev stills` loads this module into its browser on its own and crops a
  * changed state to its strong regions, so the module imports nothing and touches no
  * document. */
 

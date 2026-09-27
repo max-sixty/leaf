@@ -32,6 +32,14 @@ neutral control. Put longer rationale or provenance in a disclosure after the
 Ask. The `lf-ask`, `lf-options`, and `lf-option` entries say how to word the
 question and shape each option.
 
+When the page exists for the user to choose among approaches, it is organized
+around that choice. Its title and headings name the question and state what the
+alternatives differ on without answering it, and your recommendation is advice,
+stated as yours and marked on its option. Each alternative gets the same depth on
+the same example, and a revision that adds detail adds it to each. Detail and Asks
+that matter only under one alternative, the one you recommend included, wait for
+the user's pick.
+
 A page whose approval unblocks work declares:
 
 ```html

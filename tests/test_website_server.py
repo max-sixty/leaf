@@ -1,7 +1,6 @@
 """The website route adapter preserves Leaf's canonical served-page contract."""
 
 import hashlib
-import importlib.util
 import json
 import os
 import shutil
@@ -19,6 +18,7 @@ from email.message import Message
 from pathlib import Path
 from types import SimpleNamespace
 
+import leaf_website as website_server
 import pytest
 import verify_site
 from click.testing import CliRunner
@@ -53,11 +53,6 @@ from render_harness import LONG_PAGE, consume_browser_errors, open_page, told, w
 from websockets.exceptions import ConnectionClosedError
 
 ROOT = Path(__file__).parent.parent
-_spec = importlib.util.spec_from_file_location(
-    "website_server", ROOT / "worker" / "server.py"
-)
-website_server = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(website_server)
 
 
 def accept_in_turn(thread_id: str, turn: str = "app-server-turn") -> None:
@@ -940,7 +935,8 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
         "(site / 'site.json').write_text('{\"release\": \"' + 'a' * 40 + '\"}')\n"
         "print('built the site')\n"
     )
-    (root / "worker" / "server.py").write_text(
+    serve_site = tmp_path / "serve_site.py"
+    serve_site.write_text(
         "import json, os\n"
         "from pathlib import Path\n"
         "from http.server import BaseHTTPRequestHandler, HTTPServer\n"
@@ -957,6 +953,7 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
     )
     monkeypatch.setattr(verify_site, "ROOT", root)
     monkeypatch.setattr(verify_site, "BUILD_SITE", [sys.executable, str(build_site)])
+    monkeypatch.setattr(verify_site, "SERVE_SITE", [sys.executable, str(serve_site)])
     monkeypatch.setenv("CODEX_HOME", str(host_home))
     urlopen = urllib.request.urlopen
 
@@ -1401,15 +1398,10 @@ while True:
             sys.executable,
             "-c",
             f"""
-import importlib.util, sys
 from pathlib import Path
 
-spec = importlib.util.spec_from_file_location(
-    "website_server", {str(ROOT / "worker" / "server.py")!r}
-)
-module = importlib.util.module_from_spec(spec)
-sys.modules["website_server"] = module
-spec.loader.exec_module(module)
+import leaf_website as module
+
 module.PORT = 0
 module._agent_host = module.WebsiteCodexHost(
     {str(codex)!r}, Path({str(socket_dir / "app-server.sock")!r}),

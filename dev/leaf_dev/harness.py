@@ -72,6 +72,7 @@ PAYLOAD = (
     "pyproject.toml",
     "uv.lock",
     "dev/pyproject.toml",
+    "worker/pyproject.toml",
 )
 
 

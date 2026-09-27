@@ -19,7 +19,7 @@ local href and src it wrote and refuses a site holding one that names no file.
 The build also writes what a crawler reads: `robots.txt`, a `sitemap.xml` of the clean
 routes, and each page's link card. A page's title and description are authored in its
 own source, and the build refuses a page missing either. The rest of the card comes from
-`site_metadata` in `worker/server.py`. Each page's card image is named in the manifest:
+`site_metadata` in `leaf_website` (`worker/`). Each page's card image is named in the manifest:
 `docs/session-card.png` for a product page and the catalog preview for an example.
 
     uv run leaf-dev site [--serve]
@@ -38,7 +38,6 @@ import sys
 import tempfile
 from functools import partial
 from html.parser import HTMLParser
-from importlib import import_module
 from pathlib import Path
 from urllib.parse import unquote, urljoin, urlsplit
 
@@ -55,18 +54,12 @@ from leaf.schema import (
     VENDORED_FILES,
 )
 from leaf.structure import FRAME_ANCESTORS_CSP, SourceDocument
+from leaf_website import SITE_MANIFEST, SITE_ORIGIN, initial_state, site_metadata
 
 from leaf_dev import ROOT
 from leaf_dev.example_assets import example_previews
 from leaf_dev.example_data import catalog_sources
 from leaf_dev.page_fixtures import prepare_page, read_fixture
-
-sys.path.insert(0, str(ROOT))
-worker_server = import_module("worker.server")
-SITE_MANIFEST = worker_server.SITE_MANIFEST
-SITE_ORIGIN = worker_server.SITE_ORIGIN
-initial_state = worker_server.initial_state
-site_metadata = worker_server.site_metadata
 
 LEAF = ROOT / "bin" / "leaf"
 DOCS = ROOT / "docs"

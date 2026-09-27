@@ -24,6 +24,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import click
+import leaf_website
 from leaf.hosting import LeafHTTPServer
 from leaf.render_checks import wait_until_ready
 from PIL import Image
@@ -55,10 +56,8 @@ def serve_examples(site: Path) -> Iterator[str]:
     with tempfile.TemporaryDirectory(prefix="leaf-preview-state-") as state_home:
         os.environ["XDG_STATE_HOME"] = state_home
         try:
-            site_build.worker_server.page_binding.cache_clear()
-            server = LeafHTTPServer(
-                ("127.0.0.1", 0), site_build.worker_server.site_endpoint(site)
-            )
+            leaf_website.page_binding.cache_clear()
+            server = LeafHTTPServer(("127.0.0.1", 0), leaf_website.site_endpoint(site))
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
             try:

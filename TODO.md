@@ -53,6 +53,25 @@ has tried; settle that before building it.
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
 
+### Repository tooling
+
+- **Import every module as a package; never edit an import path.** Nothing should
+  reach code through `sys.path`, `PYTHONPATH`, `pythonpath`, or loading a file by path:
+  such an import breaks when the file moves, and it works only from one working
+  directory. The Worker's server is now the `leaf_website` package. What remains:
+  - `pyproject.toml`'s pytest `pythonpath = ["scripts"]`, so that tests can import
+    `preview`, `verify_site`, `corpus`, and `keydocs`. Move those four into `leaf_dev`
+    as commands, as `site.py` moved, then delete the setting.
+  - `profile_page.py` imports `bench_page_latency` from its own directory. This goes
+    away when the benchmarks become `leaf-dev` commands, which is already in progress.
+  - `bench_render_check.py` puts a tracer directory on a child's `PYTHONPATH` so its
+    `sitecustomize.py` runs inside another arm's environment. Replace it with
+    something that doesn't change the child's import path, such as running the child
+    under `python -c` with a launcher that installs the tracer first.
+  - `test_interact_layer.py` and `test_interact_session.py` set `PYTHONPATH` to put an
+    older copy of `leaf` first, to stand in for a stale plugin install. Build that
+    install as an environment of its own instead.
+
 ## Next
 
 ### User continuity and mobile access

@@ -96,16 +96,19 @@ dev = [
   "unidiff>=1",
   # The developer tooling package in `dev/`.
   "leaf-dev",
+  # The Python server behind leaf.page, in `worker/`.
+  "leaf-website",
 ]
 
-# An install never syncs the member, but uv reads its `pyproject.toml` to check the
-# lock on every unfrozen run, so a partial copy of the tree that runs `bin/leaf`
-# carries that file (`leaf_dev.harness.PAYLOAD`).
+# An install never syncs the members, but uv reads their `pyproject.toml` files to
+# check the lock on every unfrozen run, so a partial copy of the tree that runs
+# `bin/leaf` carries them (`leaf_dev.harness.PAYLOAD`).
 [tool.uv.workspace]
-members = ["dev"]
+members = ["dev", "worker"]
 
 [tool.uv.sources]
 leaf-dev = { workspace = true }
+leaf-website = { workspace = true }
 
 # The suite is round trips through a real browser rather than computation, so tests
 # shard independently: every test gets its own tmp_path, XDG homes, and server.

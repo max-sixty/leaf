@@ -51,6 +51,8 @@ ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = ROOT / ".tmp" / "site" / "_leaf" / "site.json"
 # The site build, run from ROOT, which writes ROOT/.tmp/site (`leaf_dev.site`).
 BUILD_SITE = [sys.executable, "-m", "leaf_dev", "site"]
+# The website's Python server, as its container runs it (`leaf_website`).
+SERVE_SITE = [sys.executable, "-m", "leaf_website"]
 VERIFIER_SCRIPT = ROOT / "scripts" / "verify-site-browser.js"
 PAGES = (
     ("/", "product", True),
@@ -1307,7 +1309,7 @@ def local_adapter():
             return False
 
         with serving(
-            [sys.executable, str(ROOT / "worker" / "server.py")],
+            SERVE_SITE,
             output,
             ready,
             30,

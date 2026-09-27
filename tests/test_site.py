@@ -25,6 +25,7 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import urlsplit
 
+import leaf_website as website_server
 import pytest
 from conftest import LENT_LINKED_DIRS
 from interact_support import running_http_server
@@ -66,7 +67,6 @@ EXAMPLES = ROOT / "examples"
 FEATURE_GALLERY = EXAMPLES / "developer" / "feature-gallery.html"
 DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
 
-website_server = site_build.worker_server
 
 # The theme's paper, light and dark, as the browser reports a background.
 PAPER = {"light": "rgb(250, 249, 245)", "dark": "rgb(25, 24, 21)"}

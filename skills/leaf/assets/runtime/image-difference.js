@@ -12,16 +12,17 @@
  * bounding box of its changed pixels, in the images' own pixels, and regions come in
  * reading order.
  *
- * `lf-shot` outlines the regions over both frames of a pair; `scripts/stills.py`
- * loads this module into its browser and crops a changed state to their union. So
- * the module imports nothing and touches no document. */
+ * A before/after widget outlines the regions over both frames of its pair, and
+ * `scripts/stills.py` loads this module into its browser on its own and crops a changed
+ * state to their union, so the module imports nothing and touches no document. */
 
 const CELL = 8;
 const REACH = 3;
 
 /* The regions where `a` and `b` differ, each `{x, y, width, height}`, and `changed`,
- * the number of differing pixels. `a` and `b` are ImageData or anything shaped like
- * it: `width`, `height`, and RGBA bytes in `data`. */
+ * the number of differing pixels. `a` and `b` are ImageData, or `width`, `height`, and
+ * RGBA bytes in a `data` array of their own, which each pixel is read from as one
+ * 32-bit word. */
 export function differingRegions(a, b) {
   const width = Math.max(a.width, b.width);
   const height = Math.max(a.height, b.height);

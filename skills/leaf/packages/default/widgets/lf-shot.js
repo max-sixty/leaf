@@ -15,6 +15,10 @@
  * region that changed over both frames, with a count between the rail labels. A reader
  * looking at one side of the divider, or at a screenshot of the page, then still sees
  * where the pair differs, and that it differs nowhere when the two are one picture.
+ * `difference` is that reading, `{width, height, changed, regions}` in the images' own
+ * pixels, or null for a pair the widget refused; a parent that hides the rail states
+ * it from there. Pairs compare one per frame, so a page of
+ * large captures does not hold input for the whole batch.
  *
  * One two-ended rail stays fixed above the frames while CSS moves its active rule. Its
  * labels are generated page words, available to selection, and become the order key
@@ -31,6 +35,7 @@ import {
   once,
   offer,
   failSoft,
+  nextFrame,
   isCanonicalMediaUrl,
   commands,
   marginEntry,
@@ -41,6 +46,15 @@ import {
   selectableOffer,
   widgetController,
 } from "/runtime/widget-api.js";
+
+let comparing = Promise.resolve();
+const inTurn = (work) => {
+  const turn = comparing
+    .then(() => new Promise((resolve) => nextFrame(resolve)))
+    .then(work);
+  comparing = turn.catch(() => {});
+  return turn;
+};
 
 let comparisonReady;
 const loadComparison = () =>
@@ -58,6 +72,10 @@ customElements.define(
     #chose = false;
     #frames = [];
     #captions = new Map();
+    #settleDifference;
+    difference = new Promise((resolve) => {
+      this.#settleDifference = resolve;
+    });
 
     static observedAttributes = ["data-lf-shot-controls"];
 
@@ -151,13 +169,15 @@ customElements.define(
         ((promise) => widgetController(this).present(promise));
       const registered = this.register(shots);
       present(registered);
-      void registered.then((aligned) => {
-        this.#requestComparison();
-        if (aligned)
-          void afterPresentation(() => this.#markDifference(shots)).catch((reason) =>
-            failSoft(this, reason),
-          );
-      });
+      void registered.then(() => this.#requestComparison());
+      this.#settleDifference(
+        registered.then((aligned) =>
+          aligned
+            ? afterPresentation(() => inTurn(() => this.#markDifference(shots)))
+            : null,
+        ),
+      );
+      void this.difference.catch((reason) => failSoft(this, reason));
     }
 
     disconnectedCallback() {
@@ -274,8 +294,8 @@ customElements.define(
     // taller image's height that `--lf-shot-ratio` sizes, so the marks scale with the
     // images at every width.
     #markDifference(shots) {
-      if (!this.isConnected) return;
-      const { width, height, regions } = compareImages(...shots);
+      const reading = compareImages(...shots);
+      const { width, height, regions } = reading;
       const share = (length, whole) => `${(100 * length) / whole}%`;
       for (const frame of this.#frames) {
         const marks = document.createElement("div");
@@ -303,6 +323,7 @@ customElements.define(
         { says: false },
       );
       this.#captions.get("before").after(count);
+      return reading;
     }
 
     #show(state) {

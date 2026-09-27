@@ -236,7 +236,9 @@ def differences(browser, names: list[str]) -> dict[str, dict]:
         context.close()
 
 
-def compare(state: State, folder: Path, failed: dict, difference: dict) -> Compared:
+def compare(
+    state: State, folder: Path, failed: dict, difference: dict | None
+) -> Compared:
     """Where the two stills differ, write the crops."""
     result = Compared(state, failed)
     if failed or not difference["changed"]:

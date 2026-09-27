@@ -487,8 +487,9 @@ lf-visual-review {
       object-view-box: var(--lf-vr-focus-view);
     }
 
-    /* lf-shot's changed-region marks share the full frame's coordinates: below the
-       compare label, and nowhere on a focus crop, which shows another part of it. */
+    /* lf-shot's changed-region marks take the full frame's coordinates: below the
+       compare label, and nowhere on a focus crop, which shows another part of the
+       frame. The case's position line states the reading in every view. */
     lf-visual-review[data-inspection-mode="compare"] .lf-vr-shot-host .lf-shotdiff {
       top: 24px;
     }

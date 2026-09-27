@@ -65,6 +65,9 @@ so treat it as live. Main holds one complete-suite slot and a newer commit
 replaces the one waiting, which GitHub records as a cancelled run whose `nightly`
 job has no runner (`runner_id` 0); that is not a regression. A `nightly` that
 held a runner and still ended cancelled hit its timeout, and that is a failure.
+`uv run leaf-dev ci-failures --run RUN_ID` lists a run's failing tests by node
+id and its failed steps by name; it reads the superseded `nightly` as `no result`
+and one that held a runner as `cancelled`.
 
 ## Cloudflare logs
 

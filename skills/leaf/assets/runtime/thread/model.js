@@ -93,11 +93,15 @@ export function foldThreads(threads, messages, reactions, settlements) {
     const thread = {
       id: root.id,
       root,
+      title: null,
       anchor: root.anchor ?? null,
+      detached_from: null,
       msgs: [root],
       resolved: null,
+      user_prompt: null,
       bare_reaction: reaction,
       seat: pendingSeat(root),
+      summaries: [],
       unread: [],
     };
     opened.push(thread);
@@ -288,20 +292,20 @@ export function readThreadRecords(
     return {
       id: thread.id,
       key: threadKey(thread),
-      title: thread.title ?? null,
+      title: thread.title,
       root: msgs.find((message) => message.id === thread.root.id),
       msgs,
       unread: Object.freeze(unread),
-      anchor: thread.anchor ?? null,
-      detached_from: thread.detached_from ?? null,
-      resolved: thread.resolved ?? null,
+      anchor: thread.anchor,
+      detached_from: thread.detached_from,
+      resolved: thread.resolved,
       settling: thread.settling ?? null,
-      user_prompt: thread.user_prompt ?? null,
-      attention: thread.attention ?? null,
+      user_prompt: thread.user_prompt,
+      attention: thread.attention,
       workflows: threadWorkflows,
       bare_reaction: thread.bare_reaction,
       seat: thread.seat,
-      summaries: thread.summaries ?? [],
+      summaries: thread.summaries,
     };
   });
 }

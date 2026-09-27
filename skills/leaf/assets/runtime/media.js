@@ -14,15 +14,17 @@ import { LitElement, html } from "../vendor/browser-runtime.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
 import { handBack } from "./focus.js";
 
+// Page media is whatever a reference names under this directory. The name a file there
+// takes is the server's (Python's `schema.MEDIA_DIGEST`), which answers no other, so the
+// browser reads a reference by its directory, as Python's own readings do, and leaves the
+// name to the server.
 const CANONICAL_MEDIA_ROOT = "/media/";
-const MEDIA_NAME = /^[a-f0-9]{16}\.(?:png|jpe?g|gif|webp|svg)$/;
-const MEDIA_PATH = String.raw`/media/[a-f0-9]{16}\.(?:png|jpe?g|gif|webp|svg)`;
-const PASTED_MEDIA = new RegExp(String.raw`!\[Pasted image\]\((${MEDIA_PATH})\)`, "g");
+const PASTED_MEDIA = new RegExp(
+  String.raw`!\[Pasted image\]\((${CANONICAL_MEDIA_ROOT}[^\s)]+)\)`,
+  "g",
+);
 
-export const isCanonicalMediaUrl = (href) => {
-  if (!href.startsWith(CANONICAL_MEDIA_ROOT)) return false;
-  return MEDIA_NAME.test(href.slice(CANONICAL_MEDIA_ROOT.length));
-};
+export const isCanonicalMediaUrl = (href) => href.startsWith(CANONICAL_MEDIA_ROOT);
 
 export const scopedMediaUrl = (href) =>
   offlineInteractive ? runtimeResource(href) : new URL(pageUrl(href.slice(1))).pathname;

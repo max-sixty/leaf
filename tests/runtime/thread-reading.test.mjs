@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mock } from "node:test";
 import test from "node:test";
 import process from "node:process";
+import { servedThread, servedWorkflow } from "../served.mjs";
 
 // Recent's day names are formatted in the zone the page loads in, so the zone — one with
 // a daylight-saving change — is fixed before the modules load rather than by a static
@@ -95,25 +96,11 @@ const agent = (id, extra = {}) => ({
   ts: "2026-03-01T12:00:00Z",
   ...extra,
 });
-const serverThread = (msgs, extra = {}) => ({
-  id: msgs[0].id,
-  root: msgs[0],
-  msgs,
-  anchor: null,
-  resolved: null,
-  bare_reaction: false,
-  seat: null,
-  summaries: [],
-  attention: null,
-  unread: [],
-  ...extra,
-});
-
 test("a thread's unread is the server reading less what this tab is acknowledging", () => {
   const root = agent("root", { kind: "comment" });
   const reply = agent("reply", { seq: 2, edited: { id: "edit", seq: 4, ts: "x" } });
   const threads = [
-    serverThread([root, reply], {
+    servedThread([root, reply], {
       unread: [
         { message: "root", version: "root" },
         { message: "reply", version: "edit" },
@@ -173,7 +160,7 @@ test("attention names the outstanding question rather than the latest message", 
     text: "I also added the room number.",
     seq: 2,
   });
-  const source = serverThread([question, update], {
+  const source = servedThread([question, update], {
     attention: { kind: "needs_user", reason: "ask", workflow: null },
     user_prompt: { message: "question", version: "question" },
   });
@@ -188,7 +175,9 @@ test("attention names the outstanding question rather than the latest message", 
     threadAttention({
       ...thread,
       attention: { kind: "needs_user", reason: "recovery", workflow: "send" },
-      workflows: [{ id: "send", subject: { kind: "thread" } }],
+      workflows: [
+        servedWorkflow({ id: "send", subject: { kind: "thread", id: "question" } }),
+      ],
     }).label,
     "On you to resend",
   );
@@ -196,7 +185,9 @@ test("attention names the outstanding question rather than the latest message", 
     threadAttention({
       ...thread,
       attention: { kind: "needs_user", reason: "recovery", workflow: "move" },
-      workflows: [{ id: "move", subject: { kind: "widget" } }],
+      workflows: [
+        servedWorkflow({ id: "move", subject: { kind: "widget", id: "choice" } }),
+      ],
     }).label,
     "On you to retry",
   );

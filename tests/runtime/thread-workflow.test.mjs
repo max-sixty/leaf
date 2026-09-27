@@ -12,19 +12,20 @@ import {
   foldThreads,
   readThreadRecords,
 } from "../../skills/leaf/assets/runtime/thread/model.js";
+import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 
-const workflow = (id, stage, extra = {}) => ({
-  id,
-  seq: 1,
-  revision: 1,
-  input: id,
-  subject: { kind: "thread", id: "root" },
-  stage,
-  activity: [],
-  condition: null,
-  next_actor: "agent",
-  ...extra,
-});
+// A workflow for an input in the thread `root` opened, which the agent owes a reply.
+const workflow = (id, stage, changes = {}) =>
+  servedWorkflow({
+    id,
+    seq: 1,
+    input: id,
+    subject: { kind: "thread", id: "root" },
+    coordinate: ["thread", "root"],
+    answer: { kind: "reply", to: id, for: id },
+    stage,
+    ...changes,
+  });
 
 test("workflow labels retain exact input progress and positive conditions", () => {
   const older = workflow("a", "replying");
@@ -97,7 +98,7 @@ test("page widget workflows are revision-bounded independently of frozen widgets
   const widget = workflow("widget", "working", {
     revision: 2,
     subject: { kind: "widget", id: "frozen-choice" },
-    coordinate: '["frozen-choice","choice","selection"]',
+    coordinate: ["frozen-choice", "choice", "selection"],
   });
   assert.equal(isPageWidgetWorkflow(widget, 1), false);
   assert.equal(isPageWidgetWorkflow(widget, 2), true);
@@ -127,16 +128,10 @@ test("a thread the user is still sending waits on that send", () => {
 });
 
 test("a local prose answer clears accepted user attention until refusal", () => {
-  const thread = {
-    root: { id: "root", author: "agent", text: "Which one?", ts: "now" },
-    msgs: [{ id: "root", author: "agent", text: "Which one?", ts: "now" }],
-    anchor: null,
-    resolved: null,
-    attention: { kind: "needs_user", reason: "recovery", workflow: "failed" },
-    bare_reaction: false,
-    unread: [],
-    seat: null,
-  };
+  const thread = servedThread(
+    [{ id: "root", kind: "comment", author: "agent", text: "Which one?", ts: "now" }],
+    { attention: { kind: "needs_user", reason: "recovery", workflow: "failed" } },
+  );
   const reply = {
     id: "pending:retry",
     kind: "reply",
@@ -171,50 +166,50 @@ test("a local prose answer clears accepted user attention until refusal", () => 
   assert.equal(awaitsAgent({ ...record, attention: thread.attention }), false);
 });
 
-test("a frozen message widget keeps its exact workflow in the message and thread", () => {
-  const widgetWork = workflow("action-1", "working", {
-    revision: 2,
-    input: "action-1",
-    subject: { kind: "widget", id: "frozen-choice" },
-  });
-  const thread = {
-    root: { id: "root", author: "user", text: "Question", ts: "2026-09-22T10:00:00Z" },
-    msgs: [
-      { id: "root", author: "user", text: "Question", ts: "2026-09-22T10:00:00Z" },
+// The document a thread's frozen board is captured into: the reply `e2` in thread
+// `e1` holds the board `feeder-board`.
+const FROZEN_BOARD = {
+  revision: 1,
+  descriptors: new Map([
+    [
+      "feeder-board",
       {
-        id: "agent-reply",
-        parent: "root",
-        author: "agent",
-        markup: "<lf-choice id='frozen-choice'></lf-choice>",
-        ts: "2026-09-22T10:01:00Z",
+        id: "feeder-board",
+        tag: "lf-board",
+        document: { kind: "thread", thread: "e1", message: "e2" },
       },
     ],
-    anchor: null,
-    resolved: null,
-    bare_reaction: false,
-    unread: [],
-    seat: null,
+  ]),
+  messageBodies: new Map([
+    ["e2", { text: "Here is the board.", document: { thread: "e1", message: "e2" } }],
+  ]),
+};
+
+test("a frozen message widget keeps its exact workflow in the message and thread", () => {
+  // The server's reading of a card the user moved on a board the agent sent.
+  const { threads, workflows } = servedReading("frozen move owes nothing");
+  const [record] = readThreadRecords(threads, FROZEN_BOARD, new Map(), workflows);
+  assert.deepEqual(
+    record.msgs.map((message) => message.workflows.map(({ id }) => id)),
+    [[], ["e3"]],
+  );
+  assert.deepEqual(
+    record.workflows.map(({ id }) => id),
+    ["e3"],
+  );
+});
+
+test("a thread this tab opened carries every field a served thread does", () => {
+  const root = {
+    id: "pending:ask",
+    kind: "comment",
+    author: "user",
+    text: "Question",
+    ts: "2026-09-22T10:00:00Z",
   };
-  const document = {
-    revision: 1,
-    descriptors: new Map([
-      [
-        "frozen-choice",
-        {
-          id: "frozen-choice",
-          tag: "lf-choice",
-          document: { kind: "thread", thread: "root", message: "agent-reply" },
-        },
-      ],
-    ]),
-    messageBodies: new Map([
-      [
-        "agent-reply",
-        { text: "Choose", document: { thread: "root", message: "agent-reply" } },
-      ],
-    ]),
-  };
-  const [record] = readThreadRecords([thread], document, new Map(), [widgetWork]);
-  assert.deepEqual(record.msgs[1].workflows, [widgetWork]);
-  assert.deepEqual(record.workflows, [widgetWork]);
+  const [opened] = foldThreads([], [root], [], []);
+  assert.deepEqual(
+    Object.keys(opened).sort(),
+    Object.keys(servedThread([root])).sort(),
+  );
 });

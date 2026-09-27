@@ -8,6 +8,7 @@ import {
   semanticNewsNotice,
   semanticNewsReading,
 } from "/runtime/semantic-news.js";
+import { servedThread, servedWorkflow } from "../served.mjs";
 
 // `unread: false` leaves a message out of its thread's server `unread` reading: read
 // already, or not agent content at all (a reaction, a reply still streaming).
@@ -18,16 +19,18 @@ const message = (id, extra = {}) => ({
   kind: "reply",
   ...extra,
 });
-const thread = (id, msgs, attention = null, userPrompt = null) => ({
-  id,
-  root: { id },
-  msgs,
-  attention,
-  user_prompt: userPrompt,
-  unread: msgs
-    .filter((item) => item.unread !== false)
-    .map((item) => ({ message: item.id, version: item.edited?.id ?? item.id })),
-});
+const thread = (id, msgs, attention = null, userPrompt = null) =>
+  servedThread(
+    msgs.map(({ unread: _unread, ...served }) => served),
+    {
+      id,
+      attention,
+      user_prompt: userPrompt,
+      unread: msgs
+        .filter((item) => item.unread !== false)
+        .map((item) => ({ message: item.id, version: item.edited?.id ?? item.id })),
+    },
+  );
 const ask = (id, thread = null) => ({ id, thread });
 const activity = (kind = "away", extra = {}) => ({
   kind,
@@ -53,13 +56,19 @@ const reading = ({
   requestOutcomes,
 });
 const kinds = (result) => result.news.map((item) => item.kind);
-const responseFailure = (source, kind = "failed") => ({
-  condition: { kind, operation: "response" },
-  response: source,
-  input: "input",
-  subject: { kind: "thread", id: "t" },
-  seq: 3,
-});
+const responseFailure = (source, kind = "failed") =>
+  servedWorkflow({
+    id: "input",
+    input: "input",
+    subject: { kind: "thread", id: "t" },
+    coordinate: ["thread", "t"],
+    seq: 3,
+    answer: null,
+    stage: "answered",
+    condition: { kind, operation: "response" },
+    next_actor: "user",
+    response: source,
+  });
 
 test("accepted messages and user obligations arrive together after a quiet baseline", () => {
   const old = reading({

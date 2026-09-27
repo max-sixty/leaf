@@ -698,14 +698,13 @@ def test_a_margin_reply_shares_its_threads_opaque_surface(browser, serve, scheme
     preview = page.locator(".lf-margin-preview")
     thread = preview.locator(".lf-page-thread")
     surround = thread.locator(".lf-say")
-    reply = preview.get_by_role("button", name="Reply", exact=True)
-    editor = preview.locator("leaf-text")
+    reply = preview.get_by_role("textbox", name="Reply", exact=True)
     expect(reply).to_be_visible()
 
-    for state in ("collapsed", "editing", "outside"):
+    for state in ("resting", "editing", "outside"):
         if state == "editing":
             reply.click()
-            expect(editor).to_be_focused()
+            expect(reply).to_be_focused()
         elif state == "outside":
             preview.get_by_role("button", name="Dismiss thread").focus()
         surface = thread.evaluate("""node => {

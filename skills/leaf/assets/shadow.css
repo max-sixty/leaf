@@ -278,19 +278,6 @@ leaf-anchor-note { display: contents; }
 .lf-page-thread > .lf-say:not([hidden]) { display: flex; }
 .lf-say leaf-text { flex: 1; min-width: 0; }
 .lf-page-thread > .lf-say { flex-direction: column; align-items: stretch; }
-.lf-page-thread > .lf-say.lf-reply-collapsed > :not(.lf-reply-disclosure) {
-          display: none; }
-/* The collapsed Reply is the empty editor at rest. Its complete path outranks the
-   shared aim floor, keeping the same box and surface through hover and entry. */
-.lf-page-thread > .lf-say > .lf-reply-disclosure {
-          box-sizing: border-box; width: 100%;
-          min-height: calc(max(28px, var(--aim-floor)) + 12px); padding: 8px 10px;
-          border-color: var(--border-2); background: var(--card);
-          color: var(--muted-2); text-align: start; }
-.lf-page-thread > .lf-say > .lf-reply-disclosure[hidden] { display: none; }
-.lf-page-thread > .lf-say > .lf-reply-disclosure:hover {
-          border-color: var(--border-2); color: var(--ink);
-          background: var(--card); }
 .lf-page-thread-resolved { display: flex;
           align-items: center; justify-content: space-between; gap: var(--sp-2); }
 .lf-thread-seat > .lf-say { margin-top: 0; }

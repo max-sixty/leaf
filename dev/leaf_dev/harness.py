@@ -4,8 +4,7 @@ version of Leaf.
     uv run leaf-dev arm REF DEST
 
 builds one arm at DEST from git REF; `evals/README.md`'s A/B recipe builds its other
-arm with it. `leaf-dev stills` and `leaf-dev probe`, `eval_claude_delivery.py`, the
-two `bench_*.py` scripts, `verify_codex_task.py`, `verify_site.py`,
+arm with it. The other `leaf-dev` commands, `verify_codex_task.py`, `verify_site.py`,
 `notes/arrangement-eval/harness.py` and `notes/usability-eval/harness.py` import the
 rest.
 
@@ -15,6 +14,12 @@ notes, so a child cannot read its way to another arm's version through history o
 worked corpus. Building runs the launcher once, so uv builds the arm's environment
 before a timed run starts. `extract_payload` alone also copies the working tree's
 payload, which a Codex home (`codex_home`) installs as its plugin.
+
+An A/B command compares two arms, `base` and `head` (`build_pair`). Its base is the
+merge base with `main` unless the caller names another ref (`base_ref`), so a branch
+behind `main` is compared with where it started rather than with changes it has not
+merged. A timed one prints the machine's load average before and after
+(`load_average`), since other processes' load moves every timing.
 
 A child is `claude -p` from a scratch cwd outside any repository, with project-only
 settings, no MCP servers, auto-memory off, and none of the variables that identify an
@@ -154,7 +159,7 @@ def serving_source(arm: Path, source: Path, scratch: Path):
 
 
 def merge_base() -> str:
-    """The commit HEAD branched from `main`: the base an A/B script compares HEAD
+    """The commit HEAD branched from `main`: the base an A/B command compares HEAD
     against unless it is handed another."""
     return subprocess.run(
         ["git", "-C", ROOT, "merge-base", "HEAD", "main"],
@@ -214,6 +219,25 @@ def build_arm(ref: str, dest: Path) -> str:
         text=True,
         check=True,
     ).stdout.strip()
+
+
+def base_ref(ref: str | None) -> str:
+    """The ref an A/B command compares HEAD against: the one it was handed, else
+    `merge_base()`."""
+    return ref or merge_base()
+
+
+def build_pair(base: str | None, dest: Path) -> tuple[dict[str, Path], dict[str, str]]:
+    """Build an A/B's arms under `dest`: `base` at `base_ref(base)` and `head` at
+    HEAD. Return each arm's directory and its commit, both keyed `base` and `head`."""
+    refs = {"base": base_ref(base), "head": "HEAD"}
+    arms = {arm: dest / arm for arm in refs}
+    return arms, {arm: build_arm(ref, arms[arm]) for arm, ref in refs.items()}
+
+
+def load_average() -> str:
+    """The machine's 1, 5 and 15 minute load averages."""
+    return " ".join(f"{value:.1f}" for value in os.getloadavg())
 
 
 def codex_home(path: Path, config: str = "") -> Path:

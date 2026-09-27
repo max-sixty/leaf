@@ -62,9 +62,7 @@ has tried; settle that before building it.
   - `pyproject.toml`'s pytest `pythonpath = ["scripts"]`, so that tests can import
     `preview`, `verify_site`, `corpus`, and `keydocs`. Move those four into `leaf_dev`
     as commands, as `site.py` moved, then delete the setting.
-  - `profile_page.py` imports `bench_page_latency` from its own directory. This goes
-    away when the benchmarks become `leaf-dev` commands, which is already in progress.
-  - `bench_render_check.py` puts a tracer directory on a child's `PYTHONPATH` so its
+  - `leaf-dev bench-check` puts `leaf_dev/tracer/` on a child's `PYTHONPATH` so its
     `sitecustomize.py` runs inside another arm's environment. Replace it with
     something that doesn't change the child's import path, such as running the child
     under `python -c` with a launcher that installs the tracer first.
@@ -176,10 +174,9 @@ and its chrome coordinate.
 - **Consider loading a page once per render check.** `page check --render` loads
   the page afresh for each of its four passes, including dark mode and the narrow
   viewport. Switching those in place would save at most about 1.4 s on
-  `triage-board` and 12.6 s on the corpus, measured with
-  `scripts/bench_render_check.py`. The price is that dark mode and the narrow width
-  would no longer be checked from a fresh start. Decide whether that coverage is
-  worth the time before building it.
+  `triage-board` and 12.6 s on the corpus, measured with `leaf-dev bench-check`.
+  The price is that dark mode and the narrow width would no longer be checked from
+  a fresh start. Decide whether that coverage is worth the time before building it.
 - **Scale a drawing by the box it was drawn in.** On replay, scale the strokes by
   the anchored element's size over the recorded `box`, so a mark stays on its
   element in a narrower window; reflowed text still moves under it. Verify replay

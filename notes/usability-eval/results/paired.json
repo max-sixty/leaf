@@ -71,6 +71,7 @@
     "draft_restated": true,
     "p95_text": true,
     "p95_current": true,
+    "source_kept": true,
     "chart_85": true
    }
   },
@@ -137,6 +138,7 @@
     "draft_restated": true,
     "p95_text": true,
     "p95_current": true,
+    "source_kept": true,
     "chart_85": true
    }
   },
@@ -207,6 +209,7 @@
     "draft_restated": true,
     "p95_text": true,
     "p95_current": true,
+    "source_kept": true,
     "chart_85": true
    }
   },
@@ -284,6 +287,7 @@
     "draft_restated": true,
     "p95_text": true,
     "p95_current": true,
+    "source_kept": true,
     "chart_85": true
    }
   },
@@ -350,6 +354,7 @@
     "draft_restated": true,
     "p95_text": true,
     "p95_current": true,
+    "source_kept": true,
     "chart_85": true
    }
   },
@@ -426,6 +431,7 @@
     "draft_restated": true,
     "p95_text": true,
     "p95_current": true,
+    "source_kept": true,
     "chart_85": true
    }
   },
@@ -502,10 +508,10 @@
     "versions": 3,
     "source_valid": true,
     "batch_200": true,
-    "batch_edit_elsewhere": false,
+    "batch_in_place": true,
     "chosen_marked": true,
     "pick_standing": true,
-    "restated": false,
+    "no_restated": true,
     "replied": true,
     "date_final": "Cutover to the new index is scheduled for 21 October."
    }
@@ -582,10 +588,10 @@
     "versions": 3,
     "source_valid": true,
     "batch_200": true,
-    "batch_edit_elsewhere": false,
+    "batch_in_place": true,
     "chosen_marked": true,
     "pick_standing": true,
-    "restated": false,
+    "no_restated": true,
     "replied": true,
     "date_final": "Cutover to the new index is scheduled for 3 November."
    }
@@ -663,10 +669,10 @@
     "versions": 3,
     "source_valid": true,
     "batch_200": true,
-    "batch_edit_elsewhere": false,
+    "batch_in_place": true,
     "chosen_marked": true,
     "pick_standing": true,
-    "restated": false,
+    "no_restated": true,
     "replied": true,
     "date_final": "Cutover to the new index is scheduled for 21 October."
    }
@@ -744,10 +750,10 @@
     "versions": 3,
     "source_valid": true,
     "batch_200": true,
-    "batch_edit_elsewhere": false,
+    "batch_in_place": true,
     "chosen_marked": true,
     "pick_standing": true,
-    "restated": false,
+    "no_restated": true,
     "replied": true,
     "date_final": "Cutover to the new index is scheduled for 21 October."
    }
@@ -836,10 +842,10 @@
     "versions": 3,
     "source_valid": true,
     "batch_200": true,
-    "batch_edit_elsewhere": false,
+    "batch_in_place": true,
     "chosen_marked": true,
     "pick_standing": true,
-    "restated": false,
+    "no_restated": true,
     "replied": true,
     "date_final": "Cutover to the new index starts on 3 November with the first group of tenants."
    }
@@ -920,10 +926,10 @@
     "versions": 3,
     "source_valid": true,
     "batch_200": true,
-    "batch_edit_elsewhere": false,
+    "batch_in_place": true,
     "chosen_marked": true,
     "pick_standing": true,
-    "restated": false,
+    "no_restated": true,
     "replied": true,
     "date_final": "Cutover to the new index is scheduled for 21 October."
    }

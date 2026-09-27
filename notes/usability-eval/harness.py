@@ -748,13 +748,13 @@ def score_cold(run: Run, reply: str, calls: list[str]) -> dict:
         "valid": checked.returncode == 0,
         "agent_checked": "version check" in calls,
         "stamped": len(state.get("versions", [])),
-        "served": "server" in calls,
+        "not_served": "server" not in calls,
         "status": (state.get("status") or {}).get("state"),
         "asks": len(re.findall(r"<lf-ask\b", html)),
         "choose_groups": len(re.findall(r"<lf-options\b[^>]*\bchoose\b", html)),
         "options": len(re.findall(r"<lf-option\b", html)),
-        "multiple": bool(re.search(r"<lf-options\b[^>]*\bmultiple\b", html)),
-        "sign_off": 'content="sign-off"' in html,
+        "single_choice": not re.search(r"<lf-options\b[^>]*\bmultiple\b", html),
+        "no_sign_off": 'content="sign-off"' not in html,
     }
     if run.case == "cold-decision":
         ask = re.search(r"<lf-ask\b.*?</lf-ask>", html, re.DOTALL)
@@ -813,6 +813,9 @@ def score_constructs(run: Run, replies: list[str]) -> dict:
         "draft_restated": bool(draft and "restated" in draft[1]),
         "p95_text": bool(figure and check(r"\b231\b", figure[1])),
         "p95_current": state["measurement_lag"] == [],
+        # The figure's owner is the markup; its source keeps the measurement.
+        "source_kept": (page / "data/checkout-p95.json").read_bytes()
+        == (run.dir / "fixture/data/checkout-p95.json").read_bytes(),
         "chart_85": bool(chart and re.search(r"sa-east,\s*85\b", chart[0])),
     }
 
@@ -847,7 +850,7 @@ def score_board(run: Run, replies: list[str]) -> dict:
         "todo_kept": todo[:1] == ["card-rotate"] and len(todo) == 2,
         "done_empty": column_cards(html, "col-done") == [],
         "renamed": check(r"key expiry alerts", html),
-        "restated": "restated" in html,
+        "no_restated": "restated" not in html,
     }
 
 
@@ -879,7 +882,7 @@ def score_resume(run: Run, replies: list[str]) -> dict:
         "versions": len(state.get("versions", [])),
         "source_valid": not (state.get("source") or {}).get("error"),
         "batch_200": bool(batch and re.search(r"\b200\b", batch[1])),
-        "batch_edit_elsewhere": bool(batch is None),
+        "batch_in_place": batch is not None,
         "chosen_marked": bool(
             re.search(r'<lf-option[^>]*id="opt-per-tenant"[^>]*\bchosen', html)
             or re.search(r'<lf-option[^>]*\bchosen[^>]*id="opt-per-tenant"', html)
@@ -889,7 +892,7 @@ def score_resume(run: Run, replies: list[str]) -> dict:
             and s.get("detail", {}).get("options") == ["opt-per-tenant"]
             for s in state.get("state", [])
         ),
-        "restated": "restated" in html,
+        "no_restated": "restated" not in html,
         "replied": any(
             e.get("kind") == "reply"
             and e.get("author") == "agent"
@@ -969,8 +972,9 @@ def show(batch: str, case: str | None):
 @cli.command()
 @click.argument("batch")
 def summarize(batch: str):
-    """Tabulate results/BATCH.json by case and arm: each check's passes over the usable
-    runs, and the mean cost, input tokens and bytes of `page state` output."""
+    """Tabulate results/BATCH.json by case and arm: each check's passes (a true
+    value) over the usable runs, and the mean cost, input tokens and bytes of `page
+    state` output."""
     rows = json.loads((RESULTS / f"{batch}.json").read_text())["runs"]
     groups: dict[tuple[str, str], list[dict]] = {}
     for row in rows:

@@ -324,8 +324,8 @@ cards where the fold puts them. The shared-source record case is not covered.
 
 | Case | Arm | Checks passed | `page state` bytes read per run | Cost per run |
 | --- | --- | --- | --- | --- |
-| `constructs` | tree | 30/30 | 13,151 | $0.63 |
-| `constructs` | without tree | 30/30 | 7,426 | $0.55 |
+| `constructs` | tree | 33/33 | 13,151 | $0.63 |
+| `constructs` | without tree | 33/33 | 7,426 | $0.55 |
 | `resume` | tree | 33/33 | 8,006 | $0.81 |
 | `resume` | without tree | 33/33 | 8,385 | $0.97 |
 | `board` | tree | 24/24 | 5,865 | $0.57 |

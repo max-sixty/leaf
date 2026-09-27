@@ -81,7 +81,7 @@
     "todo_kept": true,
     "done_empty": true,
     "renamed": true,
-    "restated": false
+    "no_restated": true
    }
   },
   {
@@ -148,7 +148,7 @@
     "todo_kept": true,
     "done_empty": true,
     "renamed": true,
-    "restated": false
+    "no_restated": true
    }
   },
   {
@@ -220,7 +220,7 @@
     "todo_kept": true,
     "done_empty": true,
     "renamed": true,
-    "restated": false
+    "no_restated": true
    }
   },
   {
@@ -290,7 +290,7 @@
     "todo_kept": true,
     "done_empty": true,
     "renamed": true,
-    "restated": false
+    "no_restated": true
    }
   },
   {
@@ -360,7 +360,7 @@
     "todo_kept": true,
     "done_empty": true,
     "renamed": true,
-    "restated": false
+    "no_restated": true
    }
   },
   {
@@ -427,7 +427,7 @@
     "todo_kept": true,
     "done_empty": true,
     "renamed": true,
-    "restated": false
+    "no_restated": true
    }
   }
  ]

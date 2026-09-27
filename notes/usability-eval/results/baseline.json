@@ -57,13 +57,13 @@
     "valid": true,
     "agent_checked": true,
     "stamped": 2,
-    "served": false,
+    "not_served": true,
     "status": "working",
     "asks": 1,
     "choose_groups": 1,
     "options": 3,
-    "multiple": false,
-    "sign_off": false,
+    "single_choice": true,
+    "no_sign_off": true,
     "evidence_in_ask": 8,
     "names_gesture": true
    }
@@ -113,13 +113,13 @@
     "valid": true,
     "agent_checked": true,
     "stamped": 0,
-    "served": false,
+    "not_served": true,
     "status": "working",
     "asks": 1,
     "choose_groups": 1,
     "options": 3,
-    "multiple": false,
-    "sign_off": false,
+    "single_choice": true,
+    "no_sign_off": true,
     "evidence_in_ask": 6,
     "names_gesture": true
    }
@@ -167,13 +167,13 @@
     "valid": true,
     "agent_checked": true,
     "stamped": 0,
-    "served": false,
+    "not_served": true,
     "status": "working",
     "asks": 1,
     "choose_groups": 1,
     "options": 3,
-    "multiple": false,
-    "sign_off": false,
+    "single_choice": true,
+    "no_sign_off": true,
     "evidence_in_ask": 8,
     "names_gesture": true
    }
@@ -215,13 +215,13 @@
     "valid": true,
     "agent_checked": true,
     "stamped": 0,
-    "served": false,
+    "not_served": true,
     "status": "working",
     "asks": 0,
     "choose_groups": 0,
     "options": 0,
-    "multiple": false,
-    "sign_off": false
+    "single_choice": true,
+    "no_sign_off": true
    }
   },
   {
@@ -265,13 +265,13 @@
     "valid": true,
     "agent_checked": true,
     "stamped": 0,
-    "served": false,
+    "not_served": true,
     "status": "working",
     "asks": 0,
     "choose_groups": 0,
     "options": 0,
-    "multiple": false,
-    "sign_off": false
+    "single_choice": true,
+    "no_sign_off": true
    }
   },
   {
@@ -317,13 +317,13 @@
     "valid": true,
     "agent_checked": true,
     "stamped": 0,
-    "served": false,
+    "not_served": true,
     "status": "working",
     "asks": 0,
     "choose_groups": 0,
     "options": 0,
-    "multiple": false,
-    "sign_off": false
+    "single_choice": true,
+    "no_sign_off": true
    }
   },
   {
@@ -598,10 +598,10 @@
     "versions": 3,
     "source_valid": true,
     "batch_200": true,
-    "batch_edit_elsewhere": false,
+    "batch_in_place": true,
     "chosen_marked": true,
     "pick_standing": true,
-    "restated": false,
+    "no_restated": true,
     "replied": true,
     "date_final": "Cutover to the new index is scheduled for 21 October."
    }
@@ -679,10 +679,10 @@
     "versions": 3,
     "source_valid": true,
     "batch_200": true,
-    "batch_edit_elsewhere": false,
+    "batch_in_place": true,
     "chosen_marked": true,
     "pick_standing": true,
-    "restated": false,
+    "no_restated": true,
     "replied": true,
     "date_final": "Cutover to the new index is scheduled for 21 October."
    }
@@ -765,10 +765,10 @@
     "versions": 3,
     "source_valid": true,
     "batch_200": true,
-    "batch_edit_elsewhere": false,
+    "batch_in_place": true,
     "chosen_marked": true,
     "pick_standing": true,
-    "restated": false,
+    "no_restated": true,
     "replied": true,
     "date_final": "Cutover to the new index is scheduled for 21 October."
    }

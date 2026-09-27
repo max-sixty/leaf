@@ -81,7 +81,7 @@ export class ReactionStripView {
             (choice) =>
               html` <button
                 type="button"
-                class="lf-chip lf-react lf-ui"
+                class="lf-outline-chip lf-react lf-ui"
                 data-lf-gen="1"
                 data-lf-offer="button"
                 data-token=${choice.name}

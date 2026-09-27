@@ -206,7 +206,24 @@ and its chrome coordinate.
   and the Codex adapter's failure receipts. Once the Command Hub redesign settles
   whether its operations stay, either remove requests and recast the remaining
   operations as Asks, or keep them and cut what only the gallery uses: projected
-  holders (`records`, one seat per data row).
+  holders (`records`, one seat per data row). Kept requests also need one owner for
+  whether a seat is open, which `application.ts`, `widget-controller.js`,
+  `application.js` and `request-elements.js` each restate.
+
+### Shared definitions
+
+- **Re-address resource references in one pass.** Capture, delivery and export share
+  one CSS reference walker (#1217), but `http.py` still rescopes delivered bytes with
+  regexes, `media.js` spells a constant in pieces to get past that pass, and a page's
+  head is composed in three places. One `rebase_document(source, address)`, with an
+  import map for layer JavaScript, would delete the regex scopers.
+- **Ask once whether the page has caught up with a reading.** `tests/render_harness.py`
+  `told()` waits for `data-lf-reading` to match the server's reading, and the `data`
+  and `log` stages of the runtime's `pageReadiness` (#1250) answer the same question.
+- **Call a thread's identity its id in Python.** The runtime keys threads on the
+  served `id` (#1260), but Python still names that identity a root (`thread_roots`,
+  `FrozenThreadReading.roots`), though a thread that lost its opening message has a
+  root that differs from its id.
 
 ## Etc
 
@@ -264,6 +281,12 @@ Revisit these when their stated trigger becomes real; they are not an active que
   which `leaf.js` adopts only when the page is not offline, though content widgets use
   the class. Moving the base rule into the page's own sheet fixes it, but reorders it
   against page CSS and the suggestion overrides in `theme.css`.
+- **Write the unresolved-gesture ledger as one state machine.** `application.ts`
+  (`accept`, `accountPresented`), `application.js` (`releasableEntries`) and
+  `pending/model.js` track a gesture through five flags, and each writes its own rule
+  for when an action leaves the ledger. Nothing
+  has drifted and this is the hottest race path, so take it when a change has to touch
+  the ledger anyway.
 - **Set interaction-trace privacy before sharing pages.** Define who can inspect
   traces, consent or opt-out, sensitive-field redaction (including passwords,
   pasted text, and selection), and retention/deletion for page-local files and

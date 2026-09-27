@@ -4107,6 +4107,14 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     mapped = page.locator('.lf-page-map-action[data-lf-agent-workflow="picked_up"]')
     expect(mapped).to_have_count(1)
     expect(mapped.locator(".lf-margin-kind")).to_have_attribute("data-lf-icon", "edit")
+    # The row is the carrier drawn again, so pickup inks its glyph as it inks the
+    # carrier's: one rule set in theme.css paints both.
+    ink = "el => getComputedStyle(el).color"
+    assert (
+        mapped.locator(".lf-margin-kind").evaluate(ink)
+        == carrier.locator(".lf-margin-entry-icon").evaluate(ink)
+        != mapped.locator(".lf-page-map-action-label").evaluate(ink)
+    )
     page.keyboard.press("Escape")
     page.evaluate("() => window.lfReceiptSecondary.unregister()")
     expect(marker).to_be_visible()

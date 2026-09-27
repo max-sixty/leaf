@@ -102,6 +102,7 @@ import {
   alignedNodes,
   widgetController,
   reachedForWords,
+  keepsText,
 } from "/runtime/widget-api.js";
 
 // The store key for a draft's unsent edit. The page's port is its own origin, so
@@ -692,8 +693,7 @@ customElements.define(
 
     // A live editor owns its transient text; the complete state waits for it.
     renderState(state) {
-      if (this.#body.textContent !== state.edit.value)
-        this.#body.textContent = state.edit.value;
+      keepsText(this.#body, state.edit.value);
     }
   },
 );

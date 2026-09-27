@@ -17,7 +17,8 @@
  * fresh document. Prose, styles, and media can change without reloading. Served identity
  * is captured before upgrade, including per-widget authored digests: upgraded DOM cannot
  * supply those baselines. The patch retains unchanged widgets and recaptures replaced
- * widgets against the arriving source.
+ * widgets against the arriving source. A widget declaring `x-patch: members` is
+ * patched inside its members instead, while the revision keeps its shell.
  *
  * Composition, unresolved delivery, and an open version menu defer either install.
  * Ending composition releases its hold on the next heartbeat; pressing the newest-version
@@ -1217,6 +1218,18 @@ export function createVersionController({
     };
     return strip(before, authoredRoot).isEqualNode(strip(after, arrivingRoot));
   }
+  // A widget declaring `x-patch: members` builds its controls beside its members and
+  // reads nothing of them but their attributes. So what it built stands for its own
+  // attributes and each member's tag and attributes, in order, and while two revisions
+  // agree on that much, the rest of the difference is inside members the author owns.
+  const shell = (element) => {
+    const copy = element.cloneNode(false);
+    for (const child of element.childNodes) copy.append(child.cloneNode(false));
+    return copy;
+  };
+  const reachesMembers = (before, after, arrivingRoot) =>
+    registry[before.localName]?.["x-patch"] === "members" &&
+    sameAuthoredMarkup(shell(before), shell(after), arrivingRoot);
 
   // Patch against the authored baselines. Retained nodes keep their live state;
   // replacement nodes recover eligible state through carry and Ask restoration.
@@ -1312,6 +1325,7 @@ export function createVersionController({
         arrive,
         generated,
         declared: upgraded,
+        reaches: (before, after) => reachesMembers(before, after, arrivingRoot),
         // The capture that wrote each revision said what every declared widget in it
         // was written as. A widget the arriving revision spells the same way is the
         // widget the user is holding, so it stays.

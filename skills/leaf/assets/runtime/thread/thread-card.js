@@ -466,7 +466,6 @@ export class ThreadView {
 
   #summaryRange(range, markerFor) {
     const count = range.messages.length;
-    const messageCount = `${count} message${count === 1 ? "" : "s"}`;
     const unread = range.messages.filter((message) => message.unread).length;
     const id = range.summary.id;
     const originalsId = `lf-summary-originals-${this.#viewId}-${id}`;
@@ -477,8 +476,9 @@ export class ThreadView {
     >
       <div class="lf-summary-checkpoint">
         <div class="lf-summary-label">
-          Summary${
-            unread
+          Earlier
+          discussion${
+            unread && !range.expanded
               ? html`<span class="lf-summary-unread">
                   · ${unread} unread original${unread === 1 ? "" : "s"}</span
                 >`
@@ -499,34 +499,18 @@ export class ThreadView {
                 aria-controls=${originalsId}
                 @click=${() => this.#setSummaryExpanded(id, !range.expanded)}
               >
-                ${range.expanded ? "Hide" : "Show"} ${messageCount}
+                ${range.expanded ? "Collapse" : "Show"} ${count} earlier
+                message${count === 1 ? "" : "s"}
               </button>`
         }
       </div>
       <div id=${originalsId} class="lf-summary-originals" ?hidden=${!range.expanded}>
-        <div class="lf-summary-messages">
-          ${repeat(
-            range.messages,
-            (message) => message.key,
-            (message) =>
-              html`${markerFor(message.key)}${range.nodes[range.messages.indexOf(message)]}`,
-          )}
-        </div>
-        ${
-          range.forced
-            ? nothing
-            : html`<button
-                type="button"
-                class="lf-summary-refold"
-                aria-label=${`Hide ${messageCount}`}
-                aria-controls=${originalsId}
-                aria-expanded="true"
-                title=${`Hide ${messageCount}`}
-                @click=${() => this.#setSummaryExpanded(id, false)}
-              >
-                <span aria-hidden="true">Hide</span>
-              </button>`
-        }
+        ${repeat(
+          range.messages,
+          (message) => message.key,
+          (message) =>
+            html`${markerFor(message.key)}${range.nodes[range.messages.indexOf(message)]}`,
+        )}
       </div>
     </section>`;
   }

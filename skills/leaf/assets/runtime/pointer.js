@@ -1,4 +1,5 @@
-/* The one unrounded pointer position shared by hit-test consumers. */
+/* The user's pointer: the one unrounded position shared by hit-test consumers, and
+   whether it is a finger. */
 let x = -1;
 let y = -1;
 
@@ -15,6 +16,10 @@ document.addEventListener("pointermove", remember, { capture: true });
 document.addEventListener("pointerdown", remember, { capture: true });
 
 export const pointerAt = () => ({ x, y });
+
+// Whether the user's primary pointer is a finger, as the theme's `(pointer: coarse)`
+// rules ask it: the query itself, so a surface that follows a change can listen on it.
+export const coarsePointer = matchMedia("(pointer: coarse)");
 
 // Whether a press event was made by the keyboard rather than by the pointer, asked of
 // the event itself. A `click` with no click count is Enter or Space on the control, or

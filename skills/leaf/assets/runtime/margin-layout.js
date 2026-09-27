@@ -30,7 +30,7 @@
    target has no rendered part to offer. */
 import { TAB_STOP } from "./focus.js";
 import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
-import { shellRight, shownBand, shownParts } from "./geometry.js";
+import { shellRight, shownBand, shownExtent, shownParts } from "./geometry.js";
 import { under, upFrom } from "./shadow.js";
 import { scrollerFor } from "./reading-regions.js";
 import { pageScroller } from "./scrolling.js";
@@ -329,21 +329,6 @@ function setStyle(row, property, value) {
     if (row.style.getPropertyValue(property)) row.style.removeProperty(property);
   } else if (row.style.getPropertyValue(property) !== value)
     row.style.setProperty(property, value);
-}
-
-// The box the target's shown parts cover together: its row stands at this box's
-// top-right corner whatever box it anchors through, so a comment on one shape of a
-// drawing stands on that shape rather than at the drawing's edge. A target with no shown
-// part has none.
-function shownExtent(target) {
-  const parts = shownParts(target).map((part) => part.getBoundingClientRect());
-  if (!parts.length) return null;
-  return {
-    left: Math.min(...parts.map((part) => part.left)),
-    top: Math.min(...parts.map((part) => part.top)),
-    right: Math.max(...parts.map((part) => part.right)),
-    bottom: Math.max(...parts.map((part) => part.bottom)),
-  };
 }
 
 // Whether a row has somewhere to stand: its target renders, its scrollers leave some of

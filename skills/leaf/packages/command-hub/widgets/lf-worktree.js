@@ -9,6 +9,7 @@ import {
   relabel,
   selectableOffer,
   watchData,
+  keepsText,
 } from "/runtime/widget-api.js";
 
 function evidence(tree, kind, label, text, prior) {
@@ -20,13 +21,13 @@ function evidence(tree, kind, label, text, prior) {
     heading = document.createElement("strong");
     group.append(heading);
   }
-  if (heading.textContent !== label) heading.textContent = label;
+  keepsText(heading, label);
   let pre = group.querySelector(":scope > pre");
   if (!pre) {
     pre = document.createElement("pre");
     group.append(pre);
   }
-  if (pre.textContent !== text) pre.textContent = text;
+  keepsText(pre, text);
   return group;
 }
 
@@ -103,7 +104,7 @@ function renderDatum(tree, record, prior) {
   const sourceText = record.missing
     ? "Observed evidence · waiting for the host"
     : `Observed evidence · ${ago(record.observedAt)}`;
-  if (source.textContent !== sourceText) source.textContent = sourceText;
+  keepsText(source, sourceText);
 
   const priorEvidence = new Map(
     [...datum.querySelectorAll(":scope > .lf-worktree-evidence")].map((node) => [

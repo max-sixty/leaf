@@ -52,6 +52,10 @@ export function setChildren(parent, nodes, remove = detach) {
    - `retire(element)`: this live element is leaving, with every element under it.
    - `declared(element)`: an upgraded widget, whose children are its controller's. Asked
      of the held element; a match names the same element on both sides.
+   - `reaches(before, after)`: this widget's controller leaves its members where the
+     author wrote them, and the two revisions differ only inside those members. What
+     changed is then authored markup the patch can write, and nothing the controller
+     built from the widget is stale.
    - `unchanged(before, after)`: that widget's authored markup is the same markup. The
      caller compares the digests each revision's capture recorded.
    - `same(before, after)`: two source elements are spelled the same way, read past the
@@ -187,7 +191,7 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
       continue;
     }
     if (node.nodeType !== Node.ELEMENT_NODE) writeText(live, node.data);
-    else if (!atomic(before, live, rules)) patchTree(before, node, rules);
+    else if (!atomic(before, node, live, rules)) patchTree(before, node, rules);
     else if (!kept(before, node, rules)) {
       // Its interior is not this patch's to reach into, so a changed one cannot be
       // corrected from outside. It leaves, and its replacement arrives as a new element.
@@ -207,8 +211,11 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
 // block's one authored text node stood, and the nodes this patch paired are then not
 // there to write through — putting one back would stand the source's own text beside
 // the colouring of it. Both are read the same way afterwards: whole, or not at all.
-const atomic = (before, live, rules) =>
-  rules.declared(before) ||
+// A widget whose controller only builds beside its members is neither, for a revision
+// that leaves everything but their interiors alone: a page written as tabs keeps every
+// tab the author did not touch, rather than rebuilding the page for one sentence.
+const atomic = (before, after, live, rules) =>
+  (rules.declared(before) && !rules.reaches(before, after)) ||
   [...tree(before).childNodes].some(
     (node) => rules.pairs.get(node)?.parentNode !== tree(live),
   );

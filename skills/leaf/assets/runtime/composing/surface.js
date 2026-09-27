@@ -74,7 +74,7 @@ import {
 import {
   bannerFoot,
   shellRight,
-  shownBox,
+  shownExtent,
   shownParts,
   shownRect,
   shownWindow,
@@ -116,7 +116,8 @@ import { focused } from "../keyboard/scopes.js";
 import { under } from "../shadow.js";
 import { heldAsk } from "../standing-target.js";
 
-import { pointerAt } from "../pointer.js";
+import { coarsePointer, pointerAt } from "../pointer.js";
+import { union } from "../rect.js";
 import { anchorLabel } from "../thread/messages.js";
 
 import { reactionsAt } from "../thread/model.js";
@@ -133,8 +134,6 @@ import { moveScrollerBy } from "../scrolling.js";
 // one. The destination box's placeholder names whichever of them dispatch would answer.
 const COMMENT_COMMANDS = ["comment.create", "comment.write"];
 
-// Whether the user's primary pointer is a finger, as the theme's --aim-floor asks it.
-const coarsePointer = matchMedia("(pointer: coarse)");
 let floatingUiModule = null;
 const floatingUi = () => (floatingUiModule ??= import("/vendor/floating-ui.esm.js"));
 
@@ -361,14 +360,6 @@ export function createResponseSurface({
     };
     fabPositionCleanup = autoUpdate(reference, fabBar, scheduleFabPosition);
   }
-  const union = (rects) => {
-    if (!rects.length) return null;
-    const left = Math.min(...rects.map((rect) => rect.left));
-    const top = Math.min(...rects.map((rect) => rect.top));
-    const right = Math.max(...rects.map((rect) => rect.right));
-    const bottom = Math.max(...rects.map((rect) => rect.bottom));
-    return { left, top, right, bottom, width: right - left, height: bottom - top };
-  };
   // Whether a resolution is one this document can still put a box beside, which is not the
   // same question as whether it is on screen. Quoted words that resolve to segments stand
   // wherever they are. A source replacement must not close a draft about its prior
@@ -451,8 +442,7 @@ export function createResponseSurface({
     const parts = block ? shownParts(block) : [];
     // Room is a reading of the whole block; clipping changes as the user scrolls.
     // Attachment uses the visible part so the field still meets what is on screen.
-    const roomRect =
-      union(parts.map((part) => shownBox(part)).filter(Boolean)) || target;
+    const roomRect = (block && shownExtent(block)) || target;
     const keepClear =
       union(parts.map((part) => shownRect(part, clips)).filter(Boolean)) || roomRect;
     const scroller = effectiveScroller(readingRegion ?? owner);

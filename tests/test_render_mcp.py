@@ -264,9 +264,8 @@ def test_process_page_route_runs_the_complete_leaf_interface(
     expect(draft_image).to_have_attribute("src", f"{root}/media/051bee487bfb5d13.png")
     complete = general.evaluate(
         """async box => {
-              const entry = document.querySelector('script[type="module"][src$="leaf.js"]');
-              const input = await import(new URL('runtime/composing/input.js', entry.src));
-              const application = await import(new URL('runtime/application.js', entry.src));
+              const input = await window.__lfRuntimeImport('/runtime/composing/input.js');
+              const application = await window.__lfRuntimeImport('/runtime/application.js');
               return {draft: input.draftOf(box), composing: application.midComposition()};
             }"""
     )
@@ -285,8 +284,7 @@ def test_process_page_route_runs_the_complete_leaf_interface(
     assert (
         general.evaluate(
             """async box => {
-              const entry = document.querySelector('script[type="module"][src$="leaf.js"]');
-              const input = await import(new URL('runtime/composing/input.js', entry.src));
+              const input = await window.__lfRuntimeImport('/runtime/composing/input.js');
               return input.draftOf(box);
             }"""
         )

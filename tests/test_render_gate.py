@@ -56,6 +56,7 @@ from render_cases_layout import (
     SHOTS,
     SIDENOTE_IN_A_WIDGET,
     SPILLING_PAGE,
+    STYLED_SCROLLERS_PAGE,
     UNMARKABLE_PAGE,
     WIDE_TABLE_PAGE,
     apply_restore_case,
@@ -3251,6 +3252,35 @@ def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
     assert all(
         d == {"scrolls": "auto", "marked": True, "position": "relative"} for d in diffed
     ), f"the mark did not reach the diff's lines: {diffed}"
+
+
+def test_a_scroller_the_page_styled_is_reached_whatever_rule_made_it(browser, serve):
+    """The runtime finds scrolling boxes by reading which rules declare an overflow
+    that can scroll, then asks only the boxes those rules select. A rule shape it
+    misreads is a scroller the keyboard never reaches, so each box here scrolls by a
+    different one — a nested `&`, a rule inside @media and @layer, a single hidden
+    axis, a `var()` shorthand — and each must wear all three things reach owes an
+    overflowing box: a tab stop, the holds mark, and the sideways paint. A box in a
+    closed disclosure is not rendered, so it is asked only once the disclosure opens,
+    and owes the same three then."""
+    page = open_page(browser, serve(STYLED_SCROLLERS_PAGE))
+    page.locator("#folded > summary").click()
+    expect(page.locator("#unfolded")).to_have_attribute("data-lf-holds", "1")
+    reached = page.evaluate(
+        """() => Object.fromEntries(
+            ['nested', 'wrapped', 'one-axis', 'substituted', 'unfolded'].map((id) => {
+                const box = document.getElementById(id);
+                return [id, {
+                    scrolls: box.scrollWidth > box.clientWidth,
+                    tab: box.tabIndex,
+                    holds: box.hasAttribute('data-lf-holds'),
+                    sideways: box.hasAttribute('data-lf-scroll-direction'),
+                }];
+            }))"""
+    )
+    owed = {"scrolls": True, "tab": 0, "holds": True, "sideways": True}
+    assert reached == dict.fromkeys(reached, owed), reached
+    page.close()
 
 
 def test_the_render_gate_reports_content_set_past_the_column(browser, serve):

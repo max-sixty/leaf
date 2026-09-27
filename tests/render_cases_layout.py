@@ -485,6 +485,33 @@ LOOSE_SCROLLER_PAGE = LONG_PAGE.replace(
     "<div style='width: 700px'>The same row, in a box that holds its own.</div></div>"
     "\n</main>",
 )
+# Boxes the page's own stylesheet makes scroll, each through a rule shape the runtime has
+# to read to find it: a nested rule's `&`, a rule inside @media and @layer, one axis
+# hidden (which turns the other's `visible` into `auto`), and an overflow only `var()`
+# substitution decides. The last stands in a closed disclosure, content the browser does
+# not render until it opens.
+STYLED_SCROLLERS_PAGE = leaf_page(
+    "styled-scrollers",
+    """
+<h1 id="t">Styled scrollers</h1>
+<div class="nest"><div id="nested" class="box"><div class="row">A nested rule scrolls this row.</div></div></div>
+<div id="wrapped" class="box"><div class="row">A rule in @media and @layer scrolls this row.</div></div>
+<div id="one-axis" class="box"><div class="row">A rule hiding one axis scrolls this row.</div></div>
+<div id="substituted" class="box"><div class="row">A substituted overflow scrolls this row.</div></div>
+<details id="folded"><summary>Folded</summary>
+<div id="unfolded" class="box"><div class="row">A folded rule scrolls this row once opened.</div></div>
+</details>
+""",
+    head="""<style>
+.box { width: 240px; }
+.row { width: 700px; }
+.nest { & > .box { overflow-x: auto; } }
+@media (min-width: 1px) { @layer page { #wrapped { overflow-x: auto; } } }
+#one-axis { overflow-y: hidden; }
+#substituted { --lf-test-overflow: auto; overflow: var(--lf-test-overflow) hidden; }
+#unfolded { overflow-x: auto; }
+</style>""",
+)
 SCROLLED_CONTAINER = LONG_PAGE.replace(
     "</main>",
     "<div id='rolled' style='width: 300px; overflow-x: auto'>"

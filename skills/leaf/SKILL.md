@@ -108,7 +108,7 @@ on `main` or a block arranges each of these, and the page's own CSS adjusts it;
 
 The page contract and widget capabilities are choices, not a checklist. Include
 only controls and gestures whose results advance the user's task. A widget
-move, a resolution and a sign-off can be taken back; words and requests stand.
+move, a resolution and a sign-off can be taken back; words stand.
 
 ## Keep the user current
 

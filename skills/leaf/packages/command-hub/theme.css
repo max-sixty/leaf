@@ -177,27 +177,6 @@ lf-command [data-lf-command-goal][data-lf-open] > [data-lf-command-worker] { dis
 lf-command [data-lf-command-goal][data-lf-held] {
   background: linear-gradient(90deg, var(--warn-tint), transparent 72%); }
 
-/* Host operations are a compact command set, distinct from lf-options' replayable
- * document decisions. The prose stays authored and selectable; the trailing press is
- * apparatus after it, and a linked receipt replaces its availability with a terminal account. */
-lf-operations { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr));
-  gap: var(--sp-2); margin: var(--sp-3) 0; }
-lf-operation { display: block; padding: var(--sp-3);
-  border: 1px solid var(--rule); border-radius: var(--r); background: var(--paper);
-  --lf-block-frame: 1; }
-lf-operation:has(> lf-request-control[data-lf-requested]) {
-  background: color-mix(in srgb, var(--accent) 7%, var(--paper)); }
-/* The press follows the prose it acts on. Held beside it, in a gutter the card kept
- * down its whole height, it left a 14rem card's prose a hundred pixels a line. */
-lf-operation > lf-request-control > .lf-request-press {
-  display: block; width: fit-content; margin-top: var(--sp-2); }
-lf-operations > .lf-request-render-root > .lf-request-status {
-  grid-column: 1 / -1; color: var(--muted); font: var(--t-6) var(--sans); }
-lf-operations > .lf-request-render-root > .lf-request-status[data-status="failed"] {
-  color: var(--danger-ink); }
-lf-operations > .lf-request-render-root > .lf-request-status[data-status="succeeded"] {
-  color: var(--ok-ink); }
-
 lf-worktree { display: block; margin: var(--sp-2) 0; padding-left: var(--sp-3);
   border-left: 2px solid var(--rule); }
 .lf-worktree-snapshot { display: block; }

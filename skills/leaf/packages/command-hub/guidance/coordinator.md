@@ -24,6 +24,13 @@ If a worker becomes unreachable, read where its row and task stand in
 brief and retain its handle. Keep completed rows as history, and save the
 unreachable worker's nonterminal row as `idle` without `on`.
 
+A pick in a goal's Ask that names a host operation is the user's instruction to run
+it while it stands. A later pick in the same group replaces it, and the delivery
+still carries the earlier one, so before acting read the group's current answer in
+`leaf page state` and proceed only with the option that stands there. Verify the
+worker and worktree it names against current host state, and check there for an
+earlier run of the same operation before you start, merge, or remove anything. The version you stamp afterwards records the plan the operation produced.
+
 Route an anchored comment to a worker only while the assigned row or task is
 nonterminal and its host task is reachable: send the comment's text and anchor,
 with its event id as `EVENT`. Comments on terminal or unreachable assignments stay

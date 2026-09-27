@@ -31,7 +31,6 @@ from leaf.validation.instances import (
     layout_errors,
     line_ref_errors,
     reference_errors,
-    request_offer_errors,
     suggestion_errors,
     visual_part_errors,
     widget_errors,
@@ -178,7 +177,6 @@ def _instance_errors(
     errors.extend(visual_part_errors(parser.lf_elements, registry))
     errors.extend(addressable_instance_errors(parser.lf_elements, registry))
     errors.extend(ask_surface_errors(parser.lf_elements, registry))
-    errors.extend(request_offer_errors(parser.lf_elements, registry))
     errors.extend(
         reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
     )

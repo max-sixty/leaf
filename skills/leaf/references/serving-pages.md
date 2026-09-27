@@ -28,8 +28,8 @@ leaf version export <page> -o <file>
 Hand back the `file://` URL. Do not start a server or wait. The file opens
 offline and runs the page's own runtime against the captured revision and its
 state: widgets, local controls, and page-owned computation work as served. No host
-stands behind it, so thread and any action or request that needs an agent or
-server are unavailable. A page that declares a live sample needs a server and
+stands behind it, so threads and any action that needs an agent or server are
+unavailable. A page that declares a live sample needs a server and
 cannot be exported. Write the file where the project keeps user-facing artifacts.
 A live page can be exported without ending its loop.
 

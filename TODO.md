@@ -86,11 +86,6 @@ and its chrome coordinate.
   wins only by out-weighing the chrome's own selector. Choose the deliberate route for
   the chrome — tokens it reads, named parts, or a layer the page ranks above — so a page
   can change the thread panel's format or hide one surface where it needs to.
-- **Cap a widget's minimum by the box that holds it.** lf-board's `min-inline-size` is
-  capped by the shell (`100cqi`), so inside a framed specimen or a column on a phone it
-  runs past its holder: the feature gallery and how-it-works each zero it by hand.
-  Leaf's framed holders (specimen, pane, tab, card) could become inline-size
-  containers.
 - **Give the workspace Layout a column setting.** Each workspace page writes the same
   four-declaration pane grid that `columns="3fr 2fr"` used to say; a token such as
   `--layout-columns: 3fr 2fr`, stacking below 720px, would carry it. A bounded box of

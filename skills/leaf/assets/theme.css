@@ -1919,7 +1919,16 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
   border-top: 1px solid var(--rule);
   --lf-block-frame: 1;
 }
+/* A framed box that holds authored content is an inline-size container, so a widget
+ * inside it that caps its minimum at `100cqi` is capped by the box rather than the page:
+ * a board in a pane scrolls its columns inside the pane instead of running out of it. A
+ * framed box withholds the page's room from what it holds (`--lf-room`, below), so being
+ * a container changes only what a widget measures against itself. The default package
+ * makes its card a container for the same reason; its specimen is a table, which
+ * containment skips, so it states `--lf-box-cap` for what it holds instead. A tab's panel
+ * is the page's own flow, which an exhibit breaks out through, so it is not one. */
 :is(lf-pane, :where([data-lf-reading-role="pane"])) > :not(header, footer) {
   padding: 14px;
+  container-type: inline-size;
   --lf-block-frame: 1;
 }

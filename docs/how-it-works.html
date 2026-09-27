@@ -77,13 +77,6 @@
         overflow-wrap: anywhere;
       }
 
-      /* Layout-prototype workaround: the board caps its minimum at the shell's column,
-         not at the specimen holding it, so on a phone it ran 27px past the specimen's
-         gutter and scrolled the page sideways. Here it scrolls its columns inside. */
-      #spec-board {
-        min-inline-size: 0;
-      }
-
       @media (max-width: 760px) {
         .panels {
           grid-template-columns: minmax(0, 1fr);

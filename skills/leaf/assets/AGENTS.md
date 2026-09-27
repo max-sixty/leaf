@@ -20,8 +20,20 @@ it is given, declare the minimum it needs, and never let its content size its ho
 
 Nothing Leaf draws at run time moves the page's content. A margin row stands in the
 free room measured beside its target, in a rail the page declares, or as a pin
-inside its target's corner. The
-auxiliary surfaces (Asks tray, thread panel, Leaves tray) stand over the page and
+inside its target's corner.
+
+The rail and a pin are different kinds. The rail is room: a strip beside the column,
+which the column may move over to leave (`settleResidency`) but never narrows or
+indents for. A pin, a passage mark, and everything else in the annotation layer is an
+overlay: it covers what lies under it and takes no room. No rule pads, indents,
+widens, or reflows a block, heading, or line to clear a pin, and nothing moves when a
+marker arrives, leaves, or changes place, including a marker that always accompanies
+its target, such as an Ask's. Reserved room would make the page's geometry depend on
+which markers stand and where, which is what the overlay exists to avoid. Where a pin
+covers something the user needs, the answers are `o` (or More's Hide annotations
+under a finger) and a better placement (`TODO.md`), never room made for it.
+
+The auxiliary surfaces (Asks tray, thread panel, Leaves tray) stand over the page and
 never change its geometry; the Asks tray and panel leave the page live beside
 them, and cover it where they would leave less than a usable page
 (`--lf-auxiliary-beside`, read by `standsBeside`). Which box scrolls is the
@@ -288,7 +300,7 @@ changing `leaf.js`, a runtime owner, a widget module, the registry, or the theme
 | `trappedMargins`, `splitEdges` | suite only: the theme's frame trim reaches Leaf's own boxes |
 | `replayOverrides` | the log, not conflicting markup, determines projected state |
 | `relativeReplays` | rendering a complete widget state twice changes nothing |
-| `coveringMargins`, `shrunkLabels` | advice only |
+| `shrunkLabels` | advice only |
 
 Put a check on the side that can observe the fact: static validation owns schema,
 ids, nesting, passages, event shapes, and file readings; the browser owns computed

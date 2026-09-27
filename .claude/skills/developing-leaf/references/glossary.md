@@ -124,7 +124,7 @@ The margin projection has a separate registration and layout hierarchy:
 |---|---|
 | **Rail** | The right-hand strip beside `main` where margin rows stand beside their targets. It claims nothing: it stands wherever the room the page leaves right of the centred `main` holds it, and only `data-rail="right"` on `main` makes the shell give it up |
 | **Margin resident** | Something the page's margin holds: the rail, the contents map, a column's first sidebar, its sidenotes. One measurement (`settleResidency`) admits them in that order where the room beside `main` holds them, moving the column over by `--lf-shift`, and writes `data-lf-margin` on `main` |
-| **Pin** | A margin row standing over the page inside its target's top-right corner, where no rail stands: the page declared none, the room beside `main` does not hold one, the target sits in a pane that scrolls on its own, the target reaches past the rail's inner edge, or a hanging note stands level with it |
+| **Pin** | A margin row standing over the page inside its target's top-right corner, where no rail stands: the page declared none, the room beside `main` does not hold one, the target sits in a pane that scrolls on its own, the target reaches past the rail's inner edge, or a hanging note stands level with it. It is an overlay: it covers what lies under it, and nothing reserves room for it or moves when it comes, goes, or changes place |
 | **Margin row** | One target-anchored geometry participant whose placement is `rail`, `pin`, or `withheld` |
 | **Margin lane** | The layer holding the margin rows of one scroller: the root lane for the document, one lane per bounded reading region, clipped to what that region shows |
 | **Contributed control** | A margin entry a package puts in a target's cluster, such as a suggestion's Accept and Reject |
@@ -155,7 +155,7 @@ spine instead.
 | **Scope** | A registered command-applicability and shadowing boundary |
 | **Design mode** | The `l` interaction that reinterprets input for interface comments until the user exits |
 | **Draw mode** | The `w` interaction that reinterprets pointer input as a drawing until the user exits |
-| **Annotation layer** | Everything Leaf draws over the page's content: the margin rows standing as pins, the durable marks on commented and reacted passages with their contours, an open card, an unfolded cluster. The rail covers nothing and is not part of it. `o` toggles whether it shows, as tab view state rather than a mode |
+| **Annotation layer** | Everything Leaf draws over the page's content: the margin rows standing as pins, the durable marks on commented and reacted passages with their contours, an open card, an unfolded cluster. The rail covers nothing and is not part of it. The layer takes no room, so showing or hiding any of it moves nothing on the page. `o`, or More's Hide annotations under a finger, toggles whether it shows, as tab view state rather than a mode |
 | **Go-to sequence** | The `g` prefix grammar that builds a current map of Go-to targets, paints transient hint codes, and resolves complete ordered addresses |
 | **Target chooser** | The `s` interaction that presents addressable elements and ends when the user chooses one or closes it |
 | **Page search** | The `/` interaction that filters or walks text matches for a query |

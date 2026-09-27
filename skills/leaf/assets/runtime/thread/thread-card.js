@@ -28,7 +28,7 @@ import { ago, shortAgo } from "../presence.js";
 
 function quoteReading(thread, anchors, outline) {
   const group = groupFor(thread, outline, anchors.placedAt);
-  const placement = anchors.placedAt(thread.root.id);
+  const placement = anchors.placedAt(thread.id);
   const segments = placement?.segments ?? [];
   const label =
     group.target &&
@@ -43,7 +43,7 @@ function quoteReading(thread, anchors, outline) {
   if (!label) return null;
   const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);
   const found =
-    !thread.detached_from && (anchors.isMarked(thread.root.id) || Boolean(placement));
+    !thread.detached_from && (anchors.isMarked(thread.id) || Boolean(placement));
   const outdated = anchored && placement?.status === "outdated";
   return Object.freeze({
     label,
@@ -84,7 +84,10 @@ export function threadReading(
     summary: threadSummary(thread),
     titlePending: thread.title == null,
     unreadCount: thread.unread.length,
-    id: thread.root.id,
+    id: thread.id,
+    // The message a reply or settlement addresses, which is not the thread's id where
+    // the log lost the message that opened it.
+    root: thread.root.id,
     attempt: thread.root.attempt ?? null,
     surface,
     visible,
@@ -563,7 +566,7 @@ export class ThreadView {
     const model = this.#model;
     if (model.folding) return;
     void settleThread({
-      id: () => this.#model.id,
+      parent: () => this.#model.root,
       resolved: model.resolved,
       prepareLanding:
         model.surface === "panel"
@@ -655,21 +658,16 @@ export class ThreadView {
       input.lfCollapseReply = collapse;
       disclosure.onclick = () => this.#commands.landInThread(input);
     }
-    const lifetime = wireReply(
-      { root: { id: model.id, attempt: model.attempt } },
-      input,
-      send,
-      {
-        liveId: () => this.#model.id,
-        ...this.#commands.reply,
-        onDraftLoaded: () => {
-          if (hasDraft()) reveal();
-          // Initial construction is already painting this reading; mirrored edits
-          // arrive later and must refresh the collapsed row's Draft indication.
-          if (panel && this.#reply) this.#navigation.draftChanged();
-        },
+    const lifetime = wireReply(model.key, input, send, {
+      parent: () => this.#model.root,
+      ...this.#commands.reply,
+      onDraftLoaded: () => {
+        if (hasDraft()) reveal();
+        // Initial construction is already painting this reading; mirrored edits
+        // arrive later and must refresh the collapsed row's Draft indication.
+        if (panel && this.#reply) this.#navigation.draftChanged();
       },
-    );
+    });
     collapse();
     return { node: row, dispose: lifetime.dispose };
   }

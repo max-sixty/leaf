@@ -32,7 +32,7 @@ import { closestAcross } from "../passages.js";
 import { panel, threadsBox } from "./panel-elements.js";
 import { reachedForWords, reveal } from "../widget-elements.js";
 import { finishFold } from "./folding.js";
-import { SAYS_IN, SAY_BOX } from "./selectors.js";
+import { SAYS_IN, SAY_BOX, THREAD } from "./selectors.js";
 import { retainUserIntent } from "../user-intent.js";
 import { focusDestination, readCaret } from "../focus.js";
 import { pageScope } from "../keyboard/register.js";
@@ -134,8 +134,7 @@ const backFromThread = (box) => threadReturns.get(box) ?? null;
 // editing this: the question is the same one, and the answer moved.
 function backFromBox() {
   const held = heldThreadOrSeat();
-  if (held?.matches(".lf-thread, .lf-page-thread"))
-    return { target: held, line: "back to thread" };
+  if (held?.matches(THREAD)) return { target: held, line: "back to thread" };
   const route = backFromThread(focused());
   return route?.target?.isConnected ? route : null;
 }
@@ -174,7 +173,7 @@ pageScope("text entry", {
         const back = backFromBox();
         document.activeElement.blur();
         const target = back?.target ?? threadsBox;
-        if (target.matches?.(".lf-thread, .lf-page-thread")) focusThread(target);
+        if (target.matches?.(THREAD)) focusThread(target);
         else target.focus();
       },
     },

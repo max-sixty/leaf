@@ -19,6 +19,7 @@ const message = (id, extra = {}) => ({
   ...extra,
 });
 const thread = (id, msgs, attention = null, userPrompt = null) => ({
+  id,
   root: { id },
   msgs,
   attention,

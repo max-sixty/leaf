@@ -390,7 +390,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         for thread in listed:
             if not thread["resolved"]:
                 continue
-            card = page.locator(f'.lf-thread[data-id="{thread["root"]["id"]}"]')
+            card = page.locator(f'.lf-thread[data-id="{thread["id"]}"]')
             expect(
                 card.get_by_role(
                     "button", name="Reopen", exact=True, include_hidden=True

@@ -38,7 +38,7 @@ function unreadContent(threadView) {
   return threadView.threads
     .flatMap((thread) =>
       thread.unread.map(({ message: id, version }) => ({
-        thread: thread.root.id,
+        thread: thread.id,
         message: thread.msgs.find((message) => message.id === id),
         version,
       })),
@@ -63,16 +63,13 @@ function userObligations(page, threadView) {
     if (
       thread.attention?.kind === "needs_user" &&
       thread.attention.reason === "ask" &&
-      !askedThreads.has(thread.root.id) &&
+      !askedThreads.has(thread.id) &&
       thread.user_prompt
     )
-      held.set(
-        JSON.stringify(["thread-turn", thread.root.id, thread.user_prompt.version]),
-        {
-          source: thread.user_prompt.message,
-          thread: thread.root.id,
-        },
-      );
+      held.set(JSON.stringify(["thread-turn", thread.id, thread.user_prompt.version]), {
+        source: thread.user_prompt.message,
+        thread: thread.id,
+      });
   }
   return held;
 }

@@ -162,11 +162,11 @@
   "outputs": {
     "skills/leaf/assets/vendor/browser-runtime.js": {
       "bytes": 28775,
-      "sha256": "459e80b025952f04975ad51400dcfcc90ad6042997a9a5f62255f7a33e4cdc23"
+      "sha256": "8af4f3cd28b9844940f25bbb7f8ec4a695eb34745da1006d4f3b98726f2a2efc"
     },
     "scripts/browser/generated/browser-runtime.js.map": {
-      "bytes": 178449,
-      "sha256": "459894838339f729f3834d2aa2c831937de8d6966240443d6d2711f983a007f2"
+      "bytes": 179494,
+      "sha256": "785c7335fb8e90c57b2dfa97c169fb18c335fbc6376ff1f4c00ed0b4f36b3c14"
     },
     "skills/leaf/assets/vendor/lit.js": {
       "bytes": 32020,

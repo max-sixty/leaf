@@ -9,7 +9,7 @@ import {
   sendMessage,
   tellDraft,
 } from "../drafts.js";
-import { threadKey } from "./model.js";
+import { SAYS_IN } from "./selectors.js";
 import { focused } from "../keyboard/scopes.js";
 import { retainUserIntent } from "../user-intent.js";
 import { whenDocumentPresented } from "../semantic-state.js";
@@ -20,29 +20,26 @@ const REPLY_DRAFT_CONTEXT = Symbol("reply draft context");
 // gesture that sends it. A second view pressing Send afterwards reads the generation as
 // spent and refuses on its own — in this tab and in any other showing the page, which is
 // further than a hold kept in this document's memory reached.
-const sendReply = (t, liveId, text, owns, createReply) =>
-  sendMessage("reply:" + threadKey(t), owns, (attempt) =>
+const sendReply = (draftCtx, parent, text, owns, createReply) =>
+  sendMessage(draftCtx, owns, (attempt) =>
     createReply({
-      parent: liveId(),
+      parent: parent(),
       text,
       attempt,
     }),
   );
 
-// One reply draft, send, and typing continuation across every view of a thread.
+// One reply draft, send, and typing continuation across every view of a thread. `key`
+// is the thread's `threadKey`, which names its draft; `parent` reads the message the
+// reply answers when it is sent, since the log can name that message after the draft
+// began.
 export function wireReply(
-  t,
+  key,
   input,
   send,
-  {
-    liveId = () => t.root.id,
-    createReply,
-    revealReplyEditor,
-    wireInput,
-    onDraftLoaded = null,
-  },
+  { parent, createReply, revealReplyEditor, wireInput, onDraftLoaded = null },
 ) {
-  const draftCtx = "reply:" + threadKey(t);
+  const draftCtx = "reply:" + key;
   input[REPLY_DRAFT_CONTEXT] = draftCtx;
   input.value = loadDraft(draftCtx) ?? "";
   const sync = wireInput(input, {
@@ -58,13 +55,13 @@ export function wireReply(
       tellDraft(draftCtx, v);
     },
     send: (_text, raw, owns) => {
-      const held = input.closest(".lf-thread, .lf-page-thread, .lf-thread-seat");
+      const held = input.closest(SAYS_IN);
       const mayReveal =
         held && (focused() === input || focused() === send)
           ? retainUserIntent({ source: held, available: () => held.isConnected })
           : null;
       const control = focused() === send ? send : input;
-      const sent = sendReply(t, liveId, raw, owns, createReply);
+      const sent = sendReply(draftCtx, parent, raw, owns, createReply);
       if (sent && mayReveal)
         void whenDocumentPresented()
           .then(() => {
@@ -87,7 +84,7 @@ export function wireReply(
   // lands the list where that glide was going, two lines short of the box it is now.
   input.addEventListener("input", () => {
     if (focused() !== input) return;
-    const held = input.closest(".lf-thread, .lf-page-thread, .lf-thread-seat");
+    const held = input.closest(SAYS_IN);
     if (held) revealReplyEditor(input, { behavior: "instant" });
   });
   const dispose = mirrorDraft(

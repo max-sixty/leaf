@@ -1,6 +1,7 @@
 /* Focus readings shared by thread paint and commands. */
 import { focused } from "../keyboard/scopes.js";
 import { closestAcross } from "../passages.js";
+import { THREAD } from "./selectors.js";
 
 // Native disclosure owns the panel thread's focus stop. Inline divs have no summary,
 // so their established root remains the destination.
@@ -12,7 +13,7 @@ export function focusThread(thread, options) {
 // command scope, while panel summaries are mapped by focusedThreadTarget below.
 export function focusedThread() {
   const active = focused();
-  return active?.matches?.(".lf-thread, .lf-page-thread") ? active : null;
+  return active?.matches?.(THREAD) ? active : null;
 }
 
 // A native panel summary stands for its details in commands that move the whole
@@ -28,7 +29,7 @@ export function focusedThreadTarget() {
 // seat on the page — with a control inside one standing in it too. Climbing from the
 // inner focus reaches a seat a widget stages in its shadow tree. The box's way out climbs
 // further, to a seat holding no thread yet (landing.js, `heldThreadOrSeat`).
-export const heldThread = () => closestAcross(focused(), ".lf-thread, .lf-page-thread");
+export const heldThread = () => closestAcross(focused(), THREAD);
 
 // Its logged id: a list thread carries it as `data-id`, a card or seat as `data-thread`.
 export function heldThreadId() {

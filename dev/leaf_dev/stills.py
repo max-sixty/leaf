@@ -4,7 +4,7 @@ show which ones changed.
     uv run leaf-dev stills [BASE_REF]
 
 BASE_REF defaults to the merge base of HEAD and `main`. Each arm is the plugin payload
-at its commit (`leaf_dev.harness.build_arm`), so commit what you want compared. Every
+at its commit (`leaf_dev.harness.build_pair`), so commit what you want compared. Every
 page is built from this checkout's example source by the arm's own launcher and served
 by that arm's `leaf server run --temporary`, so only the runtime, theme and server
 differ between the two stills of a state.
@@ -48,7 +48,7 @@ from playwright.sync_api import Page, sync_playwright
 
 from leaf_dev import ROOT
 from leaf_dev.browser import BESIDE, DESKTOP, load, settle, tab
-from leaf_dev.harness import build_arm, merge_base, serving_source
+from leaf_dev.harness import build_pair, serving_source
 
 OUT = ROOT / ".tmp" / "stills"
 CROP_MARGIN = 32
@@ -279,11 +279,7 @@ def stills(base_ref: str | None) -> None:
     failures: dict[str, dict] = {state.name: {} for state in STATES}
     with tempfile.TemporaryDirectory(prefix="leaf-stills-") as built:
         scratch = Path(built)
-        arms = {"base": scratch / "base", "head": scratch / "head"}
-        commits = {
-            "base": build_arm(base_ref or merge_base(), arms["base"]),
-            "head": build_arm("HEAD", arms["head"]),
-        }
+        arms, commits = build_pair(base_ref, scratch)
         with sync_playwright() as playwright:
             browser, _ = launch_browser(playwright)
             try:

@@ -4,8 +4,7 @@ version of Leaf.
     uv run leaf-dev arm REF DEST
 
 builds one arm at DEST from git REF; `evals/README.md`'s A/B recipe builds its other
-arm with it. `leaf-dev stills` and `leaf-dev probe`, `eval_claude_delivery.py`, the
-two `bench_*.py` scripts, `notes/arrangement-eval/harness.py` and
+arm with it. The other `leaf-dev` commands, `notes/arrangement-eval/harness.py` and
 `notes/usability-eval/harness.py` import the rest.
 
 An arm is the plugin payload at one ref (`PAYLOAD`: the manifest, hooks, launcher,
@@ -13,6 +12,12 @@ skills and uv project) and nothing else. It has no `.git`, examples, docs or not
 child cannot read its way to another arm's version through history or the worked
 corpus. Building runs the launcher once, so uv builds the arm's environment before a
 timed run starts.
+
+An A/B command compares two arms, `base` and `head` (`build_pair`). Its base is the
+merge base with `main` unless the caller names another ref, so a branch behind `main`
+is compared with where it started rather than with changes it has not merged. A timed
+one prints the machine's load average before and after (`load_average`), since other
+processes' load moves every timing.
 
 A child is `claude -p` from a scratch cwd outside any repository, with project-only
 settings, no MCP servers, auto-memory off, and none of the variables that identify an
@@ -144,7 +149,7 @@ def serving_source(arm: Path, source: Path, scratch: Path):
 
 
 def merge_base() -> str:
-    """The commit HEAD branched from `main`: the base an A/B script compares HEAD
+    """The commit HEAD branched from `main`: the base an A/B command compares HEAD
     against unless it is handed another."""
     return subprocess.run(
         ["git", "-C", ROOT, "merge-base", "HEAD", "main"],
@@ -180,6 +185,20 @@ def build_arm(ref: str, dest: Path) -> str:
         text=True,
         check=True,
     ).stdout.strip()
+
+
+def build_pair(base: str | None, dest: Path) -> tuple[dict[str, Path], dict[str, str]]:
+    """Build an A/B's arms under `dest`: `base` at the ref given, or at `merge_base()`
+    when none is, and `head` at HEAD. Return each arm's directory and its commit,
+    both keyed `base` and `head`."""
+    refs = {"base": base or merge_base(), "head": "HEAD"}
+    arms = {arm: dest / arm for arm in refs}
+    return arms, {arm: build_arm(ref, arms[arm]) for arm, ref in refs.items()}
+
+
+def load_average() -> str:
+    """The machine's 1, 5 and 15 minute load averages."""
+    return " ".join(f"{value:.1f}" for value in os.getloadavg())
 
 
 def scratch() -> Path:

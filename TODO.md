@@ -157,10 +157,9 @@ and its chrome coordinate.
 - **Consider loading a page once per render check.** `page check --render` loads
   the page afresh for each of its four passes, including dark mode and the narrow
   viewport. Switching those in place would save at most about 1.4 s on
-  `triage-board` and 12.6 s on the corpus, measured with
-  `scripts/bench_render_check.py`. The price is that dark mode and the narrow width
-  would no longer be checked from a fresh start. Decide whether that coverage is
-  worth the time before building it.
+  `triage-board` and 12.6 s on the corpus, measured with `leaf-dev bench-check`.
+  The price is that dark mode and the narrow width would no longer be checked from
+  a fresh start. Decide whether that coverage is worth the time before building it.
 - **Scale a drawing by the box it was drawn in.** On replay, scale the strokes by
   the anchored element's size over the recorded `box`, so a mark stays on its
   element in a narrower window; reflowed text still moves under it. Verify replay

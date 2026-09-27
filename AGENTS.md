@@ -126,7 +126,9 @@ and Codex install the tracked tree whole.
 - `examples/`: the authored pages the site publishes and the render corpus;
 - `tests/`: the file, CLI, browser, and published-site boundaries, and in
   `tests/runtime/` the runtime's folds, which Node runs without a browser;
-- `scripts/`: preview, site, demo, vendor, and browser-framework tooling;
+- `build/`: the browser framework's TypeScript and the builds of every committed
+  browser bundle;
+- `scripts/`: preview, site, demo, corpus, and measurement tooling;
 - `worker/`: the Cloudflare Worker behind <https://leaf.page/>, which routes each
   example to the Python server in a per-user container; `worker/README.md` names
   its tokens and how an unattended agent loads one;
@@ -141,7 +143,8 @@ Read the scoped instructions for the area being changed:
 `skills/leaf/assets/AGENTS.md` (browser runtime, widgets, registry, theme),
 `skills/leaf/scripts/AGENTS.md` (Python owners and protocol references),
 `examples/AGENTS.md` (pages and corpus), `tests/AGENTS.md` (setup and evidence),
-and `scripts/AGENTS.md` (tooling and generated outputs).
+`scripts/AGENTS.md` (tooling and generated outputs), and `build/AGENTS.md`
+(committed bundles).
 
 For any work whose subject is Leaf itself, load `/developing-leaf`, including
 research and prototypes that change no tracked code. The shipped `/leaf` skill is
@@ -169,7 +172,7 @@ host supplies Chrome and `jq`; leaf never downloads a browser.
 
 Files under `skills/leaf/assets/vendor/`, each package's `vendor/`, and
 `skills/leaf/mcp-app/` are generated and committed where their consumer reads
-them; `scripts/AGENTS.md` names the script that regenerates each.
+them; `build/AGENTS.md` says how to regenerate them.
 
 ## Cross-runtime invariants
 
@@ -261,6 +264,10 @@ Layer-wide facts live under `$` keys; each tag entry is one complete schema.
 
 ## Working on the repository
 
+When the user is to choose among designs, show them the candidates in a
+playground, which is one HTML file and one preview command (`/developing-leaf`,
+"Explore an open design").
+
 Before finishing a feature:
 
 - Give every action a keyboard route, without spending a page-level binding on
@@ -275,7 +282,7 @@ Before finishing a feature:
   after, and add a case for the behavior it targets (`evals/README.md`).
 
 `uv run pytest tests` and `npm run test:runtime` are the everyday gate
-(`tests/AGENTS.md`). Two TypeScript trees, `worker/src/` and `scripts/browser/`, and
+(`tests/AGENTS.md`). Two TypeScript trees, `worker/src/` and `build/browser/`, and
 the JavaScript lock every committed bundle is built from have gates the suite and
 pre-commit do not reach. Both landing paths run all of them: a pull request in its
 `test` job, and `wt merge` in the pre-merge blocks of `.config/wt.toml`, which name

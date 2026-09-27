@@ -12,7 +12,7 @@ if [[ $# == 2 ]]; then
   keep_live=true
 fi
 
-repo="$(cd "$(dirname "$0")/../.." && pwd)"
+repo="$(cd "$(dirname "$0")/../../.." && pwd)"
 cd "$repo"
 # Evidence is generated output no install reads, so it stays out of the payload
 # too. A maintainer copies what a written-up result cites into notes/.
@@ -48,8 +48,8 @@ npm --prefix "$reference" run build --workspace @modelcontextprotocol/ext-apps-b
 cp examples/heat-loss.html "$run_dir/page/index.html"
 /bin/sh "$repo/bin/leaf" page stamp "$run_dir/page" --text "Direct MCP resource probe"
 /bin/sh "$repo/bin/leaf" status "$run_dir/page" idle "Transport probe; no agent wake attached"
-shasum -a 256 scripts/mcp-app/direct-build.mjs scripts/mcp-app/direct-entry.js scripts/mcp-app/direct.py scripts/mcp-app/direct-server.mjs scripts/mcp-app/check-direct-http.mjs scripts/mcp-app/observe-direct.mjs scripts/mcp-app/run-direct-probe.sh > "$results/source.sha256"
-node scripts/mcp-app/direct-build.mjs "$run_dir/page" "$modules" "$run_dir/bundle.js"
+shasum -a 256 notes/mcp-apps/probe/direct-build.mjs notes/mcp-apps/probe/direct-entry.js notes/mcp-apps/probe/direct.py notes/mcp-apps/probe/direct-server.mjs notes/mcp-apps/probe/check-direct-http.mjs notes/mcp-apps/probe/observe-direct.mjs notes/mcp-apps/probe/run-direct-probe.sh > "$results/source.sha256"
+node notes/mcp-apps/probe/direct-build.mjs "$run_dir/page" "$modules" "$run_dir/bundle.js"
 shasum -a 256 "$run_dir/bundle.js" > "$results/bundle.sha256"
 server_pid=""
 host_pid=""
@@ -62,7 +62,7 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
-node scripts/mcp-app/direct-server.mjs "$run_dir/page" "$run_dir/bundle.js" \
+node notes/mcp-apps/probe/direct-server.mjs "$run_dir/page" "$run_dir/bundle.js" \
   "$modules" "$results/observations.jsonl" 3001 > "$results/mcp-server.log" 2>&1 &
 server_pid=$!
 (
@@ -83,8 +83,8 @@ curl --silent --fail http://localhost:8081/sandbox.html >/dev/null
 kill -0 "$host_pid"
 kill -0 "$server_pid"
 jq -e --arg page "$run_dir/page" '.page == $page' "$results/health.json"
-node scripts/mcp-app/check-direct-http.mjs http://127.0.0.1:3001 > "$results/http-security.json"
-node scripts/mcp-app/observe-direct.mjs "$run_dir/page" "$results" > "$results/reference-host.json"
+node notes/mcp-apps/probe/check-direct-http.mjs http://127.0.0.1:3001 > "$results/http-security.json"
+node notes/mcp-apps/probe/observe-direct.mjs "$run_dir/page" "$results" > "$results/reference-host.json"
 printf 'Probe passed. Results: %s\n' "$results"
 if $keep_live; then
   printf '%s\n' 'Preview: http://localhost:8080/?tool=leaf_direct_present&server=leaf-direct-probe&call=true' \

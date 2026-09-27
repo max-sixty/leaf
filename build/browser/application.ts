@@ -20,12 +20,6 @@ import {
   threadForAttempt,
   isThreadEvent,
   isMessageEvent,
-  pendingApprovals,
-  pendingProjectionEntries,
-  pendingReactions,
-  pendingSettlements,
-  pendingMessages as pendingThreadMessages,
-  unresolvedAttempts,
 } from "../../skills/leaf/assets/runtime/pending/model.js";
 import { PENDING } from "../../skills/leaf/assets/runtime/thread/identity.js";
 
@@ -34,6 +28,92 @@ import { PENDING } from "../../skills/leaf/assets/runtime/thread/identity.js";
 type AuthoredMap = Parameters<typeof foldWidgetStates>[0];
 type Thread = Parameters<typeof discussed>[0];
 type Event = Thread["root"];
+
+/* The lifecycle of one unresolved gesture, from the turn that makes it to the
+ * publication that retires it.
+ *
+ * Two things happen to a gesture independently, and either can come first: its POST
+ * answers, accepting or refusing it, and readings of the log come to hold its receipt,
+ * first adopted and then presented. A state therefore names both: `sending` or
+ * `accepted`, then `:logged` once an adopted reading holds the receipt and
+ * `:presented` once the document pass carrying one has run. A refusal ends the log's
+ * part, since a refused attempt has no receipt to read.
+ *
+ * `sending` and `accepted` are drawn from the gesture; from `:logged` on, the log's
+ * own event draws it. An entry leaves in exactly two ways. A refused one waits for
+ * `release`, once the reading it restores is on the page. An accepted one leaves on
+ * reaching `accepted:presented`, unless it is an action: an action's widget and the
+ * projection chrome can hold a reading past the document pass (a drag, a deferred
+ * widget), so an action waits there for `release`, which its owner calls once those
+ * regions have committed. A signal a state has no edge for leaves it where it is. */
+type GestureState =
+  | "sending"
+  | "sending:logged"
+  | "sending:presented"
+  | "accepted"
+  | "accepted:logged"
+  | "accepted:presented"
+  | "refused";
+
+type Signal = "accept" | "refuse" | "log" | "present";
+
+const LIFECYCLE: Record<GestureState, Partial<Record<Signal, GestureState>>> = {
+  sending: {
+    accept: "accepted",
+    refuse: "refused",
+    log: "sending:logged",
+    present: "sending:presented",
+  },
+  "sending:logged": {
+    accept: "accepted:logged",
+    refuse: "refused",
+    present: "sending:presented",
+  },
+  "sending:presented": { accept: "accepted:presented", refuse: "refused" },
+  accepted: { log: "accepted:logged", present: "accepted:presented" },
+  "accepted:logged": { present: "accepted:presented" },
+  "accepted:presented": {},
+  refused: {},
+};
+
+// Still waiting for its POST's answer: the delivery queue's and the traffic ledger's
+// reading of the ledger.
+const SENDING = new Set<GestureState>([
+  "sending",
+  "sending:logged",
+  "sending:presented",
+]);
+// Drawn from the gesture, because no adopted reading holds its receipt.
+const DRAWN_LOCALLY = new Set<GestureState>(["sending", "accepted"]);
+// The states `release` retires.
+const RELEASABLE = new Set<GestureState>(["accepted:presented", "refused"]);
+
+/** One unresolved gesture. `admitted` is the log's event for it, known from the
+ * POST's answer or from a reading, whichever came first. */
+interface LedgerEntry {
+  event: Event;
+  localId: string;
+  order: number;
+  projection: any;
+  thread: any;
+  message: any;
+  undoTarget: string | null;
+  namedParent?: string;
+  state: GestureState;
+  admitted: Event | null;
+}
+
+// `entry` after `signal`, or null once it leaves the ledger.
+function advance(
+  entry: LedgerEntry,
+  signal: Signal,
+  admitted: Event | null = null,
+): LedgerEntry | null {
+  const state = LIFECYCLE[entry.state][signal];
+  if (!state) return entry;
+  if (state === "accepted:presented" && entry.event.kind !== "action") return null;
+  return { ...entry, state, admitted: entry.admitted ?? admitted };
+}
 
 interface ActionSpec {
   unit: string;
@@ -301,7 +381,6 @@ function widgetReading(
   const desired = [...projection.actions.values()].filter(({ e }) =>
     appliesTo(descriptor, e),
   );
-  const pending = root.unresolved.filter((entry) => appliesTo(descriptor, entry.event));
   const durableUndo = (root.effective.view?.undo ?? [])
     .map((candidate: { event: Event }) => candidate.event)
     .filter(
@@ -361,13 +440,6 @@ function widgetReading(
     thread: { heldBy: holdingThread?.id ?? null },
     provenance,
     actions,
-    delivery: pending.map((entry) => ({
-      attempt: entry.event.attempt,
-      kind: entry.event.kind,
-      verb: entry.event.action,
-      answered: entry.answered,
-      rejected: entry.rejected,
-    })),
   };
 }
 
@@ -391,7 +463,7 @@ export function createSemanticApplication({
       descriptors: new Map(),
     } as SemanticDocument,
     authoritative: null as AuthoritativeState | null,
-    unresolved: [] as Event[],
+    unresolved: [] as LedgerEntry[],
     // Content versions this tab has marked read and the log has not yet answered for.
     // Marking read is bookkeeping, not a gesture, so it has no place in the ordered
     // `unresolved` ledger; each leaves once the answer carrying it is applied.
@@ -426,29 +498,29 @@ export function createSemanticApplication({
   function derive(
     document: SemanticDocument,
     state: AuthoritativeState | null,
-    unresolved: Event[],
+    unresolved: LedgerEntry[],
     markingRead: ContentVersion[],
     phase: string,
     hostAvailable: boolean,
   ) {
     const receipts = state?.browser.receipts ?? [];
-    const pending = unresolved.map((entry) =>
-      entry.projection?.kind === "undo"
-        ? {
-            ...entry,
-            projection: {
-              ...entry.projection,
-              targetEntry: unresolved.find(
-                (target) => target.event.attempt === entry.undoTarget,
-              ) ?? {
-                readEvent: receipts.find(
-                  (receipt) => receipt.attempt === entry.undoTarget,
-                ),
-              },
-            },
-          }
-        : entry,
-    );
+    const local = unresolved.filter((entry) => DRAWN_LOCALLY.has(entry.state));
+    const refused = unresolved.filter((entry) => entry.state === "refused");
+    // An undo withdraws its target by the log's id once the log has named it: the
+    // target entry's while it stands in the ledger, its receipt's once released.
+    const namedTarget = (attempt: string | null) => {
+      const target = unresolved.find((entry) => entry.event.attempt === attempt);
+      return target
+        ? (target.admitted?.id ?? null)
+        : (receipts.find((receipt) => receipt.attempt === attempt)?.id ?? null);
+    };
+    const localProjections = local
+      .filter((entry) => entry.projection)
+      .map((entry) =>
+        entry.projection.kind === "undo"
+          ? { ...entry.projection, targetId: namedTarget(entry.undoTarget) }
+          : entry.projection,
+      );
     // The shown revision's server view, resolved here once for every reader of this
     // document's page state. Its basis is transport identity, which the adoption
     // boundary has already matched to the log reading; left in, a read that only moved
@@ -460,19 +532,23 @@ export function createSemanticApplication({
     const admitted = normalizedProjection(view, state?.browser.thread);
     const projection = foldProjection({
       ...admitted,
-      pendingEntries: pendingProjectionEntries(pending, receipts),
+      pendingEntries: localProjections,
     });
     // Threads and Asks both wait for an admitted reading. Authored markup names every
     // Ask the page could hold, but only the log says which of them it still holds and
     // whether they are answered, so before that reading there is no inventory to publish.
     const ready = phase === "ready";
-    const pendingMessages = pendingThreadMessages(unresolved, receipts);
+    const messages = local.filter((entry) => entry.message);
     const folded = ready
       ? foldThreads(
           state?.browser.thread.threads ?? [],
-          pendingMessages,
-          pendingReactions(unresolved, receipts),
-          pendingSettlements(unresolved, receipts),
+          messages.map((entry) => entry.message),
+          local.filter((entry) => entry.thread?.token).map((entry) => entry.thread),
+          local
+            .filter(
+              ({ event }) => event.kind === "resolve" || event.kind === "unresolve",
+            )
+            .map((entry) => ({ ...entry.event, localParent: entry.namedParent })),
         )
       : [];
     const widgets = foldWidgetStates(document.authored, projection);
@@ -502,10 +578,10 @@ export function createSemanticApplication({
       const held = document.descriptors.get(entry.event.widget)?.document;
       return held?.kind === "thread" ? (held.thread ?? null) : null;
     };
-    const refused = new Map<string, string>();
-    for (const entry of unresolved.filter((entry: any) => entry.rejected)) {
+    const recovery = new Map<string, string>();
+    for (const entry of refused) {
       const thread = threadOfEntry(entry);
-      if (thread) refused.set(thread, `rejected:${entry.event.attempt}`);
+      if (thread) recovery.set(thread, `rejected:${entry.event.attempt}`);
     }
     const obligated = folded.map((thread: any) => {
       if (owed.has(thread.id))
@@ -515,7 +591,7 @@ export function createSemanticApplication({
               ...thread,
               attention: { kind: "needs_user", reason: "ask", workflow: null },
             };
-      const retry = refused.get(thread.id);
+      const retry = recovery.get(thread.id);
       return retry && thread.attention?.kind !== "needs_user"
         ? {
             ...thread,
@@ -523,11 +599,6 @@ export function createSemanticApplication({
           }
         : thread;
     });
-    const entriesByMessage = new Map(
-      unresolved
-        .filter((entry: any) => entry.message)
-        .map((entry: any) => [entry.message.id, entry]),
-    );
     // A send this tab has not delivered, in the served workflow's shape. A message
     // holds its thread as every thread input does; a widget move owes no answer until
     // the server has read it, so it holds none.
@@ -567,12 +638,8 @@ export function createSemanticApplication({
     };
     const workflows = [
       ...(state ? state.workflows : []),
-      ...pendingMessages.map((message: any) =>
-        localWorkflow(entriesByMessage.get(message.id), false),
-      ),
-      ...unresolved
-        .filter((entry: any) => entry.rejected)
-        .map((entry: any) => localWorkflow(entry, true)),
+      ...messages.map((entry) => localWorkflow(entry, false)),
+      ...refused.map((entry) => localWorkflow(entry, true)),
     ];
     const threads = readThreadRecords(
       obligated,
@@ -597,8 +664,13 @@ export function createSemanticApplication({
       // updates, publication time, or undo list still reaches its watchers.
       view,
       acceptedApprovals: state?.browser.thread.done ?? [],
-      pendingApprovals: pendingApprovals(unresolved, receipts),
-      delivery: unresolvedAttempts(unresolved),
+      pendingApprovals: local
+        .filter((entry) => entry.event.kind === "done")
+        .map((entry) => entry.event),
+      // The attempts still waiting for their POST's answer, in ledger order.
+      sending: unresolved
+        .filter((entry) => SENDING.has(entry.state))
+        .map((entry) => entry.event.attempt),
       workflows,
       activity: state?.activity ?? null,
     };
@@ -679,7 +751,7 @@ export function createSemanticApplication({
 
   const entry = (attempt: string) =>
     publisher.read().unresolved.find((item) => item.event.attempt === attempt);
-  const update = (attempt: string, change: (entry: Event) => Event) =>
+  const update = (attempt: string, change: (entry: LedgerEntry) => LedgerEntry) =>
     publish({
       unresolved: publisher
         .read()
@@ -687,6 +759,22 @@ export function createSemanticApplication({
           item.event.attempt === attempt ? change(item) : item,
         ),
     });
+  // The ledger after `signal` reaches each attempt `admitted` names, with the log's
+  // event for it (or null), and the attempts that left. The caller publishes it.
+  const transition = (signal: Signal, admitted: Map<string, Event | null>) => {
+    const left: string[] = [];
+    const unresolved = publisher.read().unresolved.flatMap((item) => {
+      if (!admitted.has(item.event.attempt)) return [item];
+      const next = advance(item, signal, admitted.get(item.event.attempt) ?? null);
+      if (!next) left.push(item.event.attempt);
+      return next ? [next] : [];
+    });
+    return { unresolved, left };
+  };
+  const byAttempt = (receipts: Event[]) =>
+    new Map<string, Event | null>(
+      receipts.map((receipt) => [receipt.attempt, receipt]),
+    );
 
   return Object.freeze({
     read: publisher.read,
@@ -812,12 +900,12 @@ export function createSemanticApplication({
       const prior = publisher.read();
       if (!adoptable(state, document)) return false;
       const authoritative = structuredClone(state);
-      const unresolved = prior.unresolved.map((item) => {
-        const receipt = authoritative.browser.receipts.find(
-          (receipt) => receipt.attempt === item.event.attempt,
-        );
-        return receipt ? { ...item, readEvent: receipt } : item;
-      });
+      // The reading and what it logs are one publication: the entries whose receipts
+      // it holds stop drawing from the gesture as the log starts drawing them.
+      const { unresolved } = transition(
+        "log",
+        byAttempt(authoritative.browser.receipts),
+      );
       // A capture can add message bodies without changing the shown document.
       // Retain its explicit identity and share fields the publisher already owns.
       const capture = <T>(value: T, standing: unknown): T =>
@@ -898,71 +986,58 @@ export function createSemanticApplication({
             thread,
             message: isMessageEvent(event) ? thread : null,
             undoTarget: undoTarget?.event.attempt ?? null,
-            answered: false,
-            rejected: false,
-            readEvent: null,
-            presented: false,
+            state: "sending",
+            admitted: null,
           },
         ],
       });
       return entry(event.attempt);
     },
-    remove(attempts: Set<string>) {
+    // The POST accepted `attempt` as the log's `accepted`.
+    accept(attempt: string, accepted: Event) {
+      if (!entry(attempt)) return;
+      const { unresolved } = transition("accept", new Map([[attempt, accepted]]));
+      publish({ unresolved });
+    },
+    // The POST refused `attempt`, or it can no longer be sent. What depends on it goes
+    // with it: an undo of it, and a reply to its message. Returns those attempts.
+    refuse(attempt: string) {
+      const refused = entry(attempt);
+      if (!refused) return [];
+      const dependents = publisher
+        .read()
+        .unresolved.filter(
+          (item) =>
+            item.undoTarget === attempt ||
+            (refused.message?.id && item.event.parent === refused.message.id),
+        )
+        .map((item) => item.event.attempt);
+      const { unresolved } = transition("refuse", new Map([[attempt, null]]));
+      publish({
+        unresolved: unresolved.filter(
+          (item) => !dependents.includes(item.event.attempt),
+        ),
+      });
+      return dependents;
+    },
+    // A document pass carrying these receipts has run. Returns the attempts that left.
+    present(receipts: Event[]) {
+      const { unresolved, left } = transition("present", byAttempt(receipts));
+      publish({ unresolved });
+      return left;
+    },
+    // The entries `release` would retire now, in ledger order.
+    releasable: () =>
+      publisher.read().unresolved.filter((item) => RELEASABLE.has(item.state)),
+    // Retire those of `attempts` still in a releasable state.
+    release(attempts: Set<string>) {
       return publish({
         unresolved: publisher
           .read()
-          .unresolved.filter((item) => !attempts.has(item.event.attempt)),
-      });
-    },
-    accept(attempt: string, accepted: Event) {
-      const item = entry(attempt);
-      if (!item) return;
-      if (item.presented && item.event.kind !== "action") {
-        this.remove(new Set([attempt]));
-        return;
-      }
-      update(attempt, (item) => ({
-        ...item,
-        answered: true,
-        acceptedId: accepted?.id ?? null,
-      }));
-    },
-    reject(attempt: string) {
-      const rejected = entry(attempt);
-      if (!rejected) return [];
-      const removed = new Set<string>();
-      for (const item of publisher.read().unresolved)
-        if (
-          item.undoTarget === attempt ||
-          (rejected.message?.id && item.event.parent === rejected.message.id)
-        )
-          removed.add(item.event.attempt);
-      publish({
-        unresolved: publisher
-          .read()
-          .unresolved.filter((item) => !removed.has(item.event.attempt))
-          .map((item) =>
-            item.event.attempt === attempt
-              ? { ...item, answered: true, acceptedId: null, rejected: true }
-              : item,
+          .unresolved.filter(
+            (item) => !(attempts.has(item.event.attempt) && RELEASABLE.has(item.state)),
           ),
       });
-      return [...removed];
-    },
-    accountPresented(receipts: Event[]) {
-      const byAttempt = new Map(receipts.map((receipt) => [receipt.attempt, receipt]));
-      const removed: string[] = [];
-      const unresolved = publisher.read().unresolved.flatMap((item) => {
-        const receipt = byAttempt.get(item.event.attempt);
-        if (!receipt) return [item];
-        if (item.answered && item.event.kind !== "action") {
-          removed.push(item.event.attempt);
-          return [];
-        }
-        return [{ ...item, readEvent: receipt, presented: true }];
-      });
-      publish({ unresolved });
-      return removed;
     },
     nameParent(attempt: string, receipts: Event[]) {
       const item = entry(attempt);
@@ -970,7 +1045,7 @@ export function createSemanticApplication({
       if (typeof parent !== "string" || !parent.startsWith(PENDING)) return;
       const parentAttempt = parent.slice(PENDING.length);
       const named =
-        entry(parentAttempt)?.acceptedId ??
+        entry(parentAttempt)?.admitted?.id ??
         receipts.find((receipt) => receipt.attempt === parentAttempt)?.id;
       if (named)
         update(attempt, (item) => ({
@@ -983,7 +1058,7 @@ export function createSemanticApplication({
       const item = entry(attempt);
       if (item?.event.kind !== "undo" || !item.undoTarget) return true;
       const named =
-        entry(item.undoTarget)?.acceptedId ??
+        entry(item.undoTarget)?.admitted?.id ??
         receipts.find((receipt) => receipt.attempt === item.undoTarget)?.id;
       if (!named) return false;
       update(attempt, (item) => ({ ...item, event: { ...item.event, undoes: named } }));

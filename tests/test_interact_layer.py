@@ -272,7 +272,7 @@ def test_wt_merge_runs_every_npm_gate_ci_runs():
     """Each npm gate CI runs, the direct landing path runs in the same directory.
 
     Neither the suite nor pre-commit reaches the TypeScript under `worker/src/` and
-    `scripts/browser/`, so a `wt merge` that skipped one of their gates would land a
+    `build/browser/`, so a `wt merge` that skipped one of their gates would land a
     red main that a pull request would have caught. A step's `working-directory`
     becomes `--prefix` in the hook, which runs from the root: npm's bare `test` in
     `worker/` is `npm test --prefix worker` there. `npm ci` installs rather than gates.
@@ -773,7 +773,7 @@ def test_a_run_keeps_its_temporary_tree_out_of_the_candidate_payload(tmp_path):
 def test_the_mcp_probe_writes_its_evidence_outside_the_candidate_payload():
     """A developer tool's generated evidence is not something a host installs.
 
-    `scripts/mcp-app/run-direct-probe.sh` wrote each run's screenshots and logs to
+    `notes/mcp-apps/probe/run-direct-probe.sh` wrote each run's screenshots and logs to
     `notes/mcp-apps/experiments/<number>/results/`, inside the tracked tree, so every
     probe grew what a host copies by up to a megabyte that no install reads — 47
     result directories and 6.5M of the payload by the time it was measured. The rule
@@ -782,7 +782,7 @@ def test_the_mcp_probe_writes_its_evidence_outside_the_candidate_payload():
     assignment is what holds it. Read the directory off the script rather than
     naming it twice, then write where a run writes and ask the payload.
     """
-    runner = PLUGIN_ROOT / "scripts" / "mcp-app" / "run-direct-probe.sh"
+    runner = PLUGIN_ROOT / "notes" / "mcp-apps" / "probe" / "run-direct-probe.sh"
     assignment = re.search(
         r'^results="\$repo/(.+)"$', runner.read_text(encoding="utf-8"), re.MULTILINE
     )
@@ -809,7 +809,7 @@ def test_the_mcp_probe_writes_its_evidence_outside_the_candidate_payload():
 def test_every_tracked_experiment_screenshot_is_named_by_its_written_up_result():
     """The archive keeps the screenshots its prose reads, and no others.
 
-    The probe's evidence is scratch, and `scripts/mcp-app/README.md` says what a
+    The probe's evidence is scratch, and `notes/mcp-apps/probe/README.md` says what a
     maintainer copies back out of it: "a screenshot earns its megabyte only where
     the prose points at it." Nothing held that rule over what was already tracked,
     so the archive carried a re-render of the same fixture for each run of a chain

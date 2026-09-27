@@ -99,10 +99,7 @@ export function foldProjection({
 
   for (const entry of pendingEntries) {
     if (entry.kind === "undo") {
-      const targetId =
-        entry.targetEntry?.acceptedId ??
-        entry.targetEntry?.readEvent?.id ??
-        entry.target.e.id;
+      const targetId = entry.targetId ?? entry.target.e.id;
       const target = classified.get(targetId) ?? entry.target;
       withdrawn.add(targetId);
       pendingWithdrawals.set(targetId, target);

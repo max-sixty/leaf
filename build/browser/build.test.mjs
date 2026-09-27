@@ -9,7 +9,7 @@ import { createApplicationPublisher } from "./snapshot.ts";
 
 const outputs = await buildOutputs();
 const outputRoot = "skills/leaf/assets/vendor";
-const diagnosticsRoot = "scripts/browser/generated";
+const diagnosticsRoot = "build/browser/generated";
 
 test("locked source reproduces the complete committed output", async () => {
   const rebuilt = await buildOutputs();

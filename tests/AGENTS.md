@@ -51,7 +51,7 @@ launcher itself is the subject.
 File-side fixtures live in `interact_support.py`, browser fixtures in
 `render_harness.py`, reusable browser cases in `render_cases_*.py`.
 `tests/runtime/*.test.mjs` holds what one runtime module decides on its own, in the
-document `tests/runtime/dom.mjs` puts up; `scripts/browser/application.test.mjs` owns
+document `tests/runtime/dom.mjs` puts up; `build/browser/application.test.mjs` owns
 the publisher's composition of those folds. Both build served threads and workflows
 with `served.mjs` from what `served_records.py` folds through the server: a record
 that carries every field the server sends, with only the fields a case is about

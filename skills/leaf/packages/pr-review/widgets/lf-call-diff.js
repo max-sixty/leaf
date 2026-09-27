@@ -4,6 +4,8 @@
  * grammar and projects each row as commentable evidence. */
 import {
   announce,
+  el,
+  keepsText,
   navigateToDatum,
   offer,
   projectData,
@@ -11,16 +13,6 @@ import {
 } from "/runtime/widget-api.js";
 
 const LOCATION = /^(.*?)(?: {2,})(\S+:\d+(?:-\d+)?)$/;
-
-const setText = (element, value) => {
-  if (element.textContent !== value) element.textContent = value;
-};
-
-function make(tag, className) {
-  const element = document.createElement(tag);
-  element.className = className;
-  return element;
-}
 
 function parse(text) {
   const lines = text.split(/\r?\n/).filter((line) => line.trim());
@@ -86,10 +78,10 @@ function reconcileChildren(parent, wanted) {
 }
 
 function buildLine(tag = "div") {
-  const line = make(tag, "lf-call-line");
-  const marker = make("span", "lf-call-marker");
-  const body = make("span", "lf-call-body");
-  const location = make("a", "lf-call-location");
+  const line = el(tag, "lf-call-line");
+  const marker = el("span", "lf-call-marker");
+  const body = el("span", "lf-call-body");
+  const location = el("a", "lf-call-location");
   marker.setAttribute("aria-hidden", "true");
   line.append(marker, body, location);
   return line;
@@ -100,7 +92,7 @@ function updateDisclosureControl(owner) {
   const button = owner.querySelector(":scope > .lf-call-tools .lf-call-toggle");
   if (!button) return;
   const expand = groups.some((group) => !group.open);
-  setText(button, `${expand ? "Expand" : "Collapse"} all`);
+  keepsText(button, `${expand ? "Expand" : "Collapse"} all`);
   button.setAttribute(
     "aria-label",
     `${expand ? "Expand" : "Collapse"} all ${groups.length} call-tree ${groups.length === 1 ? "root" : "roots"}`,
@@ -108,12 +100,12 @@ function updateDisclosureControl(owner) {
 }
 
 function buildToolbar(owner) {
-  const toolbar = make("div", "lf-call-tools");
+  const toolbar = el("div", "lf-call-tools");
   // The counts this widget writes are an account of the tree, not words the page holds,
   // so `data-lf-gen` takes them out of the version diff and makes each its own passage
   // cell — the marker `lf-diff` puts on its own injected stat. It does not stop a drag
   // quoting them: that is `.lf-ui`, which `lf-diff` adds beside it on its line numbers.
-  const summary = make("p", "lf-call-summary");
+  const summary = el("p", "lf-call-summary");
   summary.dataset.lfGen = "1";
   // `offer`, not a bare button: the disclosure control is chrome this widget injected,
   // and `offer` gives it the press markers the theme and the keyboard read.
@@ -130,10 +122,10 @@ function buildToolbar(owner) {
 }
 
 function buildGroup(owner, key, open) {
-  const group = make("details", "lf-call-group");
+  const group = el("details", "lf-call-group");
   group.open = open;
   const summary = buildLine("summary");
-  const body = make("div", "lf-call-group-body");
+  const body = el("div", "lf-call-group-body");
   group.dataset.callGroup = key;
   summary.classList.add("lf-call-group-summary");
   group.append(summary, body);
@@ -179,12 +171,12 @@ function renderLine(record, prior, owner) {
   line.dataset.status = record.status;
   line.toggleAttribute("data-root", record.root);
   line.toggleAttribute("data-meta", record.meta);
-  setText(
+  keepsText(
     marker,
     record.status === "added" ? "+" : record.status === "removed" ? "−" : " ",
   );
-  setText(body, record.body);
-  setText(location, record.location);
+  keepsText(body, record.body);
+  keepsText(location, record.location);
   location.hidden = !record.location;
   // The header row names no location, so its anchor is hidden — and an `href` on a
   // hidden anchor is a way in that leads nowhere. Worse, `reachScrollers` reads a
@@ -206,9 +198,9 @@ function renderLine(record, prior, owner) {
 }
 
 function renderMessage(prior, message, className = "lf-call-missing") {
-  const line = prior ?? make("div", "lf-call-line lf-call-missing");
+  const line = prior ?? el("div", "lf-call-line lf-call-missing");
   line.className = `lf-call-line ${className}`;
-  setText(line, message);
+  keepsText(line, message);
   return line;
 }
 
@@ -274,7 +266,7 @@ customElements.define(
       const roots = records.filter((record) => record.root);
       const added = dataRows.filter((record) => record.status === "added").length;
       const removed = dataRows.filter((record) => record.status === "removed").length;
-      setText(
+      keepsText(
         summary,
         `${roots.length} changed ${roots.length === 1 ? "root" : "roots"} · ${added} added · ${removed} removed · ${dataRows.length} items`,
       );
@@ -331,11 +323,11 @@ customElements.define(
         const rootNode = nodesByKey.get(root.key);
         let count = rootNode.querySelector(".lf-call-group-count");
         if (!count) {
-          count = make("span", "lf-call-group-count");
+          count = el("span", "lf-call-group-count");
           count.dataset.lfGen = "1";
           rootNode.append(count);
         }
-        setText(count, groupLabel(groupRecords));
+        keepsText(count, groupLabel(groupRecords));
         reconcileChildren(
           parts.body,
           groupRecords

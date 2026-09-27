@@ -31,6 +31,7 @@
  * of this module's own. */
 import {
   ago,
+  keepsText,
   measure,
   offer,
   once,
@@ -121,7 +122,7 @@ function sayDoing(row, text) {
     cell = word("lf-doing", text);
     row.prepend(cell);
   }
-  if (cell.textContent !== text) cell.textContent = text;
+  keepsText(cell, text);
 }
 
 /* One cell of the row's tail: written where the words changed, created before `before`
@@ -136,7 +137,7 @@ function say(row, cls, text, before) {
     cell = word(cls, text);
     row.insertBefore(cell, before ? row.querySelector(`:scope > .${before}`) : null);
   }
-  if (cell.textContent !== text) cell.textContent = text;
+  keepsText(cell, text);
 }
 
 /* The state, in the gutter every row shares. A word rather than a dot: a tree's marker

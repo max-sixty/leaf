@@ -42,6 +42,7 @@ import {
   openThread,
   relabel,
   watchHistory,
+  keepsText,
 } from "/runtime/widget-api.js";
 
 const NAME = 60;
@@ -283,8 +284,7 @@ customElements.define(
         }
         // Read synchronously, so the shared clock repaints this reading when it turns.
         const time = item.querySelector(".lf-activity-time");
-        const when = ago(row.ts);
-        if (time.textContent !== when) time.textContent = when;
+        keepsText(time, ago(row.ts));
         if (item !== next) this.#list.insertBefore(item, next);
         else next = next.nextElementSibling;
       }

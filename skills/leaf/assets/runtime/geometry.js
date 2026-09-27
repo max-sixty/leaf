@@ -4,14 +4,14 @@
 import { sizeObserver } from "./rendering.js";
 import { setRuntimeRootStyle } from "./root-state.js";
 import { uiInside, under, upFrom } from "./shadow.js";
-import { overlaps, overlapsAcross } from "./rect.js";
+import { overlaps, overlapsAcross, union } from "./rect.js";
 
 /* Shared readings of the boxes the page actually shows.
 
    `shownBox` returns an element's own box or the union of the boxes its
    `display: contents` descendants paint. `shownParts` returns the visible elements on
-   which an outline can be drawn. `shownRect` clips the result through scrolling
-   ancestors' visible bands (less the stuck covers over their edges) and the viewport,
+   which an outline can be drawn, and `shownExtent` the box they cover together.
+   `shownRect` clips an element's `shownBox` through scrolling ancestors' visible bands (less the stuck covers over their edges) and the viewport,
    stopping ancestor clipping at a fixed-position box, then takes away what a declared
    occluder stands over (`declareOccluder`); it is the one reading of whether something
    is on screen.
@@ -21,6 +21,8 @@ import { overlaps, overlapsAcross } from "./rect.js";
 
    - `shownBox` for travel, bounds, and reading-position landmarks;
    - `shownParts` for Ask rings and element-anchor outlines;
+   - `shownExtent` for what stands beside a target's parts: a margin row, the
+     response field's room;
    - `shownRect` for visible placement of floating chrome and key badges;
    - `clippedRect` for an element's box the caller has adjusted;
    - `clippedContents` when the subject has no element box of its own.
@@ -405,6 +407,11 @@ export function shownParts(el) {
     .filter((child) => !uiInside(child, el))
     .flatMap((child) => shownParts(child));
 }
+// The box an element's shown parts cover together: a mark hung on the element stands at
+// its corner, so a comment on one shape of a drawing stands on that shape rather than at
+// the drawing's edge. An element with no shown part has none.
+export const shownExtent = (el) =>
+  union(shownParts(el).map((part) => part.getBoundingClientRect()));
 // An item's bounds, held to what the page shows of them: the rect a box in the chrome's
 // layer is drawn from, for the aim's box and the legend's alike. The layer is one no
 // ancestor's clip can reach — that is the point of it — so the box owes the clips an

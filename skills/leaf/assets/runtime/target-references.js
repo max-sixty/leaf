@@ -12,10 +12,8 @@
  * `detached` means no candidate remains and `ambiguous` means the current DOM cannot
  * prove which candidate owns the reference. Callers must not choose one in either
  * unresolved state. */
-import { elementFromPointAcross } from "./passages.js";
+import { elementFromPointAcross, GENERATED } from "./passages.js";
 import { under, upFrom } from "./shadow.js";
-
-const GENERATED = ".lf-ui, [data-lf-gen]";
 
 const isElement = (value) => value?.nodeType === Node.ELEMENT_NODE;
 

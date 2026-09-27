@@ -100,6 +100,8 @@
    `aria-keyshortcuts` and exposes the complete route through its title and the keyboard
    command reference. Call `paintKeys` when a state change moves row liveness so this projection
    and the visible surfaces change together. */
+import { coarsePointer } from "../pointer.js";
+
 // Which platform's spelling, and which modifier is the sequence's. Up here rather than beside
 // the text inputs because the spelling table below is the first thing that needs it.
 const MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
@@ -159,7 +161,7 @@ export const spell = (binding) => {
 // A soft keyboard has no Shift key with which to make a newline. A coarse pointer
 // is the available signal for that surface: leave its Return native, while a
 // fine-pointer keyboard can submit with Return and edit with Shift+Return.
-const softKeyboard = () => matchMedia("(pointer: coarse)").matches;
+const softKeyboard = () => coarsePointer.matches;
 export const submitBindings = () =>
   softKeyboard() ? ["Mod+Enter"] : ["Enter", "Mod+Enter"];
 export const submitLabel = () => spell(submitBindings()[0]);

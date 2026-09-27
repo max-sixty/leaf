@@ -175,12 +175,16 @@ def attribute(trace: Path, profile: Profile) -> dict:
     ]
     start = keys[-1] if keys else spans[0]["ts"]
 
+    # A task or a render step can straddle either end; only its part inside counts.
+    inside = lambda e: min(e["ts"] + e.get("dur", 0), end) - max(e["ts"], start)
     tasks = [
-        (e["ts"] - start, e["dur"], profile.dominant(e["ts"], e["ts"] + e["dur"]))
+        (
+            max(e["ts"], start) - start,
+            inside(e),
+            profile.dominant(max(e["ts"], start), min(e["ts"] + e["dur"], end)),
+        )
         for e in spans
-        if e["name"] in TASKS
-        and e["ts"] + e["dur"] > start
-        and e["dur"] >= TASK_MIN_MS * 1000
+        if e["name"] in TASKS and inside(e) >= TASK_MIN_MS * 1000
     ]
     render, forced, recalcs = Counter(), Counter(), Counter()
     open_spans = []  # (name, end) of the spans enclosing the current one
@@ -193,9 +197,9 @@ def attribute(trace: Path, profile: Profile) -> dict:
             and e["ts"] >= start
             and not any(RENDER.get(n) == kind for n, _ in open_spans)
         ):
-            render[kind] += e.get("dur", 0)
+            render[kind] += inside(e)
             if any(n in SCRIPT for n, _ in open_spans):
-                forced[kind] += e.get("dur", 0)
+                forced[kind] += inside(e)
                 if kind == "style":
                     args = e.get("args", {})
                     frames = (args.get("beginData") or {}).get("stackTrace") or []

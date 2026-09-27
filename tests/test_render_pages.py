@@ -1996,6 +1996,59 @@ def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
     assert root_overflow(page) == 0
 
 
+def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):
+    """The breakout rule widens a block by negative margins, which an auto-width box
+    fills and a box with a width of its own does not. A sample is a table box with a
+    stated width, so `data-width="available"` moved it left by the margin and left it
+    at the column's width. Each wide sample is measured against a plain block given the
+    same width, which is where the room ends. A sample with no width of its own is the
+    control for the inherited surplus: in a list item inside a wide section it takes the
+    item's width, not the item's width plus the section's surplus."""
+    source = leaf_page(
+        "Sample widths",
+        """
+<h1 id="title">Sample widths</h1>
+<p id="prose">Standard prose.</p>
+<div id="block-wide" data-width="wide">A wide block.</div>
+<lf-sample id="sample-wide" data-width="wide"><p>A wide sample.</p></lf-sample>
+<div id="block-available" data-width="available">An available block.</div>
+<lf-sample id="sample-available" data-width="available"><p>An available sample.</p></lf-sample>
+<lf-sample id="sample-column" data-width="column"><p>A column sample.</p></lf-sample>
+<lf-sample id="sample-plain"><p>A plain sample.</p></lf-sample>
+<section data-width="wide"><ul><li id="item">
+  <p>A list item inside wide evidence.</p>
+  <lf-sample id="sample-nested"><p>A sample in that item.</p></lf-sample>
+</li></ul></section>
+""",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    at = page.evaluate("""() => Object.fromEntries(
+      [...document.querySelectorAll('main [id]')].map(el => {
+        const box = el.getBoundingClientRect();
+        return [el.id, {left: box.left, right: box.right, width: box.width}];
+      }))""")
+    assert at["block-available"]["width"] > at["block-wide"]["width"] > (
+        at["prose"]["width"] + 100
+    ), at
+    for width in ("wide", "available"):
+        sample, block = at[f"sample-{width}"], at[f"block-{width}"]
+        for edge in ("left", "right"):
+            assert sample[edge] == pytest.approx(block[edge], abs=1), (
+                f'a data-width="{width}" sample\'s {edge} edge is at '
+                f"{sample[edge]:.0f}px, the room's at {block[edge]:.0f}px"
+            )
+    for control in ("sample-column", "sample-plain"):
+        assert at[control]["width"] == pytest.approx(at["prose"]["width"], abs=1), (
+            control,
+            at,
+        )
+    assert at["sample-nested"]["width"] == pytest.approx(
+        at["item"]["width"], abs=1
+    ), at
+    assert root_overflow(page) == 0
+
+
 def test_paper_keeps_the_column(browser, serve):
     """Paper has no window to take room from: a printed page is the column's width,
     whatever the screen it was sent from was showing. The rule that grants the room is

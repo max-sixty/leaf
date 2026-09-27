@@ -16,7 +16,7 @@
    seat holds answers both, whichever owner built it. The climbs cross shadow roots,
    since a widget may draw a thread inside its own tree and still be scrolled by the
    page, and the box that scrolls a thread is the reading region's (`scrollerFor`). */
-import { landingBand, shownBox } from "../geometry.js";
+import { landingBand, shownBox, shownRect } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
 import { scrollBehavior } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
@@ -49,20 +49,10 @@ const landingRoom = (held) => {
   }
   return room;
 };
-// Whether any of the node shows through every box that scrolls it, the window last: a
-// node in view inside a bounded block the page has scrolled away is not on screen.
-const onScreen = (node) => {
-  let top = -Infinity;
-  let bottom = Infinity;
-  for (const scroller of scrollersOf(node)) {
-    const band = landingBand(scroller);
-    if (!band) continue;
-    top = Math.max(top, band.top);
-    bottom = Math.min(bottom, band.bottom);
-  }
-  const box = shownBox(node);
-  return box.bottom > top && box.top < bottom;
-};
+// Whether any of the node shows: through every box that clips it and the window, which
+// geometry.js answers once (`shownRect`). A node in view inside a bounded block the page
+// has scrolled away is not on screen.
+const onScreen = (node) => shownRect(node, new Map()) !== null;
 
 export const fitsWhole = (held) => shownBox(held).height <= landingRoom(held);
 // Keep a whole thread in view when it fits. A long thread reveals its reply

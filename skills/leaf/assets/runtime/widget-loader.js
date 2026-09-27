@@ -161,7 +161,7 @@ async function installDocument(scope) {
       descriptors: new Map([...prior.descriptors, ...descriptors.descriptors]),
     });
     commitWidgetDescriptors(descriptors);
-    watchExternalLinks(scope);
+    watchExternalLinks();
     await importWidgets(scope);
     await settle(presentation, scope, [scope], whenApplicationPresented);
   } finally {

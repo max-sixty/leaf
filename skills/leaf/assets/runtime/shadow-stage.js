@@ -20,7 +20,7 @@ import { watchDisclosures } from "./keyboard/disclosure.js";
 import { watchLayers } from "./keyboard/layer-stack.js";
 import { setChildren } from "./dom-children.js";
 import { watchPassageRoot } from "./passages.js";
-import { watchExternalLinks } from "./presentation.js";
+import { watchArrivalsIn } from "./arrivals.js";
 
 // A third-party stylesheet that arrives with an on-demand bundle belongs wherever that
 // bundle can draw: the document and every declared shadow stage. The vendored Web
@@ -70,9 +70,9 @@ export function shadowStage(host, nodes) {
   // Fragment hydration can add a sheet while the user uses an existing control.
   // Keep retained nodes connected, preserving their focus and widget lifecycle.
   setChildren(root, [style, ...nodes]);
-  // The page reading walks in here at the host's place in the string, and its observer
-  // does not cross the boundary on its own.
+  // The page reading walks in here at the host's place in the string, and no observer
+  // crosses the boundary on its own: the reading's and the arrivals' are told of it.
   watchPassageRoot(root);
-  watchExternalLinks(root);
+  watchArrivalsIn(root);
   return root;
 }

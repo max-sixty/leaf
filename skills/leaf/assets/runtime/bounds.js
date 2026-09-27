@@ -35,16 +35,21 @@
    document scrolls its listing under a caption that stays put. The outermost box
    declaring it is the scroller, and it is the region's body.
 
-   A block is held as it arrives in the document, whoever painted its bound: delivery
+   A block is held while it stands in the page, whoever painted its bound: delivery
    paints a page's, and a revision patched in arrives painted the same way, while
-   `markDeclared` paints a message's markup as the thread renders it. So one watch on
-   the document (`holdArrivingBounds`, started at boot) holds what the page opens with,
-   every node added since, and any element whose bound is painted or taken away in
-   place, and lets go of a block that leaves. Each held block is then watched on its
-   own, for what it holds and for its size. What is registered is what stands in the
-   document. */
+   `markDeclared` paints a message's markup as the thread renders it. So one watch
+   (`holdArrivingBounds` on arrivals.js, started at boot) holds what the page opens
+   with, every block added since in the document or a declared shadow root, and any
+   element whose bound is painted or taken away in place, and lets go of a block that
+   leaves. Each held block is then watched on its own, for what it holds and for its
+   size. What is registered is what stands in the page.
+
+   The watch starts before presentation because the first read it takes is the one the
+   user sees: an `end` log opens at its end, and a pin taken after the page presents
+   would show it at its top and then jump. */
 import { sizeObserver } from "./rendering.js";
-import { PAGE_PAINT_ATTRIBUTE, elementsIn } from "./presentation.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
+import { watchArrivals } from "./arrivals.js";
 import { authoredScope, pageDocument } from "./passages.js";
 import { compoundReadingRegionId, registerReadingRegion } from "./reading-regions.js";
 
@@ -147,29 +152,15 @@ function holdBlock(bounded) {
   return hold;
 }
 
-// Hold an element whose bound is painted, or let go of one whose bound was taken away.
-function holdAt(el) {
-  if (!holds.has(el) && el.matches(BOUNDED)) holds.set(el, holdBlock(el));
-  holds.get(el)?.sync();
-}
-
+// Hold every bounded block while it stands in the page (arrivals.js); `sync` answers
+// both ways, registering a block that stands and letting go of one that has left or lost
+// its bound.
 export function holdArrivingBounds() {
-  for (const bounded of elementsIn(document.body, BOUNDED)) holdAt(bounded);
-  new MutationObserver((records) => {
-    let removed = false;
-    for (const record of records) {
-      if (record.type === "attributes") holdAt(record.target);
-      removed ||= record.removedNodes.length > 0;
-      for (const node of record.addedNodes)
-        if (node.nodeType === Node.ELEMENT_NODE)
-          for (const bounded of elementsIn(node, BOUNDED)) holdAt(bounded);
-    }
-    if (removed)
-      for (const hold of registered) if (!hold.bounded.isConnected) hold.sync();
-  }).observe(document.body, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: [PAGE_PAINT_ATTRIBUTE.bound],
+  watchArrivals(BOUNDED, [PAGE_PAINT_ATTRIBUTE.bound], {
+    arrive: (el) => {
+      if (!holds.has(el)) holds.set(el, holdBlock(el));
+      holds.get(el).sync();
+    },
+    leave: (el) => holds.get(el)?.sync(),
   });
 }

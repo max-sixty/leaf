@@ -508,7 +508,9 @@ export function layoutMarginRows() {
   const page = anchorReading(main, PAGE_ANCHOR);
   const columnRect = main.getBoundingClientRect();
   const shell = shellRight();
-  const stands = (main.getAttribute("data-lf-margin") ?? "").split(" ").includes("rail");
+  const stands = (main.getAttribute("data-lf-margin") ?? "")
+    .split(" ")
+    .includes("rail");
   // Said once, for the chrome: where the markers are pins, the banner offers the Page
   // Map in their place (chrome.css).
   layer.root.toggleAttribute("data-lf-pins", !stands);

@@ -7613,9 +7613,9 @@ def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
     panel_settled(page)
     thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
     topic = thread.locator(".lf-thread-topic")
-    expect(topic).to_have_text("...")
-    expect(topic).to_have_attribute("aria-label", "Title pending")
-    dots = topic.locator(".lf-thread-pending-dot")
+    expect(topic).to_have_text("Generating title")
+    assert topic.evaluate("element => getComputedStyle(element).fontStyle") == "italic"
+    dots = topic.locator(".lf-thread-pending-dots > span")
     expect(dots).to_have_count(3)
     assert (
         dots.first.evaluate("element => getComputedStyle(element).animationName")

@@ -248,7 +248,7 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
         ("you", "2be2443f0bb6cc49fc86b52f340e6073", 2, "Workshop room photo"),
         ("resolved", "bab3cdfcfb8c02aacbb27da731de947a", 1, "Projector map"),
         ("summary", "9ee465bb3f9c1fa309ea9cb1767fa365", 3, "Afternoon workshop"),
-        ("overview", "72e031c5bf0d485ba9054628e09869d4", 3, "..."),
+        ("overview", "72e031c5bf0d485ba9054628e09869d4", 3, "Generating title"),
     ):
         button = page.locator(f'#bg-panel-presets [data-view="{view}"]')
         button.click()

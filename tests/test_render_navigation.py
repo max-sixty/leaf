@@ -2999,7 +2999,9 @@ def test_c_lands_where_its_badge_is_and_in_the_card_on_screen(browser, serve, ro
 
     The badge and the press read the same destination, and the card's being up is part
     of that destination rather than a second reading of where the user stands, so no
-    route may leave a card on screen whose reply `c` does not reach.
+    route may leave a card on screen whose reply `c` does not reach. The badge is read
+    where the user reads it, as a drawn key: the box's placeholder attribute is the
+    runtime's own record of the hint and says nothing about whether it shows.
     """
     page = open_page(
         browser,
@@ -3024,6 +3026,10 @@ def test_c_lands_where_its_badge_is_and_in_the_card_on_screen(browser, serve, ro
     card = page.locator(".lf-margin-preview")
     card_up = card.is_visible()
     assert box.evaluate("box => Boolean(box.closest('.lf-margin-preview'))") == card_up
+    if card_up:
+        expect(
+            badged.locator(".lf-compose-placeholder > .lf-key-badge")
+        ).to_be_visible()
     page.keyboard.press("c")
     rendered(page)
     assert box.evaluate("box => box === document.activeElement")
@@ -3774,7 +3780,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     browser, serve, reply_paragraphs
 ):
     """Pointer and keyboard arrival open one compact thread card. Enter or c
-    reveals its reply, and Escape returns through each layer. The Page Map fallback
+    enters its reply, and Escape returns through each layer. The Page Map fallback
     remains live at the same time: declaration order cannot move it ahead of the causal
     frame. The page mark follows both focus modes."""
     url = serve(
@@ -3817,8 +3823,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
 
     expect(thread).to_be_focused()
-    expect(reply).to_be_hidden()
-    expect(thread.get_by_role("button", name="Reply", exact=True)).to_be_visible()
+    expect(reply).to_be_visible()
     wait_standing(page, "bold text")
     assert "back to page" in shortcut_bar_text(page)
     page.keyboard.press("Enter")
@@ -5369,7 +5374,6 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     go_to_address(page, "Margin entry", "p1")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread .lf-page-thread")).to_be_focused()
-    expect(page.locator(".lf-margin-thread leaf-text").first).to_be_hidden()
     page.keyboard.press("Escape")  # onto the element the thread is about
     expect(page.locator("#p1")).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_be_visible()

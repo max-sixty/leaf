@@ -6,9 +6,9 @@
     "node": ">=22.18"
   },
   "scripts": {
-    "build:browser": "node scripts/browser/build.mjs",
-    "check:browser": "node scripts/browser/build.mjs --check",
-    "test:browser": "node --test scripts/browser/*.test.mjs",
+    "build:browser": "node build/browser/build.mjs",
+    "check:browser": "node build/browser/build.mjs --check",
+    "test:browser": "node --test build/browser/*.test.mjs",
     "test:runtime": "node --import ./tests/runtime/dom.mjs --test tests/runtime/*.test.mjs"
   },
   "devDependencies": {

@@ -723,11 +723,11 @@ export default [
     },
   },
   {
-    files: ["scripts/vendor-src/pierre/*.mjs"],
+    files: ["build/pierre/*.mjs"],
     rules: { "no-undef": "error" },
   },
   {
-    files: ["scripts/vendor-src/pierre/build.mjs"],
+    files: ["build/pierre/build.mjs"],
     languageOptions: { globals: { process: "readonly" } },
   },
   {

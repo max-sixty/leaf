@@ -193,11 +193,11 @@ and its chrome coordinate.
 
 ### Shared definitions
 
-- **Re-address resource references in one pass.** Capture, delivery and export share
-  one CSS reference walker (#1217), but `http.py` still rescopes delivered bytes with
-  regexes, `media.js` spells a constant in pieces to get past that pass, and a page's
-  head is composed in three places. One `rebase_document(source, address)`, with an
-  import map for layer JavaScript, would delete the regex scopers.
+- **Compose a delivered page's head once.** `http.py` `runtime_document` and
+  `supervised_document` and `exporting.py` `export_document` each prepend the prelude,
+  policy, runtime script, sheets, theme and entry at the head's open, and the MCP ready
+  signal and a specimen's `<html>`/`<body>` marks are spliced in by regex after. One
+  composer taking each host's differences as data would replace all five.
 - **Ask once whether the page has caught up with a reading.** `tests/render_harness.py`
   `told()` waits for `data-lf-reading` to match the server's reading, and the `data`
   and `log` stages of the runtime's `pageReadiness` (#1250) answer the same question.

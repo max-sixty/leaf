@@ -37,8 +37,8 @@ def document_for(page: Path, bundle: Path, service: PageStateService) -> str:
     icon = b64encode((page / "icon.svg").read_bytes()).decode()
     sheets = delivery_sheets(
         artifact.resources,
-        lambda css, _path: css.replace(
-            'url("/icon.svg")', f'url("data:image/svg+xml;base64,{icon}")'
+        lambda path: (
+            f"data:image/svg+xml;base64,{icon}" if path == "/icon.svg" else path
         ),
     )
     document, count = re.subn(

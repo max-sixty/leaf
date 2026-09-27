@@ -4852,9 +4852,6 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # the focus a native label projects only as the state that rings the box.
         "lf-fab-input",
         "lf-focus",
-        # The theme gives the margin toolbar no height of its own; the scoped rule only
-        # reads the pins it marks to offer the Page Map in the banner.
-        "lf-margin-toolbar",
         # Active buttons share the theme's existing .lf-btn.on state.
         "on",
         # Primary buttons keep the authored theme's accent action face when they

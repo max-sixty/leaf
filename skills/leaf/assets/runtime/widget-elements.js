@@ -561,7 +561,8 @@ export function reserve(control, labels) {
 // The anchored response bar has one control grammar of its own. Its buttons share the
 // field's type, border, height, and floating elevation without claiming to be target-
 // margin entries. The repeated anatomy lets Comment, Suggest, and package reactions
-// change vocabulary without each inventing a button shape.
+// change vocabulary without each inventing a button shape. Restating the anatomy a
+// control already wears writes nothing, the `keeps` rule above.
 export function responseAction(
   control,
   { glyph = null, icon = null, label, behavior = "action", collapse = false },
@@ -569,11 +570,22 @@ export function responseAction(
   if (Boolean(String(glyph ?? "").trim()) === Boolean(icon))
     throw new TypeError("A response action needs exactly one glyph or icon");
   control.classList.add("lf-response-control", "lf-response-action");
-  control.dataset.lfBehavior = behavior;
+  keeps(control, "data-lf-behavior", behavior);
   control.toggleAttribute("data-lf-collapse", collapse);
   if (behavior !== "action" && !control.hasAttribute("aria-expanded"))
     control.setAttribute("aria-expanded", "false");
   if (behavior === "action") control.removeAttribute("aria-expanded");
+  if (!control.hasAttribute("aria-label")) control.setAttribute("aria-label", label);
+  const [shownGlyph, , shownLabel] = control.children;
+  if (
+    shownLabel?.matches(".lf-response-action-label") &&
+    shownLabel.textContent === label &&
+    (icon
+      ? shownGlyph.dataset.lfIcon === icon
+      : shownGlyph.matches(".lf-response-action-glyph") &&
+        shownGlyph.textContent === glyph)
+  )
+    return control;
   const glyphNode = icon ? iconElement(icon) : document.createElement("span");
   if (!icon) {
     glyphNode.className = "lf-response-action-glyph";
@@ -588,6 +600,5 @@ export function responseAction(
   labelNode.className = "lf-response-action-label";
   labelNode.textContent = label;
   control.replaceChildren(glyphNode, spaceNode, labelNode);
-  if (!control.hasAttribute("aria-label")) control.setAttribute("aria-label", label);
   return control;
 }

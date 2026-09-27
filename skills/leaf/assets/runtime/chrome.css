@@ -1594,10 +1594,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* The banner offers the whole Page Map wherever the user has no rail to find markers
      in: where the margin pass stood them as pins, small targets over the content
      (margin-layout.js), and where the thread panel stands over a margin row
-     (chrome-layout.js). A browser that cannot anchor draws no markers at all. */
+     (chrome-layout.js). A browser that cannot anchor draws no markers at all. Both
+     owners say it on the chrome root, since a `:has()` there would restyle the whole
+     chrome on every write inside it. */
   @media screen {
-    :scope:is([data-lf-rail-covered],
-        :has(> .lf-margin-projection > .lf-margin-toolbar[data-lf-pins]))
+    :scope:is([data-lf-rail-covered], [data-lf-pins])
       .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
   }
   @supports not (anchor-name: --lf-page) {

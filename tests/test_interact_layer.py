@@ -1369,6 +1369,31 @@ def test_no_has_rule_restyles_the_whole_document():
     )
 
 
+def test_no_has_rule_stands_on_the_chrome_root():
+    """Chrome re-reads a `:has()` on every insertion below the element it stands on, and
+    one on the chrome root answered by restyling the whole chrome. The Page Map toggle's
+    `:scope:has(> .lf-margin-projection > …[data-lf-pins])` did that for every text node
+    the runtime wrote anywhere in the chrome: each geometry read after a write paid about
+    4 ms for 800 elements on the corpus page, several times per comment sent. Say such a
+    condition as an attribute on the root, as `data-lf-rail-covered` is."""
+    root = re.compile(r"^(:scope|\.lf-chrome)(?![-\w])")
+    read = 0
+    rooted = []
+    for _conditions, _enclosing, selector, _declarations in _style_rules(
+        schema_model.ASSETS / "runtime" / "chrome.css"
+    ):
+        read += 1
+        if any(
+            root.match(compound) and ":has(" in compound
+            for compound in _split_top(selector, " >+~")
+        ):
+            rooted.append(selector)
+    assert read, "no rules read from chrome.css — the reading is broken"
+    assert not rooted, "a :has() on the chrome root restyles the whole chrome:\n" + (
+        "\n".join(rooted)
+    )
+
+
 def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
     """chrome.css is adopted, so it cascades after theme.css and after every package
     theme concatenated onto it. One selector dressed for the same property in both

@@ -101,7 +101,6 @@ def _claim_updates(claims: list, threads: dict, events: list) -> list[dict]:
             ),
         }
         for claim in claims
-        if claim.get("scope") != "interaction"
     ]
 
 

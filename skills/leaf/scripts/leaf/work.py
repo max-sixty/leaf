@@ -4,11 +4,12 @@ import sys
 from pathlib import Path
 
 from .asks import quoted_in
-from .events import build_threads, note_settlements, unanswered_agent_turn
+from .events import build_threads, note_settlements
 from .files import latest_revision
 from .passages import enclosing_of, page_passages
 from .projection import (
     StateProjection,
+    frozen_thread_reading,
     page_reading,
     retirement_outcomes,
     rewritten_bodies,
@@ -98,11 +99,18 @@ def widget_work_without_targets(
 
 
 def work_subject(page_dir: Path, events: list, target: str) -> dict:
-    """Resolve one bare CLI id to a typed, locally renderable work subject."""
+    """Resolve one bare CLI id to a typed, locally renderable work subject.
+
+    Any id a delivery names as an event's address resolves: a page widget, or a
+    thread by its root, by any message in it, or by a widget frozen into its
+    markup. A thread claim also names the newest input the thread holds, a
+    message or a move on its frozen widgets, and that exact input reads Working
+    (`workflows.canonical_workflows`)."""
     widget = None
     widget_revision = None
     widget_projection = None
     registry = None
+    page = None
     html = None
     spk: dict = {}
     widget_revision = latest_revision(page_dir)
@@ -122,7 +130,16 @@ def work_subject(page_dir: Path, events: list, target: str) -> dict:
     # against no page here bought nothing and could answer differently from
     # `page state` for the same thread.
     threads = build_threads(events, enclosing_of(spk))
-    thread = threads.get(target)
+    thread_of = {
+        message["id"]: root
+        for root, thread in threads.items()
+        for message in thread["msgs"]
+    }
+    frozen = frozen_thread_reading(events, registry) if registry is not None else None
+    thread_id = thread_of.get(target)
+    if thread_id is None and frozen is not None:
+        thread_id = frozen.thread_by_widget.get(target)
+    thread = threads.get(thread_id) if thread_id is not None else None
 
     if thread is not None and widget is not None:
         sys.exit(
@@ -135,11 +152,25 @@ def work_subject(page_dir: Path, events: list, target: str) -> dict:
                 f"{target} is a resolved comment thread; reopen it before claiming work"
             )
         work = {
-            "subject": {"kind": "thread", "id": target},
+            "subject": {"kind": "thread", "id": thread_id},
             "after": events[-1]["seq"] if events else 0,
         }
-        if address := unanswered_agent_turn(thread):
-            work["event"] = address["id"]
+        widgets = frozen.thread_by_widget if frozen is not None else {}
+
+        def holder(subject: dict) -> str | None:
+            if subject["kind"] == "thread":
+                return subject["id"]
+            return widgets.get(subject["id"])
+
+        held = [
+            item
+            for item in canonical_workflows(
+                [], threads, frozen, page=page, events=events
+            )
+            if item["next_actor"] == "agent" and holder(item["subject"]) == thread_id
+        ]
+        if held:
+            work["event"] = max(held, key=lambda item: item["seq"])["input"]
         return work
     if widget is not None:
         assert (

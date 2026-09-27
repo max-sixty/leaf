@@ -132,7 +132,6 @@ def test_agent_interaction_command_help(regtest):
     outputs = []
     for command in (
         "wait",
-        "delivery claim",
         "delivery read",
         "page state",
         "thread read",

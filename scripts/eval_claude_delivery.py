@@ -94,7 +94,6 @@ from pathlib import Path
 
 import click
 from eval_harness import build_arm, claude_child, run_leaf, scratch
-from leaf.event_log import read_events
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / ".tmp" / "eval-claude-delivery"
@@ -392,7 +391,9 @@ def run_session(arm: Path, case: str, run: Path) -> None:
 
 def score(run: Path) -> list[dict]:
     """Read one run's page log and stream into one reading per comment it was sent."""
-    events = read_events(run)
+    events = [
+        json.loads(line) for line in (run / "events.jsonl").read_text().splitlines()
+    ]
     stream = [
         json.loads(line) for line in (run / "stream.jsonl").read_text().splitlines()
     ]

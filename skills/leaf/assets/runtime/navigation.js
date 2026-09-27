@@ -137,10 +137,9 @@ export function placeThreadEdge(thread, edge) {
 // The page the step measures is the one the user can see: the scroller's landing band.
 // The document's box lends its top edge to the fixed banner and its bottom edge to the
 // foot band, and its scroll-padding — read exactly so by scrollToElement — is where the
-// box already says how much of itself stands covered. The thread list says the same
-// thing about itself: a stuck run heading covers its top, so a reading-page step there is
-// 60% of what is left rather than 60% of the box, which is the answer the user wants — a
-// step that landed them under the heading would be a step onto words they cannot read.
+// box already says how much of itself stands covered, so a reading-page step is 60% of
+// what is left rather than 60% of the box, which is the answer the user wants — a step
+// that landed them under the banner would be a step onto words they cannot read.
 const SCROLL_MS = 140;
 let glide = null; // {box, goal, wrote, raf}
 // The glide's claim on the box: it holds only while the box is where the glide last

@@ -15,7 +15,6 @@ import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { wireReply } from "./replies.js";
 import { settleThread } from "./folding.js";
-import { groupFor, pageOutline } from "./placement.js";
 import { iconTemplate } from "../icons.js";
 import { loadDraft } from "../drafts.js";
 import { SAY_BOX } from "./selectors.js";
@@ -28,20 +27,9 @@ import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
 import { scrollThreadIntoView } from "./reply-landing.js";
 
-function quoteReading(thread, anchors, outline) {
-  const group = groupFor(thread, outline, anchors.placedAt);
+function quoteReading(thread, anchors) {
   const placement = anchors.placedAt(thread.id);
-  const segments = placement?.segments ?? [];
-  const label =
-    group.target &&
-    segments.length &&
-    segments.every(({ node }) => group.target.contains(node))
-      ? ""
-      : anchorLabel(
-          thread.detached_from ?? thread.anchor,
-          thread.root.about,
-          group.target,
-        );
+  const label = anchorLabel(thread.detached_from ?? thread.anchor, thread.root.about);
   if (!label) return null;
   const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);
   const found =
@@ -68,7 +56,7 @@ export function threadReading(
   thread,
   surface,
   commands,
-  { visible = true, grow = false, outline = null, search = null },
+  { visible = true, grow = false, search = null },
 ) {
   const panel = surface === "panel";
   const resolved = Boolean(thread.resolved);
@@ -96,9 +84,7 @@ export function threadReading(
     grow,
     folding: false,
     search,
-    quote: panel
-      ? quoteReading(thread, commands.anchors, outline ?? pageOutline())
-      : null,
+    quote: panel ? quoteReading(thread, commands.anchors) : null,
     resolved,
     attention: threadAttention(thread),
     resolvedBy:

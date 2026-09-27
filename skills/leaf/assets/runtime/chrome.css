@@ -46,7 +46,7 @@
    sticky offset pins one, so a sticky row whose controls ring outward keeps the room on
    its pinned side as its own padding; the margin card's reply is that case. A box whose
    own edge touches something that paints draws its ring inset instead, because nothing
-   outside it is free; a sticky run heading is that case with the scroll taken out of it.
+   outside it is free.
    A large composite region spends no ring room: it paints a quiet ground inside its own
    box. Where a module decides whether a compact control fits somewhere, the room is part
    of what has to fit; the suggestion row carries it as trailing padding so the fit
@@ -918,10 +918,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      available to land on, and it is read by the browser's scrollIntoView as well as
      by the runtime's own scrolling — the document declares its banner the same way
      (scroll-padding-top, above), and this list declared nothing, so every landing
-     was flush with the edge. Two things stand in the way here. A stuck run heading
-     covers the top: its height is the one number CSS cannot work out, since a long
-     heading wraps, so renderThreads measures the tallest and writes it here. And
-     the ring is drawn outside the box it names, so a control inside a thread scrolled
+     was flush with the edge. What stands in the way here is the ring: it is drawn
+     outside the box it names, so a control inside a thread scrolled
      exactly to either edge had its ring in the strip beyond it — cut at the bottom
      walking down, cut at the top and under the find row walking up. Gap plus width is the
      room it needs, and it is the layer's own number (theme.css) rather than one
@@ -931,11 +929,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-threads-frame { flex: 1; min-height: 0; display: grid; container-type: size; }
   .lf-threads-frame::after, .lf-threads { grid-area: 1 / 1; min-height: 0; }
   .lf-threads { overflow-y: auto; overscroll-behavior: contain; z-index: 0;
-    --lf-list-inset: 4px; padding: var(--lf-list-inset) 8px; --lf-block-frame: 1;
-    scroll-padding: calc(var(--lf-head-room, 0px) + var(--here-ring-room)) 0
-      var(--here-ring-room); }
-  /* An Escape rung lands on the list (general box → list). The list's pinned headings
-     and whichever thread crosses its viewport edge paint after the scrollport, so an
+    padding: 4px 8px; --lf-block-frame: 1;
+    scroll-padding: var(--here-ring-room) 0; }
+  /* An Escape rung lands on the list (general box → list). Whichever thread crosses
+     its viewport edge paints after the scrollport, so an
      outline on the list itself disappears under them. Draw the identical inset ring on
      a later pseudo-element: it shares the list's box, takes no pointer input, and stays
      above the scrolling contents. The list's zero layer is a stacking context, so a
@@ -947,38 +944,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     outline-offset: calc(-1 * var(--here-ring-w));
   }
   .lf-empty { color: var(--muted); padding: 18px 4px; }
-  /* Which part of the page the threads under it are about — the page's own heading,
-     said once over the run of threads that share it. Sticky, so the answer to "where
-     am I" is on screen for the whole run rather than only at its start: a list four
-     thousand pixels long is scrolled past its landmarks within one gesture. Opaque
-     (--card), because the threads pass underneath it.
-
-     The room above a heading is its own padding and never a margin, and the pin is
-     drawn back over the list's own inset. Both for one reason: a stuck box is held by
-     its margin edge inside the scroller's content, so a margin there — or the
-     container's padding — is a strip between the pin and the ink through which the
-     list scrolls in full view. The inset is read from where it is spent, so the two
-     numbers cannot drift apart.
-
-     Being pinned is its own class rather than an incidental property of a run
-     heading. It is the question renderThreads asks to know how much of the top is
-     covered, so one class states both the mechanics and the measurement boundary. */
-  .lf-pinned { position: sticky; top: calc(-1 * var(--lf-list-inset)); z-index: 2;
-    margin: 0; padding: 6px 8px 2px; background: var(--card); }
-  .lf-group { display: block; width: 100%; box-sizing: border-box; border: none;
-    font: inherit; font-size: var(--t-6); font-weight: 600;
-    text-align: left; color: var(--muted);
-    overflow-wrap: anywhere; }
-  button.lf-group { cursor: pointer; min-height: var(--aim-floor); }
-  button.lf-group:hover { color: var(--ink-2); }
-  /* Inset, because being pinned is where this heading spends its life and the pin
-     puts its box top on the scrollport's own edge: a sticky offset is measured from
-     the scroller's content box, so a heading drawn back over the list's inset
-     (.lf-pinned) has nothing above it at all, and a ring a pixel outside the box was
-     three pixels into the strip the scroller clips. Every control packed into this
-     list states its own inset for the same reason (theme.css, --here-ring). */
-  button.lf-group:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: run-heading;
-    outline-offset: calc(-1 * var(--here-ring-w)); }
   /* A thread and the room a resolved one is still giving back (foldOut) are the same
      box, so the fold starts from the box the user was looking at rather than from
      a second description of it. What .lf-going adds is the clip the fold needs and
@@ -989,13 +954,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     border: 1px solid transparent; border-block-end-color: var(--rule);
     padding: var(--lf-thread-pad); margin-bottom: 16px;
     --lf-block-frame: 1; }
-  .lf-pinned + .lf-thread { padding-top: 4px; }
   .lf-threads > .lf-thread:nth-last-child(1 of :not([hidden])) {
     border-block-end-color: transparent; margin-bottom: 0; }
   /* The summary is the thread's title and focus stop in both disclosure states. */
   .lf-thread-compact { --lf-thread-pad: 0px; margin: 0; padding: 0;
     background: transparent; border-radius: 0; }
-  .lf-pinned + .lf-thread-compact { padding-top: 0; }
   .lf-thread-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto;
     align-items: center; column-gap: 8px; width: 100%; min-height: max(32px, var(--aim-floor)); border: 0;
     padding: 4px 8px; background: transparent; color: var(--ink);

@@ -12,8 +12,8 @@ publishes a file a browser can load, vendoring is three values — the package,
 the file inside it, and where it lands — so those are rows in COPIES. Where
 nothing published is loadable as it stands, or what Leaf ships is cut down to
 what its registry declares, vendoring is a program, so those are functions.
-Either way, what comes out passes through `scripts/browser/shipped.mjs`, the
-owner `scripts/browser/build.mjs` shares: it refuses a module the page CSP
+Either way, what comes out passes through `build/browser/shipped.mjs`, the
+owner `build/browser/build.mjs` shares: it refuses a module the page CSP
 forbids and writes the bundle's license notices (`vendor`).
 
 Every version they carry is the one `package-lock.json` resolved: `package.json`
@@ -40,7 +40,7 @@ ROOT = Path(__file__).resolve().parent.parent
 ASSETS = ROOT / "skills/leaf/assets"
 PACKAGES = ROOT / "skills/leaf/packages"
 MCP_APP = ROOT / "skills/leaf/mcp-app"
-PIERRE_SOURCE = ROOT / "scripts/vendor-src/pierre"
+PIERRE_SOURCE = ROOT / "build/pierre"
 NODE_MODULES = ROOT / "node_modules"
 
 
@@ -292,7 +292,7 @@ def build_webawesome(work: Path) -> list[Path]:
     on demand; the shared chunks are core payload because chrome also reads them.
 
     Lit is not bundled: every Lit import binds to `/vendor/lit.js`, the page's one
-    copy, which `scripts/browser/build.mjs` builds from the same install. Where that
+    copy, which `build/browser/build.mjs` builds from the same install. Where that
     Lit falls outside Web Awesome's declared range, npm nests Web Awesome's own
     choice under the package, and the build refuses rather than run Web Awesome
     against a Lit it was not published for.
@@ -304,7 +304,7 @@ def build_webawesome(work: Path) -> list[Path]:
         raise RuntimeError(
             f"Web Awesome's declared Lit range excludes lit {version('lit')}"
         )
-    source = ROOT / "scripts/vendor-src/webawesome"
+    source = ROOT / "build/webawesome"
     for name in ("entry.mjs", "chrome.mjs", "setup.mjs", "build.mjs", "leaf-theme.css"):
         shutil.copyfile(source / name, work / name)
     run(
@@ -368,7 +368,7 @@ def build_pierre(work: Path) -> list[Path]:
     so this bundle carries only the grammars the registry names plus the two
     fixed token themes lf-diff maps onto Leaf's syntax roles.
 
-    `vendor-src/pierre/shiki-leaf.mjs` holds exactly one `LEAF_PIERRE_LANGUAGES`
+    `build/pierre/shiki-leaf.mjs` holds exactly one `LEAF_PIERRE_LANGUAGES`
     sentinel, which this replaces with a dynamic import for each registry language.
     """
     out = package_vendor("diff") / "pierre-diffs.esm.js"
@@ -403,7 +403,7 @@ def build_mcp_app(work: Path) -> list[Path]:
     process-scoped page server, while a snapshot result stays inside the same
     standalone resource.
     """
-    source = ROOT / "scripts/mcp-app"
+    source = ROOT / "build/mcp-app"
     entry = work / "page-entry.js"
     bundle = work / "page-bundle.js"
     out = MCP_APP / "page-app.html"
@@ -465,7 +465,7 @@ def copy_published(copy: Copy, work: Path) -> list[Path]:
 
 
 def vendor(name: str) -> list[Path]:
-    """Make one bundle, then pass it through `scripts/browser/shipped.mjs`.
+    """Make one bundle, then pass it through `build/browser/shipped.mjs`.
 
     That module owns what a committed bundle must be and carry: it refuses a module
     the page CSP forbids, and writes `<bundle>.LICENSES.txt` from the packages the
@@ -486,7 +486,7 @@ def vendor(name: str) -> list[Path]:
         notices = first.with_name(f"{first.name.split('.')[0]}.LICENSES.txt")
         run(
             "node",
-            str(ROOT / "scripts/browser/shipped.mjs"),
+            str(ROOT / "build/browser/shipped.mjs"),
             "meta.json",
             str(notices),
             *(str(output) for output in outputs if output.suffix == ".js"),

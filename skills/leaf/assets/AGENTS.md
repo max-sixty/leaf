@@ -316,7 +316,7 @@ visible change").
 
 ## Working on the runtime
 
-`scripts/browser/build.mjs` compiles the TypeScript foundation into
+`build/browser/build.mjs` compiles the TypeScript foundation into
 `vendor/browser-runtime.js` and writes `vendor/lit.js`, the page's one copy of Lit
 (`scripts/AGENTS.md` owns the commands). What a module decides on its own is
 tested under `tests/runtime/` (`npm run test:runtime`; `tests/AGENTS.md` says

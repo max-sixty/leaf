@@ -99,7 +99,8 @@ leaf thread reply <page> --detach --text "Removed this; the thread no longer has
 
 The reply records the active revision and its anchor transition atomically. The opening
 comment keeps its original anchor in `leaf events --thread`. The panel keeps a
-detached thread open under **No longer in this version**, and `page state` reports its
+detached thread open, its passage link marked as gone from this version, and the
+**No longer here** filter lists it. `page state` reports its
 null current anchor and the prior anchor as `detached_from`. A later reply may move it
 to a genuine replacement. Open a new thread for a different subject.
 

@@ -702,15 +702,15 @@ def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
     surface stands over the page, so the paragraph they were reading stands at the same
     place from the first paint, before the runtime has loaded, to presentation."""
     if contained and wide:
-        pytest.skip("a specimen's child page is the column its template writes")
+        pytest.skip("a sample's child page is the column its template writes")
     surface = saved["lf-auxiliary-surface"]
     content = "<h1>Restored surface</h1>" + RESTORED_PROSE
     if contained:
         content = (
-            '<lf-specimen id="practice" label="Practice">'
-            '<template id="practice-source" data-specimen>'
+            '<lf-sample id="practice" label="Practice">'
+            '<template id="practice-source" data-sample>'
             + content
-            + "</template></lf-specimen>"
+            + "</template></lf-sample>"
         )
     url = serve(leaf_page("Restored surface", content, layout="wide" if wide else None))
     context = browser.new_context(viewport={"width": window, "height": 900})

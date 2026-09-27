@@ -5,7 +5,7 @@ import { seatRoot } from "./model.js";
 import { ThreadView, threadReading } from "./thread-card.js";
 import { elementById } from "../passages.js";
 import { focused } from "../keyboard/scopes.js";
-import { focusDestination, readCaret } from "../focus.js";
+import { holdFocus } from "../focus.js";
 import { registry } from "../registry.js";
 import { loadDraft } from "../drafts.js";
 import { holdBox } from "./reply-landing.js";
@@ -22,7 +22,6 @@ class ThreadSeat {
   #committed = EMPTY;
   #commands = null;
   #response = () => null;
-  #focus = null;
   #connected = false;
   #marginControls = null;
 
@@ -36,11 +35,12 @@ class ThreadSeat {
   }
 
   present(model, batch = activeBatch) {
-    batch?.seats.add(this);
+    // A refused batch hands the user back the place they stood in when the seat joined
+    // it (`retainThreadSeats`); this render hands them their place across itself.
+    if (batch && !batch.seats.has(this)) batch.seats.set(this, holdFocus(this.node));
+    const restoreFocus = holdFocus(this.node);
     const standing = focused();
-    const held = this.node.contains(standing);
-    this.#focus ??= held ? { element: standing, caret: readCaret(standing) } : null;
-    const restoreBox = held ? holdBox(standing) : () => {};
+    const restoreBox = this.node.contains(standing) ? holdBox(standing) : () => {};
     const added = model.threads.filter(
       (thread) => !this.#model.threads.some(({ key }) => key === thread.key),
     );
@@ -58,7 +58,6 @@ class ThreadSeat {
       view.present(descriptor);
       return { key: descriptor.key, node: view.node };
     });
-    const caret = held ? readCaret(standing) : null;
     render(
       [
         repeat(
@@ -70,20 +69,11 @@ class ThreadSeat {
       ],
       this.node,
     );
-    if (
-      held &&
-      standing.isConnected &&
-      !this.node.contains(focused()) &&
-      this.node.contains(standing)
-    )
-      focusDestination(standing, caret);
     // The seat's own box gives way to the thread its message started: the user goes on
     // in that thread's reply, as they would have gone on in the box they sent from.
-    else if (held && !standing.isConnected && added.length === 1) {
-      const view = this.#views.get(added[0].key);
-      const box = view?.node.querySelector(SAY_BOX);
-      if (box && !this.node.contains(focused())) this.#commands?.landInThread(box);
-    }
+    const started =
+      added.length === 1 && this.#views.get(added[0].key).node.querySelector(SAY_BOX);
+    restoreFocus?.(started && (() => this.#commands?.landInThread(started)));
     restoreBox();
     if (!batch) this.commit();
   }
@@ -98,14 +88,11 @@ class ThreadSeat {
         this.#views.delete(key);
       }
     }
-    this.#focus = null;
     this.#connected ||= this.node.isConnected;
   }
-  retain() {
+  retain(restoreFocus) {
     this.present(this.#committed);
-    if (this.#focus?.element.isConnected)
-      focusDestination(this.#focus.element, this.#focus.caret);
-    this.#focus = null;
+    restoreFocus?.();
   }
   prune() {
     if (!this.#connected || this.node.isConnected) return false;
@@ -184,12 +171,12 @@ export function renderMarginThread(host, thread, commands, marginControls = null
 }
 
 export function beginThreadSeats() {
-  activeBatch = { seats: new Set() };
+  activeBatch = { seats: new Map() };
   return activeBatch;
 }
 export function commitThreadSeats(batch) {
   if (activeBatch !== batch) return;
-  for (const seat of batch.seats) seat.commit();
+  for (const seat of batch.seats.keys()) seat.commit();
   activeBatch = null;
   for (const seat of activeSeats)
     if (seat.prune()) {
@@ -199,6 +186,6 @@ export function commitThreadSeats(batch) {
 }
 export function retainThreadSeats(batch) {
   if (activeBatch !== batch) return;
-  for (const seat of batch.seats) seat.retain();
+  for (const [seat, restoreFocus] of batch.seats) seat.retain(restoreFocus);
   activeBatch = null;
 }

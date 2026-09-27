@@ -130,8 +130,8 @@ and its chrome coordinate.
   to one row. A key sequence and the shelf must still wrap, so truncating brings back
   a one-row mode beside them, and it has to keep More, which sits last, from being
   cut first.
-- **Unconfirmed: scrolling a live specimen sometimes sticks.** A user reported it
-  while a specimen still scrolled inside a fixed-height frame, with no reproduction.
+- **Unconfirmed: scrolling a live sample sometimes sticks.** A user reported it
+  while a sample still scrolled inside a fixed-height frame, with no reproduction.
   The frame now takes its page's height, so nothing scrolls inside it; check that the
   report no longer reproduces once the scrolling changes land.
 
@@ -181,12 +181,6 @@ and its chrome coordinate.
 
 ### Shared definitions
 
-- **Hold focus in the thread seats with `holdFocus`.** `focus.js` `holdFocus` is the
-  one hand-over of the user's place across a DOM move, but `thread/inline.js`
-  `ThreadSeat.present` (across one render) and `retain` (across a refused batch) still
-  pair `readCaret` with `focusDestination` by hand. Cutting `retain` over also lets a
-  user who moved on while the batch waited keep their new place. Left while the
-  `thread-focus-scroll` branch had unmerged edits to `present`.
 - **Say which panes the workspace holds without naming `lf-pane`.** `layouts.css`
   holds an authored pane only as the workspace body or a cell of it (a pane in a
   section flows), and a generated pane at any depth. It tells the two apart by the

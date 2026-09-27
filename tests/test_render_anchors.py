@@ -92,14 +92,14 @@ from render_harness import (
 pytestmark = pytest.mark.nightly
 
 
-def _diff_page(*specimens):
-    """A complete authored page of `(id, escaped pre markup)` diff specimens."""
+def _diff_page(*samples):
+    """A complete authored page of `(id, escaped pre markup)` diff samples."""
     return leaf_page(
-        "diff specimens",
-        '<h1 id="diff-specimens">Diff specimens</h1>'
+        "diff samples",
+        '<h1 id="diff-samples">Diff samples</h1>'
         + "".join(
             f'<lf-diff id="{identifier}"><pre>{markup}</pre></lf-diff>'
-            for identifier, markup in specimens
+            for identifier, markup in samples
         ),
     )
 
@@ -838,7 +838,7 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
     grown — shift-arrow is the user being precise — so the comment field captures
     a mid-word selection exactly as made. Machine-placed words never glue to the
     author's, on either side of the declaration line: an undeclared generated span
-    is a fenced cell in the reading, and a declared label — a specimen's, rendered
+    is a fenced cell in the reading, and a declared label — a sample's, rendered
     flush before its words inside a list item, where both share the one block — is
     the seam itself.
 
@@ -855,8 +855,8 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
         serve(
             INLINE_PAGE.replace(
                 '<p id="p">',
-                '<ul><li><lf-specimen id="spec" label="mono">glyphs set close'
-                "</lf-specimen></li></ul>\n"
+                '<ul><li><lf-sample id="spec" label="mono">glyphs set close'
+                "</lf-sample></li></ul>\n"
                 '<p id="sentence">🔴 🟢 “<strong>Opening</strong> words stay '
                 "<em>together</em>.” 🔴 🟢 Next sentence.</p>\n"
                 '<ul><li id="nested">“Opening words<p>Nested block.</p>'
@@ -968,10 +968,10 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
     select(page, spot("#p2", "flagged", 3), spot("#p2", "them", 1))
     assert captured() == "flagged between them"
 
-    # The declared label: rendered by the real pass, flush before the specimen's own
+    # The declared label: rendered by the real pass, flush before the sample's own
     # words, unfenced because the registry models it — so the reading holds
     # "monoglyphs", and only the seam keeps a drag into "glyphs" from taking "mono".
-    select(page, spot("lf-specimen", "glyphs", 3), spot("lf-specimen", "close", 3))
+    select(page, spot("lf-sample", "glyphs", 3), spot("lf-sample", "close", 3))
     assert captured() == "glyphs set close"
 
 
@@ -1268,7 +1268,7 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
             "kind": "comment",
             "revision": 1,
             "text": "on the caption",
-            "anchor": {"section": "fig", "quote": "A specimen, for element anchors."},
+            "anchor": {"section": "fig", "quote": "A sample, for element anchors."},
         },
     )
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
@@ -2832,9 +2832,6 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(page.locator('.lf-group[data-group="gone"]')).to_have_text(
-        "No longer in this version"
-    )
     quote = page.locator(f'.lf-thread[data-id="{root["id"]}"] .lf-quote')
     expect(quote).to_contain_text("The version stamp never lands")
     expect(quote).to_have_class(re.compile(r"\bdetached\b"))

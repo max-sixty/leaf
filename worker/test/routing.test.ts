@@ -40,7 +40,8 @@ const routes = {
   session: ["media", "revisions", "versions"],
   files: ["leaf.js", "theme.css", "shadow.css", "registry.json", "icon.svg"],
 };
-const manifest = { release: "a".repeat(64), routes, pages };
+const frame_ancestors = "frame-ancestors 'none'";
+const manifest = { release: "a".repeat(64), frame_ancestors, routes, pages };
 const route = (pathname: string) => pageRoute(pathname, manifest);
 
 describe("website page routing", () => {
@@ -48,6 +49,7 @@ describe("website page routing", () => {
     const release = "a".repeat(64);
     const manifest = {
       release,
+      frame_ancestors,
       routes,
       pages: { "/": page("product") },
     };

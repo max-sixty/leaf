@@ -1003,7 +1003,7 @@ def test_a_nested_pane_footer_travels_in_the_outer_region_that_contains_it(
 def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     browser, serve, live_leaf
 ):
-    """Core chrome is a gallery journey, not merely present around its specimens."""
+    """Core chrome is a gallery journey, not merely present around its samples."""
     live_leaf("second", "A second Leaf page")
     page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1600, 900)
@@ -1780,18 +1780,18 @@ def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
     """The same tab vocabulary has page or section scope from where it is placed: the
     first set directly in main is page navigation whatever stands beside it, and a set
     inside another block is a tabbed section."""
-    specimen = re.search(
+    sample = re.search(
         r'<lf-tabs id="bg-tabs">.*?</lf-tabs>', FEATURE_GALLERY.read_text(), re.DOTALL
     )
-    assert specimen is not None
+    assert sample is not None
     heading = "<header><h1>Project views</h1></header>"
     body = {
-        "alone": heading + specimen[0],
+        "alone": heading + sample[0],
         "among-blocks": heading
         + '<aside class="sidebar"><p>Contents</p></aside>'
-        + specimen[0]
+        + sample[0]
         + "<p>This conclusion follows the tab set.</p>",
-        "nested": heading + "<section>" + specimen[0] + "</section>",
+        "nested": heading + "<section>" + sample[0] + "</section>",
     }[placement]
     embedded = placement == "nested"
     page = open_page(
@@ -2539,7 +2539,7 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     select(page, (cap["x"] + 2, y), (cap["x"] + cap["width"] - 2, y))
     page.locator(".lf-fab-input").click()
     wait_for_pending_mark(page)
-    assert "specimen" in pending_text(page), (
+    assert "sample" in pending_text(page), (
         "the visual containing the drag replaced its selected passage"
     )
     assert page.locator("#fig.lf-pending").count() == 0, (
@@ -3621,10 +3621,17 @@ def test_an_inline_thread_wears_the_ring_only_while_the_keyboard_stands_on_it(
     )
     thread = page.locator(".lf-margin-preview .lf-page-thread")
     note = page.locator("#p .lf-mark-note")
-    paint = """el => { const s = getComputedStyle(el); return {
-      outline: s.outlineStyle, offset: s.outlineOffset, background: s.backgroundColor,
-      shadow: s.boxShadow,
-    }; }"""
+    # The thread draws its ring on a pseudo-element over its contents (shadow.css), so
+    # the outline is read off whichever of the two boxes carries one.
+    paint = """el => {
+      const s = getComputedStyle(el);
+      const after = getComputedStyle(el, '::after');
+      const ring = after.content !== 'none' && after.outlineStyle !== 'none' ? after : s;
+      return {
+        outline: ring.outlineStyle, offset: ring.outlineOffset,
+        background: s.backgroundColor, shadow: s.boxShadow,
+      };
+    }"""
 
     note.click()
     expect(thread).to_be_focused()
@@ -3945,7 +3952,6 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
               const target = compose.getBoundingClientRect();
               const clear = parseFloat(getComputedStyle(list).scrollPaddingTop) || 0;
               const start = view.top + clear;
-              const head = list.querySelector('.lf-pinned').getBoundingClientRect();
               const blocks = [...thread.querySelectorAll(
                 ':scope > *, :scope > .lf-msg .lf-msg-body > *, ' +
                 ':scope > .lf-msg .lf-msg-text > *'), compose]
@@ -3962,7 +3968,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
                   range.setStart(text, i);
                   range.setEnd(text, Math.min(i + 1, text.length));
                   const line = range.getBoundingClientRect();
-                  if (line.width && line.top < head.bottom && line.bottom > head.bottom)
+                  if (line.width && line.top < start && line.bottom > start)
                     lines.push(line.toJSON());
                 }
               }
@@ -3973,9 +3979,6 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
         )
         assert landing["target"]["bottom"] <= landing["listBottom"]
         # A list scrolled to its limit has no travel left to align a content block.
-        # The click can follow the panel's first opening within a frame, before the
-        # pinned heading's first observation; the landing measures that heading's
-        # room itself (geometry.js, `declareCoverRoom`).
         if landing["scroll"] and landing["scroll"] < landing["maximumScroll"] - 1:
             assert any(
                 block["top"] == pytest.approx(landing["start"], abs=2)

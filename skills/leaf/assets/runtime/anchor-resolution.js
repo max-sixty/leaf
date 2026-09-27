@@ -30,9 +30,7 @@ import {
   inChrome,
   pageDocument,
   pageQueryAll,
-  quoteFrom,
   settledAway,
-  textNodesUnder,
 } from "./passages.js";
 import { registry, tagsDeclaring } from "./registry.js";
 import { PRESSABLE, PRESSES } from "./widget-elements.js";
@@ -283,18 +281,13 @@ export function addressableWord(addressable) {
 // The label is rooted at the addressable and reads its authored words. Generated annotation
 // chrome is excluded by the same passage reader used for anchor resolution. Display
 // surfaces constrain these complete words to their available space.
-export function addressableSays(addressable, omitted = null) {
+export function addressableSays(addressable) {
   if (!addressable) return "";
-  const subtracts = Boolean(omitted && addressable.contains(omitted));
   const own =
-    !subtracts && registry[addressable.localName]?.["x-word"] === "module"
+    registry[addressable.localName]?.["x-word"] === "module"
       ? addressable.lfSays?.()
       : "";
-  if (own) return own;
-  if (!subtracts) return elementReading(addressable);
-  return quoteFrom(
-    textNodesUnder(addressable).filter((segment) => !omitted.contains(segment.node)),
-  );
+  return own || elementReading(addressable);
 }
 
 // What names an element, where the authoring contract gives it a name

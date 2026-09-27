@@ -5,7 +5,7 @@
    those values.
    The owner alone renders its native card root and all generated descendants; a
    failed candidate is restored by presenting its committed descriptor again. */
-import { TEXT_FIELD } from "../focus.js";
+import { TEXT_FIELD, holdFocus } from "../focus.js";
 import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
@@ -15,7 +15,6 @@ import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { wireReply } from "./replies.js";
 import { settleThread } from "./folding.js";
-import { groupFor, pageOutline } from "./placement.js";
 import { iconTemplate } from "../icons.js";
 import { loadDraft } from "../drafts.js";
 import { SAY_BOX } from "./selectors.js";
@@ -28,20 +27,9 @@ import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
 import { scrollThreadIntoView } from "./reply-landing.js";
 
-function quoteReading(thread, anchors, outline) {
-  const group = groupFor(thread, outline, anchors.placedAt);
+function quoteReading(thread, anchors) {
   const placement = anchors.placedAt(thread.id);
-  const segments = placement?.segments ?? [];
-  const label =
-    group.target &&
-    segments.length &&
-    segments.every(({ node }) => group.target.contains(node))
-      ? ""
-      : anchorLabel(
-          thread.detached_from ?? thread.anchor,
-          thread.root.about,
-          group.target,
-        );
+  const label = anchorLabel(thread.detached_from ?? thread.anchor, thread.root.about);
   if (!label) return null;
   const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);
   const found =
@@ -68,7 +56,7 @@ export function threadReading(
   thread,
   surface,
   commands,
-  { visible = true, grow = false, outline = null, search = null },
+  { visible = true, grow = false, search = null },
 ) {
   const panel = surface === "panel";
   const resolved = Boolean(thread.resolved);
@@ -96,9 +84,7 @@ export function threadReading(
     grow,
     folding: false,
     search,
-    quote: panel
-      ? quoteReading(thread, commands.anchors, outline ?? pageOutline())
-      : null,
+    quote: panel ? quoteReading(thread, commands.anchors) : null,
     resolved,
     attention: threadAttention(thread),
     resolvedBy:
@@ -252,9 +238,8 @@ export class ThreadView {
 
   present(model) {
     const prior = this.#model;
+    const restoreFocus = holdFocus(this.node);
     const standing = focused();
-    const heldFocus = this.node.contains(standing);
-    let summaryReplacedFocusedMessage = false;
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
     // Only a summary that was not standing before can swallow what the user
     // holds or is reading, and reading geometry here forces layout.
@@ -269,7 +254,6 @@ export class ThreadView {
       );
       for (const summary of model.summaries) {
         if (priorSummaries.has(summary.id)) continue;
-        if (summary.covers.includes(heldMessage)) summaryReplacedFocusedMessage = true;
         if (
           summary.covers.includes(heldMessage) ||
           summary.covers.some((id) => beingRead.has(id))
@@ -454,15 +438,13 @@ export class ThreadView {
       this.node,
     );
     this.#wireKeys();
-    if (
-      summaryReplacedFocusedMessage &&
-      focused() !== standing &&
-      standing?.isConnected
-    ) {
-      standing.focus({ preventScroll: true });
-    } else if (heldFocus && !this.node.contains(standing) && !panel) {
-      this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node);
-    }
+    // A summary gathering the message the user stands on moves it; a page thread whose
+    // render took their place puts them in its reply, or on the thread itself.
+    restoreFocus?.(
+      !panel &&
+        (() =>
+          this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node)),
+    );
     return this.node;
   }
 

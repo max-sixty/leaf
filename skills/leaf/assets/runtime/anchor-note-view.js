@@ -19,18 +19,24 @@
  * document's own tree; one relation serves every block instead. An authored
  * `aria-details` keeps its elements ahead of the note and is restored when the note goes.
  *
+ * The notes stand together in the chrome, so each is named for the block it counts as a
+ * thread's quote names it, cut to a spoken name's length ("2 comments on § paragraph ·
+ * The first…"), while it shows only the count, which the name begins with.
+ *
  * The note is no Tab stop: from the chrome it would come after the whole page, away from
  * the block it counts. A keyboard reaches a block's threads from the block itself (`c`,
  * `t`) and through its margin row. Focus on the note stands at its block
  * (standing-target.js), and shows it in the skip link's face (chrome.css).
  */
+import { addressableAt } from "./anchor-resolution.js";
 import { chromeRoot } from "./chrome.js";
+import { spokenSubject } from "./margin-entry-model.js";
 import { declareSide } from "./standing-target.js";
-import { keepsText, offer } from "./widget-elements.js";
+import { keeps, keepsText, offer } from "./widget-elements.js";
 
 const label = (count) => `${count} comment${count === 1 ? "" : "s"}`;
 
-export function createAnchorNoteProjection({ openThread }) {
+export function createAnchorNoteProjection({ openThread, labelAnchor }) {
   // holder -> { note, firstThreadId, authored }; the note's holder, read the other way.
   const claims = new Map();
   const holders = new WeakMap();
@@ -77,7 +83,14 @@ export function createAnchorNoteProjection({ openThread }) {
       const record = claims.get(holder) ?? claim(holder);
       name(holder, record);
       record.firstThreadId = threadIds[0];
-      keepsText(record.note, label(threadIds.length));
+      const count = label(threadIds.length);
+      const on = addressableAt(holder)?.id;
+      keepsText(record.note, count);
+      keeps(
+        record.note,
+        "aria-label",
+        on ? `${count} on ${spokenSubject(labelAnchor({ section: on }))}` : count,
+      );
     }
   }
 

@@ -4282,9 +4282,10 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     # Two threads on one block count up, and leave one note rather than two.
     expect_comment_notes(page, "#p1", 1)
-    assert accessible_details(page, "#p1") == ["2 comments"], (
-        "a screen reader reading the block is told nothing about the comments on it"
-    )
+    assert accessible_details(page, "#p1") == [
+        "2 comments on § paragraph · The first passage under discussion, with words "
+        "enough for two separate remarks to land in it."
+    ], "a screen reader reading the block is told nothing about the comments on it"
     note = comment_note(page, "#p1")
     # Hidden means hidden from the eye, not the tree.
     assert note.evaluate(
@@ -4327,7 +4328,7 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     note.press("Enter")
     expect(inline2).to_be_focused()
     # An element anchor has no text to paint, and the element it names carries the note.
-    assert accessible_details(page, "#fig") == ["1 comment"]
+    assert accessible_details(page, "#fig")[0].startswith("1 comment on § figure")
 
     # A pass that finds nothing to change must change nothing: a screen reader rebuilds
     # its buffer on every mutation, and this pass runs on every poll. A comment on no
@@ -4377,15 +4378,15 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     told(page)
     expect_comment_notes(page, "#p2", 0)
     expect(page.locator("#p2")).not_to_have_attribute("aria-details", re.compile(".*"))
-    assert accessible_details(page, "#p1") == ["1 comment"]
+    assert accessible_details(page, "#p1")[0].startswith("1 comment on ")
 
     # A passage crossing two blocks says so in both: a user landing on either block
     # hears about the comment, the way the paint reaches both.
     comment({"quote": "to land in it. A short second"}, "Crosses the boundary.")
     told(page)
     expect_comment_notes(page, "#p2", 1)
-    assert accessible_details(page, "#p1") == ["2 comments"]
-    assert accessible_details(page, "#p2") == ["1 comment"]
+    assert accessible_details(page, "#p1")[0].startswith("2 comments on ")
+    assert accessible_details(page, "#p2")[0].startswith("1 comment on ")
 
 
 def test_a_revision_keeps_a_block_naming_its_comment_note(browser, serve):

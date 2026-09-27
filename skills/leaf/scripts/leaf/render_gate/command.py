@@ -120,9 +120,16 @@ def render_check(
     viewport_names = " and ".join(
         f"{viewport['width']}x{viewport['height']}" for viewport in RENDER_VIEWPORTS
     )
+    margins = (
+        ", light at "
+        + ", ".join(f"{width}px" for width in reading.margin_widths)
+        + " where its margin content changes"
+        if reading.margin_widths
+        else ""
+    )
     print(
         f"✓ index.html: renders clean in {browser_name}, light and dark at "
-        f"{viewport_names} — no "
+        f"{viewport_names}{margins} — no "
         "console errors or DevTools issues, every widget takes space, no words on top of other words, code that reads "
         "against the block it is on, nothing past the "
         f"column, no sideways scroll from {SWEEP_WIDTHS[0]}px to {SWEEP_WIDTHS[-1]}px wide"

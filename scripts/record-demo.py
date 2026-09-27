@@ -472,8 +472,8 @@ def shoot_stills(
     run_leaf("status", str(page_dir), "waiting")
 
     # The user's board move has to have landed in each shot, or it shows a page
-    # mid-replay, so each page is ready against the server's own reading, whose log
-    # coverage is the count the page stamps as applied.
+    # mid-replay, so each page is ready against the server's own answer, presented
+    # whole.
     for name, size, scheme in STILLS:
         context = browser.new_context(
             viewport={"width": size[0], "height": size[1]},

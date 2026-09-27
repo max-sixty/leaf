@@ -37,7 +37,6 @@ import { finishFold, hasFolding, whenFolded } from "./folding.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { SAYS_IN, SAY_BOX, THREAD } from "./selectors.js";
 import { retainUserIntent } from "../user-intent.js";
-import { focusDestination, readCaret } from "../focus.js";
 import { pageScope } from "../keyboard/register.js";
 import { TEXT_ENTRY } from "../keyboard/text-entry.js";
 import { threadList } from "./state.js";
@@ -210,49 +209,9 @@ function prepareLanding({ held = null, box, route = null }) {
   return { held, box };
 }
 
-const retainLanding = (source, available, fallback = null) => {
-  return retainUserIntent({ source, available, fallback });
-};
-
 export const retainPanelLanding = (source, panelIsOpen, threadsBox) =>
-  retainLanding(source, panelIsOpen, threadsBox);
+  retainUserIntent({ source, available: panelIsOpen, fallback: threadsBox });
 
-// A candidate can remove the user's direct thread box before a later renderer
-// refuses that state. Restore the same logical thread and caret after its prior
-// view is reconciled, unless a newer user gesture has taken over.
-export function retainThreadFocus(panelIsOpen, threadsBox) {
-  const input = focused();
-  const held = input && closestAcross(input, SAYS_IN);
-  if (!held || held.querySelector(SAY_BOX) !== input) return () => {};
-  const caret = readCaret(input);
-  let restoredInput;
-  let mayLand;
-  if (held.matches(".lf-thread") && held.parentElement === threadsBox) {
-    const id = held.dataset.id;
-    restoredInput = () =>
-      threadsBox
-        .querySelector(`.lf-thread[data-id="${CSS.escape(id)}"]`)
-        ?.querySelector(SAY_BOX);
-    mayLand = retainPanelLanding(held, panelIsOpen, threadsBox);
-  } else if (held.matches(".lf-page-thread")) {
-    const host = held.parentElement;
-    const id = held.dataset.thread;
-    restoredInput = () =>
-      host
-        .querySelector(`:scope > .lf-page-thread[data-thread="${CSS.escape(id)}"]`)
-        ?.querySelector(SAY_BOX);
-    mayLand = retainLanding(held, () => host.isConnected);
-  } else if (held.matches(".lf-thread-seat")) {
-    restoredInput = () => held.querySelector(SAY_BOX);
-    mayLand = retainLanding(held, () => held.isConnected);
-  } else return () => {};
-  return () => {
-    if (!mayLand()) return;
-    const restored = restoredInput();
-    if (!restored) return;
-    focusDestination(restored, caret);
-  };
-}
 // Landing belongs to the list, not to whatever moved the focus. The list already says
 // which of its own edges cannot be stood on — `scroll-padding`, room for a stuck
 // heading and for the focused card's edge — and every route that could reach a thread

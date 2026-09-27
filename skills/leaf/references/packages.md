@@ -1092,7 +1092,9 @@ non-empty rendering key, unique in that projection; `render` receives
 preserves a focused control or selection. Leaf marks those words as readable data
 rather than authored prose and reconciles their order by key. A renderer
 that owns a nested layout passes `{nested: true}` and returns its existing descendants;
-Leaf labels those nodes without moving them. Add `labelOf(record, index)` when a thread
+Leaf labels those nodes without moving them, and the module orders each container with
+`setChildren(parent, nodes)`, which moves only what is out of place and keeps the user
+in a node it moves. Add `labelOf(record, index)` when a thread
 should name a projected datum with a human coordinate; the rendering key remains opaque to
 the runtime. A widget declaring `x-data` passes `{snapshot}` with the delivery from
 `watchData`, including `null` when no current value exists. Leaf stamps the projection

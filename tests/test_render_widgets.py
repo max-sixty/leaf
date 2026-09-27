@@ -2048,7 +2048,12 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     expect(start).to_have_attribute("href", re.compile(r"^#lf-contents-section-0"))
     expect(start).to_have_attribute("aria-current", "location")
     expect(toc).to_have_css("position", "fixed")
-    expect(page.locator("aside.sidebar")).to_have_css("position", "sticky")
+    # The map is all its sidebar holds, so the sidebar stands as the map alone and floats
+    # nothing beside the column.
+    expect(page.locator("main")).to_have_attribute(
+        "data-lf-margin", re.compile(r"\bmap\b")
+    )
+    expect(page.locator("aside.sidebar")).to_have_css("float", "none")
     expect(prepare).to_have_css("opacity", "0")
     expect(prepare).to_have_css("pointer-events", "none")
     motion = prepare.evaluate(
@@ -2566,7 +2571,8 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
         "hidden sidebar map",
         """
 <style>
-  @container lf-shell (max-width: 847px) { #route { display: none; } }
+  main:not([data-lf-margin~="map"], [data-lf-margin~="sidebar"]) #route {
+    display: none; }
 </style>
 <h1>Migration plan for the readers already in flight</h1>
 <aside class="sidebar" id="route"><lf-toc id="contents"></lf-toc></aside>

@@ -29,13 +29,14 @@
    `display: contents` while its rendered descendants remain usable, and a collapsed
    target has no rendered part to offer. */
 import { TAB_STOP } from "./focus.js";
-import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
+import { cancelRender, nextFrame, nextRender, sizeObserver } from "./rendering.js";
 import { shellRight, shownBand, shownExtent, shownParts } from "./geometry.js";
 import { under, upFrom } from "./shadow.js";
 import { scrollerFor } from "./reading-regions.js";
 import { pageScroller } from "./scrolling.js";
 import { packRows, rowPosture } from "./margin-placement.js";
 import { overlaps } from "./rect.js";
+import { repaintPage } from "./repaint.js";
 
 const rows = new Map();
 const GAP = 4;
@@ -48,16 +49,121 @@ let layer = null;
 
 const marginColumn = () => document.querySelector("main") || document.body;
 
-// Whether the margin's rail stands: where the room between `main` and the shell's right
-// edge holds a rail, measured, so a centred column in a wide window keeps its markers in
-// the margin and a page laid out to the edge pins them. Nothing claims the room. A page
-// declares otherwise on `main`: `data-rail="right"` makes the shell give up the rail's
-// width on its right (theme.css), which this reads as room like any other, and
+// The postures a margin resident may take besides the rail: the side each stands on and
+// the token holding the room it needs there beyond `main`'s box. The stylesheet says
+// which element takes which, in order of preference (`--lf-resident`, theme.css, at
+// aside.sidebar), so the media and Layout conditions on each are the stylesheet's own.
+const POSTURES = {
+  sidebar: ["left", "--sidebar"],
+  map: ["left", "--map"],
+  note: ["right", "--note"],
+};
+
+// Which residents stand in the margin, and how far the column moves off centre to seat
+// them: one reading of the room beside `main`, so the rail, the contents map, a sidebar
+// and the sidenotes all answer the same measurement, whatever width the page's own CSS
+// gave the column. It is written on `main` as `data-lf-margin`, one token per resident
+// standing, and `--lf-shift`, which the column Layout applies (layouts.css); the
+// stylesheet keys every margin posture on those.
+//
+// The rail comes first and stands where the room right of the centred column holds
+// `--rail`; it never moves the column. Then the left side's resident and the notes, which
+// share one decision: each takes the first of its postures for which the room either
+// side of the column, together, holds what those admitted so far need on each side and
+// this posture's need too, the column moving over by what one side lacks. One that fits
+// none stays in flow. The room is read with the column centred, so a shift this pass
+// wrote is taken back out of the reading and the decision never feeds itself.
+//
+// A page declares otherwise on `main`: `data-rail="right"` makes the shell give up the
+// rail's width on its right (theme.css), which this reads as room like any other, and
 // `data-rail="none"` keeps its margin for its own residents, so its markers are pins.
-function railStands(main, mainRect, shell) {
-  if (main.getAttribute("data-rail") === "none") return false;
-  const rail = parseFloat(getComputedStyle(main).getPropertyValue("--rail")) || 0;
-  return shell - mainRect.right >= rail;
+// Chrome layout asks for it on every pass (chrome-layout.js, `syncLayout`), which runs
+// more than once in a frame, so the reading is taken at most once a frame
+// (`scheduleResidency`): a second ask in a frame already read waits for the next. A change
+// brings this module's pass, since a moved column moves every margin row, and a page
+// repaint; this pass reads the answer off `main`.
+let residencyPending = 0;
+let residencyRead = -1;
+function residencyPass(time) {
+  residencyPending = 0;
+  if (time === residencyRead) {
+    residencyPending = nextFrame(residencyPass);
+    return;
+  }
+  residencyRead = time;
+  if (!settleResidency()) return;
+  scheduleMarginLayout();
+  repaintPage();
+}
+export function scheduleResidency() {
+  residencyPending ||= nextRender(residencyPass);
+}
+
+function settleResidency() {
+  const main = document.querySelector("main");
+  if (!main) return false;
+  const style = getComputedStyle(main);
+  const need = (token) => parseFloat(style.getPropertyValue(token)) || 0;
+  // The offset the column stands at, which is the written shift only where the Layout
+  // applies it: page CSS may override the offset, and under `dir="rtl"` it is `right`.
+  const shifted =
+    style.position === "relative"
+      ? parseFloat(style.left) || -parseFloat(style.right) || 0
+      : 0;
+  const written = parseFloat(main.style.getPropertyValue("--lf-shift")) || 0;
+  const column = main.getBoundingClientRect();
+  const shell = document.body.getBoundingClientRect();
+  const room = {
+    left: column.left - shifted - shell.left,
+    right: shell.right - column.right + shifted,
+  };
+  const taken = { left: 0, right: 0 };
+  const standing = [];
+  if (main.getAttribute("data-rail") !== "none" && room.right >= need("--rail")) {
+    standing.push("rail");
+    taken.right = need("--rail");
+  }
+  const declared = new Map();
+  // A resident a box around it hides (a closed disclosure, a tab not chosen) needs no
+  // room. One the page hides itself stays a resident, since a page may hide it until it
+  // stands in the margin.
+  for (const aside of main.querySelectorAll("aside")) {
+    const own = getComputedStyle(aside);
+    const hiddenItself =
+      own.display === "none" && aside.parentElement.checkVisibility();
+    if (!aside.checkVisibility() && !hiddenItself) continue;
+    const postures = own
+      .getPropertyValue("--lf-resident")
+      .split(" ")
+      .filter((posture) => posture in POSTURES);
+    if (postures.length) declared.set(postures.join(" "), postures);
+  }
+  const side = (postures) => POSTURES[postures[0]][0];
+  for (const postures of [...declared.values()].sort(
+    (a, b) => (side(a) === "left" ? 0 : 1) - (side(b) === "left" ? 0 : 1),
+  ))
+    for (const posture of postures) {
+      const [at, token] = POSTURES[posture];
+      const wants = { ...taken, [at]: Math.max(taken[at], need(token)) };
+      if (wants.left + wants.right > room.left + room.right + 0.5) continue;
+      standing.push(posture);
+      Object.assign(taken, wants);
+      break;
+    }
+  const shift = Math.round(
+    taken.left > room.left
+      ? taken.left - room.left
+      : taken.right > room.right
+        ? room.right - taken.right
+        : 0,
+  );
+  const tokens = standing.join(" ");
+  const changed =
+    (main.getAttribute("data-lf-margin") ?? "") !== tokens || shift !== written;
+  if (!changed) return false;
+  main.setAttribute("data-lf-margin", tokens);
+  setStyle(main, "--lf-shift", shift ? `${shift}px` : null);
+  return true;
 }
 
 const labelRect = (name, left, top, label) => ({
@@ -140,6 +246,9 @@ export function scheduleMarginEntryLabels() {
 export function mountMarginLayer(root) {
   layer = { root, lanes: new Map(), sizes: sizeObserver(scheduleMarginLayout) };
   hearScrolls(document);
+  // Opening or closing a disclosure shows or hides the residents inside it. `toggle`
+  // does not bubble, so it is heard on the way down.
+  document.addEventListener("toggle", scheduleResidency, { capture: true });
 }
 
 // A scroll event does not leave its shadow tree, so a target inside one is heard on each
@@ -405,7 +514,9 @@ export function layoutMarginRows() {
   const page = anchorReading(main, PAGE_ANCHOR);
   const columnRect = main.getBoundingClientRect();
   const shell = shellRight();
-  const stands = railStands(main, columnRect, shell);
+  const stands = (main.getAttribute("data-lf-margin") ?? "")
+    .split(" ")
+    .includes("rail");
   // Said once, for the chrome: where the markers are pins, the banner offers the Page
   // Map in their place (chrome.css).
   layer.root.toggleAttribute("data-lf-pins", !stands);

@@ -64,6 +64,9 @@ const state = (taken, events = []) => ({
               spec,
               scope: "page",
               value: event.action,
+              restated: [],
+              absorbed: false,
+              stands: true,
             })),
             actions: events.map((event) => event.id),
             reports: [],
@@ -80,6 +83,7 @@ const threadWorkflow = (id, { thread = "root", input = thread, ...changes } = {}
     id,
     input,
     subject: { kind: "thread", id: thread },
+    thread,
     coordinate: ["thread", thread],
     answer: { kind: "reply", to: input, for: input },
     ...changes,
@@ -642,6 +646,20 @@ test("a refused local message publishes one failed workflow before retirement", 
   assert.equal(app.read().effective.workflows.length, 0);
 });
 
+test("a local send's workflow takes the served workflow's shape", () => {
+  const app = setup();
+  app.enqueue(action("move"), "now");
+  app.reject("move");
+  const [move] = app.read().effective.workflows;
+  assert.deepEqual(
+    [move.subject, move.thread, move.holds_thread, move.coordinate],
+    [{ kind: "widget", id: "choice" }, null, false, coordinate],
+  );
+  // Every field the server sends but the undelivered-only ones it has no reading of.
+  const { quiet: _quiet, dropped: _dropped, ...served } = servedWorkflow();
+  assert.deepEqual(Object.keys(move).sort(), Object.keys(served).sort());
+});
+
 test("a version being marked read reads read, outside the gesture ledger", () => {
   const app = setup();
   const reading = state(2);
@@ -752,6 +770,27 @@ test("filtered widget state is selected inside the publisher", () => {
   assert.equal(outcomeOf(app.selectWidgets([]).get("choice").state), null);
   assert.equal(outcomeOf(app.selectWidgets(["e1"]).get("choice").state), "accept");
   assert.equal(outcomeOf(app.selectWidgets(null).get("choice").state), "accept");
+});
+
+test("undoing the standing decision reveals the newest one the server says stands", () => {
+  const older = { ...action("older", "reject"), id: "e1", seq: 1 };
+  const newer = { ...action("newer"), id: "e2", seq: 2 };
+  // Whether the older decision survives is the server's reading: taken back or
+  // retracted, it no longer stands, and the authored state shows through instead.
+  for (const [olderStands, revealed] of [
+    [true, "reject"],
+    [false, null],
+  ]) {
+    const app = setup();
+    const reading = state(2, [older, newer]);
+    const projection = reading.browser.views[1].document.projection;
+    projection.entries[0].stands = olderStands;
+    projection.actions = [newer.id];
+    app.adopt(reading);
+    assert.equal(decision(app), "accept");
+    app.enqueue({ kind: "undo", undoes: newer.id, attempt: "undo" }, "now");
+    assert.equal(decision(app), revealed);
+  }
 });
 
 test("receipt adoption keeps attempts until presentation proof and preserves dependent undo", () => {
@@ -1124,6 +1163,9 @@ test("a standing report supplies desired widget state", () => {
         spec: valueSpec,
         scope: "page",
         value: "reported",
+        restated: [],
+        absorbed: false,
+        stands: false,
       },
     ],
     actions: [],

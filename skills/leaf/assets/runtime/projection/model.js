@@ -27,11 +27,12 @@ const compareProjected = (a, b) => {
 
 /* Fold normalized durable entries and pending local gestures into the canonical
    projection views. Each entry carries `coordinate`, `e`, `unit`, `spec`, and `value`;
-   it may also carry `restated`, `absorbed`, `scope`, or `terminal`. Pending entries are already
-   filtered for rejection and authoritative receipts by their delivery owner. A pending
-   undo removes its target from the same coordinate fold, revealing the newest surviving
-   local action, durable action, or authored state in that order. A verb has one writer,
-   so a coordinate a local gesture reaches never holds an agent's report. */
+   it may also carry `restated`, `absorbed`, `stands`, `scope`, or `terminal`. Pending
+   entries are already filtered for rejection and authoritative receipts by their
+   delivery owner. A pending undo removes its target from the same coordinate fold,
+   revealing the newest surviving local action, the newest durable action the server
+   says `stands`, or authored state in that order. A verb has one writer, so a
+   coordinate a local gesture reaches never holds an agent's report. */
 /** @param {{entries?: object[], actionIds?: string[], reportIds?: string[], desiredIds?: string[], coverage?: object[], pendingEntries?: object[]}} input */
 export function foldProjection({
   entries = [],
@@ -77,12 +78,6 @@ export function foldProjection({
     classified.set(e.id, { e, terminal: record.coordinate === null });
   }
 
-  const durableWithdrawn = new Set(
-    coverage
-      .map(({ event }) => event)
-      .filter((event) => event.kind === "undo")
-      .map((event) => event.undoes),
-  );
   const pendingActions = [];
   const withdrawn = new Set();
   const recompute = (coordinate) => {
@@ -92,12 +87,7 @@ export function foldProjection({
     const durable = [...classified.values()]
       .filter(
         (entry) =>
-          !entry.terminal &&
-          entry.coordinate === coordinate &&
-          entry.e.kind === "action" &&
-          !entry.restated?.length &&
-          !durableWithdrawn.has(entry.e.id) &&
-          !withdrawn.has(entry.e.id),
+          entry.stands && entry.coordinate === coordinate && !withdrawn.has(entry.e.id),
       )
       .sort(compareProjected)
       .at(-1);

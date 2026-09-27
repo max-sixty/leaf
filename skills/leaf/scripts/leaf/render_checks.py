@@ -115,32 +115,24 @@ def wait_for_probe(page, name: str, *args, timeout_ms: int | None = None) -> Non
         ) from error
 
 
-def log_coverage(state: dict) -> int:
-    """Where a page's coverage stamp (`data-lf-applied`) stands once it has projected
-    every record of an `/api/state` reading: one per record in the served coverage,
-    which is the runtime's own count. Every view of one reading lists the same records,
-    so the active view answers for whichever revision the page shows."""
-    return len(state["browser"]["views"][str(state["active"]["revision"])]["coverage"])
-
-
 # The page's own readiness reading (`pageReadiness` in runtime/presentation.js), read
 # off the entry script so a bundled entry answers too. A page whose entry has not run
 # yet has no reading, and starting is the first stage it owes. `answering` is the one
 # stage read from out here: a page too busy to say which stage it is at.
-_READINESS = """reading => {
+_READINESS = """({held, through}) => {
   const readiness = document.querySelector('script[data-lf-entry]')?.lfReadiness;
-  return readiness ? readiness(reading) : 'started';
+  return readiness ? readiness(held, through ?? undefined) : 'started';
 }"""
-_READY = f"reading => ({_READINESS})(reading) === null"
-_OUTSTANDING = f"reading => ({_READINESS})(reading) ?? 'ready'"
-# How a failure words each stage `pageReadiness` names. `data` fails only against a
-# reading the caller holds, and `log` names that reading's coverage when there is one.
+_READY = f"asked => ({_READINESS})(asked) === null"
+_OUTSTANDING = f"asked => ({_READINESS})(asked) ?? 'ready'"
+# How a failure words each stage `pageReadiness` names. `state` fails only against an
+# answer the caller holds.
 _UNREADY = {
     "answering": "the page stopped answering",
     "started": "the runtime never started",
     "upgraded": "the widget layer never finished upgrading",
-    "data": "the runtime never presented external data as current as version {version}",
     "log": "the runtime never finished replaying the log",
+    "state": "the runtime never applied the state the server held (reading {reading})",
     "presented": "the runtime never presented the page after applying its current state",
     "arrived": "work the page deferred past presentation never landed",
     "rendering": "the page's rendering never settled",
@@ -158,35 +150,39 @@ class PageNotReady(TimeoutError):
 
 
 def wait_until_ready(
-    page, state: dict | None = None, *, timeout_ms: int | None = None
+    page,
+    state: dict | None = None,
+    *,
+    through: str | None = None,
+    timeout_ms: int | None = None,
 ) -> None:
     """Wait until the page says a reader outside it may read its final boxes and press
     its keys, or raise `PageNotReady` naming the first fact it never stated.
 
     Every reader outside the page waits here rather than combining the runtime's
     stamps itself: the stages, and their order, are the runtime's (`pageReadiness`).
-    `state` is an `/api/state` reading the caller already holds, and asks the page to
-    have presented that reading's data and log coverage too. Any process may rewrite a
-    source between the caller's read and the page's, so a reading the server took later
-    meets it as well. Finite animation is not readiness; the render gate asks
-    `pageSettled` for that on its own.
+    `state` is an `/api/state` answer the caller already holds, and asks the page to
+    have applied all of it: log, data, status, versions and presence. The server may
+    move on between the caller's read and the page's, so an answer the server took
+    later meets it as well. `through` names the last stage the caller needs, for a
+    caller that wants the answer taken in while the page is still mid-gesture. Finite
+    animation is not readiness; the render gate asks `pageSettled` for that on its own.
     """
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-    reading = (
-        None
-        if state is None
-        else {
-            "version": state["data"]["version"],
-            "taken": state["taken"],
-            "coverage": log_coverage(state),
-        }
-    )
+    asked = {
+        "held": (
+            None
+            if state is None
+            else {"reading": state["reading"], "taken": state["taken"]}
+        ),
+        "through": through,
+    }
     timeout_ms = timeout_ms or getattr(
         page, "_leaf_probe_timeout_ms", SERVED_TIMEOUT_MS
     )
     try:
-        page.wait_for_function(_READY, arg=reading, timeout=timeout_ms)
+        page.wait_for_function(_READY, arg=asked, timeout=timeout_ms)
     except PlaywrightTimeout:
         pass
     else:
@@ -195,15 +191,13 @@ def wait_until_ready(
     # page whose own code holds its main thread answers neither.
     try:
         stage = page.wait_for_function(
-            _OUTSTANDING, arg=reading, timeout=_STAGE_READ_MS
+            _OUTSTANDING, arg=asked, timeout=_STAGE_READ_MS
         ).json_value()
     except PlaywrightTimeout:
         stage = "answering"
     if stage == "ready":
         return
-    words = _UNREADY[stage].format_map(reading or {})
-    if stage == "log" and reading:
-        words += f" ({reading['coverage']} record(s))"
+    words = _UNREADY[stage].format_map(asked["held"] or {})
     raise PageNotReady(stage, f"{words} within {timeout_ms}ms")
 
 

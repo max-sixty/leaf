@@ -4696,12 +4696,9 @@ def test_a_source_that_returns_under_an_unfinished_reading_stays_current(
         ],
     )
 
-    # The page accepted the reading that returned the source, so it is waiting on none;
+    # The page presents the reading that returned the source, so it is waiting on none;
     # what it shows is that reading's value rather than the one it overtook.
-    page.wait_for_function(
-        "taken => Number(document.body.dataset.lfDataTaken) >= taken",
-        arg=back.json()["taken"],
-    )
+    wait_until_ready(page, back.json())
     expect(page.locator("#notes code")).to_have_text("First.\n")
     expect(page.locator(".lf-thread", has_text="A message arriving")).to_have_count(1)
 

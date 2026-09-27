@@ -33,19 +33,17 @@ export function createProjectionCommands({ post, stateApplying, unaccountedGestu
   // Whether taking back this exact gesture now takes back what the user sees. The
   // ordered ledger sends the undo behind everything already queued, the target's own
   // unanswered send included, and the server remains final admission. Two things it
-  // cannot order: an accepted action whose presentation is still outstanding may yet
-  // change which gestures the page can honestly offer, and only an action has a
-  // withdrawal the page draws before the log answers, so a message the log has not
-  // taken waits for its answer.
+  // cannot order: an accepted action an adopted reading logs but the page has not yet
+  // presented may change which gestures the page can honestly offer, and only an
+  // action has a withdrawal the page draws before the log answers, so a message the
+  // log has not taken waits for its answer.
   function withdrawable(event) {
     if (event.kind !== "action" && String(event.id).startsWith(PENDING)) return false;
     return !readApplication().unresolved.some(
       (entry) =>
         entry.event.kind === "action" &&
-        entry.answered &&
-        entry.readEvent &&
-        entry.readEvent.id !== event.id &&
-        !entry.presented,
+        entry.state === "accepted:logged" &&
+        entry.admitted.id !== event.id,
     );
   }
 

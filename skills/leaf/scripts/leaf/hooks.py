@@ -1,6 +1,17 @@
-"""Stop and prompt hooks that enforce the agent conversation loop, and the tool
-hook that tells a Claude Code session how to close a turn a background wait
-outlives."""
+"""Stop and prompt hooks that carry a Claude Code session's page input into its
+turn and enforce the agent conversation loop, and the tool hook that tells a
+Claude Code session how to close a turn a background wait outlives.
+
+Claude Code runs the prompt hook as every turn begins, including a turn the end
+of a background task opens, idle or between two tool calls, and adds what the
+hook returns to that turn's context; the Stop hook's block reason reaches the
+model the same way. So these two hooks are the session's carrier
+(`Harness.hook_delivers`): each freezes the input pending on the session's
+pages, confirms it, and hands over the whole envelope, and the `leaf wait` the
+model keeps running only ends to open the turn. The model reads no output file
+and runs no acknowledgement. Claude Code writes a hook's context over 10,000
+characters to a file and hands over a preview and its path instead, so a
+delivery that large costs the model one read."""
 
 import json
 
@@ -24,6 +35,7 @@ from .service import (
     page_claim,
     unacknowledged,
 )
+from .session import take_input
 
 
 def unattended_pages(
@@ -176,6 +188,16 @@ def announce_wait(session_id: str) -> bool:
     )
 
 
+def delivered(delivery: dict) -> str:
+    """The turn context that hands one confirmed delivery to the model."""
+    return (
+        "Leaf delivered this input into your turn and confirmed it, so the user's "
+        "moves read Picked up. If no `leaf wait` is running, start one as a "
+        "background task alongside your first step, so later input wakes you.\n"
+        + json.dumps(delivery, ensure_ascii=False)
+    )
+
+
 def cmd_hook(payload: dict) -> None:
     event, sid = payload.get("hook_event_name"), payload.get("session_id") or ""
     if event == "PostToolUse":
@@ -207,23 +229,28 @@ def cmd_hook(payload: dict) -> None:
             except FileNotFoundError:
                 continue
         return
+    delivery = None
     if event == "UserPromptSubmit":
         open_session_turn(sid)
+        delivery = take_input(sid)
         reasons = unattended_pages(sid, prompt_open=True)
     elif event == "Stop":
+        # Input that arrived as the turn ends goes into this same turn.
+        delivery = take_input(sid)
         reasons = unattended_pages(sid)
         # A first Stop blocked on outstanding Leaf work does not end the
         # turn: Claude continues in the same turn with this reason as new
         # context. Stamp only a turn the hook allows to end (cleanly or on
         # the repeated stop that deliberately fails open).
-        if not reasons or payload.get("stop_hook_active"):
+        if not delivery and (not reasons or payload.get("stop_hook_active")):
             close_session_turn(sid)
-        # A repeated ordinary debt is the same Stop hook asking again.
-        if payload.get("stop_hook_active"):
+        # A repeated ordinary debt is the same Stop hook asking again; new
+        # input is not.
+        if payload.get("stop_hook_active") and not delivery:
             return
     else:
         reasons = unattended_pages(sid)
-    if not reasons:
+    if not reasons and not delivery:
         return
     # The message avoids "unattended": a page can be watched and still be owed
     # an answer, and the runtime spends that word on a different fact — a page
@@ -232,13 +259,16 @@ def cmd_hook(payload: dict) -> None:
     # pages owing the same thing used to carry three copies of the same
     # instruction into the turn, which is most of what the message weighed.
     protocols = list(dict.fromkeys(protocol for _, protocol in reasons if protocol))
-    message = "\n".join(
+    attention = (
         [
             "Leaf needs attention:",
             *(f"- {line}" for line, _ in reasons),
             *(f"\n{protocol}" for protocol in protocols),
         ]
+        if reasons
+        else []
     )
+    message = "\n".join([*([delivered(delivery)] if delivery else []), *attention])
     if event == "Stop":
         print(json.dumps({"decision": "block", "reason": message}))
     else:

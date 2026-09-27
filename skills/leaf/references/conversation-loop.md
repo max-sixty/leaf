@@ -43,13 +43,14 @@ with no sentence at all.
 
 User input comes before the work in hand, in this order:
 
-1. Acknowledge the delivery by the host's receipt route, so the user's moves read
-   **Picked up**. Until you write a status, the banner can say only that you are
-   working on their update.
-2. Answer each move before starting the work it asks for, and name that work on the
-   page in the same command. Each delivered event's `answering` clauses say how on
-   your host: for a comment, a reply saying what you are about to do, chained to a
-   status claim on its thread.
+1. Where the delivery's `acknowledge` names a receipt route, take it first, so the
+   user's moves read **Picked up**; every other carrier has confirmed receipt
+   already. Until you write a status, the banner can say only that you are working
+   on their update.
+2. Name the work each move asks for on the page before starting it. Each delivered
+   event's `answering` clauses say how: for a comment, a status claim on its
+   thread, with the reply carrying the result once it lands. A move that asks for
+   no work, such as a question, is answered by its reply at once.
 3. If the move interrupted other work, write the page status again once its own
    work is done, so the banner describes the work that continues rather than the
    last step before the interruption.

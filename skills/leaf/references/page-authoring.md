@@ -238,6 +238,14 @@ geometry without them:
   room beside the column holds it: from a window of about 960px with a mouse and about
   1010px with a finger. Its markers stand in it, 22px past the column. A marker level
   with a note hanging in the margin stands as a pin instead.
+- A column page's first `aside.sidebar` and its `aside.sidenote`s join the rail in the
+  margin where the window holds all of them beside the column: a sidebar from about
+  1130px, a note from about 1150px, both from about 1420px, the column moving off
+  centre to make the room. With a mouse, a sidebar holding the contents map needs only
+  the map's spine. Below that each stays where it was written. Leaf writes what stands
+  in the margin on `main` as `data-lf-margin` (`rail`, `map`, `sidebar`, `note`), so page
+  CSS that should follow the margin keys on it, such as
+  `main:not([data-lf-margin~="sidebar"]) #route { display: none }`.
 - A wide page fills the window up to its cap and keeps no rail there. Its
   markers stand as pins over the page inside the top-right corner of their blocks, as
   every marker does where the rail does not stand: in a narrower window, and in a pane

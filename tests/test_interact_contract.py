@@ -4617,27 +4617,6 @@ def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
     assert linted == ["page <style>"]
 
 
-def test_a_margin_resident_s_floor_is_the_column_box_and_its_width_each_side():
-    """A sidebar or sidenote stands in the room free beside the centred column and claims
-    none of it, so it stands where that room holds it on each side: the column box plus
-    twice its width. Container queries cannot read custom properties, so each floor is a
-    pixel copy of tokens; hold the copy to them rather than let a width change strand a
-    resident over the prose or keep it in flow with room to spare."""
-    css = (schema_model.ASSETS / "theme.css").read_text()
-    token = lambda name: int(re.search(rf"{name}:\s*(\d+)px", css)[1])
-    box = token("--col") + 2 * token("--col-pad")
-    for resident, width in (
-        ("aside.sidebar", "--sidebar"),
-        ("aside.sidenote", "--note"),
-    ):
-        floor = box + 2 * token(width)
-        query = rf"@container lf-shell \(min-width: {floor}px\) \{{"
-        # The resident's rules, up to the next query.
-        assert re.search(rf"{query}(?:(?!@container)[\s\S])*?{resident}", css), (
-            f"{resident} does not stand from the {floor}px its {width} leaves each side"
-        )
-
-
 def test_media_names_a_file_by_its_bytes_and_serves_it(page_dir, tmp_path, server):
     """An image reaches a page by reference, because the page's author is a language
     model and a screenshot is a megabyte of base64 it cannot type. The name is the

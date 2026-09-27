@@ -13,7 +13,7 @@ const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
 // The column first: content set outside the one it belongs to. The
 // sideways-scroll reading is the same question asked of the window, and the
 // window is the wider of the two: the gate renders at 1200px against a 720px
-// column, so 200px of margin on each side absorbs a spill that scrolls nothing.
+// column, so about 200px of margin beside it absorbs a spill that scrolls nothing.
 // What is out there is the margin, where Leaf's rail and a page's notes stand, and the
 // user's own window is free to be narrower than this one — so a page that passed
 // here scrolls sideways on the machine it was written for.

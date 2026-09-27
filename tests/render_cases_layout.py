@@ -369,8 +369,10 @@ LINKED_CELLS_PAGE = WIDE_TABLE_PAGE.replace(
 # 840px against a 720px column, so it stands 120px out in the margin with
 # the body not scrolling by a pixel. In vw rather than px because the static lint
 # counts pixels and would have caught it before a browser ever saw it.
+# 65vw passes the 720px column at the desktop viewport, and falls short of scrolling the
+# page sideways at every width the gate sweeps: it would from about 2400px.
 SPILLING_PAGE = LONG_PAGE.replace(
-    "</main>", "<div id='too-wide' style='width: 70vw'>Wide.</div>\n</main>"
+    "</main>", "<div id='too-wide' style='width: 65vw'>Wide.</div>\n</main>"
 )
 # Two wrappers that generate no box, differing only in whether anything inside them does.
 # `#veiled` is the shape the vocabulary shipped while a suggestion was display: contents,

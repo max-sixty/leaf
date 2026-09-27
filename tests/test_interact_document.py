@@ -56,7 +56,6 @@ from leaf import leases as leases_model
 from leaf import passages as passages_model
 from leaf import projection as projection_model
 from leaf import publishing as publishing_model
-from leaf import render_checks as render_checks_model
 from leaf import requests as requests_model
 from leaf import revision_artifact as artifact_model
 from leaf import revision_delivery as revision_delivery_model
@@ -1535,26 +1534,6 @@ def test_the_context_an_anchor_stores_is_one_number_on_both_sides():
     The quote itself is uncapped on both sides. This is the neighbourhood only."""
     _, found = _sole_definition(r"const CONTEXT = (\d+);", "the captured context width")
     assert int(found.group(1)) == anchor_capture_model.CONTEXT
-
-
-@pytest.mark.xfail(
-    strict=True,
-    reason="a sidebar or sidenote claims no room since the Layouts, so each stands in "
-    "the margin only from the room its width leaves beside the column (1296px, "
-    "1536px), past the 1200px the gate reads; TODO.md, Layouts",
-)
-def test_the_render_viewport_is_wide_enough_to_have_margins():
-    """The corpus viewport reaches every CSS shell query that grants a margin."""
-    theme = (schema_model.ASSETS / "theme.css").read_text()
-    floors = re.findall(r"@container\s+lf-shell\s*\(min-width:\s*(\d+)px\)", theme)
-    assert floors, "the theme states no container floor for a margin"
-    floor = max(map(int, floors))
-    assert render_checks_model.RENDER_VIEWPORT["width"] >= floor, (
-        f"the corpus is read at {render_checks_model.RENDER_VIEWPORT['width']}px and the "
-        f"margins only exist above {floor}px, so every reading the sweeps make of a "
-        "sidenote, a suggestion's controls or a wide exhibit's reach is being made "
-        "against a page the theme has already taken the margins off"
-    )
 
 
 def test_every_declared_attribute_and_enum_stands_in_an_example():

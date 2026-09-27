@@ -8230,7 +8230,14 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
             '.lf-msg[data-mid="{message["id"]}"]')
           && window.__editedWidget === document.querySelector('#edited-message-choice')"""
     ), "the edit replaced a standing message or its frozen widget"
-    assert events_model.read_events(d)[-2]["text"] == "The north bracket fit."
+    assert (
+        next(
+            event
+            for event in events_model.read_events(d)
+            if event["id"] == message["id"]
+        )["text"]
+        == "The north bracket fit."
+    )
 
 
 def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, serve):

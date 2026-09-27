@@ -87,6 +87,9 @@ const SENDING = new Set<GestureState>([
 const DRAWN_LOCALLY = new Set<GestureState>(["sending", "accepted"]);
 // The states `release` retires.
 const RELEASABLE = new Set<GestureState>(["accepted:presented", "refused"]);
+// In an adopted reading that no document pass has presented yet: the semantic root
+// already draws the log's event, and the page may still show what came before it.
+const UNPRESENTED = new Set<GestureState>(["sending:logged", "accepted:logged"]);
 
 /** One unresolved gesture. `admitted` is the log's event for it, known from the
  * POST's answer or from a reading, whichever came first. */
@@ -1026,6 +1029,9 @@ export function createSemanticApplication({
       publish({ unresolved });
       return left;
     },
+    // The entries an adopted reading logs that the page has not yet presented.
+    unpresented: () =>
+      publisher.read().unresolved.filter((item) => UNPRESENTED.has(item.state)),
     // The entries `release` would retire now, in ledger order.
     releasable: () =>
       publisher.read().unresolved.filter((item) => RELEASABLE.has(item.state)),

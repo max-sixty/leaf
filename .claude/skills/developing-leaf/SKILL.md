@@ -215,9 +215,10 @@ uv run leaf-dev arm <rev> "$base"
 cp -R evals "$base/evals"
 ```
 
-The suite is meant to stay a modest set of cases that each tell two wordings apart.
-Measure with whatever scenarios and guardrails the change needs, then add a case
-only if it pins a clause no existing case pins and it separated two arms you ran:
+Grow the suite slowly, toward a modest set of cases that each tell two wordings
+apart; several older cases predate this rule, and their comments say where they
+stand. Measure with whatever scenarios and guardrails the change needs, then add a
+case only if it pins a clause no existing case pins and it separated two arms you ran:
 the base failed most runs and the change passed every run, or a blunter draft failed
 a guardrail the change passes. That is usually one case per problem, and rarely more
 than two. A case both arms passed goes in the commit message, not the suite. The

@@ -8083,6 +8083,80 @@ def test_a_row_follows_its_target_through_a_scroller_inside_a_shadow_tree(
     assert page.evaluate(side), "a target scrolled sideways out of view keeps its row"
 
 
+LOG_ROW_FILLER = "".join(
+    f"<p>Filler paragraph {n}, long enough to occupy a line of reading.</p>"
+    for n in range(20)
+)
+LOG_ROW_PAGE = leaf_page(
+    "a comment in a bounded log",
+    f'<h1 id="t">Deploy</h1>{LOG_ROW_FILLER}<div id="log" data-bound="end">'
+    + "".join(
+        f'<p id="entry-{n}">Entry {n}: the deploy copied shard {n} to the new key.</p>'
+        for n in range(60)
+    )
+    + f"</div>{LOG_ROW_FILLER}",
+)
+
+
+def test_a_row_in_a_bounded_log_stands_in_the_rail_inside_what_the_log_shows(
+    browser, serve
+):
+    """A block that bounds its height scrolls what it holds, so its rows stand in a lane
+    clipped to what the block shows. The rail beside the column is beside the block
+    too, so the rows stay there rather than turning to pins over the entries; one whose
+    entry the log has scrolled away is withheld, and one whose entry stands at the
+    log's foot draws nothing past it."""
+    page = open_page(
+        browser,
+        serve(LOG_ROW_PAGE, events=[_comment_on("entry-3"), _comment_on("entry-55")]),
+    )
+    resized(page, 1440, 900)
+    log = page.locator("#log")
+    page.evaluate(
+        """log => { const at = log.getBoundingClientRect();
+          document.scrollingElement.scrollBy({
+            top: at.top + at.height / 2 - innerHeight / 2, behavior: 'instant'}); }""",
+        log.element_handle(),
+    )
+    scroll_settled(page)
+    margins_laid_out(page)
+    early = page.locator('.lf-margin-cluster[data-lf-margin-for="entry-3"]')
+    late = page.locator('.lf-margin-cluster[data-lf-margin-for="entry-55"]')
+    expect(late).to_have_attribute("data-lf-place", "rail")
+    expect(late).not_to_have_class(re.compile(r"\blf-withheld\b"))
+    expect(early).to_have_class(re.compile(r"\blf-withheld\b"))
+
+    # The late entry's top a few pixels inside the log's foot: its row, level with it,
+    # reaches past the foot, and nothing of it is there to see or press.
+    log.evaluate(
+        """log => { const entry = document.getElementById('entry-55');
+          log.scrollTop += entry.getBoundingClientRect().top
+            - (log.getBoundingClientRect().bottom - 12); }"""
+    )
+    scroll_settled(page, "#log")
+    margins_laid_out(page)
+    expect(late).not_to_have_class(re.compile(r"\blf-withheld\b"))
+    below = page.evaluate(
+        """([row, log]) => {
+          const at = row.getBoundingClientRect();
+          const foot = log.getBoundingClientRect().bottom;
+          const hit = document.elementFromPoint(
+            (at.left + at.right) / 2, Math.min(at.bottom, foot + 12) - 2);
+          return {reaches: at.bottom > foot + 4, hit: row.contains(hit)};
+        }""",
+        [late.element_handle(), log.element_handle()],
+    )
+    assert below["reaches"], below
+    assert not below["hit"], "the row drew past the log's foot"
+
+    log.evaluate("log => log.scrollTop = 0")
+    scroll_settled(page, "#log")
+    margins_laid_out(page)
+    expect(early).not_to_have_class(re.compile(r"\blf-withheld\b"))
+    expect(early).to_have_attribute("data-lf-place", "rail")
+    expect(late).to_have_class(re.compile(r"\blf-withheld\b"))
+
+
 TAB_PIN_PAGE = leaf_page(
     "a comment behind a tab",
     """

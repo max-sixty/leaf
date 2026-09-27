@@ -14,8 +14,9 @@
    so every target outside it would be an invalid anchor. Rows whose targets scroll with
    the document stand in the root lane; each
    bounded reading region (one whose body scrolls on its own) gets a lane of its own,
-   clipped with `clip-path` to what that region shows, which clips a pin's paint and
-   presses without making the lane a containing block.
+   clipped with `clip-path` to what that region shows, and across to the rail where a
+   region reaches the column's edge, which clips a row's paint and presses without
+   making the lane a containing block.
 
    An anchor name reaches only its own tree, so a target inside a shadow tree anchors
    through its host, and a `display: contents` target through its first shown part.
@@ -524,6 +525,21 @@ export function layoutMarginRows() {
   const hang = parseFloat(rootStyle.getPropertyValue("--rail-hang")) || 0;
   const pinInset = parseFloat(rootStyle.getPropertyValue("--pin-inset")) || 0;
   const railInner = columnRect.right + hang;
+  // Where the column's content ends. A region reaching it has nothing but the column's
+  // own padding between it and the rail, as a bounded log in the column does, so the
+  // rail stands beside its rows as it does beside the document's; a pane with another
+  // beside it does not reach it.
+  const columnEnd =
+    columnRect.left +
+    main.clientLeft +
+    main.clientWidth -
+    parseFloat(getComputedStyle(main).paddingRight);
+  const besideRail = new Map([[pageScroller, true]]);
+  const railBeside = (scroller) => {
+    if (!besideRail.has(scroller))
+      besideRail.set(scroller, scroller.getBoundingClientRect().right >= columnEnd - 1);
+    return besideRail.get(scroller);
+  };
   // The half that decides rail or pin is a rail marker's: a pin's entries are smaller.
   const entry = layer.root.parentElement.querySelector(
     '.lf-margin-cluster:not([data-lf-place="pin"]) .lf-margin-entry:not([hidden])',
@@ -559,7 +575,7 @@ export function layoutMarginRows() {
     const extent = shownExtent(target);
     const place = rowPosture({
       railStands: stands,
-      rootLane,
+      besideRail: railBeside(scroller),
       blockRight: reach(anchor, box, main, reaches),
       railInner,
       half: size / 2,
@@ -691,17 +707,19 @@ export function layoutMarginRows() {
   }
 
   // Each lane shows its region's rows only inside what that region shows, with room for a
-  // focus ring. The clip is in the lane's own coordinates, so it is taken again whenever
-  // the pass runs, which a resize of the region's box also brings.
+  // focus ring, and across to the rail where the rail stands beside the region. The clip
+  // is in the lane's own coordinates, so it is taken again whenever the pass runs, which
+  // a resize of the region's box also brings.
   for (const [scroller, lane] of layer.lanes) {
     const region = regions.get(scroller);
     const at = lane.getBoundingClientRect();
     const ring = 6;
+    const right = (stands && railBeside(scroller) ? shell : region?.right) + ring;
     const clip = region
       ? `polygon(${[
           [region.left - ring, region.top],
-          [region.right + ring, region.top],
-          [region.right + ring, region.bottom],
+          [right, region.top],
+          [right, region.bottom],
           [region.left - ring, region.bottom],
         ]
           .map(([x, y]) => `${x - at.left}px ${y - at.top}px`)

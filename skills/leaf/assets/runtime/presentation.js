@@ -558,8 +558,8 @@ export function dress(root) {
 // panel's (see msgNode).
 //
 // Two more are facts of the element wherever it renders. x-bound says it holds its
-// own height and scrolls inside it; `bounds.js` keeps an `end` bound on its newest
-// entry. A page occurrence overrides x-bound with data-bound, as data-width overrides
+// own height and scrolls inside it; `bounds.js` makes each bounded block a reading
+// region and keeps an `end` bound on its newest entry. A page occurrence overrides x-bound with data-bound, as data-width overrides
 // x-space. x-reading-role is the structural role the theme lays out, so a package's
 // differently named pane takes the same rules as lf-pane.
 export const MARKED_ANYWHERE = Object.freeze({

@@ -1038,6 +1038,76 @@ def test_a_bound_at_its_end_follows_a_rebuilt_feed_until_the_user_scrolls_back(
     assert page.locator("#feed").evaluate("feed => feed.scrollTop") == 200
 
 
+def revised_log(first, last):
+    """A page whose log bounded at its end holds entries `first` to `last`."""
+    filler = "".join(
+        f"<p>Filler paragraph {n}, long enough to occupy a line of reading.</p>"
+        for n in range(20)
+    )
+    entries = "".join(
+        f"<p>Entry {n}: the deploy copied shard {n} to the new key format.</p>"
+        for n in range(first, last)
+    )
+    return leaf_page(
+        "a revised log",
+        f'<h1 id="t">Deploy</h1>{filler}<div id="log" data-bound="end">{entries}'
+        f"</div>{filler}",
+    )
+
+
+def test_a_revision_leaves_a_following_log_at_its_end_and_a_reader_on_their_line(
+    browser, serve
+):
+    """A bounded log is a reading region, so a revision restores the place the user had
+    in it. The place of a log following its newest entry is its end: restoring the line
+    that stood at its top would have left the user above the entries the revision
+    added, and ended the following. A user who scrolled back keeps the line they were
+    reading, however many entries arrived above it."""
+    url = serve(revised_log(10, 60))
+    page = open_page(browser, live_url(url))
+    resized(page, 1280, 900)
+    log = page.locator("#log")
+    at_end = """log => log.scrollHeight > log.clientHeight
+      && log.scrollHeight - log.scrollTop - log.clientHeight <= 2"""
+    page.wait_for_function(f"({at_end})(document.getElementById('log'))")
+    page.evaluate(
+        """log => { const at = log.getBoundingClientRect();
+          document.scrollingElement.scrollBy({
+            top: at.top + at.height / 2 - innerHeight / 2, behavior: 'instant'}); }""",
+        log.element_handle(),
+    )
+    scroll_settled(page)
+
+    (serve.page_dir / "index.html").write_text(revised_log(10, 80))
+    told(page)
+    expect(log.locator("p")).to_have_count(70)
+    rendered(page)
+    assert log.evaluate(at_end), "the revision left the log above its newest entries"
+
+    # Scrolled back to Entry 30, with ten entries arriving above it.
+    reading = log.locator("p", has_text="Entry 30:")
+    log.evaluate(
+        """(log, line) => log.scrollTop += line.getBoundingClientRect().top
+          - log.getBoundingClientRect().top""",
+        reading.element_handle(),
+    )
+    scroll_settled(page, "#log")
+    where = """([log, line]) => line.getBoundingClientRect().top
+      - log.getBoundingClientRect().top"""
+    handles = [log.element_handle(), reading.element_handle()]
+    before = page.evaluate(where, handles)
+    (serve.page_dir / "index.html").write_text(revised_log(0, 80))
+    told(page)
+    expect(log.locator("p")).to_have_count(80)
+    rendered(page)
+    after = page.evaluate(
+        where,
+        [log.element_handle(), log.locator("p", has_text="Entry 30:").element_handle()],
+    )
+    assert after == pytest.approx(before, abs=2), "the reader lost their line"
+    assert not log.evaluate(at_end)
+
+
 def test_release_rollback_is_a_bound_host_request_not_local_page_state(browser, serve):
     """The release escape path names exact releases and waits for a host receipt."""
     example = Path(__file__).parent.parent / "examples" / "live-progress.html"

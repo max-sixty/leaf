@@ -20,7 +20,7 @@ import { landingBand, shownBox } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
 import { scrollBehavior } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
-import { scrollerFor } from "../reading-regions.js";
+import { scrollerFor, scrollersOf } from "../reading-regions.js";
 import { renderedParent } from "../shadow.js";
 import { retainUserIntent } from "../user-intent.js";
 import { SAYS_IN } from "./selectors.js";
@@ -134,15 +134,18 @@ export function readBoxPlace(input) {
 // control under the user's hands. Only one on screen is under their hands: a user who
 // has scrolled away from it is reading something else, which the news must not move. A
 // pinned row stands still by itself, and a control the render replaced has nothing to
-// hold.
+// hold. The box scrolling the control takes the move first and the boxes around it
+// whatever it cannot: a bounded block not yet full grows in the page instead.
 export function holdBox(control) {
   const held = control?.closest?.(SAYS_IN);
   if (!held || pinned(replyRowOf(held, control)) || !onScreen(control)) return () => {};
   const top = control.getBoundingClientRect().top;
   return () => {
     if (focused() !== control || !control.isConnected) return;
-    const moved = control.getBoundingClientRect().top - top;
-    if (Math.abs(moved) >= 1)
-      scrollerFor(control).scrollBy({ top: moved, behavior: "instant" });
+    for (const box of scrollersOf(control)) {
+      const moved = control.getBoundingClientRect().top - top;
+      if (Math.abs(moved) < 1) return;
+      box.scrollBy({ top: moved, behavior: "instant" });
+    }
   };
 }

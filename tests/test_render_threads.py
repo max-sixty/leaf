@@ -6927,10 +6927,41 @@ SEAT_DIFF = (
 THIRTY_LINES = "\n".join(f"Pasted line {n}" for n in range(30))
 
 
+def bounded_seat_page(steps, bound):
+    """A talk seat at the foot of a command that bounds its own height with
+    `data-bound`, after `steps` plain tasks, between screens of filler."""
+    tasks = "".join(
+        f'<lf-task id="step-{n}" status="planned"><strong>Step {n}</strong> '
+        f"{SEAT_WORDS}</lf-task>"
+        for n in range(steps)
+    )
+    return leaf_page(
+        "bounded seat",
+        f'<h1 id="h">Three jobs</h1>{SEAT_FILLER}<lf-command id="hub" '
+        f'label="Before the frost" data-bound="{bound}">{tasks}<lf-task id="jobs" '
+        'status="active" talk><strong>Which jobs are worth starting?</strong> The '
+        f"mounts came down in January.</lf-task></lf-command>{SEAT_FILLER}",
+    )
+
+
 def seated_page(serve, kind):
     """A page whose seat sits past a screen of filler with more below it, and the
     selector of the widget holding it: `task` keeps its box after a send to offer
-    Send & pause, `verdict` gives it up to the thread it starts."""
+    Send & pause, `verdict` gives it up to the thread it starts. `bounded` is a task
+    in a command that bounds its height and scrolls, `bounded-short` one in a block
+    whose bound its contents do not yet fill."""
+    if kind == "bounded":
+        return serve(bounded_seat_page(6, "end")), "#jobs"
+    if kind == "bounded-short":
+        return serve(
+            leaf_page(
+                "bounded seat",
+                f'<h1 id="h">Three jobs</h1>{SEAT_FILLER}<lf-command id="hub" '
+                'label="Before the frost"><lf-task id="jobs" status="active" talk '
+                'data-bound="start"><strong>Which jobs are worth starting?</strong>'
+                f"</lf-task></lf-command>{SEAT_FILLER}",
+            )
+        ), "#jobs"
     if kind == "task":
         return serve(
             leaf_page(
@@ -7162,6 +7193,66 @@ def test_a_seat_send_at_the_window_foot_shows_the_thread_it_started(
     assert clear_of_the_bar(page, focused), "the box the user is in went below the fold"
 
 
+def shown_in(page, node, scroller):
+    """Whether `node` shows whole inside `scroller`'s box and inside the window above
+    the shortcut bar."""
+    return page.evaluate(
+        """([node, box, bar]) => {
+          const at = node.getBoundingClientRect();
+          const holder = box.getBoundingClientRect();
+          const foot = bar ? bar.getBoundingClientRect().top : innerHeight;
+          return at.height > 0 && at.top >= holder.top - 0.5
+            && at.bottom <= holder.bottom + 0.5 && at.top >= 0 && at.bottom <= foot + 0.5;
+        }""",
+        [
+            node.element_handle(),
+            scroller.element_handle(),
+            page.locator(".lf-shortcut-bar").element_handle(),
+        ],
+    )
+
+
+@pytest.mark.parametrize("bound", ["end", "start"])
+def test_a_seat_send_in_a_bounded_block_moves_the_block_and_not_the_page(
+    browser, serve, bound
+):
+    """A block that bounds its own height scrolls a seat inside it, so each send
+    landed its thread by scrolling the page too, and the block went out of the window
+    after two sends. The block is the reading region the seat stands in."""
+    page = open_page(browser, serve(bounded_seat_page(6, bound)))
+    resized(page, 1280, 700)
+    hub = page.locator("#hub")
+    assert hub.evaluate("hub => hub.scrollHeight > hub.clientHeight + 100")
+    # The block stands in the middle of the window, its seat scrolled into its view.
+    page.evaluate(
+        """hub => { const at = hub.getBoundingClientRect();
+          document.scrollingElement.scrollBy({
+            top: at.top + at.height / 2 - innerHeight / 2, behavior: 'instant'}); }""",
+        hub.element_handle(),
+    )
+    hub.evaluate("hub => hub.scrollTop = hub.scrollHeight")
+    scroll_settled(page)
+    box = page.locator("#jobs > .lf-thread-seat > .lf-say leaf-text")
+    for n, words in enumerate(["First thought.", "Second thought."]):
+        write(box, words)
+        before = page.evaluate("() => document.scrollingElement.scrollTop")
+        with sending(page, f"message {n + 1}"):
+            page.keyboard.press("Enter")
+        sent = page.locator("#jobs .lf-page-thread .lf-page-thread-msg").last
+        expect(sent).to_contain_text(words)
+        rendered(page)
+        scroll_settled(page)
+        scroll_settled(page, "#hub")
+        after = page.evaluate("() => document.scrollingElement.scrollTop")
+        assert after == pytest.approx(before, abs=1), (
+            f"send {n + 1} moved the page {after - before}px"
+        )
+        assert shown_in(page, sent, hub), f"send {n + 1} left its turn out of view"
+        focused = page.locator("#jobs leaf-text:focus")
+        expect(focused).to_have_count(1)
+        assert shown_in(page, focused, hub), f"send {n + 1} left the box out of view"
+
+
 def test_a_seat_box_grown_by_a_paste_keeps_its_send_above_the_bar(browser, serve):
     """The growth reveal lived in the reply wiring alone, so a seat's own box grew
     under the shortcut bar, CodeMirror's caret scrolling knowing nothing of it."""
@@ -7193,13 +7284,16 @@ def test_a_diff_thread_reply_grown_by_a_paste_keeps_its_send_above_the_bar(
     assert clear_of_the_bar(page, thread.locator(":scope > .lf-say .lf-compose-submit"))
 
 
-@pytest.mark.parametrize("kind", ["task", "diff"])
+@pytest.mark.parametrize("kind", ["task", "diff", "bounded", "bounded-short"])
 def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
     browser, serve, kind
 ):
     """The new turn went in above the reply box the user was typing in and pushed it,
-    caret and all, below the fold. News moves no control under the user's hands."""
-    url, root = seated_thread(serve, kind, 3)
+    caret and all, below the fold. News moves no control under the user's hands.
+    A short bounded block grows in the page rather than scrolling, so the page takes
+    the move there."""
+    messages = 1 if kind == "bounded-short" else 3
+    url, root = seated_thread(serve, kind, messages)
     page = open_page(browser, url)
     thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
     box = thread.locator(":scope > .lf-say leaf-text")
@@ -7207,6 +7301,7 @@ def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
     write(box, "Half a thought")
     to_window_foot(page, box, 50)
     before = box.evaluate("box => box.getBoundingClientRect().top")
+    page_before = page.evaluate("() => document.scrollingElement.scrollTop")
     events_model.append_event(
         serve.page_dir,
         {
@@ -7220,12 +7315,16 @@ def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
         },
     )
     told(page)
-    expect(thread.locator(".lf-page-thread-msg")).to_have_count(4)
+    expect(thread.locator(".lf-page-thread-msg")).to_have_count(messages + 1)
     rendered(page)
     expect(box).to_be_focused()
     assert box.evaluate("box => box.getBoundingClientRect().top") == pytest.approx(
         before, abs=1
     )
+    if kind == "bounded":
+        # The block scrolls the box, so it takes the move and the page stands still.
+        page_after = page.evaluate("() => document.scrollingElement.scrollTop")
+        assert page_after == pytest.approx(page_before, abs=1)
 
 
 @pytest.mark.parametrize("kind", ["task", "verdict"])

@@ -752,6 +752,138 @@ def test_thread_travel_reveals_a_review_detail_in_its_pane_only(browser, serve):
     assert queue.evaluate("el => el.scrollTop") == queue_before
 
 
+BOUNDED_LOG_FILLER = "".join(
+    f"<p>Filler paragraph {n}, long enough to occupy a line of reading.</p>"
+    for n in range(40)
+)
+
+
+def bounded_log_page(named):
+    """A log bounded at its end between screens of filler, `named` or anonymous."""
+    entries = "".join(
+        f"<p>Entry {n}: the deploy copied shard {n} to the new key format.</p>"
+        for n in range(60)
+    )
+    name = ' id="log"' if named else ""
+    return leaf_page(
+        "bounded log",
+        f'<h1 id="t">Deploy</h1>{BOUNDED_LOG_FILLER}<section id="deploy">'
+        f'<div{name} class="log" data-bound="end">{entries}</div></section>'
+        f"{BOUNDED_LOG_FILLER}",
+    )
+
+
+@pytest.mark.parametrize("named", [True, False], ids=["named", "anonymous"])
+def test_thread_travel_into_a_bounded_log_scrolls_the_log_and_the_page_no_more(
+    browser, serve, named
+):
+    """A block that bounds its height is the box scrolling a passage inside it, with an
+    id or without one. Travel centred the passage by moving the page, scrolling the log
+    only as far as its edge, so a log already on screen slid under the user; one
+    scrolled off the window must still come back with the passage in it."""
+    page = open_page(
+        browser,
+        serve(
+            bounded_log_page(named),
+            anchored=[("deploy", "the deploy copied shard 3 to the new key format")],
+        ),
+    )
+    resized(page, 1400, 900)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    log = page.locator(".log")
+    passage = log.locator("p").nth(3)
+    placed = """([log, passage, bar]) => {
+      const box = log.getBoundingClientRect();
+      const at = passage.getBoundingClientRect();
+      const foot = bar ? bar.getBoundingClientRect().top : innerHeight;
+      return at.top >= box.top && at.bottom <= box.bottom
+        && at.top >= 0 && at.bottom <= foot;
+    }"""
+    handles = [
+        log.element_handle(),
+        passage.element_handle(),
+        page.locator(".lf-shortcut-bar").element_handle(),
+    ]
+    quote = page.locator(".lf-thread .lf-quote")
+    page.locator(".lf-thread-summary").click()
+
+    # The log stands in the middle of the window, opened on its newest entry.
+    page.evaluate(
+        """log => { const at = log.getBoundingClientRect();
+          document.scrollingElement.scrollBy({
+            top: at.top + at.height / 2 - innerHeight / 2, behavior: 'instant'}); }""",
+        log.element_handle(),
+    )
+    scroll_settled(page)
+    assert not page.evaluate(placed, handles)
+    before = page.evaluate("() => document.scrollingElement.scrollTop")
+    quote.click()
+    scroll_settled(page, ".log")
+    scroll_settled(page)
+    assert page.evaluate(placed, handles), "the passage was left out of view"
+    after = page.evaluate("() => document.scrollingElement.scrollTop")
+    assert after == pytest.approx(before, abs=1), f"the page moved {after - before}px"
+
+    # The log scrolled back to its end and the page taken to its top: the travel
+    # brings both the log and the passage in it into the window.
+    log.evaluate("log => log.scrollTop = log.scrollHeight")
+    page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
+    scroll_settled(page)
+    assert not page.evaluate(placed, handles)
+    quote.click()
+    scroll_settled(page, ".log")
+    scroll_settled(page)
+    assert page.evaluate(placed, handles), "the passage stayed off the window"
+
+
+def test_the_ask_walk_lands_an_ask_in_a_bounded_log_at_the_log_top(browser, serve):
+    """An Ask inside a block that bounds its height arrives at the top of that block,
+    which is the box scrolling it. The walk measured its run-up against the window and
+    moved the page to put it under the banner, sliding a log the user could already
+    see."""
+    early = "".join(f"<p>Early {n}: a line before the question.</p>" for n in range(8))
+    entries = "".join(
+        f"<p>Entry {n}: the deploy copied shard {n} to the new key format.</p>"
+        for n in range(40)
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "bounded ask",
+                f'<h1 id="t">Deploy</h1>{BOUNDED_LOG_FILLER}<div id="log" '
+                f'data-bound="end">{early}<lf-ask id="q"><h3>Which shard next?</h3>'
+                '<lf-options id="o" choose><lf-option id="o1">The first</lf-option>'
+                '<lf-option id="o2">The second</lf-option></lf-options></lf-ask>'
+                f"{entries}</div>{BOUNDED_LOG_FILLER}",
+            )
+        ),
+    )
+    resized(page, 1280, 900)
+    log = page.locator("#log")
+    page.evaluate(
+        """log => { const at = log.getBoundingClientRect();
+          document.scrollingElement.scrollBy({
+            top: at.top + at.height / 2 - innerHeight / 2, behavior: 'instant'}); }""",
+        log.element_handle(),
+    )
+    scroll_settled(page)
+    before = page.evaluate("() => document.scrollingElement.scrollTop")
+    page.locator("body").focus()
+    page.keyboard.press("a")
+    expect(page.locator("#q")).to_be_focused()
+    scroll_settled(page, "#log")
+    scroll_settled(page)
+    after = page.evaluate("() => document.scrollingElement.scrollTop")
+    assert after == pytest.approx(before, abs=1), f"the page moved {after - before}px"
+    landed = page.evaluate(
+        """() => document.getElementById('q').getBoundingClientRect().top
+          - document.getElementById('log').getBoundingClientRect().top"""
+    )
+    assert landed == pytest.approx(0, abs=2), f"the Ask landed {landed}px down the log"
+
+
 def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyboard(
     browser, serve
 ):

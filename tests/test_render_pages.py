@@ -337,9 +337,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         previous = set()
         for event in logged:
             references = [
-                event[key]
-                for key in ("parent", "undoes", "message", "request")
-                if key in event
+                event[key] for key in ("parent", "undoes", "message") if key in event
             ] + event.get("events", [])
             assert set(references) <= previous, (
                 f"{example.stem}: {event['id']} refers to missing earlier events: "

@@ -13,10 +13,7 @@ from leaf.schema import MESSAGE_KINDS
 
 def local_ask_entry(entry: dict) -> bool:
     """Whether one widget declaration originates an ask."""
-    return (
-        entry.get("x-awaits") is not None
-        or entry.get("x-request", {}).get("ask") is True
-    )
+    return entry.get("x-awaits") is not None
 
 
 def asking(attrs: dict, when: dict) -> bool:
@@ -274,14 +271,12 @@ class _AskReducer:
         dropped: set,
         *,
         thread: bool,
-        request_phases: dict[str, str] | None = None,
     ):
         self.projection = projection
         self.byid = byid
         self.spk = spk
         self.registry = registry
         self.thread = thread
-        self.request_phases = request_phases or {}
         elements = source.lf_elements if hasattr(source, "lf_elements") else source
         self.records = [record for record in elements if self._is_declared(record)]
         self.positioned_holders = projected_action_holders(projection, byid, registry)
@@ -298,9 +293,6 @@ class _AskReducer:
     def _entry(self, record):
         return self.registry[record["tag"]]
 
-    def _is_request(self, record):
-        return self._entry(record).get("x-request", {}).get("ask") is True
-
     def _is_declared(self, record):
         return local_ask_entry(self.registry.get(record["tag"]) or {})
 
@@ -308,8 +300,6 @@ class _AskReducer:
         return self._entry(record).get("x-awaits", {})
 
     def _local(self, record):
-        if self._is_request(record):
-            return self.request_phases.get(record["attrs"].get("id")) == "ready"
         return asking(
             replayed_attrs(record, self.projection),
             self._declaration(record).get("when"),
@@ -321,8 +311,6 @@ class _AskReducer:
 
     def _answered(self, record, with_agent):
         entry = self._entry(record)
-        if self._is_request(record):
-            return not self.local[id(record)]
         if self.thread and not entry.get("x-state"):
             return True
         return ask_answered(
@@ -370,15 +358,11 @@ class _AskReducer:
         """Every active Ask, including ones the user has answered.
 
         An action Ask remains active while its authored `when` holds, even after
-        one of its answer verbs has state. A request Ask remains the instruction
-        the page asked throughout its one lifecycle; accepting it changes who owns the
-        turn rather than erasing the Ask.
+        one of its answer verbs has state.
         """
         active = []
         for record in self.records:
-            if self.exists[id(record)] and (
-                self._is_request(record) or self.local[id(record)]
-            ):
+            if self.exists[id(record)] and self.local[id(record)]:
                 active.append(record)
                 continue
             # An ask that retires its own last visible slot still has a receipt
@@ -388,7 +372,6 @@ class _AskReducer:
             unit = record["attrs"].get("id")
             if (
                 unit in settled_away
-                and not self._is_request(record)
                 and self._local(record)
                 and self._answered(record, set())
             ):
@@ -432,7 +415,6 @@ def page_ask_readings(
     dropped: set,
     with_agent: set[str],
     *,
-    request_phases: dict[str, str] | None = None,
     settled_away: set[str] | None = None,
 ) -> dict:
     """Every ask reading of one document, folded over one shared setup.
@@ -459,7 +441,6 @@ def page_ask_readings(
         registry,
         dropped,
         thread=False,
-        request_phases=request_phases,
     )
     return {
         "all": reducer.inventory(settled_away or set()),
@@ -490,15 +471,13 @@ def thread_ask_readings(
     settled: set,
     *,
     reading: FrozenThreadReading | None = None,
-    request_phases: dict[str, str] | None = None,
 ) -> dict:
     """Every ask reading of the open frozen thread markup, over one shared fold.
 
     A fragment is frozen: no version answers it and no `restated`
     retracts it, so every action on its widgets stands (no floors, no window).
-    A widget with an action ask or request ask can stand in a thread. An action
-    ask is answered by the same declared state condition as on the page, while a
-    request ask follows its frozen-document request lifecycle.
+    A widget with an action ask can stand in a thread, answered by the same
+    declared state condition as on the page.
 
     Frozen thread markup seats no thread of its own — the thread's reply box
     is already where the user answers — so the user's list and the unanswered
@@ -521,7 +500,6 @@ def thread_ask_readings(
         registry,
         set(),
         thread=True,
-        request_phases=request_phases,
     )
     asks = reducer.result(set())
 

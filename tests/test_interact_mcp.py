@@ -181,7 +181,7 @@ def test_mcp_write_requires_attempt_identity(page_dir):
     assert events_model.read_events(page_dir) == []
 
 
-@pytest.mark.parametrize("kind", ["action", "request"])
+@pytest.mark.parametrize("kind", ["action", "resolve"])
 def test_mcp_snapshot_write_rejects_non_comment_event_kinds(page_dir, kind):
     result = apply_event(
         str(page_dir),
@@ -360,7 +360,7 @@ def test_stdio_snapshot_write_boundary_accepts_only_comments(page_dir):
                         },
                     },
                 )
-                for kind in ("action", "request")
+                for kind in ("action", "resolve")
             ]
             accepted = await session.call_tool(
                 "leaf_snapshot_apply_event",

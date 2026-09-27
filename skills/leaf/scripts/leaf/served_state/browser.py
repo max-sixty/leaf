@@ -10,7 +10,6 @@ from ..files import list_revisions, stamped_version
 from ..gesture_words import GestureWords, RevisionReader, revisions_on_disk
 from ..history import history, wants_history
 from ..projection import FrozenThreadReading, canonical_updates, page_reading
-from ..requests import request_outcomes
 from ..revision_artifact import read_registry
 from ..structure import SourceDocument, parse_revision
 from ..workflows import canonical_workflows
@@ -157,7 +156,6 @@ def browser_state(
     now: str,
     live_stream: dict | None = None,
     registries: dict[int, dict] | None = None,
-    data: dict | None = None,
     revisions: RevisionReader | None = None,
 ) -> tuple[dict, BrowserReading]:
     """The browser's derived reading of one transaction-consistent page snapshot.
@@ -188,7 +186,7 @@ def browser_state(
     )
     live_reply = canonical_stream_reply(present, now, (live_stream or {}).get("reply"))
     thread, thread_reading = browser_thread(
-        events, active_registry, threads, live_reply, data
+        events, active_registry, threads, live_reply
     )
     thread_projection = thread_reading.projection
 
@@ -201,7 +199,7 @@ def browser_state(
             if revision == active_revision
             else page_reading(document, events, registry_for(revision), revision)
         )
-        document, reading = browser_document(page, threads, data or {"sources": {}})
+        document, reading = browser_document(page, threads)
         readings[revision] = reading
         projection = reading.projection
         classified = {
@@ -290,7 +288,6 @@ def browser_state(
         "thread": thread,
         "activity": activity,
         "workflows": workflows,
-        "request_outcomes": request_outcomes(events),
         "receipts": [event for event in events if event.get("attempt")],
         "version_notes": {
             str(event["version"]): event["text"]
@@ -314,7 +311,6 @@ def project_browser_state(
     registries_override: dict[int, dict] | None = None,
     include_active_view: bool = True,
     live_stream: dict | None = None,
-    data: dict | None = None,
 ) -> tuple[dict, BrowserReading] | None:
     """Project only the documents one browser reading can consume.
 
@@ -364,6 +360,5 @@ def project_browser_state(
         now,
         live_stream,
         registries,
-        data,
         revisions_on_disk(page_dir),
     )

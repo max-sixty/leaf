@@ -2,22 +2,17 @@
 
 import re
 
-import pytest
 from interact_support import record_claim
-from leaf import event_log as events_model
 from leaf import leases as leases_model
-from leaf import requests as requests_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import thread as thread_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    COMMAND_HUB_EXAMPLE,
     PANEL_PAGE,
-    live_url,
     panel_comment,
 )
-from render_harness import FEATURE_GALLERY, open_page, sending, told
+from render_harness import FEATURE_GALLERY, open_page, told
 
 
 def test_new_reply_and_user_question_share_one_notice_without_moving_focus(
@@ -134,33 +129,6 @@ def test_deferred_notice_describes_only_the_current_message_version(browser, ser
       setNoticeContext(false);
     }""")
     expect(page.locator(".lf-notice")).to_have_text(re.compile(r".+ updated a comment"))
-
-
-@pytest.mark.parametrize(
-    ("status", "words"),
-    [
-        ("succeeded", "Request succeeded"),
-        ("failed", "Request failed; Input needed"),
-    ],
-)
-def test_native_request_outcome_uses_the_same_notice_as_a_reopened_ask(
-    browser, serve, status, words
-):
-    page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
-    expect(page.locator(".lf-notice")).to_be_hidden()
-    with sending(page, "the native request"):
-        page.locator("#dedupe-operations").get_by_role(
-            "button", name="Restart with a fresh worker"
-        ).click()
-    [request] = [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "request"
-    ]
-    requests_model.cmd_receipt(serve.page_dir, request["id"], status, "Host outcome")
-    told(page)
-    expect(page.locator(".lf-notice")).to_have_text(words)
-    expect(page.locator(".lf-live")).to_have_text(words)
 
 
 def test_initial_history_and_repeated_stage_readings_are_quiet(browser, serve):

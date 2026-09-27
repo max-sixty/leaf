@@ -54,10 +54,6 @@
    - The Ask model (asks/model.js) reads `x-awaits`, while the Ask tray
      projects a declared `x-ask-surface` region around that source where one exists;
      neither names a tag.
-   - A holder declaring `x-request.ask` joins that same Ask projection only
-     while its canonical request lifecycle is `ready`. Pending and completed requests
-     are the host's turn; a failed receipt returns the holder to the user without a
-     package-maintained pending flag.
    - the internal validation adapter exposes replay winners to the render gate,
      the panel's own folds included: a widget an agent sent folds the way a page widget
      does and the poll replays it the same way, so the premise that every `renderState`

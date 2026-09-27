@@ -84,31 +84,26 @@
                 a commit; its branch and evidence remain inspectable.
                 <lf-worktree id="tree-w-5" source="atlas-worktrees"></lf-worktree>
               </lf-agent>
-              <lf-ask id="dedupe-operations-decision">
+              <lf-ask id="decision-dedupe-region">
                 <h3>What should the host do with the stalled work?</h3>
-                <lf-operations
-                  id="dedupe-operations"
-                  target="parser-dedupe"
-                  worker="w-5"
-                  worktree="tree-w-5"
-                >
-                  <lf-operation verb="restart">
+                <lf-options id="decision-dedupe" choose>
+                  <lf-option id="dedupe-restart">
                     <strong>Restart with a fresh worker</strong> Preserve the branch,
                     commits, and comments; reap the old worker.
                     <em
                       >My take: keep the durable work and replace the stalled
                       process.</em
                     >
-                  </lf-operation>
-                  <lf-operation verb="park">
+                  </lf-option>
+                  <lf-option id="dedupe-park">
                     <strong>Park it for tomorrow</strong> Keep the branch and take it
                     out of today's plan.
-                  </lf-operation>
-                  <lf-operation verb="drop">
+                  </lf-option>
+                  <lf-option id="dedupe-drop">
                     <strong>Drop it</strong> Archive the branch; corpus storage stays at
                     40 GB for this rewrite.
-                  </lf-operation>
-                </lf-operations>
+                  </lf-option>
+                </lf-options>
               </lf-ask>
             </lf-task>
             <lf-task
@@ -150,25 +145,20 @@
                 reconciliation evidence.
                 <lf-worktree id="tree-w-8" source="atlas-worktrees"></lf-worktree>
               </lf-agent>
-              <lf-ask id="schema-operations-decision">
+              <lf-ask id="decision-schema-region">
                 <h3>What should the host do with the schema branch?</h3>
-                <lf-operations
-                  id="schema-operations"
-                  target="schema-choice"
-                  worker="w-8"
-                  worktree="tree-w-8"
-                >
-                  <lf-operation verb="land">
+                <lf-options id="decision-schema" choose>
+                  <lf-option id="schema-land">
                     <strong>Land it now</strong> Tests are green, it unblocks the
                     dependent work, and shadow reads begin before anything depends on
                     it.
                     <em>My take: land while the evidence is current.</em>
-                  </lf-operation>
-                  <lf-operation verb="hold">
+                  </lf-option>
+                  <lf-option id="schema-hold">
                     <strong>Hold for the backfill</strong> Keep the dependent work idle
                     and take one larger review tomorrow.
-                  </lf-operation>
-                </lf-operations>
+                  </lf-option>
+                </lf-options>
               </lf-ask>
             </lf-task>
             <lf-task id="schema-backfill" status="planned" needs="schema-choice">
@@ -219,27 +209,22 @@
                 compatibility tests.
                 <lf-worktree id="tree-w-3" source="atlas-worktrees"></lf-worktree>
               </lf-agent>
-              <lf-ask id="api-operations-decision">
+              <lf-ask id="decision-api-region">
                 <h3>What should the host do with atlas/public-api?</h3>
-                <lf-operations
-                  id="api-operations"
-                  target="api-shape"
-                  worker="w-3"
-                  worktree="tree-w-3"
-                >
-                  <lf-operation verb="land">
+                <lf-options id="decision-api" choose>
+                  <lf-option id="api-land">
                     <strong>Land</strong> The compatibility suite is green.
                     <em>My take: the public contract is ready.</em>
-                  </lf-operation>
-                  <lf-operation verb="request-changes">
+                  </lf-option>
+                  <lf-option id="api-revise">
                     <strong>Request changes</strong> Restate this card and dispatch a
                     fresh revision worker; the request remains in the record.
-                  </lf-operation>
-                  <lf-operation verb="land-as-is">
+                  </lf-option>
+                  <lf-option id="api-land-as-is">
                     <strong>Land as-is — discard revision</strong> Explicitly overtake a
                     standing change request and reap its reviser.
-                  </lf-operation>
-                </lf-operations>
+                  </lf-option>
+                </lf-options>
               </lf-ask>
             </lf-task>
             <lf-task id="api-errors" status="planned" needs="api-shape">

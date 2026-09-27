@@ -13,7 +13,6 @@ from .passages import page_passages
 from .projection import FrozenThreadReading, retirement_outcomes
 from .registry.reactions import described
 from .registry.storage import layer_metadata, require_registry
-from .requests import request_lifecycles
 from .revisioning import activate_source
 from .schema import DATA_DIR, DATA_FILE
 from .served_state.page import read_served_page
@@ -78,7 +77,6 @@ def _base_state(
     threads: dict,
     stored_data: dict,
     registry: dict,
-    requests: list,
 ) -> dict:
     return {
         "page": str(page_dir),
@@ -103,7 +101,6 @@ def _base_state(
         "elements": [],
         "state": [],
         "updates": [],
-        "requests": requests,
         "data": {
             "file": DATA_FILE,
             "dir": DATA_DIR,
@@ -283,7 +280,6 @@ def _write_page_state(
         reading.threads if reading is not None else {},
         stored_data,
         registry,
-        request_lifecycles(events),
     )
     state["activity"] = {
         **activity,
@@ -339,12 +335,6 @@ def _write_page_state(
             reaction
             for reaction in state["reactions"]
             if reaction["thread"] == thread_id
-        ]
-        requests = [
-            request
-            for request in state["requests"]
-            if thread_reading.thread_by_widget.get(request["seat"]["widget"])
-            == thread_id
         ]
         content = []
         content_source = {
@@ -426,7 +416,6 @@ def _write_page_state(
             "elements": elements,
             "state": standing,
             "asks": asks,
-            "requests": requests,
             "reactions": reactions,
             "updates": updates,
             "activity": {

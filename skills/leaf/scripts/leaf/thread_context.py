@@ -120,7 +120,7 @@ def event_threads(event: dict, names: dict, widgets: dict) -> list:
     of that relation, so a delivery and a projection cannot put the same event
     in different threads.
 
-    An action or request on a sent widget belongs to the thread that supplied
+    An action on a sent widget belongs to the thread that supplied
     its frozen contract. An action also belongs to the thread it settles,
     which admitted `meaning.answer` names — the same key `build_threads` folds on to close
     one. Those are usually different threads and often only the second exists: the
@@ -140,11 +140,8 @@ def event_threads(event: dict, names: dict, widgets: dict) -> list:
         named = [event["thread"]]
     elif kind in {"resolve", "unresolve"}:
         named = [names.get(event["parent"])]
-    elif kind in {"action", "request"}:
-        named = [
-            widgets.get(event["widget"]),
-            event["meaning"].get("answer") if kind == "action" else None,
-        ]
+    elif kind == "action":
+        named = [widgets.get(event["widget"]), event["meaning"].get("answer")]
     else:
         return []
     return [thread for thread in dict.fromkeys(named) if thread]
@@ -172,8 +169,6 @@ def thread_memberships(
     for event in events:
         if event["kind"] == "undo":
             named = memberships.get(event["undoes"], [])
-        elif event["kind"] == "receipt":
-            named = memberships.get(event["request"], [])
         else:
             named = event_threads(event, names, widgets)
         if event["kind"] == "action":
@@ -354,7 +349,7 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
         spoken_for |= {
             e["widget"]
             for e in batch
-            if e["kind"] in {"action", "request"} and widgets.get(e["widget"]) == t
+            if e["kind"] == "action" and widgets.get(e["widget"]) == t
         }
         pin = frozenset(
             sent

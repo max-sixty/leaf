@@ -123,10 +123,6 @@ def answer_command(answer: dict) -> str:
         return f"`leaf thread reply <page> --for {answer['for']}`"
     if answer["kind"] == "turn":
         return f"your turn's final message for {answer['for']}"
-    if answer["kind"] == "receipt":
-        return (
-            f"`leaf experimental receipt <page> {answer['request']} succeeded|failed`"
-        )
     return f"a stamped version whose markup records action {answer['action']}"
 
 

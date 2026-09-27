@@ -70,16 +70,16 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
     """Say what the page's log holds a bare id as, and which writer takes it now.
 
     The CLI names several kinds of id with bare strings — an element id anchors a
-    thread, a message id answers one, a request id takes its receipt, and a delivered
-    event id addresses the response it owes — and nothing about a value says which
-    namespace it came from. An agent holding the id of the move it was handed reaches
-    for whichever writer it is using, and a refusal that only repeats the value leaves
-    it nothing to change but the guess. So every writer that refuses an id says what
-    the log holds it as, and where it goes instead.
+    thread, a message id answers one, and a delivered event id addresses the response
+    it owes — and nothing about a value says which namespace it came from. An agent
+    holding the id of the move it was handed reaches for whichever writer it is using,
+    and a refusal that only repeats the value leaves it nothing to change but the
+    guess. So every writer that refuses an id says what the log holds it as, and where
+    it goes instead.
 
     Where it goes is what the log still owes, which is `current_responses`: a
-    user's press is answered through `--for` until it is answered and not after, a
-    request through its receipt, and a resolve or an undo is owed nothing at all. A
+    user's press is answered through `--for` until it is answered and not after, and
+    a resolve or an undo is owed nothing at all. A
     message is the one id whose writer turns on its thread rather than on
     itself — `--to` without `--for` is refused while the thread owes a response,
     whichever of its messages is owed it — so it is read through `thread_obligation`, the same

@@ -1095,7 +1095,7 @@ def test_only_one_turn_reply_can_bind_the_app_server_final_message():
     assert codex_model.stream_reply_target(
         payload(
             turn("thread-1", "event-1"),
-            {"kind": "receipt", "request": "request-1"},
+            {"kind": "markup", "action": "event-2"},
         )
     ) == {
         "page": "/tmp/page",
@@ -6118,19 +6118,12 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
     assert reply["parent"] == origin["id"]
 
 
-def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
+def test_a_delivered_gesture_on_a_sent_widget_keeps_its_message_in_a_long_thread(
     page_dir, sessionless, capsys
 ):
-    """A host request is meaningful only beside the message that declared its
-    package widget. Keep that message even when a long thread would normally
-    elide it from the delivery envelope."""
-    subjects = (
-        '<lf-command id="hub"><lf-task id="goal" status="active">'
-        "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
-    )
-    (page_dir / "index.html").write_text(
-        PAGE.replace("</section>", subjects + "</section>")
-    )
+    """A pick is meaningful only beside the message that declared its widget. Keep
+    that message even when a long thread would normally elide it from the delivery
+    envelope."""
     publish(page_dir)
     serving(page_dir, 1)
     root = events_model.append_event(
@@ -6143,7 +6136,7 @@ def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
         },
     )
     parent = root["id"]
-    request_message = None
+    asking_message = None
     for index in range(11):
         message = {
             "kind": "reply",
@@ -6153,64 +6146,38 @@ def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
         }
         if index == 2:
             message["markup"] = (
-                '<lf-operations id="thread-commands" target="goal" worker="worker" '
-                'worktree="tree" label="Next">'
-                '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-                "</lf-operations>"
+                '<lf-options id="thread-commands" choose>'
+                '<lf-option id="restart"><strong>Restart</strong></lf-option>'
+                '<lf-option id="park"><strong>Park</strong></lf-option>'
+                "</lf-options>"
             )
         sent = events_model.append_event(page_dir, message)
         parent = sent["id"]
         if index == 2:
-            request_message = sent
-    requested = append_command(
+            asking_message = sent
+    chose = append_command(
         page_dir,
         {
-            "kind": "request",
+            "kind": "action",
             "author": "user",
             "revision": 1,
             "widget": "thread-commands",
-            "action": "restart",
-            "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
+            "action": "choose",
+            "detail": {"options": ["restart"]},
         },
     )
 
     assert session_model.cmd_wait(page_dir) == 0
     _, header, shown = printed(capsys.readouterr().out)
-    assert [event["id"] for event in shown] == [requested["id"]]
-    assert shown[0]["answer"] == {"kind": "receipt", "request": requested["id"]}
+    assert [event["id"] for event in shown] == [chose["id"]]
     [thread] = header["threads"]
     assert thread["id"] == root["id"]
     carried = next(
         message
         for message in thread["messages"]
-        if message["id"] == request_message["id"]
+        if message["id"] == asking_message["id"]
     )
     assert 'id="thread-commands"' in carried["markup"]
-
-    receipt = events_model.append_event(
-        page_dir,
-        {
-            "kind": "receipt",
-            "author": "agent",
-            "request": requested["id"],
-            "status": "succeeded",
-            "text": "restarted",
-        },
-    )
-    selected = CliRunner().invoke(
-        cli_model.cli, ["events", str(page_dir), "--thread", root["id"]]
-    )
-    assert selected.exit_code == 0, selected.output
-    selected_ids = [json.loads(line)["id"] for line in selected.output.splitlines()]
-    assert selected_ids[-2:] == [requested["id"], receipt["id"]]
-
-    # A retry of a wait whose output nobody confirmed can still carry the
-    # transport-unacknowledged request, but its
-    # already-recorded terminal receipt removes the response obligation.
-    assert session_model.cmd_wait(page_dir) == 0
-    _, _, [retried] = printed(capsys.readouterr().out)
-    assert retried["id"] == requested["id"]
-    assert "answer" not in retried
 
 
 # A page whose suggestion answers c1, which is the one shipped shape where the
@@ -12581,25 +12548,12 @@ def _interaction_prompt_evidence(page, value):
     return stable(value)
 
 
-@pytest.mark.parametrize("response", ["reply", "receipt"])
-def test_agent_sees_the_complete_interaction_recovery(
-    claimed, capsys, snapshot, response
-):
+def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot):
     """The real hook and CLI outputs, from the move's arrival through settlement:
     the wait wakes the session, and the prompt hook of the turn that opens hands
     the move over."""
     page = claimed
     source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
-    if response == "receipt":
-        source = source.replace(
-            "</section>",
-            '<lf-command id="hub"><lf-task id="goal" status="active">'
-            "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
-            '<lf-ask id="restart-decision"><h2>Restart the worker?</h2>'
-            '<lf-operations id="commands" target="goal" worker="worker" '
-            'worktree="tree"><lf-operation verb="restart">'
-            "<strong>Restart</strong></lf-operation></lf-operations></lf-ask></section>",
-        )
     (page / "index.html").write_text(source)
     publish(page)
     session_model.cmd_status(page, "waiting", "")
@@ -12615,28 +12569,15 @@ def test_agent_sees_the_complete_interaction_recovery(
         return {"exit": result.exit_code, "output": result.output}
 
     observations["no watcher"] = hook("Stop")
-    if response == "receipt":
-        sent = append_command(
-            page,
-            {
-                "kind": "request",
-                "author": "user",
-                "revision": 1,
-                "widget": "commands",
-                "action": "restart",
-                "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
-            },
-        )
-    else:
-        sent = events_model.append_event(
-            page,
-            {
-                "kind": "comment",
-                "author": "user",
-                "revision": 1,
-                "text": "Add the camera first.",
-            },
-        )
+    sent = events_model.append_event(
+        page,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Add the camera first.",
+        },
+    )
     observations["idle before pickup"] = idle()
     serving(page, 1)
     wait = CliRunner().invoke(cli_model.cli, ["wait", str(page)])
@@ -12657,44 +12598,24 @@ def test_agent_sees_the_complete_interaction_recovery(
     try:
         observations["acknowledged at stop"] = hook("Stop")
         observations["idle before answer"] = idle()
-        if response == "reply":
-            result = CliRunner().invoke(
-                cli_model.cli,
-                [
-                    "thread",
-                    "reply",
-                    str(page),
-                    "--for",
-                    sent["id"],
-                    "--text",
-                    "I will add the camera first.",
-                ],
-            )
-            assert result.exit_code == 0, result.output
-            observations["answer"] = (
-                json.loads(result.output)
-                if result.output.startswith("{")
-                else result.output
-            )
-        else:
-            result = CliRunner().invoke(
-                cli_model.cli,
-                [
-                    "experimental",
-                    "receipt",
-                    str(page),
-                    sent["id"],
-                    "succeeded",
-                    "--text",
-                    "Restarted the worker.",
-                ],
-            )
-            assert result.exit_code == 0, result.output
-            observations["answer"] = (
-                json.loads(result.output)
-                if result.output.startswith("{")
-                else result.output
-            )
+        result = CliRunner().invoke(
+            cli_model.cli,
+            [
+                "thread",
+                "reply",
+                str(page),
+                "--for",
+                sent["id"],
+                "--text",
+                "I will add the camera first.",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        observations["answer"] = (
+            json.loads(result.output)
+            if result.output.startswith("{")
+            else result.output
+        )
         observations["answered at stop"] = hook("Stop")
     finally:
         lease.close()

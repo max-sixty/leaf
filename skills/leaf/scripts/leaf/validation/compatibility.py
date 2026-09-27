@@ -9,9 +9,6 @@ from leaf.registry.contract import RegistryError, read_registry_declarations
 from leaf.registry.layer import merge_layer_declarations
 from leaf.registry.state import stamp_decisions
 from leaf.registry.validation import validate_registry
-from leaf.requests import (
-    declared_request_error,
-)
 from leaf.revision_artifact import read_registry
 from leaf.structure import SourceDocument, parse_revision
 from leaf.thread_context import thread_structure
@@ -157,11 +154,9 @@ def candidate_vocabulary_gaps(
             errors := thread_markup_contract_errors(thread.fragments[e["id"]], incoming)
         ):
             key = "thread markup contract: " + "; ".join(errors)
-        elif kind in {"action", "report", "request"}:
+        elif kind in {"action", "report"}:
             scope = event_document(e)["kind"]
-            participates = scope == "thread" or (
-                kind in {"action", "report"} and page_event_participates(e)
-            )
+            participates = scope == "thread" or page_event_participates(e)
             if participates:
                 original_page = page(e["revision"])
                 candidate_page = document if scope == "page" else SourceDocument("")
@@ -169,12 +164,10 @@ def candidate_vocabulary_gaps(
                     error = event_contracts.declared_action_error(
                         e, candidate_page.by_id, thread.by_id, incoming
                     )
-                elif kind == "report":
+                else:
                     error = event_contracts.report_contract_error(
                         e, candidate_page, incoming
                     )
-                else:
-                    error = declared_request_error(e, document, thread, incoming)
                 if error:
                     key = f"{kind} contract: {error}"
                 elif error := admitted_contract_error(

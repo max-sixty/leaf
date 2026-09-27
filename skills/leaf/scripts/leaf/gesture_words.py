@@ -215,22 +215,3 @@ class GestureWords:
             or self._created(event, identity)
             or identity
         )
-
-    def operation(self, request: dict) -> str:
-        """What a request's holder calls the operation asked of it: the name of the
-        offered child whose attribute carries the verb, else the verb itself."""
-        document = self._document(request)
-        holder = document.nodes.get(request["widget"]) if document else None
-        if holder is not None:
-            offers = (
-                document.registry.get(holder["tag"], {})
-                .get("x-request", {})
-                .get("offers", {})
-            )
-            for child in holder["content"]:
-                if isinstance(child, str) or child["tag"] not in offers:
-                    continue
-                offered = child["attrs"].get(offers[child["tag"]]) == request["action"]
-                if offered and (words := document.name(child)):
-                    return words
-        return request["action"].replace("-", " ")

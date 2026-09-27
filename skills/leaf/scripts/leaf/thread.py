@@ -22,7 +22,6 @@ from leaf.projection import (
     retirement_outcomes,
     rewritten_bodies,
 )
-from leaf.requests import receipt_event
 from leaf.schema import MESSAGE_KINDS, THREAD_ANSWER_KINDS
 from leaf.service import PageTransaction, delivery_reply_attempt
 from leaf.structure import SourceDocument, parse_revision
@@ -654,8 +653,6 @@ def fail_answer(
     - a `reply` answer takes a reply carrying `failure` in its thread, which
       the user resends into; a `turn` answer refuses it until its turn gives the
       reply up and the answer reads as a `reply` again;
-    - a `receipt` answer takes a failed receipt carrying `failure`, the request's
-      own terminal outcome, which reopens its seat for the user to press again;
     - a `markup` answer takes a failed pickup: the user's Ask answer stands in the
       log, and answering again sends a new move.
 
@@ -665,10 +662,8 @@ def fail_answer(
     """
     with PageTransaction(page_dir) as page:
         answer = current_responses(page_dir, page.events).get(responds)
-    if answer is not None and answer["kind"] in {"receipt", "markup"}:
-        return _fail_page_answer(
-            page_dir, responds, failure, text, identity, only_if_unclaimed
-        )
+    if answer is not None and answer["kind"] == "markup":
+        return _fail_markup_answer(page_dir, responds, failure, only_if_unclaimed)
     return cmd_reply(
         page_dir,
         None,
@@ -684,15 +679,10 @@ def fail_answer(
 
 
 @contract_writer
-def _fail_page_answer(
-    page_dir: Path,
-    responds: str,
-    failure: str,
-    text: str,
-    identity: dict,
-    only_if_unclaimed: bool,
+def _fail_markup_answer(
+    page_dir: Path, responds: str, failure: str, only_if_unclaimed: bool
 ) -> dict | None:
-    """Write a receipt or markup failure, rechecking the answer under the lock."""
+    """Record a failed pickup of a page move, rechecking its answer under the lock."""
     with PageTransaction(page_dir) as page:
         events = page.events
         answer = current_responses(page_dir, events).get(responds)
@@ -704,10 +694,6 @@ def _fail_page_answer(
             )
         ):
             return None
-        if answer["kind"] == "receipt":
-            return append_admitted(
-                page, receipt_event(responds, "failed", text, identity, failure)
-            )
         [move] = [event for event in events if event["id"] == responds]
         return record_pickup(page, [move], phase="failed", failure=failure)
 

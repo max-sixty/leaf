@@ -122,10 +122,9 @@ To add an agent-initiated turn to a thread that currently owes no reply, name th
 thread with `--to <message-id>` and leave out `--for`. Leaf refuses it while any event
 in that thread has a standing reply obligation.
 
-A widget whose registry entry declares a local `x-awaits` or
-`x-request.ask` already joins the page's Ask list and keeps its thread "On you"
-while that Ask stands. Leaf refuses `--awaits` beside such markup; the widget's
-state or request lifecycle is the one reading.
+A widget whose registry entry declares a local `x-awaits` already joins the
+page's Ask list and keeps its thread "On you" while that Ask stands. Leaf refuses
+`--awaits` beside such markup; the widget's state is the one reading.
 
 Correct one of this session's sent messages without adding another turn:
 

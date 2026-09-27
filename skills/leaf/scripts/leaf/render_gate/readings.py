@@ -456,7 +456,16 @@ def _settle_at(page, width: int, height: int) -> None:
     rendered(page)
 
 
-def sweep(page, viewports) -> list[tuple[int, dict]]:
+def open_widgets(registry: dict) -> list[str]:
+    """The widgets whose content is the page's own markup or members."""
+    return [
+        tag
+        for tag, entry in registry.items()
+        if tag.startswith("lf-") and entry.get("x-content") in ("markup", "members")
+    ]
+
+
+def sweep(page, viewports, open_tags) -> list[tuple[int, dict]]:
     """The loaded page's geometry at every sweep width, widest first.
 
     Resizes the loaded page rather than rendering it again, and reads only geometry:
@@ -479,10 +488,34 @@ def sweep(page, viewports) -> list[tuple[int, dict]]:
                     "overflow": evaluate_probe(page, "rootOverflow"),
                     "misplaced": evaluate_probe(page, "misplacedBoxes"),
                     "margin": page.evaluate(MARGIN_READING),
+                    "arrangement": evaluate_probe(page, "arrangedBoxes", open_tags),
                 },
             )
         )
     return readings
+
+
+def arrangement_changes(readings) -> list[tuple[int, str, str]]:
+    """Where the page's own arrangement changes, widest first, at the sweep's steps.
+
+    For each step across which a flex or grid box of the page's own splits its children
+    into rows differently, the narrowest swept width at which the wider arrangement still
+    holds, the first box that changes (a selector), and what changes below it
+    (`<div id=regions> 1+2 → 1+1+1`). That is the arrangement at its tightest, the width an
+    author most needs to see."""
+    changes = []
+    for (high, above), (_low, below) in pairwise(readings):
+        wide = {box["path"]: box for box in above["arrangement"]}
+        narrow = {box["path"]: box["rows"] for box in below["arrangement"]}
+        moved = [path for path, box in wide.items() if narrow.get(path) != box["rows"]]
+        if moved:
+            said = "; ".join(
+                f"{wide[path]['at']} {wide[path]['rows']} → "
+                f"{narrow.get(path, 'unarranged')}"
+                for path in moved
+            )
+            changes.append((high, moved[0], said))
+    return changes
 
 
 def margin_changes(page, readings, height: int) -> list[int]:

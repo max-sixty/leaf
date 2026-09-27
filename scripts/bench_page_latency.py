@@ -58,7 +58,8 @@ import statistics
 import subprocess
 import tempfile
 import time
-from contextlib import ExitStack, contextmanager
+from collections.abc import Callable
+from contextlib import AbstractContextManager, ExitStack, contextmanager, nullcontext
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
@@ -173,8 +174,11 @@ PROBE = """
             try {
               met = facts[goal.fact](goal.arg);
             } catch {}
-            if (met) goal.at = at;
-            else open = true;
+            if (met) {
+              goal.at = at;
+              // Where a trace of the page finds this frame (profile_page.py).
+              performance.mark(`lf-bench:${goal.name}`);
+            } else open = true;
           }
           sessionStorage.setItem(WATCH, JSON.stringify(watch));
           if (open) frame();
@@ -312,6 +316,9 @@ class Session:
     page: Page
     url: str
     thread: str
+    # What runs around a transition, from just before it starts until its first goal
+    # is painted: nothing here, a profiler in `profile_page.py`.
+    recording: Callable[[], AbstractContextManager] = nullcontext
 
     def command(self, *args: str) -> list[str]:
         return [str(self.arm_dir / "bin" / "leaf"), *args]
@@ -355,8 +362,14 @@ class Session:
                 for name, (fact, arg) in goals.items()
             ],
         )
-        start = act()
         try:
+            with self.recording():
+                start = act()
+                until(
+                    self.page,
+                    "() => window.__leafBench.watch().goals[0].at !== null",
+                    f"{self.arm} {transition} was never shown",
+                )
             watch = until(
                 self.page,
                 "() => { const w = window.__leafBench.watch();"

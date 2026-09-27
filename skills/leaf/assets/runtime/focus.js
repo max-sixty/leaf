@@ -116,7 +116,19 @@ export const deepFocus = (at = document.activeElement) => {
 // `null` where the user does not stand inside `scope`, which may be a shadow root. The
 // platform's retargeting answers that: a user inside a widget's shadow tree stands
 // inside the scope holding the widget.
+//
+// A hold is a reading and nothing more, so one its caller never restores, such as a
+// batch's that commits, costs nothing: the one listener below counts placements for
+// every hold, and a hold compares the count it began at.
 let restoring = false;
+let placements = 0;
+document.addEventListener(
+  "focusin",
+  () => {
+    if (!restoring) placements += 1;
+  },
+  true,
+);
 // Drawn counts `visibility: hidden` as hidden: a node under it keeps focus for a frame
 // and then the browser blurs it to the body, as it does a node under `display: none`.
 const drawn = (node) =>
@@ -126,18 +138,9 @@ export function holdFocus(scope) {
   if (!standing || standing === document.body || !scope.contains(standing)) return null;
   const held = deepFocus(standing);
   const caret = readCaret(held);
-  let placed = false;
-  // Once, so a hold its caller never restores leaves nothing behind past the next move.
-  const listen = () =>
-    document.addEventListener("focusin", place, { capture: true, once: true });
-  const place = () => {
-    if (restoring) listen();
-    else placed = true;
-  };
-  listen();
+  const began = placements;
   return (...standIns) => {
-    document.removeEventListener("focusin", place, { capture: true });
-    if (placed) return false;
+    if (placements !== began) return false;
     for (const standIn of [held, ...standIns]) {
       if (typeof standIn === "function") {
         if (land(standIn)) return true;

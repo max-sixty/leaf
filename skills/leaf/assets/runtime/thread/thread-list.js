@@ -55,12 +55,7 @@ import { ago } from "../presence.js";
 import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
 import { reachScrollers } from "../reach.js";
 import { hasFolding } from "./folding.js";
-import {
-  inPageOrder,
-  inRecentOrder,
-  pageOutline,
-  threadSection,
-} from "./placement.js";
+import { inPageOrder, inRecentOrder, pageOutline, threadSection } from "./placement.js";
 import { threadSearchReading } from "./narrowing.js";
 import { threadReading } from "./thread-card.js";
 

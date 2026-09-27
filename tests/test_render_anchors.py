@@ -5174,7 +5174,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     # The same draft has two views, across the shadow boundary. An empty Send paints
     # nothing, showing whatever ground it stands on; typing fills the same disc in
     # either view. The press's own box never paints, so the disc is read off ::before.
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     panel_thread.locator(".lf-thread-summary").click()
     expect(panel_thread.locator("leaf-text")).to_be_visible()
@@ -5242,7 +5242,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
 
     write(panel_thread.locator("leaf-text"), "")
     expect(inline_send).to_be_disabled()
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page, False)
 
     question = events_model.append_event(
@@ -5365,7 +5365,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     assert summary_box["position"] == "static"
     assert summary_box["paddingLeft"] == summary_box["paddingRight"]
     expect(thread.locator(".lf-page-thread-msg").first).to_be_hidden()
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     # The status narrowing is a group of toggles, so the standing member wears its own
     # pressed state.
@@ -5438,7 +5438,7 @@ def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
     page = open_page(browser, url)
     patch_tab = page.locator("#patch-tab")
     expect(patch_tab).to_have_attribute("hidden", re.compile(".*"))
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     page.locator(".lf-thread-summary").click()
     quote = page.locator(".lf-threads > .lf-thread .lf-quote")
@@ -5566,7 +5566,7 @@ def test_a_deferred_diff_loads_only_opened_files_and_hydrates_comment_travel(
 
     if activation == "keyboard":
         resized(page, 400, 900)
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     page.locator(".lf-thread-summary").click()
     quote = page.locator(".lf-threads > .lf-thread .lf-quote")
@@ -5599,7 +5599,7 @@ def test_a_deferred_diff_loads_only_opened_files_and_hydrates_comment_travel(
     details.evaluate("element => { element.open = false; }")
     expect(reply).to_have_count(0)
     if activation == "keyboard":
-        page.get_by_role("button", name=re.compile("^Threads")).click()
+        page.locator(".lf-threads-toggle").click()
         panel_settled(page, True)
     quote.focus()
     page.keyboard.press("Enter")
@@ -5828,7 +5828,7 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
 
     page = open_page(browser, url)
     page.route("**/api/deferred*", refuse)
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     page.locator(".lf-thread-summary").click()
     page.locator(".lf-threads > .lf-thread .lf-quote").click()

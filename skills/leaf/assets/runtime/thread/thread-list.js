@@ -9,6 +9,8 @@
    A new agent turn, or growth of the last one, follows while the user has not named
    another card and the previous last message is visible in the panel's landing band.
    Where the list scrolls, that thread's tail must still reach the landing edge.
+   Following lands the thread's end, reply box included, so the turn's newest words
+   stand just above the box, however tall the turn has grown.
    Reading earlier turns keeps the place hold, and a reply in another thread does not
    move this one.
 
@@ -220,6 +222,18 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
   // The list checkpoints it only when the whole thread batch commits; retention
   // restores that reading through the same owners while preserving native identities.
   let renderGeneration = 0;
+
+  // Following lands the thread's end, its reply box included, at the band's foot: the
+  // place hold kept the card's top still, so the turn pushed the box the user may be
+  // typing in down past the foot. The turn's newest words stand just above the box, so a
+  // turn that keeps growing stays followed too.
+  function followThreadEnd(newest) {
+    const band = landingBand(threadsBox);
+    const end = newest.closest(".lf-thread")?.getBoundingClientRect().bottom;
+    if (!band || end === undefined) return;
+    const by = end - band.bottom;
+    if (by > 0) threadsBox.scrollBy({ top: by, behavior: scrollBehavior() });
+  }
 
   const rowModel = (all, commands) => {
     // The threads. A bare reaction is paint on the page and a chip on the page
@@ -438,9 +452,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
         current() && incoming?.current() && threadsBox.scrollTop >= incoming.top - 2
           ? threadsBox.querySelector(`.lf-msg[data-mid="${CSS.escape(incoming.id)}"]`)
           : null;
-      const fold = newest && landingBand(threadsBox)?.bottom;
-      if (fold && newest.getBoundingClientRect().bottom > fold)
-        newest.scrollIntoView({ behavior: scrollBehavior(), block: "end" });
+      if (newest) followThreadEnd(newest);
     } catch (error) {
       if (!current()) return;
       await retainCommitted(current, reading, error);

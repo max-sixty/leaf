@@ -615,7 +615,7 @@ def test_selection_hints_do_not_name_page_content_behind_a_covering_panel(
     page.keyboard.press("Escape")
     expect(page.locator(".lf-target-chooser-hint")).to_have_count(0)
 
-    page.get_by_role("button", name=re.compile(r"^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     assert page.locator("main").evaluate("el => el.inert")
     expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")

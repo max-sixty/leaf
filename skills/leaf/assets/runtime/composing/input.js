@@ -5,6 +5,7 @@ import { notice } from "../notifications.js";
 import { iconElement } from "../icons.js";
 import { LitElement, html } from "../../vendor/browser-runtime.js";
 import "./text-field.js";
+import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
 // One helper wires every durable composition surface: the general box, each per-thread
 // reply, the compact anchored composer, and composition boxes contributed by widgets.
 // `wireInput` gives every such text field one input contract: persist each edit, keep the
@@ -274,7 +275,14 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     ta.addEventListener("input", () => {
       save(draftValue());
       refresh();
+      // A box a thread or seat holds keeps its controls in view as it grows
+      // (`followBoxGrowth`). On the user's own keystrokes and nothing else: a send settling
+      // after they scrolled away, or a draft mirrored from another tab, must not pull the
+      // page back. Instant, not smooth — a line typed while the last line's glide is still
+      // running lands where that glide was going, two lines short of the box it is now.
+      if (focused() === ta) followBoxGrowth(ta);
     });
+    ta.addEventListener("focus", () => readBoxPlace(ta));
     ta.addEventListener("paste", async (event) => {
       const images = [...(event.clipboardData?.items ?? [])]
         .filter((item) => item.kind === "file" && item.type.startsWith("image/"))

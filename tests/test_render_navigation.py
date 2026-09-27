@@ -2739,7 +2739,7 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
 
     # A panel search belongs to the panel. Closing it keeps that search for the next
     # visit, but must not silently remove a visible page thread from the inline walk.
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     page.get_by_role("searchbox", name="Find in threads").fill("neighbouring block")
     expect(page.locator(f'.lf-thread[data-id="{roots[0]}"]')).to_be_hidden()
@@ -2765,7 +2765,7 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     )
     assert panel_status["statusRight"] < panel_status["panelLeft"], panel_status
     assert position_is_front(), "the open Threads panel painted over its walk position"
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page, False)
     expect(position).to_be_hidden()
 
@@ -3547,11 +3547,11 @@ def test_an_absent_walk_destination_returns_to_the_callers_fallback(browser, ser
     page = open_page(browser, url)
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 1")
 
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     page.get_by_role("searchbox", name="Find in threads").fill("no matching thread")
     expect(page.locator(".lf-thread")).to_be_hidden()
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page, False)
     page.locator("body").focus()
     fallback = page.evaluate(
@@ -7057,7 +7057,7 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
     # stand: without this the summary took no focus, the user was still on the page's own
     # row, and the line went on describing that one — an assertion that would have passed
     # for the wrong reason had the two been in the same state.
-    page.get_by_role("button", name=re.compile("Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     page.locator(".lf-thread-summary").click()
     staged = page.locator("#msg-diff summary").first
     expect(staged).to_be_visible()
@@ -9033,7 +9033,7 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     symptom disappear merely by covering both surfaces."""
     page = open_page(browser, serve(NOTED_PAGE, comments=2))
     page.set_viewport_size({"width": 1200, "height": 800})
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
 
     line = page.locator(".lf-shortcut-bar")
     visible_hints = line.locator(".lf-shortcut:not([hidden])")
@@ -9391,7 +9391,7 @@ def test_the_key_line_stands_in_a_band_of_its_own(browser, serve):
     # can move the line; the document's existing band remains a reading reservation for
     # the viewport-fixed line when the sheet closes again.
     resized(page, 420, 900)
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     rendered(page)
     covered = page.evaluate(FOOT_ROOM)
     assert covered["footprint"] == pytest.approx(ended["footprint"], abs=1), (
@@ -9629,7 +9629,7 @@ def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
     # The mouse opens between rounds because c is the select's own letter, and the
     # press has to be made the same way on both to be comparing anything.
     for control in ("#zoom", "#pick"):
-        page.get_by_role("button", name=re.compile("^Threads")).click()
+        page.locator(".lf-threads-toggle").click()
         expect(page.locator(".lf-thread-panel")).to_be_visible()
         page.locator(control).focus()
         expect(page.locator(".lf-shortcut-bar")).to_contain_text("let go")

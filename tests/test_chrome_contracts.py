@@ -185,6 +185,19 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     expect(page.locator(".lf-live")).to_have_text("6 replies in 2 threads")
 
 
+# Where a followed thread stands: its end, reply box included, at the list's foot, with
+# the arriving turn's newest words in view above it.
+FOLLOWED = """id => {
+  const list = document.querySelector('.lf-threads');
+  const fold = list.getBoundingClientRect().bottom -
+    parseFloat(getComputedStyle(list).scrollPaddingBottom);
+  const message = list.querySelector(`.lf-msg[data-mid="${id}"]`);
+  const end = message.closest('.lf-thread').getBoundingClientRect().bottom;
+  const tail = message.getBoundingClientRect().bottom;
+  return tail <= fold + 2 && Math.abs(end - fold) <= 2;
+}"""
+
+
 def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Start this thread.")
@@ -260,16 +273,7 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
             "before => document.querySelector('.lf-threads').scrollTop > before",
             arg=before_growth,
         )
-        page.wait_for_function(
-            """id => {
-              const list = document.querySelector('.lf-threads');
-              const message = list.querySelector(`[data-mid="${id}"]`);
-              const bottom = list.getBoundingClientRect().bottom -
-                parseFloat(getComputedStyle(list).scrollPaddingBottom);
-              return Math.abs(message.getBoundingClientRect().bottom - bottom) <= 2;
-            }""",
-            arg=newest["id"],
-        )
+        page.wait_for_function(FOLLOWED, arg=newest["id"])
 
     threads.evaluate("el => el.scrollTop -= 160")
     earlier_place = threads.evaluate("el => el.scrollTop")
@@ -334,14 +338,8 @@ def test_incoming_reply_follows_when_the_panel_has_unfilled_room(
     page.evaluate(
         "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
     )
-    message = page.locator(f'.lf-msg[data-mid="{newest["id"]}"]')
     page.wait_for_function("() => document.querySelector('.lf-threads').scrollTop > 0")
-    assert message.evaluate("el => el.getBoundingClientRect().bottom") == pytest.approx(
-        threads.evaluate(
-            "el => el.getBoundingClientRect().bottom - parseFloat(getComputedStyle(el).scrollPaddingBottom)"
-        ),
-        abs=2,
-    )
+    assert page.evaluate(FOLLOWED, newest["id"])
 
 
 def test_incoming_reply_follows_a_visible_composer_below_earlier_words(browser, serve):
@@ -392,9 +390,12 @@ def test_incoming_reply_follows_a_visible_composer_below_earlier_words(browser, 
     page.wait_for_function(
         "before => document.querySelector('.lf-threads').scrollTop > before", arg=before
     )
-    assert card.locator(f'.lf-msg[data-mid="{newest["id"]}"]').evaluate(
-        "el => el.getBoundingClientRect().bottom"
-    ) == pytest.approx(fold, abs=2)
+    # The turn and the draft fit together, so the draft the user is writing stays at the
+    # list's foot with the turn above it.
+    assert page.evaluate(FOLLOWED, newest["id"])
+    assert card.evaluate("el => el.getBoundingClientRect().bottom") == pytest.approx(
+        fold, abs=2
+    )
 
 
 def test_another_threads_reply_keeps_the_selected_thread_in_place(browser, serve):
@@ -501,14 +502,7 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(
         "before => document.querySelector('.lf-threads').scrollTop > before",
         arg=before,
     )
-    assert card.locator(f'.lf-msg[data-mid="{newest["id"]}"]').evaluate(
-        "el => el.getBoundingClientRect().bottom"
-    ) == pytest.approx(
-        threads.evaluate(
-            "el => el.getBoundingClientRect().bottom - parseFloat(getComputedStyle(el).scrollPaddingBottom)"
-        ),
-        abs=2,
-    )
+    assert page.evaluate(FOLLOWED, newest["id"])
 
     card.locator(".lf-msg").last.evaluate(
         "el => el.scrollIntoView({block: 'start', behavior: 'instant'})"

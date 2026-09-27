@@ -30,11 +30,7 @@ import {
   pageQueryAll,
   renderRetired,
 } from "../passages.js";
-import {
-  PAGE_PAINT_ATTRIBUTE,
-  PAGE_PAINT_ATTRIBUTES,
-  renderQuiet,
-} from "../presentation.js";
+import { PAGE_PAINT_ATTRIBUTE, isPagePaint, renderQuiet } from "../presentation.js";
 const committedEvent = (commit) => commit?.entry?.e.id ?? null;
 
 function paintStateOrigins(projection) {
@@ -286,7 +282,7 @@ export function shallowSigs(root) {
     if (!isAuthored(node)) continue;
     const attrs = Object.fromEntries(
       [...node.attributes]
-        .filter((attribute) => !PAGE_PAINT_ATTRIBUTES.has(attribute.name))
+        .filter((attribute) => !isPagePaint(attribute.name))
         .map((attribute) => [attribute.name, attribute.value])
         .sort(([left], [right]) => left.localeCompare(right)),
     );

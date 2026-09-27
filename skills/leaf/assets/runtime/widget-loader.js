@@ -224,10 +224,11 @@ export async function upgradeWidgets({ buildReactionBar }) {
     !registry.$languages?.paths ||
     !registry.$tones?.names ||
     !registry.$reactions?.tokens ||
-    !registry.$decisions
+    !registry.$decisions ||
+    !registry.$marks
   )
     throw new Error(
-      "leaf: registry lacks $events, $languages, $tones, $reactions or $decisions",
+      "leaf: registry lacks $events, $languages, $tones, $reactions, $decisions or $marks",
     );
   revealLayer();
   buildReactionBar();

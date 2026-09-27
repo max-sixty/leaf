@@ -18,10 +18,12 @@
    for what it holds and for its size, so nothing here runs for a change elsewhere on
    the page; `followBounds` runs after every install and patch to pick up new ones. */
 import { sizeObserver } from "./rendering.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 
-const BOUNDED = `[${PAGE_PAINT_ATTRIBUTE.bound}]`;
-const FOLLOWING = `[${PAGE_PAINT_ATTRIBUTE.bound}="end"]`;
+// The bound's paint is the theme's contract (`schema.DECLARED_MARKS`), read here by
+// name as the theme's bound rule reads it: the document arrives painted, before any
+// registry has loaded.
+const BOUNDED = "[data-lf-bound]";
+const FOLLOWING = '[data-lf-bound="end"]';
 // A box scrolled to within this of its end is at its end: fractional scroll positions
 // on scaled displays leave a pinned box a pixel short.
 const SLACK = 2;

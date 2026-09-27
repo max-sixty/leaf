@@ -6175,12 +6175,17 @@ def test_replay_signatures_exclude_settlement_and_other_runtime_paint(browser, s
         const decided = read();
         widget.setAttribute("data-lf-user-override", "probe");
         const painted = read();
+        widget.setAttribute("data-lf-space", "wide");
+        const marked = read();
         widget.removeAttribute("data-lf-state");
         const undecided = read();
-        return { decided, painted, undecided };
+        return { decided, painted, marked, undecided };
     }""")
     assert signatures["decided"] == signatures["painted"], (
         "runtime-owned pending paint became authored state in the replay signature"
+    )
+    assert signatures["decided"] == signatures["marked"], (
+        "a declared mark's paint became authored state in the replay signature"
     )
     assert signatures["decided"] == signatures["undecided"], (
         "rendered settlement paint became authored state in the replay signature"

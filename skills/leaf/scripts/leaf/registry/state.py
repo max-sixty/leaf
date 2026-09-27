@@ -401,10 +401,9 @@ def stamp_decisions(registry: dict) -> dict:
     x-state verb; `retires`, `retirement_slots`' outcome → member tags}, for every tag
     that declares a deciding verb.
 
-    Each composition that ends in a vocabulary stamps it, `page init`'s layer and a
-    page's own declarations over it, so the browser reads which verb decides a widget
-    and what its outcome takes off the page rather than walking the declarations a
-    second time. Python reads `deciding_verb` and `retirement_slots` themselves, the
+    Each composition stamps it (`registry.layer.stamp_composition`), so the browser
+    reads which verb decides a widget and what its outcome takes off the page rather
+    than walking the declarations a second time. Python reads `deciding_verb` and `retirement_slots` themselves, the
     definitions this is derived from, since validation asks them of declarations that
     no composition has stamped yet."""
     slots = retirement_slots(registry)

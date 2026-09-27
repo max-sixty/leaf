@@ -204,8 +204,8 @@ log beside the chart it explains, which the page's `<style>` places:
 ```
 
 A queue whose items open one at a time beside it, such as tickets, cases or findings to
-decide, is one `lf-tabs list="side"` as the body: its list is the queue and each item a
-tab, so one opens beside the list, a link or an Ask opens its own, and each tab counts
+decide, is one `lf-tabs list="side"` as the body: its list is the queue and each item an
+`lf-tab`, so one opens beside the list, a link or an Ask opens its own, and each tab counts
 the Asks its item still holds. Write no script to select, hide or mark an item; the tab
 set does all three.
 

@@ -14,7 +14,7 @@ and requests another reading at its next deadline; it does not run a second fold
 | live App Server reply: one displayed draft plus delivery attempt bindings by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's plain reply | the displayed draft remains on failure or disconnect and is retired by a logged event naming its delivery attempt or its response address; each binding clears after durable commit or terminal failure, and survives connection and turn transitions until then |
 | turn identity, when it opened, and open or closed state | the page's claim record | a prompt or direct delivery opens an opaque `turn` and stamps `turn_opened`; the Stop hook stamps `turn_closed` | the next opening mints a turn; the next closing stamps it |
 | the host's own word on the claimant's session: `idle`, `waiting` on a dialog, or `busy`, dated by its last change | the host's record, read at each state read (`Harness.live_turn`): for Claude Code, the `status` of the session's newest registry record whose process runs | the host | read live, so it moves with the host; absent where the host publishes nothing, as for a background job whose worker has retired |
-| the turn this page nudged its session in | `messaged_turn` in the page's claim record | browser-event admission, once the harness's nudge lands | a later turn carries a different `turn` |
+| the turn ending this page nudged its session after | `messaged_ending` in the page's claim record: the turn id and the moment the fold read that turn as ended | browser-event admission, once the harness's nudge lands | a later ending, a close under a new id or another interrupt under the same one, differs |
 | wait lease | `waiter.lock`, or `sessions/<session>.wait` for a host session | the live `leaf wait` process, held open for its life and removed when it lets go, SIGTERM and SIGHUP included | process exit |
 | a host wait's start that no tool hook has named | a lock on `sessions/<session>.started` | the `leaf wait` process, taken with the session's wait lease under `sessions/<session>.started.lock` and held for its life | the `PostToolUse` hook removes the file under that same lock when it names the start, or the wait does when it ends unnamed; process exit |
 | the host runs Leaf's hooks for this session | `sessions/<session>.hooks` | every Leaf hook the host runs for the session | removed by its SessionEnd hook |
@@ -32,12 +32,13 @@ rule in the fold that asks whether the claimant's turn is running reads one
 answer, `activity.claimant_turn`, which dates each piece of evidence and lets
 the newest decide. The claim's turn stamps are believed open only while the
 opening, a status written during the turn, or the claimant's streamed activity
-renewed them within the working grace. The host's record adds what no hook sees:
-an `idle` newer than every renewal ends an open turn (an interrupt), and a
-`waiting` newer than the stamps is a dialog open now. Its `busy` adds nothing,
-since a background job's record keeps it across turn endings. Browser-event
-admission asks the same question before it nudges a session
-(`presence.claimant_takes_input`). The claimant takes input
+renewed them within the working grace. The host's record adds what no hook sees,
+each state only when newer than the stamps: a `busy` that began in the open turn
+holds it through a long step, an `idle` newer than every renewal ends it (an
+interrupt), and a `waiting` is a dialog open now. A `busy` older than the turn's
+opening adds nothing, since a background job's record keeps it across turn
+endings. Browser-event admission asks the same question before it nudges a
+session (`presence.claimant_reading`). The claimant takes input
 while its wait lease is held or, for a harness whose hooks carry input, while its
 turn runs. Fresh declared or observed work makes the page working independently
 of how far newer input has progressed; a host-observed wait on the user in its
@@ -215,10 +216,9 @@ claimant takes no input by the activity fold's reading: no wait lease, and no
 running turn, an interrupted one read as ended. A running turn is excluded because
 its Stop hook already refuses to end with the input unpicked, and a delivering wait
 and the prompt hook both reopen the turn. Each page messages its session once per
-turn: when a socket takes the message, the claim records the turn as
-`messaged_turn`, and an opening after a close mints a new turn id, so later input in
-the same turn sends nothing more, while input after a send no socket took tries
-again.
+ending of a turn: when a socket takes the message, the claim records that ending as
+`messaged_ending`, so later input after the same ending sends nothing more, a
+later ending sends again, and input after a send no socket took tries again.
 Input that arrived before a repeated Stop let the turn end gets no message, because
 the blocked Stop already reported it and a message would reopen the turn the hook
 just let end.

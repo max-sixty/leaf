@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from .activity import claimant_turn, takes_input, transition_due
+from .activity import Turn, current_turn, transition_due
 from .event_log import now_iso, read_cursor, read_events
 from .files import (
     active_descriptor,
@@ -313,17 +313,15 @@ def presence_with_activity(
     return reading, stored_status.get("stream")
 
 
-def claimant_takes_input(page_dir: Path, events: list) -> bool:
-    """Whether the page's claimant takes input now, read the way the activity fold
-    reads it (`activity.takes_input`), for a writer that asks outside a state read."""
+def claimant_reading(page_dir: Path, events: list) -> tuple[dict, Turn]:
+    """The page's presence and its claimant's turn, read the way the activity fold
+    reads them (`activity.current_turn`), for a writer that asks outside a state
+    read."""
     present, stream = presence_with_activity(page_dir, events)
-    turn = claimant_turn(
-        present,
-        present["status"],
-        (stream or {}).get("activity"),
-        datetime.fromisoformat(now_iso()),
+    turn, _ = current_turn(
+        present, (stream or {}).get("activity"), datetime.fromisoformat(now_iso())
     )
-    return takes_input(present, turn)
+    return present, turn
 
 
 def presence(page_dir: Path, events: list) -> dict:

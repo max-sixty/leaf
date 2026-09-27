@@ -9,6 +9,7 @@ this endpoint shares with every other writer.
 from collections.abc import Callable
 from pathlib import Path
 
+from .activity import takes_input
 from .event_contracts import (
     EventRefused,
     admitting_registry,
@@ -18,7 +19,7 @@ from .event_contracts import (
 from .event_log import AttemptConflict
 from .host import claim_harness
 from .page_view import PageView
-from .presence import claimant_takes_input
+from .presence import claimant_reading
 from .registry.contract import RegistryError
 from .service import PageTransaction, requires_agent_attention
 
@@ -142,19 +143,22 @@ def _execute_event(
             # activity fold's own reading (`activity.takes_input`) — no wait lease
             # is held and no turn of its is running, an interrupted one read as
             # ended. A running turn needs no nudge, because its Stop hook refuses
-            # to end with the input unpicked. A turn gets one nudge per page, so
-            # a user ticking three boxes queues one turn or one approval rather
-            # than three. The claimant's harness decides whether its session can
-            # be reached at all and what to say; a harness whose carrier is a
+            # to end with the input unpicked. Each ending of a turn gets one nudge
+            # per page, so a user ticking three boxes queues one turn or one
+            # approval rather than three, while a turn interrupted twice is
+            # messaged twice. The claimant's harness decides whether its session
+            # can be reached at all and what to say; a harness whose carrier is a
             # process of its own has nowhere to put this and answers no. It is
             # sent under the lock, so the mark it leaves is exact: a local socket
             # accepts or refuses at once, and input after a refusal tries again.
-            if (
-                requires_agent_attention(event)
-                and claim
-                and claim.get("messaged_turn") != claim["turn"]
-                and not claimant_takes_input(page_dir, page.events)
-                and claim_harness(claim).nudge(page_dir)
-            ):
-                page.note_messaged_turn()
+            if requires_agent_attention(event) and claim:
+                present, turn = claimant_reading(page_dir, page.events)
+                ending = turn.ended or turn.until
+                mark = f"{claim['turn']}@{ending.isoformat() if ending else ''}"
+                if (
+                    not takes_input(present, turn)
+                    and claim.get("messaged_ending") != mark
+                    and claim_harness(claim).nudge(page_dir)
+                ):
+                    page.note_messaged(mark)
     return 200, {"ok": True, "state": state()}

@@ -653,9 +653,10 @@ flowchart LR
                 opens and closes. An open turn is believed while something in it renewed
                 it within a quarter of an hour: its opening, a status, or a step the
                 host reports. Claude Code also publishes each session's state, which
-                tells Leaf when a turn waits on a dialog such as a permission prompt,
-                and when a turn ended without a hook, so an interrupted turn reads as
-                ended the moment you press Escape.
+                keeps a busy turn believed through a long step, tells Leaf when a turn
+                waits on a dialog such as a permission prompt, and tells it when a turn
+                ended without a hook, so an interrupted turn reads as ended the moment
+                you press Escape.
               </li>
               <li id="updates-fact-watcher">
                 <strong>The watcher.</strong> A <code>leaf wait</code>, or Codex's

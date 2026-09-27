@@ -222,12 +222,16 @@ def claimant_turn(
     streamed activity. Past that nothing says whether it runs, which reads as not
     running without calling it ended.
 
-    The host's own record (`Harness.live_turn`) adds what no hook sees: an `idle`
-    newer than every renewal ends an open turn at that moment, and a `waiting`
-    newer than the stamps is a turn blocked on a dialog now. Its `busy` adds
-    nothing, since the host keeps it across turn endings while background work
-    runs. `awaiting` says the claimant's observer reports a wait on the user
-    right now, which holds the turn open for as long as that observer lives."""
+    The host's own record (`Harness.live_turn`) adds what no hook sees, each
+    state counting only when it is newer than the stamps: `busy` that began in
+    the open turn holds it for as long as the host says so, a long foreground
+    step included; `idle` newer than every renewal ends the open turn at that
+    moment (an interrupt); `waiting` is a dialog open now, a step shown whether or
+    not the stamps say a turn is open. A `busy` older than the turn's opening
+    says nothing, since the host keeps it across turn endings while background
+    work runs. `awaiting` says the claimant's observer reports a wait on the
+    user right now, which holds the turn open for as long as that observer
+    lives."""
     opened = _moment(present.get("turn_opened"))
     closed = _moment(present.get("turn_closed"))
     if present["session_alive"] is not True:
@@ -235,12 +239,12 @@ def claimant_turn(
     host = present.get("live_turn") or {}
     since = _moment(host.get("since"))
     stamped = max((moment for moment in (opened, closed) if moment), default=None)
-    if host.get("state") == "waiting" and since and (not stamped or since >= stamped):
-        return Turn(True, step="awaiting_input")
+    current = host.get("state") if since and (not stamped or since >= stamped) else None
+    step = "awaiting_input" if current == "waiting" else None
     if closed is not None or opened is None or present.get("claim_turn") is None:
-        return Turn(False, ended=closed)
-    if awaiting:
-        return Turn(True)
+        return Turn(False, ended=closed, step=step)
+    if awaiting or current in {"busy", "waiting"}:
+        return Turn(True, step=step)
     renewals = [opened, _moment(status.get("ts"))]
     if stream and stream.get("session") == present.get("claim_session"):
         renewals.append(_moment(stream.get("ts")))
@@ -249,6 +253,38 @@ def claimant_turn(
         return Turn(False, ended=since)
     until = renewed + WORKING_GRACE
     return Turn(now < until, until=until)
+
+
+def current_turn(
+    present: dict, stream: dict | None, now: datetime
+) -> tuple[Turn, bool]:
+    """The claimant's turn as every reader takes it, beside whether the claimant's
+    own observer streams live activity for it now.
+
+    Streamed activity proves itself live by the wait lease its observer holds. A
+    wait on the user (an approval, a question) sends nothing until the user
+    answers, so it stands for as long as its observer does; every other step has
+    to be renewed within the working grace."""
+    status = present["status"]
+    stream_live = bool(
+        stream
+        and stream.get("session") == present.get("claim_session")
+        and stream.get("kind") in WORK_KINDS
+        and present["listening"]
+        and status["state"] != "idle"
+        and (
+            stream.get("kind") in AWAITING_KINDS
+            or not _quiet(stream.get("ts"), now, WORKING_GRACE)
+        )
+    )
+    turn = claimant_turn(
+        present,
+        status,
+        stream,
+        now,
+        awaiting=stream_live and stream.get("kind") in AWAITING_KINDS,
+    )
+    return turn, stream_live
 
 
 def takes_input(present: dict, turn: Turn) -> bool:
@@ -314,28 +350,7 @@ def canonical_activity(
     refuses a second writer, reads that answer rather than the binding."""
     now = datetime.fromisoformat(now_iso)
     status = present["status"]
-    # Streamed activity from the claimant's own observer, which proves itself live
-    # by the wait lease it holds. A wait on the user (an approval, a question) sends
-    # nothing until the user answers, so it stands for as long as its observer does;
-    # every other step has to be renewed within the working grace.
-    stream_live = bool(
-        stream
-        and stream.get("session") == present.get("claim_session")
-        and stream.get("kind") in WORK_KINDS
-        and present["listening"]
-        and status["state"] != "idle"
-        and (
-            stream.get("kind") in AWAITING_KINDS
-            or not _quiet(stream.get("ts"), now, WORKING_GRACE)
-        )
-    )
-    turn = claimant_turn(
-        present,
-        status,
-        stream,
-        now,
-        awaiting=stream_live and stream.get("kind") in AWAITING_KINDS,
-    )
+    turn, stream_live = current_turn(present, stream, now)
     # What the host observed the agent doing now: a live stream step while its turn
     # runs, or the host's own word that the turn waits on the user in its window.
     observed = None

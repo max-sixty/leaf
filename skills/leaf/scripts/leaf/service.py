@@ -355,16 +355,17 @@ class PageTransaction:
             write_json(claim_path(self.page_dir), claim)
         return claim.get("turn")
 
-    def note_messaged_turn(self) -> None:
-        """Record that input reaching this page messaged its session while the
-        claim's turn was closed.
+    def note_messaged(self, ending: str) -> None:
+        """Record that input reaching this page messaged its session after a turn
+        ended.
 
-        Browser-event admission sends at most one such message per closed turn
-        (`session-lifetime.md`, Carriers). The turn id is the exact key: an
-        opening mints a new one whenever it clears a closing, so a later closed
-        turn never matches the turn a message already went out in."""
+        Browser-event admission sends at most one such message per ending of a
+        turn (`session-lifetime.md`, Carriers). `ending` names the claim's turn id
+        and the moment the fold read it as ended, so a later ending, whether a
+        close under a new id or a second interrupt under the same one, never
+        matches the ending a message already went out for."""
         claim = self.claim
-        write_json(claim_path(self.page_dir), {**claim, "messaged_turn": claim["turn"]})
+        write_json(claim_path(self.page_dir), {**claim, "messaged_ending": ending})
 
     @property
     def status(self) -> dict:

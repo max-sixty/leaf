@@ -1994,9 +1994,11 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
     dated by its last change: `idle` (or `shell`, with a background command) once no
     turn runs, `waiting` while a turn holds a dialog open, `busy` otherwise. An
     interrupt runs no Stop hook, so an `idle` newer than everything that renewed the
-    turn ends it at that moment, and a `waiting` newer than the turn's stamps is a
-    dialog open now. `busy` adds nothing: a background job's record keeps it across
-    turn endings. Without a word from the record the hook stamps answer, believed
+    turn ends it at that moment, a `waiting` newer than the turn's stamps is a
+    dialog open now, and a `busy` that began in the open turn holds it through a
+    long foreground step. A `busy` older than the turn's opening adds nothing: a
+    background job's record keeps it across turn endings. Without a word from the
+    record the hook stamps answer, believed
     only while something renewed the turn within the working grace, so a delivered
     move no Stop closed cannot read working forever."""
     serving(claimed, 1)
@@ -2023,9 +2025,10 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
     hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
     capsys.readouterr()
 
-    # The stamps answer, and nothing renews this turn past the grace; `busy`, and
-    # a record whose process is gone, change nothing.
-    host_says("busy")
+    # The stamps answer, and nothing renews this turn past the grace; a `busy`
+    # from before the turn opened, and a record whose process is gone, change
+    # nothing.
+    host_says("busy", ago=60)
     host_says("waiting", pid=dead_pid)
     assert _activity_at(claimed)["kind"] == "working"
     unrenewed = _activity_at(claimed, 16)
@@ -2034,6 +2037,10 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
         "kind": "stale",
         "operation": "work",
     }
+
+    # A `busy` that began in this turn holds it through a long step.
+    host_says("busy")
+    assert _activity_at(claimed, 16)["counts"]["handling"] == 1
 
     # A dialog in the terminal is observed work the page announces.
     host_says("waiting")
@@ -11386,9 +11393,7 @@ def test_a_user_move_no_carrier_will_pick_up_messages_its_claude_code_session(
         assert messages("s1") is None
 
         # The next closed turn is messaged, whatever is still unacknowledged.
-        record_claim(
-            page_dir, turn="turn-2", turn_closed=closed, messaged_turn="turn-1"
-        )
+        record_claim(page_dir, turn="turn-2", turn_closed=closed)
         react("in the next closed turn")
         assert messages("s1") is not None
 
@@ -11406,23 +11411,33 @@ def test_a_user_move_no_carrier_will_pick_up_messages_its_claude_code_session(
 
         # An interrupted turn runs no Stop hook, so only the session's own record
         # says it ended: while it reads busy the open turn takes the input, and once
-        # it reads idle the input is messaged.
+        # it reads idle the input is messaged, once for that ending and again for
+        # the next interrupt under the same turn id.
         live = os.getpid()
         files_model.write_json(
             config / "sessions" / f"{live}.k{live}.key", {"peerToken": "token-s1"}
         )
         opened = datetime.now().astimezone() - timedelta(minutes=5)
         record_claim(page_dir, turn="turn-4", turn_opened=opened.isoformat())
-        for status, messaged in (("busy", False), ("idle", True)):
-            files_model.write_json(
-                record_path,
-                {
-                    **record,
-                    "pid": live,
-                    "status": status,
-                    "statusUpdatedAt": int(time.time() * 1000),
-                },
-            )
+        # `None` leaves the record as it stands: more input after the same ending.
+        for status, messaged in (
+            ("busy", False),
+            ("idle", True),
+            (None, False),
+            ("busy", False),
+            ("idle", True),
+        ):
+            if status is not None:
+                time.sleep(0.01)
+                files_model.write_json(
+                    record_path,
+                    {
+                        **record,
+                        "pid": live,
+                        "status": status,
+                        "statusUpdatedAt": int(time.time() * 1000),
+                    },
+                )
             react(f"while the session's record reads {status}")
             assert (messages("s1") is not None) is messaged, status
     finally:

@@ -82,13 +82,32 @@ def test_gallery_thread_rows_name_action_in_existing_status(browser, serve):
 
     asked = page.locator('.lf-thread[data-id="2be2443f0bb6cc49fc86b52f340e6073"]')
     expect(asked.locator(":scope > .lf-thread-summary .lf-thread-status")).to_have_text(
-        "On you · answer question"
+        "On you to answer"
     )
     summary = asked.locator(":scope > .lf-thread-summary")
     recency = summary.locator(".lf-thread-recency")
     expect(recency).to_have_attribute("datetime", "2026-09-02T00:12:56-07:00")
     expect(recency).to_have_text(re.compile(r"^(now|\d+[mhd])$"))
-    expect(summary.locator(".lf-thread-count")).to_have_text("3")
+    expect(summary.locator(".lf-thread-count")).to_have_count(0)
+    regular = summary.evaluate(
+        """summary => {
+          const box = selector => summary.querySelector(selector).getBoundingClientRect();
+          const topic = box('.lf-thread-topic');
+          const status = box('.lf-thread-status');
+          const trailing = box('.lf-thread-trailing');
+          const center = rect => rect.top + rect.height / 2;
+          return {
+            panelWidth: summary.closest('.lf-thread-panel').getBoundingClientRect().width,
+            statusBesideTopic: Math.abs(center(topic) - center(status)) < 2,
+            timeBesideStatus: Math.abs(center(status) - center(trailing)) < 2,
+            timeAfterStatus: trailing.left >= status.right,
+          };
+        }"""
+    )
+    assert regular["panelWidth"] > 400
+    assert regular["statusBesideTopic"]
+    assert regular["timeBesideStatus"]
+    assert regular["timeAfterStatus"]
     page.evaluate(
         "document.documentElement.style.setProperty('--lf-thread-panel-width', '320px')"
     )
@@ -3396,7 +3415,7 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     expect(page.locator(".lf-thread")).to_have_count(2)
     expect(
         page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-status')
-    ).to_have_text("On you · answer question")
+    ).to_have_text("On you to answer")
     expect(
         page.locator(f'.lf-thread[data-id="{answered}"] .lf-thread-status')
     ).to_have_count(0)
@@ -3524,18 +3543,17 @@ def test_a_host_failure_receipt_does_not_read_as_an_answer(browser, serve):
     expect(real.locator(".lf-msg-failure")).to_have_count(0)
 
     # The server settled its turn, and the thread's `attention` still reads
-    # `needs_user` for recovery: it owns the aggregated margin reading and keeps its
-    # exact label.
+    # `needs_user` for recovery: the margin and panel name the action owed.
     margin = page.locator('[data-lf-margin-for="cd-q"] > .lf-margin-marker')
     expect(margin).to_have_attribute("data-lf-turn", "user")
-    expect(margin.locator(".lf-margin-entry-context")).to_have_text("Not answered")
+    expect(margin.locator(".lf-margin-entry-context")).to_have_text("On you to resend")
 
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     panel = page.locator(f'.lf-msg[data-mid="{receipt["id"]}"]')
     expect(panel.locator(".lf-msg-failure")).to_have_text("Not answered")
     status = page.locator(f'.lf-thread[data-id="{unanswered["id"]}"] .lf-thread-status')
-    expect(status).to_have_text("Not answered · resend")
+    expect(status).to_have_text("On you to resend")
     assert status.evaluate("el => el.scrollWidth <= el.clientWidth"), (
         "the summary clips its failure status"
     )
@@ -3562,7 +3580,7 @@ def test_a_host_failure_receipt_does_not_read_as_an_answer(browser, serve):
     expect(recovery).to_have_text("You (0)")
     expect(recovery).to_have_attribute("aria-pressed", "true")
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
-    expect(status).to_have_text("Not answered · resend")
+    expect(status).to_have_text("On you to resend")
     expect(recovery).to_have_text("You (1)")
     expect(recovery).to_be_enabled()
     expect(draft).to_have_js_property("value", "Try the south pair again.")
@@ -5352,6 +5370,24 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
     expect(page.locator(".lf-thread")).to_contain_text("the later plain reply")
     expect(page.locator('.lf-thread[data-id="tv-lost"]')).to_have_count(1)
     expect(page.locator(".lf-needs")).to_have_text("You (1)")
+
+    # The lost id names the thread and no message, so the user's reply and
+    # resolve address the message that opens it now, and the log admits both.
+    card = page.locator('.lf-thread[data-id="tv-lost"]')
+    card.locator(".lf-thread-summary").click()
+    with sending(page, "a reply in the recovered thread"):
+        write(card.locator("leaf-text"), "Retry is fine.")
+        card.locator(".lf-thread-send").click()
+    expect(card).to_contain_text("Retry is fine.")
+    with sending(page, "resolving the recovered thread"):
+        card.locator(".lf-resolve").click()
+    addressed = [
+        (event["kind"], event["parent"])
+        for event in events_model.read_events(d)
+        if event["kind"] in {"reply", "resolve"} and event.get("author") == "user"
+    ]
+    assert addressed == [("reply", "tv-kept"), ("resolve", "tv-kept")], addressed
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
 
 
 THREAD_STANDING = """() => {

@@ -262,7 +262,7 @@ def thread_digest(
     kept = [m for m in thread["msgs"] if m["seq"] not in omit]
     shown = ends_kept(kept, pin)
     return {
-        "id": thread["root"]["id"],
+        "id": thread["id"],
         "title": thread["title"],
         "anchor": thread["anchor"],
         "detached_from": thread["detached_from"],

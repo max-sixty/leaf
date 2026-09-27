@@ -38,7 +38,7 @@ function renderHolds(threads) {
   for (const thread of threads) {
     if (thread.resolved || !thread.root.holds || thread.root.pending) continue;
     const target = elementById(thread.root.holds);
-    if (target && !inChrome(target)) target.dataset.lfHeld = thread.root.id;
+    if (target && !inChrome(target)) target.dataset.lfHeld = thread.id;
   }
 }
 

@@ -735,7 +735,7 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
     thread = next(
         item
         for item in state["browser"]["thread"]["threads"]
-        if item["root"]["id"] == asked["id"]
+        if item["id"] == asked["id"]
     )
     assert thread["attention"] == {
         "kind": "waiting",

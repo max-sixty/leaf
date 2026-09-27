@@ -87,6 +87,60 @@ THREAD_READER_DECLARATION = {
     "x-example": '<lf-thread-reader id="reader-example"></lf-thread-reader>',
 }
 
+THREAD_FILTER = r"""
+import {openThread, readThreads, threadSummary, watchThreads} from '/runtime/widget-api.js';
+customElements.define('lf-thread-filter', class extends HTMLElement {
+  connectedCallback() {
+    if (!this.input) {
+      this.input = document.createElement('input');
+      this.input.setAttribute('aria-label', `Filter ${this.id}`);
+      this.input.value = this.getAttribute('filter') ?? '';
+      this.list = document.createElement('ul');
+      this.input.addEventListener('input', () => this.paint());
+      this.append(this.input, this.list);
+    }
+    this.stop ??= watchThreads(this, collection => {
+      this.reading = collection;
+      this.sameReading = collection === readThreads();
+      this.updates = (this.updates ?? 0) + 1;
+      this.paint();
+    });
+  }
+  paint() {
+    if (!this.reading) return;
+    const query = this.input.value.toLowerCase();
+    this.list.replaceChildren(...this.reading.threads
+      .filter(thread => threadSummary(thread).topic.toLowerCase().includes(query))
+      .map(thread => {
+        const item = document.createElement('li');
+        const button = document.createElement('button');
+        button.textContent = threadSummary(thread).topic;
+        button.onclick = () => openThread(thread.id);
+        item.append(button);
+        return item;
+      }));
+  }
+  disconnectedCallback() {
+    this.stop?.();
+    this.stop = null;
+  }
+});
+"""
+
+THREAD_FILTER_DECLARATION = {
+    "description": "An instance-local filter over Leaf's shared Thread reading.",
+    "type": "object",
+    "properties": {
+        "id": {"type": "string"},
+        "filter": {"type": "string"},
+    },
+    "required": ["id"],
+    "additionalProperties": False,
+    "x-content": "empty",
+    "x-upgrade": True,
+    "x-example": '<lf-thread-filter id="example"></lf-thread-filter>',
+}
+
 
 def test_browser_interactions_are_recorded_beside_server_requests(browser, serve):
     """A user gesture remains visible even when it changes no semantic page state."""
@@ -343,16 +397,14 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     pending = reader.evaluate(
         "node => node.reading.threads.find(thread => thread.root.pending)"
     )
-    expect(
-        page.locator(f'.lf-thread[data-id="{pending["root"]["id"]}"]')
-    ).to_have_count(1)
+    expect(page.locator(f'.lf-thread[data-id="{pending["id"]}"]')).to_have_count(1)
     held.pop().continue_()
     round_trip(page)
     admitted = reader.evaluate(
         "(node, key) => node.reading.threads.find(thread => thread.key === key)",
         pending["key"],
     )
-    assert admitted["root"]["id"] != pending["root"]["id"]
+    assert admitted["id"] != pending["id"]
     assert admitted["root"]["key"] == pending["root"]["key"]
 
     write(box, "Refused words")
@@ -375,6 +427,73 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     expect(page.locator('.lf-thread[data-id^="pending:"]')).to_have_count(0)
     consume_browser_errors(page, "400")
     page.unroute("**/api/event")
+
+
+def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions(
+    browser, serve
+):
+    """Two widget instances observe one Thread collection and route through core."""
+    url = serve(
+        leaf_page(
+            "Thread widget instances",
+            "<h1>Thread widget instances</h1>"
+            '<lf-thread-filter id="first" filter="Alpine"></lf-thread-filter>'
+            '<lf-thread-filter id="second" filter="Bay"></lf-thread-filter>',
+        ),
+        layer_registry={"lf-thread-filter": THREAD_FILTER_DECLARATION},
+        layer_widgets={"lf-thread-filter.js": THREAD_FILTER},
+    )
+    for thread_id, words in [("alpine", "Alpine"), ("bay", "Bay")]:
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "id": thread_id,
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": words,
+            },
+        )
+    page = open_page(browser, url)
+    first = page.locator("#first")
+    second = page.locator("#second")
+    expect(first.locator("li")).to_have_text("Alpine")
+    expect(second.locator("li")).to_have_text("Bay")
+    assert first.evaluate("node => node.sameReading")
+    assert second.evaluate("node => node.sameReading")
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    second.locator("input").fill("Cedar")
+    before = [widget.evaluate("node => node.updates") for widget in (first, second)]
+    with sending(page, "a Thread visible to both package widgets"):
+        write(page.locator(".lf-general leaf-text"), "Cedar")
+        page.locator(".lf-general button").click()
+    expect(second.locator("li")).to_have_text("Cedar")
+    expect(first.locator("li")).to_have_text("Alpine")
+    for widget, count in zip((first, second), before):
+        assert widget.evaluate("node => node.updates") > count
+        assert widget.evaluate(
+            "node => node.reading.threads.some(thread => thread.root.body.text.trim() === 'Cedar')"
+        )
+
+    removed = first.element_handle()
+    first.evaluate("node => node.remove()")
+    stopped_at = removed.evaluate("node => node.updates")
+    second.locator("input").fill("Delta")
+    second_before = second.evaluate("node => node.updates")
+    with sending(page, "another Thread after one widget disconnected"):
+        write(page.locator(".lf-general leaf-text"), "Delta")
+        page.locator(".lf-general button").click()
+    expect(second.locator("li")).to_have_text("Delta")
+    assert second.evaluate("node => node.updates") > second_before
+    assert removed.evaluate("node => node.updates") == stopped_at
+
+    thread_id = second.evaluate(
+        "node => node.reading.threads.find(thread => thread.root.body.text.trim() === 'Delta').id"
+    )
+    second.locator("button", has_text="Delta").click()
+    expect(page.locator(f'.lf-thread[data-id="{thread_id}"]')).to_be_visible()
 
 
 def test_thread_consumers_join_presentation_and_cancel_superseded_work(browser, serve):

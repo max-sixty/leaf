@@ -1256,6 +1256,7 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     navigate(page, page.url)
     expect(page.locator("#bg-draft .lf-draft-body")).to_have_text(body)
 
+    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Page & layout").click()
     crowded = page.locator('[data-lf-margin-for="bg-crowded"]')
     expect(crowded.locator(".lf-margin-entry:visible")).to_have_count(2)
     crowded.locator(".lf-margin-more").click()
@@ -1300,6 +1301,7 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     """The gallery keeps every user-visible margin entry treatment together."""
     page = open_page(browser, live_url(serve(FEATURE_GALLERY)))
     resized(page, 1440, 900)
+    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Page & layout").click()
 
     atlas = page.locator("#bg-margin-controls-specimens")
     expect(atlas).to_be_visible()
@@ -1553,6 +1555,8 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
     """
     page = open_page(browser, live_url(serve(FEATURE_GALLERY)))
     resized(page, 1440, 900)
+    tabs = page.locator("#bg-gallery-tabs")
+    tabs.get_by_role("tab", name="Page & layout").click()
 
     expect(page.locator("#bg-button-accepted")).to_have_attribute(
         "data-lf-state", "accept"
@@ -1565,6 +1569,7 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
         seeded.get_by_role("button", name=re.compile(r"^Undo accepting"))
     ).to_have_count(1)
 
+    tabs.get_by_role("tab", name="Decisions").click()
     draft = page.locator('[data-lf-margin-for="bg-draft"]')
     draft.locator(".lf-draft-pencil").click()
     save = draft.get_by_role("button", name="Save", exact=True)
@@ -1582,6 +1587,7 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
     )
     expect(uncertain).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
 
+    tabs.get_by_role("tab", name="Page & layout").click()
     workflow = page.locator('[data-lf-margin-for="bg-margin-control-workflow"]')
     accept = workflow.get_by_role(
         "button", name=re.compile(r"^Accept the suggested change")
@@ -1737,7 +1743,16 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
             "#bg-change",
         ),
     }
+    views = {
+        "bg-margin-controls": "Page & layout",
+        "bg-threads": "Threads",
+        "bg-thread-states": "Threads",
+        "bg-version-changes": "Data & work",
+    }
     for section_id, (heading, guide_selector, example_selector) in sections.items():
+        page.locator("#bg-gallery-tabs").get_by_role(
+            "tab", name=views.get(section_id, "Decisions"), exact=True
+        ).click()
         section = page.locator(f"#{section_id}")
         expect(section.get_by_role("heading", name=heading, exact=True)).to_be_visible()
         expect(section.locator(guide_selector)).to_be_visible()
@@ -1757,6 +1772,7 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
         "Margin entries: every face, state, and projection",
         "Margin entry lifecycle: act, fail, settle, and hand off",
     ]
+    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Page & layout").click()
     expect(page.locator("#bg-buttons-line #bg-crowded")).to_be_visible()
     expect(page.locator("#bg-margin-control-workflow")).not_to_have_attribute(
         "data-lf-state", re.compile(".+")
@@ -1849,6 +1865,7 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
             "> .lf-margin-entry-glyph"
         )
     ).to_have_text("🤔")
+    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Decisions").click()
     expect(
         page.locator(
             '[data-lf-margin-for="bg-choice-ask"] '
@@ -2397,6 +2414,7 @@ def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
     """A late action-only location is reachable while it is visible."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1440, 900)
+    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Page & layout").click()
     margins_laid_out(page)
     page.evaluate(
         """() => new Promise(resolve => {
@@ -4089,6 +4107,14 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     mapped = page.locator('.lf-page-map-action[data-lf-agent-workflow="picked_up"]')
     expect(mapped).to_have_count(1)
     expect(mapped.locator(".lf-margin-kind")).to_have_attribute("data-lf-icon", "edit")
+    # The row is the carrier drawn again, so pickup inks its glyph as it inks the
+    # carrier's: one rule set in theme.css paints both.
+    ink = "el => getComputedStyle(el).color"
+    assert (
+        mapped.locator(".lf-margin-kind").evaluate(ink)
+        == carrier.locator(".lf-margin-entry-icon").evaluate(ink)
+        != mapped.locator(".lf-page-map-action-label").evaluate(ink)
+    )
     page.keyboard.press("Escape")
     page.evaluate("() => window.lfReceiptSecondary.unregister()")
     expect(marker).to_be_visible()
@@ -7889,14 +7915,15 @@ def test_the_feature_gallery_shows_a_pin_on_a_wide_figure_and_o_hides_it(
     `o` hides the pin while the rail stays."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1440, 900)
+    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Page & layout").click()
     margins_laid_out(page)
     pin = page.locator(
         '.lf-margin-cluster[data-lf-margin-for="bg-margin-layer-figure"]'
     )
     expect(pin).to_have_attribute("data-lf-place", "pin")
-    rail = page.locator('.lf-margin-cluster[data-lf-place="rail"]')
+    rail = page.locator('.lf-margin-cluster[data-lf-place="rail"]:visible')
     assert rail.count() > 0
-    page.locator("body").focus()
+    page.keyboard.press("Escape")
     page.keyboard.press("o")
     expect(pin).to_be_hidden()
     expect(rail.first).to_be_visible()

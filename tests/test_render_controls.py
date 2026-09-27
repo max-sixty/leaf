@@ -184,6 +184,40 @@ LIVE_SPECIMENS_PAGE = leaf_page(
 )
 
 
+def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
+    """Four child pages can hold different panel views and reset independently."""
+    gallery = FEATURE_GALLERY.parent / "thread-panel-gallery.html"
+    page = open_page(browser, serve(gallery))
+    views = {
+        "overview": page.frame_locator("#overview-specimen iframe"),
+        "you": page.frame_locator("#on-you-specimen iframe"),
+        "resolved": page.frame_locator("#resolved-specimen iframe"),
+        "summary": page.frame_locator("#summary-specimen iframe"),
+    }
+    for frame in views.values():
+        expect(frame.locator(".lf-thread-panel")).to_be_visible()
+
+    expect(views["overview"].locator(".lf-thread:not([hidden])")).to_have_count(3)
+    expect(views["you"].locator(".lf-thread-view-summary")).to_have_text(
+        "1 open thread · On you"
+    )
+    expect(views["resolved"].locator(".lf-thread-view-summary")).to_have_text(
+        "1 resolved thread"
+    )
+    expect(
+        views["summary"].locator('.lf-thread[data-id="c1a39980"]')
+    ).to_have_attribute("open", "")
+
+    views["overview"].get_by_role("button", name="Close threads").click()
+    expect(views["overview"].locator(".lf-thread-panel")).to_be_hidden()
+    expect(views["you"].locator(".lf-thread-panel")).to_be_visible()
+    page.locator("#overview-specimen").get_by_role(
+        "button", name="Reset", exact=True
+    ).click()
+    expect(views["overview"].locator(".lf-thread-panel")).to_be_visible()
+    expect(views["overview"].locator(".lf-thread:not([hidden])")).to_have_count(3)
+
+
 def test_live_specimens_keep_real_gestures_and_drafts_inside_the_child(browser, serve):
     """A specimen is a full page: its choices and comments reach only its own log."""
     page = open_page(browser, serve(LIVE_SPECIMENS_PAGE))
@@ -2713,7 +2747,7 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     # This page heads the list, marked and never a link: the panel reads as the
     # whole machine, and this page is where the user already is.
     self_row = others_panel.locator(".lf-others-self")
-    expect(self_row.locator(".lf-chip")).to_have_text("this page")
+    expect(self_row.locator(".lf-outline-chip")).to_have_text("this page")
     expect(self_row.locator(".lf-others-title")).to_have_text("long")
     link = others_panel.locator("a.lf-others-row")
     expect(link.locator(".lf-others-title")).to_have_text("The other leaf")
@@ -6174,7 +6208,7 @@ AIM_BOXES = """(floor) => {
   for (const el of document.querySelectorAll(
     '[data-lf-offer], .lf-chrome button, .lf-chrome [role="button"],' +
     ' .lf-chrome [role="checkbox"], .lf-chrome [role="tab"], .lf-chrome .lf-btn,' +
-    ' .lf-chrome .lf-chip, .lf-chrome .lf-quote'
+    ' .lf-chrome .lf-outline-chip, .lf-chrome .lf-quote'
   )) {
     if (seen.has(el)) continue;
     seen.add(el);
@@ -6208,7 +6242,7 @@ AIM_BOXES = """(floor) => {
 AIM_SURFACES = (
     ".lf-thread-action",
     ".lf-preview",
-    ".lf-chip",
+    ".lf-outline-chip",
     ".lf-version-diff",
     ".lf-command-reference-command",
     ".lf-quote",

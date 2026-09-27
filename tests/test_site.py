@@ -1187,7 +1187,7 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
     developer_galleries = page.locator("#developer-galleries")
     expect(developer_galleries).to_be_visible()
     developer_galleries.scroll_into_view_if_needed()
-    expect(developer_galleries.locator("a.developer-gallery-link")).to_have_count(1)
+    expect(developer_galleries.locator("a.developer-gallery-link")).to_have_count(2)
     expect(page.locator("iframe, lf-tabs")).to_have_count(0)
     published = {path.name for path in (site / "examples").iterdir() if path.is_dir()}
     assert published == authored | {source.stem for source in DEVELOPER_PAGES}
@@ -1200,6 +1200,9 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
     expect(product_gallery).to_contain_text("Core product gallery")
     expect(product_gallery).to_contain_text("focused core interaction replays")
     expect(product_gallery).to_have_attribute("href", "/examples/feature-gallery/")
+    threads_gallery = developer_galleries.locator("#thread-panel-gallery")
+    expect(threads_gallery).to_contain_text("Four live panel views")
+    expect(threads_gallery).to_have_attribute("href", "/examples/thread-panel-gallery/")
 
 
 def test_the_interaction_gallery_drives_real_widgets(serve, browser):

@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Threads panel gallery</title>
+    <meta
+      name="description"
+      content="Live views of Leaf's Threads panel with open, unanswered, resolved, and summarized discussions."
+    />
+    <style>
+      #thread-panel-views {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 32px;
+      }
+
+      #thread-panel-views > section {
+        min-width: 0;
+      }
+
+      #thread-panel-views .lf-specimen-frame {
+        min-height: 40rem;
+      }
+
+      @media (max-width: 1100px) {
+        #thread-panel-views {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+
+      #thread-panel-jumps {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 20px;
+        margin-bottom: 24px;
+      }
+    </style>
+    <script type="module">
+      // Each specimen is an independent Leaf page. Set its initial view through the
+      // same controls a visitor can use, then do so again after its Reset button.
+      await customElements.whenDefined("lf-specimen");
+
+      function readyPage(specimen) {
+        if (specimen.ready) return specimen.ready;
+        return new Promise((resolve) => {
+          const observer = new MutationObserver(() => {
+            if (!specimen.ready) return;
+            observer.disconnect();
+            resolve(specimen.ready);
+          });
+          observer.observe(specimen, { childList: true });
+        });
+      }
+
+      async function showView(specimen, ready) {
+        const child = await ready;
+        if (!specimen.isConnected) return;
+        child.querySelector(".lf-threads-toggle").click();
+        const view = {
+          "overview-specimen": "overview",
+          "on-you-specimen": "you",
+          "resolved-specimen": "resolved",
+          "summary-specimen": "summary",
+        }[specimen.id];
+        if (view === "you" || view === "resolved") {
+          child.querySelector(".lf-thread-filter-toggle").click();
+          const [kind, value] =
+            view === "you" ? ["waiting", "user"] : ["status", "resolved"];
+          child
+            .querySelector(`[data-filter-kind="${kind}"][data-filter-value="${value}"]`)
+            .click();
+        }
+        if (view === "summary") {
+          child.querySelector(".lf-thread-summary")?.click();
+        }
+      }
+
+      const mounted = new WeakSet();
+      function mountViews() {
+        for (const specimen of document.querySelectorAll(
+          "#thread-panel-views lf-specimen",
+        )) {
+          if (mounted.has(specimen)) continue;
+          mounted.add(specimen);
+          void showView(specimen, readyPage(specimen));
+          specimen.addEventListener("click", (event) => {
+            if (!event.target.closest(".lf-specimen-controls button")) return;
+            queueMicrotask(() => void showView(specimen, specimen.ready));
+          });
+        }
+      }
+      new MutationObserver(mountViews).observe(document.body, {
+        childList: true,
+        subtree: true,
+      });
+      mountViews();
+    </script>
+  </head>
+  <body>
+    <main>
+      <h1>Threads panel</h1>
+      <p>
+        These are four separate instances of the current panel. Each uses Leaf's actual
+        thread renderer and its own event log. Open a thread, change View, reply, or
+        Reset a specimen to return to the starting view.
+      </p>
+      <nav id="thread-panel-jumps" aria-label="Panel views">
+        <a href="#panel-overview">Open threads</a>
+        <a href="#panel-on-you">On you</a>
+        <a href="#panel-resolved">Resolved</a>
+        <a href="#panel-summary">Long discussion</a>
+      </nav>
+
+      <section
+        id="thread-panel-views"
+        data-width="wide"
+        aria-label="Threads panel views"
+      >
+        <section id="panel-overview">
+          <h2>Open threads</h2>
+          <p>Named and unnamed titles, next moves, and unread replies in one list.</p>
+          <lf-specimen id="overview-specimen" label="open thread list">
+            <template
+              id="overview-page"
+              data-specimen
+              data-specimen-threads="98850286 4cbc0dd1 c1a39980"
+            >
+              <h1>Workshop plan</h1>
+              <p id="tpg-pending">
+                <strong>Lunch is undecided.</strong> The workshop plan leaves lunch
+                open.
+              </p>
+              <p id="tpg-photo">
+                <strong>Agenda and room photo.</strong> Practice moves before lunch. The
+                room photo still needs a crop attendees can use.
+              </p>
+              <p id="tpg-summary">
+                The afternoon workshop will pair people for hands-on debugging.
+              </p>
+            </template>
+          </lf-specimen>
+        </section>
+
+        <section id="panel-on-you">
+          <h2>On you</h2>
+          <p>
+            View narrows to a question that still needs an answer after a later update.
+          </p>
+          <lf-specimen id="on-you-specimen" label="waiting on you">
+            <template id="on-you-page" data-specimen data-specimen-threads="98850286">
+              <h1>Room photo</h1>
+              <p id="tpg-photo">
+                <strong>Agenda and room photo.</strong> Practice moves before lunch. The
+                room photo still needs a crop attendees can use.
+              </p>
+            </template>
+          </lf-specimen>
+        </section>
+
+        <section id="panel-resolved">
+          <h2>Resolved</h2>
+          <p>View shows the closed discussion and its Reopen action.</p>
+          <lf-specimen id="resolved-specimen" label="resolved thread">
+            <template id="resolved-page" data-specimen data-specimen-threads="edf09a41">
+              <h1>Workshop room</h1>
+              <p id="tpg-resolved">
+                <strong>Projector map.</strong> The workshop room has a projector, and
+                the map question is settled.
+              </p>
+            </template>
+          </lf-specimen>
+        </section>
+
+        <section id="panel-summary">
+          <h2>Long discussion</h2>
+          <p>A selected thread with a folded summary and newer messages below it.</p>
+          <lf-specimen id="summary-specimen" label="summarized thread">
+            <template id="summary-page" data-specimen data-specimen-threads="c1a39980">
+              <h1>Afternoon workshop</h1>
+              <p id="tpg-summary">
+                The afternoon workshop will pair people for hands-on debugging.
+              </p>
+            </template>
+          </lf-specimen>
+        </section>
+      </section>
+
+      <details id="thread-panel-source">
+        <summary>Source passages for these discussions</summary>
+        <p id="tpg-pending">
+          <strong>Lunch is undecided.</strong> The workshop plan leaves lunch open.
+        </p>
+        <p id="tpg-photo">
+          <strong>Agenda and room photo.</strong> Practice moves before lunch. The room
+          photo still needs a crop attendees can use.
+        </p>
+        <p id="tpg-resolved">
+          <strong>Projector map.</strong> The workshop room has a projector, and the map
+          question is settled.
+        </p>
+        <p id="tpg-summary">
+          The afternoon workshop will pair people for hands-on debugging.
+        </p>
+      </details>
+    </main>
+  </body>
+</html>

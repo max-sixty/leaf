@@ -45,7 +45,7 @@ from urllib.parse import unquote, urljoin, urlsplit
 from example_assets import example_previews
 from example_data import catalog_sources
 from leaf.files import latest_revision, list_revisions
-from leaf.host import SESSION_VARIABLES
+from leaf.host import IDENTITY_VARIABLES
 from leaf.http import scope_document_routes
 from leaf.live_shell import write_live_shell
 from leaf.media import media_name
@@ -527,10 +527,10 @@ def publish_live_shells(
 def build_environment() -> dict[str, str]:
     """Keep the builder's host session identity out of published version notes.
 
-    The set comes from `host.SESSION_VARIABLES`, so a harness that arrives with
+    The set comes from `host.IDENTITY_VARIABLES`, so a harness that arrives with
     a variable of its own is scrubbed here without a second list to remember."""
     env = dict(os.environ)
-    for variable in SESSION_VARIABLES:
+    for variable in IDENTITY_VARIABLES:
         env.pop(variable, None)
     return env
 

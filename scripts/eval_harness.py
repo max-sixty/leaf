@@ -32,7 +32,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 import click
-from leaf.host import SESSION_VARIABLES
+from leaf.host import IDENTITY_VARIABLES
 
 ROOT = Path(__file__).resolve().parent.parent
 PAYLOAD = (".claude-plugin", "bin", "hooks", "skills", "pyproject.toml", "uv.lock")
@@ -48,7 +48,7 @@ def environment(**extra: str) -> dict[str, str]:
     env = {
         key: value
         for key, value in os.environ.items()
-        if key not in SESSION_VARIABLES
+        if key not in IDENTITY_VARIABLES
         and not (key.startswith("CLAUDE") and key != "CLAUDE_CONFIG_DIR")
     }
     return {**env, **extra}

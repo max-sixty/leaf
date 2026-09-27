@@ -23,7 +23,6 @@ import {
   pendingApprovals,
   pendingProjectionEntries,
   pendingReactions,
-  pendingRequests,
   pendingSettlements,
   pendingMessages as pendingThreadMessages,
   unresolvedAttempts,
@@ -91,7 +90,7 @@ interface WireWorkflow {
   thread: string | null;
   holds_thread: boolean;
   coordinate: unknown;
-  answer: { kind: "reply" | "turn" | "markup" | "receipt" } | null;
+  answer: { kind: "reply" | "turn" | "markup" } | null;
   stage: "sent" | "queued" | "picked_up" | "working" | "replying" | "answered";
   ts: string | null;
   detail: string | null;
@@ -155,8 +154,6 @@ export interface WidgetDescriptor {
   parent: { id: string; tag: string } | null;
   ancestors: readonly { id: string; tag: string }[];
   quoted: boolean;
-  bindings: Readonly<Record<string, string | null>>;
-  offers: readonly { tag: string; attribute: string; verb: string }[];
 }
 
 export interface AuthoritativeState {
@@ -174,7 +171,6 @@ export interface AuthoritativeState {
         basis: { revision: number; through_seq: number };
         document: {
           projection: WireProjection;
-          requests?: { seat: { document?: object; widget: string; unit: string; source_revision?: string; offered?: boolean }; phase: string }[];
           asks?: WireAsks;
         };
         undo?: { event: Event }[];
@@ -186,7 +182,6 @@ export interface AuthoritativeState {
     thread: {
       threads: Thread[];
       projection: WireProjection;
-      requests?: { seat: { document?: object; widget: string; unit: string; source_revision?: string; offered?: boolean }; phase: string }[];
       asks?: WireAsks;
       done?: Event[];
     };
@@ -235,13 +230,6 @@ function normalizedProjection(
   }
   return { entries, actionIds, reportIds, desiredIds, coverage: view?.coverage ?? [] };
 }
-
-const emptyLifecycle = (descriptor: WidgetDescriptor) => ({
-  seat: { document: descriptor.document, widget: descriptor.id, unit: descriptor.id },
-  attempts: [],
-  latest: null,
-  phase: "ready",
-});
 
 // The selected server view already bounds page history to the captured revision and
 // thread history to its frozen document. Widget ids are unique across both, so
@@ -352,77 +340,6 @@ function widgetReading(
       ]),
   );
 
-  const request = (declaration["x-request"] ?? null) as {
-    records?: string;
-    verbs?: Record<string, { unit?: string }>;
-  } | null;
-  const pendingRequests = pending
-    .filter((entry) => entry.event.kind === "request")
-    .map((entry) => entry.event);
-  const lifecycles =
-    descriptor.document.kind === "thread"
-      ? root.effective.threadRequests
-      : root.effective.view?.document.requests;
-  const requestUnits: Record<string, {
-    seat: { document?: object; widget: string; unit: string; source_revision?: string; offered?: boolean };
-    phase: string;
-    attempts?: unknown[];
-    latest?: unknown;
-  }> = Object.fromEntries(
-    (lifecycles ?? [])
-      .filter((item) => item.seat.widget === descriptor.id)
-      .map((item) => [item.seat.unit, item]),
-  );
-  for (const event of pendingRequests) {
-    const spec = request?.verbs?.[event.action];
-    const unit = request?.records
-      ? String((event.detail as Record<string, unknown>)[spec?.unit ?? ""])
-      : descriptor.id;
-    requestUnits[unit] = {
-      seat: requestUnits[unit]?.seat ?? {
-        document: descriptor.document,
-        widget: descriptor.id,
-        unit,
-      },
-      attempts: [{ request: event, receipt: null }],
-      latest: { request: event, receipt: null },
-      phase: "pending",
-    };
-  }
-  const lifecycle = !request?.records && pendingRequests.length
-    ? {
-        seat: { document: descriptor.document, widget: descriptor.id, unit: descriptor.id },
-        attempts: [{ request: pendingRequests[0], receipt: null }],
-        latest: { request: pendingRequests[0], receipt: null },
-        phase: "pending",
-      }
-    : (!request?.records ? requestUnits[descriptor.id] : null) ??
-      emptyLifecycle(descriptor);
-  const offered = new Set(
-    request?.records
-      ? Object.keys(request.verbs ?? {})
-      : descriptor.offers.map(({ verb }) => verb),
-  );
-  const requests = Object.fromEntries(
-    Object.keys(request?.verbs ?? {}).map((verb) => [
-      verb,
-      {
-        available:
-          currentDescriptor &&
-          root.effective.hostAvailable &&
-          root.phase !== "waiting" &&
-          !descriptor.quoted &&
-          offered.has(verb) &&
-          (request?.records
-            ? Object.values(requestUnits).some((seat) =>
-                seat.phase === "ready" && seat.seat.offered !== false)
-            : lifecycle.phase === "ready"),
-        unavailable: root.effective.hostAvailable
-          ? null
-          : "no agent or server is available",
-      },
-    ]),
-  );
   const provenanceEntries = (current?.entries ?? []) as unknown as {
     e: Event;
     unit: string;
@@ -444,9 +361,6 @@ function widgetReading(
     thread: { heldBy: holdingThread?.id ?? null },
     provenance,
     actions,
-    requests,
-    request: lifecycle,
-    requestUnits,
     delivery: pending.map((entry) => ({
       attempt: entry.event.attempt,
       kind: entry.event.kind,
@@ -562,7 +476,6 @@ export function createSemanticApplication({
         )
       : [];
     const widgets = foldWidgetStates(document.authored, projection);
-    const projectedRequests = pendingRequests(unresolved, receipts);
     const asks = ready ? normalizedAsks(view, state?.browser.thread) : NO_ASKS;
     // Thread attention is the server's reading, and three local facts adjust it. A
     // pending send hands the thread to the agent, which `foldThreads` states. A
@@ -681,12 +594,10 @@ export function createSemanticApplication({
       },
       asks,
       // Inside the publication signature, so a read that changes only the view's
-      // updates, publication time, requests, or undo list still reaches its watchers.
+      // updates, publication time, or undo list still reaches its watchers.
       view,
-      threadRequests: state?.browser.thread.requests ?? [],
       acceptedApprovals: state?.browser.thread.done ?? [],
       pendingApprovals: pendingApprovals(unresolved, receipts),
-      pendingRequests: projectedRequests,
       delivery: unresolvedAttempts(unresolved),
       workflows,
       activity: state?.activity ?? null,

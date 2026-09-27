@@ -47,10 +47,9 @@ retry key `attempt`, then adds these delivery readings:
 
 - `subject` is the stable page, thread, or widget the event changes.
 - `says`, when present, maps each element a widget gesture names to its words: the
-  ids in an action's or report's `meaning.depends`, or the widget a request was made
-  on. The words are the authored ones in the document the user pressed on, which
-  is the revision the event names or the frozen message that sent the widget, so a
-  later version that rewords an element does not change them. They are that
+  ids in an action's or report's `meaning.depends`. The words are the authored ones
+  in the document the user pressed on, which is the revision the event names or the
+  frozen message that sent the widget, so a later version that rewords an element does not change them. They are that
   document's words and not a reading of the rendered page: what an earlier gesture
   changed, and what a widget's module draws beyond its authored text, are not in
   them. An element a user wrote, such as an added option, is in no document: the
@@ -61,7 +60,7 @@ retry key `attempt`, then adds these delivery readings:
 - `threads` lists every thread the event belongs to. Membership is
   many-to-many: it provides context and never partitions or duplicates the event.
 - `answer`, when present, freezes the answer the event owed at capture: its
-  `kind` (`reply`, `turn`, `markup` or `receipt`) with the address it is written
+  `kind` (`reply`, `turn` or `markup`) with the address it is written
   under, the same object `leaf page state` lists for the move's workflow. The
   event's `answering` clauses say how to write it. Until the answer is written, the
   Stop hook holds the turn open and `leaf status idle` refuses. Re-read current

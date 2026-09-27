@@ -76,8 +76,7 @@ flowchart LR
               <td>Log</td>
               <td>
                 One record per line, append-only: messages and thread moves, actions and
-                reports, undos, versions and sign-offs, requests and receipts, and
-                bookkeeping such as reads
+                reports, undos, versions and sign-offs, and bookkeeping such as reads
               </td>
               <td>Leaf</td>
             </tr>
@@ -183,7 +182,7 @@ flowchart LR
           <lf-note at="6"
             >How the standing pick reads in markup: <code>chosen</code> on each picked
             option. The agent writes it into the next version, and
-            <code>version check</code> refuses a version that contradicts it.</lf-note
+            <code>page check</code> refuses a version that contradicts it.</lf-note
           >
           <lf-note at="13"
             >The unit is the value of <code>detail.option</code>, so each added option
@@ -435,8 +434,8 @@ flowchart LR
           </li>
           <li>
             <strong>The user's <code>undo</code></strong> withdraws one gesture of their
-            own: an action, a resolve or reopen, or an approval. Messages and requests
-            stand once sent.
+            own: an action, a resolve or reopen, or an approval. Messages stand once
+            sent.
           </li>
           <li>
             <strong>The author's <code>restated</code></strong

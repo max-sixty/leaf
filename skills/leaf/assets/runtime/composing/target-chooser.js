@@ -7,13 +7,13 @@ import { coarsePointer } from "../pointer.js";
 import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
 
 import {
-  blockAt,
   contextAround,
   findText,
   inChrome,
   pageText,
   quoteFrom,
   rangeOf,
+  segmentBlock,
 } from "../passages.js";
 import { bannerFoot, shownParts } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
@@ -254,7 +254,7 @@ export function createTargetChooser({
 
   function matchOwner(segments) {
     const first = segments[0];
-    return first ? (blockAt(first.node) ?? first.node.parentElement) : null;
+    return first ? segmentBlock(first) : null;
   }
 
   function matchRect(segments, reading = room()) {

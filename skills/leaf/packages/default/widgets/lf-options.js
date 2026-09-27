@@ -52,7 +52,7 @@
  * That paint goes on the press and nowhere else, which is a rule rather than a
  * preference. A module writes an attribute in the author's namespace only where the
  * registry declares it as a verb's record form — `chosen` is one, so a version can
- * carry a pick and `version check` can hold the markup against the log's fold — and
+ * carry a pick and `page check` can hold the markup against the log's fold — and
  * the entry's `additionalProperties: false` is the whole of what else may stand
  * there. This module wrote two that nothing declared. `answered` recorded the
  * thread-only `answer` verb, and a thread's markup is frozen in the log, so no

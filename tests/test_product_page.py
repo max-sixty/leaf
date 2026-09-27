@@ -6,6 +6,7 @@ import json
 import re
 import shlex
 import subprocess
+import sys
 from pathlib import Path
 
 import click
@@ -196,7 +197,7 @@ def test_how_it_works_quotes_the_real_check_and_stamp_lines(page_dir):
     rather than pattern-matched — a renamed field or a changed separator has to be
     written into the page before this passes again.
     """
-    checked = CliRunner().invoke(cli_model.cli, ["version", "check", str(page_dir)])
+    checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert checked.exit_code == 0, checked.output
     success = next(
         line for line in checked.output.splitlines() if line.startswith("✓ index.html:")
@@ -553,14 +554,14 @@ def test_demo_recording_drives_the_browser_journey(tmp_path):
     # same nothing. This is `open_page`'s complaint about "Failed to load
     # resource" one file over — carry what failed into the failure.
     recorded = subprocess.run(
-        [ROOT / "scripts" / "record-demo.sh", "--output", output],
+        [sys.executable, ROOT / "scripts" / "record-demo.py", "--output", output],
         capture_output=True,
         text=True,
         check=False,
     )
 
     assert recorded.returncode == 0, (
-        f"record-demo.sh exited {recorded.returncode}\n"
+        f"record-demo.py exited {recorded.returncode}\n"
         f"{recorded.stdout}{recorded.stderr}".rstrip()
     )
     assert recorded.stdout.strip() == f"Recorded {output}"

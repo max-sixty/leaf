@@ -152,7 +152,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  *
  * A spent press keeps its shape and gives up its opacity. That is the layer's one cue
  * for "there is nothing left to do here", and it is stated with the hand it withdraws so
- * the two cannot come apart: a one-shot request that had been answered still wore the
+ * the two cannot come apart: a press that had been used up once still wore the
  * full-strength border of a live one and differed only in ink, which greyscale drops and
  * a user scanning a column of eight of them never sees. Chrome's own .lf-btn says the
  * same pair for the same reason (chrome.css); this reaches the controls that are

@@ -36,6 +36,7 @@ from .leases import lock_is_held, page_locked
 from .locations import located, locations_overlap, path_is_within, path_location
 from .projection import page_reading
 from .registry.storage import compose_candidate, layer_packages, widget_paths
+from .revision_artifact import read_revision
 from .schema import (
     CURSOR_FILE,
     EVENTS_FILE,
@@ -47,7 +48,7 @@ from .schema import (
     STATUS_FILE,
 )
 from .service import PageTransaction, claim_path
-from .structure import SourceDocument, parse_revision
+from .structure import SourceDocument
 from .validation.compatibility import candidate_vocabulary_gaps
 from .validation.source import check_source
 from .work import widget_work_without_targets
@@ -118,13 +119,13 @@ def _init_page(page_dir: Path, selected: tuple[str, ...] | None) -> None:
         _commit_layer(page_dir, _plan_page(page_dir, selected, page.events))
         events = page.events
     # The re-vendored layer is in place, but the page shows it only once index.html
-    # activates, which runs the same check `version check` does. Say now what would
+    # activates, which runs the same check `page check` does. Say now what would
     # hold it back, rather than leave the next read to refuse it unseen.
     check = check_source(page_dir, events, allow_transition=False)
     if check.errors:
         print(
             f"re-vendored {page_dir}, but index.html will not activate until "
-            "`leaf version check` passes:",
+            "`leaf page check` passes:",
             file=sys.stderr,
         )
         for error in check.errors:
@@ -205,7 +206,7 @@ def _refuse_vocabulary_drift(
     except (FileNotFoundError, UnicodeDecodeError):
         # An unreadable candidate cannot activate, but re-vendoring must still
         # preserve the active page until the source is repaired.
-        document = parse_revision(page_dir, revision)
+        document = read_revision(page_dir, revision).document
     gaps = candidate_vocabulary_gaps(
         page_dir,
         events,
@@ -264,8 +265,10 @@ def _refuse_untargeted_work(page_dir: Path, events: list[dict], incoming: dict) 
     revision = latest_revision(page_dir)
     if revision is None:
         return
-    document = parse_revision(page_dir, revision)
-    page = page_reading(document, events, incoming, revision)
+    page = page_reading(
+        read_revision(page_dir, revision).under(incoming), events, revision
+    )
+    document = page.document
     untargeted = widget_work_without_targets(
         document,
         page.projection,

@@ -28,6 +28,7 @@ def document_for(page: Path, bundle: Path, service: PageStateService) -> str:
         executable=active["executable"],
         widgets=artifact.widgets,
         resources=artifact.resources,
+        registry=artifact.registry,
         delivery=embedding(page),
     )
     script = bundle.read_text().replace("</script", "<\\/script")

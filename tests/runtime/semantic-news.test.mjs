@@ -44,7 +44,6 @@ const reading = ({
   threads = [],
   pageAsks = [],
   threadAsks = [],
-  requestOutcomes = [],
   workflows = [],
   pageActivity = activity(),
 } = {}) => ({
@@ -55,7 +54,6 @@ const reading = ({
   },
   workflows,
   activity: pageActivity,
-  requestOutcomes,
 });
 const kinds = (result) => result.news.map((item) => item.kind);
 const responseFailure = (source, kind = "failed") =>
@@ -226,44 +224,6 @@ test("a failed answer to a move in a thread's markup is news about that thread",
   );
 });
 
-test("every canonical receipt survives one read and failed requests reopen asks", () => {
-  const baseline = observeSemanticNews(null, reading());
-  const receipt = (id, requestId, seq, status) => ({
-    id,
-    request: requestId,
-    seq,
-    status,
-  });
-  const outcome = (request, result) => ({
-    request,
-    widget: "approval",
-    receipt: result,
-  });
-  const first = outcome("first", receipt("failed", "first", 3, "failed"));
-  const second = outcome("second", receipt("succeeded", "second", 5, "succeeded"));
-  const complete = observeSemanticNews(
-    baseline.observed,
-    reading({ requestOutcomes: [first, second] }),
-  );
-  assert.deepEqual(
-    complete.news.map((item) => item.key),
-    ["request:failed", "request:succeeded"],
-  );
-  const reopened = observeSemanticNews(
-    complete.observed,
-    reading({
-      requestOutcomes: [
-        first,
-        second,
-        outcome("third", receipt("failed-again", "third", 7, "failed")),
-      ],
-      pageAsks: [ask("approval")],
-    }),
-  );
-  assert.deepEqual(kinds(reopened), ["request_outcome", "user_obligation"]);
-  assert.equal(reopened.news[0].receipt.id, "failed-again");
-});
-
 test("response failures have exact episodes and recovery needs an accepted answer", () => {
   const baseline = observeSemanticNews(null, reading());
   const stale = observeSemanticNews(
@@ -371,7 +331,6 @@ test("page obligations come from the shown revision, not a waiting activation", 
       browser: {
         views: { 1: { document: shown.page }, 2: { document: waiting.page } },
         thread: shown.thread,
-        request_outcomes: [],
       },
       workflows: [],
       activity: shown.activity,
@@ -400,18 +359,11 @@ test("one producer notice states a reply and new obligation as separate facts", 
   assert.deepEqual(combineSemanticNews(result.news, result.news), result.news);
 });
 
-test("deferred news drops superseded failures and edits but keeps historical receipts", () => {
+test("deferred news drops superseded failures and edits", () => {
   const baseline = observeSemanticNews(null, reading());
   const failedReading = reading({
     threads: [thread("t", [message("answer", { edited: { id: "edit-a", seq: 2 } })])],
     workflows: [responseFailure({ attempt: "attempt" })],
-    requestOutcomes: [
-      {
-        request: "req",
-        widget: "control",
-        receipt: { id: "receipt", status: "failed" },
-      },
-    ],
   });
   const failed = observeSemanticNews(baseline.observed, failedReading);
   const answeredReading = reading({
@@ -421,16 +373,15 @@ test("deferred news drops superseded failures and edits but keeps historical rec
         message("recovered", { seq: 4 }),
       ]),
     ],
-    requestOutcomes: failedReading.requestOutcomes,
   });
   const answered = observeSemanticNews(failed.observed, answeredReading);
   const queued = combineSemanticNews(failed.news, answered.news);
   const current = currentSemanticNews(queued, answeredReading, answered.observed);
   assert.deepEqual(
     current.map((item) => item.key),
-    ["request:receipt", "content:edit-b", "content:recovered"],
+    ["content:edit-b", "content:recovered"],
   );
-  assert.equal(semanticNewsNotice(current), "2 replies in 1 thread; Request failed");
+  assert.equal(semanticNewsNotice(current), "2 replies in 1 thread");
 });
 
 test("deferred failure wording follows its current condition and stale availability disappears", () => {

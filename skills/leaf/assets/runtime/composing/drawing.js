@@ -24,8 +24,8 @@ import {
   elementFromPointAcross,
   elementOver,
   inChrome,
+  pageText,
   quoteFrom,
-  textNodesUnder,
 } from "../passages.js";
 import { anchoringIsReady } from "../anchor-resolution.js";
 import { coarsePointer, pressIsKeyboardActivation } from "../pointer.js";
@@ -77,7 +77,7 @@ function wordsUnder(ink) {
   };
   const clips = new Map();
   const range = document.createRange();
-  const segments = textNodesUnder(document.body);
+  const { segments } = pageText();
   let first = null;
   let last = null;
   segments.forEach(({ node }, at) => {
@@ -98,10 +98,10 @@ function wordsUnder(ink) {
   });
   if (!first) return "";
   return quoteFrom(
-    segments.slice(first.at, last.at + 1).map(({ node }, index, all) => ({
-      node,
-      start: index ? 0 : first.start,
-      end: index === all.length - 1 ? last.end : node.data.length,
+    segments.slice(first.at, last.at + 1).map((segment, index, all) => ({
+      ...segment,
+      start: index ? segment.start : first.start,
+      end: index === all.length - 1 ? last.end : segment.end,
     })),
   );
 }

@@ -200,7 +200,6 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     }
     for frame in views.values():
         expect(frame.locator(".lf-thread-panel")).to_be_visible()
-        expect(frame.locator(".lf-threads > .lf-group")).to_have_count(0)
         topic = frame.locator(".lf-thread[open] .lf-thread-topic")
         expect(topic).to_be_visible()
         assert topic.evaluate("element => element.getBoundingClientRect().width") > 40
@@ -4361,7 +4360,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     """The feature-gallery sweep above reads broad authored UI with the chrome shut: it
     never presses a key, so the thread panel, its box, the trays, the versions
     menu, the command reference and the sequence's chips are surfaces four readings pass
-    straight over. A `role="list"` whose children are run headings and threads shipped
+    straight over. A `role="list"` whose children were not all list items shipped
     through it, green every time.
 
     One page because the chrome is the same on every document. What varies here is which
@@ -5295,8 +5294,8 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
     rather than past it, so every covered inset ring answered that the control was under
     the same thing and the reading returned what it returns when nothing is wrong.
 
-    So: a run heading, which draws its ring inside itself, under a band exactly as deep
-    as that ring. The control case first, because a reading that reports over any inset
+    So: a thread title, which draws its ring inside itself, under a band exactly as
+    deep as that ring. The control case first, because a reading that reports over any inset
     control would pass the planted one without seeing it.
     """
     url = serve(PANEL_PAGE)
@@ -5305,8 +5304,8 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    heading = page.locator(".lf-threads > button.lf-group").first
-    heading.focus()
+    title = page.locator(".lf-threads > .lf-thread > .lf-thread-summary").first
+    title.focus()
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
     rendered(page)
@@ -5318,7 +5317,7 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
     }"""
     )
     assert inset[1] <= -inset[0], (
-        f"the heading's ring is {inset[0]}px at offset {inset[1]}px, which is not drawn "
+        f"the title's ring is {inset[0]}px at offset {inset[1]}px, which is not drawn "
         "inside its box, so this holds nothing about a reading of one that is"
     )
 
@@ -5345,15 +5344,15 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
 
     page.evaluate(plant, 0)
     assert standing_ring(page)["covers"] == [], (
-        "the heading is reported covered with nothing over it, so the planted case below "
+        "the title is reported covered with nothing over it, so the planted case below "
         "would only be repeating whatever this reading always says"
     )
 
     laid = page.evaluate(plant, inset[0])
     covers = standing_ring(page)["covers"]
     assert any("top edge" in c for c in covers), (
-        f"a {laid}px band over the whole of the heading's {inset[0]}px inset ring, "
-        f"with the rest of the heading in full view, and the reading said {covers}"
+        f"a {laid}px band over the whole of the title's {inset[0]}px inset ring, "
+        f"with the rest of the title in full view, and the reading said {covers}"
     )
 
 
@@ -5466,11 +5465,6 @@ RING_CASES = (
         "a contents link",
         (),
         {"feature-gallery": (("#bg-contents li a:visible", "toc-link"),)},
-    ),
-    (
-        "the comments",
-        ("c",),
-        {"ship-review": ((".lf-threads > button.lf-group", "run-heading"),)},
     ),
     # The reaction palette a message's strip opens. Its chips are the last boxes the
     # layer dresses in the chrome's chip face, and they are behind a press: the strip

@@ -1907,8 +1907,8 @@ RINGS_DRAWN = f"""async () => {{
         // every covered inset ring answered that the control was behind the same thing
         // and was dropped without a word. The rings the panel's own list draws are all
         // inset, so this went blind in the same commit that made them so — a thread
-        // lying two pixels under its stuck run heading is a card with three sides, and
-        // the gate written to catch exactly that reported nothing.
+        // lying two pixels under a cover is a card with three sides, and the gate
+        // written to catch exactly that reported nothing.
         const step = grow + w + 1;
         const inx = x + (side === 'left' ? step : side === 'right' ? -step : 0);
         const iny = y + (side === 'top' ? step : side === 'bottom' ? -step : 0);
@@ -2016,13 +2016,9 @@ COVERED_TOP = """() => {
   const box = document.querySelector('.lf-threads');
   if (!el || !box.contains(el)) return null;
   const r = el.getBoundingClientRect();
-  const over = document.elementsFromPoint((r.left + r.right) / 2, r.top + 1)
-    .find((n) => n !== el && !el.contains(n) && !n.contains(el)
-                 && n.classList.contains('lf-pinned'));
-  if (!over) return null;
-  const o = over.getBoundingClientRect();
-  return `${over.textContent.trim().slice(0, 32)} covers it down to `
-         + `${Math.round(o.bottom - r.top)}px in`;
+  const top = box.getBoundingClientRect().top + box.clientTop;
+  if (r.top >= top - 0.5) return null;
+  return `the list's top edge cuts it ${Math.round(top - r.top)}px in`;
 }"""
 
 

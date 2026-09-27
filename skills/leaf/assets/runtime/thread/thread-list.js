@@ -14,33 +14,16 @@
    Reading earlier turns keeps the place hold, and a reply in another thread does not
    move this one.
 
-   `pageOutline` reads the page's own headings, and `groupFor` names the run of threads
-   under each (thread/placement.js). A run's heading is one node kept across
-   reconciles and stuck to the top of the list while its run scrolls past. A stuck box
-   is held by its margin edge inside the scroller's content, so the room above a
-   heading is its own padding and the pin is drawn back over `--lf-list-inset`, the
-   property the list spends its own inset from. A margin there, or a `top` of zero,
-   leaves a strip the list scrolls through in full view.
-
-   Being pinned is `.lf-pinned`, worn by the run headings. The room they take is the
-   one number in the list's `scroll-padding` that CSS cannot work out, because a long
-   heading wraps: each reconcile declares the headings to `declareCoverRoom`
-   (geometry.js), which observes them and writes the tallest to `--lf-head-room`, again
-   when the user draws the panel narrower and a heading wraps with no reconcile to say
-   so. Without it a walk lands threads under the heading with the opening words of the
-   comment behind it, which is what
-   `test_the_room_a_run_heading_takes_follows_the_user_drawing_the_panel` holds.
-   Measuring is the observer's rather than the reconcile's, so a reconcile forces no
-   layout: taken on every reconcile of a shut panel, that cost once delayed an event's
-   acknowledgement past the window an undo is offered in
-   (`test_an_action_response_accounts_for_its_gesture_without_a_follow_up_poll`).
+   The list is threads alone, each title standing directly on the next: no heading
+   names the page part a run of them is about. The order already says it, since the
+   list reads in the page's (thread/placement.js), and each card's passage link says
+   where its own thread stands.
 
    Reserved room only reaches a control that lands in it, and a press lands nowhere:
    the browser focuses the card under the pointer and scrolls nothing. So the thread
    list lands a thread that takes the focus, whoever moved it. Without it a list
-   nudged a dozen pixels leaves the first
-   card of a run under its own stuck heading by the width of an inset ring, which is a
-   card with three sides. A press lands when it is over rather than as focus arrives,
+   nudged a dozen pixels leaves a card cut at the list's edge by the width of an inset
+   ring, which is a card with three sides. A press lands when it is over rather than as focus arrives,
    because focus arrives on the way down and the press may be the start of a drag
    across the comment's own words; a drag that ends in the thread takes no landing at
    all. What it lands is the thread the completed gesture leaves the user in, not the
@@ -56,18 +39,16 @@
    reveals its composer and actions together; an editor too tall to fit with its
    actions reveals the focused control itself.
 
-   `test_no_focus_mark_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered`,
-   `test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading`, and
+   `test_no_focus_mark_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered` and
    `test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus` hold this
-   for the panel's own walk, for a press inside its list, and for every shipped page's
-   tab order. They ask one question: where the control can be seen, so can the ring
+   for the panel's own walk and for every shipped page's tab order. They ask one question: where the control can be seen, so can the ring
    that names it. A control that itself stands under a fixed bar is not a finding —
    that is a fact about where it was put — and neither is a box too tall for the region
    it is in. */
 import { nextRender } from "../rendering.js";
 import { scrollBehavior } from "../motion.js";
 import { placeKeeper } from "../user-place.js";
-import { PINNED, declareCoverRoom, landingBand } from "../geometry.js";
+import { landingBand } from "../geometry.js";
 import { retainUserIntent } from "../user-intent.js";
 import { discussed, threadKey } from "./model.js";
 import { ago } from "../presence.js";
@@ -78,8 +59,7 @@ import {
   inPageOrder,
   inRecentOrder,
   pageOutline,
-  recentGroup,
-  threadGroups,
+  threadSection,
 } from "./placement.js";
 import { threadSearchReading } from "./narrowing.js";
 import { threadReading } from "./thread-card.js";
@@ -118,10 +98,6 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
   const emptyText =
     "No threads yet. Select any text on the page to comment on it, or use the box below.";
 
-  // The run headings are the covers standing in this list; a reconcile is what adds and
-  // removes them, so each one declares the set (the header says why the room is observed).
-  const declareHeadRoom = () =>
-    declareCoverRoom(threadsBox, "--lf-head-room", threadsBox.querySelectorAll(PINNED));
   // Mounted once the chrome is (leaf.js): the list is the panel's.
   function mountThreadList(panelIsOpen) {
     holdThroughDisclosure(panelIsOpen);
@@ -240,10 +216,12 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     // row, and counts for nothing here: no card, no destination, no place in the walk.
     const threads = all.filter(discussed);
     const open = threads.filter((t) => !t.resolved);
-    // The page's outline, read once for the whole reconcile: every thread asks it where it
-    // stands and which run it belongs to.
+    // The page's outline, read once for the whole reconcile: every thread asks it which
+    // part of the page it stands in, which the narrowing's search and Placement read.
     const outline = pageOutline();
-    const group = threadGroups(threads, outline, commands.placedAt);
+    const places = new Map(
+      threads.map((t) => [t, threadSection(t, outline, commands.placedAt)]),
+    );
     // Newcomers settle in (`grow`) only when the user already has the list in front
     // of them: the first populated render is the page loading, not news arriving, and a
     // node animated while the panel is closed would replay the moment it opens.
@@ -256,9 +234,9 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     // Where the user's own narrowing applies, and the only place it does: the page's
     // marks, the inline thread seats and the banner's count are readings of the log
     // and go on saying what the log says. What the panel shows is the panel's business,
-    // and so is the order it shows it in. Under Recent a run is the day its threads last
-    // moved. The page's order is kept either way for the walk with the panel shut.
-    const narrowing = commands.narrowing.model(threads, group);
+    // and so is the order it shows it in. The page's order is kept either way for the
+    // walk with the panel shut.
+    const narrowing = commands.narrowing.model(threads, places);
     const shown = narrowing.shown;
     const inPage = inPageOrder(threads, commands.placedAt);
     const recent = narrowing.intent.order === "recent";
@@ -274,10 +252,6 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     // between its neighbours while it folds (foldOut), which is why the walk is over the
     // whole list with the resolved ones taken at their own place. A folding thread is
     // walked by nothing: the log has already settled it, and only its room is still here.
-    //
-    // The view shows headings where runs change; it omits a lone page-section heading
-    // when each thread has its own passage link. In a long list, a sticky heading says
-    // which part of the page is in view.
     //
     // An open thread the narrowing hides keeps its node, hidden, rather than leaving the
     // list: a widget an agent sent in a reply is instantiated once, here, and every other
@@ -295,10 +269,8 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
           descriptor: threadReading(t, "panel", commands.card, {
             visible: visible.has(t),
             grow,
-            outline,
             search: threadSearchReading(t, narrowing.intent.finding),
           }),
-          group: Object.freeze(recent ? recentGroup(t) : { ...group.get(t) }),
         }),
       );
     }
@@ -323,8 +295,6 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
   function configureList(commands) {
     threadsBox.configure(
       {
-        activateGroup: (target) =>
-          commands.scrollToElement(target, scrollBehavior(), "start"),
         card: {
           ...commands.card,
           openThreads,
@@ -345,7 +315,6 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
   }
 
   function postPaint({ count, unread, narrowing }, commands) {
-    declareHeadRoom();
     commands.setThreadCounts(count, unread);
     narrowingView.present(narrowing);
     commands.onListChanged();
@@ -430,8 +399,6 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
         const prior = reading.rows[index];
         return (
           prior?.key !== row.key ||
-          prior.group.label !== row.group.label ||
-          prior.group.target !== row.group.target ||
           JSON.stringify(prior.descriptor.quote) !==
             JSON.stringify(row.descriptor.quote)
         );

@@ -129,7 +129,7 @@ function navigationSummary(navigation, model) {
   const title = model.summary.topic;
   const latest = model.summary.latest;
   const status = model.resolved ? "Resolved" : model.attention?.label || "";
-  const draft = Boolean(loadDraft("reply:" + model.key)?.trim());
+  const draft = Boolean(loadDraft("reply:" + model.key));
   const hasMeta = draft || status || model.unreadCount;
   return html`<summary
     class="lf-thread-summary"

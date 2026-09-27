@@ -25,6 +25,7 @@ import {
   closestAcross,
   DATUM,
   elementById,
+  elementReading,
   findQuote,
   inChrome,
   pageDocument,
@@ -278,15 +279,13 @@ export function addressableSays(addressable, omitted = null) {
     !subtracts && registry[addressable.localName]?.["x-word"] === "module"
       ? addressable.lfSays?.()
       : "";
-  return (
-    own ||
-    quoteFrom(
-      textNodesUnder(addressable).filter(
-        (segment) => !subtracts || !omitted.contains(segment.node),
-      ),
-    )
+  if (own) return own;
+  if (!subtracts) return elementReading(addressable, readSays);
+  return quoteFrom(
+    textNodesUnder(addressable).filter((segment) => !omitted.contains(segment.node)),
   );
 }
+const readSays = (addressable) => quoteFrom(textNodesUnder(addressable));
 
 // What names an element, where the authoring contract gives it a name
 // (`../../references/page-authoring.md`): the attribute its registry entry declares

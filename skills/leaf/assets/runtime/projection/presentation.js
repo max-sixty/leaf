@@ -20,7 +20,7 @@ import {
   PRESENTATION_ORDER,
 } from "../semantic-state.js";
 import { runtime } from "../context.js";
-import { decidingVerb } from "../registry.js";
+import { decisionFor } from "../registry.js";
 import { dragHeld, watchDragRelease } from "../widget-elements.js";
 import { widgetElement } from "../widget-descriptors.js";
 import {
@@ -29,7 +29,6 @@ import {
   inChrome,
   pageQueryAll,
   renderRetired,
-  settlementSlots,
 } from "../passages.js";
 import {
   PAGE_PAINT_ATTRIBUTE,
@@ -76,13 +75,13 @@ function paintStateOrigins(projection) {
 // A holder in a message's frozen markup is painted before the thread mounts it, so it
 // joins the panel settled and the thread's passages skip what it retired.
 function paintSettlements(widgets) {
-  const holders = settlementSlots();
   for (const [widgetId, { state }] of widgets) {
     const owner = widgetElement(widgetId);
-    const outcomes = owner && holders[owner.localName];
-    if (!outcomes) continue;
-    const outcome = state[decidingVerb(owner.localName)]?.detail?.outcome ?? null;
-    if (outcomes[outcome]) owner.setAttribute(PAGE_PAINT_ATTRIBUTE.settlement, outcome);
+    const decision = owner && decisionFor(owner.localName);
+    if (!decision) continue;
+    const outcome = state[decision.verb]?.detail?.outcome ?? null;
+    if (decision.retires[outcome])
+      owner.setAttribute(PAGE_PAINT_ATTRIBUTE.settlement, outcome);
     else owner.removeAttribute(PAGE_PAINT_ATTRIBUTE.settlement);
     renderRetired(owner, outcome);
   }

@@ -75,9 +75,11 @@ const stored = (open, name, scope = "") => ({
     }
   },
   // Where this store puts a key, as the platform's own two names for its stores plus
-  // the key the backing actually holds. Only the browser gate asks: it seeds a store
+  // the key the backing actually holds. The browser gate asks: it seeds a store
   // before the page has run, so it cannot ask a store that does not exist yet, and the
-  // alternative is a second copy of the scope rule kept over there to go stale.
+  // alternative is a second copy of the scope rule kept over there to go stale. So do
+  // the drafts (`whereDraft`), whose storage listener reads another tab's key raw, and
+  // the tests that seed or read a stored draft.
   where(key) {
     return {
       store: name,

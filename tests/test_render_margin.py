@@ -1893,7 +1893,7 @@ def test_a_margin_entry_refuses_an_option_outside_its_grammar(browser, serve):
     page = open_page(browser, serve(PANEL_PAGE))
     refusal = page.evaluate(
         """async () => {
-          const {marginEntry} = await import('/runtime/widget-api.js');
+          const {marginEntry} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           try {
             marginEntry({
               key: 'cancel', icon: 'cross', label: 'Cancel', role: 'escape'
@@ -1912,7 +1912,7 @@ def test_a_margin_entry_refuses_an_unowned_command_scope(browser, serve):
     page = open_page(browser, serve(PANEL_PAGE))
     refusal = page.evaluate(
         """async () => {
-          const {marginEntry} = await import('/runtime/widget-api.js');
+          const {marginEntry} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           try {
             marginEntry({
               key: 'cancel', icon: 'cross', label: 'Cancel',
@@ -1928,7 +1928,7 @@ def test_a_margin_entry_refuses_an_unowned_command_scope(browser, serve):
 
     status = page.evaluate(
         """async () => {
-          const {commandScope, marginEntry} = await import('/runtime/widget-api.js');
+          const {commandScope, marginEntry} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const scope = commandScope('Status command', [{
             id: 'fixture.status', keys: ['x'], does: 'Act from status',
             line: 'act from status', run: () => {}

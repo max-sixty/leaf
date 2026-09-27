@@ -11,7 +11,7 @@ Options:
 Commands:
   codex         Launch Codex and connect Leaf pages to its tasks.
   data          Set or clear page-bound external data.
-  delivery      Claim or read input delivered by any Leaf host.
+  delivery      Read input delivered by any Leaf host.
   events        Print the event log as JSON lines.
   experimental  Commands optional packages use; they may change.
   interactions  Print browser and server interactions as JSON lines.

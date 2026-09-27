@@ -26,7 +26,7 @@
  * experimental) in that same grammar. A number outside the block addresses nothing,
  * so a driver can offer one key to several excerpts of the same file. */
 import {
-  dataBody,
+  bodyText,
   once,
   failSoft,
   layoutChanged,
@@ -93,7 +93,7 @@ customElements.define(
       // which line they are about, so a note never sits between two halves of the
       // source and there is no interrupted-line arithmetic to get right.
       const notes = [...this.querySelectorAll(":scope > lf-note")];
-      const source = dataBody(this).replace(/^\n+/, "").replace(/\s+$/, "");
+      const source = bodyText(this);
       try {
         const lang = this.getAttribute("language");
         // One representation either way: an uncolored block is the whole source as a

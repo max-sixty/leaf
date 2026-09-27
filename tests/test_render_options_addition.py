@@ -9,7 +9,6 @@ from playwright.sync_api import expect
 from render_cases_interaction import (
     ASK_PAGE,
     ASK_WITH_CONTEXT_PAGE,
-    sent_events,
 )
 from render_cases_layout import (
     button_radius,
@@ -18,12 +17,12 @@ from render_cases_layout import (
 )
 from render_harness import (
     EXAMPLE_MEDIA,
-    STORED_DRAFT_TEXT,
     consume_browser_errors,
     holding,
     open_page,
     round_trip,
     sending,
+    stored_draft_text,
     told,
     undo,
     write,
@@ -324,7 +323,7 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
 
     new_option = page.locator("#jobs > lf-option[data-lf-added]")
     assert new_option.count() == 1, (
-        f"the added option did not stand: {page.lf_errors}; events={sent_events(d)}; "
+        f"the added option did not stand: {page.lf_errors}; events={events_model.read_events(d)}; "
         f"group={page.locator('#jobs').inner_html()}"
     )
     expect(new_option).to_contain_text("Insulate the camera battery")
@@ -332,14 +331,16 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     identity = new_option.get_attribute("id")
     moves = [
         (event["action"], event["detail"])
-        for event in sent_events(d)
+        for event in events_model.read_events(d)
         if event.get("kind") == "action" and event.get("widget") == "jobs"
     ]
     assert moves == [
         ("add", {"option": identity, "text": "Insulate the camera battery"}),
         ("choose", {"options": [identity]}),
     ]
-    assert not [event for event in sent_events(d) if event["kind"] == "comment"]
+    assert not [
+        event for event in events_model.read_events(d) if event["kind"] == "comment"
+    ]
 
     page.locator("#job-heater").click()
     round_trip(page)
@@ -388,7 +389,7 @@ def test_the_add_field_hands_its_words_to_the_option_it_drew(held_events, serve)
     expect(added).to_have_count(1)
     expect(added).to_contain_text(words)
     expect(field).to_have_js_property("value", "")
-    assert page.evaluate(STORED_DRAFT_TEXT, "option:jobs") == words
+    assert stored_draft_text(page, "option:jobs") == words
 
     attempt = held[0].request.post_data_json["attempt"]
     with page.expect_response(lambda response: "/api/event" in response.url):
@@ -403,10 +404,10 @@ def test_the_add_field_hands_its_words_to_the_option_it_drew(held_events, serve)
         )
     expect(added).to_have_count(0)
     expect(field).to_have_js_property("value", words)
-    assert page.evaluate(STORED_DRAFT_TEXT, "option:jobs") == words
+    assert stored_draft_text(page, "option:jobs") == words
     assert not [
         event
-        for event in sent_events(serve.page_dir)
+        for event in events_model.read_events(serve.page_dir)
         if event.get("kind") == "action" and event.get("widget") == "jobs"
     ]
     consume_browser_errors(page, "400")
@@ -444,7 +445,7 @@ def test_a_pick_made_while_an_option_is_in_flight_cannot_strand_it(held_events, 
     page.unroute("**/api/event")
     round_trip(page)
     expect(field).to_have_js_property("value", "")
-    assert page.evaluate(STORED_DRAFT_TEXT, "option:jobs") is None
+    assert stored_draft_text(page, "option:jobs") is None
     expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_count(1)
 
 
@@ -490,7 +491,9 @@ def test_the_add_field_says_why_it_will_not_take_a_pasted_image(browser, serve):
     assert field.evaluate("box => box.value") == ""
     assert uploads == [], "a refused paste still uploaded its bytes"
     assert not [
-        event for event in sent_events(serve.page_dir) if event["kind"] == "action"
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action"
     ]
 
 
@@ -529,11 +532,11 @@ def test_an_arrival_cannot_hide_a_question_draft(browser, serve):
     added = page.locator("#jobs > lf-option[data-lf-added]")
     expect(added).to_contain_text(draft)
     expect(added).to_have_attribute("chosen", "")
-    roots = [e for e in sent_events(d) if e["kind"] == "comment"]
+    roots = [e for e in events_model.read_events(d) if e["kind"] == "comment"]
     assert [(e["anchor"], e["text"]) for e in roots] == [
         ({"section": "jobs"}, "A separate note on this question."),
     ]
-    action = next(e for e in sent_events(d) if e["kind"] == "action")
+    action = next(e for e in events_model.read_events(d) if e["kind"] == "action")
     assert action["detail"] == {"option": added.get_attribute("id"), "text": draft}
     page.locator(".lf-threads-toggle").click()
     expect(page.locator(f'.lf-thread[data-id="{external["id"]}"]')).to_have_count(1)

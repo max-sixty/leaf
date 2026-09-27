@@ -223,6 +223,7 @@ widget's role on the page:
 | `x-visual`           | `lf-chart` declares `whole`, `lf-diagram` in `diagram` `parts`  |
 | `x-bound`            | `lf-activity`                                                  |
 | `x-history`          | `lf-activity`                                                  |
+| `x-patch`            | `lf-tabs`                                                      |
 | `x-thread-surface`   | `lf-diff` in `diff`, `lf-visual-review` in `visual-review`     |
 
 A visual with generated part ids declares accepted `x-visual.prefixes` and calls
@@ -612,6 +613,11 @@ Use `runFromCommandReference: false` only for a parameterized step that cannot b
 choice the command reference does not have, such as a generated hint tied to the live viewport. An
 optional `reach` on a row or scope supplies the short place phrase shown when a command
 is not available (for example, `in an open draft editor`).
+
+A list of focusable rows takes its walk from `rowWalk({id, noun, plural, rows})`, whose
+two returned rows go into the list's own scope: ArrowUp and ArrowDown step and clamp,
+Home and End reach the ends, and each landing shows its position, such as `Option 3 of
+7`. `rows()` returns the list as it stands at each press.
 
 A widget-owned composition box is the runtime's text field, `offer(TEXT_FIELD)` from the
 widget API: a Markdown editor that shows the draft the way the sent message will read

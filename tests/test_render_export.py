@@ -1549,6 +1549,32 @@ def test_an_export_keeps_utf8(browser, serve, tmp_path):
     expect(page.get_by_role("heading", name="Café handoff")).to_be_visible()
 
 
+def test_an_export_keeps_its_quiet_words_off_screen(browser, serve, tmp_path):
+    """A status word written for a user listening (`.lf-quiet`) is clipped on screen in
+    an export as in the live page. The rule that clips it once lived only in the
+    chrome's sheet, which an export never adopts, so every milestone in an exported
+    file read "done" or "active" beside the dot that already said it."""
+    serve(
+        leaf_page(
+            "Quiet words",
+            '<h1>Quiet words</h1><lf-milestones><lf-milestone id="m" status="done">'
+            "<strong>Ship</strong></lf-milestone></lf-milestones>",
+        )
+    )
+    out = tmp_path / "quiet.html"
+    exporting_model.cmd_export(serve.page_dir, out, None)
+    page = browser.new_page()
+    page.goto(out.as_uri(), wait_until="load")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    quiet = page.locator("#m .lf-quiet")
+    expect(quiet).to_have_count(1)
+    box = quiet.evaluate(
+        "el => { const r = el.getBoundingClientRect();"
+        " return [r.width, r.height, getComputedStyle(el).clipPath]; }"
+    )
+    assert box[0] <= 1 and box[1] <= 1 and box[2] != "none", box
+
+
 def test_an_export_embeds_only_the_widgets_its_markup_names(browser, serve, tmp_path):
     """A widget the page and its messages never name brings none of its modules.
 

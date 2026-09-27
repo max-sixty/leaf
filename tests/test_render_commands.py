@@ -786,9 +786,8 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
     Both are about a word the user was shown, so the check asks that first. The
     runtime's external-link note is the case that made it say so: an aria-describedby
     target the browser reads out and the page never paints, put inside whatever root
-    its link stands in — a shadow tree included, where .lf-quiet's clip does not
-    reach. [hidden] is the silence available in every root, and the same note shown is
-    still reported."""
+    its link stands in, a shadow tree included. [hidden] is the silence available in
+    every root, and the same note shown is still reported."""
 
     def stage_reach_cases(page):
         page.add_init_script(

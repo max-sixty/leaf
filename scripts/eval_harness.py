@@ -26,7 +26,7 @@ same `/tmp` names and can read each other's.
 A trace is the child's stream-json. It counts only when its model call completed: it
 reached a `result` that is not an error, and it loaded no auto-memory (`completed`).
 
-A live child (`live_child`) keeps its session open across turns, so a driver can serve
+A live child (`LiveChild`) keeps its session open across turns, so a driver can serve
 it a page and post user moves through the page's API (`PageClient`) as a tab would;
 the stream readers below find its backgrounded waits and the deliveries Leaf's hooks
 hand it.
@@ -39,12 +39,14 @@ import re
 import shutil
 import subprocess
 import tempfile
+import threading
 import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
+from typing import Self
 
 import click
 from leaf.host import IDENTITY_VARIABLES
@@ -165,23 +167,33 @@ def run_claude(
     return read_trace(out)
 
 
-def live_child(
-    cwd: Path,
-    prompt: str,
-    *args: str,
-    stderr: Path,
-    dirs: Iterable[Path] = (),
-    env: dict | None = None,
-) -> subprocess.Popen:
-    """Start a `claude_child` whose session stays open for later turns, with `prompt`
-    as its first message; its stream-json, hook events included, is on stdout.
+class LiveChild:
+    """A `claude_child` whose session stays open for later turns, as a context
+    manager: `prompt` is its first message, and `records` yields its stream-json,
+    hook events included, each stamped `received_at`.
 
     A later turn opens when a background task, such as a `leaf wait`, ends. `claude
     -p` terminates its background shells once the final result is out and stdin has
-    closed, so the caller holds stdin open while it expects another turn and closes
-    it to end the session."""
-    proc = subprocess.Popen(
-        **claude_child(
+    closed, so the caller holds stdin open while it expects another turn and calls
+    `close` to end the session. A session still running `limit` seconds after it
+    started is killed and `timed_out` touched; the deadline runs beside the read, so
+    a stream that stops producing lines still ends. Leaving the block, however it is
+    left, cancels the deadline and kills a child still running, so no timer or child
+    outlives a failed driver."""
+
+    def __init__(
+        self,
+        cwd: Path,
+        prompt: str,
+        *args: str,
+        stderr: Path,
+        limit: float,
+        timed_out: Path,
+        dirs: Iterable[Path] = (),
+        env: dict | None = None,
+    ) -> None:
+        self.prompt, self.stderr, self.timed_out = prompt, stderr, timed_out
+        self.popen = claude_child(
             cwd,
             "--input-format",
             "stream-json",
@@ -189,16 +201,43 @@ def live_child(
             *args,
             dirs=dirs,
             env=env,
-        ),
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=stderr.open("w"),
-        text=True,
-    )
-    message = {"type": "user", "message": {"role": "user", "content": prompt}}
-    proc.stdin.write(json.dumps(message) + "\n")
-    proc.stdin.flush()
-    return proc
+        )
+        self.deadline = threading.Timer(limit, self._give_up)
+
+    def __enter__(self) -> Self:
+        self.proc = subprocess.Popen(
+            **self.popen,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=self.stderr.open("w"),
+            text=True,
+        )
+        message = {"type": "user", "message": {"role": "user", "content": self.prompt}}
+        self.proc.stdin.write(json.dumps(message) + "\n")
+        self.proc.stdin.flush()
+        self.deadline.start()
+        return self
+
+    def records(self):
+        """Each stream record until the child exits."""
+        for line in self.proc.stdout:
+            yield {**json.loads(line), "received_at": now()}
+        self.proc.wait(timeout=60)
+
+    def close(self) -> None:
+        """End the session once the turn in progress, if any, has ended."""
+        if not self.proc.stdin.closed:
+            self.proc.stdin.close()
+
+    def _give_up(self) -> None:
+        self.timed_out.touch()
+        self.proc.kill()
+
+    def __exit__(self, *exc) -> None:
+        self.deadline.cancel()
+        if self.proc.poll() is None:
+            self.proc.kill()
+            self.proc.wait()
 
 
 def now() -> str:

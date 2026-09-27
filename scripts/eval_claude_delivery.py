@@ -96,11 +96,11 @@ from pathlib import Path
 import click
 from eval_harness import (
     URL,
+    LiveChild,
     PageClient,
     build_arm,
     commands,
     hook_delivered,
-    live_child,
     now,
     run_leaf,
     scratch,
@@ -261,33 +261,24 @@ def run_session(arm: Path, case: str, run: Path) -> None:
         "Release triage for review.",
         check=True,
     )
-    proc = live_child(
-        work,
-        PROMPT,
-        "--plugin-dir",
-        str(arm),
-        stderr=run / "stderr.txt",
-        dirs=[arm, state],
-        env={"XDG_STATE_HOME": str(state)},
-    )
-
-    def close_stdin() -> None:
-        if not proc.stdin.closed:
-            proc.stdin.close()
-
-    def give_up() -> None:
-        (run / "timed-out").touch()
-        proc.kill()
-
-    # The deadline runs beside the read, so a stream that stops producing lines
-    # still ends: the kill closes stdout and the loop below finishes.
-    deadline = threading.Timer(TURN_LIMIT, give_up)
-    deadline.start()
     # The sampler runs in a pool so that its failure raises here, not in a thread.
     sampled, sampling, sampler = threading.Event(), ThreadPoolExecutor(1), None
     try:
         url, waits, due, posted, received = None, set(), list(CASES[case]), 0, 0
-        with (run / "stream.jsonl").open("w") as stream:
+        with (
+            LiveChild(
+                work,
+                PROMPT,
+                "--plugin-dir",
+                str(arm),
+                stderr=run / "stderr.txt",
+                limit=TURN_LIMIT,
+                timed_out=run / "timed-out",
+                dirs=[arm, state],
+                env={"XDG_STATE_HOME": str(state)},
+            ) as child,
+            (run / "stream.jsonl").open("w") as stream,
+        ):
 
             def post() -> None:
                 nonlocal posted
@@ -297,8 +288,7 @@ def run_session(arm: Path, case: str, run: Path) -> None:
                 stream.write(json.dumps(marker) + "\n")
                 due.pop(0)
 
-            for line in proc.stdout:
-                record = {**json.loads(line), "received_at": now()}
+            for record in child.records():
                 stream.write(json.dumps(record) + "\n")
                 waits.update(waits_started(record))
                 received += hook_delivered(record) + sum(
@@ -326,20 +316,14 @@ def run_session(arm: Path, case: str, run: Path) -> None:
                 elif not due and received >= posted:
                     # Every comment is picked up. A trailing wake may follow,
                     # hence the grace period.
-                    threading.Timer(20, close_stdin).start()
-        proc.wait(timeout=60)
+                    threading.Timer(20, child.close).start()
         if sampler:
             sampled.set()
             sampler.result()
         (run / "events.jsonl").write_text(leaf("events", str(page), check=True).stdout)
     finally:
-        # A failed arm ends as promptly as a stalled one: no timer or child outlives it.
-        deadline.cancel()
         sampled.set()
         sampling.shutdown()
-        if proc.poll() is None:
-            proc.kill()
-            proc.wait()
         # The server may already have stopped with its session.
         leaf("server", "stop", str(page))
 

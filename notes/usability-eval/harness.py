@@ -40,9 +40,9 @@ Cases (`CASES`):
   holds an unrelated record, listed first and resembling one widget's. Phase 1 asks
   what each widget shows; phase 2 asks for one worker's new state.
 
-The live cases (`LIVE`) serve a page from the child's own session and post user moves
-through the served page as a tab does, one round each time a turn ends with the
-earlier rounds delivered (`execute_live`):
+The live cases, those with `rounds`, serve a page from the child's own session and
+post user moves through the served page as a tab does, one round each time a turn
+ends with the earlier rounds delivered (`execute_live`):
 
 - `handoff`: a drafted page to hand over, then an edit request and, after that turn,
   a question. Each turn is scored for the status it leaves and the wait it re-arms.
@@ -109,6 +109,7 @@ ROOT = HERE.parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from eval_harness import (
     URL,
+    LiveChild,
     PageClient,
     blocks,
     build_arm,
@@ -116,7 +117,6 @@ from eval_harness import (
     completed,
     environment,
     hook_delivered,
-    live_child,
     now,
     read_trace,
     run_claude,
@@ -282,6 +282,8 @@ CARD_MOVE = {
     "action": "move",
     "detail": {"card": "card-lag-alert", "to": "col-done", "rank": "1"},
 }
+# The duration the `DRY_RUN` comment asks for, as the edited paragraph may write it.
+DRY_RUN_DONE = r"3\s*h(ours?)?\s*(and\s*)?10"
 UNDO = {"kind": "undo", "undoes": "previous"}
 SUMMARY_ERROR = {
     "kind": "error",
@@ -345,7 +347,6 @@ CASES = {
     "elided": Case("elided", (REOPEN,), fixture="elided", rounds=((START_QUESTION,),)),
 }
 BASELINE = ("cold-report", "cold-decision", "near-miss", "reading", "resume")
-LIVE = tuple(name for name, case in CASES.items() if case.rounds)
 
 # Arms, runs and batches
 
@@ -747,39 +748,32 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
     turn's end the stream records the page's status."""
     prompt = case.prompts[0].replace("{page}", str(page))
     (run.dir / "prompt-1.txt").write_text(prompt)
-    proc = live_child(
-        work,
-        prompt,
-        "--model",
-        MODEL,
-        "--plugin-dir",
-        str(run.payload),
-        stderr=run.dir / "err-1.txt",
-        dirs=[run.payload],
-        env={"XDG_STATE_HOME": str(run.state)},
-    )
-
-    def close_stdin() -> None:
-        if not proc.stdin.closed:
-            proc.stdin.close()
-
-    def give_up() -> None:
-        (run.dir / "timed-out").touch()
-        proc.kill()
-
-    deadline = threading.Timer(LIVE_LIMIT, give_up)
-    deadline.start()
-    waiting = threading.Timer(DELIVERY_LIMIT, close_stdin)
+    # The deadline for the posted round's delivery; unstarted until the first post.
+    waiting = threading.Timer(DELIVERY_LIMIT, lambda: None)
     url, posted, delivered = None, 0, 0
     try:
-        with (run.dir / "stream-1.jsonl").open("w") as stream:
+        with (
+            LiveChild(
+                work,
+                prompt,
+                "--model",
+                MODEL,
+                "--plugin-dir",
+                str(run.payload),
+                stderr=run.dir / "err-1.txt",
+                limit=LIVE_LIMIT,
+                timed_out=run.dir / "timed-out",
+                dirs=[run.payload],
+                env={"XDG_STATE_HOME": str(run.state)},
+            ) as child,
+            (run.dir / "stream-1.jsonl").open("w") as stream,
+        ):
 
             def note(record: dict) -> None:
-                stream.write(json.dumps({**record, "received_at": now()}) + "\n")
+                stream.write(json.dumps(record) + "\n")
                 stream.flush()
 
-            for line in proc.stdout:
-                record = json.loads(line)
+            for record in child.records():
                 note(record)
                 arrived = hook_delivered(record) + sum(
                     "wait --ack" in c or "delivery read" in c for c in commands(record)
@@ -791,30 +785,21 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                     url = found[0]
                 if record.get("type") != "result":
                     continue
-                note(
-                    {
-                        "type": "eval_status",
-                        "status": page_state(run, page).get("status"),
-                    }
-                )
+                status = page_state(run, page).get("status")
+                note({"type": "eval_status", "status": status, "received_at": now()})
                 if delivered < posted:
                     continue
                 if url and posted < len(case.rounds):
                     time.sleep(3)
                     post_round(run, page, PageClient(url), case.rounds[posted], posted)
                     posted += 1
-                    note({"type": "eval_post", "round": posted})
-                    waiting = threading.Timer(DELIVERY_LIMIT, close_stdin)
+                    note({"type": "eval_post", "round": posted, "received_at": now()})
+                    waiting = threading.Timer(DELIVERY_LIMIT, child.close)
                     waiting.start()
                 else:
-                    threading.Timer(GRACE, close_stdin).start()
-        proc.wait(timeout=60)
+                    threading.Timer(GRACE, child.close).start()
     finally:
-        deadline.cancel()
         waiting.cancel()
-        if proc.poll() is None:
-            proc.kill()
-            proc.wait()
         run.leaf("server", "stop", str(page))
 
 
@@ -1416,9 +1401,7 @@ def score_handoff(run: Run, trace: list[dict]) -> dict:
                 ran_between(trace, r["delivery"], r["end"] or len(trace))
             ),
             "edit_replied": bool(answered(events, comment["id"])),
-            "edit_done": check(
-                r"3\s*h(ours?)?\s*(and\s*)?10", element_text(html, "dry-run")
-            ),
+            "edit_done": check(DRY_RUN_DONE, element_text(html, "dry-run")),
         }
     if len(rounds) > 1:
         question = posted_event(run.work / "page", attempt_key(1, 0))
@@ -1457,9 +1440,7 @@ def score_mixed(run: Run, trace: list[dict]) -> dict:
         and {e["id"] for e in posted if e["author"] == "user"} <= picked,
         "comment_claimed": claimed_first(ran),
         "comment_replied": bool(answered(events, comment["id"])),
-        "comment_done": check(
-            r"3\s*h(ours?)?\s*(and\s*)?10", element_text(html, "dry-run")
-        ),
+        "comment_done": check(DRY_RUN_DONE, element_text(html, "dry-run")),
         "stamped": len(state.get("versions", [])) >= 2,
         # Leaf's own reading: the pick owes nothing more, and the user still sees it,
         # as the markup's `chosen` or as their standing move.

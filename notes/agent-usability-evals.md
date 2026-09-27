@@ -61,7 +61,10 @@ own session and the harness plays the user, posting moves through the served pag
 tab does, one round each time a turn ends; the other two are headless. The harness
 docstring describes each case. Every run completed. Per-run scores are in
 `usability-eval/results/extension.json`; the scored runs cost $5.71, and $8.76 with the
-pilots.
+pilots. Reading the failing runs by hand corrected four scorer patterns that had
+failed a correct result: an answer that also named the stale record, `&nbsp;` inside a
+duration, a suggestion whose closing tags broke across lines, and a page written by a
+script fed through a heredoc. Both batches were rescored with the corrected scorer.
 
 | Case | What the user does | Checks | Cost and input per run |
 | --- | --- | --- | --- |
@@ -76,13 +79,13 @@ What the traces show:
 - **The live loop runs as the references describe.** Every round reached its agent
   through the prompt hook, which confirmed receipt, so no agent ran `leaf wait --ack`
   or invented another acknowledgement. Every turn that took a delivery re-armed the
-  wait, ended on a `waiting` status and repeated the URL. The first handoff's status named the
-  decision ("Pick how the backfill copy runs: …") in 3 of 3, and each edit request
-  was claimed on its thread before the reply.
+  wait, ended on a `waiting` status and repeated the URL. The first handoff's status
+  named the decision ("Pick how the backfill copy runs: …") in 3 of 3, and each edit
+  request was claimed on its thread before the reply.
 - **A mixed batch gets each event's treatment.** No run wrote the undone card move
   into the markup, every run fixed the non-global regular expression the page error
-  named, and every run answered the pick in markup and stamped it, with `chosen` on the option or
-  `settled` on the group. The `shorten` reaction was handled both ways the guidance
+  named, and every run answered the pick in markup and stamped it, with `chosen` on
+  the option or `settled` on the group. The `shorten` reaction was handled both ways the guidance
   allows: shortened in place and closed, or proposed as an `lf-suggestion` that
   `resolves` it. One run named all four pieces of work in one page-wide status and
   claimed nothing on the comment's thread, so that comment read Picked up rather than
@@ -121,7 +124,7 @@ a user's state. Classified:
   entry leaves out.
 
 Two fixes were tried as a paired A/B, both arms started together
-(`results/ab.json`, $7.11): the base, and a candidate that added to
+(`usability-eval/results/ab.json`, $7.11): the base, and a candidate that added to
 `conversation-loop.md`, "When to write", that each move in a batch takes its own
 claim, and changed the `lf-worktree` description to say it shows "the one record its
 source keys by this element's id". `mixed` ran five times per arm and `shared-source`

@@ -11,6 +11,7 @@ from leaf import event_log as events_model
 from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf.registry.storage import read_page_registry
+from leaf.schema import ELEMENT_ID
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -1014,7 +1015,7 @@ def data_projection_page(serve):
         "description": "A project-supplied live feed.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
             "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
         },
         "required": ["id", "source"],

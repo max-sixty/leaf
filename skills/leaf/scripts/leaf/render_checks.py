@@ -7,6 +7,11 @@ RENDER_VIEWPORT = {"width": 1200, "height": 900}
 # The same patience Playwright gives browser waits. Keeping the server request timeout
 # beside it turns a wedged preview into a useful failure rather than an unbounded evaluate.
 SERVED_TIMEOUT_MS = 30_000
+# How often a probe wait re-reads its fact. The waits poll on a timer rather than on
+# animation frames (see `_load_probes`), and at one frame's interval a wait costs about
+# what it waits for: most waits are a frame or a settle, and a 100 ms interval added
+# about two seconds to each render check.
+PROBE_POLL_MS = 16
 
 PROBE_ROOT = Path(__file__).with_name("render-checks")
 PROBE_ROUTE = "/_leaf/render-checks/index.js"
@@ -73,7 +78,7 @@ def _load_probes(page, call: dict) -> None:
         # document in a closed disclosure or inactive tab still needs inspection,
         # but browsers suspend its requestAnimationFrame callbacks.
         page.wait_for_function(
-            _PROBES_LOADED, arg=call, timeout=call["timeoutMs"], polling=100
+            _PROBES_LOADED, arg=call, timeout=call["timeoutMs"], polling=PROBE_POLL_MS
         )
     except PlaywrightTimeout as error:
         raise PlaywrightError(
@@ -101,7 +106,9 @@ def wait_for_probe(page, name: str, *args, timeout_ms: int | None = None) -> Non
     call = _call(page, name, args, timeout_ms)
     _load_probes(page, call)
     try:
-        page.wait_for_function(_PROBE, arg=call, timeout=call["timeoutMs"], polling=100)
+        page.wait_for_function(
+            _PROBE, arg=call, timeout=call["timeoutMs"], polling=PROBE_POLL_MS
+        )
     except PlaywrightTimeout as error:
         raise PlaywrightTimeout(
             f"Leaf wait probe {name} did not become true within {call['timeoutMs']}ms"

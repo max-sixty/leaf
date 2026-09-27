@@ -12,8 +12,10 @@ from click.testing import CliRunner
 from interact_support import (
     COMMAND_HUB_PACKAGE,
     SHIPPED_PACKAGES,
+    add_test_widget,
     append_command,
     running_http_server,
+    trial_family,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -71,7 +73,6 @@ from render_cases_interaction import (
     executable_revision,
     live_url,
     stale_report,
-    trial_family,
 )
 from render_cases_layout import (
     banner_control,
@@ -98,7 +99,6 @@ from render_harness import (
     SPECIMEN_TEXT,
     TOKEN,
     ask_actions_hint,
-    author_test_widget,
     compare_with,
     consume_browser_errors,
     expect_banner_control_offered,
@@ -3063,7 +3063,8 @@ def test_revision_changes_follow_authored_text_into_declared_shadow_trees(
     the user on the next revision.
     """
     monkeypatch.chdir(tmp_path)
-    package = author_test_widget(tmp_path, "lf-shadow-reading", upgrade=True)
+    package = tmp_path / ".leaf"
+    add_test_widget(package, "lf-shadow-reading", upgrade=True)
     registry_path = package / "registry.json"
     declarations = json.loads(registry_path.read_text())
     declarations["lf-shadow-reading"]["x-shadow"] = True
@@ -5398,7 +5399,8 @@ def test_render_separates_old_and_new_verbs_on_one_element(
     browser, serve, tmp_path, monkeypatch
 ):
     monkeypatch.chdir(tmp_path)
-    package = author_test_widget(tmp_path, "lf-pair", upgrade=True)
+    package = tmp_path / ".leaf"
+    add_test_widget(package, "lf-pair", upgrade=True)
     registry_path = package / "registry.json"
     declarations = json.loads(registry_path.read_text())
     declaration = declarations["lf-pair"]
@@ -5565,7 +5567,7 @@ def test_a_user_verb_and_an_agent_verb_stand_side_by_side(
     ready once its coordinate is committed, and undoing the user's action restores
     the authored value without replacing the node."""
     monkeypatch.chdir(tmp_path)
-    author_test_widget(tmp_path, "lf-tally", upgrade=True)
+    add_test_widget(tmp_path / ".leaf", "lf-tally", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
     declarations["lf-tally"]["properties"]["count"] = {
@@ -5673,7 +5675,7 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
         ("lf-zone", False),
         ("lf-piece", True),
     ):
-        author_test_widget(tmp_path, tag, upgrade=upgrade)
+        add_test_widget(tmp_path / ".leaf", tag, upgrade=upgrade)
 
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
@@ -5840,7 +5842,7 @@ def test_the_render_gate_catches_a_relative_state_renderer(
     is text, which that signature excludes on purpose, so only the verb's declared
     record form reaches it — a limb of the gate that would otherwise never have fired."""
     monkeypatch.chdir(tmp_path)
-    author_test_widget(tmp_path, "lf-tally", upgrade=True)
+    add_test_widget(tmp_path / ".leaf", "lf-tally", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
     declarations["lf-tally"]["properties"]["count"] = {
@@ -6473,7 +6475,7 @@ def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
     holder["properties"]["decision"] = {"enum": ["open", "shelved"]}
     holder.setdefault("required", []).append("decision")
     holder["x-example"] = holder["x-example"].replace(
-        'id="x-trial"', 'id="x-trial" decision="open"'
+        'id="trial-cache"', 'id="trial-cache" decision="open"'
     )
     decide = holder["x-state"]["decide"]
     decide["detail"]["properties"]["decision"] = {"enum": ["open", "shelved"]}
@@ -7263,7 +7265,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
             "markup": SPECIMEN_MARKUP,
         },
     )
-    append_command(
+    decision = append_command(
         d,
         {
             "kind": "action",
@@ -7289,7 +7291,11 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     expect(page.locator("#rp-shim")).to_have_attribute("chosen", "")
 
     undo(page)
-    assert events_model.read_events(d)[-1]["kind"] == "undo"
+    assert [
+        event["undoes"]
+        for event in events_model.read_events(d)
+        if event["kind"] == "undo"
+    ] == [decision["id"]]
     expect(page.locator("#rp-live lf-option[chosen]")).to_have_count(0)
 
 
@@ -7482,6 +7488,17 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     assert sent[-1]["action"] == "answer", "the sequence's digit must not pick"
 
 
+def _gesture_request(request):
+    return "/api/event" in request.url and bool(request.post_data_json.get("attempt"))
+
+
+def _hold_gesture(route, held):
+    if _gesture_request(route.request):
+        held.append(route)
+    else:
+        route.continue_()
+
+
 def test_a_thread_answer_is_not_repainted_after_its_undo_arrives_with_it(
     browser, serve
 ):
@@ -7493,9 +7510,9 @@ def test_a_thread_answer_is_not_repainted_after_its_undo_arrives_with_it(
     page = open_page(browser, url)
     page.keyboard.press("a")
     held = []
-    page.route("**/api/event", lambda route: held.append(route))
+    page.route("**/api/event", lambda route: _hold_gesture(route, held))
     done = page.locator("#tq-set .lf-done")
-    with page.expect_request("**/api/event"):
+    with page.expect_request(_gesture_request):
         done.click()
     holding(page, held, 1, "the thread answer")
     accepted_answer = held[0].fetch()
@@ -7531,9 +7548,9 @@ def test_a_refused_thread_choice_restores_its_frozen_markup(browser, serve):
     page.keyboard.press("a")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     held = []
-    page.route("**/api/event", lambda route: held.append(route))
+    page.route("**/api/event", lambda route: _hold_gesture(route, held))
 
-    with page.expect_request("**/api/event"):
+    with page.expect_request(_gesture_request):
         page.locator("#tq-logs").click()
     expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
     attempt = held[0].request.post_data_json["attempt"]
@@ -7571,8 +7588,8 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
 
     held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    with page.expect_request("**/api/event"):
+    page.route("**/api/event", lambda route: _hold_gesture(route, held))
+    with page.expect_request(_gesture_request):
         page.locator("#tq-metrics").click()
     expect(page.locator("#tq-metrics")).to_have_attribute("chosen", "")
     attempt = held[0].request.post_data_json["attempt"]
@@ -7607,8 +7624,8 @@ def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, ser
     page = open_page(browser, url)
     page.keyboard.press("a")
     held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    with page.expect_request("**/api/event"):
+    page.route("**/api/event", lambda route: _hold_gesture(route, held))
+    with page.expect_request(_gesture_request):
         page.locator("#tq-logs").click()
     done = page.locator("#tq-set .lf-done")
     done.click()
@@ -7618,7 +7635,7 @@ def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, ser
     first_attempt = held[0].request.post_data_json["attempt"]
     with page.expect_request(
         lambda request: (
-            "/api/event" in request.url
+            _gesture_request(request)
             and request.post_data_json.get("attempt") != first_attempt
         )
     ):
@@ -7665,7 +7682,7 @@ def test_a_done_press_answers_optimistically_and_only_once(browser, serve):
     expect(page.locator("#tq-set-decision")).to_be_focused()
     done = page.locator("#tq-set .lf-done")
     held = []
-    page.route("**/api/event", lambda route: held.append(route))
+    page.route("**/api/event", lambda route: _hold_gesture(route, held))
     done.click()
     holding(page, held, 1, "the answer")
 

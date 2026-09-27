@@ -16,6 +16,7 @@ from leaf import session as session_model
 from leaf import thread as thread_model
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate import version as render_gate_model
+from leaf.schema import ELEMENT_ID
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ALL_ASKS_IN_ORDER,
@@ -8230,7 +8231,14 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
             '.lf-msg[data-mid="{message["id"]}"]')
           && window.__editedWidget === document.querySelector('#edited-message-choice')"""
     ), "the edit replaced a standing message or its frozen widget"
-    assert events_model.read_events(d)[-2]["text"] == "The north bracket fit."
+    assert (
+        next(
+            event
+            for event in events_model.read_events(d)
+            if event["id"] == message["id"]
+        )["text"]
+        == "The north bracket fit."
+    )
 
 
 def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, serve):
@@ -10290,8 +10298,8 @@ POINTER_REGISTRY = {
         "description": "Points at lines of the code block its `for` names.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
-            "for": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "for": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
         },
         "required": ["id", "for"],
         "additionalProperties": False,

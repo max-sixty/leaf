@@ -3,12 +3,12 @@
 import json
 from datetime import datetime, timedelta
 
-from interact_support import append_command, deciding_verb
+from interact_support import add_test_widget, append_command
 from leaf import event_log as events_model
+from leaf.schema import ELEMENT_ID
 from render_harness import (
     EXAMPLES,
     TOKEN,
-    author_test_widget,
     leaf_page,
 )
 
@@ -1326,7 +1326,7 @@ customElements.define(
 def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
     """Vendor <lf-drift> as a project widget, and hand back the page it renders."""
     monkeypatch.chdir(tmp_path)
-    author_test_widget(tmp_path, "lf-drift", upgrade=True)
+    add_test_widget(tmp_path / ".leaf", "lf-drift", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
     declarations["lf-drift"]["properties"]["offset"] = {
@@ -1336,7 +1336,7 @@ def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
     declarations["lf-drift"].setdefault("required", []).append("offset")
     declarations["lf-drift"]["x-example"] = declarations["lf-drift"][
         "x-example"
-    ].replace('id="drift-example"', 'id="drift-example" offset="120"')
+    ].replace('id="drift"', 'id="drift" offset="120"')
     declarations["lf-drift"]["properties"]["deep"] = {"type": "boolean"}
     declarations["lf-drift"]["properties"]["bare"] = {"type": "boolean"}
     deep = deep or bare
@@ -1403,58 +1403,6 @@ TWO_HOLDER_PAGE = leaf_page(
 </lf-trial>
 """,
 )
-
-
-def trial_family(tmp_path):
-    """A third-party settlement family in one project package.
-
-    Registry declarations relate its owners and slots. The owner modules only define
-    their elements, so anything a test sees settle is the layer's doing. Only
-    lf-proposed names two owners, for the selector case that test exercises.
-    """
-    for tag, upgrade in (
-        ("lf-trial", True),
-        ("lf-pilot", True),
-        ("lf-current", False),
-        ("lf-proposed", False),
-    ):
-        author_test_widget(tmp_path, tag, upgrade=upgrade)
-    source = tmp_path / ".leaf" / "registry.json"
-    declarations = json.loads(source.read_text())
-    example = {
-        "lf-trial": '<lf-trial id="x-trial"><lf-current><p>As it stands.</p></lf-current>'
-        "<lf-proposed><p>As proposed.</p></lf-proposed></lf-trial>",
-        "lf-pilot": '<lf-pilot id="x-pilot"><lf-proposed><p>As proposed.</p>'
-        "</lf-proposed></lf-pilot>",
-    }
-    # `pause` retires nothing: an outcome that displaces a decision in the fold,
-    # there for the test that holds the mark to following it out.
-    for tag, outcomes in (
-        ("lf-trial", ["adopt", "shelve", "pause"]),
-        ("lf-pilot", ["run", "shelve"]),
-    ):
-        declarations[tag]["x-state"] = {"decide": deciding_verb(outcomes)}
-        declarations[tag]["properties"]["restated"] = {"type": "boolean"}
-        declarations[tag]["x-content"] = "members"
-        declarations[tag]["x-example"] = example[tag]
-    for tag, owners, outcome in (
-        ("lf-current", ["lf-trial"], "adopt"),
-        ("lf-proposed", ["lf-trial", "lf-pilot"], "shelve"),
-    ):
-        declarations[tag] |= {"x-owners": owners, "x-retired-when": outcome}
-        declarations[tag].pop("x-example", None)
-        declarations[tag].pop("required", None)
-    source.write_text(json.dumps(declarations))
-    # The fixture styles every tag as a card. These slots draw no box of their own;
-    # clear their paragraph margins so retiring a sibling cannot leave a margin
-    # trapped against the holder's frame. Geometry is not this family's subject.
-    theme = tmp_path / ".leaf" / "theme.css"
-    theme.write_text(
-        theme.read_text() + "\nlf-current, lf-proposed "
-        "{ display: block; margin: 0; padding: 0; border: none; "
-        "--lf-block-frame: initial; }\n"
-        "lf-current p, lf-proposed p { margin-block: 0; }\n"
-    )
 
 
 # The two-holder page with a second, undecided trial beside the first: the instance a
@@ -1550,7 +1498,7 @@ SEATED_ASK_ENTRY = {
     ),
     "type": "object",
     "properties": {
-        "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+        "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
         "asks": {"type": "boolean"},
         "restated": {"type": "boolean"},
     },

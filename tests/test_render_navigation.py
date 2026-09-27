@@ -1049,8 +1049,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     banner_control(page, ".lf-asks").click()
 
     page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
+    banner_control(page, ".lf-threads-toggle").click()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     pending_title = page.locator(
         '.lf-thread[data-id="72e031c5bf0d485ba9054628e09869d4"] .lf-thread-topic'
@@ -1175,6 +1174,7 @@ def test_the_feature_gallery_keeps_a_choice_when_its_proposal_is_undone(browser,
     [
         ("#bg-core-surfaces", "Decisions"),
         ("#bg-thread-states", "Threads"),
+        ("#bg-panel-views", "Threads"),
         ("#bg-quoted-and-visual", "Page & layout"),
         ("#bg-external-data", "Data & work"),
         ("#bg-interactions", "Interactions"),
@@ -5960,10 +5960,12 @@ def test_inflight_native_paging_hides_hints_until_the_scene_settles(browser, ser
     )
 
     # Hold the browser's paging animation and the hint settle timer at the first
-    # rendering frame. Driver-side polling can otherwise begin after the 80 ms
-    # settle window and mistake the settled map for an in-flight one.
+    # rendering frame. The installed clock starts advancing immediately, so
+    # pause at a future instant rather than its elapsed origin. Driver-side
+    # polling can otherwise begin after the 80 ms settle window and mistake
+    # the settled map for an in-flight one.
     page.clock.install(time=0)
-    page.clock.pause_at(0)
+    page.clock.pause_at(page.evaluate("() => (Date.now() + 1000) / 1000"))
     page.keyboard.press("PageDown")
     page.keyboard.press("g")
     page.clock.run_for(20)
@@ -5993,13 +5995,8 @@ def test_armed_hints_settle_after_resize(browser, serve):
             )
         ),
     )
-    page.clock.install(time=0)
-    page.clock.pause_at(0)
     page.keyboard.press("g")
     page.set_viewport_size({"width": 800, "height": 700})
-    page.clock.run_for(100)
-    # Let the settle callback's requested paint run before reading its chips.
-    page.clock.resume()
     expect(page.locator(CHIPS).first).to_be_visible()
 
 

@@ -24,7 +24,8 @@ leaf package run NAME SCRIPT [ARGS]...
 `package init` creates `registry.json`, `theme.css`, `guidance/`, `runtime/`,
 `widgets/`, and `vendor/` without replacing existing contents. Add `--widget TAG` to
 create one upgraded prose widget at the same time. Leaf adds a valid registry example
-and the matching `widgets/TAG.js` registration/`once` module, checks the resulting
+and the matching `widgets/TAG.js` module, which registers the element, upgrades it
+`once`, and subscribes to its `widgetController`; it then checks the resulting
 composition, and leaves a new package's empty theme ready for the widget's presentation.
 An existing theme and other package files remain in place. Leaf refuses a tag or module
 that already exists rather than replacing it. The package author edits that directory,

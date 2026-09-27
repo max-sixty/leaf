@@ -135,6 +135,19 @@ class ThreadListView extends RetainedFace {
     this.#focusListAfterPaint ||= this.contains(focused());
     const rows = [];
     const wanted = new Set();
+    const visibleRows = this.model.rows.filter(
+      (row) => row.kind === "thread" && row.descriptor.visible,
+    );
+    const visibleGroups = new Map(visibleRows.map((row) => [row.group.key, row.group]));
+    // Only hide a sole page-section heading when every thread has its own
+    // passage link; heading-anchored threads still need the group jump.
+    const soleGroup =
+      visibleGroups.size === 1 ? visibleGroups.values().next().value : null;
+    const showGroups =
+      !soleGroup?.target ||
+      visibleRows.some(
+        (row) => !row.descriptor.quote?.anchored || !row.descriptor.quote.found,
+      );
     let group = null;
     for (const row of this.model.rows) {
       if (row.kind !== "thread") {
@@ -182,7 +195,7 @@ class ThreadListView extends RetainedFace {
       view.present(descriptor);
       if ((descriptor.visible || descriptor.folding) && row.group.key !== group) {
         group = row.group.key;
-        if (row.group.label)
+        if (showGroups && row.group.label)
           rows.push({ kind: "group", ...row.group, key: `group:${row.group.key}` });
       }
       rows.push({ kind: "thread", key: row.key, node: view.node });

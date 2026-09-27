@@ -108,6 +108,7 @@ def test_projected_request_rows_have_independent_buttons(browser, serve):
     url = serve(FEATURE_GALLERY)
     data_model.cmd_data_set(serve.page_dir, "gallery-latency", 184)
     page = open_page(browser, url)
+    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Data & work").click()
     jobs_revision = source_revision(serve.page_dir, "gallery-jobs")
     assert (
         page.evaluate("() => document.querySelector('#bg-jobs').snapshot.revision")
@@ -196,8 +197,15 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     }
     for frame in views.values():
         expect(frame.locator(".lf-thread-panel")).to_be_visible()
+        expect(frame.locator(".lf-threads > .lf-group")).to_have_count(0)
+        topic = frame.locator(".lf-thread[open] .lf-thread-topic")
+        expect(topic).to_be_visible()
+        assert topic.evaluate("element => element.getBoundingClientRect().width") > 40
 
     expect(views["overview"].locator(".lf-thread:not([hidden])")).to_have_count(3)
+    expect(
+        views["overview"].locator(".lf-thread:not([open]) .lf-thread-topic").first
+    ).to_be_visible()
     expect(views["you"].locator(".lf-thread-view-summary")).to_have_text(
         "1 open thread · On you"
     )
@@ -207,6 +215,9 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     expect(
         views["summary"].locator('.lf-thread[data-id="c1a39980"]')
     ).to_have_attribute("open", "")
+    expect(views["summary"].locator(".lf-thread[open] .lf-thread-topic")).to_have_text(
+        "Afternoon workshop"
+    )
 
     views["overview"].get_by_role("button", name="Close threads").click()
     expect(views["overview"].locator(".lf-thread-panel")).to_be_hidden()
@@ -216,6 +227,46 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     ).click()
     expect(views["overview"].locator(".lf-thread-panel")).to_be_visible()
     expect(views["overview"].locator(".lf-thread:not([hidden])")).to_have_count(3)
+
+
+def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve):
+    """The catalog tab's presets operate a real panel and survive specimen Reset."""
+    page = open_page(browser, serve(FEATURE_GALLERY))
+    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
+    frame = page.frame_locator("#bg-panel-specimen iframe")
+    panel = frame.locator(".lf-thread-panel")
+    expect(panel).to_be_hidden()
+    page.locator('#bg-panel-presets [data-view="overview"]').click()
+    expect(panel).to_be_visible()
+    expect(frame.locator(".lf-thread")).to_have_count(4)
+    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(3)
+
+    for view, thread, visible, title in (
+        ("you", "2be2443f0bb6cc49fc86b52f340e6073", 2, "Workshop room photo"),
+        ("resolved", "bab3cdfcfb8c02aacbb27da731de947a", 1, "Projector map"),
+        ("summary", "9ee465bb3f9c1fa309ea9cb1767fa365", 3, "Afternoon workshop"),
+        ("overview", "72e031c5bf0d485ba9054628e09869d4", 3, "..."),
+    ):
+        button = page.locator(f'#bg-panel-presets [data-view="{view}"]')
+        button.click()
+        expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(visible)
+        expect(frame.locator(f'.lf-thread[data-id="{thread}"]')).to_have_attribute(
+            "open", ""
+        )
+        topic = frame.locator(f'.lf-thread[data-id="{thread}"] .lf-thread-topic')
+        expect(topic).to_be_visible()
+        expect(topic).to_have_text(title)
+        assert topic.evaluate("element => element.getBoundingClientRect().width") > 40
+
+    page.locator('#bg-panel-presets [data-view="resolved"]').click()
+    page.locator("#bg-panel-specimen").get_by_role(
+        "button", name="Reset", exact=True
+    ).click()
+    expect(panel).to_be_visible()
+    expect(frame.locator(".lf-thread")).to_have_count(4)
+    expect(
+        frame.locator('.lf-thread[data-id="bab3cdfcfb8c02aacbb27da731de947a"]')
+    ).to_have_attribute("open", "")
 
 
 def test_live_specimens_keep_real_gestures_and_drafts_inside_the_child(browser, serve):
@@ -2430,6 +2481,8 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
             ],
         ),
     )
+    if source == FEATURE_GALLERY:
+        page.locator("#bg-gallery-tabs").get_by_role("tab", name="Interactions").click()
     page_at_rest(page)
     page.evaluate(DEFINE_BOXES)
     control = page.locator(archetype["target"])
@@ -5242,6 +5295,7 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
     """
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "About the lede.", {"section": "lede"})
+    panel_comment(serve.page_dir, "About the store.", {"section": "how-store"})
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -5405,7 +5459,11 @@ RING_CASES = (
         {"corpus": (("#comparison-policy > lf-option > .lf-pick", "options-pick"),)},
     ),
     ("a swipe card", (), {"swipe-gallery": (("#swipe-keyboard-card", "swipe-card"),)}),
-    ("a contents link", (), {"feature-gallery": (("#bg-contents li a", "toc-link"),)}),
+    (
+        "a contents link",
+        (),
+        {"feature-gallery": (("#bg-contents li a:visible", "toc-link"),)},
+    ),
     (
         "the comments",
         ("c",),
@@ -6263,11 +6321,14 @@ def _each_aim_surface(page, page_dir):
     comment = next(
         e["id"] for e in events_model.read_events(page_dir) if e["kind"] == "comment"
     )
+    resolved_before = page.locator('.lf-thread[data-resolved="true"]').count()
     # A resolved thread, which is the only state that has a Reopen to aim at.
     page.locator(f'.lf-thread[data-id="{comment}"] .lf-thread-summary').click()
     page.locator(f'.lf-thread[data-id="{comment}"] .lf-resolve').click()
     round_trip(page)
-    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text(
+        f"Resolved ({resolved_before + 1})"
+    )
     page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
     # Narrowing retains the card's disclosure, so the resolved thread comes back open
@@ -6275,7 +6336,7 @@ def _each_aim_surface(page, page_dir):
     expect(page.locator(f'.lf-thread[data-id="{comment}"]')).to_have_js_property(
         "open", True
     )
-    expect(page.locator(".lf-reopen")).to_be_visible()
+    expect(page.locator(f'.lf-thread[data-id="{comment}"] .lf-reopen')).to_be_visible()
     yield
 
     banner_control(page, ".lf-version").click()

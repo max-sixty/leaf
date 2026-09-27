@@ -20,6 +20,16 @@ For a contract shared across modules or runtimes, read the sidecar beside the
 Python code that owns the boundary;
 `<root>/skills/leaf/scripts/AGENTS.md` lists them under "Protocol references".
 
+To check what the code does, call it: the checkout's environment installs `leaf`
+and `leaf_dev` editable, so `uv run python -c 'from leaf... import ...'` imports
+either without a `sys.path` edit. A tag's schema is in the registry of the package
+that ships it:
+
+```bash
+jq 'select(has("lf-shot"))."lf-shot"' \
+  skills/leaf/assets/registry.json skills/leaf/packages/*/registry.json
+```
+
 ## Leave old state out of the handoff
 
 Leaf owes nothing to state an earlier version wrote (`AGENTS.md`, "Stage"). A

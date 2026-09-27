@@ -479,6 +479,40 @@ def test_authored_html_paints_while_runtime_startup_is_held(
         page.unroute_all(behavior="wait")
 
 
+def test_a_later_map_only_sidebar_keeps_its_flow_spacing_before_startup(browser, serve):
+    source = leaf_page(
+        "Later contents",
+        """
+<h1>Contents</h1>
+<aside class="sidebar">First sidebar</aside>
+<p>Before the later outline.</p>
+<aside class="sidebar" id="later"><lf-toc id="contents"></lf-toc></aside>
+<h2 id="after">After the outline</h2>
+""",
+    )
+    boot = []
+    page = browser.new_page(viewport={"width": 1724, "height": 900})
+    page.route("**/leaf.js", lambda route: boot.append(route))
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.goto(serve(source), wait_until="commit")
+        displayed(page)
+        assert boot, "the positive control did not hold the boot module"
+        later = page.locator("#later")
+        expect(later).to_have_css("display", "flow-root")
+        expect(later).to_have_css("margin-top", "24px")
+        expect(later).to_have_css("margin-bottom", "30px")
+
+        boot.pop().continue_()
+        wait_until_ready(page)
+        expect(later).to_have_css("display", "flow-root")
+        expect(later).to_have_css("margin-bottom", "30px")
+    finally:
+        for route in boot:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+
+
 HELD_KEYS_PAGE = leaf_page(
     "Held keys",
     "<h1>Held keys</h1><p id='said'>A sentence the user commented on.</p>",

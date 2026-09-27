@@ -10,7 +10,7 @@
 This is `notes/agent-usability-evals.md`'s first executable slice and the start of
 its next paired check. Each case starts a fresh Claude Code with Leaf as the host
 installs it and scores what it did. `run` with no case runs `BASELINE`; the paired
-check runs `resume` and `constructs` on two arms.
+check runs `resume`, `constructs` and `board` on two arms.
 
 Cases (`CASES`):
 
@@ -31,6 +31,9 @@ Cases (`CASES`):
 - `constructs`: a draft the user rewrote, a figure stated at one measurement whose
   source has since run again, and a chart. Phase 1 asks what each says; phase 2 asks
   for one change to each, whose owners differ.
+- `board`: a board whose cards the user moved into a column at ranks between the
+  authored cards, with one move undone. Phase 1 asks for the column's order; phase 2
+  asks for a change that obliges the version to write the moved cards in place.
 
 `arm --without-tree` builds the paired check's other condition: `WITHOUT_TREE` drops
 `content` from `page state` and has the references read the active HTML beside the
@@ -170,6 +173,26 @@ sentence should state the latest p95 measurement; and sa-east's error count was
 miscounted, it is 85. Check the page and stamp the new version. {quiet}""",
 ]
 
+BOARD = [
+    """The directory {page} is a Leaf page I've been working on with an agent. Before
+we change it, answer from what the page currently shows me, one numbered line each:
+
+1. List the cards in the Doing column, top to bottom.
+2. Which column is "Rotate signing keys" in?
+
+Don't change anything yet. {quiet}""",
+    """Now add a card "Revoke old keys" at the bottom of To do, and rename "Expiry
+alerts" to "Key expiry alerts". Check the page and stamp the new version. {quiet}""",
+]
+# The user's moves, in order: two cards into Doing at ranks around the authored "1"
+# and "2", and one into Done that they then undid.
+BOARD_MOVES = [
+    {"card": "card-docs", "to": "col-doing", "rank": "0i"},
+    {"card": "card-audit", "to": "col-doing", "rank": "1i"},
+    {"card": "card-rotate", "to": "col-done", "rank": "1"},
+]
+BOARD_DOING = ["card-docs", "card-inventory", "card-audit", "card-alerts"]
+
 
 @dataclass(frozen=True)
 class Case:
@@ -194,6 +217,7 @@ CASES = {
     **{f"reading-{s}": reading_case(s) for s in SURFACES},
     "resume": Case("resume", tuple(RESUME), fixture="resume"),
     "constructs": Case("constructs", tuple(CONSTRUCTS), fixture="constructs"),
+    "board": Case("board", tuple(BOARD), fixture="board"),
 }
 BASELINE = ("cold-report", "cold-decision", "near-miss", "reading", "resume")
 
@@ -464,8 +488,24 @@ def build_constructs(run: Run, page: Path) -> None:
     run.leaf("data", "set", str(page), "checkout-p95", input_text="231", check=True)
 
 
+def build_board(run: Run, page: Path) -> None:
+    """A board whose cards the user moved, one move undone."""
+    run.leaf("page", "init", str(page), check=True)
+    (page / "index.html").write_text((FIXTURES / "board.html").read_text())
+    run.leaf("version", "stamp", str(page), "--text", "Key rotation board", check=True)
+    run.leaf("status", str(page), "waiting", "Move cards as work changes", check=True)
+    for detail in BOARD_MOVES:
+        admit(run, page, {
+            "kind": "action", "revision": 1, "widget": "work-board",
+            "action": "move", "detail": detail,
+        })  # fmt: skip
+    admit(run, page, {"kind": "undo", "undoes": page_events(page)[-1]["id"]})
+
+
 def build_fixture(run: Run, name: str, page: Path) -> None:
-    if name == "constructs":
+    if name == "board":
+        build_board(run, page)
+    elif name == "constructs":
         build_constructs(run, page)
     elif name == "resume":
         build_resume(run, page)
@@ -769,6 +809,40 @@ def score_constructs(run: Run, replies: list[str]) -> dict:
     }
 
 
+def column_cards(html: str, column: str) -> list[str]:
+    body = re.search(rf'<lf-column\b[^>]*id="{column}".*?</lf-column>', html, re.DOTALL)
+    return re.findall(r'<lf-card\b[^>]*id="([\w-]+)"', body[0]) if body else []
+
+
+def score_board(run: Run, replies: list[str]) -> dict:
+    # The first answer is a list of its own, so split at the second answer's number
+    # at the start of a line rather than reading numbered lines.
+    parts = re.split(
+        r"^\**2[.)]", replies[0] if replies else "", maxsplit=1, flags=re.MULTILINE
+    )
+    second = parts[1].split("\n", 1)[0] if len(parts) > 1 else ""
+    titles = ["runbook", "inventory", "audit", "alerts"]
+    at = [parts[0].lower().find(t) for t in titles]
+    out = {
+        "doing_read": -1 not in at and at == sorted(at),
+        "undo_read": check(r"\bto ?do\b", second),
+    }
+    page = run.work / "page"
+    state = page_state(run, page)
+    if not state or len(state["versions"]) < 2:
+        return out | {"stamped": False}
+    html = (page / state["active"]["file"]).read_text()
+    todo = column_cards(html, "col-todo")
+    return out | {
+        "stamped": True,
+        "doing_order": column_cards(html, "col-doing") == BOARD_DOING,
+        "todo_kept": todo[:1] == ["card-rotate"] and len(todo) == 2,
+        "done_empty": column_cards(html, "col-done") == [],
+        "renamed": check(r"key expiry alerts", html),
+        "restated": "restated" in html,
+    }
+
+
 def score_resume(run: Run, replies: list[str]) -> dict:
     first = replies[0] if replies else ""
     out = {
@@ -846,6 +920,8 @@ def score(batch: str):
             row["score"] = score_cold(run, replies[-1] if replies else "", calls)
         elif run.case.startswith("reading"):
             row["score"] = score_reading(run, replies[-1] if replies else "")
+        elif run.case == "board":
+            row["score"] = score_board(run, replies)
         elif run.case == "constructs":
             row["score"] = score_constructs(run, replies)
         else:

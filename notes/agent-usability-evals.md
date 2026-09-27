@@ -8,11 +8,12 @@ page succeeds only when both can recover the same meaning.
 
 ### First baseline, 2026-09-27
 
-`usability-eval/harness.py` ran the first executable slice below and two cases of the
-next paired check, at 387dfed45 with Opus 5.5, three scored runs per case and arm
+`usability-eval/harness.py` ran the first executable slice below and three cases of
+the next paired check, at 387dfed45 with Opus 5.5, three scored runs per case and arm
 after one pilot run that fixed each fixture and scorer. Every run's model call
-completed. Per-run scores are in `usability-eval/results/baseline.json` and
-`paired.json`. The scored runs cost $14.74, and $18.17 with the pilots.
+completed. Per-run scores are in `usability-eval/results/`: `baseline.json`,
+`paired.json` and `board.json`. The scored runs cost $18.12, and $22.84 with the
+pilots.
 
 No run failed a check, so no failure calls for a new reading interface:
 
@@ -315,7 +316,11 @@ draft the user rewrote, a figure stated at one measurement whose source has sinc
 run again, and a chart. `constructs` asks what each says, then for three changes
 whose owners differ: a date inside the user's draft (their words kept, `restated`),
 the figure (text and `at` from the latest measurement, source untouched) and a chart
-value (its CSV). The shared-source record case is not covered.
+value (its CSV). `board` covers the one join the tree made that the compact state
+leaves to the reader: the user moved two cards into a column at ranks between the
+authored cards and moved a third, then undid that move. It asks for the column's order,
+then for a card added to another column, which obliges the version to write the moved
+cards where the fold puts them. The shared-source record case is not covered.
 
 | Case | Arm | Checks passed | `page state` bytes read per run | Cost per run |
 | --- | --- | --- | --- | --- |
@@ -323,8 +328,11 @@ value (its CSV). The shared-source record case is not covered.
 | `constructs` | without tree | 30/30 | 7,426 | $0.55 |
 | `resume` | tree | 33/33 | 8,006 | $0.81 |
 | `resume` | without tree | 33/33 | 8,385 | $0.97 |
+| `board` | tree | 21/21 | 5,865 | $0.57 |
+| `board` | without tree | 21/21 | 6,368 | $0.55 |
 
-Every failure class is empty, so the arms tie on correctness. Agents in the tree
+Every failure class is empty, so the arms tie on correctness; without the tree,
+agents ordered the cards from the ranks in `state` themselves. Agents in the tree
 arm often filtered the tree out themselves (`jq 'del(.content)'`), which is why
 their `page state` reads are close on `resume`. Unfiltered, the tree is most of the
 output: without it `page state` shrinks from 24,422 to 4,755 bytes on the reading

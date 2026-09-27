@@ -1,0 +1,434 @@
+{
+ "model": "claude-opus-5-5",
+ "arms": {
+  "main": "387dfed45c9dbaf772d7cb98db323f022809aec3",
+  "notree": "387dfed45c9dbaf772d7cb98db323f022809aec3"
+ },
+ "runs": [
+  {
+   "case": "board",
+   "arm": "main",
+   "n": 1,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 10,
+     "cost_usd": 0.196,
+     "minutes": 0.4,
+     "input_tokens": 178195,
+     "output_tokens": 1916,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [],
+     "output_bytes": {
+      "bash": 7193,
+      "events.jsonl": 3732,
+      "index.html": 2188,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "index.html",
+      "events.jsonl",
+      "bash",
+      "bash",
+      "bash",
+      "bash",
+      "bash"
+     ]
+    },
+    {
+     "completed": true,
+     "turns": 11,
+     "cost_usd": 0.442,
+     "minutes": 0.8,
+     "input_tokens": 381454,
+     "output_tokens": 3841,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [
+      "references/page-authoring.md",
+      "references/page-checkpoints.md"
+     ],
+     "output_bytes": {
+      "reference": 7266,
+      "bash": 6488,
+      "page state": 6152,
+      "registry": 770,
+      "version check": 510,
+      "version stamp": 132
+     },
+     "calls": [
+      "bash",
+      "reference",
+      "page state",
+      "registry",
+      "version check",
+      "version check",
+      "reference",
+      "reference",
+      "page state",
+      "version stamp"
+     ]
+    }
+   ],
+   "score": {
+    "doing_read": true,
+    "undo_read": true,
+    "stamped": true,
+    "doing_order": true,
+    "todo_kept": true,
+    "done_empty": true,
+    "renamed": true,
+    "restated": false
+   }
+  },
+  {
+   "case": "board",
+   "arm": "main",
+   "n": 2,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 10,
+     "cost_usd": 0.207,
+     "minutes": 0.4,
+     "input_tokens": 187395,
+     "output_tokens": 1779,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [],
+     "output_bytes": {
+      "bash": 10230,
+      "events.jsonl": 6581,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "bash",
+      "events.jsonl",
+      "bash",
+      "bash",
+      "bash",
+      "bash",
+      "bash"
+     ]
+    },
+    {
+     "completed": true,
+     "turns": 6,
+     "cost_usd": 0.359,
+     "minutes": 0.6,
+     "input_tokens": 203540,
+     "output_tokens": 2318,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [],
+     "output_bytes": {
+      "bash": 6822,
+      "page state": 6304,
+      "version check": 510
+     },
+     "calls": [
+      "bash",
+      "page state",
+      "version check",
+      "version check",
+      "page state"
+     ]
+    }
+   ],
+   "score": {
+    "doing_read": true,
+    "undo_read": true,
+    "stamped": true,
+    "doing_order": true,
+    "todo_kept": true,
+    "done_empty": true,
+    "renamed": true,
+    "restated": false
+   }
+  },
+  {
+   "case": "board",
+   "arm": "main",
+   "n": 3,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 7,
+     "cost_usd": 0.15,
+     "minutes": 0.2,
+     "input_tokens": 138573,
+     "output_tokens": 1084,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [],
+     "output_bytes": {
+      "bash": 14924,
+      "events.jsonl": 2915
+     },
+     "calls": [
+      "bash",
+      "events.jsonl",
+      "bash",
+      "bash",
+      "bash",
+      "bash"
+     ]
+    },
+    {
+     "completed": true,
+     "turns": 10,
+     "cost_usd": 0.366,
+     "minutes": 0.7,
+     "input_tokens": 294477,
+     "output_tokens": 3015,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/authoring-revisions.md",
+      "references/page-checkpoints.md"
+     ],
+     "output_bytes": {
+      "reference": 7100,
+      "page state": 5140,
+      "version check": 510,
+      "version stamp": 149,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "reference",
+      "page state",
+      "page state",
+      "version check",
+      "version check",
+      "page state",
+      "version stamp"
+     ]
+    }
+   ],
+   "score": {
+    "doing_read": true,
+    "undo_read": true,
+    "stamped": true,
+    "doing_order": true,
+    "todo_kept": true,
+    "done_empty": true,
+    "renamed": true,
+    "restated": false
+   }
+  },
+  {
+   "case": "board",
+   "arm": "notree",
+   "n": 1,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 9,
+     "cost_usd": 0.198,
+     "minutes": 0.4,
+     "input_tokens": 163262,
+     "output_tokens": 1558,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [],
+     "output_bytes": {
+      "bash": 14881,
+      "events.jsonl": 3643,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "bash",
+      "events.jsonl",
+      "bash",
+      "bash",
+      "bash",
+      "bash"
+     ]
+    },
+    {
+     "completed": true,
+     "turns": 9,
+     "cost_usd": 0.41,
+     "minutes": 0.7,
+     "input_tokens": 320778,
+     "output_tokens": 3078,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [],
+     "output_bytes": {
+      "bash": 8802,
+      "page state": 6476,
+      "registry": 1619,
+      "version check": 407
+     },
+     "calls": [
+      "bash",
+      "page state",
+      "registry",
+      "version check",
+      "bash",
+      "bash",
+      "page state",
+      "page state"
+     ]
+    }
+   ],
+   "score": {
+    "doing_read": true,
+    "undo_read": true,
+    "stamped": true,
+    "doing_order": true,
+    "todo_kept": true,
+    "done_empty": true,
+    "renamed": true,
+    "restated": false
+   }
+  },
+  {
+   "case": "board",
+   "arm": "notree",
+   "n": 2,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 8,
+     "cost_usd": 0.18,
+     "minutes": 0.3,
+     "input_tokens": 148956,
+     "output_tokens": 1625,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [],
+     "output_bytes": {
+      "bash": 10747,
+      "events.jsonl": 2599,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "bash",
+      "events.jsonl",
+      "bash",
+      "bash",
+      "bash"
+     ]
+    },
+    {
+     "completed": true,
+     "turns": 7,
+     "cost_usd": 0.362,
+     "minutes": 0.6,
+     "input_tokens": 228997,
+     "output_tokens": 2737,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [
+      "references/authoring-revisions.md",
+      "references/page-authoring.md",
+      "references/page-checkpoints.md"
+     ],
+     "output_bytes": {
+      "reference": 8835,
+      "page state": 6408,
+      "version check": 1267
+     },
+     "calls": [
+      "reference",
+      "page state",
+      "version check",
+      "version check",
+      "reference",
+      "page state"
+     ]
+    }
+   ],
+   "score": {
+    "doing_read": true,
+    "undo_read": true,
+    "stamped": true,
+    "doing_order": true,
+    "todo_kept": true,
+    "done_empty": true,
+    "renamed": true,
+    "restated": false
+   }
+  },
+  {
+   "case": "board",
+   "arm": "notree",
+   "n": 3,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 10,
+     "cost_usd": 0.183,
+     "minutes": 0.4,
+     "input_tokens": 178265,
+     "output_tokens": 1604,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [],
+     "output_bytes": {
+      "bash": 8554,
+      "events.jsonl": 3630,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "bash",
+      "events.jsonl",
+      "bash",
+      "bash",
+      "bash",
+      "bash",
+      "bash"
+     ]
+    },
+    {
+     "completed": true,
+     "turns": 6,
+     "cost_usd": 0.328,
+     "minutes": 0.5,
+     "input_tokens": 187960,
+     "output_tokens": 2159,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [],
+     "output_bytes": {
+      "bash": 7007,
+      "page state": 6220,
+      "version check": 524
+     },
+     "calls": [
+      "bash",
+      "page state",
+      "version check",
+      "version check",
+      "page state"
+     ]
+    }
+   ],
+   "score": {
+    "doing_read": true,
+    "undo_read": true,
+    "stamped": true,
+    "doing_order": true,
+    "todo_kept": true,
+    "done_empty": true,
+    "renamed": true,
+    "restated": false
+   }
+  }
+ ]
+}

@@ -81,6 +81,7 @@
 import {
   commandScope,
   DISCLOSE,
+  holdFocus,
   once,
   offer,
   paintKeys,
@@ -513,7 +514,7 @@ customElements.define(
       }
 
       const wasOpen = this.#history?.open ?? false;
-      const keepFocus = Boolean(this.#history?.contains(document.activeElement));
+      const restoreFocus = this.#history && holdFocus(this.#history);
       const history = offer("details", "lf-draft-history");
       history.open = wasOpen;
       const summary = document.createElement("summary");
@@ -567,7 +568,7 @@ customElements.define(
       if (!this.#history) this.append(history);
       this.#history = history;
       this.#setRestoreAvailability();
-      if (keepFocus) summary.focus();
+      restoreFocus?.(summary);
     }
 
     async #restore(text, label) {

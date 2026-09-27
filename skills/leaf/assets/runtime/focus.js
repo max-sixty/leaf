@@ -1,11 +1,12 @@
 /* Putting the user on an element: the focus, and the caret inside it, what the
-   keyboard can stand on, and where a closing layer hands the user back.
+   keyboard can stand on, where a closing layer hands the user back, and how a change
+   that moves or replaces the node they stand on keeps them there.
 
    Nearly every owner imports this module, and several spell their selectors from
    `TEXT_BOX` as they evaluate, so it imports only rendering.js, which imports nothing:
    an import that reached back into one of them would have it read `TEXT_BOX` before
-   this module had defined it. That is why the hand-back reads a later focus move off
-   `focusin` rather than from user-intent.js. */
+   this module had defined it. That is why the hand-back and the hold read a later focus
+   move off `focusin` rather than from user-intent.js. */
 import { nextRender } from "./rendering.js";
 
 // The runtime's text field (`composing/text-field.js`): every box the runtime builds
@@ -80,6 +81,69 @@ const holdsCaret = (node) =>
 export function readCaret(node) {
   if (!node || !holdsCaret(node) || node.selectionStart === null) return null;
   return [node.selectionStart, node.selectionEnd, node.selectionDirection];
+}
+
+// The element holding focus, followed down through every open shadow tree it stands in
+// from `at`. A closed tree answers with its host, which is the text field's case: the
+// field is the box the user stands in.
+export const deepFocus = (at = document.activeElement) => {
+  while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
+  return at;
+};
+
+// Holding the user's place across a change to the tree they stand in. Moving a node
+// blurs whatever it holds to the body in the same call, and hiding one does the same a
+// frame later, on no frame an owner can count; the node keeps its value and selection,
+// but the user's standing on it is gone. Focus lives as long as its node, so whatever
+// moves, hides or replaces nodes under the user hands their place across itself:
+// `holdFocus(scope)` reads where the user stands inside `scope` before the change, with
+// the caret there, and the function it returns puts them back.
+//
+// The held node comes first. Where the change removed or hid it, the caller names its
+// stand-ins, most particular first: the replacement keyed on the identity the held node
+// had, then the widget's own fallback. The user lands on the first that is drawn and
+// takes focus, and the caret goes with them, since a stand-in is the same place under a
+// new node. Restoring answers whether the user now stands on one of them.
+//
+// Nothing is owed while the user still stands on the held node and it is drawn, and
+// nothing once focus has been placed anywhere since the hold began: a user who moved on
+// during a wait, or an owner inside the change that landed them itself, said the newer
+// word, as with `handBack`. Another hold's restore is not a newer word, so holds nest.
+//
+// `null` where the user does not stand inside `scope`, which may be a shadow root. The
+// platform's retargeting answers that: a user inside a widget's shadow tree stands
+// inside the scope holding the widget.
+let restoring = false;
+export function holdFocus(scope) {
+  const standing = scope.getRootNode().activeElement;
+  if (!standing || standing === document.body || !scope.contains(standing)) return null;
+  const held = deepFocus(standing);
+  const caret = readCaret(held);
+  let placed = false;
+  // Once, so a hold its caller never restores leaves nothing behind past the next move.
+  const listen = () =>
+    document.addEventListener("focusin", place, { capture: true, once: true });
+  const place = () => {
+    if (restoring) listen();
+    else placed = true;
+  };
+  listen();
+  return (...standIns) => {
+    document.removeEventListener("focusin", place, { capture: true });
+    if (placed) return false;
+    for (const node of [held, ...standIns]) {
+      if (!node?.isConnected || !node.checkVisibility()) continue;
+      if (deepFocus() === node) return true;
+      restoring = true;
+      try {
+        focusDestination(node, caret);
+      } finally {
+        restoring = false;
+      }
+      if (node.matches(":focus")) return true;
+    }
+    return false;
+  };
 }
 
 const TYPED_TYPES = new Set([

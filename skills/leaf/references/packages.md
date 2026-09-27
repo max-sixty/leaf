@@ -405,6 +405,14 @@ continues from there and no `tabindex` is left on the page behind the user. What
 it is a widget's own Escape step landing them back in the thing it took them out of: the
 patch a file filter belongs to, the exhibit a box was about.
 
+A module that moves, hides, or replaces nodes the user may be standing in, as a reorder or
+a re-render does, calls `holdFocus(scope)` before the change and the function it returns
+after it. Moving a focused node drops its focus to the page body; the returned function
+puts the user back on that node, with its caret, or on the first drawn stand-in it is
+passed, such as the replacement keyed on the same identity. It does nothing once focus was
+placed elsewhere in the meantime, and `holdFocus` returns `null` where the user stands
+outside `scope`.
+
 A module that takes the user to a thread calls `openThread(id, {focus})`
 with the Thread's `id`. It opens the thread where the page shows it, inline beside
 its passage or widget, and in Threads when it has no place on the page, the same choice a

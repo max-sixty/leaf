@@ -9,6 +9,7 @@
  */
 
 import { nextRender } from "./rendering.js";
+import { holdFocus } from "./focus.js";
 import { sameAnchor } from "./anchor-coordinate.js";
 import { createAnchorNoteProjection } from "./anchor-note-view.js";
 import {
@@ -165,16 +166,13 @@ export function createAnchorControls({
         visualActionHolders.set(seat, holder);
       }
       kept.add(seat);
-      const current = focused();
-      const standing = holder.contains(current) ? current : null;
+      const restoreFocus = holdFocus(holder);
       renderTemplate(
         html`${repeat(targets, ({ key }) => key, visualActionTemplate)}`,
         holder,
       );
-      // Preserve focus when reconciliation has to move a retained holder.
       if (seat.nextSibling !== holder) seat.after(holder);
-      if (standing?.isConnected && focused() !== standing)
-        standing.focus({ preventScroll: true });
+      restoreFocus?.();
     }
     for (const [seat, holder] of visualActionHolders)
       if (!kept.has(seat)) {

@@ -36,7 +36,7 @@
    caller names that apparatus, which is the container's to press. The answer otherwise
    fails closed: declining one ambiguous container gesture is safer than recording a
    choice while the user operates nested evidence. */
-import { TEXT_BOX } from "./focus.js";
+import { TEXT_BOX, holdFocus } from "./focus.js";
 import { sizeObserver } from "./rendering.js";
 import { tagsDeclaring } from "./registry.js";
 import { paintKeys } from "./keyboard/scopes.js";
@@ -532,7 +532,7 @@ export function reserve(control, labels) {
   // synchronous and invisible, and losing the user's place is not part of what it was
   // asked to do. A focused control may be remeasured after its face or typography
   // changes; it must remain the user's place throughout.
-  const held = document.activeElement === control;
+  const restoreFocus = holdFocus(control);
   const stood = { nodes: [...control.childNodes], css: control.style.cssText };
   Object.assign(control.style, {
     minWidth: "0",
@@ -549,8 +549,7 @@ export function reserve(control, labels) {
   control.replaceChildren(...stood.nodes);
   control.style.cssText = stood.css;
   control.style.minWidth = Math.ceil(widest) + "px";
-  if (held && document.activeElement !== control)
-    control.focus({ preventScroll: true });
+  restoreFocus?.();
 }
 
 // The anchored response bar has one control grammar of its own. Its buttons share the

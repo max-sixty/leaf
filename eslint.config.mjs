@@ -2,6 +2,19 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+// The runtime's primitives, by path under `runtime/`: modules that may use the browser
+// but import no owner, which the rule naming them below holds.
+const runtimePrimitives = [
+  "anchor-coordinate.js",
+  "chrome.js",
+  "dom-children.js",
+  "focus.js",
+  "rendering.js",
+  "repaint.js",
+  "root-state.js",
+  "thread/identity.js",
+];
+
 // The browser's names the layer uses, for `no-undef`: a moved function that lost an
 // import must fail the hook rather than bind to `window.*` on the first page that
 // reaches it. Only names in use are listed — `open`, `top`, `parent`, `origin`, `escape`
@@ -935,27 +948,22 @@ export default [
     // would make every caller acquire that owner's initialization and paint graph.
     // A vendored bundle is not an owner: it initializes nothing, paints nothing, and
     // reaches no other module, so a primitive may take an algorithm from one rather
-    // than write a second copy of it beside the layer's. Nor is `rendering.js`, the
-    // primitive every rendering callback is counted through.
-    files: [
-      "skills/leaf/assets/runtime/anchor-coordinate.js",
-      "skills/leaf/assets/runtime/chrome.js",
-      "skills/leaf/assets/runtime/dom-children.js",
-      "skills/leaf/assets/runtime/focus.js",
-      "skills/leaf/assets/runtime/rendering.js",
-      "skills/leaf/assets/runtime/repaint.js",
-      "skills/leaf/assets/runtime/root-state.js",
-      "skills/leaf/assets/runtime/thread/identity.js",
-    ],
+    // than write a second copy of it beside the layer's. Nor is another primitive,
+    // whose own imports this same rule holds: `rendering.js`, which every rendering
+    // callback is counted through, or `focus.js`, which a primitive that moves the
+    // user's node asks to keep them standing on it.
+    files: runtimePrimitives.map((name) => `skills/leaf/assets/runtime/${name}`),
     rules: {
       "no-restricted-imports": [
         "error",
         {
           patterns: [
             {
-              regex: "^(?!/vendor/|\\./rendering\\.js$)",
+              regex: `^(?!/vendor/|\\.\\.?/(?:${runtimePrimitives
+                .map((name) => name.replaceAll(".", "\\."))
+                .join("|")})$)`,
               message:
-                "Runtime primitives must remain independent of other owners; only a /vendor/ bundle or rendering.js may be imported.",
+                "Runtime primitives must remain independent of other owners; only a /vendor/ bundle or another primitive may be imported.",
             },
           ],
         },

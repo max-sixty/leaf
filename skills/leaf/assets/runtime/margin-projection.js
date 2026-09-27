@@ -109,14 +109,15 @@ import { compareMarginContributions } from "./margin-entry-model.js";
 import { mapButton } from "./page-map-dialog.js";
 import { watchProjection } from "./projection-watch.js";
 import {
-  TEXT_BOX,
   TEXT_FIELD,
   declareRelease,
   focusDestination,
   handBack,
+  holdFocus,
   letGo,
 } from "./focus.js";
 import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
+import { setChildren } from "./dom-children.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
 import { ago, clocked } from "./presence.js";
@@ -1677,7 +1678,7 @@ export function createMarginProjection({
   }
 
   function moveHost(host, move) {
-    const held = host.contains(document.activeElement) ? document.activeElement : null;
+    const restoreFocus = holdFocus(host);
     // Moving a focused expanded cluster between lanes, when its target's scroller
     // changes, synchronously emits focusout. That is a placement transition, not the user
     // leaving the cluster, so keep the options state machine from treating it as an
@@ -1687,9 +1688,10 @@ export function createMarginProjection({
     const wasPlacingChrome = runtime.placingChrome;
     settlingOptionsFocus = true;
     runtime.placingChrome = true;
+    let kept = true;
     try {
       move();
-      if (held?.isConnected) held.focus({ preventScroll: true });
+      kept = restoreFocus?.() ?? true;
     } finally {
       settlingOptionsFocus = wasSettlingOptionsFocus;
       runtime.placingChrome = wasPlacingChrome;
@@ -1697,7 +1699,7 @@ export function createMarginProjection({
     // The one case where the placement did move the user: the control they were
     // standing on did not survive it, so focus is wherever the removal left it and the
     // standing paint is owed the news the guard above withheld.
-    if (held && document.activeElement !== held) repaint();
+    if (!kept) repaint();
   }
 
   function unfoldOpenThreadOwner(entry) {
@@ -1982,13 +1984,11 @@ export function createMarginProjection({
   }
 
   function buildThreadCard(entry, requestedItem = null) {
-    const focusedControl = [previewPrevious, previewNext, previewClose].find(
-      (control) => control === document.activeElement,
-    );
-    const focusedNode = preview.contains(document.activeElement)
-      ? document.activeElement.closest?.("[data-lf-margin-entry]")
+    const restoreFocus = holdFocus(preview);
+    const focusedItem = restoreFocus
+      ? (document.activeElement.closest?.("[data-lf-margin-entry]")?.lfMarginItem ??
+        null)
       : null;
-    const focusedItem = focusedNode?.lfMarginItem ?? null;
     const threadItems = entry.items.filter((item) => item.kind === "comment");
     const wanted = requestedItem ?? previewThreadItem ?? focusedItem;
     const selected = threadItems.find((item) => item.id === wanted) ?? threadItems[0];
@@ -2037,31 +2037,13 @@ export function createMarginProjection({
     previewPosition.textContent = `${selectedIndex + 1}/${threadItems.length}`;
     previewPrevious.disabled = selectedIndex === 0;
     previewNext.disabled = selectedIndex === threadItems.length - 1;
-    const nodes = selected ? [previewItemNode(selected)] : [];
-    const keep = new Set(nodes);
-    for (const child of [...previewList.children]) if (!keep.has(child)) child.remove();
-    let cursor = previewList.firstChild;
-    for (const node of nodes) {
-      if (node === cursor) cursor = cursor.nextSibling;
-      else previewList.insertBefore(node, cursor);
-    }
-    if (focusedItem && !focusedNode?.isConnected) {
-      const replacement = [
-        ...previewList.querySelectorAll("[data-lf-margin-entry]"),
-      ].find((candidate) => candidate.lfMarginItem === focusedItem);
-      const destination = replacement?.matches(
-        `button, :is(${TEXT_BOX}):not([disabled])`,
-      )
-        ? replacement
-        : (replacement?.querySelector(".lf-page-thread") ??
-          previewList.querySelector(".lf-page-thread") ??
-          previewClose);
-      destination.focus({ preventScroll: true });
-    }
-    if (focusedControl && document.activeElement !== focusedControl)
-      (previewNav.hidden ? previewClose : focusedControl).focus({
-        preventScroll: true,
-      });
+    setChildren(previewList, selected ? [previewItemNode(selected)] : []);
+    // The list holds the one thread the card shows, so a user whose place in a thread
+    // the rebuild took lands on that thread; a step button it hid hands them to Close.
+    restoreFocus?.(
+      focusedItem && previewList.querySelector(".lf-page-thread"),
+      previewClose,
+    );
     placeThreadPreview();
     previewPlace.finish(hold);
     previewLatest = latest && { thread: selected.id, id: latest.id, text: latest.text };

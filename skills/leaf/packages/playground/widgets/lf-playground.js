@@ -20,6 +20,7 @@ import {
   commands,
   compoundReadingRegionId,
   failSoft,
+  holdFocus,
   keeps,
   layoutChanged,
   measure,
@@ -732,7 +733,7 @@ customElements.define(
       // Copy feedback belongs to the text copied. A different instruction starts
       // a fresh control, including upstream's in-flight/feedback lock.
       const previous = this.#copy;
-      const focused = previous.contains(document.activeElement);
+      const restoreFocus = holdFocus(previous);
       this.#copy = previous.cloneNode(true);
       this.#copy.value = instruction;
       previous.replaceWith(this.#copy);
@@ -740,7 +741,7 @@ customElements.define(
       copy.updateComplete.then(() => {
         const trigger = copy.querySelector(".lf-playground-copy-trigger");
         measure(trigger, () => reserve(trigger, COPY_WORDS));
-        if (focused) trigger.focus();
+        restoreFocus?.(trigger);
       });
     }
 

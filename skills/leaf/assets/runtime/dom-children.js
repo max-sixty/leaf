@@ -1,18 +1,23 @@
 /* Retained DOM child reconciliation. */
 import { diffArrays } from "/vendor/jsdiff.esm.js";
+import { holdFocus } from "./focus.js";
 
 const detach = (node) => node.remove();
 
 // Make `parent`'s children `nodes`, in order, without moving a node already in place.
 // Removing stale nodes first leaves each following survivor exactly one place forward.
+// A survivor that does move keeps the user standing in it; one removed is its caller's
+// to hand on, since only the caller knows what stands in for it.
 export function setChildren(parent, nodes, remove = detach) {
   const keep = new Set(nodes);
   for (const child of [...parent.childNodes]) if (!keep.has(child)) remove(child);
+  const restoreFocus = holdFocus(parent);
   let cursor = parent.firstChild;
   for (const node of nodes) {
     if (node === cursor) cursor = cursor.nextSibling;
     else parent.insertBefore(node, cursor);
   }
+  restoreFocus?.();
 }
 
 /* Apply the difference between two authored revisions to the page standing between them.

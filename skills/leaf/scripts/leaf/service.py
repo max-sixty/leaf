@@ -588,7 +588,9 @@ class PageTransaction:
         bindings = dict(stream.get("reply_bindings") or {})
         standing = bindings.get(responds)
         claim = self.claim
-        if reply_binding_stands(standing, claim["id"], claim["turn"]) and not _held_by(
+        if reply_binding_stands(
+            standing, claim["id"], claim["turn"], claim["turn_closed"]
+        ) and not _held_by(
             standing, session_id, attempt
         ):
             raise RuntimeError(

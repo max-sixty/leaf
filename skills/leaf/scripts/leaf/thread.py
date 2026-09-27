@@ -103,7 +103,9 @@ def delivery_reply_reserved(session_id: str, delivery_id: str, target: dict) -> 
             claim = page.active_claim
             return bool(
                 claim
-                and reply_binding_stands(binding, claim["id"], claim["turn"])
+                and reply_binding_stands(
+                    binding, claim["id"], claim["turn"], claim["turn_closed"]
+                )
                 and binding["session"] == session_id
                 and binding["attempt"] == delivery_reply_attempt(delivery_id)
             )

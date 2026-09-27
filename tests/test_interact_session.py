@@ -4227,7 +4227,6 @@ def test_a_reply_binding_lapses_when_a_turn_it_does_not_name_opens(page_dir):
     assert owed["answer"]["kind"] == "turn"
 
     with service_model.PageTransaction(page_dir) as page:
-        page.close_turn("codex-thread")
         page.open_turn("codex-thread", "later-turn")
 
     [owed] = _obligations(page_dir)
@@ -4271,6 +4270,58 @@ def test_a_reply_binding_lapses_when_a_turn_it_does_not_name_opens(page_dir):
         for event in events_model.read_events(page_dir)
         if event["kind"] == "reply"
     ] == ["Answered in the later turn"]
+
+
+def test_a_reply_binding_lapses_when_its_turn_closes(page_dir):
+    """A turn that has ended writes nothing more, so its binding lapses with it.
+
+    The observer bound the delivery's reply to its turn and then lost the
+    connection. When the session's turn closes without a carrier committing the
+    turn's final message, nothing says one will, so the move is answered with
+    `leaf thread reply` again.
+    """
+    comment = events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "Answer me"}
+    )
+    prepared = codex_model.prepare_codex_delivery(
+        page_dir, host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
+    )
+    target = codex_model.stream_reply_target(prepared.payload)
+    thread_model.reserve_delivery_reply("codex-thread", prepared.payload["id"], target)
+    observer = _observer()
+    observer._read(
+        {
+            "method": "turn/started",
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {
+                    "id": "delivery-turn",
+                    "items": [_delivery_item(prepared.payload)],
+                },
+            },
+        }
+    )
+    observer._disconnect_turns()
+    [owed] = _obligations(page_dir)
+    assert owed["answer"]["kind"] == "turn"
+
+    service_model.close_session_turn("codex-thread", "delivery-turn")
+
+    [owed] = _obligations(page_dir)
+    assert owed["answer"] == {
+        "kind": "reply",
+        "to": comment["id"],
+        "for": comment["id"],
+    }
+    posted = thread_model.cmd_reply(
+        page_dir,
+        None,
+        "Answered after the turn ended",
+        "",
+        for_event=comment["id"],
+        identity={"session": "codex-thread"},
+    )
+    assert posted["responds"] == comment["id"]
 
 
 def test_the_prompt_hook_and_the_observer_open_one_codex_turn(page_dir, capsys):

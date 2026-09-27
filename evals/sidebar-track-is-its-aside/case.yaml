@@ -33,4 +33,5 @@ graders:
     `main`, and that `aside` comes before the element holding the six sections in the
     document's order, so a phone, which stacks the two, shows the summary and contents
     first. The page's own CSS does not rebuild the arrangement: fail if it declares a
-    grid or flex layout for `main`, or moves the summary with `order`, or positions it.
+    grid or flex layout for `main`, or moves the summary with `order`. Keeping the
+    summary in view with `position: sticky` is fine.

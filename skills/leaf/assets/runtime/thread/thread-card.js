@@ -5,7 +5,7 @@
    those values.
    The owner alone renders its native card root and all generated descendants; a
    failed candidate is restored by presenting its committed descriptor again. */
-import { TEXT_FIELD } from "../focus.js";
+import { TEXT_FIELD, holdFocus } from "../focus.js";
 import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
@@ -252,9 +252,8 @@ export class ThreadView {
 
   present(model) {
     const prior = this.#model;
+    const restoreFocus = holdFocus(this.node);
     const standing = focused();
-    const heldFocus = this.node.contains(standing);
-    let summaryReplacedFocusedMessage = false;
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
     // Only a summary that was not standing before can swallow what the user
     // holds or is reading, and reading geometry here forces layout.
@@ -269,7 +268,6 @@ export class ThreadView {
       );
       for (const summary of model.summaries) {
         if (priorSummaries.has(summary.id)) continue;
-        if (summary.covers.includes(heldMessage)) summaryReplacedFocusedMessage = true;
         if (
           summary.covers.includes(heldMessage) ||
           summary.covers.some((id) => beingRead.has(id))
@@ -454,15 +452,13 @@ export class ThreadView {
       this.node,
     );
     this.#wireKeys();
-    if (
-      summaryReplacedFocusedMessage &&
-      focused() !== standing &&
-      standing?.isConnected
-    ) {
-      standing.focus({ preventScroll: true });
-    } else if (heldFocus && !this.node.contains(standing) && !panel) {
-      this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node);
-    }
+    // A summary gathering the message the user stands on moves it; a page thread whose
+    // render took their place puts them in its reply, or on the thread itself.
+    restoreFocus?.(
+      !panel &&
+        (() =>
+          this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node)),
+    );
     return this.node;
   }
 

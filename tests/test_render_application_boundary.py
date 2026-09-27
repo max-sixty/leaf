@@ -1741,6 +1741,100 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     )
 
 
+def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(
+    browser, serve
+):
+    """A seat the user left while a reading waited does not pull them back to it.
+
+    Rolling back a refused reading puts back only what the reading itself took: a user
+    who stood in one seat's reply when it began and moved to another seat's box before
+    it failed keeps the box they moved to, caret included."""
+    layer = {**PAGE_DECLARATION, "lf-verdict": SEATED_ASK_ENTRY}
+    widgets = {"lf-local.js": PAGE_WIDGET, "lf-verdict.js": SEATED_ASK_MODULE}
+    url = serve(
+        leaf_page(
+            "Thread rollback",
+            '<h1>Review</h1><lf-verdict id="proposal" asks>Ship it?</lf-verdict>'
+            '<lf-verdict id="other" asks>Hold it?</lf-verdict>',
+        ),
+        layer_registry=layer,
+        layer_widgets=widgets,
+    )
+    kept = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "kept-thread",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "proposal"},
+            "text": "The user starts here.",
+        },
+    )
+    page = open_page(browser, live_url(url))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    left = page.locator(
+        f'#proposal > .lf-thread-seat > [data-thread="{kept["id"]}"]'
+        " > .lf-say leaf-text"
+    )
+    went = page.locator("#other > .lf-thread-seat leaf-text")
+    write(left, "where the user was")
+    expect(left).to_be_focused()
+
+    # The reading that brings the arriving thread waits at a gate, and both its paints
+    # (the attempt and the list's own retry) fail, so the whole reading is refused.
+    page.evaluate(
+        """() => {
+          const list = document.querySelector('leaf-thread-list');
+          const present = list.present.bind(list);
+          let open;
+          window.gate = new Promise(done => { open = done; });
+          window.openGate = open;
+          list.present = async model => {
+            if (!model.rows.some(row => row.descriptor?.id === 'arriving')) {
+              return present(model);
+            }
+            window.waiting = true;
+            await window.gate;
+            throw new Error('injected refusal');
+          };
+        }"""
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "arriving",
+            "author": "user",
+            "revision": 1,
+            "text": "A thread whose reading is refused once.",
+        },
+    )
+    page.wait_for_function("() => window.waiting === true", timeout=5000)
+
+    write(went, "where the user went")
+    went.evaluate("node => node.setSelectionRange(6, 10, 'backward')")
+    page.evaluate("() => window.openGate()")
+    reported_browser_errors(
+        page,
+        (
+            "leaf: Presentation failed: Thread list presentation retry failed: "
+            "injected refusal; injected refusal"
+        ),
+        "leaf: State presentation failed: Thread list presentation retry failed",
+        "leaf: read failed: Thread list presentation retry failed",
+    )
+    expect(page.locator('[data-id="arriving"]')).to_have_count(0)
+
+    expect(went).to_be_focused()
+    expect(went).to_have_js_property("value", "where the user went")
+    assert went.evaluate(
+        "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
+    ) == [6, 10, "backward"]
+    expect(left).to_have_js_property("value", "where the user was")
+
+
 def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
     """The existing thread ticket includes Lit ordering without replacing a card."""
     url = serve(LIVE_V1)

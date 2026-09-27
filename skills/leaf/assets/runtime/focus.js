@@ -103,7 +103,10 @@ export const deepFocus = (at = document.activeElement) => {
 // stand-ins, most particular first: the replacement keyed on the identity the held node
 // had, then the widget's own fallback. The user lands on the first that is drawn and
 // takes focus, and the caret goes with them, since a stand-in is the same place under a
-// new node. Restoring answers whether the user now stands on one of them.
+// new node. A stand-in that is somewhere else, such as the reply of the thread a seat's
+// box gave way to, is the caller's own landing: a function that puts the user there its
+// own way, takes no caret, and answers whether it did. Restoring answers whether the user
+// now stands on one of them.
 //
 // Nothing is owed while the user still stands on the held node and it is drawn, and
 // nothing once focus has been placed anywhere since the hold began: a user who moved on
@@ -135,20 +138,30 @@ export function holdFocus(scope) {
   return (...standIns) => {
     document.removeEventListener("focusin", place, { capture: true });
     if (placed) return false;
-    for (const node of [held, ...standIns]) {
-      if (!drawn(node)) continue;
-      if (deepFocus() === node) return true;
-      restoring = true;
-      try {
-        focusDestination(node, caret);
-      } finally {
-        restoring = false;
+    for (const standIn of [held, ...standIns]) {
+      if (typeof standIn === "function") {
+        if (land(standIn)) return true;
+        continue;
       }
-      if (node.matches(":focus")) return true;
+      if (!drawn(standIn)) continue;
+      if (deepFocus() === standIn) return true;
+      const landed = land(() => {
+        focusDestination(standIn, caret);
+        return standIn.matches(":focus");
+      });
+      if (landed) return true;
     }
     return false;
   };
 }
+const land = (landing) => {
+  restoring = true;
+  try {
+    return landing();
+  } finally {
+    restoring = false;
+  }
+};
 
 const TYPED_TYPES = new Set([
   "text",

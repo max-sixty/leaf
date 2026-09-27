@@ -55,7 +55,7 @@ from leaf.schema import (
     SESSION_ROUTE_DIRS,
     VENDORED_FILES,
 )
-from leaf.structure import SourceDocument
+from leaf.structure import FRAME_ANCESTORS_CSP, SourceDocument
 from page_fixtures import prepare_page, read_fixture
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -451,9 +451,11 @@ def publish_live_shells(
     assets = asset_site(out)
     shutil.rmtree(assets, ignore_errors=True)
     assets.mkdir(parents=True)
-    # The Worker routes a page's namespace from here rather than a copy of its own.
+    # The Worker routes a page's namespace, and frames the HTML it serves from its own
+    # assets, from here rather than from copies of its own.
     manifest = {
         "release": release,
+        "frame_ancestors": FRAME_ANCESTORS_CSP,
         "routes": {
             "layer": list(BROWSER_DIRS),
             "session": list(SESSION_ROUTE_DIRS),

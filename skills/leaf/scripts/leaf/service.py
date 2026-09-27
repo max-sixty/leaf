@@ -26,13 +26,13 @@ from leaf.host import (
     message_identity,
     session_harness,
 )
-from leaf.interaction_log import INTERACTIONS_FILE
 from leaf.locations import page_key
 from leaf.machine import pid_alive, state_home
 from leaf.registry.layer import bookkeeping_kinds
 from leaf.schema import (
     ACTIVITY_GRACE_SECS,
     EVENTS_FILE,
+    INTERACTIONS_FILE,
     STATUS_FILE,
     UNNAMED_AGENT,
 )

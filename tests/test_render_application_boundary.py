@@ -397,9 +397,7 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     pending = reader.evaluate(
         "node => node.reading.threads.find(thread => thread.root.pending)"
     )
-    expect(
-        page.locator(f'.lf-thread[data-id="{pending["id"]}"]')
-    ).to_have_count(1)
+    expect(page.locator(f'.lf-thread[data-id="{pending["id"]}"]')).to_have_count(1)
     held.pop().continue_()
     round_trip(page)
     admitted = reader.evaluate(

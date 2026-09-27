@@ -280,125 +280,63 @@ def test_codex_readdresses_a_collecting_record_if_its_delivery_id_collides(
     assert not path.exists()
 
 
-def test_delivery_claim_marks_only_a_current_delivered_move_active(page_dir):
-    """The first feedback operation needs no subject reconstruction from the agent.
-
-    The delivery supplies the address, while the locked page reading prevents an old
-    delivery from claiming a newer message in the same thread.
-    """
+def test_a_thread_claim_holds_the_input_its_thread_owes_by_any_address(page_dir):
+    """`status --on` takes the address a delivery names, which for a reply in a
+    thread is that reply's id. The claim stands on the thread and holds the input
+    the thread owes, and one check-in keeps Working on it when the user adds a
+    correction, which keeps its own receipt until the agent answers."""
     first = events_model.append_event(
         page_dir,
         {"kind": "comment", "id": "first", "author": "user", "text": "Use A."},
     )
-    first_delivery = freeze_events(page_dir, [first])
-
-    claimed = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "delivery",
-            "claim",
-            first_delivery["id"],
-            "--detail",
-            "Answering the comment",
-        ],
-    )
-    assert claimed.exit_code == 0, claimed.output
-    assert "working on thread first for event first" in claimed.output
-    status = files_model.read_json(page_dir / "status.json")
-    assert status["detail"] == "Answering the comment"
-    assert status["handling"]["target"] == {"kind": "thread", "id": "first"}
-    assert status["handling"]["event"] == first["id"]
-    live = page_state(page_dir)
-    assert "handling" not in live["status"]
-    [workflow] = live["workflows"]
-    assert (workflow["input"], workflow["stage"], workflow["detail"]) == (
-        first["id"],
-        "working",
-        "Answering the comment",
-    )
-    assert all(
-        update.get("id") != status["handling"]["id"]
-        for update in state_json(page_dir)["updates"]
-    )
-
-    second = events_model.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "reply",
-            "id": "correction",
+            "author": "agent",
+            "parent": first["id"],
+            "responds": first["id"],
+            "text": "Which A?",
+        },
+    )
+    answer = events_model.append_event(
+        page_dir,
+        {"kind": "reply", "author": "user", "parent": first["id"], "text": "A1."},
+    )
+    [workflow] = page_state(page_dir)["workflows"]
+    assert workflow["answer"]["to"] == answer["id"]
+
+    claimed = _status(
+        page_dir, "working", "Answering the comment", "--on", answer["id"]
+    )
+    assert claimed.exit_code == 0, claimed.output
+    [work] = files_model.read_json(page_dir / "status.json")["work"]
+    assert (work["subject"], work["event"]) == (
+        {"kind": "thread", "id": first["id"]},
+        answer["id"],
+    )
+    [workflow] = page_state(page_dir)["workflows"]
+    assert (workflow["input"], workflow["stage"], workflow["detail"]) == (
+        answer["id"],
+        "working",
+        "Answering the comment",
+    )
+
+    correction = events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
             "author": "user",
             "parent": first["id"],
             "text": "Correction: use B.",
         },
     )
-    workflows = page_state(page_dir)["workflows"]
+    assert (
+        _status(page_dir, "working", "Still on it", "--on", first["id"]).exit_code == 0
+    )
     assert [
-        (item["input"], item["stage"], item["answer"] is not None) for item in workflows
-    ] == [
-        (first["id"], "working", False),
-        (second["id"], "sent", True),
-    ]
-    stale = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "delivery",
-            "claim",
-            first_delivery["id"],
-            "--detail",
-            "Answering the comment",
-        ],
-    )
-    assert stale.exit_code == 0, stale.output
-    assert "no outstanding user move" in stale.output
-    assert files_model.read_json(page_dir / "status.json") == status
-
-    second_delivery = freeze_events(page_dir, [second])
-    retargeted = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "delivery",
-            "claim",
-            second_delivery["id"],
-            "--event",
-            second["id"],
-            "--detail",
-            "Checking the correction",
-        ],
-    )
-    assert retargeted.exit_code == 0, retargeted.output
-    workflow = next(
-        item
-        for item in page_state(page_dir)["workflows"]
-        if item["input"] == second["id"]
-    )
-    assert (workflow["input"], workflow["stage"], workflow["detail"]) == (
-        second["id"],
-        "working",
-        "Checking the correction",
-    )
-
-
-def test_delivery_claim_refuses_an_event_outside_the_delivery(page_dir):
-    comment = events_model.append_event(
-        page_dir, {"kind": "comment", "author": "user", "text": "Review this."}
-    )
-    delivery = freeze_events(page_dir, [comment])
-
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "delivery",
-            "claim",
-            delivery["id"],
-            "--event",
-            "another-event",
-            "--detail",
-            "Answering the comment",
-        ],
-    )
-
-    assert result.exit_code != 0
-    assert "is not in delivery" in result.output
+        (item["input"], item["stage"]) for item in page_state(page_dir)["workflows"]
+    ] == [(answer["id"], "working"), (correction["id"], "sent")]
 
 
 def test_consecutive_user_inputs_share_one_exact_response_obligation(page_dir):
@@ -717,11 +655,10 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
             "detail": {},
         },
     )
-    delivery = freeze_events(page_dir, [answered])
-    claimed = CliRunner().invoke(
-        cli_model.cli,
-        ["delivery", "claim", delivery["id"], "--detail", "Checking East"],
-    )
+    # The move owes a reply in its thread, so that thread is its address.
+    [owed] = page_state(page_dir)["workflows"]
+    assert owed["answer"]["to"] == asked["id"]
+    claimed = _status(page_dir, "working", "Checking East", "--on", asked["id"])
     assert claimed.exit_code == 0, claimed.output
 
     state = page_state(page_dir)
@@ -833,9 +770,9 @@ def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
     delivery = freeze_events(page_dir, [moved])
     [event] = delivery["batches"][0]["events"]
     assert "answer" not in event
-    claimed = CliRunner().invoke(
-        cli_model.cli,
-        ["delivery", "claim", delivery["id"], "--detail", "Rearranging the cards"],
+    # Named by the board it was made on, the claim stands on the board's thread.
+    claimed = _status(
+        page_dir, "working", "Rearranging the cards", "--on", "feeder-board"
     )
     assert claimed.exit_code == 0, claimed.output
     state, attention = reading()
@@ -846,6 +783,26 @@ def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
         "reason": "workflow",
         "workflow": moved["id"],
     }
+
+    # Moving the card again supersedes that move, so a renewed claim holds the
+    # newer one instead of standing beside a move no receipt shows any more.
+    moved = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "feeder-board",
+            "action": "move",
+            "detail": {"card": "card-baffle", "to": "col-done", "rank": "0i"},
+        },
+    )
+    renewed = _status(page_dir, "working", "Moving it on", "--on", "feeder-board")
+    assert renewed.exit_code == 0, renewed.output
+    state, attention = reading()
+    assert [(item["input"], item["stage"]) for item in state["workflows"]] == [
+        (moved["id"], "working")
+    ]
 
     # A mark is no turn; the agent's next spoken turn takes the move in.
     events_model.append_event(
@@ -947,7 +904,10 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
         }
 
 
-def test_delivery_claim_uses_the_projected_widget_receipt(page_dir):
+def test_a_widget_claim_holds_the_moves_delivered_before_it(page_dir):
+    """A claim on a page widget has no one input to name: it holds every move on
+    that widget the agent had been handed when it claimed, and not one made
+    after."""
     version = page_dir / "index.html"
     version.write_text(
         PAGE.replace("<lf-options>", '<lf-options id="choice" choose>', 1)
@@ -964,28 +924,32 @@ def test_delivery_claim_uses_the_projected_widget_receipt(page_dir):
             "detail": {"options": ["flag-first"]},
         },
     )
-    delivery = freeze_events(page_dir, [chosen])
 
-    result = CliRunner().invoke(
-        cli_model.cli,
-        ["delivery", "claim", delivery["id"], "--detail", "Building the flag"],
-    )
+    result = _status(page_dir, "working", "Building the flag", "--on", "choice")
 
     assert result.exit_code == 0, result.output
-    assert f"working on widget choice for event {chosen['id']}" in result.output
     [workflow] = page_state(page_dir)["workflows"]
     assert (workflow["input"], workflow["subject"], workflow["stage"]) == (
         chosen["id"],
         {"kind": "widget", "id": "choice"},
         "working",
     )
-
-    # A later open-ended subject claim is useful for work that outlives this
-    # delivery, but it is not a second interaction beside the exact Working receipt.
-    continued = _status(page_dir, "working", "Applying the choice", "--on", "choice")
-    assert continued.exit_code == 0, continued.output
-    [workflow] = page_state(page_dir)["workflows"]
-    assert (workflow["input"], workflow["stage"]) == (chosen["id"], "working")
+    later = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "choice",
+            "action": "choose",
+            "detail": {"options": ["backfill-first"]},
+        },
+    )
+    assert [
+        (item["input"], item["stage"])
+        for item in page_state(page_dir)["workflows"]
+        if item["input"] is not None
+    ] == [(later["id"], "sent")]
 
 
 def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):

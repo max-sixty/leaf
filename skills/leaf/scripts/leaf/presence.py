@@ -236,7 +236,7 @@ def presence_with_activity(
     status = {
         key: value
         for key, value in stored_status.items()
-        if key not in {"handling", "work", "stream"}
+        if key not in {"work", "stream"}
     }
     status.setdefault("after", 0)
     claim = page_claim(page_dir)

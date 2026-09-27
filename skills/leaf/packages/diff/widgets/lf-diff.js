@@ -576,6 +576,9 @@ customElements.define(
       const bound = this.hasAttribute("source");
       if (!bound) {
         if (this.classList.contains("lf-rendered")) return;
+        // Not bodyText: a diff's trailing whitespace is content — a hunk's last line
+        // can be a lone space, the context line for a blank source line — so only the
+        // closing newline is the <pre>'s layout.
         if (this.inlineSource === undefined)
           this.inlineSource = dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
         this.present(this.render(this.inlineSource));

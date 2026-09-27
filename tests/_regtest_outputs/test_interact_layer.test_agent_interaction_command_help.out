@@ -13,22 +13,6 @@ Options:
   --ack DELIVERY_ID  Confirm receipt of this complete delivery before waiting.
   --help             Show this message and exit.
 
-## leaf delivery claim --help
-Usage: leaf delivery claim [OPTIONS] DELIVERY_ID
-
-  Claim one still-outstanding user move from DELIVERY_ID.
-
-  The page and subject come from the immutable delivery. Current page state is
-  checked in the same transaction that writes the Working receipt, so a stale
-  delivery is a successful no-op rather than a claim on newer input.
-
-Options:
-  --event EVENT_ID  Claim this delivered event instead of the first outstanding
-                    user move.
-  --detail TEXT     What the page says the agent is doing, naming the work and
-                    its subject.  [required]
-  --help            Show this message and exit.
-
 ## leaf delivery read --help
 Usage: leaf delivery read [OPTIONS] DELIVERY_ID
 
@@ -96,14 +80,15 @@ Usage: leaf status [OPTIONS] PAGE {working|waiting|idle} [DETAIL]
   invites text comments. Use idle when finished; unacknowledged input and
   unanswered user moves prevent it.
 
-  With working, --on names an open thread or page widget. The user sees DETAIL
-  beside that subject as well as in the banner. Your next reply ends a thread
-  claim; a version stamp with --completes ends a widget claim. Renew the status
-  as work changes: a claim left after your turn ends, or without updates,
-  eventually reads as stalled.
+  With working, --on names an open thread, by any message in it, or a widget:
+  whatever a delivered event gives as its address, which then reads Working. The
+  user sees DETAIL beside that subject as well as in the banner. Your next reply
+  ends a thread claim; a version stamp with --completes ends a widget claim.
+  Renew the status as work changes: a claim left after your turn ends, or
+  without updates, eventually reads as stalled.
 
 Options:
-  --on SUBJECT  The open thread or local page widget this work is about.
+  --on SUBJECT  The open thread or widget this work is about.
   --help        Show this message and exit.
 
 ## leaf thread open --help

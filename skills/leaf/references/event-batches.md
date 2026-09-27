@@ -118,15 +118,10 @@ full log without acking it.
 Receipt and work have separate evidence. Confirming a direct delivery records its
 moves as **Picked up** in the current turn. Other hosts record that opening when
 they observe the delivery entering a turn. Leaf derives overall page activity from
-that evidence. When useful, name the exact delivered event whose work you are
-starting and describe that work:
-
-```bash
-leaf delivery claim <delivery-id> --event <event-id> --detail "checking the rollout"
-```
-
-This optional claim strengthens that move's receipt to **Working** while it
-remains outstanding. It does not acknowledge the delivery or answer the move.
+that evidence. Naming the move's thread or widget with `leaf status … --on`
+([conversation handoff](conversation-loop.md#status-and-handoff)) strengthens its
+receipt to **Working** while it remains outstanding. That neither acknowledges the
+delivery nor answers the move.
 
 Whatever the host, treat a page-and-sequence pair already handled in this task as a
 retry, even if a later delivery also includes newer events; your host contract owns

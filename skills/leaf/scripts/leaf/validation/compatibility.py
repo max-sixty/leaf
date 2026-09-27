@@ -7,6 +7,7 @@ from leaf.event_meaning import admitted_contract_error
 from leaf.events import event_document, taken_back
 from leaf.registry.contract import RegistryError, read_registry_declarations
 from leaf.registry.layer import merge_layer_declarations
+from leaf.registry.state import stamp_decisions
 from leaf.registry.validation import validate_registry
 from leaf.requests import (
     declared_request_error,
@@ -47,7 +48,8 @@ def incoming_registry(packages: list) -> dict:
     if not paths:
         raise RegistryError("the incoming layer has no registry.json")
     source = "merged registry (" + ", ".join(str(path) for path in paths) + ")"
-    return validate_registry_examples(validate_registry(merged, source), source)
+    validate_registry_examples(validate_registry(merged, source), source)
+    return stamp_decisions(merged)
 
 
 def candidate_vocabulary_gaps(

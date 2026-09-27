@@ -37,6 +37,9 @@ import threading
 import time
 from pathlib import Path
 
+# The stream-activity writers are called as `codex.<name>`, so `leaf.codex` holds their
+# one binding: whatever takes a turn's readings there takes every carrier's too.
+from . import codex
 from .codex import (
     START_TIMEOUT,
     AppServerDeliveryUncertain,
@@ -50,7 +53,6 @@ from .codex import (
     append_batch,
     archive_record,
     check_app_server_endpoint,
-    clear_stream_activity,
     delivery_lock_path,
     delivery_record_state,
     delivery_records,
@@ -58,7 +60,6 @@ from .codex import (
     offer_delivery,
     retire_gone_task_records,
     retry_delay,
-    set_stream_activity,
     start_app_server_delivery,
     stop_app_server,
     stream_reply_target,
@@ -295,7 +296,7 @@ class TaskObserver:
             # This snapshot does not establish a current provider turn, so an
             # old thinking, tool, waiting, or replying observation cannot prove
             # one is still live.
-            clear_stream_activity(self.thread_id)
+            codex.clear_stream_activity(self.thread_id)
 
     def _reconcile(self, turn: dict) -> None:
         """Bring one snapshot turn's fold up to what the snapshot says of it.
@@ -534,7 +535,7 @@ class DeliveryTurn(CarriedTurn):
         self.open()
         accept_offered_delivery(self.session_id, self.delivery_id, self.turn_id)
         self.open_reply()
-        set_stream_activity(self.session_id, self.turn_id, {"kind": "working"})
+        codex.set_stream_activity(self.session_id, self.turn_id, {"kind": "working"})
 
     def ended(self, error: BaseException) -> dict | None:
         """Account for the turn the stream stopped carrying, unless it is not over.

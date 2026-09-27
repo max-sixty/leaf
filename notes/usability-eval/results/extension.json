@@ -1,0 +1,922 @@
+{
+ "model": "claude-opus-5-5",
+ "arms": {
+  "base": "64186bcb9f44462938b306af5b214ea84824eb71"
+ },
+ "runs": [
+  {
+   "case": "elided",
+   "arm": "base",
+   "n": 1,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 16,
+     "cost_usd": 0.494,
+     "minutes": 2.1,
+     "input_tokens": 423118,
+     "output_tokens": 7388,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/host-claude-code.md",
+      "references/serving-pages.md"
+     ],
+     "output_bytes": {
+      "bash": 16075,
+      "reference": 11187,
+      "server": 9371,
+      "page state": 2477,
+      "version check": 1590,
+      "wait": 662,
+      "index.html": 189,
+      "thread reply": 115,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "reference",
+      "page state",
+      "server",
+      "bash",
+      "bash",
+      "wait",
+      "index.html",
+      "version check",
+      "version check",
+      "version check",
+      "wait",
+      "thread reply"
+     ]
+    }
+   ],
+   "score": {
+    "question_delivered": true,
+    "question_rearmed": true,
+    "question_waiting": true,
+    "question_url": true,
+    "shown_elided": true,
+    "middle_read": true,
+    "premise_read_in": "resume",
+    "answer_right": true,
+    "titled": true,
+    "summarized": true
+   }
+  },
+  {
+   "case": "elided",
+   "arm": "base",
+   "n": 2,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 20,
+     "cost_usd": 0.508,
+     "minutes": 2.2,
+     "input_tokens": 566740,
+     "output_tokens": 6730,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/host-claude-code.md",
+      "references/page-authoring.md",
+      "references/serving-pages.md"
+     ],
+     "output_bytes": {
+      "bash": 18291,
+      "reference": 13489,
+      "index.html": 5052,
+      "version check": 2690,
+      "page state": 2668,
+      "server": 465,
+      "wait": 331,
+      "version stamp": 315,
+      "thread reply": 71,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "reference",
+      "page state",
+      "index.html",
+      "bash",
+      "server",
+      "bash",
+      "bash",
+      "reference",
+      "version check",
+      "page state",
+      "version check",
+      "version stamp",
+      "wait",
+      "thread reply",
+      "bash",
+      "bash"
+     ]
+    }
+   ],
+   "score": {
+    "question_delivered": true,
+    "question_rearmed": true,
+    "question_waiting": true,
+    "question_url": true,
+    "shown_elided": true,
+    "middle_read": true,
+    "premise_read_in": "resume",
+    "answer_right": true,
+    "titled": true,
+    "summarized": true
+   }
+  },
+  {
+   "case": "elided",
+   "arm": "base",
+   "n": 3,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 11,
+     "cost_usd": 0.291,
+     "minutes": 1.0,
+     "input_tokens": 233256,
+     "output_tokens": 3191,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/host-claude-code.md",
+      "references/serving-pages.md"
+     ],
+     "output_bytes": {
+      "reference": 11187,
+      "server": 5518,
+      "events.jsonl": 3943,
+      "page state": 2477,
+      "wait": 662,
+      "version check": 218,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "reference",
+      "page state",
+      "server",
+      "events.jsonl",
+      "wait",
+      "wait",
+      "version check"
+     ]
+    }
+   ],
+   "score": {
+    "question_delivered": true,
+    "question_rearmed": true,
+    "question_waiting": true,
+    "question_url": true,
+    "shown_elided": true,
+    "middle_read": true,
+    "premise_read_in": "resume",
+    "answer_right": true,
+    "titled": true,
+    "summarized": true
+   }
+  },
+  {
+   "case": "handoff",
+   "arm": "base",
+   "n": 1,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 16,
+     "cost_usd": 0.333,
+     "minutes": 1.1,
+     "input_tokens": 327362,
+     "output_tokens": 3162,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/conversation-loop.md",
+      "references/host-claude-code.md"
+     ],
+     "output_bytes": {
+      "bash": 15362,
+      "reference": 13009,
+      "page state": 1469,
+      "wait": 993,
+      "server": 562,
+      "version check": 332,
+      "thread reply": 55,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "bash",
+      "reference",
+      "page state",
+      "server",
+      "wait",
+      "bash",
+      "wait",
+      "bash",
+      "version check",
+      "thread reply",
+      "wait"
+     ]
+    }
+   ],
+   "score": {
+    "served": true,
+    "checked": true,
+    "handoff_waiting": true,
+    "detail_names_ask": true,
+    "wait_started": true,
+    "gesture_named": true,
+    "edit_delivered": true,
+    "edit_rearmed": true,
+    "edit_waiting": true,
+    "edit_url": true,
+    "edit_claimed": true,
+    "edit_replied": true,
+    "edit_done": true,
+    "question_delivered": true,
+    "question_rearmed": true,
+    "question_waiting": true,
+    "question_url": true,
+    "question_answered": true
+   }
+  },
+  {
+   "case": "handoff",
+   "arm": "base",
+   "n": 2,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 15,
+     "cost_usd": 0.287,
+     "minutes": 0.9,
+     "input_tokens": 309315,
+     "output_tokens": 3178,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/conversation-loop.md",
+      "references/host-claude-code.md"
+     ],
+     "output_bytes": {
+      "reference": 11995,
+      "version check": 2514,
+      "wait": 993,
+      "server": 562,
+      "index.html": 123,
+      "bash": 102,
+      "thread reply": 70,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "reference",
+      "version check",
+      "server",
+      "wait",
+      "bash",
+      "wait",
+      "index.html",
+      "version check",
+      "thread reply",
+      "wait"
+     ]
+    }
+   ],
+   "score": {
+    "served": true,
+    "checked": true,
+    "handoff_waiting": true,
+    "detail_names_ask": true,
+    "wait_started": true,
+    "gesture_named": true,
+    "edit_delivered": true,
+    "edit_rearmed": true,
+    "edit_waiting": true,
+    "edit_url": true,
+    "edit_claimed": true,
+    "edit_replied": true,
+    "edit_done": true,
+    "question_delivered": true,
+    "question_rearmed": true,
+    "question_waiting": true,
+    "question_url": true,
+    "question_answered": true
+   }
+  },
+  {
+   "case": "handoff",
+   "arm": "base",
+   "n": 3,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 16,
+     "cost_usd": 0.275,
+     "minutes": 0.8,
+     "input_tokens": 335432,
+     "output_tokens": 2530,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/conversation-loop.md",
+      "references/host-claude-code.md"
+     ],
+     "output_bytes": {
+      "reference": 14074,
+      "wait": 993,
+      "server": 589,
+      "index.html": 241,
+      "thread reply": 207,
+      "version check": 189,
+      "bash": 102,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "reference",
+      "version check",
+      "server",
+      "wait",
+      "bash",
+      "wait",
+      "index.html",
+      "index.html",
+      "thread reply",
+      "thread reply",
+      "wait"
+     ]
+    }
+   ],
+   "score": {
+    "served": true,
+    "checked": true,
+    "handoff_waiting": true,
+    "detail_names_ask": true,
+    "wait_started": true,
+    "gesture_named": true,
+    "edit_delivered": true,
+    "edit_rearmed": true,
+    "edit_waiting": true,
+    "edit_url": true,
+    "edit_claimed": true,
+    "edit_replied": true,
+    "edit_done": true,
+    "question_delivered": true,
+    "question_rearmed": true,
+    "question_waiting": true,
+    "question_url": true,
+    "question_answered": true
+   }
+  },
+  {
+   "case": "mixed",
+   "arm": "base",
+   "n": 1,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 13,
+     "cost_usd": 0.445,
+     "minutes": 1.6,
+     "input_tokens": 345673,
+     "output_tokens": 5108,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/authoring-asks.md",
+      "references/host-claude-code.md",
+      "references/serving-pages.md"
+     ],
+     "output_bytes": {
+      "bash": 27155,
+      "reference": 17365,
+      "page state": 7311,
+      "wait": 662,
+      "version check": 483,
+      "server": 465,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "reference",
+      "page state",
+      "server",
+      "wait",
+      "wait",
+      "bash",
+      "reference",
+      "version check",
+      "page state"
+     ]
+    }
+   ],
+   "score": {
+    "batch_delivered": true,
+    "batch_rearmed": true,
+    "batch_waiting": true,
+    "batch_url": true,
+    "one_delivery": true,
+    "comment_claimed": true,
+    "comment_replied": true,
+    "comment_done": true,
+    "stamped": true,
+    "pick_answered": true,
+    "reaction_handled": true,
+    "reaction_unreplied": true,
+    "undo_kept": true,
+    "error_fixed": true
+   }
+  },
+  {
+   "case": "mixed",
+   "arm": "base",
+   "n": 2,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 16,
+     "cost_usd": 0.373,
+     "minutes": 1.2,
+     "input_tokens": 402403,
+     "output_tokens": 4223,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/authoring-revisions.md",
+      "references/host-claude-code.md",
+      "references/serving-pages.md"
+     ],
+     "output_bytes": {
+      "reference": 14252,
+      "page state": 6635,
+      "registry": 5619,
+      "bash": 1458,
+      "wait": 1032,
+      "server": 465,
+      "version stamp": 209,
+      "version check": 193,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "reference",
+      "page state",
+      "page state",
+      "server",
+      "wait",
+      "bash",
+      "wait",
+      "reference",
+      "reference",
+      "registry",
+      "version check",
+      "version stamp"
+     ]
+    }
+   ],
+   "score": {
+    "batch_delivered": true,
+    "batch_rearmed": true,
+    "batch_waiting": true,
+    "batch_url": true,
+    "one_delivery": true,
+    "comment_claimed": false,
+    "comment_replied": true,
+    "comment_done": true,
+    "stamped": true,
+    "pick_answered": true,
+    "reaction_handled": true,
+    "reaction_unreplied": true,
+    "undo_kept": true,
+    "error_fixed": true
+   }
+  },
+  {
+   "case": "mixed",
+   "arm": "base",
+   "n": 3,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 14,
+     "cost_usd": 0.332,
+     "minutes": 1.5,
+     "input_tokens": 336592,
+     "output_tokens": 3902,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/authoring-revisions.md",
+      "references/host-claude-code.md",
+      "references/serving-pages.md"
+     ],
+     "output_bytes": {
+      "reference": 13797,
+      "server": 3597,
+      "page state": 3354,
+      "version check": 676,
+      "wait": 662,
+      "version stamp": 249,
+      "index.html": 31,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "reference",
+      "page state",
+      "server",
+      "wait",
+      "wait",
+      "reference",
+      "version check",
+      "version check",
+      "index.html",
+      "version stamp"
+     ]
+    }
+   ],
+   "score": {
+    "batch_delivered": true,
+    "batch_rearmed": true,
+    "batch_waiting": true,
+    "batch_url": true,
+    "one_delivery": true,
+    "comment_claimed": true,
+    "comment_replied": true,
+    "comment_done": true,
+    "stamped": true,
+    "pick_answered": true,
+    "reaction_handled": true,
+    "reaction_unreplied": true,
+    "undo_kept": true,
+    "error_fixed": true
+   }
+  },
+  {
+   "case": "package",
+   "arm": "base",
+   "n": 1,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 10,
+     "cost_usd": 0.204,
+     "minutes": 0.8,
+     "input_tokens": 200719,
+     "output_tokens": 2281,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/packages.md",
+      "references/page-authoring.md"
+     ],
+     "output_bytes": {
+      "registry": 3978,
+      "reference": 3895,
+      "index.html": 2601,
+      "version stamp": 71,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "index.html",
+      "reference",
+      "registry",
+      "registry",
+      "index.html",
+      "reference",
+      "version stamp"
+     ]
+    }
+   ],
+   "score": {
+    "entry_read": true,
+    "source_unread": false,
+    "stamped": true,
+    "valid": true,
+    "widget_used": true,
+    "objective": true,
+    "window": true,
+    "consumed": true
+   }
+  },
+  {
+   "case": "package",
+   "arm": "base",
+   "n": 2,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 12,
+     "cost_usd": 0.265,
+     "minutes": 1.0,
+     "input_tokens": 271476,
+     "output_tokens": 3053,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [],
+     "output_bytes": {
+      "registry": 12528,
+      "version check": 4683,
+      "index.html": 2623,
+      "page state": 1314,
+      "version stamp": 71,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "index.html",
+      "registry",
+      "registry",
+      "registry",
+      "index.html",
+      "version check",
+      "version check",
+      "page state",
+      "version stamp"
+     ]
+    }
+   ],
+   "score": {
+    "entry_read": true,
+    "source_unread": false,
+    "stamped": true,
+    "valid": true,
+    "widget_used": true,
+    "objective": true,
+    "window": true,
+    "consumed": true
+   }
+  },
+  {
+   "case": "package",
+   "arm": "base",
+   "n": 3,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 17,
+     "cost_usd": 0.291,
+     "minutes": 5.0,
+     "input_tokens": 379088,
+     "output_tokens": 3827,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/packages.md"
+     ],
+     "output_bytes": {
+      "reference": 5270,
+      "bash": 3888,
+      "registry": 2183,
+      "index.html": 2014,
+      "version check": 400,
+      "version stamp": 190,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "index.html",
+      "reference",
+      "reference",
+      "bash",
+      "reference",
+      "reference",
+      "bash",
+      "bash",
+      "registry",
+      "registry",
+      "version check",
+      "bash",
+      "bash",
+      "version stamp"
+     ]
+    }
+   ],
+   "score": {
+    "entry_read": true,
+    "source_unread": true,
+    "stamped": true,
+    "valid": true,
+    "widget_used": true,
+    "objective": true,
+    "window": true,
+    "consumed": true
+   }
+  },
+  {
+   "case": "shared-source",
+   "arm": "base",
+   "n": 1,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 4,
+     "cost_usd": 0.195,
+     "minutes": 0.3,
+     "input_tokens": 107528,
+     "output_tokens": 734,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [],
+     "output_bytes": {
+      "bash": 28396,
+      "events.jsonl": 2300
+     },
+     "calls": [
+      "bash",
+      "events.jsonl",
+      "bash"
+     ]
+    },
+    {
+     "completed": true,
+     "turns": 7,
+     "cost_usd": 0.376,
+     "minutes": 0.4,
+     "input_tokens": 229782,
+     "output_tokens": 2046,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/authoring-revisions.md",
+      "references/packages.md"
+     ],
+     "output_bytes": {
+      "registry": 7386,
+      "reference": 5954,
+      "version check": 809,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "reference",
+      "reference",
+      "registry",
+      "version check"
+     ]
+    }
+   ],
+   "score": {
+    "finch_branch": true,
+    "finch_failing": true,
+    "wren_ahead": true,
+    "source_unread": false,
+    "finch_updated": true,
+    "others_kept": true,
+    "markup_kept": true,
+    "source_valid": true
+   }
+  },
+  {
+   "case": "shared-source",
+   "arm": "base",
+   "n": 2,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 7,
+     "cost_usd": 0.222,
+     "minutes": 0.3,
+     "input_tokens": 156778,
+     "output_tokens": 1370,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [],
+     "output_bytes": {
+      "events.jsonl": 19430,
+      "data/": 7431,
+      "registry": 3205,
+      "bash": 2277
+     },
+     "calls": [
+      "bash",
+      "events.jsonl",
+      "events.jsonl",
+      "events.jsonl",
+      "data/",
+      "registry"
+     ]
+    },
+    {
+     "completed": true,
+     "turns": 5,
+     "cost_usd": 0.331,
+     "minutes": 0.4,
+     "input_tokens": 143998,
+     "output_tokens": 1638,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [],
+     "output_bytes": {
+      "version check": 1073,
+      "bash": 389,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "bash",
+      "version check"
+     ]
+    }
+   ],
+   "score": {
+    "finch_branch": true,
+    "finch_failing": true,
+    "wren_ahead": true,
+    "source_unread": false,
+    "finch_updated": true,
+    "others_kept": true,
+    "markup_kept": true,
+    "source_valid": true
+   }
+  },
+  {
+   "case": "shared-source",
+   "arm": "base",
+   "n": 3,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 4,
+     "cost_usd": 0.163,
+     "minutes": 0.2,
+     "input_tokens": 85424,
+     "output_tokens": 852,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [],
+     "output_bytes": {
+      "events.jsonl": 19066,
+      "data/": 2380,
+      "bash": 1176
+     },
+     "calls": [
+      "bash",
+      "events.jsonl",
+      "data/"
+     ]
+    },
+    {
+     "completed": true,
+     "turns": 7,
+     "cost_usd": 0.32,
+     "minutes": 0.4,
+     "input_tokens": 203640,
+     "output_tokens": 1864,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/authoring-revisions.md",
+      "references/packages.md"
+     ],
+     "output_bytes": {
+      "reference": 4612,
+      "page state": 3081,
+      "data/": 1578,
+      "version check": 392,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "data/",
+      "reference",
+      "page state",
+      "version check"
+     ]
+    }
+   ],
+   "score": {
+    "finch_branch": true,
+    "finch_failing": true,
+    "wren_ahead": true,
+    "source_unread": false,
+    "finch_updated": true,
+    "others_kept": true,
+    "markup_kept": true,
+    "source_valid": true
+   }
+  }
+ ]
+}

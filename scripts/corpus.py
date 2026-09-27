@@ -18,7 +18,7 @@ from pathlib import Path
 
 from example_data import regression_sources
 from leaf.structure import SourceDocument
-from leaf.thread_context import specimen_events, thread_ids
+from leaf.thread_context import sample_events, thread_ids
 
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
 CORPUS = EXAMPLES_DIR / "corpus.html"
@@ -226,7 +226,7 @@ def build_data() -> dict:
 
 
 def build_events() -> str:
-    """Carry the threads embedded specimens explicitly depend on.
+    """Carry the threads embedded samples explicitly depend on.
 
     The corpus otherwise starts undecided; composing every example's history would
     settle unrelated controls before the corpus can exercise them.
@@ -236,8 +236,8 @@ def build_events() -> str:
         document = SourceDocument(source.read_text(encoding="utf-8"))
         selected = {
             thread
-            for specimen in document.specimens
-            for thread in specimen["attrs"].get("data-specimen-threads", "").split()
+            for sample in document.samples
+            for thread in sample["attrs"].get("data-sample-threads", "").split()
         }
         if not selected:
             continue
@@ -248,14 +248,14 @@ def build_events() -> str:
         ]
         # A declaration naming nothing is a typo here and nothing else: the history
         # is the example's own shipped log, so a thread absent from it will be absent
-        # from every page built from this source. `specimen_events` seeds what a log
+        # from every page built from this source. `sample_events` seeds what a log
         # holds, because a served page may legitimately hold none of it yet.
         if unknown := selected - thread_ids(events):
             sys.exit(
-                f"{source.name} declares specimen threads its log does not "
+                f"{source.name} declares sample threads its log does not "
                 f"hold: {', '.join(sorted(unknown))}"
             )
-        for event in specimen_events(document, events, selected):
+        for event in sample_events(document, events, selected):
             if event["id"] in combined and combined[event["id"]] != event:
                 sys.exit(
                     f"corpus examples contribute conflicting event {event['id']!r}"

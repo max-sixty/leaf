@@ -1,6 +1,6 @@
 """Disposable page instances built from an authored template and its captured layer.
 
-A specimen owns an ordinary source, revision, data store, and event log. Its parent
+A sample owns an ordinary source, revision, data store, and event log. Its parent
 supplies immutable resources and optional selected thread history, never a live
 state projection. Its browser dependency URLs retain the creating parent's exact
 immutable resource namespace, including through nested children; only the document
@@ -23,11 +23,11 @@ from .revision_artifact import RevisionArtifact
 from .revisioning import activate_source
 from .schema import DATA_DIR, DATA_FILE
 from .structure import SourceDocument
-from .thread_context import specimen_events
+from .thread_context import sample_events
 
 
 @dataclass
-class Specimen:
+class Sample:
     temporary: TemporaryDirectory
     parent: Path
     layer: dict
@@ -46,11 +46,11 @@ class Specimen:
             self.temporary.cleanup()
 
 
-class Specimens:
+class Samples:
     """The child pages of one HTTP server, scoped to their creating parent."""
 
     def __init__(self) -> None:
-        self.pages: dict[str, Specimen] = {}
+        self.pages: dict[str, Sample] = {}
         self.lock = Lock()
 
     def create(
@@ -66,18 +66,18 @@ class Specimens:
         document = SourceDocument(artifact.html.decode("utf-8"))
         template = next(
             (
-                specimen
-                for specimen in document.specimens
-                if specimen["attrs"].get("id") == template_id
+                sample
+                for sample in document.samples
+                if sample["attrs"].get("id") == template_id
             ),
             None,
         )
         if template is None:
-            raise ValueError(f"unknown specimen template {template_id!r}")
-        selected = set(template["attrs"].get("data-specimen-threads", "").split())
-        seeded = specimen_events(document, events, selected)
+            raise ValueError(f"unknown sample template {template_id!r}")
+        selected = set(template["attrs"].get("data-sample-threads", "").split())
+        seeded = sample_events(document, events, selected)
         source = template["document"].data
-        temporary = TemporaryDirectory(prefix="leaf-specimen-")
+        temporary = TemporaryDirectory(prefix="leaf-sample-")
         child = Path(temporary.name)
         try:
             for logical, resource in artifact.resources.items():
@@ -119,42 +119,40 @@ class Specimens:
             )
             activation = activate_source(child)
             if activation.error:
-                raise ValueError(f"invalid specimen: {activation.error}")
+                raise ValueError(f"invalid sample: {activation.error}")
         except BaseException:
             temporary.cleanup()
             raise
         identity = secrets.token_hex(16)
         with self.lock:
-            self.pages[identity] = Specimen(
+            self.pages[identity] = Sample(
                 temporary, parent, artifact.registry["$layer"], passive, asset_root
             )
         return identity
 
-    def get(self, parent: Path, identity: str) -> Specimen | None:
+    def get(self, parent: Path, identity: str) -> Sample | None:
         with self.lock:
-            specimen = self.pages.get(identity)
-            return (
-                specimen if specimen is not None and specimen.parent == parent else None
-            )
+            sample = self.pages.get(identity)
+            return sample if sample is not None and sample.parent == parent else None
 
     def release(self, parent: Path, identity: str) -> None:
         with self.lock:
-            specimen = self.pages.get(identity)
-            if specimen is None or specimen.parent != parent:
+            sample = self.pages.get(identity)
+            if sample is None or sample.parent != parent:
                 return
             del self.pages[identity]
-        specimen.close()
+        sample.close()
         with self.lock:
             children = [
                 key
                 for key, child in self.pages.items()
-                if child.parent == specimen.directory
+                if child.parent == sample.directory
             ]
         for child in children:
-            self.release(specimen.directory, child)
+            self.release(sample.directory, child)
 
     def close(self) -> None:
         with self.lock:
             pages, self.pages = self.pages, {}
-        for specimen in pages.values():
-            specimen.close()
+        for sample in pages.values():
+            sample.close()

@@ -91,7 +91,7 @@ import {
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
-import { LIVE_ROOT, PAGE_SCOPE, tabStore, versionUrl } from "./storage.js";
+import { LIVE_ROOT, PAGE_SCOPE, tabStore } from "./storage.js";
 import { alignInlineText } from "./text-alignment.js";
 import { el, keeps, layoutChanged, quoted, reveal } from "./widget-elements.js";
 import { showNews } from "./banner-shelf.js";
@@ -1014,14 +1014,15 @@ export function createVersionController({
     const mine = ++diffRequest;
     diffPendingBase = base;
     presentChooser();
-    const baseRevision = stamped(base)?.revision;
+    const baseVersion = stamped(base);
+    const baseRevision = baseVersion?.revision;
     if (baseRevision == null) {
       diffPendingBase = null;
       presentChooser();
       notice(`Couldn't load v${base}`);
       return;
     }
-    const documentRequest = authoredDocument(versionUrl(base));
+    const documentRequest = authoredDocument(baseVersion.url);
     let doc;
     let reading;
     try {

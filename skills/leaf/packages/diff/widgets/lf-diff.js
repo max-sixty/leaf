@@ -456,8 +456,8 @@ customElements.define(
         });
       if (this.stopWatching) return;
       // A page diff's file header pins under the banner; one an agent sent in a reply
-      // scrolls inside the panel's own list, whose pinned slot already belongs to the
-      // run headings. The theme cannot ask that question from inside a shadow tree, so
+      // scrolls inside the panel's own list, where the banner's height is no offset at
+      // all. The theme cannot ask that question from inside a shadow tree, so
       // the module answers it once with the layer's own predicate and paints the answer.
       if (!inChrome(this)) this.dataset.lfDiffPinned = "";
       if (!this.reviewKeys) {
@@ -1208,8 +1208,8 @@ customElements.define(
     // How much of the top a pinned file header covers, which is the one number the theme
     // cannot work out: a long path wraps, so the header's height is whatever it rendered
     // at, and on this corpus that is anything from one line to three. The runtime keeps
-    // that room declared (`declareCoverRoom`), as it does for the thread list's run
-    // headings; here it is read as `scroll-margin-top` on the rows, so a landing arrives
+    // that room declared (`declareCoverRoom`); here it is read as `scroll-margin-top`
+    // on the rows, so a landing arrives
     // below the header rather than behind it. Per file, because each header pins over its
     // own rows and one number for all of them would spend the widest path's wrap on
     // every landing. Declared only where the header pins: unpinned, it covers nothing.

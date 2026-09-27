@@ -17,10 +17,15 @@ from .files import (
     read_json,
 )
 from .host import claim_harness
-from .interaction_log import INTERACTIONS_FILE
 from .leases import wait_is_live, waiter_lease_path
 from .machine import state_home
-from .schema import STATUS_FILE, UNNAMED_AGENT, VIEWED_FILE, WAITER_LOCK
+from .schema import (
+    INTERACTIONS_FILE,
+    STATUS_FILE,
+    UNNAMED_AGENT,
+    VIEWED_FILE,
+    WAITER_LOCK,
+)
 from .server import running_server
 from .service import (
     claim_is_active,

@@ -307,18 +307,18 @@ def shown_log(records: list[dict]) -> str:
 
 
 def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
-    """The page's log was captured from its own specimen driven in a browser. The
+    """The page's log was captured from its own sample driven in a browser. The
     commands it records go back through the append door on the same markup, and
     what the door stores now has to be what the page shows, `id` and `ts` aside.
     A changed field, meaning, or refusal fails here with the records to paste."""
     source = EVENT_LOG.read_text()
     template = re.search(
-        r'<template id="try-page" data-specimen>(.*?)</template>', source, re.DOTALL
+        r'<template id="try-page" data-sample>(.*?)</template>', source, re.DOTALL
     )
     assert template
     (page_dir / "index.html").write_text(
         '<!doctype html><html lang="en"><head><title>Release question</title>'
-        '<meta name="description" content="The specimen."></head>'
+        '<meta name="description" content="The sample."></head>'
         f"<body><main>{template.group(1)}</main></body></html>"
     )
     stamped = CliRunner().invoke(

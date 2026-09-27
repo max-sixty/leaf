@@ -4,8 +4,13 @@ import hashlib
 from pathlib import Path
 
 from ..files import STAGED, entry_stamps, file_stamp
-from ..interaction_log import INTERACTIONS_FILE
-from ..schema import DATA_DIR, EVENTS_FILE, SESSION_FILES, VIEWED_FILE
+from ..schema import (
+    DATA_DIR,
+    EVENTS_FILE,
+    INTERACTIONS_FILE,
+    SESSION_FILES,
+    VIEWED_FILE,
+)
 from ..service import claim_path
 
 # Diagnostic writes cannot move application state. The server writes `viewed.json`

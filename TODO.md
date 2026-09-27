@@ -96,14 +96,6 @@ and its chrome coordinate.
   `--layout-columns: 3fr 2fr`, stacking below 720px, would carry it. A bounded box of
   panes outside a workspace also restates the Layout's pane scrolling (the feature
   gallery), which could key on `--lf-held` instead.
-- **Keep a held workspace's panes, not its header, in the window.** At 1000×800
-  alert-review's header and footer leave its detail pane about 370px, so the first Ask
-  option is cut by the footer; rust-sort's film controls fall under the fold at 1200px.
-- **Give a held workspace's overflow its end room.** A held workspace is exactly the
-  window's height, and only its body's direct cells pass that height on: a pane inside a
-  section cell flows, overflows `main`, and its end scrolls under the bottom band with no
-  end room after it (`test_a_held_workspace_that_overflows_scrolls_its_end_clear_of_the_band`
-  is xfail on it). The body could scroll as a whole where a cell does not bound itself.
 - **Give a declared rail a floor.** `data-rail="right"` makes the shell give up the
   rail's width at every width, so on a phone it leaves a 295px column. The margin pass
   admits residents by measuring the room they leave (`settleResidency`), which a rail

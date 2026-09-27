@@ -89,7 +89,27 @@
    * the body has a definite height to fill (a style query). Where the window is too
    * small to hold the regions, the workspace flows and the page scrolls. */
   main.layout-workspace { padding-block-start: var(--sp-4); }
-  main.layout-workspace > header { padding-block: 0 var(--sp-3); --lf-block-frame: 1; }
+  /* The header takes the window's height before the panes do, so it is one row: the
+   * title at a heading's ordinary size with the page's status beside it, wrapping only
+   * where the row runs out. What a lede would say belongs in a pane. */
+  main.layout-workspace > header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--sp-1) var(--sp-3);
+    padding-block: 0 var(--sp-3);
+    --lf-block-frame: 1;
+  }
+  main.layout-workspace > header > * { margin-block: 0; }
+  /* A body that is not itself a pane is a reading region of the Layout's own, which the
+   * runtime registers from this mark (reading-regions.js, `syncLayoutRegion`), so a pane
+   * it carries scrolls with it wherever something asks which box scrolls that pane. */
+  main.layout-workspace > :not(header, footer, lf-pane) { --lf-reading-region: layout; }
+  main.layout-workspace > header h1 {
+    font-size: var(--t-2);
+    line-height: 1.25;
+    letter-spacing: -0.008em;
+  }
   @media screen and (min-width: 720px) and (min-height: 480px) {
     main.layout-workspace {
       --lf-held: 1;
@@ -106,6 +126,11 @@
       margin-block: 0;
       grid-auto-rows: minmax(0, 1fr);
     }
+    /* The body takes the window's height to pass on to its panes. A pane it does not
+     * pass the height to, one inside a section of the body, takes its content's height
+     * instead, so the body scrolls as a whole rather than run past the window's foot. A
+     * body that is a pane scrolls its own body already. */
+    main.layout-workspace > :not(header, footer, lf-pane) { overflow: auto; }
     /* A pane is already a grid of header, body and footer (the default package), whose body
      * row takes what a definite height leaves and its content's height otherwise; here it
      * may shrink below its content, and scrolls. That holds for a pane the workspace

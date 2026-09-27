@@ -173,13 +173,15 @@ glance.
 
 `<main class="layout-workspace">` fills the window's height below the banner: its
 `header` and `footer` take what they hold, and its one body between them takes the
-rest. The body is one `lf-pane`, a widget that composes its own regions, or the page's
-own grid of panes, such as a queue beside its detail, which the page's `<style>`
-places:
+rest. The header is one row, the title with the page's state beside it as `.tag`
+chips, so the panes keep the window: write no lede, eyebrow or legend there, and put
+what a lede would say at the top of the pane it is about. The body is one `lf-pane`, a
+widget that composes its own regions, or the page's own grid of panes, such as a queue
+beside its detail, which the page's `<style>` places:
 
 ```html
 <main class="layout-workspace">
-  <header><h1>…</h1></header>
+  <header><h1>…</h1><p><span class="tag warn">…</span></p></header>
   <div id="regions">
     <lf-pane id="queue" label="Queue">…</lf-pane>
     <lf-pane id="detail" label="Detail">…</lf-pane>

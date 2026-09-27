@@ -1,0 +1,37 @@
+schema_version: '1.0'
+name: workspace-header-is-one-row
+description: "Writing a workspace: its header takes the window's height before the panes do, so it holds the title and the page's status and nothing a pane could hold."
+tags:
+- layout
+execution:
+  prompt: |
+    Write a Leaf page for the user as a workspace. It reviews 14 flaky tests from last
+    week's CI: a list of the tests on the left, ordered by how often each failed, and on
+    the right the selected test's failure log excerpt with a choice of what to do with it
+    (quarantine, fix now, or delete). Three are already quarantined and five fail more
+    than half the time; the page should say so. The user reads it on a laptop at about
+    1280 by 800, and asked you to explain in a sentence or two what the page is for and
+    what you will do once they have chosen.
+
+    The page directory is not reachable from here, so reply with the complete
+    `index.html`, rather than writing a file.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-page-authoring
+  type: tool_used
+  tool: Read
+  input_match: page-authoring
+- name: judgment
+  type: llm
+  criteria: |
+    Read the HTML. Pass only if `main` has class `layout-workspace` and its `header`
+    holds the title and, at most, the page's status as short chips or one short line of
+    them (for example `.tag` spans saying how many are quarantined or fail often): no
+    paragraph explaining the page, no eyebrow, no lede, no legend or instructions. The
+    sentence or two the user asked for must still be on the page, inside a pane or
+    region of the body (for example at the top of the list pane or the detail pane).
+    Fail if the header holds a lede or explanatory paragraph, or if the explanation was
+    dropped from the page entirely.

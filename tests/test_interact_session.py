@@ -1823,6 +1823,28 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
     assert codex["activity"]["kind"] == "away"
 
     assert page_state(claimed)["activity"]["kind"] == "listening"
+    claim = service_model.page_claim(claimed)
+
+    # A stale status does not mask the open turn's own deadline: with the status
+    # already quiet, listening's only remaining source is the turn, so its own
+    # working-grace boundary must still be scheduled, or the browser is left
+    # showing Listening past the point the turn can plausibly still be running.
+    opened = (now - timedelta(minutes=1)).replace(microsecond=0)
+    files_model.write_json(
+        service_model.claim_path(claimed),
+        {**claim, "turn_opened": opened.isoformat()},
+    )
+    files_model.write_json(
+        claimed / "status.json",
+        {"state": "waiting", "detail": "", "ts": "2020-01-01T00:00:00+00:00"},
+    )
+    listening = page_state(claimed)["activity"]
+    assert listening["kind"] == "listening"
+    assert (
+        listening["next_transition_at"]
+        == (opened + activity_model.WORKING_GRACE).isoformat()
+    )
+
     # The fresh turn is someone there under a working declaration gone stale too,
     # so that old work reads stalled rather than away.
     files_model.write_json(

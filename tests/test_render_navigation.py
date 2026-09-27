@@ -3621,10 +3621,17 @@ def test_an_inline_thread_wears_the_ring_only_while_the_keyboard_stands_on_it(
     )
     thread = page.locator(".lf-margin-preview .lf-page-thread")
     note = page.locator("#p .lf-mark-note")
-    paint = """el => { const s = getComputedStyle(el); return {
-      outline: s.outlineStyle, offset: s.outlineOffset, background: s.backgroundColor,
-      shadow: s.boxShadow,
-    }; }"""
+    # The thread draws its ring on a pseudo-element over its contents (shadow.css), so
+    # the outline is read off whichever of the two boxes carries one.
+    paint = """el => {
+      const s = getComputedStyle(el);
+      const after = getComputedStyle(el, '::after');
+      const ring = after.content !== 'none' && after.outlineStyle !== 'none' ? after : s;
+      return {
+        outline: ring.outlineStyle, offset: ring.outlineOffset,
+        background: s.backgroundColor, shadow: s.boxShadow,
+      };
+    }"""
 
     note.click()
     expect(thread).to_be_focused()

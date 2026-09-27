@@ -1936,7 +1936,20 @@ lf-tree .lf-tree-badge.del { background: var(--danger-tint); color: var(--danger
 @property --lf-code-gutter { syntax: "<length>"; inherits: true; initial-value: 38px; }
 lf-code.lf-rendered pre { padding: 12px 0; --lf-block-frame: 1;
              --lf-code-gutter: max(38px, calc(var(--lf-code-digits, 2) * 1ch + 16px)); }
-lf-code.lf-rendered pre:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: code-pre-light;
+/* The block's ring is drawn over its lines by the host rather than as the <pre>'s own
+   outline, which paints with the <pre>'s in-flow content: a note row is sticky, so it
+   paints after that and took the ring's side runs where it crosses them. The host's
+   pseudo-element is positioned and follows every row in tree order, so it paints over
+   them at the same level. The host is
+   the carrier because the <pre> scrolls, and a box positioned inside a scroller moves
+   with what it scrolls; the host holds nothing else and the <pre>'s margin collapses
+   through it, so the two boxes are one. */
+lf-code.lf-rendered { position: relative; }
+lf-code.lf-rendered pre:is(:focus-visible, .lf-focus-visible) { outline: none; }
+lf-code.lf-rendered:has(> pre:is(:focus-visible, .lf-focus-visible))::after {
+             content: ""; position: absolute; inset: 0; pointer-events: none;
+             border-radius: var(--r);
+             outline: var(--here-ring); --lf-here-ring: code-pre-light;
              outline-offset: calc(-1 * var(--here-ring-w)); }
 /* An hi range's tint has to run the whole scrolled line, not stop at the fold. The diff
    package answers the same question on its own rows, but from the track rather than the

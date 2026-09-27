@@ -63,9 +63,11 @@ interaction-only change, keep both previews live and hand off the labeled URL
 pair with the action that reveals the difference.
 
 Exercise the same journey in baseline and candidate at the same fragment,
-viewport, theme, and interaction state. A live preview handed to the user
-carries the fragment of the semantic block it is about (a titled section's own
-id) and stays running.
+viewport, theme, and interaction state. Capture each state that draws a box the
+change touches, not only the page at rest: a padding moved for layout can put a
+row over a focus ring that is drawn only while the element is focused. A live
+preview handed to the user carries the fragment of the semantic block it is
+about (a titled section's own id) and stays running.
 
 ## Preview a shipped example
 

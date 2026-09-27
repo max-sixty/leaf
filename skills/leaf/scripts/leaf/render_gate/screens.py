@@ -4,9 +4,11 @@ The gate's findings say what is broken; they cannot say whether the page reads w
 which is the author's judgment of a picture. So the check saves the page as a reader
 meets it: top to bottom on a desktop and on a phone, and one screen at each width where
 the page's own arrangement is at its tightest before it changes, or where its margin
-content changes, with that box in view. The screens go to one temporary directory per
-page, emptied at each check, which the check names: the page directory is the page's
-record, and a file there would count as activity on the page.
+content changes, with that box in view. The screens go to one directory per page
+under the state home's screens/, which the check names; a check writes a fresh
+directory beside it and then puts it in its place, so a reader never meets half of one
+check's screens and half of another's. The page directory is the page's record, and a
+file there would count as activity on the page.
 
 A screen is the window as the reader sees it, fixed chrome included, scrolled by most
 of a window at a time, because the document is the page's scroller and a full-page
@@ -17,6 +19,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
+from leaf.machine import state_home
 from leaf.render_checks import RENDER_VIEWPORT, rendered, wait_until_ready
 
 PHONE = {"width": 390, "height": 844}
@@ -58,7 +61,7 @@ def _down_the_page(page, into: Path, stem: str) -> list[Path]:
 def screens_dir(page_dir: Path) -> Path:
     """The page's screens directory, the same for every check of that page."""
     key = hashlib.sha256(str(page_dir.resolve()).encode()).hexdigest()[:12]
-    return Path(tempfile.gettempdir()) / f"leaf-screens-{page_dir.name}-{key}"
+    return state_home() / "screens" / f"{page_dir.name}-{key}"
 
 
 def save_screens(
@@ -66,10 +69,9 @@ def save_screens(
 ) -> tuple[Path, list[tuple[Path, str]]]:
     """Save the screens for `reading`'s page, replacing the last check's; return their
     directory and each file with what it shows."""
-    into = screens_dir(page_dir)
-    if into.exists():
-        shutil.rmtree(into)
-    into.mkdir(parents=True)
+    final = screens_dir(page_dir)
+    final.parent.mkdir(exist_ok=True)
+    into = Path(tempfile.mkdtemp(dir=final.parent, prefix=f".{final.name}-"))
     saved = []
 
     def whole(viewport, phone, label):
@@ -101,4 +103,7 @@ def save_screens(
     for width in reading.margin_widths:
         one(width, "main", "margin", "where the page's margin content changes")
     whole(PHONE, True, "phone")
-    return into, saved
+    if final.exists():
+        shutil.rmtree(final)
+    into.rename(final)
+    return final, [(final / shot.name, label) for shot, label in saved]

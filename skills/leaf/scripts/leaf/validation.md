@@ -102,9 +102,10 @@ into rows, and the swept widths where that changes.
 A version that passes gets screens for the author to read (`render_gate/screens.py`):
 the page top to bottom at the desktop viewport and on a 390px phone, and one screen at
 each swept width where the page's arrangement is at its tightest before it changes, and
-at each margin width. They go to one temporary directory per page, emptied at each
-check, which the command names. They are the command's, not the gate's: the suite reads
-render_version and takes none.
+at each margin width. They go to one directory per page under the state home's
+`screens/`, replaced whole at each check, which the command names. The arrangement is
+read with the sweep, a few milliseconds a width; the screens are the command's, not the
+gate's, and the suite, which reads render_version, takes none.
 The invariants live in render_version, which the tests/test_render_*.py modules drive over
 the shipped examples. The suite uses Chromium's headless shell, while its
 end-to-end render-check tests run the launches used here — the installed Chrome

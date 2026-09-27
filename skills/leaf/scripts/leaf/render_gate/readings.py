@@ -448,23 +448,29 @@ MARGIN_READING = (
 
 
 # How the page's own arrangement stands: for each flex or grid box the page wrote (a
-# Layout, or the page's own grid), how many of its children stand in each row, as
-# `name:counts` (`#regions:1+2`, a header across a body and its track). A widget's
-# insides are the widget's own business and are left out, as is Leaf's chrome.
-ARRANGEMENT_READING = """() => {
+# Layout, or the page's own grid), how many of its children stand in each row. The walk
+# goes through the widgets whose entry says they hold the page's markup or members
+# (`open`, from the registry's x-content), since a pane's or a tab's content is the page's
+# own, but a widget's own box is the widget's business and is not read, and nothing Leaf
+# generates is. Each box comes back with a selector that names it by its place under
+# `main`, which is unique and needs no escaping, and a name to say it by.
+ARRANGEMENT_READING = """(open) => {
   const main = document.querySelector('main');
   if (!main) return [];
-  const own = (el) => !el.tagName.includes('-') && !el.matches('.lf-ui, [data-lf-gen]');
+  const opens = new Set(open);
   const boxes = [];
-  const walk = (el) => {
-    if (!own(el)) return;
-    boxes.push(el);
-    for (const child of el.children) walk(child);
+  const walk = (el, path) => {
+    if (el.matches('.lf-ui, [data-lf-gen]')) return;
+    const widget = el.tagName.includes('-');
+    if (widget && !opens.has(el.tagName.toLowerCase())) return;
+    if (!widget) boxes.push([el, path]);
+    [...el.children].forEach((child, i) =>
+      walk(child, `${path} > :nth-child(${i + 1})`));
   };
-  walk(main);
+  walk(main, 'main');
   const name = (el) => el.id ? '#' + el.id
     : el === main ? 'main' : el.tagName.toLowerCase() + (el.classList.length ? '.' + el.classList[0] : '');
-  return boxes.flatMap((box) => {
+  return boxes.flatMap(([box, path]) => {
     if (!/flex|grid/.test(getComputedStyle(box).display)) return [];
     const tops = [...box.children]
       .map((child) => child.getBoundingClientRect())
@@ -476,7 +482,7 @@ ARRANGEMENT_READING = """() => {
       const row = rows.find((r) => Math.abs(r.top - top) <= 2);
       row ? row.count++ : rows.push({ top, count: 1 });
     }
-    return [name(box) + ':' + rows.map((r) => r.count).join('+')];
+    return [{ path, name: name(box), rows: rows.map((r) => r.count).join('+') }];
   });
 }"""
 
@@ -488,7 +494,16 @@ def _settle_at(page, width: int, height: int) -> None:
     rendered(page)
 
 
-def sweep(page, viewports) -> list[tuple[int, dict]]:
+def open_widgets(registry: dict) -> list[str]:
+    """The widgets whose content is the page's own markup or members."""
+    return [
+        tag
+        for tag, entry in registry.items()
+        if tag.startswith("lf-") and entry.get("x-content") in ("markup", "members")
+    ]
+
+
+def sweep(page, viewports, open_tags) -> list[tuple[int, dict]]:
     """The loaded page's geometry at every sweep width, widest first.
 
     Resizes the loaded page rather than rendering it again, and reads only geometry:
@@ -511,7 +526,7 @@ def sweep(page, viewports) -> list[tuple[int, dict]]:
                     "overflow": evaluate_probe(page, "rootOverflow"),
                     "misplaced": evaluate_probe(page, "misplacedBoxes"),
                     "margin": page.evaluate(MARGIN_READING),
-                    "arrangement": page.evaluate(ARRANGEMENT_READING),
+                    "arrangement": page.evaluate(ARRANGEMENT_READING, open_tags),
                 },
             )
         )
@@ -528,12 +543,14 @@ def arrangement_changes(readings) -> list[tuple[int, str, str]]:
     author most needs to see."""
     changes = []
     for (high, above), (_low, below) in pairwise(readings):
-        wide = dict(entry.rsplit(":", 1) for entry in above["arrangement"])
-        narrow = dict(entry.rsplit(":", 1) for entry in below["arrangement"])
-        moved = [box for box, rows in wide.items() if narrow.get(box) != rows]
+        wide = {box["path"]: box for box in above["arrangement"]}
+        narrow = {box["path"]: box["rows"] for box in below["arrangement"]}
+        moved = [path for path, box in wide.items() if narrow.get(path) != box["rows"]]
         if moved:
             said = "; ".join(
-                f"{box} {wide[box]} → {narrow.get(box, 'unarranged')}" for box in moved
+                f"{wide[path]['name']} {wide[path]['rows']} → "
+                f"{narrow.get(path, 'unarranged')}"
+                for path in moved
             )
             changes.append((high, moved[0], said))
     return changes

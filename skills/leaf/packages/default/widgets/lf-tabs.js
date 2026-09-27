@@ -16,11 +16,14 @@
  * never read past it. A link inside a panel is still fragment travel (history.js).
  * Embedded tab sets retain the ordinary framed-widget behavior.
  * While the version diff is on, a tab whose panel holds marked passages wears
- * a Δ count, so a change can't hide behind an inactive tab. A tab whose panel holds
- * Asks the user still owes counts them, read from the page's Ask selection, so an
- * answer waiting behind an inactive tab shows in the list that opens it. With
- * `list="side"` the list stands beside the panels, a queue beside the item it opens,
- * and is walked up and down as well as across (theme.css says where it stacks). Unupgraded,
+ * a Δ count, so a change can't hide behind an inactive tab. With `list="side"` the
+ * list stands beside the panels, a queue beside the item it opens, walked up and down
+ * as well as across (theme.css says where it stacks). Each row there is its name, the
+ * panel's `summary` under it, and a count of the Asks in the panel the user still
+ * owes, read from the page's Ask selection; the row is tall enough for the count, so
+ * an answer moves nothing. The tab's accessible name stays its name, and the summary
+ * and count are its description. A side list is a list, not a cover: even as the
+ * page's root set it neither sticks nor claims scroll padding. Unupgraded,
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
 import {
@@ -73,6 +76,7 @@ customElements.define(
     #strip = null;
     #covering = false;
     #stopAsks = null;
+    #side = false;
 
     connectedCallback() {
       if (!once(this)) {
@@ -102,6 +106,7 @@ customElements.define(
       this.#strip = strip;
       strip.setAttribute("role", "tablist");
       const side = this.getAttribute("list") === "side";
+      this.#side = side;
       if (side) strip.setAttribute("aria-orientation", "vertical");
       for (const panel of panels) {
         const btn = selectableOffer("tab", "lf-tab-btn");
@@ -109,6 +114,7 @@ customElements.define(
         const name = document.createElement("span");
         relabel(name, panel.getAttribute("label"), { says: true });
         btn.append(name);
+        if (side) btn.setAttribute("aria-label", panel.getAttribute("label"));
         // A queue's row says more than its name: in a side list the panel's `summary`
         // stands under it, the page's words like the name.
         if (side && panel.hasAttribute("summary")) {
@@ -232,13 +238,13 @@ customElements.define(
     }
 
     #listenForAsks() {
-      if (!this.#buttons.size || this.#stopAsks) return;
+      if (!this.#side || !this.#buttons.size || this.#stopAsks) return;
       this.#stopAsks = watchAsks(this, () => this.#owed());
       this.#owed();
     }
 
-    // One count per tab whose panel holds Asks the user still owes, from the page's one
-    // Ask selection; a tab with none wears nothing.
+    // A side list's rows count the Asks in their panel the user still owes, from the
+    // page's one Ask selection, and say the count and summary as the tab's description.
     #owed() {
       const owed = openAsks()
         .map((ask) => document.getElementById(ask.sourceId))
@@ -246,18 +252,20 @@ customElements.define(
       for (const [panel, btn] of this.#buttons) {
         const n = owed.filter((element) => panel.contains(element)).length;
         let chip = btn.querySelector(".lf-tabowed");
-        if (!n) {
-          chip?.remove();
-          continue;
-        }
         if (!chip) {
           chip = document.createElement("span");
           chip.className = "lf-tabowed";
+          chip.setAttribute("aria-hidden", "true");
           btn.append(chip);
         }
-        const said = String(n);
+        const said = n ? String(n) : "";
         if (chip.textContent !== said) chip.textContent = said;
-        chip.title = n === 1 ? "1 Ask waits on you" : `${n} Asks wait on you`;
+        const words = n === 1 ? "1 Ask waits on you" : n ? `${n} Asks wait on you` : "";
+        const description = [panel.getAttribute("summary"), words]
+          .filter(Boolean)
+          .join(". ");
+        if (description) btn.setAttribute("aria-description", description);
+        else btn.removeAttribute("aria-description");
       }
     }
 
@@ -374,7 +382,7 @@ customElements.define(
     // withdraws one, and a tab set nested in a root panel never clears the root's. A strip
     // that leaves the document is let go on its own.
     #declareCover() {
-      const covering = this.#root && Boolean(this.#strip?.isConnected);
+      const covering = this.#root && !this.#side && Boolean(this.#strip?.isConnected);
       if (!covering && !this.#covering) return;
       this.#covering = covering;
       declareCoverRoom(

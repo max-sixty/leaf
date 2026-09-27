@@ -5,9 +5,10 @@ lay a page out in its own HTML and CSS? This harness answers that with paired au
 runs. It is the first slice of #19 in `notes/workspace-followups.md`, built from the
 harness shape in `notes/agent-usability-evals.md`.
 
-This note is the harness, not its results. A run's findings go to whoever acts on them:
-the pull request or page that reports the run, and a follow-up for each defect in the
-backlog (#19 in `notes/workspace-followups.md` lists the first run's).
+This note is the harness. A run's scores and verdicts are committed in `results/` for
+the next run to compare against; its findings go to whoever acts on them: the pull
+request or page that reports the run, and a follow-up for each defect in the backlog
+(#19 in `notes/workspace-followups.md` lists the first run's).
 
 ## State of the harness
 

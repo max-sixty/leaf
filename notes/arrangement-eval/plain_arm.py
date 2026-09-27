@@ -277,8 +277,19 @@ def patch_packages(skill: Path) -> None:
         ),
         (
             "monitoring/guidance/author.md",
-            'beside a side track, `<main class="layout-sidebar">`.',
-            "beside a side track.",
+            'beside its `aside`, `<main class="layout-sidebar">` with the `aside` written'
+            " after the body.",
+            "beside a side track written after it.",
+        ),
+        (
+            "monitoring/guidance/author.md",
+            "observed and required values in the `aside`.",
+            "observed and required values in the side track.",
+        ),
+        (
+            "monitoring/guidance/author.md",
+            "rollback procedure in the `aside` or below",
+            "rollback procedure in the side track or below",
         ),
         (
             "monitoring/guidance/author.md",

@@ -33,4 +33,7 @@ graders:
     keep them side by side. The checklist is kept in view with `position: sticky` whose
     `top` clears Leaf's banner through one of its properties, `var(--lf-top)` or
     `var(--lf-banner-h)`, alone or in a `calc`; fail if its `top` is a fixed length or
-    `0`, which puts it under the banner.
+    `0`, which puts it under the banner. The sticking holds only while the two stand side
+    by side: fail if `position: sticky` applies at every width rather than inside a
+    min-width media or container query, since on a phone the stuck checklist would stand
+    over the log.

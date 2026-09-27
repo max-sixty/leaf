@@ -60,8 +60,10 @@ thread the log lacks is a mistake in the declaration, and refuses it.
 ## Delivery policy
 
 The document policy cannot restrict ancestors when delivered through `<meta>`. Every
-ordinary served HTML response therefore adds `frame-ancestors 'none'`. Historical
-version routes receive the current document policy and the same header. A standalone
+ordinary served HTML response therefore adds `frame-ancestors 'none'`
+(`structure.FRAME_ANCESTORS_CSP`). Historical version routes receive the current
+document policy and the same header. The published site's Worker adds the same header
+to the HTML it serves from its own assets, reading it from the site manifest. A standalone
 file has no response header and cannot make this framing guarantee. The process-scoped
 MCP page server omits the header because its exact, ephemeral origin is intentionally
 framed by the host that approved it; the unguessable page path remains that transport's

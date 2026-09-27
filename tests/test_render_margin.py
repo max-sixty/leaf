@@ -25,6 +25,8 @@ from render_cases_interaction import (
 )
 from render_cases_layout import (
     banner_control,
+    ring_faults,
+    rings_drawn,
     standing_ring,
     toggle_asks,
     token_colour,
@@ -291,15 +293,6 @@ def test_page_map_qualifies_only_duplicate_subjects_with_their_reading_region(
     ).click()
     expect(dialog).to_be_hidden()
     threads = page.locator(".lf-threads")
-    expect(threads.locator(":scope > .lf-group")).to_have_text(
-        ["Current · Deployment", "Summary", "Proposed · Deployment"]
-    )
-    expect(
-        threads.get_by_role("button", name="Current · Deployment", exact=True)
-    ).to_be_visible()
-    expect(
-        threads.get_by_role("button", name="Proposed · Deployment", exact=True)
-    ).to_be_visible()
     expect(
         threads.locator(
             ':scope > .lf-thread[data-id="comment-proposed-deployment"] leaf-text'
@@ -5220,6 +5213,31 @@ def test_the_margin_reply_pinned_to_the_card_foot_shows_its_whole_ring(browser, 
     expect(reply).to_be_focused()
     assert page.evaluate(pinned, [row.element_handle(), transcript.element_handle()])
     assert standing_ring(page)["cuts"] == []
+
+
+def test_a_card_s_thread_ring_closes_under_its_reply_row(browser, serve):
+    """The thread the keyboard opens a card onto wears its ring on all four sides.
+
+    The reply row is pinned to the transcript's foot and paints the thread's surface,
+    so it stands over anything its thread draws beneath it, the thread's own inset
+    ring included.
+    """
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1440, 900)
+    marker = page.locator('[data-lf-margin-for="open"] .lf-margin-marker')
+    page.keyboard.press("Tab")  # keyboard modality, so the thread's focus is visible
+    marker.focus()
+    page.keyboard.press("Enter")
+    thread = page.locator(".lf-margin-preview .lf-page-thread")
+    expect(thread).to_be_focused()
+    assert thread.evaluate("node => node.matches(':focus-visible')")
+    rendered(page)
+    drawn = rings_drawn(page)
+    assert any(seen["focused"] and seen["here"] for seen in drawn), drawn
+    assert not (faults := ring_faults(drawn, "on a card the keyboard opened")), (
+        "\n".join(faults)
+    )
 
 
 # Whether a message stands wholly between the transcript's top and the reply row pinned

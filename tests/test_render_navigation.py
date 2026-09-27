@@ -3621,10 +3621,17 @@ def test_an_inline_thread_wears_the_ring_only_while_the_keyboard_stands_on_it(
     )
     thread = page.locator(".lf-margin-preview .lf-page-thread")
     note = page.locator("#p .lf-mark-note")
-    paint = """el => { const s = getComputedStyle(el); return {
-      outline: s.outlineStyle, offset: s.outlineOffset, background: s.backgroundColor,
-      shadow: s.boxShadow,
-    }; }"""
+    # The thread draws its ring on a pseudo-element over its contents (shadow.css), so
+    # the outline is read off whichever of the two boxes carries one.
+    paint = """el => {
+      const s = getComputedStyle(el);
+      const after = getComputedStyle(el, '::after');
+      const ring = after.content !== 'none' && after.outlineStyle !== 'none' ? after : s;
+      return {
+        outline: ring.outlineStyle, offset: ring.outlineOffset,
+        background: s.backgroundColor, shadow: s.boxShadow,
+      };
+    }"""
 
     note.click()
     expect(thread).to_be_focused()
@@ -3945,7 +3952,6 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
               const target = compose.getBoundingClientRect();
               const clear = parseFloat(getComputedStyle(list).scrollPaddingTop) || 0;
               const start = view.top + clear;
-              const head = list.querySelector('.lf-pinned').getBoundingClientRect();
               const blocks = [...thread.querySelectorAll(
                 ':scope > *, :scope > .lf-msg .lf-msg-body > *, ' +
                 ':scope > .lf-msg .lf-msg-text > *'), compose]
@@ -3962,7 +3968,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
                   range.setStart(text, i);
                   range.setEnd(text, Math.min(i + 1, text.length));
                   const line = range.getBoundingClientRect();
-                  if (line.width && line.top < head.bottom && line.bottom > head.bottom)
+                  if (line.width && line.top < start && line.bottom > start)
                     lines.push(line.toJSON());
                 }
               }
@@ -3973,9 +3979,6 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
         )
         assert landing["target"]["bottom"] <= landing["listBottom"]
         # A list scrolled to its limit has no travel left to align a content block.
-        # The click can follow the panel's first opening within a frame, before the
-        # pinned heading's first observation; the landing measures that heading's
-        # room itself (geometry.js, `declareCoverRoom`).
         if landing["scroll"] and landing["scroll"] < landing["maximumScroll"] - 1:
             assert any(
                 block["top"] == pytest.approx(landing["start"], abs=2)

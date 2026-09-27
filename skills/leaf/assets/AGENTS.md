@@ -294,6 +294,11 @@ layout, composed trees, module writes, focus, and replay idempotence.
 Readings of widget state use the publisher's own reading; never write a test-only
 interpretation of it.
 
+The gates judge contracts, not how the page looks. A change to what the page
+draws, including one made for geometry, is proved with before/after screenshots
+of each state it touches (`/developing-leaf`, "Prove and hand off a visible
+change").
+
 ## Working on the runtime
 
 `scripts/browser/build.mjs` compiles the TypeScript foundation into

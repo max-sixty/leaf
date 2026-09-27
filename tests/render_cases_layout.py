@@ -1713,7 +1713,7 @@ RINGS_DRAWN = f"""async () => {{
       if (isHereRing(el, cs)) claimed.push({{ el, cs, name: ringName(cs) }});
       const after = getComputedStyle(el, '::after');
       if (after.content !== 'none' && isHereRing(el, after))
-        claimed.push({{ el, cs: after, name: ringName(after) }});
+        claimed.push({{ el, cs: after, name: ringName(after), pseudo: true }});
     }}
   if (focused && focused !== document.body && focused !== document.documentElement
       && !claimed.some((claim) => claim.el === focused)) {{
@@ -1721,7 +1721,7 @@ RINGS_DRAWN = f"""async () => {{
     claimed.push({{ el: focused, cs, name: ringName(cs) }});
   }}
   const answers = [];
-  for (const {{ el, cs, name }} of claimed) {{
+  for (const {{ el, cs, name, pseudo }} of claimed) {{
     // A ring on something the browser is not rendering is not on screen, and its box is
     // whatever the last layout left behind. An inactive lf-tab is the case: it carries
     // `hidden="until-found"`, so the UA gives it `content-visibility: hidden`, its
@@ -1863,6 +1863,24 @@ RINGS_DRAWN = f"""async () => {{
       return false;
     }};
     const scrolledTo = el === focused;
+    // Whether a box inside the control paints after the ring. The control's own outline
+    // paints with its in-flow content, so a descendant standing on it paints beneath it
+    // unless a positioned box, itself or one between it and the control, lifts it into
+    // the positioned layer painted afterwards. The margin card's reply row was the case:
+    // pinned to the transcript's foot and painting the thread's surface, it took the
+    // bottom run of the thread's inset ring while this reading excused everything inside
+    // the control as the control itself. A ring carried by a positioned `::after` is in
+    // that layer already, at its own z-index and after every descendant in tree order,
+    // so only a descendant lifted to a higher z-index stands over it.
+    const carrier = pseudo && cs.position !== 'static' ? (parseFloat(cs.zIndex) || 0) : null;
+    const lifted = (n) => {{
+      let lift = null;
+      for (let a = n; a && a !== el; a = above(a)) {{
+        const s = getComputedStyle(a);
+        if (s.position !== 'static') lift = Math.max(lift ?? 0, parseFloat(s.zIndex) || 0);
+      }}
+      return lift !== null && (carrier === null || lift > carrier);
+    }};
     // Each run sampled in the middle of the part of it that is on screen, rather than in
     // the middle of the whole run. They differ for anything taller or wider than the
     // window, and then the plain midpoint is a point the user cannot see: an option
@@ -1888,7 +1906,14 @@ RINGS_DRAWN = f"""async () => {{
     ] : []) {{
       if (x < 0 || y < 0 || x > innerWidth || y > innerHeight) continue;
       for (const over of document.elementsFromPoint(x, y)) {{
-        if (over === el || holds(el, over) || holds(over, el)) break;
+        if (over === el || holds(over, el)) break;
+        if (holds(el, over)) {{
+          if (!lifted(over)) break;
+          if (!paints(over)) continue;
+          covers.push(`its ${{side}} edge is under ` + named(over) + `, inside it`
+                      + ` (ring ${{at(ring)}}, sampled ${{Math.round(x)}},${{Math.round(y)}})`);
+          break;
+        }}
         if (!paints(over)) continue;
         if (!scrolledTo && fixedOver(over)) break;
         // Is the control itself under this too? Where a control stands partly behind
@@ -1907,8 +1932,8 @@ RINGS_DRAWN = f"""async () => {{
         // every covered inset ring answered that the control was behind the same thing
         // and was dropped without a word. The rings the panel's own list draws are all
         // inset, so this went blind in the same commit that made them so — a thread
-        // lying two pixels under its stuck run heading is a card with three sides, and
-        // the gate written to catch exactly that reported nothing.
+        // lying two pixels under a cover is a card with three sides, and the gate
+        // written to catch exactly that reported nothing.
         const step = grow + w + 1;
         const inx = x + (side === 'left' ? step : side === 'right' ? -step : 0);
         const iny = y + (side === 'top' ? step : side === 'bottom' ? -step : 0);
@@ -2016,13 +2041,9 @@ COVERED_TOP = """() => {
   const box = document.querySelector('.lf-threads');
   if (!el || !box.contains(el)) return null;
   const r = el.getBoundingClientRect();
-  const over = document.elementsFromPoint((r.left + r.right) / 2, r.top + 1)
-    .find((n) => n !== el && !el.contains(n) && !n.contains(el)
-                 && n.classList.contains('lf-pinned'));
-  if (!over) return null;
-  const o = over.getBoundingClientRect();
-  return `${over.textContent.trim().slice(0, 32)} covers it down to `
-         + `${Math.round(o.bottom - r.top)}px in`;
+  const top = box.getBoundingClientRect().top + box.clientTop;
+  if (r.top >= top - 0.5) return null;
+  return `the list's top edge cuts it ${Math.round(top - r.top)}px in`;
 }"""
 
 

@@ -1,0 +1,56 @@
+schema_version: '1.0'
+name: record-asks-hold-their-premise
+description: "Asks: on a record page, an Ask about a finding holds the finding's claim and its distinguishing figure inside the lf-ask, and a tall live demo follows it."
+tags:
+- asks
+execution:
+  prompt: |
+    You are writing a Leaf page that records six focus gaps you found in a chat
+    widget, one section per gap, each putting a question to the user. Write the
+    section for this gap.
+
+    Your notes:
+    - Finding: a second message sent from a task's own message box starts a second
+      thread instead of continuing the first.
+    - Measured: after the first send, focus stays in the task's box, so the next
+      message the user writes becomes a new thread under the task. Two sends make two
+      threads.
+    - The user decides where the user should continue after a send from the task's
+      box: in the new thread's reply box (your proposal), or in the task's box as today.
+    - You already drew a before/after figure with the two threads today beside one
+      thread proposed. Include it verbatim as
+      `<figure id="seat-figure"><svg class="drawing" viewBox="0 0 680 272"></svg></figure>`.
+    - You also built a live demo the user can operate: two numbered steps, then
+      `<lf-specimen id="seat-specimen" label="practice plan"><template data-specimen><!-- demo page --></template></lf-specimen>`,
+      which renders about 700px tall at desktop width.
+
+    The page directory is not reachable from here, so reply with the section's HTML
+    fragment rather than writing a file.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-authoring-asks
+  type: tool_used
+  tool: Read
+  input_match: authoring-asks
+- name: has-asks
+  type: regex
+  pattern: <lf-ask\b
+  flags: i
+- name: judgment
+  type: llm
+  criteria: |
+    Read the HTML fragment as a user who presses `a`, which puts the `lf-ask`'s
+    heading at the top of the screen with everything above it out of view. Pass only
+    if all of these hold:
+    1. There is one `lf-ask` whose first child is a heading stating the question.
+    2. `<figure id="seat-figure">` stands inside that `lf-ask`, before its `lf-options`.
+    3. The `lf-ask` itself says what happens today: focus stays in the task's box, so a
+       second send makes a second thread. Wording may differ; a restatement counts, and
+       so does an option that states it.
+    4. The numbered steps and `<lf-specimen id="seat-specimen">` come after the
+       `lf-options`, not before the `lf-ask` or between its heading and its options.
+    Fail if the figure or the numbered steps and demo stand before the `lf-ask`, with
+    the `lf-ask` holding little more than the question and its options.

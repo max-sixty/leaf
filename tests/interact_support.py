@@ -118,19 +118,21 @@ def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
 
     A shortcut past `page stamp` for a test that stages history directly: it
     runs no gate and no activation, and refuses a revision number already taken."""
+    from leaf.passages import SourceReading
     from leaf.registry.storage import read_page_registry
     from leaf.revision_artifact import capture_artifact, write_artifact
     from leaf.structure import SourceDocument
 
     candidate = read_page_registry(page_dir)
+    reading = SourceReading(SourceDocument(data.decode("utf-8")), candidate.registry)
     artifact = capture_artifact(
         page_dir,
-        SourceDocument(data.decode("utf-8")),
+        reading.document,
         candidate.registry,
         declaration_sources=candidate.declaration_sources,
         widget_sources=candidate.widget_sources,
     )
-    return write_artifact(page_dir, revision, artifact)
+    return write_artifact(page_dir, revision, artifact, reading)
 
 
 @cache

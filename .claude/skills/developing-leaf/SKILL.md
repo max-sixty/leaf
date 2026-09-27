@@ -247,9 +247,14 @@ A branch may land with a red gate only when every failure also fails on the
 exact merge-base SHA under the same CI job and selection; until it reproduces
 there, it is the branch's. Use the base SHA's
 GitHub Actions run as the control, not a local container or a green run a few
-commits back. Main holds one nightly slot, so a base commit may carry no nightly
-result; push that SHA as a branch and dispatch `ci` on it. A case can differ
-between Linux and a Mac, or between the full suite under `-n 2` and a run alone.
+commits back. `uv run leaf-dev ci-failures` makes that comparison for the pushed
+HEAD, or `HEAD^2` in a pull request's CI checkout, which sits on GitHub's merge
+commit. Its exit 0 proves that every branch job has a result and that each failure
+also fails on the base: a test by node id, but any other step only by name, so
+read both logs for each step it lists as matched by name. Main holds one nightly
+slot, so a base commit may carry no nightly result; the command then prints the
+dispatch that makes one. A case can differ between Linux and a Mac, or between
+the full suite under `-n 2` and a run alone.
 
 `wt merge --no-hooks` lands past a red local hook whose failures reproduce on the
 base, and reuses a passing result when a newer `main` dislodges the merge. Finish

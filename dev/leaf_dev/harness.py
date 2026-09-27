@@ -14,10 +14,10 @@ corpus. Building runs the launcher once, so uv builds the arm's environment befo
 timed run starts.
 
 An A/B command compares two arms, `base` and `head` (`build_pair`). Its base is the
-merge base with `main` unless the caller names another ref, so a branch behind `main`
-is compared with where it started rather than with changes it has not merged. A timed
-one prints the machine's load average before and after (`load_average`), since other
-processes' load moves every timing.
+merge base with `main` unless the caller names another ref (`base_ref`), so a branch
+behind `main` is compared with where it started rather than with changes it has not
+merged. A timed one prints the machine's load average before and after
+(`load_average`), since other processes' load moves every timing.
 
 A child is `claude -p` from a scratch cwd outside any repository, with project-only
 settings, no MCP servers, auto-memory off, and none of the variables that identify an
@@ -187,11 +187,16 @@ def build_arm(ref: str, dest: Path) -> str:
     ).stdout.strip()
 
 
+def base_ref(ref: str | None) -> str:
+    """The ref an A/B command compares HEAD against: the one it was handed, else
+    `merge_base()`."""
+    return ref or merge_base()
+
+
 def build_pair(base: str | None, dest: Path) -> tuple[dict[str, Path], dict[str, str]]:
-    """Build an A/B's arms under `dest`: `base` at the ref given, or at `merge_base()`
-    when none is, and `head` at HEAD. Return each arm's directory and its commit,
-    both keyed `base` and `head`."""
-    refs = {"base": base or merge_base(), "head": "HEAD"}
+    """Build an A/B's arms under `dest`: `base` at `base_ref(base)` and `head` at
+    HEAD. Return each arm's directory and its commit, both keyed `base` and `head`."""
+    refs = {"base": base_ref(base), "head": "HEAD"}
     arms = {arm: dest / arm for arm in refs}
     return arms, {arm: build_arm(ref, arms[arm]) for arm, ref in refs.items()}
 

@@ -35,11 +35,10 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import click
-from leaf.render_gate.browser import launch_browser
-from playwright.sync_api import sync_playwright
 
 from leaf_dev import ROOT
 from leaf_dev.bench_latency import SOURCES, TRANSITIONS, served
+from leaf_dev.browser import chrome
 
 OUT = ROOT / ".tmp" / "profile"
 RUNS = 3
@@ -302,18 +301,14 @@ def profile(source: str, transition: str) -> None:
     runs = []
     with (
         tempfile.TemporaryDirectory(prefix="leaf-profile-") as scratch,
-        sync_playwright() as playwright,
+        chrome() as browser,
+        served(browser, "head", ROOT, source, Path(scratch)) as session,
     ):
-        browser, _ = launch_browser(playwright)
-        with served(browser, "head", ROOT, source, Path(scratch)) as session:
-            for run in range(RUNS):
-                session.open()
-                name = f"{source}-{transition}-{run + 1}"
-                session.recording = lambda name=name: recorded(
-                    session, browser, name, runs
-                )
-                getattr(session, transition)(run)
-        browser.close()
+        for run in range(RUNS):
+            session.open()
+            name = f"{source}-{transition}-{run + 1}"
+            session.recording = lambda name=name: recorded(session, browser, name, runs)
+            getattr(session, transition)(run)
     show(runs)
     click.echo(
         f"\nwindows: {statistics.median(ms(r['window']) for r in runs)} ms median; files in {OUT}"

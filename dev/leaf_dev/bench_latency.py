@@ -8,9 +8,9 @@ page is built from this checkout's example source by the arm's own launcher
 (`leaf_dev.harness.build_source`), and served by that arm's `leaf server run
 --temporary`, so the browser runtime and the server both come from the arm. Pages are
 `examples/triage-board.html` and the corpus (`examples/corpus.html`, opened on its
-Triage tab), in one headless Chrome (`launch_browser`) at `leaf_dev.browser.DESKTOP`
-with the Threads panel open. The two arms' pages stay open side by side and take turns
-within each run.
+Triage tab), in one headless Chrome (`leaf_dev.browser.chrome`) at
+`leaf_dev.browser.DESKTOP` with the Threads panel open. The two arms' pages stay open
+side by side and take turns within each run.
 
 Each of RUNS runs reloads the page and times five transitions against the objectives in
 `notes/user-feedback-responsiveness.md`:
@@ -69,12 +69,11 @@ from functools import partial
 from pathlib import Path
 
 import click
-from leaf.render_gate.browser import launch_browser
-from playwright.sync_api import Browser, Page, sync_playwright
+from playwright.sync_api import Browser, Page
 from playwright.sync_api import Error as PlaywrightError
 
 from leaf_dev import ROOT
-from leaf_dev.browser import DESKTOP
+from leaf_dev.browser import DESKTOP, chrome
 from leaf_dev.harness import (
     build_pair,
     build_source,
@@ -593,41 +592,37 @@ def bench_latency(base_ref: str | None) -> None:
     with tempfile.TemporaryDirectory(prefix="leaf-bench-") as built:
         scratch = Path(built)
         arms, commits = build_pair(base_ref, scratch)
-        with sync_playwright() as playwright:
-            browser, _ = launch_browser(playwright)
-            try:
-                for source in SOURCES:
-                    with ExitStack() as stack:
-                        sessions = [
-                            stack.enter_context(
-                                served(browser, arm, arm_dir, source, scratch)
-                            )
-                            for arm, arm_dir in arms.items()
-                        ]
-                        for run in range(RUNS):
-                            # Alternate which arm goes first, so neither always meets
-                            # the machine the other just loaded.
-                            for session in sessions[:: 1 if run % 2 == 0 else -1]:
-                                session.open()
-                                offsets.append(clock_offset(session.page))
-                                for transition in TRANSITIONS:
-                                    result = getattr(session, transition)(run)
-                                    results.append({**result, "run": run})
-                                    click.echo(
-                                        f"{source} {session.arm} run {run + 1} "
-                                        f"{transition}: {result['painted']:.0f} ms",
-                                        err=True,
-                                    )
-                chrome = browser.version
-            finally:
-                browser.close()
+        with chrome() as browser:
+            for source in SOURCES:
+                with ExitStack() as stack:
+                    sessions = [
+                        stack.enter_context(
+                            served(browser, arm, arm_dir, source, scratch)
+                        )
+                        for arm, arm_dir in arms.items()
+                    ]
+                    for run in range(RUNS):
+                        # Alternate which arm goes first, so neither always meets
+                        # the machine the other just loaded.
+                        for session in sessions[:: 1 if run % 2 == 0 else -1]:
+                            session.open()
+                            offsets.append(clock_offset(session.page))
+                            for transition in TRANSITIONS:
+                                result = getattr(session, transition)(run)
+                                results.append({**result, "run": run})
+                                click.echo(
+                                    f"{source} {session.arm} run {run + 1} "
+                                    f"{transition}: {result['painted']:.0f} ms",
+                                    err=True,
+                                )
+            version = browser.version
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "results.json").write_text(
         json.dumps({"commits": commits, "results": results}, indent=1)
     )
     header = (
         f"base {commits['base'][:10]} vs head {commits['head'][:10]}, {RUNS} runs, "
-        f"Chrome {chrome}, {DESKTOP[0]}x{DESKTOP[1]}\n"
+        f"Chrome {version}, {DESKTOP[0]}x{DESKTOP[1]}\n"
         f"load average {load_before} before, {load_average()} after; page clock within "
         f"{max(abs(o) for o in offsets):.1f} ms of Python's\n"
         "times are median [min-max] from input or write to the painted frame"

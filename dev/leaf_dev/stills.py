@@ -41,13 +41,12 @@ from pathlib import Path
 
 import click
 from leaf.render_checks import PageNotReady
-from leaf.render_gate.browser import launch_browser
 from PIL import Image, ImageChops
 from playwright.sync_api import Error as PlaywrightError
-from playwright.sync_api import Page, sync_playwright
+from playwright.sync_api import Page
 
 from leaf_dev import ROOT
-from leaf_dev.browser import BESIDE, DESKTOP, load, settle, tab
+from leaf_dev.browser import BESIDE, DESKTOP, chrome, load, settle, tab
 from leaf_dev.harness import build_pair, serving_source
 
 OUT = ROOT / ".tmp" / "stills"
@@ -280,32 +279,28 @@ def stills(base_ref: str | None) -> None:
     with tempfile.TemporaryDirectory(prefix="leaf-stills-") as built:
         scratch = Path(built)
         arms, commits = build_pair(base_ref, scratch)
-        with sync_playwright() as playwright:
-            browser, _ = launch_browser(playwright)
-            try:
-                for source in dict.fromkeys(state.source for state in STATES):
-                    states = [state for state in STATES if state.source == source]
-                    for arm, arm_dir in arms.items():
-                        with serving_source(
-                            arm_dir,
-                            ROOT / "examples" / f"{source}.html",
-                            scratch / f"{arm}-{source}",
-                        ) as address:
-                            for state in states:
-                                folder = OUT / state.name
-                                folder.mkdir(exist_ok=True)
-                                error = capture(
-                                    browser, address, state, folder / f"{arm}.png"
-                                )
-                                if error:
-                                    failures[state.name][arm] = error
-                                click.echo(
-                                    f"{state.name} {arm}"
-                                    + (f": failed: {error}" if error else ""),
-                                    err=True,
-                                )
-            finally:
-                browser.close()
+        with chrome() as browser:
+            for source in dict.fromkeys(state.source for state in STATES):
+                states = [state for state in STATES if state.source == source]
+                for arm, arm_dir in arms.items():
+                    with serving_source(
+                        arm_dir,
+                        ROOT / "examples" / f"{source}.html",
+                        scratch / f"{arm}-{source}",
+                    ) as address:
+                        for state in states:
+                            folder = OUT / state.name
+                            folder.mkdir(exist_ok=True)
+                            error = capture(
+                                browser, address, state, folder / f"{arm}.png"
+                            )
+                            if error:
+                                failures[state.name][arm] = error
+                            click.echo(
+                                f"{state.name} {arm}"
+                                + (f": failed: {error}" if error else ""),
+                                err=True,
+                            )
     results = [
         compare(state, OUT / state.name, failures[state.name]) for state in STATES
     ]

@@ -70,7 +70,8 @@ Known limits:
   measured.
 - The model is Claude Code's default.
 - Timings include model latency and machine load. Launching every session together
-  controls load only roughly. The page log stamps whole seconds.
+  controls load only roughly; the report prints the load average before and after the
+  sessions, and `results.json` records it. The page log stamps whole seconds.
 - Scoring matches substrings in shell commands.
 - Sampling reads what the page serves, not what a browser draws: a tab derives its
   labels from these values in `runtime/thread/workflow.js`. Each change is placed
@@ -106,6 +107,7 @@ from leaf_dev.harness import (
     build_pair,
     commands,
     hook_delivered,
+    load_average,
     now,
     run_leaf,
     scratch,
@@ -597,6 +599,7 @@ def delivery_ab(base_ref: str | None) -> None:
         ]
         OUT.mkdir(parents=True, exist_ok=True)
         (OUT / "arms.json").write_text(json.dumps(commits, indent=1))
+        load = [load_average()]
         for i in range(1, ROUNDS + 1):
             with ThreadPoolExecutor(len(arms) * len(CASES)) as pool:
                 for future in [
@@ -605,10 +608,15 @@ def delivery_ab(base_ref: str | None) -> None:
                     if j == i
                 ]:
                     future.result()
+        load.append(load_average())
     results = {
         f"{arm}-{case}-{i}": score(OUT / f"{arm}-{case}-{i}")
         for arm, case, i in sorted(runs)
     }
-    (OUT / "results.json").write_text(json.dumps(results, indent=1))
+    (OUT / "results.json").write_text(
+        json.dumps({"load": load, "runs": results}, indent=1)
+    )
+    click.echo(f"base {commits['base'][:10]} vs head {commits['head'][:10]}")
+    click.echo(f"load average {load[0]} before, {load[1]} after")
     report(results)
     click.echo(f"details: {OUT}/results.json")

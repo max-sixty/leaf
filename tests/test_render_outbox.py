@@ -52,6 +52,7 @@ from render_harness import (
     panel_settled,
     refuse,
     resized,
+    root_overflow,
     round_trip,
     sending,
     stamp_page,
@@ -2282,9 +2283,7 @@ def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator(".lf-composer")).to_be_hidden()
-    page.wait_for_function(
-        "() => document.body.scrollWidth - document.body.clientWidth === 0"
-    )
+    assert root_overflow(page) == 0
 
     page.get_by_role("button", name="Close threads").click()
     page.locator("#p30").click(click_count=3)

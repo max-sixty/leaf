@@ -227,13 +227,6 @@ SEATED_QUESTION_PAGE = leaf_page(
 )
 
 
-def sent_events(page_dir):
-    return [
-        json.loads(line)
-        for line in (page_dir / "events.jsonl").read_text().splitlines()
-    ]
-
-
 NESTED_ASK_PAGE = leaf_page(
     "nested",
     """

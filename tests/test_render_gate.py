@@ -97,6 +97,7 @@ from render_harness import (
     panel_settled,
     primed,
     resized,
+    root_overflow,
     take_browser_errors,
     write,
 )
@@ -2849,8 +2850,7 @@ def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve):
         const main = t.closest('main'), pad = parseFloat(getComputedStyle(main).paddingRight);
         const column = main.getBoundingClientRect().right - pad;
         return { past: Math.round(t.getBoundingClientRect().right - column),
-                 scrolls: Math.round(t.scrollWidth - t.clientWidth),
-                 sideways: document.body.scrollWidth - document.body.clientWidth };
+                 scrolls: Math.round(t.scrollWidth - t.clientWidth) };
     }"""
     )
     # Where the width went, then that there was width to go anywhere: a table
@@ -2858,7 +2858,7 @@ def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve):
     # and it is the second that says this one was never such a table.
     assert measured["past"] <= 0
     assert measured["scrolls"] > 0, "this table fits, so it proves nothing"
-    assert measured["sideways"] == 0
+    assert root_overflow(page) == 0
     page.close()
     assert render_gate_model.render_version(browser, url).failures == []
 
@@ -2881,13 +2881,12 @@ def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, 
             return new Set([...range.getClientRects()].map(r => Math.round(r.top))).size;
         };
         return { scrolls: t.scrollWidth - t.clientWidth,
-                 broke: [...t.querySelectorAll('td code')].some(c => lines(c) > 1),
-                 sideways: document.body.scrollWidth - document.body.clientWidth };
+                 broke: [...t.querySelectorAll('td code')].some(c => lines(c) > 1) };
     }"""
     )
     assert measured["scrolls"] == 0, measured
     assert measured["broke"], "every name fitted whole, so the rule was never asked"
-    assert measured["sideways"] == 0
+    assert root_overflow(page) == 0
     for width in range(520, 601, 4):
         resized(page, width, 720)
         scrolls = page.locator("#held").evaluate("(t) => t.scrollWidth - t.clientWidth")
@@ -3043,32 +3042,35 @@ def test_a_comment_inside_a_scrolling_table_leaves_the_page_its_own_width(
     expect(note).to_have_count(1)
     expect(note).to_have_text("1 comment")
 
-    measured = note.evaluate(
-        """(n) => {
+    # At rest, then with the table scrolled to its far end; the page's own width is
+    # the gate's reading, taken at each.
+    read = """(n, scrolled) => {
         const table = document.querySelector('#sessions');
-        const read = () => {
-            const word = n.getBoundingClientRect();
-            const cell = n.closest('td').getBoundingClientRect();
-            const shown = table.getBoundingClientRect();
-            return {
-                onItsCell: word.left >= Math.floor(cell.left)
-                           && word.right <= Math.ceil(cell.right),
-                // Within a pixel: the table scrolls to a whole-pixel scrollWidth, so a
-                // cell ending on a fraction stands that fraction past the box at the end.
-                cellShown: cell.left >= shown.left - 1 && cell.right <= shown.right + 1,
-                sideways: document.body.scrollWidth - document.body.clientWidth,
-            };
+        if (scrolled) table.scrollLeft = table.scrollWidth;
+        const word = n.getBoundingClientRect();
+        const cell = n.closest('td').getBoundingClientRect();
+        const shown = table.getBoundingClientRect();
+        return {
+            holder: n.closest('td').firstChild.data,
+            scrolls: Math.round(table.scrollWidth - table.clientWidth),
+            onItsCell: word.left >= Math.floor(cell.left)
+                       && word.right <= Math.ceil(cell.right),
+            // Within a pixel: the table scrolls to a whole-pixel scrollWidth, so a
+            // cell ending on a fraction stands that fraction past the box at the end.
+            cellShown: cell.left >= shown.left - 1 && cell.right <= shown.right + 1,
         };
-        const out = { holder: n.closest('td').firstChild.data,
-                      scrolls: Math.round(table.scrollWidth - table.clientWidth),
-                      rest: read() };
-        table.scrollLeft = table.scrollWidth;
-        out.scrolled = read();
-        return out;
     }"""
+    measured = {
+        position: {
+            **note.evaluate(read, position == "scrolled"),
+            "sideways": root_overflow(page),
+        }
+        for position in ("rest", "scrolled")
+    }
+    assert measured["rest"]["holder"] == "value_number_7", (
+        "the word is on the marked cell"
     )
-    assert measured["holder"] == "value_number_7", "the word is on the marked cell"
-    assert measured["scrolls"] > 0, "this table fits, so it proves nothing"
+    assert measured["rest"]["scrolls"] > 0, "this table fits, so it proves nothing"
     assert not measured["rest"]["cellShown"], (
         "the cell is on screen already, so nothing here could have escaped"
     )
@@ -3078,6 +3080,9 @@ def test_a_comment_inside_a_scrolling_table_leaves_the_page_its_own_width(
     assert measured["rest"]["onItsCell"] and measured["scrolled"]["onItsCell"], (
         f"the word left the cell it belongs to: {measured}"
     )
+    assert (
+        measured["rest"]["sideways"] == 0 and measured["scrolled"]["sideways"] == 0
+    ), f"the page grew sideways reaching for the word: {measured}"
 
     # Reached the way a user reaches it. `focus()` alone sets :focus and leaves
     # :focus-visible to Chrome's focus modality, which one earlier mouse press flips
@@ -3122,29 +3127,31 @@ def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
     measured = note.evaluate(
         """(n) => {
         const box = document.querySelector('#loose');
-        const read = () => {
-            const word = n.getBoundingClientRect();
-            const row = document.getElementById('far').getBoundingClientRect();
-            return {
-                rowAt: row.left, offset: word.left - row.right,
-                sideways: document.body.scrollWidth - document.body.clientWidth,
-            };
-        };
         const mark = (el) => ({
             marked: el.hasAttribute('data-lf-holds'),
             position: getComputedStyle(el).position,
         });
-        const out = {
+        return {
             against: n.offsetParent.id || n.offsetParent.tagName.toLowerCase(),
             scrolls: box.scrollWidth - box.clientWidth,
             loose: mark(box), held: mark(document.querySelector('#held')),
-            rest: read(),
         };
-        box.scrollLeft = box.scrollWidth;
-        out.scrolled = read();
-        return out;
     }"""
     )
+    # At rest, then with the box scrolled to its far end; the page's own width is the
+    # gate's reading, taken at each.
+    read = """(n, scrolled) => {
+        const box = document.querySelector('#loose');
+        if (scrolled) box.scrollLeft = box.scrollWidth;
+        const word = n.getBoundingClientRect();
+        const row = document.getElementById('far').getBoundingClientRect();
+        return { rowAt: row.left, offset: word.left - row.right };
+    }"""
+    for position in ("rest", "scrolled"):
+        measured[position] = {
+            **note.evaluate(read, position == "scrolled"),
+            "sideways": root_overflow(page),
+        }
     assert measured["scrolls"] > 0, "this box fits, so it proves nothing"
     assert measured["against"] == "loose", (
         f"the word is laid out against {measured['against']}, not the box scrolling it"
@@ -3251,7 +3258,7 @@ def test_misplaced_boxes_checks_page_overflow_but_not_an_authored_scroller(
         finding["text"]
         for finding in render_checks_model.evaluate_probe(page, "misplacedBoxes")
     ]
-    overflow = render_checks_model.evaluate_probe(page, "rootOverflow")
+    overflow = root_overflow(page)
     page.close()
 
     assert scroller_short > 1, "the authored scroller fits, so it proves nothing"
@@ -3352,15 +3359,9 @@ body { width: 40vw; }
 
     url = serve(source)
     page = open_page(browser, url)
-    overflow = page.evaluate(
-        """() => ({
-          body: document.body.scrollWidth - document.body.clientWidth,
-          root: document.scrollingElement.scrollWidth
-                - document.scrollingElement.clientWidth,
-        })"""
-    )
-    assert overflow["body"] > 0, "the two candidate measurements do not diverge"
-    assert overflow["root"] == 0, overflow
+    body = page.evaluate("() => document.body.scrollWidth - document.body.clientWidth")
+    assert body > 0, "the two candidate measurements do not diverge"
+    assert root_overflow(page) == 0, body
     page.close()
 
     failures = render_gate_model.render_version(browser, url).failures

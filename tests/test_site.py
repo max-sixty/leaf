@@ -52,6 +52,7 @@ from render_harness import (
     expect_banner_control_offered,
     navigate,
     open_page,
+    root_overflow,
     select,
     sending,
     take_browser_errors,
@@ -703,9 +704,7 @@ def test_a_replaced_ephemeral_server_reloads_the_active_tab(served_example, brow
     with page.expect_navigation(wait_until="load", timeout=10_000):
         page.evaluate(
             """async () => {
-                  const script = document.querySelector("script[data-lf-server]");
-                  const url = new URL("runtime/layer-client.js", new URL(script.dataset.lfEntry, location.origin));
-                  const client = await import(url.href);
+                  const client = await window.__lfRuntimeImport("/runtime/layer-client.js");
                   client.observeSession(new Response(null, {headers: {
                     "Leaf-Session": "active", "Leaf-Server": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
                   }}));
@@ -912,9 +911,7 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
         )
         leader.evaluate(
             """async server => {
-              const script = document.querySelector("script[data-lf-server]");
-              const url = new URL("runtime/layer-client.js", new URL(script.dataset.lfEntry, location.origin));
-              const client = await import(url.href);
+              const client = await window.__lfRuntimeImport("/runtime/layer-client.js");
               client.observeSession(new Response(null, {headers: {
                 "Leaf-Session": "active", "Leaf-Server": server
               }}));
@@ -2222,7 +2219,5 @@ def test_the_pages_fit_a_phone(site, hosted, browser):
     page = browser.new_page(viewport=PHONE)
     for name in site_build.PRODUCT_ROUTES:
         page.goto(product_url(hosted, name), wait_until="load")
-        overflow = page.evaluate(
-            "() => { const b = document.body; return b.scrollWidth - b.clientWidth; }"
-        )
-        assert overflow <= 0, f"{name} scrolls {overflow}px sideways on a phone"
+        overflow = root_overflow(page)
+        assert overflow == 0, f"{name} scrolls {overflow}px sideways on a phone"

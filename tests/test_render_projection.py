@@ -115,6 +115,7 @@ from render_harness import (
     regions_side_by_side,
     rendered,
     resized,
+    root_overflow,
     round_trip,
     scroll_settled,
     sending,
@@ -333,9 +334,7 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
 
     resized(page, 390, 900)
-    assert page.evaluate(
-        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
-    )
+    assert root_overflow(page) == 0
     page.emulate_media(media="print")
     expect(card.locator(".lf-pr-description-body")).to_be_visible()
     page.emulate_media(media="screen")
@@ -686,9 +685,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     )
 
     resized(page, 390, 900)
-    assert page.evaluate(
-        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
-    )
+    assert root_overflow(page) == 0
 
 
 def test_visual_review_guides_one_typed_still_run(browser, serve):
@@ -1032,9 +1029,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(next_button).to_be_focused()
 
     resized(page, 390, 900)
-    assert page.evaluate(
-        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
-    )
+    assert root_overflow(page) == 0
     widget.get_by_role("radio", name="Compare").click()
     expect(
         widget.locator(".lf-vr-case:not([hidden]) .lf-vr-frame-label").first
@@ -1405,13 +1400,9 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
         "node => node.scrollWidth <= node.clientWidth"
     )
     resized(page, 560, 720)
-    assert page.evaluate(
-        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
-    )
+    assert root_overflow(page) == 0
     resized(page, 390, 900)
-    assert page.evaluate(
-        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
-    )
+    assert root_overflow(page) == 0
     resized(page, 1366, 768)
     holds_the_window(page, widget, True)
     shot_host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
@@ -1712,9 +1703,7 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
     expect(progress).to_have_text("2 of 3 reviewed · 1 matching")
 
     resized(page, 390, 900)
-    assert page.evaluate(
-        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
-    )
+    assert root_overflow(page) == 0
     page.emulate_media(media="print")
     expect(diff.locator(".lf-diff-tools")).to_be_hidden()
     for index in range(3):
@@ -8508,9 +8497,7 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     page.emulate_media(media="screen")
 
     resized(page, 390, 900)
-    assert page.evaluate(
-        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
-    )
+    assert root_overflow(page) == 0
 
 
 def test_command_hub_reads_one_publication_before_worker_presentation_commits(
@@ -8625,9 +8612,7 @@ def test_command_hub_goal_metadata_wraps_on_a_phone(browser, serve):
     resized(page, 390, 900)
 
     expect(page.locator("#goal-parser > .lf-task-meta")).to_contain_text(long_when)
-    assert page.evaluate(
-        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
-    )
+    assert root_overflow(page) == 0
 
 
 def test_command_hub_operations_fit_their_column(browser, serve):
@@ -8640,9 +8625,7 @@ def test_command_hub_operations_fit_their_column(browser, serve):
         "card => card.getBoundingClientRect().right <= "
         "holder.getBoundingClientRect().right + 1)"
     )
-    assert page.evaluate(
-        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
-    )
+    assert root_overflow(page) == 0
 
     resized(page, 1280, 900)
     assert operations.evaluate(

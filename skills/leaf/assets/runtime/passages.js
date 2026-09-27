@@ -377,13 +377,29 @@ function enter(ctx, el, retired, inFrame = true) {
   const cell = opaque(el) || (marked && isGen(el) && unmodelled(el));
   if (!marked && !block && !cell && !SILENT_TAGS.has(el.localName)) return ctx;
   const ui = marked && inFrame && (isUi(el) || isSaid(el));
+  const chrome = ui ? !isSaid(el) : ctx.chrome;
+  const silenced = ctx.silenced || silences(el, retired);
+  const generated = ctx.generated || (marked && inFrame && (isUi(el) || isGen(el)));
+  const gen = marked && isGen(el) ? el : ctx.gen;
+  const island = marked && isIsland(el) ? el : ctx.island;
+  // A class or an id is an attribute too, and starts nothing on its own.
+  if (
+    !block &&
+    !cell &&
+    chrome === ctx.chrome &&
+    silenced === ctx.silenced &&
+    generated === ctx.generated &&
+    gen === ctx.gen &&
+    island === ctx.island
+  )
+    return ctx;
   return {
-    chrome: ui ? !isSaid(el) : ctx.chrome,
-    silenced: ctx.silenced || silences(el, retired),
-    generated: ctx.generated || (marked && inFrame && (isUi(el) || isGen(el))),
-    gen: marked && isGen(el) ? el : ctx.gen,
+    chrome,
+    silenced,
+    generated,
+    gen,
     block: block ? el : ctx.block,
-    island: marked && isIsland(el) ? el : ctx.island,
+    island,
     cells: cell ? { el, up: ctx.cells } : ctx.cells,
   };
 }
@@ -910,21 +926,21 @@ const pageReads = (over) =>
 // holding one is read whatever its place says.
 const holdsSaid = (node) =>
   node.nodeType === 1 && (node.matches(SAID) || node.querySelector(SAID) !== null);
-// Whether a node, standing under `over`, can put words in the reading. `uiInside(node,
-// node)` is the walk's rule bounded at the node itself: a node that is `.lf-ui` and holds
-// no label is silent wherever it goes, which is what the panel's re-rendered rows are.
-const speaks = (node, over) =>
-  (pageReads(over) && !(node.nodeType === 1 && uiInside(node, node))) ||
-  holdsSaid(node);
+// Whether a node can put words in the reading, standing where `read` says the page reads
+// (`pageReads` of its parent). `uiInside(node, node)` is the walk's rule bounded at the
+// node itself: a node that is `.lf-ui` and holds no label is silent wherever it goes,
+// which is what the panel's re-rendered rows are.
+const speaks = (node, read) =>
+  (read && !(node.nodeType === 1 && uiInside(node, node))) || holdsSaid(node);
 // Records are read when the queue drains rather than when they were written, so a place
 // is asked about as it stands now. That is still exact: a node that moved between the
 // page and the chrome left a childList record at its page end, which speaks either way.
 const changesTheReading = (record) => {
   const { target } = record;
-  if (record.type === "childList")
-    return [...record.addedNodes, ...record.removedNodes].some((n) =>
-      speaks(n, target),
-    );
+  if (record.type === "childList") {
+    const read = pageReads(target);
+    return [...record.addedNodes, ...record.removedNodes].some((n) => speaks(n, read));
+  }
   if (record.type === "characterData") return pageReads(target.parentNode);
   // A marker moved on `target` itself, so its own markers are what is changing and only
   // its place and its labels answer — including a label it has just stopped being.

@@ -632,6 +632,65 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     assert boxes["title"]["left"] == boxes["content"]["left"], boxes
 
 
+def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
+    """`list="side"` stands a tab set's list beside its panels: a queue whose items open
+    one at a time. Where the set holds both the list is a column left of the open panel,
+    walked down as well as across; on a phone it is a row above the panel, so the open
+    item never lands below the whole queue. A row carries its panel's summary under its
+    name, and each tab counts the Asks in its panel the user still owes: an answer
+    clears its tab's count while the others keep theirs."""
+
+    def ticket(key):
+        return f"""
+<lf-tab id="t-{key}" label="Ticket {key}" summary="sev {key} · suggested fix">
+  <p id="p-{key}">What went wrong with {key}.</p>
+  <lf-ask id="ask-{key}"><h3 id="q-{key}">What happens to {key}?</h3>
+    <lf-options id="o-{key}" choose>
+      <lf-option id="o-{key}-fix"><strong>Fix</strong> Ship the patch.</lf-option>
+      <lf-option id="o-{key}-close"><strong>Close</strong> Explain and close.</lf-option>
+    </lf-options>
+  </lf-ask>
+</lf-tab>"""
+
+    source = leaf_page(
+        "a queue",
+        "<header><h1>Queue</h1></header>"
+        '<lf-tabs id="queue" list="side">' + "".join(map(ticket, "abc")) + "</lf-tabs>",
+        layout="workspace",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1200, 900)
+    boxes = """() => {
+      const r = (s) => document.querySelector(s).getBoundingClientRect();
+      const strip = r('#queue > .lf-tabstrip'), panel = r('#queue > lf-tab:not([hidden])');
+      return {stripRight: strip.right, stripTop: strip.top, stripBottom: strip.bottom,
+              panelLeft: panel.left, panelTop: panel.top};
+    }"""
+    wide = page.evaluate(boxes)
+    assert wide["stripRight"] <= wide["panelLeft"] + 1, wide
+    owed = page.locator("#queue > .lf-tabstrip .lf-tabowed")
+    expect(owed).to_have_text(["1", "1", "1"])
+    expect(page.locator("#queue > .lf-tabstrip .lf-tab-summary").first).to_have_text(
+        "sev a · suggested fix"
+    )
+
+    tabs = page.get_by_role("tab")
+    tabs.first.focus()
+    page.keyboard.press("ArrowDown")
+    expect(tabs.nth(1)).to_have_attribute("aria-selected", "true")
+    page.keyboard.press("ArrowUp")
+    expect(tabs.first).to_have_attribute("aria-selected", "true")
+
+    page.locator("#o-a-fix .lf-pick").click()
+    told(page)
+    expect(tabs.first.locator(".lf-tabowed")).to_have_count(0)
+    expect(owed).to_have_text(["1", "1"])
+
+    resized(page, 390, 844)
+    narrow = page.evaluate(boxes)
+    assert narrow["stripBottom"] <= narrow["panelTop"] + 1, narrow
+
+
 def test_root_tab_targets_remain_global(browser, serve):
     """Ask travel crosses hidden tabs."""
     url = serve(ROOT_TABS_PAGE)

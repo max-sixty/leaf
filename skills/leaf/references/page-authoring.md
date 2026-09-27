@@ -185,15 +185,15 @@ glance.
 rest. The header is one row, the title with the page's state beside it as `.tag`
 chips, so the panes keep the window: write no lede, eyebrow or legend there, and put
 what a lede would say at the top of the pane it is about. The body is one `lf-pane`, a
-widget that composes its own regions, or the page's own grid of panes, such as a queue
-beside its detail, which the page's `<style>` places:
+widget that composes its own regions, or the page's own grid of panes, such as a run's
+log beside the chart it explains, which the page's `<style>` places:
 
 ```html
 <main class="layout-workspace">
   <header><h1>…</h1><p><span class="tag warn">…</span></p></header>
   <div id="regions">
-    <lf-pane id="queue" label="Queue">…</lf-pane>
-    <lf-pane id="detail" label="Detail">…</lf-pane>
+    <lf-pane id="log" label="Log">…</lf-pane>
+    <lf-pane id="chart" label="Chart">…</lf-pane>
   </div>
 </main>
 ```
@@ -202,6 +202,12 @@ beside its detail, which the page's `<style>` places:
 #regions { display: grid; grid-template-columns: minmax(16rem, 1fr) 2fr; gap: var(--sp-4); }
 @media (width < 900px) { #regions { grid-template-columns: 1fr; } }
 ```
+
+A queue whose items open one at a time beside it, such as tickets, cases or findings to
+decide, is one `lf-tabs list="side"` as the body: its list is the queue and each item a
+tab, so one opens beside the list, a link or an Ask opens its own, and each tab counts
+the Asks its item still holds. Write no script to select, hide or mark an item; the tab
+set does all three.
 
 Each pane's body scrolls on its own, and a widget that fills a held body, such as a
 playground's stage, grows to the window's height. The `lf-pane` entry says what a pane

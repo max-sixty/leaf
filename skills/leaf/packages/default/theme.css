@@ -1259,6 +1259,12 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
               padding: var(--chip-pad); line-height: var(--chip-lh);
               border-radius: var(--chip-r);
               background: var(--add-tint); color: var(--ok-ink); }
+/* How many Asks behind a tab still wait on the user, in the tone the tray's count
+ * wears, so the list that opens each item says which still need an answer. */
+.lf-tabowed { font-size: var(--t-6); font-weight: 600; margin-left: 6px;
+              padding: var(--chip-pad); line-height: var(--chip-lh);
+              border-radius: var(--chip-r);
+              background: var(--warn-tint); color: var(--warn-ink); }
 /* One panel at a time is the whole of what the strip's handler does, so it is
  * offered only in the live page and the rest is what the markup already says.
  * A control whose state the browser owns needs no such block and has none;
@@ -1285,6 +1291,61 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
     /* The boolean-hidden fallback (no until-found support) hides here, because the
      * display:block above outranks the UA's [hidden] rule. */
     lf-tabs.lf-rendered > lf-tab[hidden]:not([hidden="until-found"]) { display: none; }
+
+    /* A list beside its panels (`list="side"`): a queue beside the item it opens. The
+     * list is a column left of the open panel wherever the set holds both, and a row
+     * over it below that, as a narrow window or a phone gives it, so the open item is
+     * never below the whole list. The set is the container its own parts ask, which
+     * is why the stacking is written on them and not on the set. */
+    lf-tabs[list="side"].lf-rendered {
+      container-type: inline-size;
+      display: grid;
+      grid-template-columns: minmax(10rem, 16rem) minmax(0, 1fr);
+      align-items: start;
+    }
+    lf-tabs[list="side"].lf-rendered > .lf-tabstrip {
+      grid-column: 1;
+      grid-row: 1;
+      flex-direction: column;
+      flex-wrap: nowrap;
+      gap: 0;
+      padding: 8px;
+      border-bottom: 0;
+      border-inline-end: 1px solid var(--border-2);
+      border-radius: calc(var(--r) - 1px) 0 0 calc(var(--r) - 1px);
+      align-self: stretch;
+    }
+    /* A row is its name, then its count, with the summary on a line under both. */
+    lf-tabs[list="side"].lf-rendered > .lf-tabstrip .lf-tab-btn {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: baseline;
+      justify-items: start;
+      text-align: start;
+    }
+    /* The selection face is the name's; the summary under it keeps its own. */
+    lf-tabs[list="side"].lf-rendered > .lf-tabstrip .lf-tab-btn[aria-selected] > .lf-tab-summary {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      padding: 0 5px 2px;
+      border-bottom-color: transparent;
+      background: transparent;
+      font-size: var(--t-6);
+      color: var(--muted);
+    }
+    lf-tabs[list="side"].lf-rendered > lf-tab { grid-column: 2; grid-row: 1; }
+    @container (width < 36rem) {
+      lf-tabs[list="side"].lf-rendered > .lf-tabstrip {
+        grid-column: 1 / -1;
+        grid-row: auto;
+        flex-direction: row;
+        flex-wrap: wrap;
+        border-inline-end: 0;
+        border-bottom: 1px solid var(--border-2);
+        border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
+      }
+      lf-tabs[list="side"].lf-rendered > lf-tab { grid-column: 1 / -1; grid-row: auto; }
+    }
 
     /* A root tab set is navigation over sections of one page rather than a framed
      * widget inside it: a sticky horizontal index, one panel shown. It lays out nothing

@@ -16,7 +16,11 @@
  * never read past it. A link inside a panel is still fragment travel (history.js).
  * Embedded tab sets retain the ordinary framed-widget behavior.
  * While the version diff is on, a tab whose panel holds marked passages wears
- * a Δ count, so a change can't hide behind an inactive tab. Unupgraded,
+ * a Δ count, so a change can't hide behind an inactive tab. A tab whose panel holds
+ * Asks the user still owes counts them, read from the page's Ask selection, so an
+ * answer waiting behind an inactive tab shows in the list that opens it. With
+ * `list="side"` the list stands beside the panels, a queue beside the item it opens,
+ * and is walked up and down as well as across (theme.css says where it stacks). Unupgraded,
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
 import {
@@ -27,6 +31,7 @@ import {
   claimTraversals,
   commands,
   declareCoverRoom,
+  openAsks,
   layoutChanged,
   listWalkPosition,
   offer,
@@ -39,6 +44,7 @@ import {
   restorePlace,
   selectableOffer,
   tabStore,
+  watchAsks,
 } from "/runtime/widget-api.js";
 
 const TAB_KEY = "lf-tabs:";
@@ -66,12 +72,14 @@ customElements.define(
     #contextObserver = null;
     #strip = null;
     #covering = false;
+    #stopAsks = null;
 
     connectedCallback() {
       if (!once(this)) {
         this.#watchRootContext();
         this.#syncRootContext();
         this.#listenForHistory();
+        this.#listenForAsks();
         return this.#listenForDiff();
       }
       // Own panels only (a nested lf-tabs wires its own).
@@ -93,12 +101,22 @@ customElements.define(
       const strip = offer("div", "lf-tabstrip");
       this.#strip = strip;
       strip.setAttribute("role", "tablist");
+      const side = this.getAttribute("list") === "side";
+      if (side) strip.setAttribute("aria-orientation", "vertical");
       for (const panel of panels) {
         const btn = selectableOffer("tab", "lf-tab-btn");
         btn.setAttribute("aria-controls", panel.id);
         const name = document.createElement("span");
         relabel(name, panel.getAttribute("label"), { says: true });
         btn.append(name);
+        // A queue's row says more than its name: in a side list the panel's `summary`
+        // stands under it, the page's words like the name.
+        if (side && panel.hasAttribute("summary")) {
+          const summary = document.createElement("span");
+          summary.className = "lf-tab-summary";
+          relabel(summary, panel.getAttribute("summary"), { says: true });
+          btn.append(summary);
+        }
         btn.onclick = () => this.#activate(panel, true, "ordinary");
         strip.append(btn);
         this.#buttons.set(panel, btn);
@@ -144,8 +162,17 @@ customElements.define(
         },
         {
           id: "tab.walk",
-          keys: ["ArrowLeft", "ArrowRight"],
+          // A list standing beside its panels is read down, so it walks down too.
+          keys: side
+            ? ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]
+            : ["ArrowLeft", "ArrowRight"],
           routes: [
+            ...(side
+              ? [
+                  { id: "tab.up", binding: "ArrowUp", does: "Previous tab" },
+                  { id: "tab.down", binding: "ArrowDown", does: "Next tab" },
+                ]
+              : []),
             { id: "tab.previous", binding: "ArrowLeft", does: "Previous tab" },
             { id: "tab.next", binding: "ArrowRight", does: "Next tab" },
           ],
@@ -153,7 +180,11 @@ customElements.define(
           line: "walk the tabs",
           repeat: true,
           run: (binding) =>
-            walk((at, n) => (binding === "ArrowRight" ? at + 1 : at - 1 + n) % n),
+            walk((at, n) =>
+              ["ArrowRight", "ArrowDown"].includes(binding)
+                ? (at + 1) % n
+                : (at - 1 + n) % n,
+            ),
         },
         {
           id: "tab.edge",
@@ -186,6 +217,7 @@ customElements.define(
       }
       // Δ badges follow the version diff; the runtime announces each toggle.
       this.#listenForDiff();
+      this.#listenForAsks();
     }
 
     disconnectedCallback() {
@@ -195,6 +227,38 @@ customElements.define(
       this.#historyEvents = null;
       this.#contextObserver?.disconnect();
       this.#contextObserver = null;
+      this.#stopAsks?.();
+      this.#stopAsks = null;
+    }
+
+    #listenForAsks() {
+      if (!this.#buttons.size || this.#stopAsks) return;
+      this.#stopAsks = watchAsks(this, () => this.#owed());
+      this.#owed();
+    }
+
+    // One count per tab whose panel holds Asks the user still owes, from the page's one
+    // Ask selection; a tab with none wears nothing.
+    #owed() {
+      const owed = openAsks()
+        .map((ask) => document.getElementById(ask.sourceId))
+        .filter(Boolean);
+      for (const [panel, btn] of this.#buttons) {
+        const n = owed.filter((element) => panel.contains(element)).length;
+        let chip = btn.querySelector(".lf-tabowed");
+        if (!n) {
+          chip?.remove();
+          continue;
+        }
+        if (!chip) {
+          chip = document.createElement("span");
+          chip.className = "lf-tabowed";
+          btn.append(chip);
+        }
+        const said = String(n);
+        if (chip.textContent !== said) chip.textContent = said;
+        chip.title = n === 1 ? "1 Ask waits on you" : `${n} Asks wait on you`;
+      }
     }
 
     #listenForDiff() {

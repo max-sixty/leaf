@@ -63,6 +63,7 @@ const responseFailure = (source, kind = "failed") =>
     subject: { kind: "thread", id: "t" },
     coordinate: ["thread", "t"],
     seq: 3,
+    answer: null,
     stage: "answered",
     condition: { kind, operation: "response" },
     next_actor: "user",

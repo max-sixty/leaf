@@ -76,5 +76,97 @@
     "response": null,
     "quiet": false,
     "dropped": false
+  },
+  "readings": {
+    "frozen move owes nothing": {
+      "threads": [
+        {
+          "id": "e1",
+          "root": {
+            "id": "e1",
+            "seq": 1,
+            "ts": "2026-09-19T12:00:00+00:00",
+            "author": "user",
+            "revision": 1,
+            "kind": "comment",
+            "text": "Lay the feeder work out on a board."
+          },
+          "title": null,
+          "anchor": null,
+          "detached_from": null,
+          "msgs": [
+            {
+              "id": "e1",
+              "seq": 1,
+              "ts": "2026-09-19T12:00:00+00:00",
+              "author": "user",
+              "revision": 1,
+              "kind": "comment",
+              "text": "Lay the feeder work out on a board."
+            },
+            {
+              "id": "e2",
+              "seq": 2,
+              "ts": "2026-09-19T12:00:00+00:00",
+              "author": "agent",
+              "revision": 1,
+              "kind": "reply",
+              "agent": "Agent",
+              "parent": "e1",
+              "responds": "e1",
+              "text": "Here is the board. Which card goes first?",
+              "awaits": true,
+              "markup": "<lf-board id=\"feeder-board\">\n  <lf-column id=\"col-todo\" label=\"To do\">\n    <lf-card id=\"card-heater\"><strong>Heated perch</strong> Wire the south feeder.</lf-card>\n    <lf-card id=\"card-baffle\"><strong>Squirrel baffle</strong></lf-card>\n  </lf-column>\n  <lf-column id=\"col-doing\" label=\"Doing\">\n    <lf-card id=\"card-camera\"><strong>Camera mount</strong></lf-card>\n  </lf-column>\n  <lf-column id=\"col-done\" label=\"Done\"></lf-column>\n</lf-board>"
+            }
+          ],
+          "resolved": null,
+          "user_prompt": {
+            "message": "e2",
+            "version": "e2"
+          },
+          "bare_reaction": false,
+          "seat": null,
+          "summaries": [],
+          "unread": [],
+          "attention": {
+            "kind": "needs_user",
+            "reason": "ask",
+            "workflow": null
+          }
+        }
+      ],
+      "workflows": [
+        {
+          "id": "e3",
+          "input": "e3",
+          "seq": 3,
+          "revision": 1,
+          "subject": {
+            "kind": "widget",
+            "id": "feeder-board"
+          },
+          "coordinate": [
+            "feeder-board",
+            "card-baffle",
+            "move"
+          ],
+          "answer": null,
+          "stage": "sent",
+          "ts": "2026-09-19T12:00:00+00:00",
+          "delivery_seq": null,
+          "delivery_session": null,
+          "delivery_turn": null,
+          "detail": null,
+          "agent": null,
+          "session": null,
+          "activity": [],
+          "condition": null,
+          "next_actor": "agent",
+          "response": null,
+          "quiet": false,
+          "dropped": false
+        }
+      ]
+    }
   }
 }

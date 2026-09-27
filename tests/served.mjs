@@ -25,3 +25,10 @@ export const servedThread = (msgs, changes = {}) =>
 
 // A workflow for a message the agent has not picked up yet.
 export const servedWorkflow = (changes = {}) => served("workflow", changes);
+
+// A whole served reading, `{ threads, workflows }`, whose premise is the named case.
+export function servedReading(name) {
+  if (!Object.hasOwn(RECORDS.readings, name))
+    throw new Error(`served_records.py folds no reading named ${name}`);
+  return structuredClone(RECORDS.readings[name]);
+}

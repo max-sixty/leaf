@@ -52,10 +52,11 @@ File-side fixtures live in `interact_support.py`, browser fixtures in
 `render_harness.py`, reusable browser cases in `render_cases_*.py`.
 `tests/runtime/*.test.mjs` holds what one runtime module decides on its own, in the
 document `tests/runtime/dom.mjs` puts up; `scripts/browser/application.test.mjs` owns
-the publisher's composition of those folds. Both build a served thread or workflow
-with `served.mjs`, from records `served_records.py` folds through the server, so a
-Node test cannot hand the runtime a record the server never sends. `fixtures/pages/`
-holds full-page regressions under `examples/AGENTS.md`'s rules.
+the publisher's composition of those folds. Both build served threads and workflows
+with `served.mjs` from what `served_records.py` folds through the server: a record
+that carries every field the server sends, with only the fields a case is about
+changed, or a whole reading where the case rests on how the server relates them.
+`fixtures/pages/` holds full-page regressions under `examples/AGENTS.md`'s rules.
 
 A fold whose result rests on a platform primitive that differs between Node and
 Chrome, such as `Intl.Segmenter`, is a browser fact: its test stays in the browser

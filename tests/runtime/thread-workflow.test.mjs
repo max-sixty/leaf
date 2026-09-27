@@ -12,8 +12,9 @@ import {
   foldThreads,
   readThreadRecords,
 } from "../../skills/leaf/assets/runtime/thread/model.js";
-import { servedThread, servedWorkflow } from "../served.mjs";
+import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 
+// A workflow for an input in the thread `root` opened, which the agent owes a reply.
 const workflow = (id, stage, changes = {}) =>
   servedWorkflow({
     id,
@@ -21,6 +22,7 @@ const workflow = (id, stage, changes = {}) =>
     input: id,
     subject: { kind: "thread", id: "root" },
     coordinate: ["thread", "root"],
+    answer: { kind: "reply", to: id, for: id },
     stage,
     ...changes,
   });
@@ -164,51 +166,37 @@ test("a local prose answer clears accepted user attention until refusal", () => 
   assert.equal(awaitsAgent({ ...record, attention: thread.attention }), false);
 });
 
+// The document a thread's frozen board is captured into: the reply `e2` in thread
+// `e1` holds the board `feeder-board`.
+const FROZEN_BOARD = {
+  revision: 1,
+  descriptors: new Map([
+    [
+      "feeder-board",
+      {
+        id: "feeder-board",
+        tag: "lf-board",
+        document: { kind: "thread", thread: "e1", message: "e2" },
+      },
+    ],
+  ]),
+  messageBodies: new Map([
+    ["e2", { text: "Here is the board.", document: { thread: "e1", message: "e2" } }],
+  ]),
+};
+
 test("a frozen message widget keeps its exact workflow in the message and thread", () => {
-  const widgetWork = workflow("action-1", "working", {
-    revision: 2,
-    input: "action-1",
-    subject: { kind: "widget", id: "frozen-choice" },
-  });
-  const thread = servedThread([
-    {
-      id: "root",
-      kind: "comment",
-      author: "user",
-      text: "Question",
-      ts: "2026-09-22T10:00:00Z",
-    },
-    {
-      id: "agent-reply",
-      kind: "reply",
-      parent: "root",
-      author: "agent",
-      markup: "<lf-choice id='frozen-choice'></lf-choice>",
-      ts: "2026-09-22T10:01:00Z",
-    },
-  ]);
-  const document = {
-    revision: 1,
-    descriptors: new Map([
-      [
-        "frozen-choice",
-        {
-          id: "frozen-choice",
-          tag: "lf-choice",
-          document: { kind: "thread", thread: "root", message: "agent-reply" },
-        },
-      ],
-    ]),
-    messageBodies: new Map([
-      [
-        "agent-reply",
-        { text: "Choose", document: { thread: "root", message: "agent-reply" } },
-      ],
-    ]),
-  };
-  const [record] = readThreadRecords([thread], document, new Map(), [widgetWork]);
-  assert.deepEqual(record.msgs[1].workflows, [widgetWork]);
-  assert.deepEqual(record.workflows, [widgetWork]);
+  // The server's reading of a card the user moved on a board the agent sent.
+  const { threads, workflows } = servedReading("frozen move owes nothing");
+  const [record] = readThreadRecords(threads, FROZEN_BOARD, new Map(), workflows);
+  assert.deepEqual(
+    record.msgs.map((message) => message.workflows.map(({ id }) => id)),
+    [[], ["e3"]],
+  );
+  assert.deepEqual(
+    record.workflows.map(({ id }) => id),
+    ["e3"],
+  );
 });
 
 test("a thread this tab opened carries every field a served thread does", () => {

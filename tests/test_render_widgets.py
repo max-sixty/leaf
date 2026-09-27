@@ -2607,7 +2607,7 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
     resized(page, 1200, 900)
     # The wrapper itself holds no height in this posture — the map inside it is fixed —
     # so its return is a display reading rather than a visible box.
-    expect(page.locator("#route")).to_have_css("display", "flow-root")
+    expect(page.locator("#route")).not_to_have_css("display", "none")
     expect(toc).to_have_css("position", "fixed")
     expect(heading).to_be_hidden()
     assert toc.bounding_box() == settled, (

@@ -1075,7 +1075,9 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
             {key: initial[key] for key in ("x", "y", "width")}, abs=1
         )
         final_catalog = catalog.bounding_box()
-        assert {key: final_catalog[key] for key in ("x", "y", "width")} == pytest.approx(
+        assert {
+            key: final_catalog[key] for key in ("x", "y", "width")
+        } == pytest.approx(
             {key: initial_catalog[key] for key in ("x", "y", "width")}, abs=1
         )
         assert initial_catalog["width"] > page.evaluate(

@@ -375,13 +375,9 @@ def test_a_wait_before_the_entry_is_released_names_only_the_page_s_own_request(
     )
 
 
-def test_a_released_entry_that_never_arrives_is_named_like_any_other_file(
-    browser, serve
-):
-    """Past the release the entry is the page's own request. What the wait above
-    leaves out is the hold, not the file — and a load event still waiting on an entry
-    the server accepted and then dropped is exactly the ending this reading exists to
-    name, so the release has to hand the entry back to the page."""
+@pytest.fixture
+def dropped_entry_server(serve):
+    """Keep the dropped request's server alive until the browser fixture closes it."""
     served = serve(leaf_page("dropped entry", "<h1>Dropped</h1>"), packages=())
     asked = threading.Event()
     release = threading.Event()
@@ -405,20 +401,34 @@ def test_a_released_entry_that_never_arrives_is_named_like_any_other_file(
         ._replace(netloc=f"127.0.0.1:{httpd.server_address[1]}")
         .geturl()
     )
-    page = browser.unwatched.new_page()
-    page.set_default_timeout(5_000)
     with running_http_server(httpd):
         try:
-            with pytest.raises(RuntimeError) as stopped:
-                render_gate_scheme.start_with_pre_upgrade_proof(page, dropped)
-            entry_path = urlsplit(
-                page.locator('script[src$="/leaf.js"]').get_attribute("src")
-            ).path
+            yield dropped, asked
         finally:
             release.set()
-            # The browser still holds the unfinished entry request. End its
-            # connection before asking uvicorn to drain active requests.
-            page.close()
+
+
+@pytest.fixture
+def dropped_entry_page(dropped_entry_server, browser):
+    """Make the browser fixture's context cleanup precede server teardown."""
+    return browser.unwatched.new_page()
+
+
+def test_a_released_entry_that_never_arrives_is_named_like_any_other_file(
+    dropped_entry_server, dropped_entry_page
+):
+    """Past the release the entry is the page's own request. What the wait above
+    leaves out is the hold, not the file — and a load event still waiting on an entry
+    the server accepted and then dropped is exactly the ending this reading exists to
+    name, so the release has to hand the entry back to the page."""
+    dropped, asked = dropped_entry_server
+    page = dropped_entry_page
+    page.set_default_timeout(5_000)
+    with pytest.raises(RuntimeError) as stopped:
+        render_gate_scheme.start_with_pre_upgrade_proof(page, dropped)
+    entry_path = urlsplit(
+        page.locator('script[src$="/leaf.js"]').get_attribute("src")
+    ).path
 
     assert asked.is_set(), "the browser never asked for the entry, so nothing dropped"
     assert str(stopped.value) == (

@@ -1,5 +1,8 @@
 /* One frame for repainting the user's standing and chrome geometry. Boot supplies the
-   fixed phases after every module has evaluated; callers only invalidate the frame.
+   phases after every module has evaluated, in this fixed order; callers only invalidate
+   the frame. A document supplies the phases it has: a live page all five, an
+   interactive export, which attaches no chrome, only the standing geometry its widgets'
+   boxes paint.
 
    Pending work is cleared before the phases run. An invalidation raised by a phase
    therefore queues another repaint, which the rendering loop runs before this frame
@@ -37,11 +40,11 @@ function requestFrame() {
     frame = 0;
     const shiftPage = movePage;
     movePage = false;
-    phases.reflectFirstScopes();
-    phases.paintStandingContent();
-    phases.syncLayout();
-    if (shiftPage) phases.pageShifted();
-    phases.paintStandingGeometry();
+    phases.reflectFirstScopes?.();
+    phases.paintStandingContent?.();
+    phases.syncLayout?.();
+    if (shiftPage) phases.pageShifted?.();
+    phases.paintStandingGeometry?.();
   });
 }
 

@@ -178,18 +178,17 @@ and its chrome coordinate.
 
 ### Shared definitions
 
-- **Keep the comment note out of the page's structure.** `anchor-note-view.js`
-  appends a `leaf-anchor-note` inside each commented block, so the block's authored
-  `:last-child`, `:only-child` and `:nth-last-child` rules stop matching while a comment
-  stands: with `.list > :last-child { margin-bottom: 80px }`, one comment on `.list`
-  moves the next paragraph up 67px. The block frame and a few widget rules skip the
-  note with `of :not(.lf-ui, [data-lf-gen])`. Page CSS does not, and neither, by
-  reading, do the default package's `:last-child` rules for milestones, chronology
-  entries, cards and a held Ask's answer, or `theme.css`'s map-only sidebar rules,
-  where a comment would change which residents the margin admits. Patching selectors
-  cannot reach page CSS. The note sits there to follow the block in tab and reading
-  order, so the fix is a route to the block's comments from that position that adds
-  no element to authored content.
+- **Keep the rest of the runtime's apparatus out of authored structure.** Two
+  generated elements still stand among the page's own: `anchor-controls.js` puts a
+  `span.lf-visual-actions` after each drawing that takes visual comments, and
+  `presentation.js` puts a hidden `span.lf-external-note` after each external link.
+  Each changes which of its parent's children is last and what follows the drawing
+  or link, so page rules such as `:last-child` or `svg + p` stop matching. The
+  external note can move to the chrome and be named through
+  `ariaDescribedByElements`, as the comment note is named through
+  `ariaDetailsElements`. The visual actions are Tab stops placed after their drawing
+  so Tab reaches them there, so they need a keyboard route that does not depend on
+  where they stand in the document.
 
 ## Etc
 
@@ -220,7 +219,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **#22 — MCP workspace hosting:** compare an iframe, a constrained host, and
   browser handoff when an inline-hosting task calls for it. See the
   [research brief](notes/workspace-followups.md#item-22).
-- **Decide whether an exported page carries its threads.** `leaf version
+- **Decide whether an exported page carries its threads.** `leaf page
   export` writes a file that boots the page's own runtime offline, and that file
   embeds the page's threads in its state reading. The runtime turns the
   thread surface off offline (`threadAvailable: !offlineInteractive`
@@ -241,12 +240,6 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Implementation candidates
 
-- **Write the unresolved-gesture ledger as one state machine.** `application.ts`
-  (`accept`, `accountPresented`), `application.js` (`releasableEntries`) and
-  `pending/model.js` track a gesture through five flags, and each writes its own rule
-  for when an action leaves the ledger. Nothing
-  has drifted and this is the hottest race path, so take it when a change has to touch
-  the ledger anyway.
 - **Set interaction-trace privacy before sharing pages.** Define who can inspect
   traces, consent or opt-out, sensitive-field redaction (including passwords,
   pasted text, and selection), and retention/deletion for page-local files and

@@ -200,7 +200,7 @@ test("one synchronous immutable reading combines authored, accepted, and later p
   assert.throws(() => {
     app.read().unresolved[1].event.action = "other";
   }, TypeError);
-  app.reject("later");
+  app.refuse("later");
   assert.equal(decision(app), "accept");
 });
 
@@ -215,7 +215,7 @@ test("the public Thread collection contains conversations while approvals stay p
   assert.deepEqual(effective.acceptedApprovals, reading.browser.thread.done);
 });
 
-test("one widget selection publishes optimistic state and delivery without writable access", () => {
+test("one widget selection publishes optimistic state without writable access", () => {
   const app = setup();
   const selected = app.selectWidget(descriptor);
   const seen = [];
@@ -225,15 +225,6 @@ test("one widget selection publishes optimistic state and delivery without writa
   app.enqueue(action("first"), "now");
   assert.equal(selected.read().authored.decide.action, null);
   assert.equal(outcomeOf(selected.read().state), "accept");
-  assert.deepEqual(selected.read().delivery, [
-    {
-      attempt: "first",
-      kind: "action",
-      verb: "decide",
-      answered: false,
-      rejected: false,
-    },
-  ]);
   assert.equal(seen.at(-1).actions.decide.standing[0].event.attempt, "first");
   assert.throws(() => {
     selected.read().actions.decide.available = false;
@@ -244,7 +235,7 @@ test("one widget selection publishes optimistic state and delivery without writa
   const beforeUnrelated = seen.length;
   app.acceptData({ version: "unrelated", sources: { unrelated: { value: true } } }, 1);
   assert.equal(seen.length, beforeUnrelated);
-  app.reject("first");
+  app.refuse("first");
   assert.equal(outcomeOf(selected.read().state), null);
   stop();
 });
@@ -532,7 +523,7 @@ test("local delivery supplies and can override non-Ask thread attention", () => 
     reason: "workflow",
     workflow: "pending:local",
   });
-  app.reject("local");
+  app.refuse("local");
   assert.deepEqual(app.read().effective.thread.all[0].attention, {
     kind: "needs_user",
     reason: "recovery",
@@ -557,7 +548,7 @@ test("local delivery supplies and can override non-Ask thread attention", () => 
     reason: "workflow",
     workflow: "pending:next",
   });
-  acceptedApp.reject("next");
+  acceptedApp.refuse("next");
   assert.deepEqual(acceptedApp.read().effective.thread.all[0].attention, {
     kind: "needs_user",
     reason: "recovery",
@@ -575,19 +566,19 @@ test("a refused local message publishes one failed workflow before retirement", 
   };
   app.enqueue(event, "2026-09-22T10:00:00-07:00");
   assert.equal(app.read().effective.workflows.at(-1).stage, "sending");
-  app.reject("refused");
+  app.refuse("refused");
   const failed = app.read().effective.workflows.at(-1);
   assert.deepEqual(failed.condition, { kind: "failed", operation: "delivery" });
   assert.equal(failed.next_actor, "user");
   assert.equal(app.read().effective.thread.all.length, 0);
-  app.remove(new Set(["refused"]));
+  app.release(new Set(["refused"]));
   assert.equal(app.read().effective.workflows.length, 0);
 });
 
 test("a local send's workflow takes the served workflow's shape", () => {
   const app = setup();
   app.enqueue(action("move"), "now");
-  app.reject("move");
+  app.refuse("move");
   const [move] = app.read().effective.workflows;
   assert.deepEqual(
     [move.subject, move.thread, move.holds_thread, move.coordinate],
@@ -625,7 +616,7 @@ test("a version being marked read reads read, outside the gesture ledger", () =>
   assert.equal(thread().msgs[0].unread, false);
   assert.deepEqual(thread().unread, []);
   assert.deepEqual(app.read().unresolved, []);
-  assert.deepEqual(app.read().effective.delivery, []);
+  assert.deepEqual(app.read().effective.sending, []);
   assert.deepEqual(app.read().effective.workflows, []);
   app.settleMarkRead(original);
   assert.equal(thread().msgs[0].unread, true);
@@ -741,11 +732,139 @@ test("receipt adoption keeps attempts until presentation proof and preserves dep
   app.accept("first", accepted);
   assert.equal(app.read().unresolved.length, 2);
   assert.equal(decision(app), null);
-  app.accountPresented([accepted]);
-  app.remove(new Set(["first"]));
+  app.present([accepted]);
+  app.release(new Set(["first"]));
   assert.equal(decision(app), null);
   assert.equal(app.nameUndo("undo", [accepted]), true);
   assert.equal(app.entry("undo").event.undoes, "e1");
+});
+
+// Each step is a signal and the entry's state after it: `null` once it has left. What
+// the page draws follows the state: the gesture until a reading logs it, the log's
+// event after, and neither once refused.
+const lifecycle = [
+  {
+    name: "an action accepted before any reading holds it",
+    event: action("gesture"),
+    steps: [
+      ["accept", "accepted", "gesture"],
+      ["log", "accepted:logged", "log"],
+      ["present", "accepted:presented", "log"],
+      ["release", null, "log"],
+    ],
+  },
+  {
+    name: "an action a reading presents before its POST answers",
+    event: action("gesture"),
+    steps: [
+      ["log", "sending:logged", "log"],
+      ["present", "sending:presented", "log"],
+      ["release", "sending:presented", "log"],
+      ["accept", "accepted:presented", "log"],
+      ["release", null, "log"],
+    ],
+  },
+  {
+    name: "a refused action",
+    event: action("gesture"),
+    steps: [
+      ["refuse", "refused", null],
+      ["release", null, null],
+    ],
+  },
+  {
+    name: "a comment accepted and then presented",
+    event: { kind: "comment", attempt: "gesture", text: "Note", revision: 1 },
+    steps: [
+      ["accept", "accepted", "gesture"],
+      ["log", "accepted:logged", "log"],
+      ["present", null, "log"],
+    ],
+  },
+  {
+    name: "a comment presented before its POST answers",
+    event: { kind: "comment", attempt: "gesture", text: "Note", revision: 1 },
+    steps: [
+      ["log", "sending:logged", "log"],
+      ["present", "sending:presented", "log"],
+      ["accept", null, "log"],
+    ],
+  },
+];
+for (const { name, event, steps } of lifecycle)
+  test(`the ledger carries ${name} through one lifecycle`, () => {
+    const app = setup();
+    const logged = { ...event, id: "e1", seq: 1, author: "user", ts: "now" };
+    const reading = state(2, event.kind === "action" ? [logged] : []);
+    reading.browser.receipts = [logged];
+    if (event.kind === "comment")
+      reading.browser.thread.threads = [servedThread([logged])];
+    // Where the page draws the gesture from: its own entry, the log, or nowhere.
+    const drawn = () => {
+      if (event.kind === "action")
+        return app.read().effective.projection.desired.get(JSON.stringify(coordinate))
+          ?.e.id === "e1"
+          ? "log"
+          : decision(app) === "accept"
+            ? "gesture"
+            : null;
+      const [thread] = app.read().effective.thread.all;
+      return thread?.root.id === "e1" ? "log" : thread ? "gesture" : null;
+    };
+    const signals = {
+      accept: () => app.accept("gesture", logged),
+      refuse: () => app.refuse("gesture"),
+      log: () => app.adopt(reading),
+      present: () => app.present([logged]),
+      release: () => app.release(new Set(["gesture"])),
+    };
+    app.enqueue(event, "now");
+    assert.equal(app.entry("gesture").state, "sending");
+    assert.deepEqual(app.read().effective.sending, ["gesture"]);
+    assert.equal(drawn(), "gesture");
+    for (const [signal, next, from] of steps) {
+      signals[signal]();
+      assert.equal(app.entry("gesture")?.state ?? null, next, `after ${signal}`);
+      assert.deepEqual(
+        app.read().effective.sending,
+        next?.startsWith("sending") ? ["gesture"] : [],
+        `sending after ${signal}`,
+      );
+      assert.equal(drawn(), from, `drawn after ${signal}`);
+    }
+  });
+
+test("refusal takes the gestures that depend on the refused one with it", () => {
+  const app = setup();
+  const first = app.enqueue(action("first"), "now");
+  app.enqueue({ kind: "undo", undoes: first.localId, attempt: "undo" }, "now");
+  const comment = app.enqueue(
+    { kind: "comment", attempt: "comment", text: "Note", revision: 1 },
+    "now",
+  );
+  app.enqueue(
+    {
+      kind: "reply",
+      parent: comment.localId,
+      attempt: "reply",
+      text: "More",
+      revision: 1,
+    },
+    "now",
+  );
+  assert.deepEqual(app.refuse("first"), ["undo"]);
+  assert.deepEqual(app.refuse("comment"), ["reply"]);
+  assert.deepEqual(
+    app.read().unresolved.map((entry) => [entry.event.attempt, entry.state]),
+    [
+      ["first", "refused"],
+      ["comment", "refused"],
+    ],
+  );
+  assert.deepEqual(
+    app.releasable().map((entry) => entry.event.attempt),
+    ["first", "comment"],
+  );
 });
 
 test("thread acceptance is semantic before presentation can retire its local handle", () => {
@@ -766,7 +885,7 @@ test("thread acceptance is semantic before presentation can retire its local han
   app.accept("comment", accepted);
   assert.equal(app.read().effective.thread.all.length, 1);
   assert.equal(app.read().unresolved.length, 1);
-  app.accountPresented([accepted]);
+  app.present([accepted]);
   assert.equal(app.read().unresolved.length, 0);
   assert.equal(app.read().effective.thread.all[0].root.id, "e1");
 });
@@ -836,7 +955,10 @@ for (const resolved of [null, { author: "user" }]) {
       "now",
     );
     assert.deepEqual(turn(), ["waiting", null]);
-    app.remove(new Set(["answer"]));
+    const answer = { kind: "reply", attempt: "answer", id: "e-answer" };
+    app.accept("answer", answer);
+    app.present([answer]);
+    assert.deepEqual(app.read().unresolved, []);
     assert.deepEqual(turn(), [standing, resolved]);
 
     app.enqueue(
@@ -850,7 +972,7 @@ for (const resolved of [null, { author: "user" }]) {
       "now",
     );
     assert.deepEqual(turn(), ["waiting", null]);
-    app.reject("retry");
+    app.refuse("retry");
     assert.deepEqual(turn(), ["needs_user", resolved]);
   });
 }
@@ -941,7 +1063,7 @@ test("a thread whose opening message the log lost is known by its id, not its ro
     thread().workflows.map((workflow) => [workflow.id, workflow.subject.id]),
     [["pending:answer", "lost"]],
   );
-  app.reject("answer");
+  app.refuse("answer");
   assert.deepEqual(thread().attention, {
     kind: "needs_user",
     reason: "recovery",
@@ -993,7 +1115,7 @@ test("a pending resend replaces accepted recovery until refusal", () => {
     reason: "workflow",
     workflow: "pending:retry",
   });
-  app.reject("retry");
+  app.refuse("retry");
   assert.deepEqual(app.read().effective.thread.all[0].attention, {
     kind: "needs_user",
     reason: "recovery",

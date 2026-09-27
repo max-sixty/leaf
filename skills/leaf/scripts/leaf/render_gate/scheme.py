@@ -266,7 +266,7 @@ def _render_scheme(
         )
     # Every reading below is of a settled page. The widget layer writes half the
     # document, so a box measured while it is still drawing belongs to no version of
-    # the page — which is the stamp `version export` waits on for the same reason.
+    # the page — which is the stamp `page export` waits on for the same reason.
     try:
         wait_for_probe(page, "upgraded")
     except PlaywrightTimeout:

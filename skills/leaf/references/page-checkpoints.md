@@ -6,7 +6,7 @@ When the page reaches a checkpoint worth naming, stamp the exact current source
 with a brief changelog:
 
 ```bash
-leaf version stamp <page> --text "<what changed>"
+leaf page stamp <page> --text "<what changed>"
 ```
 
 Leaf assigns the next public version number and maps it to that exact revision.

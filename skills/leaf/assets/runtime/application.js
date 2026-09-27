@@ -88,22 +88,14 @@ export function mountApplication(dependencies) {
   const approvalBlockingAsks = readApprovalBlockingAsks;
   const watchAsks = observeAsks;
 
-  const releasableEntries = () =>
-    ledger
-      .snapshot()
-      .filter(
-        (entry) =>
-          entry.answered &&
-          (entry.rejected ||
-            (entry.event.kind === "action" && entry.presented && entry.readEvent)),
-      );
-
+  // Retire the entries the ledger's lifecycle says wait only for release, once every
+  // region that draws them has committed the reading that no longer does.
   const releasePending = async () => {
-    const candidates = releasableEntries();
+    const candidates = ledger.releasable();
     if (!candidates.length) return false;
     const attempts = new Set(candidates.map((entry) => entry.event.attempt));
     const stillCurrent = () =>
-      releasableEntries().some((entry) => attempts.has(entry.event.attempt));
+      ledger.releasable().some((entry) => attempts.has(entry.event.attempt));
     await Promise.all([
       whenWidgetsPresented([
         ...new Set(
@@ -119,15 +111,16 @@ export function mountApplication(dependencies) {
     ]);
     // Waiting can cross a newer publication. Retire only the candidates selected
     // before the wait and only if their semantic settlement still permits release.
-    const released = releasableEntries().filter((entry) =>
-      attempts.has(entry.event.attempt),
-    );
+    const released = ledger
+      .releasable()
+      .filter((entry) => attempts.has(entry.event.attempt));
     // Widget updates and the thread, projection, and Ask owners have now committed
     // this surviving semantic reading. Paint its command surface while the same pending
     // records still stand; removing an accounted record is then a semantic no-op.
-    if (released.length) paintKeys();
-    for (const entry of released) ledger.remove(entry);
-    return released.length > 0;
+    if (!released.length) return false;
+    paintKeys();
+    ledger.release(released);
+    return true;
   };
 
   const releasePendingSafely = (context) => {
@@ -186,7 +179,7 @@ export function mountApplication(dependencies) {
     let presentationError = null;
     let threadPresentation = Promise.resolve();
     try {
-      pendingTraffic(readApplication().effective.delivery);
+      pendingTraffic(readApplication().effective.sending);
       projection.stageOptimistic(entry);
       // Desired state changes at enqueue even where the widget has already painted the
       // same value, so this gesture reaches the page on the pass the enqueue opened,
@@ -382,8 +375,8 @@ export function mountApplication(dependencies) {
   };
 
   const accountPending = (receipts) => {
-    const removed = ledger.account(receipts);
-    if (removed) paintKeys();
+    const left = ledger.present(receipts);
+    if (left) paintKeys();
     releasePendingSafely("receipt presentation");
   };
 
@@ -424,13 +417,12 @@ export function mountApplication(dependencies) {
       }),
     settlementChanged: (entry, accepted) => {
       if (accepted) {
-        // A poll can account for the attempt before delivery marks its entry answered.
-        // Retry after ledger.accept; release itself waits for every owning presentation
-        // region before undo and other semantic readers may observe the entry leave.
+        // A poll can present the attempt before its POST answers. Retry after
+        // ledger.accept; release itself waits for every owning presentation region
+        // before undo and other semantic readers may observe the entry leave.
         releasePendingSafely("accepted event reconciliation");
-        // Poll presentation can account for the attempt before this POST answers.
-        // In that ordering accept() removes it; the same descriptor invalidation
-        // belongs to whichever accounting edge actually retires the ledger record.
+        // In that ordering a gesture that is not an action left on accept; the same
+        // descriptor invalidation belongs to whichever edge actually retires it.
         if (!applicationState.entry(entry.event.attempt)) invalidateDom();
         return;
       }

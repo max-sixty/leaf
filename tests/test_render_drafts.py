@@ -51,6 +51,7 @@ from render_harness import (
     draft_key,
     draft_owner,
     expect_banner_control_offered,
+    expect_comment_notes,
     held_stale,
     hold_selection,
     holding,
@@ -316,17 +317,15 @@ def test_page_round_trip(browser, serve):
 def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(
     browser, serve, section
 ):
-    """The line that tells a screen reader a block carries a comment is chrome, and chrome
-    inside a widget's own content is chrome in the user's text: lf-draft seeds the
-    editor they type into from its body div, so a line left in there arrives in the
-    textarea and posts with the edit. It goes on the block the passage sits in, or on the
-    element the anchor names — never on the inline run or body div in between."""
+    """The note that tells a screen reader a block carries a comment is chrome, and chrome
+    inside a widget's own content would be chrome in the user's text: lf-draft seeds the
+    editor they type into from its body div, so words left in there would arrive in the
+    textarea and post with the edit. The note stands in the chrome, and the block the
+    passage sits in, or the element the anchor names, names it as its details."""
     url = serve(JOURNEY_V1, anchored=[(section, "Run the migration before deploying.")])
     page = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    assert page.locator("#draft-ops > leaf-anchor-note > .lf-mark-note").count() == 1, (
-        "the line landed inside the draft's body rather than beside it"
-    )
+    expect_comment_notes(page, "#draft-ops", 1)
     page.locator("#draft-ops .lf-draft-body").dblclick()
     assert page.locator("#draft-ops textarea").input_value() == DRAFT_TEXT, (
         "the user's editor opened on text the runtime had written into"

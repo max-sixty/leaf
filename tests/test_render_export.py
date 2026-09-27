@@ -1182,7 +1182,7 @@ def test_interactive_export_with_an_ask_reaches_application_presentation(
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "version",
+            "page",
             "export",
             str(serve.page_dir),
             "--out",
@@ -1212,7 +1212,7 @@ def test_an_interactive_export_paints_a_widget_owned_text_box(browser, serve, tm
     interactive = tmp_path / "interactive-addition.html"
     result = CliRunner().invoke(
         cli_model.cli,
-        ["version", "export", str(serve.page_dir), "--out", str(interactive)],
+        ["page", "export", str(serve.page_dir), "--out", str(interactive)],
         env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
     )
     assert result.exit_code == 0, result.output
@@ -1273,7 +1273,7 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "version",
+            "page",
             "export",
             str(serve.page_dir),
             "--out",
@@ -1348,7 +1348,7 @@ def test_interactive_export_hydrates_captured_deferred_values_offline(
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "version",
+            "page",
             "export",
             str(serve.page_dir),
             "--out",
@@ -1407,7 +1407,7 @@ def test_playground_examples_keep_their_offline_interaction_mode(
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "version",
+            "page",
             "export",
             str(serve.page_dir),
             "--out",
@@ -1526,7 +1526,7 @@ def test_export_refuses_server_dependent_samples(serve, tmp_path):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "version",
+            "page",
             "export",
             str(serve.page_dir),
             "--out",

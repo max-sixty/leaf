@@ -178,7 +178,7 @@ REFERENCE_SCHEMA = {
 
 
 # Each verb is {detail, unit, record}. `writer: "agent"` makes it a verb the agent
-# reports through `leaf experimental report` rather than one the user acts on;
+# reports through `leaf page report` rather than one the user acts on;
 # absent, the user writes it. The two writers differ in what their state may be, not in its shape.
 STATE_SCHEMA = {
     "type": "object",

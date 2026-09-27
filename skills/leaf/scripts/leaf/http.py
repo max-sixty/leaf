@@ -857,7 +857,7 @@ class PageEndpoint:
             )
             if version not in published:
                 return self._json(
-                    {"error": "not stamped yet; run `leaf version stamp` first"},
+                    {"error": "not stamped yet; run `leaf page stamp` first"},
                     404,
                 )
             artifact = self._artifact(mapping[version])

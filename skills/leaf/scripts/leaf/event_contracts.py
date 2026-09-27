@@ -592,7 +592,7 @@ def _thread_presentation_error(view, event: dict, events: list) -> str | None:
         start = messages.index(event["from"])
         end = messages.index(event["through"])
     except ValueError:
-        return "summary endpoints must name spoken turns in the named thread"
+        return "summary endpoints must name spoken turns in one thread"
     if start >= end:
         return "summary must cover at least two messages in thread order"
     return None

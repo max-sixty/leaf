@@ -15,7 +15,7 @@ directories, including `.codex/`; `results/reference-dir.txt` records its locati
 From the checkout root, name the experiment being run:
 
 ```sh
-bash scripts/mcp-app/run-direct-probe.sh 57
+bash notes/mcp-apps/probe/run-direct-probe.sh 57
 ```
 
 Each run creates a fresh page and writes its evidence under

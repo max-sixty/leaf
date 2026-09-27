@@ -4,9 +4,10 @@ import hashlib
 import json
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 
-from .activity import transition_due
+from .activity import claimant_turn, takes_input, transition_due
 from .event_log import now_iso, read_cursor, read_events
 from .files import (
     active_descriptor,
@@ -310,6 +311,19 @@ def presence_with_activity(
         "session_cwd": claim.get("cwd") if claim else None,
     }
     return reading, stored_status.get("stream")
+
+
+def claimant_takes_input(page_dir: Path, events: list) -> bool:
+    """Whether the page's claimant takes input now, read the way the activity fold
+    reads it (`activity.takes_input`), for a writer that asks outside a state read."""
+    present, stream = presence_with_activity(page_dir, events)
+    turn = claimant_turn(
+        present,
+        present["status"],
+        (stream or {}).get("activity"),
+        datetime.fromisoformat(now_iso()),
+    )
+    return takes_input(present, turn)
 
 
 def presence(page_dir: Path, events: list) -> dict:

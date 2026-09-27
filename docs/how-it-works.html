@@ -145,8 +145,8 @@ sequenceDiagram
               page shows your move at once, and a label beside it follows the agent's
               side: <em>Sent</em> once the server has it, <em>Picked up</em> once the
               agent's turn has taken it, and <em>Working</em> once the agent names the
-              work it asks for. The label clears when a reply or revision answers the
-              move. A move still at Sent after two minutes reads
+              work your move asks for. The label clears when a reply or revision answers
+              the move. A move still at Sent after two minutes reads
               <em>Waiting for pickup</em>, because nothing has taken it.
               <a href="#updates-observed-heading">Updates</a> lists every label.
             </p>
@@ -317,16 +317,17 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
             <h2>Each host delivers the same envelope</h2>
             <p id="wait-trick">
               In Claude Code, a background <code>leaf wait</code> ends when feedback
-              arrives, and Leaf's prompt hook puts it in the turn that ending opens;
-              feedback that arrives as a turn ends goes into that turn through the Stop
-              hook. In Codex a detached adapter queues it as the task's next message,
-              or, where Leaf is a client of the task's Codex App Server, starts a turn
-              with it. Every route carries a delivery of the same shape, which names the
-              route and says who acknowledges it. The host owns delivery, so an open
-              page does not prove that an agent received your comments.
+              arrives, and Leaf's prompt hook puts it in the turn that starts when the
+              wait ends; feedback that arrives as a turn ends goes into that turn
+              through the Stop hook. In Codex a detached adapter queues it as the task's
+              next message, or, where Leaf is a client of the task's Codex App Server,
+              starts a turn with it. Every route carries a delivery of the same shape,
+              which names the route and says who acknowledges it. The host owns
+              delivery, so an open page does not prove that an agent received your
+              comments.
             </p>
             <p id="receipt-work-response-lede">
-              Behind those words, Leaf tracks three separate facts about each move:
+              Leaf tracks each move's receipt, work, and response separately:
             </p>
             <ul id="receipt-work-response">
               <li id="wait-ack">
@@ -337,16 +338,16 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
                 it has read it. A Codex task running its own wait gets the envelope
                 printed and confirms it the same way; printed output can be lost or cut
                 off, so unconfirmed events stay available to the next wait. The Codex
-                adapter acknowledges what it carries, and the agent follows its route
-                rather than starting a competing wait.
+                adapter acknowledges what it carries, and the agent follows the
+                adapter's route rather than starting a competing wait.
               </li>
               <li id="work-evidence">
                 <strong>Work</strong>: what the agent is doing. A move that asks for an
-                answer, delivered into the agent's running turn, makes the page read
-                working until the agent says what it is doing.
-                <code>leaf status</code> names the operation, and its
-                <code>--on</code> names the thread or widget being worked on, which is
-                what makes that move read Working.
+                answer, delivered into the agent's running turn, makes the banner read
+                <em>Claude working — on your update</em> until the agent says what it is
+                doing. <code>leaf status</code> names the operation, and its
+                <code>--on</code> names the thread or widget being worked on, which
+                makes that move's label read Working.
               </li>
               <li id="response-evidence">
                 <strong>Response</strong>: what settled the move: a reply in its thread,
@@ -482,8 +483,8 @@ flowchart LR
               <li id="updates-written-idle">
                 <strong><code>leaf status … idle</code></strong> The agent has finished
                 with the page, and the banner reads <em>Leaf closed</em>. Leaf refuses
-                it while an update has not been picked up or a picked-up move still has
-                no answer.
+                it while input of yours has not been picked up or a picked-up move still
+                has no answer.
               </li>
               <li id="updates-written-reply">
                 <strong><code>leaf thread reply --for …</code></strong> An answer in
@@ -592,12 +593,11 @@ flowchart LR
               </tbody>
             </table>
             <p id="updates-observed-hosts">
-              Some labels need the agent's host to report more than a pickup, so a host
-              that doesn't never shows them. Queued comes from Codex's own queue.
-              Replying, Interrupted, and the banner's step readings need Leaf connected
-              to the task's Codex App Server, and Not answered needs a host that records
-              its failures, as the leaf.page website's does. Claude Code tells Leaf only
-              whether its turn is running and whether it waits on a dialog.
+              A label the agent's host does not report never appears. Queued comes from
+              Codex's own queue. Replying, Interrupted, and Codex's step readings need
+              Leaf connected to the task's Codex App Server, and Not answered needs a
+              host that records its failures, as the leaf.page website's does. Claude
+              Code tells Leaf when a turn ended and when it waits on a dialog.
             </p>
           </section>
 
@@ -640,21 +640,22 @@ flowchart LR
           <section id="updates-silence">
             <h2>How Leaf decides what the banner says</h2>
             <p id="updates-silence-lede">
-              The banner states only what Leaf can prove, from three facts about the
-              agent: whether its turn is running, whether a watcher is running between
-              its turns, and the last status it wrote. The server decides the reading
-              and every open page, the Leaves tray, and the agent's own
+              The banner states only what Leaf can observe about the agent's session,
+              the agent process that holds the page: whether it still runs, whether its
+              turn is running, whether a watcher runs between its turns, and the last
+              status it wrote. The server decides the reading, so every open page, the
+              Leaves tray, and the agent's own
               <code>leaf page state</code> show the same one.
             </p>
             <ul id="updates-facts">
               <li id="updates-fact-turn">
-                <strong>The turn.</strong> Claude Code publishes whether each of its
-                sessions is running a turn, and whether that turn waits on a dialog such
-                as a permission prompt, so an interrupted turn reads as ended the moment
-                you press Escape. Where the host publishes nothing, Leaf reads the
-                stamps its hooks and carriers write as a turn opens and closes, and
-                believes an open turn while something in it renewed it within a quarter
-                of an hour: its opening, a status, or a step the host reports.
+                <strong>The turn.</strong> Leaf's hooks and carriers stamp a turn as it
+                opens and closes. An open turn is believed while something in it renewed
+                it within a quarter of an hour: its opening, a status, or a step the
+                host reports. Claude Code also publishes each session's state, which
+                tells Leaf when a turn waits on a dialog such as a permission prompt,
+                and when a turn ended without a hook, so an interrupted turn reads as
+                ended the moment you press Escape.
               </li>
               <li id="updates-fact-watcher">
                 <strong>The watcher.</strong> A <code>leaf wait</code>, or Codex's
@@ -664,10 +665,10 @@ flowchart LR
               </li>
               <li id="updates-fact-status">
                 <strong>The status.</strong> A working status, and each
-                <code>--on</code> line, is believed for a quarter of an hour, and until
-                two minutes after the turn that wrote it ends. The two minutes let an
-                agent woken again straight away renew it before the page reports it
-                gone.
+                <code>--on</code> line, is believed until it goes a quarter of an hour
+                without renewal or two minutes pass after the turn that wrote it ends,
+                whichever comes first. The two minutes let an agent woken again straight
+                away renew it before the page reports it gone.
               </li>
             </ul>
             <lf-diagram
@@ -676,26 +677,27 @@ flowchart LR
             >
               <pre>
 flowchart TD
-  Idle(["status idle?"]) -- yes --&gt; Closed["Leaf closed"]
-  Idle -- no --&gt; Alive(["session running?"])
+  Idle(["status idle?"]) -- no --&gt; Alive(["session running?"])
+  Idle -- yes --&gt; Closed["Leaf closed"]
   Alive -- no --&gt; Unheld["No session"]
   Alive -- yes --&gt; Believed(["work believed?"])
   Believed -- yes --&gt; Working["Claude working"]
   Believed -- no --&gt; Taking(["taking input?"])
   Taking -- yes --&gt; Stale(["stale working status?"])
-  Stale -- yes --&gt; Stalled["Claude’s turn ended"]
+  Stale -- yes --&gt; Stalled["turn ended · last checked in"]
   Stale -- no --&gt; Listening["Claude awaits"]
-  Taking -- no --&gt; Late(["update waiting 2 min?"])
-  Late -- yes --&gt; Nudge["Nudge Claude"]
-  Late -- no --&gt; Away["Claude away"]
+  Taking -- no --&gt; Stuck(["input stalled?"])
+  Stuck -- yes --&gt; Nudge["Nudge Claude in terminal"]
+  Stuck -- no --&gt; Away["Claude away"]
 </pre>
             </lf-diagram>
             <p id="updates-believed">
-              Work is believed now when there is a working status or
-              <code>--on</code> line still inside the rule above, a step the host
-              reports for the running turn, or a move that asks for an answer delivered
-              into the running turn. Once a working reading is about a minute old, the
-              banner shows its age, as in
+              Work is believed when a working status or <code>--on</code> line is still
+              inside the rule above, when the host reports a step for the running turn,
+              or when a move that asks for an answer was delivered into the running
+              turn. Input has stalled when it stayed Sent for two minutes, or when the
+              turn that picked it up ended without answering it. Once a working reading
+              is about a minute old, the banner shows its age, as in
               <em>Claude working · 5m ago — running the browser suite</em>.
             </p>
             <table id="updates-readings">
@@ -725,7 +727,7 @@ flowchart TD
                   <td>Claude awaits — pick a layout</td>
                   <td>
                     The agent is taking input, and its last status says what it wants
-                    from you. While updates are on their way it reads
+                    from you. While your input is on its way to the agent it reads
                     <em>Claude listening · 1 waiting</em> instead.
                   </td>
                 </tr>
@@ -733,30 +735,30 @@ flowchart TD
                   <td>Claude’s turn ended 3m ago</td>
                   <td>
                     The turn that wrote a working status ended more than two minutes ago
-                    without renewing it, and a watcher is still running. The disclosure
-                    keeps the status's words.
+                    without renewing it, and the agent is still taking input. The
+                    disclosure keeps the status's words.
                   </td>
                 </tr>
                 <tr id="updates-reading-quiet">
                   <td>Claude last checked in 20m ago</td>
                   <td>
                     A working status has gone a quarter of an hour without renewal, and
-                    a watcher is still running.
+                    the agent is still taking input.
                   </td>
                 </tr>
                 <tr id="updates-reading-away">
                   <td>Claude away</td>
                   <td>
                     Nothing is taking input. Your comments are saved and the agent's
-                    next turn picks them up; Leaf messages a Claude Code session when
-                    one arrives.
+                    next turn picks them up; Leaf messages a Claude Code session when a
+                    comment arrives.
                   </td>
                 </tr>
                 <tr id="updates-reading-nudge">
                   <td>Nudge Claude in terminal</td>
                   <td>
-                    Nothing is taking input, and an update has waited more than two
-                    minutes. A message in the agent's terminal starts its next turn.
+                    Nothing is taking input, and your input has stalled. A message in
+                    the agent's terminal starts its next turn.
                   </td>
                 </tr>
                 <tr id="updates-reading-unheld">
@@ -765,6 +767,10 @@ flowchart TD
                     The session that held the page has exited. The page picks up again
                     when a session serves it.
                   </td>
+                </tr>
+                <tr id="updates-reading-closed">
+                  <td>Leaf closed</td>
+                  <td>The agent wrote <code>leaf status … idle</code>.</td>
                 </tr>
               </tbody>
             </table>

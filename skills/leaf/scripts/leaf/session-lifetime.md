@@ -13,8 +13,8 @@ and requests another reading at its next deadline; it does not run a second fold
 | live App Server activity: session, turn, typed kind, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's observer-only client | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
 | live App Server reply: one displayed draft plus delivery attempt bindings by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's plain reply | the displayed draft remains on failure or disconnect and is retired by a logged event naming its delivery attempt or its response address; each binding clears after durable commit or terminal failure, and survives connection and turn transitions until then |
 | turn identity, when it opened, and open or closed state | the page's claim record | a prompt or direct delivery opens an opaque `turn` and stamps `turn_opened`; the Stop hook stamps `turn_closed` | the next opening mints a turn; the next closing stamps it |
-| whether the claimant's turn runs now, and whether it waits on a dialog | the host's own record, read at each state read (`Harness.live_turn`): for Claude Code, the session's `status` in its session registry | the host | read live, so it moves with the host; absent where the host publishes nothing, as for a background job whose worker has retired |
-| the closed turn this page nudged its session in | `messaged_turn` in the page's claim record | browser-event admission, once the harness's nudge lands | a later closed turn carries a different `turn` |
+| the host's own word on the claimant's session: `idle`, `waiting` on a dialog, or `busy`, dated by its last change | the host's record, read at each state read (`Harness.live_turn`): for Claude Code, the `status` of the session's newest registry record whose process runs | the host | read live, so it moves with the host; absent where the host publishes nothing, as for a background job whose worker has retired |
+| the turn this page nudged its session in | `messaged_turn` in the page's claim record | browser-event admission, once the harness's nudge lands | a later turn carries a different `turn` |
 | wait lease | `waiter.lock`, or `sessions/<session>.wait` for a host session | the live `leaf wait` process, held open for its life and removed when it lets go, SIGTERM and SIGHUP included | process exit |
 | a host wait's start that no tool hook has named | a lock on `sessions/<session>.started` | the `leaf wait` process, taken with the session's wait lease under `sessions/<session>.started.lock` and held for its life | the `PostToolUse` hook removes the file under that same lock when it names the start, or the wait does when it ends unnamed; process exit |
 | the host runs Leaf's hooks for this session | `sessions/<session>.hooks` | every Leaf hook the host runs for the session | removed by its SessionEnd hook |
@@ -29,19 +29,25 @@ and requests another reading at its next deadline; it does not run a second fold
 Page activity describes ownership, carrier availability, and current work. Its
 `kind` is `closed`, `unheld`, `away`, `listening`, `working`, or `stalled`. Every
 rule in the fold that asks whether the claimant's turn is running reads one
-answer, `activity.claimant_turn`: the host's live record where it has one, which
-sees an interrupted turn end, and otherwise the claim's turn stamps, believed
-open only while the opening, a status written during the turn, or the claimant's
-streamed activity renewed it within the working grace. The claimant takes input
+answer, `activity.claimant_turn`, which dates each piece of evidence and lets
+the newest decide. The claim's turn stamps are believed open only while the
+opening, a status written during the turn, or the claimant's streamed activity
+renewed them within the working grace. The host's record adds what no hook sees:
+an `idle` newer than every renewal ends an open turn (an interrupt), and a
+`waiting` newer than the stamps is a dialog open now. Its `busy` adds nothing,
+since a background job's record keeps it across turn endings. Browser-event
+admission asks the same question before it nudges a session
+(`presence.claimant_takes_input`). The claimant takes input
 while its wait lease is held or, for a harness whose hooks carry input, while its
 turn runs. Fresh declared or observed work makes the page working independently
 of how far newer input has progressed; a host-observed wait on the user in its
 own window (an approval, a question) is observed work that stands for as long as
 its observer does. Delivery opened into the claimant's running turn also proves
 generic activity before its first work declaration; the receipt itself remains
-Picked up. `away` counts, in `counts.overdue`, the owed moves that stayed Sent
-past the pickup grace, which is when the banner asks the user to nudge the
-session. The banner and Leaves tray consume this same reading and present
+Picked up. `counts.overdue` counts the owed moves that stalled with the agent to
+act, still Sent past the pickup grace or left by a turn that ended or went quiet
+before answering; over an `away` page they are when the banner asks the user to
+nudge the session. The banner and Leaves tray consume this same reading and present
 delivery counts separately.
 
 `workflows` is the shared projection for exact user inputs and proactive subject
@@ -204,14 +210,15 @@ that reaches the page after that has no carrier, so browser-event admission asks
 claimant's harness for its nudge — the way to reach a session with nothing watching,
 which only a `wait` harness has. Claude Code's is the Unix socket it binds for each
 session, found by session id in Claude Code's session registry
-(`message_claude_code_session`). It sends when an
-event is appended to a page whose turn is
-closed and whose session holds no wait lease. A running turn is excluded because
+(`message_claude_code_session`). It sends when an event is appended to a page whose
+claimant takes no input by the activity fold's reading: no wait lease, and no
+running turn, an interrupted one read as ended. A running turn is excluded because
 its Stop hook already refuses to end with the input unpicked, and a delivering wait
 and the prompt hook both reopen the turn. Each page messages its session once per
-closed turn: when a socket takes the message, the claim records the turn as
-`messaged_turn`, and an opening mints a new turn id, so later input in the same
-closed turn sends nothing more, while input after a send no socket took tries again.
+turn: when a socket takes the message, the claim records the turn as
+`messaged_turn`, and an opening after a close mints a new turn id, so later input in
+the same turn sends nothing more, while input after a send no socket took tries
+again.
 Input that arrived before a repeated Stop let the turn end gets no message, because
 the blocked Stop already reported it and a message would reopen the turn the hook
 just let end.
@@ -222,9 +229,10 @@ a delivered message, so the prompt hook reopens the turn and lists the input as 
 would for a typed prompt. Delivery is the recipient's decision, and nothing reports
 it back. A session that bypasses permissions holds the message behind an approval
 dialog unless its user set `crossSessionInbound` to `accept`. A background job whose
-worker has retired has no socket to reach. A turn nobody closed is never messaged
-either: Stop does not fire on an interrupted turn (measured), so that page waits for
-the session's next close. An `adapter` or `embedded` carrier declares no nudge and
+worker has retired has no socket to reach. Stop does not fire on an interrupted
+turn (measured), so an interrupted turn is messaged once the session's registry
+record reads `idle`, or, with no record, once nothing has renewed the turn within
+the working grace. An `adapter` or `embedded` carrier declares no nudge and
 needs none: its process queues or starts turns itself, and if that process is gone
 so is the session it served.
 

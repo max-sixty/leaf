@@ -1989,29 +1989,30 @@ def _activity_at(page, minutes=0):
     ]
 
 
-def test_claude_codes_own_record_says_whether_its_turn_runs(
-    claimed, capsys, monkeypatch
-):
-    """Claude Code publishes each session's live status in its session registry:
-    `busy` while a turn runs, `waiting` while that turn holds a dialog open, and
-    `idle` (or `shell`, with a background command) once none does. An interrupt
-    runs no Stop hook, so that record is the one reading that sees it, and every
-    rule that asks whether the claimant's turn runs reads it first. Without a
-    record the hook stamps answer, believed only while something renewed the turn
-    within the working grace, so a delivered move no Stop closed cannot read
-    working forever."""
+def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pid):
+    """Claude Code publishes each session's live status in its session registry,
+    dated by its last change: `idle` (or `shell`, with a background command) once no
+    turn runs, `waiting` while a turn holds a dialog open, `busy` otherwise. An
+    interrupt runs no Stop hook, so an `idle` newer than everything that renewed the
+    turn ends it at that moment, and a `waiting` newer than the turn's stamps is a
+    dialog open now. `busy` adds nothing: a background job's record keeps it across
+    turn endings. Without a word from the record the hook stamps answer, believed
+    only while something renewed the turn within the working grace, so a delivered
+    move no Stop closed cannot read working forever."""
     serving(claimed, 1)
     registry = host_model.claude_code_sessions()
     registry.mkdir(parents=True, exist_ok=True)
 
-    def host_says(status, *, pid=4242, at=None):
+    live = os.getpid()
+
+    def host_says(status, *, pid=live, ago=0):
         files_model.write_json(
             registry / f"{pid}.json",
             {
                 "pid": pid,
                 "sessionId": "s1",
                 "status": status,
-                "statusUpdatedAt": at or int(time.time() * 1000),
+                "statusUpdatedAt": int((time.time() - ago) * 1000),
             },
         )
 
@@ -2022,7 +2023,10 @@ def test_claude_codes_own_record_says_whether_its_turn_runs(
     hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
     capsys.readouterr()
 
-    # No record: the stamps answer, and nothing renews this turn past the grace.
+    # The stamps answer, and nothing renews this turn past the grace; `busy`, and
+    # a record whose process is gone, change nothing.
+    host_says("busy")
+    host_says("waiting", pid=dead_pid)
     assert _activity_at(claimed)["kind"] == "working"
     unrenewed = _activity_at(claimed, 16)
     assert unrenewed["counts"]["handling"] == 0
@@ -2030,13 +2034,6 @@ def test_claude_codes_own_record_says_whether_its_turn_runs(
         "kind": "stale",
         "operation": "work",
     }
-
-    # A running turn is believed for as long as the host says it runs. A dead
-    # worker's leftover record is older and loses to the live one.
-    host_says("idle", pid=1, at=1)
-    host_says("busy")
-    assert host_model.ClaudeCodeHarness("s1", "Claude").live_turn()["running"]
-    assert _activity_at(claimed, 16)["counts"]["handling"] == 1
 
     # A dialog in the terminal is observed work the page announces.
     host_says("waiting")
@@ -2052,10 +2049,12 @@ def test_claude_codes_own_record_says_whether_its_turn_runs(
         "operation": "work",
     }
 
-    # Work claimed in a turn stops being believed once the renewal grace has
-    # passed since an interrupt ended it.
-    host_says("busy")
+    # A status the agent writes after that renews the turn, and work claimed in it
+    # stops being believed once the renewal grace has passed since the next
+    # interrupt.
+    host_says("idle", ago=5)
     session_model.cmd_status(claimed, "working", "Cutting the lede", on=comment["id"])
+    assert _activity_at(claimed)["counts"]["active"] == 1
     host_says("idle")
     assert _activity_at(claimed)["kind"] == "working"
     ended = _activity_at(claimed, 3)
@@ -2073,21 +2072,26 @@ def test_claude_codes_own_record_says_whether_its_turn_runs(
 def test_away_asks_for_a_nudge_only_once_input_is_overdue(claimed, capsys):
     """With nothing taking input, a comment that has only just arrived is the
     session's next turn to take, and Leaf messages a Claude Code session as it
-    arrives. The page asks the user to nudge the agent only once a move has stayed
-    Sent past the pickup grace, which `counts.overdue` names."""
+    arrives. The page asks the user to nudge the agent only once an owed move has
+    stalled with the agent to act, which `counts.overdue` names: one still Sent
+    past the pickup grace, or one a turn picked up and ended without answering."""
     serving(claimed, 1)
     session_model.cmd_status(claimed, "waiting", "Pick a layout")
-    # The first Stop refuses to leave the page unwatched; the repeated one lets
-    # the turn end.
-    for repeated in (False, True):
-        hooks_model.cmd_hook(
-            {
-                "hook_event_name": "Stop",
-                "session_id": "s1",
-                "stop_hook_active": repeated,
-            }
-        )
-    capsys.readouterr()
+
+    def turn_ends():
+        # The first Stop refuses to end the turn over the page's debts; the
+        # repeated one lets it end.
+        for repeated in (False, True):
+            hooks_model.cmd_hook(
+                {
+                    "hook_event_name": "Stop",
+                    "session_id": "s1",
+                    "stop_hook_active": repeated,
+                }
+            )
+        capsys.readouterr()
+
+    turn_ends()
     assert _activity_at(claimed, 3)["kind"] == "away"
     assert _activity_at(claimed, 3)["counts"]["overdue"] == 0
 
@@ -2097,6 +2101,14 @@ def test_away_asks_for_a_nudge_only_once_input_is_overdue(claimed, capsys):
     fresh, late = _activity_at(claimed), _activity_at(claimed, 3)
     assert (fresh["kind"], fresh["counts"]["overdue"]) == ("away", 0)
     assert (late["kind"], late["counts"]["overdue"]) == ("away", 1)
+
+    # Picked up by the next turn, which then ended without answering it.
+    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+    capsys.readouterr()
+    assert _activity_at(claimed)["counts"]["overdue"] == 0
+    turn_ends()
+    stranded = _activity_at(claimed)
+    assert (stranded["kind"], stranded["counts"]["overdue"]) == ("away", 1)
 
 
 def test_a_host_step_waiting_on_the_user_outlasts_the_working_grace():
@@ -2175,7 +2187,6 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
         "turn_closed": None,
         "listening": True,
         "session_alive": True,
-        "unattended": False,
     }
     reply = {
         "state": "active",
@@ -11392,6 +11403,28 @@ def test_a_user_move_no_carrier_will_pick_up_messages_its_claude_code_session(
         files_model.write_json(record_path, record)
         react("once it is back")
         assert messages("s1") is not None
+
+        # An interrupted turn runs no Stop hook, so only the session's own record
+        # says it ended: while it reads busy the open turn takes the input, and once
+        # it reads idle the input is messaged.
+        live = os.getpid()
+        files_model.write_json(
+            config / "sessions" / f"{live}.k{live}.key", {"peerToken": "token-s1"}
+        )
+        opened = datetime.now().astimezone() - timedelta(minutes=5)
+        record_claim(page_dir, turn="turn-4", turn_opened=opened.isoformat())
+        for status, messaged in (("busy", False), ("idle", True)):
+            files_model.write_json(
+                record_path,
+                {
+                    **record,
+                    "pid": live,
+                    "status": status,
+                    "statusUpdatedAt": int(time.time() * 1000),
+                },
+            )
+            react(f"while the session's record reads {status}")
+            assert (messages("s1") is not None) is messaged, status
     finally:
         for listener in listeners.values():
             listener.close()

@@ -23,7 +23,7 @@ from typing import ClassVar
 
 from leaf.files import read_json
 from leaf.leases import adapter_is_live, hooks_ran
-from leaf.machine import ancestry, process_argv
+from leaf.machine import ancestry, pid_alive, process_argv
 
 
 @dataclass(frozen=True)
@@ -123,14 +123,14 @@ class Harness:
         return False
 
     def live_turn(self) -> dict | None:
-        """What the host itself says about this session's turn right now, or None
-        where it says nothing a reader can take.
+        """What the host itself says about this session right now, or None where it
+        says nothing a reader can take.
 
-        `{"running": bool, "since": <iso>, "step": <kind> | None}`: whether a turn
-        is running, since when the host has said so, and an observed step kind
-        (`activity.WORK_KINDS`) when the turn is blocked on the user in the
-        session's own window. `activity` takes this over the claim's turn stamps,
-        which the hooks write and so cannot see a turn end that runs no hook."""
+        `{"state": "busy" | "waiting" | "idle", "since": <iso>}`, dated by the
+        host's own last change: `idle` once no turn runs, `waiting` while a turn
+        holds a dialog open in the session's own window. `activity.claimant_turn`
+        weighs it by that date against the claim's turn stamps, which the hooks
+        write and so cannot see a turn end that runs no hook."""
         return None
 
 
@@ -201,29 +201,34 @@ class ClaudeCodeHarness(EnvironmentHarness):
 
     def live_turn(self) -> dict | None:
         """The session's live status in Claude Code's session registry
-        (`claude_code_session_records`, the newest where a dead worker left
-        another): `busy` while a turn runs, `waiting` while that turn holds a
-        dialog open (a permission prompt, a question), and `idle`, or `shell`
-        while a background command runs, once no turn does.
+        (`claude_code_session_records`), from the newest record whose process
+        still runs: `waiting` while a turn holds a dialog open (a permission
+        prompt, a question), `idle` once no turn runs (`shell` too, which is idle
+        with a background command running), and `busy` otherwise.
 
-        This is the one reading of a turn that an interrupt moves: Escape ends a
-        turn without running the Stop hook, and the record turns `idle` at that
-        moment (measured at Claude Code 2.1.283). The record belongs to the
-        worker hosting the session's current sitting, so a background job whose
-        worker has retired has none, and the claim's stamps answer instead."""
+        Its `idle` is the one reading of a turn's end that an interrupt moves:
+        Escape ends a turn without running the Stop hook, and the record turns
+        `idle` at that moment (measured at Claude Code 2.1.283). `busy` is weaker:
+        a background job's record stays `busy` across turn endings while its
+        background work runs, so it does not prove a turn is running. The record
+        belongs to the worker hosting the session's current sitting, so a
+        background job whose worker has retired has none."""
         stamped = [
             record
             for record in claude_code_session_records(self.session)
             if isinstance(record.get("statusUpdatedAt"), int | float)
+            and isinstance(record.get("pid"), int)
+            and pid_alive(record["pid"])
         ]
         record = max(stamped, key=lambda item: item["statusUpdatedAt"], default={})
-        status, stamp = record.get("status"), record.get("statusUpdatedAt")
-        if status not in {"busy", "waiting", "idle", "shell"}:
+        state = {"busy": "busy", "waiting": "waiting", "idle": "idle", "shell": "idle"}
+        if record.get("status") not in state:
             return None
         return {
-            "running": status in {"busy", "waiting"},
-            "since": datetime.fromtimestamp(stamp / 1000).astimezone().isoformat(),
-            "step": "awaiting_input" if status == "waiting" else None,
+            "state": state[record["status"]],
+            "since": datetime.fromtimestamp(record["statusUpdatedAt"] / 1000)
+            .astimezone()
+            .isoformat(),
         }
 
     def nudge(self, page_dir: Path) -> bool:

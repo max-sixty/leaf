@@ -205,34 +205,58 @@ class Turn(NamedTuple):
 
 
 def claimant_turn(
-    present: dict, status: dict, stream: dict | None, now: datetime
+    present: dict,
+    status: dict,
+    stream: dict | None,
+    now: datetime,
+    *,
+    awaiting: bool = False,
 ) -> Turn:
-    """Whether the claimant's turn is running, from the strongest evidence there is.
+    """Whether the claimant's turn is running, from every piece of evidence,
+    each dated by when it was written, the newest deciding.
 
-    The host's own word comes first (`Harness.live_turn`): it sees every ending,
-    an interrupt included. Otherwise the claim's stamps answer: the prompt hook or
-    a carrier opens the turn and the Stop hook or a carrier closes it, but an
-    interrupt runs no hook, so an open stamp is believed only while something in
-    that turn renewed it within the working grace: its opening, a status written
-    during it, or the claimant's streamed activity. Past that nothing says whether
-    it runs, which the fold reads as not running without calling it ended."""
-    if present["session_alive"] is not True:
-        return Turn(False, ended=_moment(present.get("turn_closed")))
-    live = present.get("live_turn")
-    if live is not None:
-        if live["running"]:
-            return Turn(True, step=live.get("step"))
-        return Turn(False, ended=_moment(live["since"]))
+    The claim's stamps are the spine: the prompt hook or a carrier opens the turn
+    and the Stop hook or a carrier closes it. An interrupt runs no hook, so an
+    open stamp is believed only while something in that turn renewed it within
+    the working grace: its opening, a status written during it, or the claimant's
+    streamed activity. Past that nothing says whether it runs, which reads as not
+    running without calling it ended.
+
+    The host's own record (`Harness.live_turn`) adds what no hook sees: an `idle`
+    newer than every renewal ends an open turn at that moment, and a `waiting`
+    newer than the stamps is a turn blocked on a dialog now. Its `busy` adds
+    nothing, since the host keeps it across turn endings while background work
+    runs. `awaiting` says the claimant's observer reports a wait on the user
+    right now, which holds the turn open for as long as that observer lives."""
     opened = _moment(present.get("turn_opened"))
     closed = _moment(present.get("turn_closed"))
+    if present["session_alive"] is not True:
+        return Turn(False, ended=closed)
+    host = present.get("live_turn") or {}
+    since = _moment(host.get("since"))
+    stamped = max((moment for moment in (opened, closed) if moment), default=None)
+    if host.get("state") == "waiting" and since and (not stamped or since >= stamped):
+        return Turn(True, step="awaiting_input")
     if closed is not None or opened is None or present.get("claim_turn") is None:
         return Turn(False, ended=closed)
+    if awaiting:
+        return Turn(True)
     renewals = [opened, _moment(status.get("ts"))]
     if stream and stream.get("session") == present.get("claim_session"):
         renewals.append(_moment(stream.get("ts")))
-    until = max(moment for moment in renewals if moment and moment >= opened)
-    until += WORKING_GRACE
+    renewed = max(moment for moment in renewals if moment and moment >= opened)
+    if host.get("state") == "idle" and since and since >= renewed:
+        return Turn(False, ended=since)
+    until = renewed + WORKING_GRACE
     return Turn(now < until, until=until)
+
+
+def takes_input(present: dict, turn: Turn) -> bool:
+    """Whether the claimant takes input now: its wait lease is held, or its turn
+    runs under a harness whose hooks carry input into the turn. A wait that ends
+    to deliver a comment has left the lease, and the turn it reaches, or the one
+    it opens, takes the comment."""
+    return present["listening"] or (turn.running and present["turn_takes_input"])
 
 
 def _canonical_workflows(
@@ -306,7 +330,11 @@ def canonical_activity(
         )
     )
     turn = claimant_turn(
-        present, status, {**stream, "ts": now_iso} if stream_live else stream, now
+        present,
+        status,
+        stream,
+        now,
+        awaiting=stream_live and stream.get("kind") in AWAITING_KINDS,
     )
     # What the host observed the agent doing now: a live stream step while its turn
     # runs, or the host's own word that the turn waits on the user in its window.
@@ -407,17 +435,19 @@ def canonical_activity(
         }
     queued = [item for item in obligations if item["stage"] == "queued"]
     pending = [item for item in obligations if item["stage"] == "sent"]
-    overdue = [item for item in pending if item["condition"] is not None]
+    # Owed moves whose progress stalled with the agent to act: unpicked past the
+    # pickup grace, or left by a turn that ended or went quiet before answering.
+    # With nothing taking input, these are what only a nudge will move.
+    overdue = [
+        item
+        for item in obligations
+        if item["condition"] is not None and item["next_actor"] == "agent"
+    ]
 
-    # A claimant takes input while a wait holds the lease, or while its running turn
-    # takes new input before it ends: a wait that ends to deliver a comment has
-    # left the lease, and the turn it reaches, or the one it opens, takes the
-    # comment. The page's `kind` reads this wherever it asks whether anyone is
-    # there, in the banner and in neighbouring pages' rows; a watch question such
-    # as the Stop hook's still asks for the lease.
-    taking_input = present["listening"] or (
-        turn.running and present.get("turn_takes_input", False)
-    )
+    # The page's `kind` reads this wherever it asks whether anyone is there, in the
+    # banner and in neighbouring pages' rows; a watch question such as the Stop
+    # hook's still asks for the lease.
+    taking_input = takes_input(present, turn)
     kind = "away"
     detail = ""
     ts = status.get("ts")

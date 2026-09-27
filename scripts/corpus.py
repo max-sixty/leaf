@@ -18,7 +18,7 @@ from pathlib import Path
 
 from example_data import regression_sources
 from leaf.structure import SourceDocument
-from leaf.thread_context import comment_ids, specimen_events
+from leaf.thread_context import specimen_events, thread_ids
 
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
 CORPUS = EXAMPLES_DIR / "corpus.html"
@@ -235,9 +235,9 @@ def build_events() -> str:
     for source, _ in TABS:
         document = SourceDocument(source.read_text(encoding="utf-8"))
         selected = {
-            root
+            thread
             for specimen in document.specimens
-            for root in specimen["attrs"].get("data-specimen-threads", "").split()
+            for thread in specimen["attrs"].get("data-specimen-threads", "").split()
         }
         if not selected:
             continue
@@ -247,10 +247,10 @@ def build_events() -> str:
             if line.strip()
         ]
         # A declaration naming nothing is a typo here and nothing else: the history
-        # is the example's own shipped log, so a root absent from it will be absent
+        # is the example's own shipped log, so a thread absent from it will be absent
         # from every page built from this source. `specimen_events` seeds what a log
         # holds, because a served page may legitimately hold none of it yet.
-        if unknown := selected - comment_ids(events):
+        if unknown := selected - thread_ids(events):
             sys.exit(
                 f"{source.name} declares specimen threads its log does not "
                 f"hold: {', '.join(sorted(unknown))}"

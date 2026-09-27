@@ -273,10 +273,10 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
         if e["kind"] == "reply":
             # A reply whose message the log lost opens the thread that message would
             # have opened, under the id it was known by, which is the id an action
-            # names in `resolves` and the one `thread_roots` resolves it to. A person
+            # names in `resolves` and the one `thread_names` resolves it to. A person
             # answers it by its own surviving id; the lost one names no message and
             # `leaf thread reply` says so.
-            # `read_events` skips a torn line and keeps reading, and `thread_roots`
+            # `read_events` skips a torn line and keeps reading, and `thread_names`
             # resolves such a reply to the lost id for the same reason: a user who
             # can see the reply is owed the rest of the page around it. Raising here
             # instead cost the whole page — `page state` and every browser state read

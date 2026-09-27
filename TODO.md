@@ -220,10 +220,6 @@ and its chrome coordinate.
 - **Ask once whether the page has caught up with a reading.** `tests/render_harness.py`
   `told()` waits for `data-lf-reading` to match the server's reading, and the `data`
   and `log` stages of the runtime's `pageReadiness` (#1250) answer the same question.
-- **Call a thread's identity its id in Python.** The runtime keys threads on the
-  served `id` (#1260), but Python still names that identity a root (`thread_roots`,
-  `FrozenThreadReading.roots`), though a thread that lost its opening message has a
-  root that differs from its id.
 - **Say which panes the workspace holds without naming `lf-pane`.** `layouts.css`
   holds an authored pane only as the workspace body or a cell of it (a pane in a
   section flows), and a generated pane at any depth. It tells the two apart by the

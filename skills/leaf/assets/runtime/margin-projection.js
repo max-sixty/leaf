@@ -471,12 +471,16 @@ export function createMarginProjection({
 
   let workflowCarriers = new Set();
   let selectedReadingCarriers = new Set();
-  const workflowReceipt = (items) =>
-    strongestWorkflow(
-      items
-        .map((item) => item.workflowReceipt)
-        .filter((workflow) => workflow && isWorkflowProgress(workflow)),
+  // Selected from the published workflows rather than gathered from the items, whose
+  // order is the margin's, so the strongest is the server's.
+  const workflowReceipt = (items) => {
+    const receipts = new Set(items.map((item) => item.workflowReceipt?.id));
+    return strongestWorkflow(
+      workflows().filter(
+        (workflow) => receipts.has(workflow.id) && isWorkflowProgress(workflow),
+      ),
     );
+  };
   const rows = new Map();
   const moreMarginEntries = new Map();
   const readingMarginEntries = new Map();
@@ -796,11 +800,7 @@ export function createMarginProjection({
     const groups = new Map();
     const receiptByCoordinate = new Map();
     for (const receipt of visibleWidgetWorkflows()) {
-      const coordinate =
-        typeof receipt.coordinate === "string"
-          ? receipt.coordinate
-          : JSON.stringify(receipt.coordinate);
-      receiptByCoordinate.set(coordinate, receipt);
+      receiptByCoordinate.set(JSON.stringify(receipt.coordinate), receipt);
     }
     const representedThreads = new Set();
     for (const thread of threadList()) {

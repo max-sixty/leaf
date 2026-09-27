@@ -31,11 +31,74 @@ class BrowserReading(NamedTuple):
     documents: dict[int, DocumentReading]
 
 
+# Delivery progress, furthest last. `answered` is only ever the retained failed
+# response, so within its category it is the furthest a move has come.
+_STAGE_RANK = {
+    "sent": 0,
+    "queued": 1,
+    "picked_up": 2,
+    "working": 3,
+    "replying": 4,
+    "answered": 5,
+}
+
+
+def _at_work(workflow: dict) -> bool:
+    return workflow["stage"] in {"working", "replying"}
+
+
+def _strength(workflow: dict) -> tuple:
+    """How strongly a workflow speaks for any surface that shows one of several: a
+    move handed back to the user first, then work under way, then an uncertain or
+    stopped one, then plain delivery; within each the further stage, then the newer
+    input."""
+    if workflow["condition"] is not None:
+        category = 2
+    elif _at_work(workflow):
+        category = 3
+    elif workflow["stage"] == "answered":
+        category = 0
+    else:
+        category = 1
+    return (
+        workflow["next_actor"] == "user",
+        category,
+        _STAGE_RANK[workflow["stage"]],
+        workflow["seq"],
+    )
+
+
+def served_workflows(
+    workflows: list[dict], thread_reading: FrozenThreadReading
+) -> list[dict]:
+    """The page's workflows as the browser and `page state` read them, strongest
+    first, each stamped with the two thread facts only the frozen thread document
+    knows.
+
+    `thread` is the thread the workflow stands in: a thread input's own, a widget
+    frozen into a message's thread, or null for a page widget. `holds_thread` is
+    whether it keeps that thread the agent's turn: every one of the thread's own
+    inputs and claims, and a widget move frozen into it while the move is owed or
+    the agent is at work on it. A frozen move that owes nothing shows its receipt on
+    its message and leaves the thread nobody's turn.
+
+    The order is the one comparator: whatever shows one workflow of several, a
+    thread's attention, its card's secondary status, a message's receipt, takes the
+    first. A reader that selects keeps the order; the browser places its own
+    unresolved sends against it."""
+    for workflow in workflows:
+        thread = thread_reading.subject_thread(workflow["subject"])
+        workflow["thread"] = thread
+        workflow["holds_thread"] = thread is not None and (
+            workflow["subject"]["kind"] == "thread"
+            or workflow["answer"] is not None
+            or _at_work(workflow)
+        )
+    return sorted(workflows, key=_strength, reverse=True)
+
+
 def _apply_thread_attention(
-    threads: list[dict],
-    asks: dict,
-    workflows: list[dict],
-    thread_reading: FrozenThreadReading,
+    threads: list[dict], asks: dict, workflows: list[dict]
 ) -> None:
     """Attach the shared attention aggregate, with user Asks taking precedence.
 
@@ -43,47 +106,13 @@ def _apply_thread_attention(
     an open Ask or a question the agent's latest turn leaves (`user_prompt`), or a
     response the user must recover; `waiting` while a workflow holds the thread with
     the agent, which covers every input `events.unanswered_turns` holds and any work
-    claimed on the thread after it was answered; else None."""
+    claimed on the thread after it was answered; else None. `workflows` are
+    `served_workflows`, so the first that qualifies is the one the thread waits on."""
     user_threads = {ask["thread"] for ask in asks["user"]}
-    stage_rank = {
-        "sent": 0,
-        "queued": 1,
-        "picked_up": 2,
-        "working": 3,
-        "replying": 4,
-        "answered": 5,
-    }
-
-    def at_work(workflow: dict) -> bool:
-        return workflow["stage"] in {"working", "replying"}
-
-    def holds_thread(workflow: dict) -> bool:
-        """Whether this workflow keeps its thread the agent's turn: every one of the
-        thread's own inputs and claims, and a widget move frozen into it while the
-        move is owed or the agent is at work on it. A frozen move that owes nothing
-        shows its receipt on its message and leaves the thread nobody's turn."""
-        return (
-            workflow["subject"]["kind"] == "thread"
-            or workflow["answer"] is not None
-            or at_work(workflow)
-        )
-
-    def priority(workflow: dict) -> tuple:
-        if workflow["condition"] is not None:
-            category = 2
-        elif at_work(workflow):
-            category = 3
-        elif workflow["stage"] == "answered":
-            category = 0
-        else:
-            category = 1
-        return category, stage_rank[workflow["stage"]], workflow["seq"]
-
     by_thread: dict[str, list[dict]] = {}
     for workflow in workflows:
-        thread_id = thread_reading.subject_thread(workflow["subject"])
-        if thread_id is not None:
-            by_thread.setdefault(thread_id, []).append(workflow)
+        if workflow["thread"] is not None:
+            by_thread.setdefault(workflow["thread"], []).append(workflow)
     for thread in threads:
         if thread["resolved"]:
             thread["attention"] = None
@@ -96,21 +125,22 @@ def _apply_thread_attention(
             }
             continue
         candidates = by_thread.get(thread["id"], [])
-        if recovery := [
-            workflow for workflow in candidates if workflow["next_actor"] == "user"
-        ]:
-            workflow = max(recovery, key=priority)
+        if recovery := next(
+            (workflow for workflow in candidates if workflow["next_actor"] == "user"),
+            None,
+        ):
             thread["attention"] = {
                 "kind": "needs_user",
                 "reason": "recovery",
-                "workflow": workflow["id"],
+                "workflow": recovery["id"],
             }
-        elif waiting := [workflow for workflow in candidates if holds_thread(workflow)]:
-            workflow = max(waiting, key=priority)
+        elif waiting := next(
+            (workflow for workflow in candidates if workflow["holds_thread"]), None
+        ):
             thread["attention"] = {
                 "kind": "waiting",
-                "reason": "uncertain" if workflow["condition"] else "workflow",
-                "workflow": workflow["id"],
+                "reason": "uncertain" if waiting["condition"] else "workflow",
+                "workflow": waiting["id"],
             }
         else:
             thread["attention"] = None
@@ -232,13 +262,8 @@ def browser_state(
         live_reply,
         (live_stream or {}).get("reply_bindings"),
     )
-    workflows = activity.pop("workflows")
-    _apply_thread_attention(
-        thread["threads"],
-        thread["asks"],
-        workflows,
-        thread_reading,
-    )
+    workflows = served_workflows(activity.pop("workflows"), thread_reading)
+    _apply_thread_attention(thread["threads"], thread["asks"], workflows)
     served = [(revision, documents[revision]) for revision in view_revisions]
     if wants_history(served, registry_for):
         words = GestureWords(

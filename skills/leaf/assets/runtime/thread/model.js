@@ -197,20 +197,6 @@ export function readThreadRecords(
   markingRead = [],
 ) {
   const locallyRead = new Set(markingRead.map(versionKey));
-  const workflowsByInput = new Map();
-  const workflowsByWidget = new Map();
-  for (const workflow of workflows) {
-    if (workflow.input) {
-      const current = workflowsByInput.get(workflow.input) ?? [];
-      current.push(workflow);
-      workflowsByInput.set(workflow.input, current);
-    }
-    if (workflow.subject.kind === "widget") {
-      const current = workflowsByWidget.get(workflow.subject.id) ?? [];
-      current.push(workflow);
-      workflowsByWidget.set(workflow.subject.id, current);
-    }
-  }
   const unitsByMessage = new Map();
   for (const descriptor of document.descriptors.values()) {
     if (descriptor.document.kind !== "thread") continue;
@@ -270,25 +256,21 @@ export function readThreadRecords(
           };
       if (message.markup && !authored)
         throw new Error(`Authored message ${message.id} has no captured body`);
+      const unitIds = new Set(units.map((unit) => unit.id));
       return {
         ...record,
         unread: unreadMessages.has(message.id),
         key: message.attempt ?? message.id,
         body,
-        workflows: [
-          ...(workflowsByInput.get(message.id) ?? []),
-          ...units.flatMap((unit) => workflowsByWidget.get(unit.id) ?? []),
-        ],
+        // The message's own input and the moves on widgets frozen into it, in the
+        // published order `strongestWorkflow` reads.
+        workflows: workflows.filter(
+          (workflow) =>
+            workflow.input === message.id ||
+            (workflow.subject.kind === "widget" && unitIds.has(workflow.subject.id)),
+        ),
       };
     });
-    const widgetIds = new Set(
-      msgs.flatMap((message) => message.body.units?.map((unit) => unit.id) ?? []),
-    );
-    const threadWorkflows = workflows.filter(
-      (workflow) =>
-        (workflow.subject.kind === "thread" && workflow.subject.id === thread.id) ||
-        (workflow.subject.kind === "widget" && widgetIds.has(workflow.subject.id)),
-    );
     return {
       id: thread.id,
       key: threadKey(thread),
@@ -302,7 +284,7 @@ export function readThreadRecords(
       settling: thread.settling ?? null,
       user_prompt: thread.user_prompt,
       attention: thread.attention,
-      workflows: threadWorkflows,
+      workflows: workflows.filter((workflow) => workflow.thread === thread.id),
       bare_reaction: thread.bare_reaction,
       seat: thread.seat,
       summaries: thread.summaries,

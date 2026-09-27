@@ -75,7 +75,9 @@
     "next_actor": "agent",
     "response": null,
     "quiet": false,
-    "dropped": false
+    "dropped": false,
+    "thread": "e4",
+    "holds_thread": true
   },
   "readings": {
     "frozen move owes nothing": {
@@ -164,7 +166,9 @@
           "next_actor": "agent",
           "response": null,
           "quiet": false,
-          "dropped": false
+          "dropped": false,
+          "thread": "e1",
+          "holds_thread": false
         }
       ]
     }

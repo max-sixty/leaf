@@ -188,21 +188,6 @@ def name_the_draft(page, ctx):
     page.evaluate("key => { window.lfDraftKey = key; }", draft_key(page, ctx))
 
 
-# A storage fault stands in an init script, because it has to run ahead of the
-# runtime's own storage listener and at the window listeners run in the order they
-# were added, capture or not. That is before the page can say which key its draft is
-# stored under, so the script compares against `window.lfDraftKey`, which
-# `name_the_draft` sets once the page has loaded and nothing has been typed.
-DEAF_TO_DRAFT_NEWS = """addEventListener('storage', event => {
-  if (event.key === window.lfDraftKey) event.stopImmediatePropagation();
-}, true);"""
-
-
-def name_the_draft(page, ctx):
-    """Point this page's storage fault at the draft at `ctx`, by the store's key."""
-    page.evaluate("key => { window.lfDraftKey = key; }", draft_key(page, ctx))
-
-
 def cancel_draft(page, draft_id="draft-ops"):
     """Cancel stands beside Save throughout an engaged draft edit."""
     draft_control(page, "cancel", draft_id).click()

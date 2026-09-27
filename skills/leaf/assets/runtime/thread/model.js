@@ -8,7 +8,14 @@
    (`awaitsUser`, `awaitsAgent`) is read from the complete browser Thread's
    `attention` and nothing else, so a filter and the card it lists agree: a user
    obligation outranks concurrent agent work, which stays the card's secondary
-   status. */
+   status.
+
+   A thread's `id` is its one identity: the id the server keys it by, which every Ask,
+   workflow, placement, and view names it by. Its `root` is the first message it still
+   holds, a message like any other, and what a reply or settlement addresses as its
+   `parent`. The two differ where the log lost a thread's opening message
+   (`events.build_threads`), and for a thread this tab opened, whose id is its pending
+   message's until the log answers. */
 import { sameAnchor } from "../anchor-coordinate.js";
 import { PENDING } from "./identity.js";
 
@@ -24,7 +31,22 @@ export const turns = (thread) =>
 // that has to outlive that transition with the user standing in it — a reply draft, a
 // margin row — keys itself by this rather than by the id, which changes when the log
 // answers.
-export const threadKey = (thread) => thread.root.attempt ?? thread.root.id;
+export const threadKey = (thread) => thread.root.attempt ?? thread.id;
+
+// Every name that reaches a thread: its own id, the id of each message in it, which a
+// reply or settlement names as its `parent`, and the pending id a message this tab sent
+// went by before the log named it.
+export function threadNames(threads) {
+  const byName = new Map();
+  for (const thread of threads) {
+    byName.set(thread.id, thread);
+    for (const message of thread.msgs) {
+      byName.set(message.id, thread);
+      if (message.attempt) byName.set(PENDING + message.attempt, thread);
+    }
+  }
+  return byName;
+}
 
 export const bareReaction = (thread) => thread.bare_reaction;
 export const discussed = (thread) => !bareReaction(thread);
@@ -59,13 +81,8 @@ export function foldThreads(threads, messages, reactions, settlements) {
   // reply written against the first: the one this page gave it, and the one the log
   // gave back. Both reach the one thread, so a reply written into the card a
   // send had just drawn stays in it when the answer arrives.
-  const byName = new Map();
-  const copies = threads.map((thread) => {
-    const copy = { ...thread, msgs: [...thread.msgs] };
-    byName.set(thread.root.id, copy);
-    if (thread.root.attempt) byName.set(PENDING + thread.root.attempt, copy);
-    return copy;
-  });
+  const copies = threads.map((thread) => ({ ...thread, msgs: [...thread.msgs] }));
+  const byName = threadNames(copies);
   const opened = [];
   // Open both kinds before attaching either kind of reply. The delivery queue lets a
   // user answer a locally named root before the server has named it; that root may be
@@ -74,6 +91,7 @@ export function foldThreads(threads, messages, reactions, settlements) {
     if (root.kind === "reply") continue;
     const reaction = isReaction(root);
     const thread = {
+      id: root.id,
       root,
       anchor: root.anchor ?? null,
       msgs: [root],
@@ -155,7 +173,6 @@ function lastMovedAt(thread) {
 
 export const threadSummary = (thread) => ({
   topic: thread.title ?? thread.root.body.text.trim(),
-  count: turns(thread).length,
   latest: lastMovedAt(thread),
 });
 
@@ -265,20 +282,14 @@ export function readThreadRecords(
     );
     const threadWorkflows = workflows.filter(
       (workflow) =>
-        (workflow.subject.kind === "thread" &&
-          workflow.subject.id === thread.root.id) ||
+        (workflow.subject.kind === "thread" && workflow.subject.id === thread.id) ||
         (workflow.subject.kind === "widget" && widgetIds.has(workflow.subject.id)),
     );
     return {
+      id: thread.id,
       key: threadKey(thread),
       title: thread.title ?? null,
-      // A recovered thread can have lost its opening message. Its first
-      // surviving reply supplies the root's displayed content while the
-      // missing opener remains the thread's stable identity.
-      root: msgs.find((message) => message.id === thread.root.id) ?? {
-        ...msgs[0],
-        id: thread.root.id,
-      },
+      root: msgs.find((message) => message.id === thread.root.id),
       msgs,
       unread: Object.freeze(unread),
       anchor: thread.anchor ?? null,

@@ -34,8 +34,9 @@ Evidence, previews, staged sites, and probe results leave the tracked tree uncha
 - `eval_harness.py` builds the arms and isolated `claude -p` children every Claude
   Code eval runs; `eval_claude_delivery.py`, `notes/arrangement-eval/harness.py`,
   and the A/B recipe in `evals/README.md` use it.
-- `eval_claude_delivery.py [BASE_REF]` compares `leaf wait` pickup between a base
-  plugin and HEAD's.
+- `eval_claude_delivery.py [BASE_REF]` compares how an agent handles a comment
+  through `leaf wait`, and what the page shows meanwhile, between a base plugin
+  and HEAD's.
 - `record-demo.sh` regenerates `docs/demo.gif`, the README stills, and
   `docs/session-card.png`.
 

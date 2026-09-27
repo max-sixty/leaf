@@ -1077,8 +1077,8 @@ customElements.define(
 );
 """
 # Where the two things in the right margin stand, and how much of the board is over the
-# controls. The controls are what the strip was reserved for, and they hang off the column
-# rather than out of the strip, so the strip's own edge says nothing about where they are.
+# controls. The controls stand in the rail, and they hang off the column rather than out
+# of the rail's strip, so the strip's own edge says nothing about where they are.
 RAIL_BAND_PAGE = leaf_page(
     "rail band",
     """

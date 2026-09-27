@@ -13,6 +13,7 @@ from interact_support import (
 from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf.render_checks import wait_until_ready
 from leaf.served_state import page as served_page
 from leaf.validation import compatibility as validation_model
 from PIL import Image, ImageChops
@@ -61,7 +62,6 @@ from render_cases_widgets import (
     prefixed_visual_layer,
 )
 from render_harness import (
-    BOTH_STAMPS,
     EXAMPLES,
     LONG_PAGE,
     REPLAYED_PAGE,
@@ -1612,7 +1612,7 @@ def test_a_reload_under_a_held_aim_rearms_on_the_first_move(browser, serve):
     page.keyboard.down("Alt")
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "t")
     page.reload()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(page.locator(".lf-aim[data-for]")).to_have_count(0)  # the latch is gone
     heading.hover()  # the first move under the still-held key
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "t")
@@ -1992,13 +1992,13 @@ def test_design_mode_survives_the_reload_a_new_version_brings(browser, serve):
     page.keyboard.press("l")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     page.reload()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     expect(page.locator('.lf-legend-box[data-for="approach"]')).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
     page.reload()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
 
 

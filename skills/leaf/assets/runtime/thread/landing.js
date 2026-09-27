@@ -32,13 +32,13 @@ import { closestAcross } from "../passages.js";
 import { panel, threadsBox } from "./panel-elements.js";
 import { reachedForWords, reveal } from "../widget-elements.js";
 import { finishFold } from "./folding.js";
-import { SAYS_IN, SAY_BOX } from "./selectors.js";
+import { SAYS_IN, SAY_BOX, THREAD } from "./selectors.js";
 import { retainUserIntent } from "../user-intent.js";
 import { focusDestination, readCaret } from "../focus.js";
 import { pageScope } from "../keyboard/register.js";
 import { TEXT_ENTRY } from "../keyboard/text-entry.js";
 import { threadList } from "./state.js";
-import { focusedThread, focusThread, heldThread, heldThreadId } from "./focus.js";
+import { focusedThread, focusThread, heldThread } from "./focus.js";
 import { threadSearchActive } from "./narrowing.js";
 
 export { SAY_BOX } from "./selectors.js";
@@ -134,8 +134,7 @@ const backFromThread = (box) => threadReturns.get(box) ?? null;
 // editing this: the question is the same one, and the answer moved.
 function backFromBox() {
   const held = heldThreadOrSeat();
-  if (held?.matches(".lf-thread, .lf-page-thread"))
-    return { target: held, line: "back to thread" };
+  if (held?.matches(THREAD)) return { target: held, line: "back to thread" };
   const route = backFromThread(focused());
   return route?.target?.isConnected ? route : null;
 }
@@ -174,7 +173,7 @@ pageScope("text entry", {
         const back = backFromBox();
         document.activeElement.blur();
         const target = back?.target ?? threadsBox;
-        if (target.matches?.(".lf-thread, .lf-page-thread")) focusThread(target);
+        if (target.matches?.(THREAD)) focusThread(target);
         else target.focus();
       },
     },
@@ -489,7 +488,7 @@ export function createThreadLanding({ setPanel, scrollToThread, revealThread }) 
  * landing owner — one a test builds to hold a reveal open — is another way of landing,
  * not another set of keys, and declaring from the constructor would let it quietly take
  * the page's. */
-export function declareThreadKeys(landIn, read) {
+export function declareThreadKeys(landIn) {
   pageScope("thread", {
     title: "In a thread",
     root: focused,
@@ -521,25 +520,6 @@ export function declareThreadKeys(landIn, read) {
             : null;
           if (reopen) reopen.click();
           else landIn({ held: thread, box: threadInput(thread) });
-        },
-      },
-      {
-        id: "thread.read.mark",
-        keys: ["m"],
-        does: "Mark this thread read",
-        line: "mark read",
-        when: () => {
-          const id = heldThreadId();
-          return Boolean(
-            id &&
-            threadList().find(
-              (thread) => thread.root.id === id && thread.unread.length,
-            ),
-          );
-        },
-        run: () => {
-          const id = heldThreadId();
-          if (id) read.markThread(id);
         },
       },
       {

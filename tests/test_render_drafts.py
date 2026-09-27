@@ -12,6 +12,7 @@ from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import service as service_model
+from leaf.render_checks import wait_until_ready
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -41,7 +42,6 @@ from render_cases_navigation import (
     pending_text,
 )
 from render_harness import (
-    BOTH_STAMPS,
     EXAMPLE_MEDIA,
     LONG_PAGE,
     STORED_DRAFT_SETTLED,
@@ -550,7 +550,7 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     assert "/versions/" not in page.url
 
     page.reload(wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(draft.locator("textarea")).to_be_visible()
     expect(draft.locator("textarea")).to_have_value("")
 

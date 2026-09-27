@@ -1401,8 +1401,8 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
     }
     /* A page tab is a section of the page, not a box on it: it declares the frame only
      * so its first line trims under the strip and, like `main`, hands the room back to
-     * what it holds, so a wide exhibit or a workspace in a page tab grows out as it would
-     * on a page without tabs. */
+     * what it holds, so a wide exhibit in a page tab grows out as it would on a page
+     * without tabs. */
     lf-tabs.lf-rendered[data-lf-tabs-context="root"] > lf-tab:not([hidden]) > * {
       --lf-room: inherit;
     }

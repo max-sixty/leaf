@@ -14,6 +14,7 @@ from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import thread as thread_model
+from leaf.render_checks import wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -74,7 +75,6 @@ from render_cases_widgets import (
 )
 from render_harness import (
     BOARD_PAGE,
-    BOTH_STAMPS,
     FEATURE_GALLERY,
     LONG_PAGE,
     REPLY_HOST_PAGE,
@@ -482,7 +482,7 @@ def test_a_url_into_a_hidden_root_view_lands_once_the_view_is_built(browser, ser
     assert held, "the state read completed before the upgraded landing was observed"
     held.pop().continue_()
     page.unroute("**/api/state*")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     scroll_settled(page)
     assert page.evaluate("document.scrollingElement.scrollTop") == pytest.approx(
         landing["scroll"], abs=1
@@ -1837,7 +1837,7 @@ def test_generated_page_interface_reconciles_before_semantic_interaction(
         first_paint,
     )
     assert first_paint["span"] == pytest.approx(first_paint["actual"], abs=1)
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
 
 
 def test_an_eyebrow_and_heading_keep_one_title_rhythm_through_contents(browser, serve):
@@ -4651,7 +4651,7 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
     }
 
     page.reload(wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     assert (
         page.locator("#landing-targeting wa-input").first.evaluate(
             "element => element.value"
@@ -5665,7 +5665,7 @@ def test_swipe_deck_projects_the_same_exit_motion_as_a_local_swipe(browser, serv
     expect(page.locator(".lf-swipe-exit")).to_have_count(0)
 
     page.reload()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
     expect(page.locator(".lf-swipe-exit")).to_have_count(0)
 
@@ -8719,7 +8719,7 @@ def test_completed_ask_progress_persists_and_its_row_can_revise_by_keyboard(
     assert treatment == {"color": True, "background": True}
 
     page.reload(wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(progress).to_have_text("Asks 1/1")
     expect(progress).to_have_attribute("data-lf-complete", "")
 
@@ -8831,7 +8831,7 @@ def test_a_tray_the_user_left_standing_comes_back_standing(browser, serve):
     expect(page.locator("button.lf-asks-row")).to_have_count(len(ALL_ASKS_IN_ORDER))
 
     page.reload(wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(tray).to_be_visible()
     expect(page.locator("button.lf-asks-row")).to_have_count(len(ALL_ASKS_IN_ORDER))
 

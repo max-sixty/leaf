@@ -76,23 +76,30 @@ has tried; settle that before building it.
 
 ### Layout
 
-The layout model is the one the `layout-survey` branch prototypes: the page arranges
-itself in CSS, starting from the Layout classes (`skills/leaf/assets/layouts.css`), and
-Leaf keeps the contracts where pages, widgets and its chrome coordinate. Its landing
-needs the author guidance and the tests that assert the old model rewritten. The items
-below don't block it.
+The page arranges itself in CSS, starting from the Layout classes
+(`skills/leaf/assets/layouts.css`), and Leaf keeps the contracts where pages, widgets
+and its chrome coordinate.
 
-- **Keep page CSS off Leaf's controls (decision E).** Page CSS now outranks the theme
-  and packages, where the faces Leaf's controls share are stated, so a page's
-  `button {}` restyles the banner's filters, the margin's buttons and a widget's
-  controls. The chosen route is to exclude Leaf's controls from the page's selectors.
+- **Keep page CSS off Leaf's controls (decision E).** Page CSS is unlayered, above
+  `lf-reset` (the runtime's clearing of a control's UA face) and `lf-base` (the theme,
+  `shadow.css` and package sheets, where `.lf-btn` and the other shared control faces
+  are stated). A page's bare `button {}` therefore restyles every button in the banner
+  and thread panel and the controls a widget draws in the page, such as lf-board's
+  grip: family, ink, border, background and padding. Before the Layouts only the
+  family leaked, through `lf-reset`'s `font: inherit`, and so did the whole face of a
+  control dressed by `.lf-ui` alone; a class's specificity kept the rest.
+  `test_a_pages_own_element_rules_leave_the_layers_controls_alone` is xfail on both.
+  The chosen route is to exclude Leaf's controls from the page's selectors.
   `@scope (:root) to (.lf-ui, .lf-chrome)` can't carry it: Chrome prefixes every scoped
   selector with `:scope`, so `:root` token rules stop matching. Appending
   `:not(:where(.lf-ui, .lf-ui *, .lf-chrome, .lf-chrome *))` to each page selector
   through the CSSOM at boot kept every page rule off the chrome and widget controls
-  and on the page's own content, but it also took page CSS off the controls of page
-  modules (rust-sort's and wt-merge's films wear `.lf-ui`). It needs a way to tell
-  Leaf's controls from a page module's before it lands.
+  and on the page's own content, but it also took the page's rules off the page-local
+  widgets whose controls the page styles (rust-sort's `lf-sort-film button`, and
+  wt-merge's film). The ownership that settles it: a widget's controls take their face
+  from the sheet of the package that ships the widget, so those two films move their
+  control rules into their own package's `theme.css`, and the exclusion then holds for
+  every `.lf-ui` control.
 - **Let a page, not a widget, change more of Leaf's formatting.** A page should be
   able to restyle Leaf's own surfaces deliberately, such as the thread panel's format,
   and hide one entirely where the page needs to. The exclusion above stops accidents;
@@ -169,6 +176,13 @@ below don't block it.
 
 ### The agent's text interface
 
+- **Read the render checks after handover.** `version check --render` blocks the
+  agent for the whole browser pass, so quick pages skip it and get none of its
+  advice. Run the render readings on the server when a version goes live and
+  deliver the findings through `leaf wait`: the agent hands the page over at once
+  and refines it if a reading warrants, while a failure still blocks a record's
+  stamp. **Unconfirmed:** measure how long the pass takes on a typical page, and
+  whether agents act on findings that arrive after handover, before building it.
 - **Scale a drawing by the box it was drawn in.** On replay, scale the strokes by
   the anchored element's size over the recorded `box`, so a mark stays on its
   element in a narrower window; reflowed text still moves under it. Verify replay
@@ -271,9 +285,6 @@ Revisit these when their stated trigger becomes real; they are not an active que
   front of every tool-result hook, so Leaf can answer more events itself.
   Rewriting the hook path in a compiled language is the further step if that
   is not enough.
-- **CSS cascade layers:** isolate Leaf chrome from page CSS before reconsidering
-  `@layer`; the earlier trial changed chrome styling. See the
-  [dependency survey](notes/dependency-survey.md).
 - **Invoker commands:** revisit when the browser support Leaf needs can replace
   the current dialog and popover handlers. See the
   [dependency survey](notes/dependency-survey.md).

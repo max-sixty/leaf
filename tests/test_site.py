@@ -37,6 +37,7 @@ from leaf import schema as schema_model
 from leaf.event_log import _parse_events, read_events
 from leaf.events import bare_reaction, build_threads
 from leaf.passages import enclosing_ids
+from leaf.render_checks import wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.structure import SourceDocument
 from PIL import Image
@@ -46,7 +47,6 @@ from render_cases_layout import banner_control
 # The suite's own page primitives, so a navigation here waits on what every other
 # navigation waits on. tests/AGENTS.md, "A wait consumes a fact the system states".
 from render_harness import (
-    BOTH_STAMPS,
     consume_browser_errors,
     displayed,
     expect_banner_control_offered,
@@ -311,7 +311,7 @@ def test_published_example_has_the_normal_leaf_layout(hosted, browser, serve):
     for width in (390, 1200):
         for page in (normal, published):
             page.set_viewport_size({"width": width, "height": 900})
-            page.wait_for_function(BOTH_STAMPS)
+            wait_until_ready(page)
         assert published.evaluate(layout) == normal.evaluate(layout)
 
 
@@ -624,7 +624,7 @@ def test_a_website_example_keeps_its_version_identity_and_history(
     page.wait_for_url(
         re.compile(r"/examples/log-retention/versions/v1\.html(?:\?pin=)?$")
     )
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
 
     expect(page.locator(".lf-version")).to_have_text("v1")
     expect(page.locator("#ret-cost-keep")).to_have_count(0)
@@ -714,7 +714,7 @@ def test_a_replaced_ephemeral_server_reloads_the_active_tab(served_example, brow
                   }})), 0);
                 }"""
         )
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
 
 
 def test_a_layer_mismatch_signals_startup_failure_on_window(served_example, browser):
@@ -902,7 +902,7 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
             response = page.goto(url, wait_until="load")
             assert response
             servers.append(response.header_value("Leaf-Server"))
-            page.wait_for_function(BOTH_STAMPS)
+            wait_until_ready(page)
         assert servers[0] and servers[0] == servers[1]
         follower.evaluate(
             """() => {
@@ -942,7 +942,7 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
     )
     for name in names:
         page.goto(product_url(hosted, name), wait_until="load")
-        page.wait_for_function(BOTH_STAMPS)
+        wait_until_ready(page)
         assert page.evaluate("document.compatMode") == "CSS1Compat", name
         source = (DOCS / name).read_text(encoding="utf-8")
         expected_title = re.search(r"<title>(.*?)</title>", source, re.DOTALL)
@@ -1089,7 +1089,7 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
         initial_catalog = catalog.bounding_box()
 
         boot.pop().continue_()
-        page.wait_for_function(BOTH_STAMPS)
+        wait_until_ready(page)
         final = page.locator("main").bounding_box()
         assert {key: final[key] for key in ("x", "y", "width")} == pytest.approx(
             {key: initial[key] for key in ("x", "y", "width")}, abs=1
@@ -1151,7 +1151,7 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
 
     page = browser.new_page()
     page.goto(f"{hosted}/examples/", wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(page.locator(".lf-chrome")).to_have_count(1)
     entries = page.locator(".example-catalog > li .example-link")
     assert entries.count() == len(expected)
@@ -1187,7 +1187,7 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
     developer_galleries = page.locator("#developer-galleries")
     expect(developer_galleries).to_be_visible()
     developer_galleries.scroll_into_view_if_needed()
-    expect(developer_galleries.locator("a.developer-gallery-link")).to_have_count(1)
+    expect(developer_galleries.locator("a.developer-gallery-link")).to_have_count(2)
     expect(page.locator("iframe, lf-tabs")).to_have_count(0)
     published = {path.name for path in (site / "examples").iterdir() if path.is_dir()}
     assert published == authored | {source.stem for source in DEVELOPER_PAGES}
@@ -1200,6 +1200,9 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
     expect(product_gallery).to_contain_text("Core product gallery")
     expect(product_gallery).to_contain_text("focused core interaction replays")
     expect(product_gallery).to_have_attribute("href", "/examples/feature-gallery/")
+    threads_gallery = developer_galleries.locator("#thread-panel-gallery")
+    expect(threads_gallery).to_contain_text("Four live panel views")
+    expect(threads_gallery).to_have_attribute("href", "/examples/thread-panel-gallery/")
 
 
 def test_the_interaction_gallery_drives_real_widgets(serve, browser):
@@ -1451,7 +1454,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
     page.locator(".lf-threads-toggle").click()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     page.reload(wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     gallery = page.locator("#bg-interactions")
     ready = gallery.locator("[data-interaction-frame][data-interaction-ready]")
     expect(ready).to_have_count(4)
@@ -1751,7 +1754,7 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
         assert held, "no contained state read was held"
         held.pop().continue_()
         page.wait_for_load_state("load")
-        page.wait_for_function(BOTH_STAMPS)
+        wait_until_ready(page)
         expect(gallery.locator("iframe[data-interaction-ready]")).to_have_count(
             4, timeout=20_000
         )
@@ -1962,7 +1965,7 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
             re.compile(r"\blf-rendered\b")
         )
         expect(page.locator("#pr-exact-patch details").first).to_be_visible()
-        page.wait_for_function(BOTH_STAMPS)
+        wait_until_ready(page)
         presented_shell = {
             key: page.locator("body > main").bounding_box()[key]
             for key in initial_shell
@@ -2111,7 +2114,7 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
     )
     expect(thread.locator(".lf-msg.agent")).to_have_count(0)
     page.reload(wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     thread = page.locator(
         ".lf-thread-panel .lf-thread", has_text="Can the migration fix ship first?"
     )
@@ -2143,7 +2146,7 @@ def test_a_published_decision_survives_reload(served_example, browser):
     assert "heat-opt-floor" in page.evaluate(chosen)
     expect(decisions).to_have_text("Asks 1/1")
     page.reload(wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(decisions).to_have_text("Asks 1/1")
     assert "heat-opt-floor" in page.evaluate(chosen)
 

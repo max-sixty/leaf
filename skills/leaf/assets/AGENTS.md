@@ -170,7 +170,7 @@ selects from:
 | what the DOM represents | controller presentation tickets and projection commits |
 | when a document-wide renderer paints | the publication that opened the epoch, in the order `runtime/semantic-state.js` declares |
 | where each thread's passage lands | anchor paint's resolution of its anchor in this version |
-| geometry readings: what a scroller shows, what a surface hides, cover room | `geometry.js` (`visibleBand`, `declareOccluder`, `declareCoverRoom`), so being on screen has one answer |
+| geometry readings: what a scroller shows, what a surface hides, cover room, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareOccluder`, `declareCoverRoom`, `shownWindow`), so being on screen has one answer |
 
 Do not add a second cache, pending map, widget-specific replay list, or DOM
 attribute as another source for one of these facts; a rendering may expose state,
@@ -213,11 +213,13 @@ presents, while any other key or a pointer press drops the held run. Durable
 controls wait for `data-lf-presented` (`../references/packages.md`, "A theme change"). An async
 producer joins settlement before `data-lf-upgraded`, or stays off the
 presentation path through `afterPresentation`, which declares the deferred
-arrival so `pageArrived` still answers for it. `presentPage` owns the one
+arrival so `pageReadiness` still answers for it. `presentPage` owns the one
 transition to stateful interaction; its synchronous `PRESENTATION` signal lets
 box-derived apparatus replace provisional geometry before the presented state
-paints. `renderingSettled` in `runtime/rendering.js` is the separate, live
-reading of whether chrome has caught up.
+paints. A reader outside the page waits on `pageReadiness`, through
+`wait_until_ready` in Python, rather than combining these stamps.
+`renderingSettled` in `runtime/rendering.js` is its last stage and also a live
+reading of its own: whether chrome has caught up with input since.
 
 ## Authoritative projection
 

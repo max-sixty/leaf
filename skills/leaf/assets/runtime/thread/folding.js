@@ -8,15 +8,15 @@ const pendingSettlement = (entries, id) =>
   pendingForParent(entries, id, ["resolve", "unresolve"]);
 
 export async function settleThread({
-  id,
+  parent,
   resolved,
   prepareLanding,
   pendingEntries,
   setResolved,
 }) {
-  if (pendingSettlement(pendingEntries(), id())) return;
+  if (pendingSettlement(pendingEntries(), parent())) return;
   const landing = prepareLanding?.();
-  const { answer, presentation } = setResolved(id(), !resolved);
+  const { answer, presentation } = setResolved(parent(), !resolved);
   paintKeys();
   try {
     await presentation;
@@ -28,7 +28,7 @@ export async function settleThread({
       } // The thread ticket reports presentation failures.
     };
     let landed = false;
-    if (pendingSettlement(pendingEntries(), id()))
+    if (pendingSettlement(pendingEntries(), parent()))
       landed = await land(landing?.optimistic);
     const accepted = await answer;
     if (!accepted) await land(landing?.refused);

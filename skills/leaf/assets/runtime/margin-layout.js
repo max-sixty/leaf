@@ -3,7 +3,7 @@
    Every margin row lives in the chrome's margin layer and is tied to its target by anchor
    positioning, so nothing Leaf draws is inserted into the page's content and nothing it
    draws moves that content. A row stands in one of two postures (`margin-placement.js`):
-   in the rail, the strip a column page reserves beside its column, or as a pin over the
+   in the rail, the strip beside `main` where the room there holds one, or as a pin over the
    page at the top-right of its target's block. The stylesheet places each row from what
    this pass writes on it (theme.css, at .lf-margin-cluster): its posture as
    `data-lf-place`, and the push packing gives it as `--lf-push`. Scrolling moves a row with its target on the compositor, whether the

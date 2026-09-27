@@ -390,7 +390,7 @@ export function widen(repaintThread) {
 export function revealThread(id, repaintThread) {
   const thread = threadList().find(
     (candidate) =>
-      candidate.root.id === id || candidate.msgs.some((message) => message.id === id),
+      candidate.id === id || candidate.msgs.some((message) => message.id === id),
   );
   if (!thread) return false;
   clearNarrowing(thread.resolved ? "resolved" : "open");

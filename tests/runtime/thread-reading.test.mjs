@@ -27,6 +27,7 @@ const agent = (id, extra = {}) => ({
   ...extra,
 });
 const serverThread = (msgs, extra = {}) => ({
+  id: msgs[0].id,
   root: msgs[0],
   msgs,
   anchor: null,
@@ -109,45 +110,47 @@ test("attention names the outstanding question rather than the latest message", 
   });
   const [thread] = readThreadRecords([source], NO_DOCUMENT, new Map(), []);
   const attention = threadAttention(thread);
-  assert.equal(attention.label, "On you");
-  assert.equal(attention.action, "answer question");
-  assert.equal(threadAttention({ ...thread, user_prompt: null }).action, "answer Ask");
+  assert.equal(attention.label, "On you to answer");
+  assert.equal(
+    threadAttention({ ...thread, user_prompt: null }).label,
+    "On you to answer",
+  );
   assert.equal(
     threadAttention({
       ...thread,
       attention: { kind: "needs_user", reason: "recovery", workflow: "send" },
       workflows: [{ id: "send", subject: { kind: "thread" } }],
-    }).action,
-    "resend",
+    }).label,
+    "On you to resend",
   );
   assert.equal(
     threadAttention({
       ...thread,
       attention: { kind: "needs_user", reason: "recovery", workflow: "move" },
       workflows: [{ id: "move", subject: { kind: "widget" } }],
-    }).action,
-    "retry",
+    }).label,
+    "On you to retry",
   );
   assert.equal(
     threadAttention({
       ...thread,
       attention: { kind: "waiting", reason: "uncertain", workflow: null },
-    }).action,
-    undefined,
+    }).label,
+    "Uncertain",
   );
   assert.equal(
     threadAttention({
       ...thread,
       attention: { kind: "waiting", reason: "workflow", workflow: null },
-    }).action,
-    undefined,
+    }).label,
+    "Waiting",
   );
   assert.equal(threadAttention({ ...thread, attention: null }), null);
 });
 
 const recentThread = (id, ts, edited = null) => {
   const root = { ...agent(id, { ts, ...(edited && { edited }) }), body: { text: id } };
-  return { root, msgs: [root] };
+  return { id, root, msgs: [root] };
 };
 
 test("Recent orders by last move and groups by the user's calendar day", () => {
@@ -164,7 +167,7 @@ test("Recent orders by last move and groups by the user's calendar day", () => {
     const saturday = recentThread("saturday", "2026-03-07T20:00:00Z");
     const order = inRecentOrder([saturday, acrossDst, beforeMidnight, old]);
     assert.deepEqual(
-      order.map((thread) => thread.root.id),
+      order.map((thread) => thread.id),
       ["old", "late", "sunday", "saturday"],
     );
     assert.deepEqual(
@@ -220,7 +223,7 @@ test("narrowing transitions reset what they contradict and counts name each subs
   const groups = new Map(threads.map((thread) => [thread, { key: "section" }]));
   const model = narrowingReading(DEFAULT_INTENT, threads, groups);
   assert.deepEqual(
-    model.shown.map((thread) => thread.root.id),
+    model.shown.map((thread) => thread.id),
     ["asks", "working"],
   );
   const amounts = Object.fromEntries(

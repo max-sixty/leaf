@@ -14,6 +14,7 @@ import {
   discussed,
   foldThreads,
   readThreadRecords,
+  threadNames,
 } from "../../skills/leaf/assets/runtime/thread/model.js";
 import {
   threadForAttempt,
@@ -431,7 +432,7 @@ function widgetReading(
   return {
     authored: authored ?? {},
     state: current?.state ?? {},
-    thread: { heldBy: holdingThread?.root.id ?? null },
+    thread: { heldBy: holdingThread?.id ?? null },
     provenance,
     actions,
     requests,
@@ -561,30 +562,37 @@ export function createSemanticApplication({
     // hands a thread the server left with the agent back to the user, whose
     // Retry it is.
     const owed = new Set(asks.user.map((ask) => ask.thread));
+    // The thread a local message is in. A comment opens the thread its own id names. A
+    // reply is in the thread holding its parent, which need not be that thread's id: a
+    // thread that lost its opening message is answered at the reply that survived, and
+    // a reply written against this tab's own comment names it by its pending id until
+    // the log names it. A parent no thread holds is a comment of this tab's that the
+    // log refused, and its pending id named its thread.
+    const named = threadNames(folded);
+    const threadOf = (message: any): string =>
+      message.kind === "reply"
+        ? (named.get(message.parent)?.id ?? message.parent)
+        : message.id;
     const refused = new Map<string, string>();
     for (const entry of unresolved.filter((entry: any) => entry.rejected)) {
       const message = entry.message;
       const held = document.descriptors.get(entry.event.widget)?.document;
       const thread = message
-        ? message.kind === "reply"
-          ? message.parent
-          : message.id
+        ? threadOf(message)
         : held?.kind === "thread"
           ? held.thread
           : undefined;
       if (thread) refused.set(thread, `rejected:${entry.event.attempt}`);
     }
     const obligated = folded.map((thread: any) => {
-      if (owed.has(thread.root.id))
+      if (owed.has(thread.id))
         return thread.attention?.reason === "ask"
           ? thread
           : {
               ...thread,
               attention: { kind: "needs_user", reason: "ask", workflow: null },
             };
-      const retry =
-        refused.get(thread.root.id) ??
-        (thread.root.attempt ? refused.get(PENDING + thread.root.attempt) : undefined);
+      const retry = refused.get(thread.id);
       return retry && thread.attention?.kind !== "needs_user"
         ? {
             ...thread,
@@ -605,10 +613,7 @@ export function createSemanticApplication({
         seq: entry.order,
         input: message?.id ?? entry.localId,
         subject: message
-          ? {
-              kind: "thread",
-              id: message.kind === "reply" ? message.parent : message.id,
-            }
+          ? { kind: "thread", id: threadOf(message) }
           : { kind: "widget", id: entry.event.widget },
         coordinate: entry.projection?.coordinate ?? null,
         answer: null,

@@ -15,6 +15,7 @@ from leaf import files as files_model
 from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf.render_checks import wait_until_ready
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -67,7 +68,6 @@ from render_cases_widgets import (
 )
 from render_harness import (
     BOARD_PAGE,
-    BOTH_STAMPS,
     CORPUS_SOURCES,
     EXAMPLES,
     FEATURE_GALLERY,
@@ -182,6 +182,40 @@ LIVE_SPECIMENS_PAGE = leaf_page(
 </lf-specimen>
 """,
 )
+
+
+def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
+    """Four child pages can hold different panel views and reset independently."""
+    gallery = FEATURE_GALLERY.parent / "thread-panel-gallery.html"
+    page = open_page(browser, serve(gallery))
+    views = {
+        "overview": page.frame_locator("#overview-specimen iframe"),
+        "you": page.frame_locator("#on-you-specimen iframe"),
+        "resolved": page.frame_locator("#resolved-specimen iframe"),
+        "summary": page.frame_locator("#summary-specimen iframe"),
+    }
+    for frame in views.values():
+        expect(frame.locator(".lf-thread-panel")).to_be_visible()
+
+    expect(views["overview"].locator(".lf-thread:not([hidden])")).to_have_count(3)
+    expect(views["you"].locator(".lf-thread-view-summary")).to_have_text(
+        "1 open thread · On you"
+    )
+    expect(views["resolved"].locator(".lf-thread-view-summary")).to_have_text(
+        "1 resolved thread"
+    )
+    expect(
+        views["summary"].locator('.lf-thread[data-id="c1a39980"]')
+    ).to_have_attribute("open", "")
+
+    views["overview"].get_by_role("button", name="Close threads").click()
+    expect(views["overview"].locator(".lf-thread-panel")).to_be_hidden()
+    expect(views["you"].locator(".lf-thread-panel")).to_be_visible()
+    page.locator("#overview-specimen").get_by_role(
+        "button", name="Reset", exact=True
+    ).click()
+    expect(views["overview"].locator(".lf-thread-panel")).to_be_visible()
+    expect(views["overview"].locator(".lf-thread:not([hidden])")).to_have_count(3)
 
 
 def test_live_specimens_keep_real_gestures_and_drafts_inside_the_child(browser, serve):
@@ -781,7 +815,7 @@ def test_sign_off_waits_for_the_page_while_comments_stay_live(browser, serve):
     expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
 
     held.pop(0).continue_()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(button).to_be_enabled()
 
 

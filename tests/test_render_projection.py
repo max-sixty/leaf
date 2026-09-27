@@ -25,6 +25,7 @@ from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import structure as structure_model
+from leaf.render_checks import wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
 from leaf.validation import compatibility as validation_model
@@ -86,7 +87,6 @@ from render_cases_navigation import (
     source_revision,
 )
 from render_harness import (
-    BOTH_STAMPS,
     CORPUS_SOURCES,
     EXAMPLE_MEDIA,
     EXAMPLE_PACKAGES,
@@ -1924,7 +1924,7 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     # of the following to get there. A composer the user opened is one of the gestures
     # a revision install defers to and does not end when focus moves; words in a box the
     # user merely has focus in do, and the draft store rather than a hold is what
-    # carries those across the install (`skills/leaf/assets/CLAUDE.md`, "Runtime
+    # carries those across the install (`skills/leaf/assets/AGENTS.md`, "Runtime
     # ownership").
     page.locator("#live-reading").click(click_count=3)
     page.locator(".lf-fab-input").click()
@@ -2988,7 +2988,7 @@ def test_revision_changes_keep_the_complete_heading_below_user_chrome(browser, s
     banner_control(page, ".lf-version").click()
     page.locator('.lf-version-row[data-lf-version="1"]').click()
     page.wait_for_url(re.compile(r"/versions/v1\.html"))
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
 
     landed = page.evaluate(heading_position)
     assert landed["title"]["top"] >= landed["inset"], (
@@ -4131,7 +4131,7 @@ def test_a_revision_the_page_has_to_refuse_leaves_the_beat_beating(browser, serv
         # The refusal reloads, and the page that comes back is on the layer it was told
         # about, holding the revision it could not be given in place.
         expect(page).to_have_title("Beat second", timeout=15_000)
-        page.wait_for_function(BOTH_STAMPS)
+        wait_until_ready(page)
         problems = take_browser_errors(page)
         assert len(problems) >= 2 and all("failed to load" in p for p in problems), (
             "the beats did not come through with only their own refused asks behind "
@@ -4149,7 +4149,7 @@ def test_a_revision_navigates_without_the_view_transition_api(browser, serve):
     (serve.page_dir / "index.html").write_text(executable_revision(LIVE_V2, "two"))
 
     expect(page).to_have_title("Live second", timeout=10_000)
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
 
 
 def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
@@ -6809,7 +6809,7 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve, one_user):
         destination,
         lambda: live.click(modifiers=["ControlOrMeta"]),
     )
-    tab.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(tab)
     tab.wait_for_function(
         """() => { const r = document.getElementById('p-bath').getBoundingClientRect();
                    return r.height > 0 && r.top >= 0 && r.bottom <= innerHeight; }"""
@@ -6864,7 +6864,7 @@ def test_an_arrival_lands_where_the_url_aimed(browser, serve):
     )
     page.goto("about:blank")
     page.goto(f"{url}#p-bath")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     page.wait_for_function(onscreen, arg="p-bath")
 
     # The user moves on, so the fragment is stale by the reload that carries it. The
@@ -6874,7 +6874,7 @@ def test_an_arrival_lands_where_the_url_aimed(browser, serve):
         "() => document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})"
     )
     page.reload()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     page.wait_for_function(onscreen, arg="tail-end")
 
 

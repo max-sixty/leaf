@@ -17,16 +17,11 @@
    promise the user the same thing by "visible". `clearPart` answers for a box with no
    element of its own and is the one reading that does subtract the chrome at the foot,
    because what it measures is drawn where it stands rather than moved somewhere legible. */
-import { banner } from "../banner.js";
 import { elementFromPointAcross, inChrome } from "../passages.js";
 import { bottomChromeBoxes } from "./shortcut-bar.js";
-import { shownParts, shownRect, startsAt } from "../geometry.js";
+import { bannerFoot, shownParts, shownRect, startsAt } from "../geometry.js";
 import { clamp, overlaps } from "../rect.js";
 import { under } from "../shadow.js";
-
-// The top of the room the user has. Chrome above the page covers what it stands over
-// without clipping those boxes, so every reading of usable room starts below it.
-export const chromeTop = () => banner.getBoundingClientRect().bottom;
 
 // A rectangle, or nothing where its edges crossed. `clippedTop` records that the source
 // box began above the room the user has, which a chip hung on the surviving corner
@@ -46,7 +41,7 @@ const rect = (left, top, right, bottom, sourceTop = top) =>
 
 export function keyBadgePlacement() {
   const clips = new Map();
-  const covered = chromeTop();
+  const covered = bannerFoot();
   const chrome = bottomChromeBoxes();
   const kept = [...chrome];
 

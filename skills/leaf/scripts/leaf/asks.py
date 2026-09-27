@@ -503,7 +503,7 @@ def thread_ask_readings(
     is already where the user answers — so the user's list and the unanswered
     list are one reading here. `page_ask_readings` is where the seats separate them.
 
-    `settled` is the root ids of the closed threads, whose asks went with them —
+    `settled` is the ids of the closed threads, whose asks went with them —
     the question was the thread's, and the panel's own reading takes a closed
     thread's mark off the page for the same reason. Without it, a question the
     agent asked and then withdrew by resolving stays on the banner's count for

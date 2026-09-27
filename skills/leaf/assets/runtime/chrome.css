@@ -1041,13 +1041,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-threads > .lf-thread:nth-last-child(1 of :not([hidden])) {
     border-block-end-color: transparent; margin-bottom: 0; }
   /* A single title row remains when the retained thread is closed. Optional
-     labels occupy only the space they use; count and time share the trailing keyline. */
+     status and recency occupy only the space they use. */
   .lf-thread-compact { --lf-thread-pad: 0px; margin: 0; padding: 0;
     background: transparent; border-radius: 0; }
   .lf-pinned + .lf-thread-compact { padding-top: 0; }
-  /* TODO: The 420px panel row is crowded when attention and unread status join
-     count and recency. Revisit its scanning hierarchy without hiding the title
-     or the action owed. */
   .lf-thread-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto auto;
     align-items: center; gap: 8px; width: 100%; min-height: max(32px, var(--aim-floor)); border: 0;
     padding: 4px 8px; background: transparent; color: var(--ink);
@@ -1070,16 +1067,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-meta { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .lf-thread-meta.lf-empty { display: none; }
   .lf-thread-draft { color: var(--muted); font-size: 10px; white-space: nowrap; }
-  .lf-thread-unread, .lf-unread-label { color: var(--turn-ink); font-size: 10px;
+  .lf-thread-unread { color: var(--turn-ink); font-size: 10px;
     font-weight: 700; white-space: nowrap; }
   .lf-thread-status { max-width: 150px; min-width: 0; overflow: hidden; text-overflow: ellipsis;
     white-space: nowrap; color: var(--muted); font-size: 11px; }
   .lf-thread-status[data-lf-turn="user"] { color: var(--turn-ink); }
   .lf-thread-trailing { grid-column: 3; display: flex; align-items: center;
     justify-content: flex-end; gap: 4px; color: var(--muted); white-space: nowrap; }
-  .lf-thread-recency, .lf-thread-trailing-separator { font-size: 11px; }
-  .lf-thread-count { color: var(--muted); font-size: 11px; text-align: right;
-    font-variant-numeric: tabular-nums; }
+  .lf-thread-recency { font-size: 11px; }
   @container (max-width: 400px) {
     .lf-thread-summary { grid-template-columns: minmax(0, 1fr) auto; row-gap: 0; }
     .lf-thread-topic { grid-column: 1; grid-row: 1; }
@@ -1092,8 +1087,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-compact > .lf-thread-root-meta { margin: 12px 8px 0; }
   .lf-thread-compact > .lf-msg { margin: 16px 8px; }
   .lf-thread-compact .lf-msg-head { display: flex; align-items: baseline; gap: 8px; }
-  /* Centered rather than baseline-aligned, so the row's text keeps its place when
-     Mark thread read leaves the actions and the baseline would follow it. */
   .lf-thread-root-meta { display: flex; align-items: center; gap: 8px; }
   .lf-thread-root-meta > .lf-msg-head { display: contents; }
   .lf-thread-root-meta > b { color: var(--ink); font-size: 11px; font-weight: 600; }
@@ -1146,7 +1139,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     border-color: transparent;
   }
   .lf-thread-compact > .lf-compose .lf-compose-field > leaf-text {
-    font-size: 13px; line-height: 1.5; padding: 7px;
+    font-size: 13px; line-height: 1.5; padding: 10px 7px 7px;
     padding-inline-end: calc(var(--lf-icon-action-hit) + 12px);
     border: 0; border-radius: 0; background: transparent;
     max-height: min(50vh, 35cqh);
@@ -1215,23 +1208,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-unseen { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
   .lf-msg { margin: 16px 0; }
   .lf-msg.agent { position: relative; }
-  /* Read marks are bookkeeping, so reading a thread must not move what the user is
-     looking at: every mark is drawn in room the content already leaves, and taking it
-     away changes no box. A boundary is a zero-height block whose margins collapse
-     through it, so it sits at the next message's edge and its label hangs in the gap
-     the messages keep anyway; the unread rail stands in the message's inline margin. */
-  .lf-read-boundary { position: relative; height: 0;
-    color: var(--turn-ink); font: 600 10px/1.3 var(--sans); white-space: nowrap; }
-  .lf-read-boundary > span { position: absolute; inset-inline: 0; bottom: 2px;
-    display: flex; align-items: center; gap: 7px; }
-  /* A boundary that opens its container has no margin above it to collapse with, so it
-     stands at the start of the gap its message keeps, and its label hangs below. */
-  .lf-read-boundary:first-child > span { inset-block: 2px auto; }
-  .lf-read-boundary > span::before, .lf-read-boundary > span::after { content: "";
-    min-width: 8px; flex: 1; border-block-start: 1px solid currentColor; opacity: .42; }
-  .lf-thread-compact > .lf-read-boundary { margin-inline: 8px; }
-  .lf-summary-messages > .lf-read-boundary { margin-inline-end: 8px; }
-  .lf-read-boundary[data-kind="end"] { color: var(--muted-2); font-weight: 500; }
+  /* A read boundary keeps its semantic separator without taking visual room.
+     The title counts unread messages and the message rail locates them. */
+  .lf-read-boundary { height: 0; }
   /* A speaker belongs to the reading hierarchy; time and delivery are supporting
      metadata. The same sizes and rhythm dress inline thread in theme.css. */
   .lf-msg-head { display: flex; gap: 8px; align-items: baseline; font-size: var(--t-6); }
@@ -1280,7 +1259,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-general { display: flex; gap: 6px; align-items: flex-end; }
   .lf-thread-actions { display: flex; justify-content: space-between; margin-top: 8px; }
   .lf-thread-action { border: none; background: none; color: var(--muted); cursor: pointer; }
-  .lf-mark-read { font-size: var(--t-6); white-space: nowrap; }
   .lf-thread-action:hover { color: var(--ok); }
   /* Reopen stands in the same row as Resolve and answers the same question from the
      other side, so it wears the same band when the keyboard reaches it. It was left on

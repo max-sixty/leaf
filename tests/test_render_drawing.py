@@ -6,6 +6,7 @@ import re
 import pytest
 from leaf import data as data_model
 from leaf import event_log as events_model
+from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
     THREAD_DIFF_PAGE,
@@ -15,7 +16,6 @@ from render_cases_navigation import (
     TARGETS_PAGE,
 )
 from render_harness import (
-    BOTH_STAMPS,
     EXAMPLE_MEDIA,
     FEATURE_GALLERY,
     leaf_page,
@@ -457,7 +457,7 @@ def test_a_drawing_can_begin_on_page_whitespace(browser, serve):
     )
 
     page.reload(wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     page.evaluate("document.body.style.minHeight = '180000px'")
     page.evaluate("y => scrollTo(0, y)", point["scrollY"])
     expect(page.locator(".lf-drawing-pending")).to_have_count(1)
@@ -943,7 +943,7 @@ def test_an_unsent_drawing_survives_reload_before_it_has_words(browser, serve):
     expect(page.locator(".lf-fab-input")).to_have_js_property("value", "")
 
     page.reload(wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
 
     expect(page.locator(".lf-drawing-pending")).to_have_count(1)
     expect(page.locator(".lf-fab-input")).to_be_visible()
@@ -970,7 +970,7 @@ def test_a_malformed_page_drawing_draft_keeps_its_words_without_the_mark(
     )
 
     page.reload(wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     field = page.locator(".lf-general leaf-text")
@@ -1011,7 +1011,7 @@ def test_a_malformed_anchored_drawing_draft_keeps_its_words_without_the_mark(
     )
 
     page.reload(wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     field = page.locator(".lf-fab-input")
     expect(field).to_be_visible()
     expect(field).to_have_js_property("value", "Keep these anchored words.")

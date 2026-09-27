@@ -226,7 +226,7 @@ export function createAnchorPaint({
       if (!found) continue;
       // Placement includes resolved threads and remains distinct from paint. The panel
       // orders from this record instead of resolving the same coordinate again.
-      placed.set(thread.root.id, {
+      placed.set(thread.id, {
         datumElement: null,
         exact: true,
         status: "exact",
@@ -243,12 +243,12 @@ export function createAnchorPaint({
           const parts = targetParts(found);
           for (const part of parts) part.classList.add("lf-react-el");
           rememberVisual(found);
-          reacted.set(thread.root.id, parts);
+          reacted.set(thread.id, parts);
           [at, before] = [found.place, true];
         } else {
           const segments = targetSegments(found);
           const ranges = segments.map((segment) => rangeOf([segment]));
-          reacted.set(thread.root.id, ranges);
+          reacted.set(thread.id, ranges);
           reactions.push(...ranges);
           const block = annotationAt(segments[0].node);
           const root = block?.getRootNode();
@@ -268,11 +268,11 @@ export function createAnchorPaint({
         if (!thread.root.drawing) {
           const parts = targetParts(found);
           for (const part of parts) part.classList.add("lf-mark-el");
-          marked.set(thread.root.id, parts);
+          marked.set(thread.id, parts);
         }
       } else if (!thread.root.drawing) {
         const ranges = targetSegments(found).map((segment) => rangeOf([segment]));
-        marked.set(thread.root.id, ranges);
+        marked.set(thread.id, ranges);
         posted.push(...ranges);
       }
 
@@ -285,7 +285,7 @@ export function createAnchorPaint({
           ].filter(Boolean);
       for (const holder of blocks.length ? blocks : [sectionOf(thread.anchor)])
         if (holder && !inChrome(holder))
-          notes.set(holder, [...(notes.get(holder) ?? []), thread.root.id]);
+          notes.set(holder, [...(notes.get(holder) ?? []), thread.id]);
     }
 
     const resolvedDraft =

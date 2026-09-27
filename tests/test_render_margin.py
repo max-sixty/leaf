@@ -8036,3 +8036,82 @@ def test_the_gate_advises_where_a_pin_stands_over_text(browser, serve):
         if "sug-refill" in pin["at"]
     ]
     assert narrow and narrow[0]["covered"] > 0, narrow
+
+
+@pytest.mark.parametrize(
+    "window",
+    [
+        {"viewport": {"width": 1280, "height": 800}},
+        {
+            "viewport": {"width": 390, "height": 844},
+            "is_mobile": True,
+            "has_touch": True,
+        },
+    ],
+    ids=["desktop", "phone"],
+)
+def test_a_thread_card_reply_stays_in_the_visible_viewport(browser, serve, window):
+    """Zooming in, like a phone's software keyboard, shrinks the visible viewport without
+    resizing the window, and a card whose reply the user is writing stands inside what
+    is left, below the banner and above the bottom band. The zoom stands in for the
+    keyboard, which no emulation raises; the card starts low in the window, where the
+    shrunk viewport no longer reaches."""
+    filler = "".join(f"<p>Filler paragraph {i}.</p>" for i in range(14))
+    after = "".join(f"<p>After {i}.</p>" for i in range(30))
+    source = leaf_page(
+        "card in a shrunk viewport",
+        f'<h1 id="t">Card</h1>{filler}<p id="low">The paragraph a thread is on.</p>'
+        f"{after}",
+    )
+    context = browser.new_context(**window)
+    page = open_page(
+        browser, serve(source, events=[_comment_on("low")]), context=context
+    )
+    margins_laid_out(page)
+    page.locator("#low").evaluate(
+        "p => scrollBy(0, p.getBoundingClientRect().top - innerHeight * 0.55)"
+    )
+    rendered(page)
+    page.locator('[data-lf-margin-for="low"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_be_visible()
+    card.get_by_role("button", name="Reply", exact=True).click()
+    expect(card.locator("leaf-text")).to_be_focused()
+
+    def stands_in_the_visible_viewport():
+        rendered(page)
+        room = page.evaluate("""() => {
+          const band = document.querySelector('.lf-shortcut-bar');
+          const banner = document.querySelector('.lf-banner');
+          const v = visualViewport;
+          return {
+            card: document.querySelector('.lf-margin-preview').getBoundingClientRect().toJSON(),
+            top: Math.max(v.offsetTop, banner.getBoundingClientRect().bottom),
+            bottom: Math.min(
+              v.offsetTop + v.height,
+              band.checkVisibility() ? band.getBoundingClientRect().top : Infinity,
+            ),
+            left: v.offsetLeft,
+            right: v.offsetLeft + v.width,
+            scrolled: [scrollY, v.offsetTop],
+          };
+        }""")
+        shown = room["card"]
+        assert shown["top"] >= room["top"], room
+        assert shown["bottom"] <= room["bottom"], room
+        assert shown["left"] >= room["left"], room
+        assert shown["right"] <= room["right"], room
+        return room
+
+    context.new_cdp_session(page).send(
+        "Emulation.setPageScaleFactor", {"pageScaleFactor": 1.6}
+    )
+    page.wait_for_function("Math.abs(visualViewport.scale - 1.6) < 0.01")
+    before = stands_in_the_visible_viewport()
+    # A wheel over the page moves the visible viewport inside the window, which scrolls
+    # nothing the document hears.
+    page.mouse.move(4, 150)
+    page.mouse.wheel(0, 120)
+    page.wait_for_function("visualViewport.offsetTop > 0")
+    after = stands_in_the_visible_viewport()
+    assert after["scrolled"][0] == before["scrolled"][0], (before, after)

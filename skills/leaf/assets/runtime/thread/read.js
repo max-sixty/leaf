@@ -3,19 +3,17 @@
    Whether a version is unread is the server's reading of the whole log (`read_state`),
    published as each Thread's `unread`; replying, answering and resolving already count
    there. This owner adds the one kind of evidence only the page has, exposure: a
-   visible prose body is marked read once its complete vertical extent has been shown
+   visible body is marked read once its complete vertical extent has been shown
    without gaps in one rendered surface and one content version. What the body holds
-   inside that extent — a wide code block, a scroller of its own — is part of what was
-   shown; geometry cannot say whether the user read every column of it, and a message
-   whose contents never let it count would stand unread forever. A widget-authored body
-   has hidden states of its own and no general contract for them, so exposure does not
-   mark it read: answering its widget does, and so does its thread's Mark read control.
+   inside that extent — a wide code block, a scroller of its own, or an interactive
+   widget's hidden states — is not evidence the page can observe; unread tracks
+   encounter with the message's visible surface, not exhaustive inspection.
    Each observation pass batches newly completed versions into one `read` event, which
-   the application sends outside the gesture queue (delivery.js). */
+   the application sends outside the gesture queue (delivery.js). A refused receipt
+   leaves the message unread and is retried only on a new visit. */
 import { nextRender, sizeObserver } from "../rendering.js";
 import { shownBand, shownRect } from "../geometry.js";
 import { SLIDE_END } from "../motion.js";
-import { notice } from "../notifications.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { moved } from "./model.js";
 import { firstUnreadBtn } from "./panel-elements.js";
@@ -120,13 +118,20 @@ function visibleInterval(body, clips, band) {
 export function createReadTracking({ markRead, showThread }) {
   let coverage = new WeakMap();
   const renderedBodies = new Map();
-  const refusedAutomatic = new Set();
+  const refusedThisVisit = new Set();
   const sizes = sizeObserver(() => scheduleScan());
   const frameWatches = [];
   let committedThreads = [];
   let presented = false;
   let presentationGeneration = 0;
+  let visitGeneration = 0;
   let scheduled = false;
+
+  function resetExposure() {
+    visitGeneration++;
+    coverage = new WeakMap();
+    refusedThisVisit.clear();
+  }
 
   const unreadIn = (threads) =>
     threads.flatMap((thread) =>
@@ -145,16 +150,6 @@ export function createReadTracking({ markRead, showThread }) {
     );
     return unreadIn(committedThreads).filter(({ item }) => live.has(keyOf(item)));
   };
-
-  function markThread(id) {
-    const items = actionableUnread()
-      .filter(({ thread }) => thread.root.id === id)
-      .map(({ item }) => item);
-    if (items.length)
-      void markRead(items).then((outcome) => {
-        if (outcome !== "accepted") notice("Couldn't mark thread read — try again.");
-      });
-  }
 
   function firstUnread() {
     const target = actionableUnread().sort(
@@ -175,7 +170,7 @@ export function createReadTracking({ markRead, showThread }) {
     const clips = new Map();
     const completed = new Map();
     for (const [node, rendered] of renderedBodies) {
-      const { body, id, authored } = rendered;
+      const { body, id } = rendered;
       if (!node.isConnected || !body.isConnected) {
         sizes.unobserve(body);
         renderedBodies.delete(node);
@@ -183,8 +178,7 @@ export function createReadTracking({ markRead, showThread }) {
       }
       const item = candidates.get(id);
       const key = item && keyOf(item);
-      if (!item || authored || completed.has(key) || refusedAutomatic.has(key))
-        continue;
+      if (!item || completed.has(key) || refusedThisVisit.has(key)) continue;
       const visible = visibleInterval(body, clips, band);
       if (!visible) continue;
       let tracked = coverage.get(body);
@@ -215,11 +209,12 @@ export function createReadTracking({ markRead, showThread }) {
     }
     if (completed.size) {
       const items = [...completed.values()];
+      const visit = visitGeneration;
       // A refusal would be repeated; an answer that never arrived may not be, and the
       // coverage already gathered sends it again on the next pass.
       void markRead(items).then((outcome) => {
-        if (outcome === "refused")
-          for (const item of items) refusedAutomatic.add(keyOf(item));
+        if (outcome === "refused" && visit === visitGeneration)
+          for (const item of items) refusedThisVisit.add(keyOf(item));
       });
     }
   }
@@ -239,14 +234,12 @@ export function createReadTracking({ markRead, showThread }) {
     addEventListener("resize", scheduleScan);
     addEventListener("focus", scheduleScan);
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState !== "visible") coverage = new WeakMap();
+      if (document.visibilityState !== "visible") resetExposure();
       else scheduleScan();
     });
     document.addEventListener("close", scheduleScan, true);
     document.addEventListener(SLIDE_END, scheduleScan, true);
-    addEventListener("blur", () => {
-      coverage = new WeakMap();
-    });
+    addEventListener("blur", resetExposure);
     addEventListener("load", scheduleScan, true);
     // What a containing page shows of this one changes without a scroll or resize
     // inside it: the owner scrolls a frame taller than its viewport through the band
@@ -295,7 +288,6 @@ export function createReadTracking({ markRead, showThread }) {
     renderedBodies.set(node, {
       body,
       id: message.id,
-      authored: message.body.authored,
     });
   }
 
@@ -315,11 +307,11 @@ export function createReadTracking({ markRead, showThread }) {
         presented = true;
         const unread = unreadIn(threads);
         const current = new Set(unread.map(({ item }) => keyOf(item)));
-        for (const key of refusedAutomatic)
-          if (!current.has(key)) refusedAutomatic.delete(key);
+        for (const key of refusedThisVisit)
+          if (!current.has(key)) refusedThisVisit.delete(key);
         const count = unread.length;
         firstUnreadBtn.hidden = count === 0;
-        firstUnreadBtn.textContent = `Unread ${count}`;
+        firstUnreadBtn.textContent = "Next unread";
         firstUnreadBtn.setAttribute(
           "aria-label",
           `${count} unread ${count === 1 ? "message" : "messages"}. Go to first unread message`,
@@ -339,7 +331,7 @@ export function createReadTracking({ markRead, showThread }) {
   function abort() {
     presentationGeneration++;
     presented = false;
-    coverage = new WeakMap();
+    resetExposure();
   }
 
   return {
@@ -349,7 +341,6 @@ export function createReadTracking({ markRead, showThread }) {
     present,
     observeBody,
     forgetBody,
-    markThread,
     firstUnread,
     unreadCount: () => actionableUnread().length,
   };

@@ -42,7 +42,7 @@
         margin-inline: auto;
       }
       /* Marks particular to these drawings, on the same tokens as the theme's
-         svg.drawing idiom: the rail's reservation, a surface drawn over the page, an
+         svg.drawing idiom: the rail, a surface drawn over the page, an
          attribute's outline, a split that lands somewhere new, and a scroll thumb. */
       svg.drawing .rail {
         fill: var(--accent-tint);
@@ -1273,18 +1273,19 @@ flowchart LR
           <section id="chrome">
             <h2>The room a page has depends only on the window</h2>
             <p id="chrome-what">
-              The room a page has is the window less three fixed reservations, and the
-              surfaces Leaf opens while you read stand over the page. So the page is
-              laid out as the agent wrote it, and opening Threads or a thread card never
-              moves what you were reading.
+              The room a page has is the window less two fixed reservations. The markers
+              Leaf adds while you read stand in room the page left free, and the
+              surfaces it opens stand over the page. So the page is laid out as the
+              agent wrote it, and opening Threads or a thread card never moves what you
+              were reading.
             </p>
 
             <div class="panels" id="chrome-figure">
               <figure id="chrome-reserved">
                 <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>
-                    The banner, the shortcut band and the rail are reserved at fixed
-                    sizes
+                    The banner and the shortcut band are reserved at fixed sizes, and
+                    the rail stands in the room beside the column
                   </title>
                   <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
                   <g id="chrome-banner">
@@ -1377,9 +1378,10 @@ flowchart LR
                   </g>
                 </svg>
                 <figcaption id="cap-chrome-reserved">
-                  <strong>Three fixed reservations</strong>The banner, the shortcut band
-                  and the rail each have a fixed size, so the room a page has depends
-                  only on the window.
+                  <strong>Two fixed reservations</strong>The banner and the shortcut
+                  band each have a fixed size, so the room a page has depends only on
+                  the window. The rail claims none of it: its markers stand beside the
+                  column wherever the page leaves room for them.
                 </figcaption>
               </figure>
               <figure id="chrome-surfaces">

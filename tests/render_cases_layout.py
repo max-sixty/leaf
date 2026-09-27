@@ -168,9 +168,8 @@ def arrival_findings(browser, url):
         # event does over the five navigations here, measured on
         # the former design-decision example, and buys this nothing.
         page.goto(url, wait_until="load")
-        render_checks_model.wait_for_probe(page, "upgraded")
-        render_checks_model.wait_for_probe(page, "currentPresented")
-    except PlaywrightTimeout:
+        render_checks_model.wait_until_ready(page)
+    except (PlaywrightTimeout, render_checks_model.PageNotReady):
         return [
             "[arrivals] the page never came up unarranged, so nothing could be "
             "arranged — "
@@ -184,9 +183,8 @@ def arrival_findings(browser, url):
         notices.clear()
         try:
             page.reload(wait_until="load")
-            render_checks_model.wait_for_probe(page, "upgraded")
-            render_checks_model.wait_for_probe(page, "currentPresented")
-        except PlaywrightTimeout:
+            render_checks_model.wait_until_ready(page)
+        except (PlaywrightTimeout, render_checks_model.PageNotReady):
             found.append(
                 f"[{restore_case['name']}] the page never finished coming up — "
                 + ("; ".join([*errors, *notices]) or "and no console error says why")

@@ -61,7 +61,6 @@
   "bundledDependencies": {
     "@lit/reactive-element": "2.1.2",
     "@preact/signals-core": "1.14.4",
-    "lit": "3.3.3",
     "lit-element": "4.2.2",
     "lit-html": "3.3.3"
   },
@@ -163,11 +162,11 @@
   "outputs": {
     "skills/leaf/assets/vendor/browser-runtime.js": {
       "bytes": 28775,
-      "sha256": "459e80b025952f04975ad51400dcfcc90ad6042997a9a5f62255f7a33e4cdc23"
+      "sha256": "8af4f3cd28b9844940f25bbb7f8ec4a695eb34745da1006d4f3b98726f2a2efc"
     },
     "scripts/browser/generated/browser-runtime.js.map": {
-      "bytes": 178481,
-      "sha256": "2f8aa1b252d34651c6878701f696ec173daa265ad8d5c3fdbac59007657c0ff1"
+      "bytes": 179619,
+      "sha256": "b346889c9a83e755ca7b154783872afa7f78df57e52f659ac12b70948b14f7a8"
     },
     "skills/leaf/assets/vendor/lit.js": {
       "bytes": 32020,
@@ -178,8 +177,8 @@
       "sha256": "37c5dcefc083b37cbe938542a4aa7372275913a997a6fe257eadf472a27384d8"
     },
     "skills/leaf/assets/vendor/browser-runtime.LICENSES.txt": {
-      "bytes": 7267,
-      "sha256": "8550b5fa8de1179871f19a472a757d48a75afd1d10e117cc8098cd0611f722aa"
+      "bytes": 5873,
+      "sha256": "40c140919f79f264242d69d71c537aa44ea822d553a69b2d51eb0a8bb410794c"
     }
   }
 }

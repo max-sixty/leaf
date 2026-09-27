@@ -1003,7 +1003,7 @@ def test_a_nested_pane_footer_travels_in_the_outer_region_that_contains_it(
 def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     browser, serve, live_leaf
 ):
-    """Core chrome is a gallery journey, not merely present around its specimens."""
+    """Core chrome is a gallery journey, not merely present around its samples."""
     live_leaf("second", "A second Leaf page")
     page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1600, 900)
@@ -1780,18 +1780,18 @@ def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
     """The same tab vocabulary has page or section scope from where it is placed: the
     first set directly in main is page navigation whatever stands beside it, and a set
     inside another block is a tabbed section."""
-    specimen = re.search(
+    sample = re.search(
         r'<lf-tabs id="bg-tabs">.*?</lf-tabs>', FEATURE_GALLERY.read_text(), re.DOTALL
     )
-    assert specimen is not None
+    assert sample is not None
     heading = "<header><h1>Project views</h1></header>"
     body = {
-        "alone": heading + specimen[0],
+        "alone": heading + sample[0],
         "among-blocks": heading
         + '<aside class="sidebar"><p>Contents</p></aside>'
-        + specimen[0]
+        + sample[0]
         + "<p>This conclusion follows the tab set.</p>",
-        "nested": heading + "<section>" + specimen[0] + "</section>",
+        "nested": heading + "<section>" + sample[0] + "</section>",
     }[placement]
     embedded = placement == "nested"
     page = open_page(
@@ -2539,7 +2539,7 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     select(page, (cap["x"] + 2, y), (cap["x"] + cap["width"] - 2, y))
     page.locator(".lf-fab-input").click()
     wait_for_pending_mark(page)
-    assert "specimen" in pending_text(page), (
+    assert "sample" in pending_text(page), (
         "the visual containing the drag replaced its selected passage"
     )
     assert page.locator("#fig.lf-pending").count() == 0, (

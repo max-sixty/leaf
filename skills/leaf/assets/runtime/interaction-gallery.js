@@ -1,7 +1,7 @@
 /* The developer interaction gallery replays focused demonstrations against real Leaf
  * surfaces in the product gallery. It owns only the illustrative pointer, timing
  * controls, and ephemeral orchestration of each surface's canonical transition.
- * Document-global chrome runs in a same-origin frame so it remains inside the specimen;
+ * Document-global chrome runs in a same-origin frame so it remains inside the sample;
  * a package-specific sequence comes from that package's widget module. No sequence
  * dispatches a gesture or writes to the page's event log. The product gallery opts in
  * with data-interaction-gallery, so ordinary Leaf pages pay no runtime or behavior cost
@@ -9,7 +9,7 @@
  *
  * A package sequence lets the gallery replay a package widget's production motion
  * without moving that package into the default layer. The figure carries the contained
- * page's markup in `template[data-specimen]` and names the widget module with
+ * page's markup in `template[data-sample]` and names the widget module with
  * `data-interaction-module`; that module exports `interactionGalleryScenario` with
  * `reset(root)` and `play(context)`. `reset` receives the contained `Document` and
  * restores its authored starting state without animation. `play` receives a frozen
@@ -23,7 +23,7 @@
 
 import { nextFrame } from "./rendering.js";
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
-import { mountSpecimen } from "./specimen.js";
+import { mountSample } from "./sample.js";
 import { deferredArrival } from "./presentation.js";
 import { offer, reserve } from "./widget-elements.js";
 
@@ -94,12 +94,12 @@ class Demo {
   }
 
   async load() {
-    const template = this.figure.querySelector(":scope > template[data-specimen]");
-    this.specimen = mountSpecimen(this.frameElement, {
+    const template = this.figure.querySelector(":scope > template[data-sample]");
+    this.sample = mountSample(this.frameElement, {
       template: template?.id,
       passive: true,
     });
-    await this.specimen.ready;
+    await this.sample.ready;
     const frameApi = this.frameElement.contentWindow?.leafInteractionGalleryFrame;
     if (!frameApi)
       throw new Error("the contained Leaf page did not expose its gallery adapter");
@@ -671,7 +671,7 @@ export function installInteractionGallery() {
     active?.deactivate();
     for (const demo of demos.values()) {
       demo.stopAnimations();
-      void demo.specimen?.destroy();
+      void demo.sample?.destroy();
     }
     tabObserver.disconnect();
     viewObserver.disconnect();

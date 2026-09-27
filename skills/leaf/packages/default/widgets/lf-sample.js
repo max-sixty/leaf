@@ -1,13 +1,13 @@
-/* lf-specimen: quoted content, or a complete live page authored in a template.
+/* lf-sample: quoted content, or a complete live page authored in a template.
  * The shared host owns the child page and its independent event log. The frame
- * takes its child's height, so the surrounding page scrolls the specimen like any
+ * takes its child's height, so the surrounding page scrolls the sample like any
  * other block and focus moves into it the way it moves into any iframe; the child's
  * final Escape brings focus back to this element. Ordinary children remain static
  * quotation. A disconnect releases the child; moving the retained element within a
  * document does not reset its work. */
 import {
   cancelRender,
-  mountSpecimen,
+  mountSample,
   nextRender,
   once,
   offer,
@@ -15,7 +15,7 @@ import {
 } from "/runtime/widget-api.js";
 
 customElements.define(
-  "lf-specimen",
+  "lf-sample",
   class extends HTMLElement {
     #host;
     #frame;
@@ -35,14 +35,14 @@ customElements.define(
       if (once(this)) this.#build();
       if (!this.#frame || this.#host || this.#mounting) return;
       this.#mounting = true;
-      const ready = mountSpecimen(this.#frame, { template: this.#template.id }).then(
+      const ready = mountSample(this.#frame, { template: this.#template.id }).then(
         async (host) => {
           this.#mounting = false;
           if (!this.isConnected) {
             // Destroy cancels presentation; nobody awaits this removed element.
             host.ready.catch(() => {});
             await host.destroy();
-            throw new DOMException("specimen disconnected", "AbortError");
+            throw new DOMException("sample disconnected", "AbortError");
           }
           this.#host = host;
           return host.ready;
@@ -66,26 +66,26 @@ customElements.define(
     }
 
     #build() {
-      this.#template = this.querySelector(":scope > template[data-specimen]");
+      this.#template = this.querySelector(":scope > template[data-sample]");
       if (!this.#template) return;
-      this.dataset.lfSpecimenLive = "";
+      this.dataset.lfSampleLive = "";
       this.#frame = document.createElement("iframe");
-      this.#frame.className = "lf-specimen-frame";
-      this.#frame.title = this.getAttribute("label") || "Leaf specimen";
-      this.#frame.addEventListener("lf-specimen-return", () => {
+      this.#frame.className = "lf-sample-frame";
+      this.#frame.title = this.getAttribute("label") || "Leaf sample";
+      this.#frame.addEventListener("lf-sample-return", () => {
         this.tabIndex = -1;
         this.focus({ preventScroll: true });
       });
 
       const controls = document.createElement("div");
-      controls.className = "lf-specimen-controls lf-ui";
+      controls.className = "lf-sample-controls lf-ui";
       controls.dataset.lfGen = "1";
       const actions = document.createElement("div");
       this.#reset = offer("button", "lf-btn", "Reset");
       this.#reset.addEventListener("click", () => {
         this.reset().catch(() => {}); // #track paints the failed operation.
       });
-      this.#status = offer("span", "lf-specimen-status");
+      this.#status = offer("span", "lf-sample-status");
       this.#status.setAttribute("role", "status");
       actions.append(this.#reset, this.#status);
       controls.append(actions);
@@ -123,7 +123,7 @@ customElements.define(
 
     #track(promise) {
       this.#reset.disabled = true;
-      this.#status.textContent = "Loading specimen…";
+      this.#status.textContent = "Loading sample…";
       const ready = promise.then((doc) => {
         if (this.#ready !== ready) return doc;
         this.#reset.disabled = false;

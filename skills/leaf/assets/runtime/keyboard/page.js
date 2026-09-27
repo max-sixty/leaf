@@ -165,15 +165,15 @@ pageRung("page", () => {
     return standingFloor()
       ? null
       : { says: "back to the page", does: "Back out onto the page", out: letGo };
-  // A specimen has one more containing page. Its own controls and standing unwind
+  // A sample has one more containing page. Its own controls and standing unwind
   // first; the frame's owner takes the focus back, not another keyboard listener
   // competing with this register.
   const frame = window.frameElement;
   return frame?.hasAttribute("data-lf-contained")
     ? {
         says: "return to containing page",
-        does: "Leave this specimen and return to its containing page",
-        out: () => frame.dispatchEvent(new Event("lf-specimen-return")),
+        does: "Leave this sample and return to its containing page",
+        out: () => frame.dispatchEvent(new Event("lf-sample-return")),
       }
     : null;
 });

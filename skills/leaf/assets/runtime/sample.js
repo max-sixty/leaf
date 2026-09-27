@@ -1,9 +1,9 @@
-/* A specimen is a normally served Leaf page with its own disposable event log.
+/* A sample is a normally served Leaf page with its own disposable event log.
  * The server captures an authored template and its layer; this owner handles the
  * frame's readiness and reset. The child arrives inert, so its startup cannot take
  * focus from the page; this owner releases a live child once it presents, and after
  * that focus entering the frame is entry, the way it is for any iframe. The child's
- * final Escape asks the frame's owner to take focus back with `lf-specimen-return`. Passive demonstrations use the
+ * final Escape asks the frame's owner to take focus back with `lf-sample-return`. Passive demonstrations use the
  * same host and remain inert throughout their playback. */
 import { layerHeaders } from "./layer-client.js";
 import { pageUrl } from "./context.js";
@@ -17,8 +17,7 @@ async function request(url, body) {
     keepalive: true,
   });
   const answer = await response.json();
-  if (!response.ok)
-    throw new Error(answer.error ?? `specimen: HTTP ${response.status}`);
+  if (!response.ok) throw new Error(answer.error ?? `sample: HTTP ${response.status}`);
   return answer;
 }
 
@@ -40,7 +39,7 @@ function presented(frame, url, signal) {
     const aborted = () => finish(signal.reason);
     const detached = new MutationObserver(() => {
       if (!frame.isConnected)
-        finish(new DOMException("specimen disconnected", "AbortError"));
+        finish(new DOMException("sample disconnected", "AbortError"));
     });
     const loaded = () => {
       const doc = frame.contentDocument;
@@ -55,12 +54,12 @@ function presented(frame, url, signal) {
       inspect();
     };
     const timeout = setTimeout(
-      () => finish(new Error(`Leaf specimen did not present: ${url}`)),
+      () => finish(new Error(`Leaf sample did not present: ${url}`)),
       30000,
     );
     signal.addEventListener("abort", aborted, { once: true });
     if (signal.aborted || !frame.isConnected) {
-      finish(signal.reason ?? new DOMException("specimen disconnected", "AbortError"));
+      finish(signal.reason ?? new DOMException("sample disconnected", "AbortError"));
       return;
     }
     detached.observe(frame.ownerDocument, { childList: true, subtree: true });
@@ -69,8 +68,8 @@ function presented(frame, url, signal) {
   });
 }
 
-export function mountSpecimen(frame, { template, passive = false }) {
-  if (!template) throw new Error("a specimen needs an authored template id");
+export function mountSample(frame, { template, passive = false }) {
+  if (!template) throw new Error("a sample needs an authored template id");
   let current = null;
   let destroyed = false;
   let operation = null;
@@ -99,11 +98,11 @@ export function mountSpecimen(frame, { template, passive = false }) {
 
   async function replace() {
     await retire();
-    if (destroyed) throw new DOMException("specimen destroyed", "AbortError");
-    const { url } = await request(pageUrl("api/specimens"), { template, passive });
+    if (destroyed) throw new DOMException("sample destroyed", "AbortError");
+    const { url } = await request(pageUrl("api/samples"), { template, passive });
     current = new URL(url, location.href).href;
     try {
-      if (destroyed) throw new DOMException("specimen destroyed", "AbortError");
+      if (destroyed) throw new DOMException("sample destroyed", "AbortError");
       loading = new AbortController();
       const doc = await presented(frame, current, loading.signal);
       if (!passive) doc.body.inert = false;
@@ -118,7 +117,7 @@ export function mountSpecimen(frame, { template, passive = false }) {
 
   function reset() {
     if (destroyed)
-      return Promise.reject(new Error("the specimen host has been destroyed"));
+      return Promise.reject(new Error("the sample host has been destroyed"));
     if (!operation) {
       operation = replace();
       const settled = () => {

@@ -3,7 +3,7 @@
 import { readApplication } from "./semantic-state.js";
 import { PAGE_ROOT } from "./storage.js";
 
-// Code may be shared by several documents, including a specimen and its parent.
+// Code may be shared by several documents, including a sample and its parent.
 // Page operations belong to the document's declared root, never to the module's asset
 // URL.
 export const pageUrl = (path) => new URL(path, PAGE_ROOT).href;
@@ -116,10 +116,10 @@ export const runtime = {
   },
 };
 
-// A specimen arrives without the surrounding user's arrangements. Passive gallery
-// replays stay inert and take one state reading; operable specimens run the ordinary
+// A sample arrives without the surrounding user's arrangements. Passive gallery
+// replays stay inert and take one state reading; operable samples run the ordinary
 // live feed.
-export const passiveSpecimen = document.body.hasAttribute("data-lf-specimen-passive");
+export const passiveSample = document.body.hasAttribute("data-lf-sample-passive");
 
 export const revisionLabel = (revision) => {
   const stamped = runtime.versions.find((candidate) => candidate.revision === revision);

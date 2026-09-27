@@ -130,8 +130,8 @@ and its chrome coordinate.
   to one row. A key sequence and the shelf must still wrap, so truncating brings back
   a one-row mode beside them, and it has to keep More, which sits last, from being
   cut first.
-- **Unconfirmed: scrolling a live specimen sometimes sticks.** A user reported it
-  while a specimen still scrolled inside a fixed-height frame, with no reproduction.
+- **Unconfirmed: scrolling a live sample sometimes sticks.** A user reported it
+  while a sample still scrolled inside a fixed-height frame, with no reproduction.
   The frame now takes its page's height, so nothing scrolls inside it; check that the
   report no longer reproduces once the scrolling changes land.
 

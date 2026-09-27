@@ -38,8 +38,9 @@
  *
  * Where the fact belongs to the registry rather than to the rule that draws the box,
  * delivery paints it into the served document (revision_delivery.py, `mark_declared`;
- * the runtime's `markDeclared` in a message) and the selector reads the paint. The lists that ask whether
- * a suggestion slot or a variant holds block content invert HTML's phrasing content,
+ * the runtime's `markDeclared` in a message) and the selector reads the paint. The
+ * lists that ask whether a suggestion slot or a variant holds block content invert
+ * HTML's phrasing content,
  * which answers "block" for every custom element, so they exclude `[data-lf-inline]`
  * rather than the tags that declare `x-inline`. The affordance rules that draw a choose
  * group as a control exclude the descendants of `[data-lf-exhibit]` for the same reason,

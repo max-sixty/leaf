@@ -169,6 +169,14 @@ def source_index(source: str):
     return lambda line, column: lines[line - 1] + column
 
 
+def element_attrs(element) -> dict:
+    """An element's attributes as its source spells them, a token list joined."""
+    return {
+        name: " ".join(value) if isinstance(value, list) else value
+        for name, value in element.attrs.items()
+    }
+
+
 def attribute_references(tag: str, attrs: dict, name: str, value: str):
     """Yield the `(start, end)` span of each URL one attribute value carries.
 
@@ -294,13 +302,6 @@ class SourceDocument:
         self._first_body_position = None
         self.head_open_end = None
         self._finish()
-
-    @staticmethod
-    def _attrs(element) -> dict:
-        return {
-            name: " ".join(value) if isinstance(value, list) else value
-            for name, value in element.attrs.items()
-        }
 
     @staticmethod
     def _position(element) -> tuple[int, int]:
@@ -547,7 +548,7 @@ class SourceDocument:
 
     def _specimen_resources(self, template) -> None:
         """Read the complete child document without merging its identity space."""
-        attrs = self._attrs(template)
+        attrs = element_attrs(template)
         location = template.source_location
         content_start = self._source_index(
             location.start_tag.end_line, location.start_tag.end_col
@@ -593,7 +594,7 @@ class SourceDocument:
         skip_implied = not source_element
         parent = element.parent
         parent_tag = parent.tag if isinstance(parent, turbohtml.Element) else None
-        attrs = self._attrs(element)
+        attrs = element_attrs(element)
         line, column = self._position(element)
 
         record = None
@@ -676,10 +677,10 @@ class SourceDocument:
             if element.tag in POINTABLE_TAGS and not attrs.get("id"):
                 under = next(
                     (
-                        (ancestor.tag, self._attrs(ancestor)["id"])
+                        (ancestor.tag, element_attrs(ancestor)["id"])
                         for ancestor in element.ancestors
                         if isinstance(ancestor, turbohtml.Element)
-                        and self._attrs(ancestor).get("id")
+                        and element_attrs(ancestor).get("id")
                     ),
                     None,
                 )

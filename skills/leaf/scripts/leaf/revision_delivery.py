@@ -35,6 +35,7 @@ from .schema import BROWSER_DIRS, MEDIA_DIR, VENDORED_FILES
 from .structure import (
     DELIVERY_ENCODING_META,
     SourceDocument,
+    element_attrs,
     rel_tokens,
     rewrite_attribute_references,
     source_index,
@@ -151,7 +152,7 @@ def rebase_document(
             location = element.source_location
             if location is None:
                 continue
-            attrs = SourceDocument._attrs(element)
+            attrs = element_attrs(element)
             tag = element.tag
             stylesheet = tag == "link" and "stylesheet" in rel_tokens(attrs)
             if (

@@ -6,13 +6,13 @@ For a served page, read the private diagnostic stream while reproducing a user o
 test-agent path:
 
 ```bash
-leaf interactions <page> --follow
+leaf page interactions <page> --follow
 ```
 
 It combines browser gestures and server request outcomes in delivery order. Browser
 rows carry a tab session, event time, and sequence; large values appear as ordered
 `interaction_part` rows whose `json` fields concatenate to the original row.
-The semantic decisions remain in `leaf events <page>`. See [page-storage.md](../scripts/leaf/page-storage.md)
+The semantic decisions remain in `leaf page events <page>`. See [page-storage.md](../scripts/leaf/page-storage.md)
 for the file contract. The public site stores its browser batches in Workers
 Observability; `worker/README.md` describes lookup by session reference.
 
@@ -22,7 +22,7 @@ When `$ARGUMENTS` asks for `--export`, build the page as a finished record (the
 main skill's "Operate", step 3), since only a stamped version exports, then run:
 
 ```bash
-leaf version export <page> -o <file>
+leaf page export <page> -o <file>
 ```
 
 Hand back the `file://` URL. Do not start a server or wait. The file opens

@@ -245,7 +245,7 @@ export function retiredSlots(holders) {
       const n = seg.node,
         el = n.parentElement;
       if (!n.data.trim()) continue;
-      if (el.closest(".lf-chrome, .lf-mark-note, .lf-quiet, [hidden]")) continue;
+      if (el.closest(".lf-chrome, .lf-quiet, [hidden]")) continue;
       if (!el.checkVisibility({ visibilityProperty: true, opacityProperty: true }))
         continue;
       const range = document.createRange();

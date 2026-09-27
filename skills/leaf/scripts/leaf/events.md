@@ -19,9 +19,9 @@ page and is not a global identifier. The kinds:
 | `unresolve` | user | `POST /api/event` | `parent` | the user reopens a resolved thread |
 | `done` | user | the banner, only on a page declaring `<meta name="lf-review" content="sign-off">` | `version`, the stamp approved | approval of the declared sign-off; a page that asks nothing gets no terminal control |
 | `action` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`; server-stamped `meaning` | the user edited the document through the widget |
-| `report` | agent or worker | `leaf experimental report` | as `action`, validated by an `x-state` verb declaring `writer: "agent"` | provisional state that stands until a stamped revision answers it |
+| `report` | agent or worker | `leaf page report` | as `action`, validated by an `x-state` verb declaring `writer: "agent"` | provisional state that stands until a stamped revision answers it |
 | `pickup` | page | the delivery carrier; a host failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` with `failed` | the named user events reached the durable Codex queue or entered an exact agent turn, or the host gave up on them with no answer coming; idempotent per event, phase, session, and turn; never a work claim |
-| `note` | agent | `leaf version stamp` | `version`, `revision`, changelog `text`, `restated`, `settles` | one public version mapped to an immutable revision, naming the decisions it took back and the reports or work it answered |
+| `note` | agent | `leaf page stamp` | `version`, `revision`, changelog `text`, `restated`, `settles` | one public version mapped to an immutable revision, naming the decisions it took back and the reports or work it answered |
 | `error` | page | the runtime | | the page reported a failure in front of the user; heard like a report, never counted against the user |
 | `undo` | user | `POST /api/event` | `undoes` | withdraws one gesture of the user's own (`UNDOABLE_KINDS`: resolve, unresolve, action, done) |
 
@@ -67,8 +67,8 @@ of the undo re-derives the still-standing action.
 ## Authorship and voice
 
 The server stamps every browser-posted event `author=user`. `leaf thread open`,
-`leaf thread reply`, `leaf thread edit`, `leaf experimental report`, and
-`version stamp` stamp `author=agent` plus the posting session's own voice: `agent`, its display
+`leaf thread reply`, `leaf thread edit`, `leaf page report`, and
+`page stamp` stamp `author=agent` plus the posting session's own voice: `agent`, its display
 name, and `session`, its host session id. Several agent sessions can write to one
 page, so the voice is read from the poster's environment rather than from the
 watcher's claim record, and identity is the session id, because a display name is
@@ -144,7 +144,7 @@ it yet.
 
 ## Following the log
 
-`leaf events PAGE --follow [--after SEQ]` is the log's change feed. It prints each
+`leaf page events PAGE --follow [--after SEQ]` is the log's change feed. It prints each
 stored record after `SEQ` (default 0) as one JSON line, server-stamped `meaning`
 included, then keeps printing each event the append door admits, flushed as it
 lands. A reader drops a field or kind it does not recognise rather than refusing the
@@ -187,7 +187,7 @@ records `awaits: true`. The browser cannot write that field. A user reply
 always hands the thread back to the agent, so it needs no parallel declaration.
 An agent reply records the delivery event it answers as `responds`, including a
 completed delivery answer whose move was settled during the turn. A proactive
-message (`leaf thread reply --to` without `--for`) carries no `responds`. Settlement
+message (`leaf thread reply <page> <message-id>`, without `--for`) carries no `responds`. Settlement
 consumes this exact identity rather than log order, so answering older work cannot
 erase newer user input. A substantive reply reopens a resolved thread;
 reactions and host failure receipts leave its closure standing. A later resolution

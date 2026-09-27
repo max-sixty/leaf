@@ -315,10 +315,11 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     add.focus()
     with sending(page, "the added option"):
         page.keyboard.press("Enter")
-    expect(field).not_to_be_focused()
-    expect(add).to_be_focused()
-    expect(add).to_be_visible()
-    expect(add).to_have_attribute("aria-disabled", "true")
+    # Pressing Add is Enter pressed in the field: the user goes on in the field.
+    expect(field).to_be_focused()
+    expect(added.locator(".lf-compose-submit")).to_have_attribute(
+        "aria-disabled", "true"
+    )
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/3")
 
     new_option = page.locator("#jobs > lf-option[data-lf-added]")

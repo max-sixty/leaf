@@ -529,6 +529,7 @@ export function createReactionController({
   // order, and the mode's own scope above owns them once the list is open.
   pageCommand({
     id: "reaction.open",
+    touch: false,
     keys: ["e"],
     does: () =>
       `Open reactions — ${reactionTokens()

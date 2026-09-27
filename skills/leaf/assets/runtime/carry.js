@@ -8,11 +8,13 @@
  * outgoing authored node. Read both nodes through the same platform properties: reflected
  * attributes and defaultValue do not provide a consistent baseline for these controls.
  * Nonzero inner scroll offsets, focus, and the focused control's caret also cross,
- * except a reading region's body: where that scrolls to is the region continuity's,
- * which lands it on a passage rather than on a pixel offset the revision has moved.
- * A box in skipped content (a tab not chosen, a closed disclosure) carries no offset
- * either: reading one would make the browser style and lay out all of that content
- * first (`skipped`, geometry.js), a pass per hidden panel on every revision.
+ * except a reading region body's vertical offset: where that scrolls to is the region
+ * continuity's, which lands it on a passage rather than on a pixel offset the revision
+ * has moved. Continuity keeps no sideways place, so a region's sideways offset crosses
+ * here like any other box's. A box in skipped content (a tab not chosen, a closed
+ * disclosure) carries no offset at all: reading one would make the browser style and
+ * lay out all of that content first (`skipped`, geometry.js), a pass per hidden panel
+ * on every revision.
  * Restoring this state creates no event and leaves draft values unsent.
  *
  * Value capture supports text boxes (`TEXT_BOX`) and non-file inputs; checked state supports checkbox
@@ -44,8 +46,8 @@ export function captureCarry(root, authored) {
     if (node === active) record.focus = true;
     if (node.localName === "details" && node.open !== wrote.open)
       record.open = node.open;
-    if (!regionBodies.has(node) && !skipped(node)) {
-      if (node.scrollTop) record.scrollTop = node.scrollTop;
+    if (!skipped(node)) {
+      if (node.scrollTop && !regionBodies.has(node)) record.scrollTop = node.scrollTop;
       if (node.scrollLeft) record.scrollLeft = node.scrollLeft;
     }
     if (holdsValue(node) && node.value !== wrote.value) record.value = node.value;

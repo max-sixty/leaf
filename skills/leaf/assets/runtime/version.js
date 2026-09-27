@@ -1513,6 +1513,7 @@ export function createVersionController({
   // travel stores this reading per tab; restored chrome layout precedes scroll recovery.
 
   function captureView() {
+    dropGoneRegions();
     const blocks = textBlocks();
     const active = activeReadingRegion(readingRegions(), blocks);
     const view = Object.assign(capturePlace(null, blocks), {
@@ -1584,14 +1585,21 @@ export function createVersionController({
   // whose scroller shifts is restored from that record. Keep each semantic region's last
   // reading so a pane that becomes inactive does not inherit the shared page offset when
   // it becomes bounded again. In flow, only the region the user is working represents
-  // the shared page scroller.
+  // the shared page scroller. A region no longer standing in the document has no place
+  // left to keep: its reading goes when the next reading is taken, so a page whose
+  // blocks come and go carries only the regions it has.
   const regionViews = new Map();
   let lastReadingRegionId = null;
+  const dropGoneRegions = () => {
+    const standing = new Set(readingRegions().map(({ id }) => id));
+    for (const id of regionViews.keys()) if (!standing.has(id)) regionViews.delete(id);
+  };
 
   // Only the page's own regions, only those a scroll moved, and only their own words: a
   // scroll is frequent, and a page with no regions (most documents) records nothing and
   // reads no text at all. `moved` names the scrollers that moved; none names every one.
   function recordRegions(moved = null) {
+    dropGoneRegions();
     const main = document.querySelector("body > main");
     const shown = readingRegions().filter(
       (region) =>

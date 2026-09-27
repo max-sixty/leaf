@@ -16,7 +16,8 @@ including after a process crash.
 
 Every reader of a stored revision takes `read_revision`: one held reading per
 revision owning its manifest, captured vocabulary, parsed document, and passage
-readings. `read_artifact` materializes the complete bundle under a bound of its own.
+readings. `read_artifact` materializes the complete bundle under a bound of its own;
+delivery parses the document it rewrites for serving, which is other text.
 """
 
 import hashlib
@@ -24,6 +25,7 @@ import json
 import os
 import posixpath
 import tempfile
+import threading
 from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import cached_property, lru_cache
@@ -724,7 +726,8 @@ class RevisionReading(SourceReading):
     — is one fact per revision, held here and keyed by the marker's stamp. Each piece
     is read on first use, so a caller asking one revision for its registry opens one
     file, and a caller asking every revision in a long history for its document and
-    registry opens two apiece.
+    registry opens two apiece. The source bytes are not kept beside the parse: the
+    document holds its own (`SourceDocument.data`).
 
     The complete bundle is not held here. It is a couple of hundred files, several
     megabytes, and a snapshot or a live shell asks for every revision's, so
@@ -741,12 +744,8 @@ class RevisionReading(SourceReading):
         self.bundle = marker.with_suffix("")
 
     @cached_property
-    def html(self) -> bytes:
-        return self.marker.read_bytes()
-
-    @cached_property
     def document(self) -> SourceDocument:
-        return SourceDocument(self.html.decode("utf-8"))
+        return SourceDocument(self.marker.read_text(encoding="utf-8"))
 
     @cached_property
     def registry(self) -> dict:
@@ -786,22 +785,41 @@ class RevisionReading(SourceReading):
         return _digest(self.manifest_bytes)
 
 
-_READINGS_LIMIT = 512
-# revision marker → (its stamp, the reading), least recently read first. Enough to
-# keep a long page history resident; each entry holds only what callers asked of it.
+# How much authored source the held readings may stand for. An entry's weight is
+# its document's parse, which scales with the source: the corpus example's 323 KB
+# parses to about 9 MB, and its passage and word readings add about 3 MB more.
+# So entries are charged their source size, whether or not their document has been
+# parsed yet, and this budget keeps resident parses to a few hundred megabytes.
+# A normal history fits whole: some 180 revisions of the largest shipped example
+# page (44 KB), about 700 of the median one (11 KB). A history past it re-parses
+# the revisions a whole-history scan (`validation.admission.version_ids`) reaches
+# after the budget is spent, which is the price of not holding every parse ever
+# made in a long-lived server.
+_READINGS_BUDGET = 8 * 1024 * 1024
+# revision marker → (its stamp, the reading), least recently read first. Endpoints
+# read from a thread pool, so every change to this map and its total is under the
+# lock.
 _readings: dict[Path, tuple[tuple, RevisionReading]] = {}
+_readings_bytes = 0
+_readings_lock = threading.Lock()
 
 
 def read_revision(page_dir: Path, revision: int) -> RevisionReading:
     """The one held reading of an immutable revision."""
+    global _readings_bytes
     marker = revision_path(page_dir, revision).absolute()
     stamp = file_stamp(marker)
-    held = _readings.pop(marker, None)
-    reading = held[1] if held and held[0] == stamp else RevisionReading(marker)
-    if stamp:
-        _readings[marker] = (stamp, reading)
-        if len(_readings) > _READINGS_LIMIT:
-            del _readings[next(iter(_readings))]
+    with _readings_lock:
+        held = _readings.pop(marker, None)
+        if held:
+            _readings_bytes -= held[0][2]
+        reading = held[1] if held and held[0] == stamp else RevisionReading(marker)
+        if stamp:
+            _readings[marker] = (stamp, reading)
+            _readings_bytes += stamp[2]
+            while _readings_bytes > _READINGS_BUDGET and len(_readings) > 1:
+                evicted_stamp, _evicted = _readings.pop(next(iter(_readings)))
+                _readings_bytes -= evicted_stamp[2]
     return reading
 
 

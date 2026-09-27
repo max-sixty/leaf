@@ -77,12 +77,18 @@ def candidate_vocabulary_gaps(
     tokens = incoming.get("$reactions", {}).get("tokens", {})
     contracts = incoming["$events"]["kinds"]
     thread = thread_structure(events)
+    readings = {}
+
+    def revision_reading(revision):
+        if revision not in readings:
+            readings[revision] = read_revision(page_dir, revision)
+        return readings[revision]
 
     def page(revision):
-        return read_revision(page_dir, revision).document
+        return revision_reading(revision).document
 
     def registry(revision):
-        return read_revision(page_dir, revision).registry
+        return revision_reading(revision).registry
 
     def page_event_participates(event):
         return (

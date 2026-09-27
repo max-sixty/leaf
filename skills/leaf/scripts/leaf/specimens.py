@@ -57,13 +57,13 @@ class Specimens:
         self,
         parent: Path,
         artifact: RevisionArtifact,
+        document: SourceDocument,
         events: list,
         data: dict,
         template_id: str,
         passive: bool,
         asset_root: str,
     ) -> str:
-        document = SourceDocument(artifact.html.decode("utf-8"))
         template = next(
             (
                 specimen

@@ -22,6 +22,7 @@ from .revision_artifact import (
     artifact_name,
     capture_artifact,
     read_artifact,
+    read_revision,
 )
 from .service import PageTransaction
 from .structure import SourceDocument
@@ -87,12 +88,14 @@ def capture_page_snapshot(
         registry = copy.deepcopy(selected.registry)
         data = read_data(page_dir, registry)
         layer = copy.deepcopy(registry["$layer"])
+        # Stored revisions take their held readings; a candidate the snapshot
+        # captured is the checked document under its capture's vocabulary.
         readings = {
-            revision: SourceReading(
-                SourceDocument(artifact.html.decode("utf-8")), artifact.registry
-            )
-            for revision, artifact in artifacts.items()
+            revision: read_revision(page_dir, revision) for revision in revisions
         }
+        shown = readings.get(active["revision"])
+        if shown is None or shown.digest != selected.digest:
+            readings[active["revision"]] = SourceReading(document, selected.registry)
         revision_names = {
             revision: revision_path(page_dir, revision).name for revision in revisions
         }

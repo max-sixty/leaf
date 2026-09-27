@@ -673,12 +673,13 @@ class SourceReading:
         )
         if not carried:
             return self.passages
-        if self._decided is None or self._decided[0] != carried:
-            self._decided = (
-                carried,
-                page_passages(self.document, self.registry, dict(carried)),
-            )
-        return self._decided[1]
+        # One read of the pair: threads share a held reading, and another's
+        # outcomes may replace it between a check and a second read.
+        held = self._decided
+        if held is None or held[0] != carried:
+            held = (carried, page_passages(self.document, self.registry, dict(carried)))
+            self._decided = held
+        return held[1]
 
 
 def enclosing_of(spk: dict) -> dict:

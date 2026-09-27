@@ -39,6 +39,7 @@ from leaf.structure import (
     EXTERNAL_SOURCES,
     SourceDocument,
 )
+from leaf.thread_context import logged_fragment
 
 ResourceReader = Callable[[str], Resource]
 
@@ -150,7 +151,9 @@ def embedding(
     )
 
 
-def _module_urls(artifact: RevisionArtifact, markup: list[str]) -> dict[str, str]:
+def _module_urls(
+    artifact: RevisionArtifact, markup: list[SourceDocument]
+) -> dict[str, str]:
     """Embed the module graph this file can reach, and no other module.
 
     The one computed import an exported page makes is a widget's module, asked for only
@@ -161,11 +164,7 @@ def _module_urls(artifact: RevisionArtifact, markup: list[str]) -> dict[str, str
     modules, and the modules of the widgets that markup names close the graph: a page
     that draws no diff carries no diff renderer.
     """
-    tags = {
-        record["tag"]
-        for source in markup
-        for record in SourceDocument(source).lf_elements
-    }
+    tags = {record["tag"] for document in markup for record in document.lf_elements}
     widgets = {
         f"/widgets/{tag}.js": implementation["path"]
         for tag, implementation in artifact.implementations.items()
@@ -195,12 +194,16 @@ def _module_urls(artifact: RevisionArtifact, markup: list[str]) -> dict[str, str
 
 def export_document(
     artifact: RevisionArtifact,
+    document: SourceDocument,
     state: dict,
     data: dict,
     revision: int,
     version: int,
 ) -> str:
     """Package one captured revision for Leaf's normal runtime without a host.
+
+    `document` is that revision's parsed markup (`read_revision`); a page declaring a
+    live specimen is refused before this, by `cmd_export`.
 
     The import map is an address table, not another runtime: every module is the exact
     captured module with only its parsed local imports rebound to an in-file ``data:``
@@ -209,16 +212,15 @@ def export_document(
     external origins a page may name, so the file reaches no other network and opens
     offline wherever the page itself loads nothing from a CDN.
     """
-    if SourceDocument(artifact.html.decode("utf-8")).specimens:
-        sys.exit(
-            "Live specimens need a server, so a page that declares one "
-            "cannot be exported."
-        )
     modules = _module_urls(
         artifact,
         [
-            artifact.html.decode("utf-8"),
-            *(event["markup"] for event in state["events"] if event.get("markup")),
+            document,
+            *(
+                logged_fragment(event)
+                for event in state["events"]
+                if event.get("markup")
+            ),
         ],
     )
     inliner = _AssetInliner(artifact.resources.__getitem__)
@@ -291,6 +293,11 @@ def cmd_export(page_dir: Path, out: Path, version) -> int:
     name = version_name(version)
     revision = version_revisions(events)[version]
     document = read_revision(page_dir, revision).document
+    if document.specimens:
+        sys.exit(
+            "Live specimens need a server, so a page that declares one "
+            "cannot be exported."
+        )
     artifact = read_artifact(page_dir, revision)
     active = {"revision": revision, "version": version, "url": f"/versions/{name}"}
     snapshot = capture_page_snapshot(page_dir, document, active, artifact=artifact)
@@ -299,7 +306,7 @@ def cmd_export(page_dir: Path, out: Path, version) -> int:
         page_snapshot=snapshot,
         layer_identity=snapshot.layer,
     ).page_state(revision)
-    html = export_document(artifact, state, snapshot.data, revision, version)
+    html = export_document(artifact, document, state, snapshot.data, revision, version)
 
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding="utf-8")

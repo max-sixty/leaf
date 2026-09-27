@@ -77,7 +77,7 @@ def predecessor_reading(
     """Read the predecessor whose still-standing decisions this source must keep."""
     revisions = list_revisions(page_dir)
     active = revisions[-1] if revisions else 0
-    active_data = read_revision(page_dir, active).html if active else None
+    active_data = read_revision(page_dir, active).document.data if active else None
     same_as_active = active_data == data and (
         artifact is None or artifact.digest == read_revision(page_dir, active).digest
     )

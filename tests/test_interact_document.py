@@ -5625,6 +5625,31 @@ def test_a_state_read_walks_an_unchanged_revision_once(page_dir, monkeypatch):
     assert walks == []
 
 
+def test_held_revision_readings_stay_within_their_source_budget(page_dir, monkeypatch):
+    """Held readings are charged their source size and the least recently read go
+    first, so resident parses stay bounded however long a history grows; the reading
+    just asked for is always kept."""
+    for edit in range(4):
+        (page_dir / "index.html").write_text(
+            PAGE.replace("</main>", f"<p>edit {edit}</p></main>")
+        )
+        assert revisioning_model.activate_source(page_dir).error is None
+    revisions = files_model.list_revisions(page_dir)
+    size = files_model.revision_path(page_dir, revisions[-1]).stat().st_size
+    artifact_model._readings.clear()
+    artifact_model._readings_bytes = 0
+    monkeypatch.setattr(artifact_model, "_READINGS_BUDGET", 2 * size + size // 2)
+
+    readings = [artifact_model.read_revision(page_dir, r) for r in revisions]
+    held = [reading for _stamp, reading in artifact_model._readings.values()]
+    assert held == readings[-2:]
+    assert artifact_model._readings_bytes <= artifact_model._READINGS_BUDGET
+    # Reading an evicted revision again takes a fresh reading, and one still held
+    # answers with the same object.
+    assert artifact_model.read_revision(page_dir, revisions[-1]) is readings[-1]
+    assert artifact_model.read_revision(page_dir, revisions[0]) is not readings[0]
+
+
 def test_a_reading_under_outcomes_is_the_walk_under_them():
     """`decided_passages` answers for `page_passages` with the same outcomes.
 

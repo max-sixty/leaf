@@ -195,9 +195,11 @@ def _sheet(source: Path) -> str:
     return css if css.endswith("\n") else css + "\n"
 
 
-def widget_confinement(root: Path) -> str | None:
-    """The condition a package's rules meet in the document: the element is one of the
-    package's widgets or stands inside one. None for a package that declares none."""
+def widget_confinement(root: Path) -> tuple[str, str] | None:
+    """The conditions a package's rules meet: in the document, the element is one of
+    the package's widgets or stands inside one; in a declared shadow tree, the tree's
+    host is one of them, which is the one element outside the tree a selector in it can
+    name. None for a package that declares no widget."""
     registry = root / "registry.json"
     tags = (
         sorted(
@@ -209,7 +211,8 @@ def widget_confinement(root: Path) -> str | None:
     if not tags:
         return None
     listed = ", ".join(tags)
-    return f":where({listed}, :is({listed}) *)"
+    host = f":host(:is({listed}))"
+    return f":where({listed}, :is({listed}) *)", f":where({host}, {host} *)"
 
 
 def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
@@ -224,11 +227,12 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     sheet stays unlayered: a renderer that brings its own layered CSS into the tree
     (the diff's) keeps ranking below it.
 
-    A package that declares widgets styles those widgets and nothing else: in the
-    document each of its rules matches only an element that is one of them or stands
-    inside one (`widget_confinement`). A package that declares none is a theme, and
-    reaches the page the way the kernel's own theme does. A declared tree needs no
-    such line, since nothing outside it reaches in.
+    A package that declares widgets styles those widgets and nothing else
+    (`widget_confinement`): in the document each of its rules matches only an element
+    that is one of them or stands inside one, and in the shadow sheet every declared
+    tree receives, only an element of a tree one of them hosts. A package that
+    declares none is a theme, and reaches the page and every tree the way the kernel's
+    own sheets do.
     """
     if not any((root / "theme.css").is_file() for root in inputs):
         sys.exit("the incoming layer has no theme.css")
@@ -242,12 +246,12 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
                 continue
             css = _sheet(source)
             try:
-                placed = confined(css, where) if where else css
+                placed = confined(css, where[0]) if where else css
+                if name == "shadow.css":
+                    shadow.append(confined(css, where[1]) if where else css)
             except ValueError as error:
                 sys.exit(f"{source}: {error}; state a widget's rules on the widget")
             theme.append(f"@layer lf-base {{\n{placed}}}\n")
-            if name == "shadow.css":
-                shadow.append(css)
     if (layouts := inputs[0] / "layouts.css").is_file():
         theme.append(_sheet(layouts))
     return {

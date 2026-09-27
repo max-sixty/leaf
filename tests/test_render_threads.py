@@ -4529,6 +4529,67 @@ def test_a_packages_rules_reach_only_inside_its_widgets(browser, serve, tmp_path
     assert faces["shelf"][1] == "3px", faces
 
 
+def _shadow_tree_widget(tag):
+    """A declaration and module for a widget that renders one word into a declared
+    shadow tree."""
+    declaration = {
+        "description": "A project-supplied tree.",
+        "type": "object",
+        "properties": {"id": {"type": "string"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+        "x-shadow": True,
+        "x-example": f'<{tag} id="example"></{tag}>',
+    }
+    module = f"""
+import {{shadowStage}} from '/runtime/widget-api.js';
+customElements.define('{tag}', class extends HTMLElement {{
+  connectedCallback() {{
+    if (this.shadowRoot) return;
+    const word = document.createElement('span');
+    word.textContent = '{tag}';
+    shadowStage(this, [word]);
+  }}
+}});
+"""
+    return declaration, module
+
+
+def test_a_packages_shadow_rules_reach_only_trees_its_widgets_host(
+    browser, serve, tmp_path
+):
+    """Every declared shadow tree receives the layer's shadow sheet, so a package's
+    `shadow.css` is confined there too: its rule for `span` dresses the tree its own
+    widget hosts and not the tree another package's widget hosts."""
+    own, own_module = _shadow_tree_widget("lf-own-tree")
+    other, other_module = _shadow_tree_widget("lf-other-tree")
+    project = tmp_path / ".leaf"
+    project.mkdir()
+    (project / "shadow.css").write_text("span { color: rgb(0, 128, 0); }\n")
+    neighbour = tmp_path / "other"
+    (neighbour / "widgets").mkdir(parents=True)
+    (neighbour / "registry.json").write_text(json.dumps({"lf-other-tree": other}))
+    (neighbour / "widgets" / "lf-other-tree.js").write_text(other_module)
+    url = serve(
+        leaf_page(
+            "t",
+            '<h1>t</h1><lf-own-tree id="own"></lf-own-tree>'
+            '<lf-other-tree id="other"></lf-other-tree>',
+        ),
+        packages=("./other",),
+        layer_registry={"lf-own-tree": own},
+        layer_widgets={"lf-own-tree.js": own_module},
+    )
+    page = open_page(browser, url)
+    colors = page.evaluate("""() => Object.fromEntries(['own', 'other'].map(id => [id,
+        getComputedStyle(document.getElementById(id).shadowRoot.querySelector('span'))
+            .color]))""")
+    assert colors["own"] == "rgb(0, 128, 0)", colors
+    assert colors["other"] != "rgb(0, 128, 0)", colors
+
+
 def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     """The chrome's private rules live in one @scope block rooted at the runtime's
     own container, so whatever name a widget or a page coins, it matches none of

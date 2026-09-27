@@ -104,7 +104,8 @@ beats the kernel's by specificity and order as it would unlayered, while the Lay
 and the page's own stylesheet rank above every package rule whatever its specificity.
 A package that declares widgets styles only those widgets: composition narrows each
 rule in its `theme.css` and `shadow.css` to elements that are one of its widgets or
-stand inside one, so a rule for `p` dresses the paragraphs in its widgets and no other,
+stand inside one, and in the shadow sheet every declared tree receives, to trees one of
+its widgets hosts. A rule for `p` dresses the paragraphs in its widgets and no other,
 and a rule for the box that holds a widget matches nothing. Composition refuses a rule
 whose subject is `:root`, `html` or `body`, which no widget contains; state a widget's
 tokens on its own element. What several packages' widgets share, such as the pane role

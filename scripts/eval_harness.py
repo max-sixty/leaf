@@ -3,8 +3,9 @@
     uv run scripts/eval_harness.py REF DEST
 
 builds one arm at DEST from git REF. `eval_claude_delivery.py`,
-`bench_render_check.py` and `notes/arrangement-eval/harness.py` import the rest, and
-`evals/README.md`'s A/B recipe builds its other arm with the command.
+`bench_render_check.py`, `bench_page_latency.py` and
+`notes/arrangement-eval/harness.py` import the rest, and `evals/README.md`'s A/B
+recipe builds its other arm with the command.
 
 An arm is the plugin payload at one ref (`PAYLOAD`: the manifest, hooks, launcher,
 skills and uv project) and nothing else. It has no `.git`, examples, docs or notes, so a
@@ -59,12 +60,12 @@ def run_leaf(
     *args: str,
     check: bool = False,
     timeout: float | None = None,
-    input: str | None = None,
+    input_text: str | None = None,
 ) -> subprocess.CompletedProcess:
     """Run an arm's launcher under a state home of its own."""
     proc = subprocess.run(
         [str(arm / "bin/leaf"), *args],
-        input=input,
+        input=input_text,
         capture_output=True,
         text=True,
         check=False,

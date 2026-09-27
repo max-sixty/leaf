@@ -48,6 +48,7 @@ import shutil
 import statistics
 import subprocess
 import time
+from functools import partial
 from pathlib import Path
 
 import click
@@ -264,9 +265,7 @@ def main(base_ref: str) -> None:
             prepare_page(
                 page,
                 read_fixture(ROOT / "examples" / f"{name}.html"),
-                lambda *args, arm=arm, input_text=None: run_leaf(
-                    arms[arm], states[arm], *args, input=input_text, check=True
-                ),
+                partial(run_leaf, arms[arm], states[arm], check=True),
             )
     traces = OUT / "traces"
     traces.mkdir(exist_ok=True)

@@ -198,9 +198,9 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     for frame in views.values():
         expect(frame.locator(".lf-thread-panel")).to_be_visible()
         expect(frame.locator(".lf-threads > .lf-group")).to_have_count(0)
-        expect(frame.locator(".lf-thread[open] .lf-thread-topic")).to_have_css(
-            "clip-path", "inset(50%)"
-        )
+        topic = frame.locator(".lf-thread[open] .lf-thread-topic")
+        expect(topic).to_be_visible()
+        assert topic.evaluate("element => element.getBoundingClientRect().width") > 40
 
     expect(views["overview"].locator(".lf-thread:not([hidden])")).to_have_count(3)
     expect(
@@ -215,6 +215,9 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     expect(
         views["summary"].locator('.lf-thread[data-id="c1a39980"]')
     ).to_have_attribute("open", "")
+    expect(views["summary"].locator(".lf-thread[open] .lf-thread-topic")).to_have_text(
+        "Afternoon workshop"
+    )
 
     views["overview"].get_by_role("button", name="Close threads").click()
     expect(views["overview"].locator(".lf-thread-panel")).to_be_hidden()
@@ -238,11 +241,11 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
     expect(frame.locator(".lf-thread")).to_have_count(4)
     expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(3)
 
-    for view, thread, visible in (
-        ("you", "2be2443f0bb6cc49fc86b52f340e6073", 2),
-        ("resolved", "bab3cdfcfb8c02aacbb27da731de947a", 1),
-        ("summary", "9ee465bb3f9c1fa309ea9cb1767fa365", 3),
-        ("overview", "72e031c5bf0d485ba9054628e09869d4", 3),
+    for view, thread, visible, title in (
+        ("you", "2be2443f0bb6cc49fc86b52f340e6073", 2, "Workshop room photo"),
+        ("resolved", "bab3cdfcfb8c02aacbb27da731de947a", 1, "Projector map"),
+        ("summary", "9ee465bb3f9c1fa309ea9cb1767fa365", 3, "Afternoon workshop"),
+        ("overview", "72e031c5bf0d485ba9054628e09869d4", 3, "..."),
     ):
         button = page.locator(f'#bg-panel-presets [data-view="{view}"]')
         button.click()
@@ -250,6 +253,10 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
         expect(frame.locator(f'.lf-thread[data-id="{thread}"]')).to_have_attribute(
             "open", ""
         )
+        topic = frame.locator(f'.lf-thread[data-id="{thread}"] .lf-thread-topic')
+        expect(topic).to_be_visible()
+        expect(topic).to_have_text(title)
+        assert topic.evaluate("element => element.getBoundingClientRect().width") > 40
 
     page.locator('#bg-panel-presets [data-view="resolved"]').click()
     page.locator("#bg-panel-specimen").get_by_role(

@@ -816,10 +816,10 @@ def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) ->
     That environment is the one `bin/leaf` syncs, which carries no dev group, so the
     watcher's own dependency and this checkout's `leaf_dev`, which builds the page from
     the fixture, are overlaid onto it rather than installed into it. `leaf_dev` names
-    no `leaf` of its own, so the overlay leaves the selected checkout's `leaf` in place. The
-    launcher is replaced rather than kept as a parent, so whatever stops this
-    process — Ctrl-C, or a runner's SIGTERM, which `uv run` forwards — reaches the
-    preview itself.
+    no `leaf` of its own, so the overlay leaves the selected checkout's `leaf` in
+    place. The launcher is replaced rather than kept as a parent, so whatever stops
+    this process — Ctrl-C, or a runner's SIGTERM, which `uv run` forwards — reaches
+    the preview itself.
     """
     command = [
         "uv",

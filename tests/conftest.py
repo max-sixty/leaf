@@ -11,6 +11,7 @@ from typing import NamedTuple
 import pytest
 from leaf import event_log as events_model
 from leaf import files as files_model
+from leaf import host as host_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf.mcp_page import ProcessPageServer
@@ -257,11 +258,11 @@ def pytest_collection_modifyitems(config, items):
     config.hook.pytest_deselected(items=nightly)
 
 
-# A host session states its identity in the environment, under names of its own.
-# The suite is a Claude Code session, and `session_harness` reads that set first, so
-# a test about a Codex session, or about no session at all, takes it away.
-CLAUDE_IDENTITY = ("CLAUDE_CODE_SESSION_ID", "CLAUDE_PID", "CLAUDE_JOB_DIR")
-CODEX_IDENTITY = ("CODEX_THREAD_ID", "LEAF_SESSION_ID", "LEAF_AGENT")
+# A host session states its identity in the environment, under names of its own
+# (`host.IDENTITY_VARIABLES`). The suite is a Claude Code session, and
+# `session_harness` reads that set first, so a test about a Codex session takes
+# this away, and a test about no session at all takes the whole set (`sessionless`).
+CLAUDE_IDENTITY = host_model.ClaudeCodeHarness.identity_variables
 # The Claude Code sessions `isolated_session` marks as hooked: the worker's own
 # and the id lifecycle fixtures claim under (`record_claim`).
 HOOKED_SESSIONS = (f"pytest-{os.getpid()}", "s1")
@@ -292,11 +293,10 @@ def isolated_session(tmp_path_factory, monkeypatch):
     it would read before this fixture sets it and after `monkeypatch` unsets it
     (tests/AGENTS.md, "A process the suite starts ends with the run")."""
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path_factory.mktemp("state")))
+    for name in host_model.IDENTITY_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", f"pytest-{os.getpid()}")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    monkeypatch.delenv("CLAUDE_JOB_DIR", raising=False)
-    for name in CODEX_IDENTITY:
-        monkeypatch.delenv(name, raising=False)
     # A Claude Code session whose host runs Leaf's hooks, as the plugin installs
     # them, so its `leaf wait` only wakes it (`Harness.hooks_carry`).
     for session in HOOKED_SESSIONS:
@@ -307,7 +307,7 @@ def isolated_session(tmp_path_factory, monkeypatch):
 @pytest.fixture
 def sessionless(monkeypatch):
     """A command run from outside any host session: a terminal, a login item."""
-    for name in CLAUDE_IDENTITY + CODEX_IDENTITY:
+    for name in host_model.IDENTITY_VARIABLES:
         monkeypatch.delenv(name, raising=False)
 
 

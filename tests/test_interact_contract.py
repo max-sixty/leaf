@@ -4199,7 +4199,7 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
     }
     status, answer = fetch(f"{server}/api/event", data=json.dumps(posted).encode())
     assert status == 200, answer
-    logged = json.loads((page_dir / "events.jsonl").read_text().splitlines()[-1])
+    logged = events_model.read_events(page_dir)[-1]
 
     session_model.cmd_status(page_dir, "waiting", "")
     capsys.readouterr()

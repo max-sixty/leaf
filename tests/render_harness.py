@@ -1301,8 +1301,9 @@ def opened_tab(page, destination, press, timeout=10_000):
     it takes the key out of the address bar, so either spelling is the arrival.
     """
     parts = urlsplit(destination)
+    query = parse_qsl(parts.query, keep_blank_values=True)
     keyless = parts._replace(
-        query=urlencode([(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if k != "t"])
+        query=urlencode([p for p in query if p[0] != "t"])
     ).geturl()
     browser_session = page.context.browser.new_browser_cdp_session()
 

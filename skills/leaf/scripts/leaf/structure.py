@@ -111,7 +111,7 @@ def external_reference(reference: str) -> bool:
 # runtime bootstrap and every authored module block, so only the inline scripts it
 # composed run. 'self' is the immutable page layer whole; base-uri and form-action
 # need their own directives because default-src governs only fetches. data: admits
-# the images `version export` inlines. 'unsafe-inline' admits the <style> block a
+# the images `page export` inlines. 'unsafe-inline' admits the <style> block a
 # page writes its own CSS in, and the one the theme arrives in on export.
 PAGE_CSP = (
     f"default-src 'self' {EXTERNAL_SOURCES}; base-uri 'none'; form-action 'none'; "

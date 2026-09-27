@@ -13,6 +13,7 @@ from leaf.registry.reactions import reaction_tokens
 from leaf.registry.storage import active_registry
 from leaf.revision_artifact import active_enclosing, read_revision
 from leaf.schema import agent_name
+from leaf.thread import thread_named
 from leaf.thread_context import (
     thread_memberships,
     thread_names,
@@ -24,10 +25,8 @@ from leaf.thread_context import (
 def cmd_events(page_dir: Path, after: int, thread: str | None = None) -> None:
     events = read_events(page_dir)
     if thread is not None:
+        thread = thread_named(page_dir, events, thread)
         within = active_enclosing(page_dir)
-        threads = build_threads(events, within)
-        if thread not in threads:
-            sys.exit(f"unknown thread id {thread!r}")
         names = thread_names(events)
         memberships = thread_memberships(
             events,

@@ -115,7 +115,7 @@ def entry_stamps(directory: Path, ignored: Collection[str]) -> list[tuple[str, o
 
 
 # How often a reader waiting on a page looks for news: the browser's news stream,
-# `leaf events --follow`, and `leaf wait`. The look is a re-stat rather than an
+# `leaf page events --follow`, and `leaf wait`. The look is a re-stat rather than an
 # in-process signal because an append does not have to come from the reader's process —
 # `leaf thread reply` and every other command write these same files from outside a server,
 # and a follower has no server at all — so one mechanism covers a browser's POST and an

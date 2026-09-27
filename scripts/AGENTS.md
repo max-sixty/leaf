@@ -30,6 +30,11 @@ Evidence, previews, staged sites, and probe results leave the tracked tree uncha
 - `deploy-site-dev.sh` deploys the checkout to the standing `leaf-website-dev`
   environment. Production deploys only through `.github/workflows/publish-site.yaml`.
 - `worker/README.md` owns hosted-agent diagnostics and the failure contract.
+- `verify_codex_task.py` runs one real Codex task with this working tree's plugin
+  through `leaf codex start`'s App Server adapter. It posts comments while the task
+  is idle, mid-turn, and after the adapter is killed, and fails when a comment is
+  not answered exactly once or the page's claim does not name the task's last turn,
+  closed. It spends the host's Codex login, so CI does not run it.
 - `eval_claude_delivery.py [BASE_REF]` compares how an agent handles a comment
   through `leaf wait`, and what the page shows meanwhile, between a base plugin
   and HEAD's.
@@ -44,10 +49,3 @@ Evidence, previews, staged sites, and probe results leave the tracked tree uncha
   recalculations and the writes that invalidated them, and JS by function.
 - `record-demo.py` regenerates `docs/demo.gif`, the README stills, and
   `docs/session-card.png`.
-
-## MCP Apps probe
-
-`mcp-app/run-direct-probe.sh` runs the bundled runtime in the official reference
-host; `mcp-app/README.md` owns it. Its evidence under `.tmp/mcp-app/experiments/`
-is scratch. Copy into `notes/mcp-apps/experiments/<number>/results/` only what a
-written-up result cites.

@@ -1129,7 +1129,7 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
 
 def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
     """A quote is read back as prose — seeded into the suggestion box, printed in the
-    panel, emitted into a Markdown blockquote by `leaf transcript` — and written to a
+    panel, emitted into a Markdown blockquote by `leaf page transcript` — and written to a
     UTF-8 file on the way. Source text is neither: it carries the author's line wraps,
     which break a blockquote open, and cutting it to length by UTF-16 unit can halve a
     character, which no UTF-8 file can hold. The server refuses that write and the
@@ -2741,8 +2741,6 @@ def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser,
             "reply",
             "--json",
             str(d),
-            "--to",
-            root["id"],
             "--for",
             root["id"],
             "--section",
@@ -2815,8 +2813,6 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
             "thread",
             "reply",
             str(d),
-            "--to",
-            root["id"],
             "--for",
             root["id"],
             "--detach",
@@ -5145,11 +5141,17 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
-    note = page.locator("lf-diff .lf-mark-note")
+    note = page.locator(".lf-mark-note")
     expect(note).to_have_count(1)
+    # The commented line stands inside the diff's shadow tree and the note in the
+    # document's chrome, which an id reference cannot join; the reflected relation can.
+    assert note.evaluate(
+        """n => [...document.querySelector('lf-diff').shadowRoot.querySelectorAll('*')]
+            .some(el => el.ariaDetailsElements?.includes(n))"""
+    ), "no line inside the diff names the comment note as its details"
     assert note.evaluate(
         "el => { const r = el.getBoundingClientRect(); return r.width <= 1 && r.height <= 1; }"
-    ), "the shared comment note escaped the shadow theme and painted inside the diff"
+    ), "the resting comment note painted on screen"
     assert note.evaluate("el => getComputedStyle(el).opacity") == "0"
     note.focus()
     expect(note).to_be_focused()
@@ -5927,16 +5929,21 @@ def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
     )
     told(page)
     expect(row).to_have_class(marked)
-    expect(row).to_contain_text("1 comment")
+    notes = """(count) => {
+        const row = document.getElementById('patch').shadowRoot.getElementById('row');
+        return (row.ariaDetailsElements ?? []).length === count;
+    }"""
+    page.wait_for_function(notes, arg=1)
+    assert row.evaluate("el => el.ariaDetailsElements[0].textContent") == "1 comment"
 
-    # Resolved, so the next repaint has nothing to say here: the count line has to go,
-    # and it can only go if the sweep that clears it enters the tree that holds it.
+    # Resolved, so the next repaint has nothing to say here: the count has to go, and
+    # it can only go if the sweep that clears it reaches the tree that holds the row.
     events_model.append_event(
         d, {"kind": "resolve", "author": "user", "parent": "c-staged"}
     )
     told(page)
     expect(row).not_to_have_class(marked)
-    expect(row).not_to_contain_text("comment")
+    page.wait_for_function(notes, arg=0)
 
 
 # The runtime's whole visible vocabulary for "somebody has said something about these

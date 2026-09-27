@@ -51,7 +51,8 @@ uv run leaf-dev guidance-ab [CASE]... [--base REF] [--runs N]
 It builds both arms outside this checkout, since a run loads every plugin and case
 below its target, gives both the working tree's cases, and runs the suite in each as
 the command at the top of this file does. It prints each case's passes per arm, the
-cost, and a Record row whose "Tried" cell is yours to fill. The base is the merge base with `main` unless `--base` names another.
+cost, and a Record row whose "Tried" cell is yours to fill. The base is the merge base
+with `main` unless `--base` names another.
 
 ## Cases
 

@@ -1,103 +1,102 @@
-/* The generated accessibility note beside each authored block carrying comments.
+/* The accessible comment note for each authored block carrying comments.
  *
- * Anchor paint supplies one immutable count and first-thread reading per block. Each
- * synchronous light-DOM Lit owner retains one native button while its authored holder
- * remains live. The outer element is the rendering and removal boundary: Lit never
- * claims, wraps, or rewrites the holder's authored or widget-owned children.
+ * A painted range builds no accessibility node, so a block cannot say by itself that it
+ * carries comments. Anchor paint supplies each commented block with its thread ids, and
+ * this projection keeps one native button per block saying how many, which enters the
+ * block's first thread.
+ *
+ * The button stands in the chrome, never inside the block. An element added to authored
+ * content changes which of the block's children is first, last, and only, so the page's
+ * own structural rules would restyle and move it for as long as a comment stood
+ * (assets/AGENTS.md, "Space and scrolling"). The block names its note as its details
+ * instead, ARIA's relation for an annotation, which the browser exposes on the block's
+ * accessibility node; screen readers differ in how they announce it and whether they
+ * offer a move to its target, and the note is otherwise found in the chrome. That
+ * attribute is the only trace on the block. It is written through element reflection,
+ * which reaches a note in the document from a block inside a widget's shadow tree, where
+ * an id reference cannot. `aria-owns` would seat the note in the block's reading order,
+ * but Chrome has no reflection for it, so it could name notes only for blocks in the
+ * document's own tree; one relation serves every block instead. An authored
+ * `aria-details` keeps its elements ahead of the note and is restored when the note goes.
+ *
+ * The notes stand together in the chrome, so each is named for the block it counts as a
+ * thread's quote names it, cut to a spoken name's length ("2 comments on § paragraph ·
+ * The first…"), while it shows only the count, which the name begins with.
+ *
+ * The note is no Tab stop: from the chrome it would come after the whole page, away from
+ * the block it counts. A keyboard reaches a block's threads from the block itself (`c`,
+ * `t`) and through its margin row. Focus on the note stands at its block
+ * (standing-target.js), and shows it in the skip link's face (chrome.css).
  */
-import { LitElement, html, nothing } from "../vendor/browser-runtime.js";
+import { addressableAt } from "./anchor-resolution.js";
+import { chromeRoot } from "./chrome.js";
+import { spokenSubject } from "./margin-entry-model.js";
+import { declareSide } from "./standing-target.js";
+import { keeps, keepsText, offer } from "./widget-elements.js";
 
-// `lf-*` is reserved for authored widgets. This is generated runtime apparatus.
-// Exported because this is the one control the runtime hangs inside a block it does
-// not own, so a reading of what a block holds has to be able to name it (reach.js).
-export const ANCHOR_NOTE_TAG = "leaf-anchor-note";
+const label = (count) => `${count} comment${count === 1 ? "" : "s"}`;
 
-class AnchorNoteView extends LitElement {
-  static properties = {
-    model: { attribute: false },
-  };
+export function createAnchorNoteProjection({ openThread, labelAnchor }) {
+  // holder -> { note, firstThreadId, authored }; the note's holder, read the other way.
+  const claims = new Map();
+  const holders = new WeakMap();
+  let shelf = null;
 
-  #openThread = null;
+  declareSide((node) => holders.get(node.closest?.(".lf-mark-note")) ?? null);
 
-  constructor() {
-    super();
-    this.model = null;
+  function claim(holder) {
+    const note = offer("button", "lf-skip lf-mark-note");
+    note.tabIndex = -1;
+    const record = { note, firstThreadId: null, authored: null };
+    note.addEventListener("click", () =>
+      openThread(record.firstThreadId, { focus: "thread" }),
+    );
+    if (!shelf) shelf = offer("div", "lf-mark-notes");
+    if (!shelf.isConnected) chromeRoot.append(shelf);
+    shelf.append(note);
+    holders.set(note, holder);
+    claims.set(holder, record);
+    return record;
   }
 
-  createRenderRoot() {
-    return this;
+  // Name the note on its block, keeping whatever the block's own `aria-details` names
+  // ahead of it. Asked on every pass rather than once, because a revision that keeps the
+  // block patches its attributes to the new source and takes the name off with it; the
+  // source's value is then the one to keep and to restore.
+  function name(holder, record) {
+    if (holder.ariaDetailsElements?.includes(record.note)) return;
+    record.authored = holder.getAttribute("aria-details");
+    holder.ariaDetailsElements = [...(holder.ariaDetailsElements ?? []), record.note];
   }
 
-  configure({ openThread }) {
-    if (this.#openThread) throw new Error("The anchor note view is already configured");
-    this.#openThread = openThread;
+  function release(holder, record) {
+    if (record.authored === null) holder.removeAttribute("aria-details");
+    else holder.setAttribute("aria-details", record.authored);
+    record.note.remove();
+    claims.delete(holder);
   }
-
-  present(model) {
-    if (!Object.isFrozen(model))
-      throw new Error("Anchor note presentation models must be immutable");
-    this.model = model;
-    this.performUpdate();
-  }
-
-  #activate = () => {
-    if (this.model?.firstThreadId)
-      this.#openThread(this.model.firstThreadId, { focus: "thread" });
-  };
-
-  render() {
-    if (!this.model) return nothing;
-    return html`<button
-      type="button"
-      class="lf-mark-note lf-ui"
-      data-lf-gen="1"
-      data-lf-offer="button"
-      .textContent=${this.model.label}
-      @click=${this.#activate}
-    ></button>`;
-  }
-}
-
-if (!customElements.get(ANCHOR_NOTE_TAG))
-  customElements.define(ANCHOR_NOTE_TAG, AnchorNoteView);
-
-const noteModel = (threadIds) => {
-  const count = threadIds.length;
-  return Object.freeze({
-    count,
-    firstThreadId: threadIds[0],
-    label: `${count} comment${count === 1 ? "" : "s"}`,
-  });
-};
-
-export function createAnchorNoteProjection({ openThread }) {
-  const hosts = new Map();
 
   function present(notes) {
-    const kept = new Set();
+    for (const [holder, record] of claims)
+      if (!notes.has(holder) || !holder.isConnected) release(holder, record);
     for (const [holder, threadIds] of notes) {
-      let host = hosts.get(holder);
-      if (!host?.isConnected) {
-        host = document.createElement(ANCHOR_NOTE_TAG);
-        host.className = "lf-anchor-note-host lf-ui";
-        host.dataset.lfGen = "1";
-        host.configure({ openThread });
-        holder.append(host);
-        hosts.set(holder, host);
-      }
-      host.present(noteModel(threadIds));
-      kept.add(holder);
+      const record = claims.get(holder) ?? claim(holder);
+      name(holder, record);
+      record.firstThreadId = threadIds[0];
+      const count = label(threadIds.length);
+      const on = addressableAt(holder)?.id;
+      keepsText(record.note, count);
+      keeps(
+        record.note,
+        "aria-label",
+        on ? `${count} on ${spokenSubject(labelAnchor({ section: on }))}` : count,
+      );
     }
-    for (const [holder, host] of hosts)
-      if (!kept.has(holder)) {
-        host.remove();
-        hosts.delete(holder);
-      }
   }
 
   function destroy() {
-    for (const host of hosts.values()) host.remove();
-    hosts.clear();
+    for (const [holder, record] of claims) release(holder, record);
+    shelf?.remove();
   }
 
   return { present, destroy };

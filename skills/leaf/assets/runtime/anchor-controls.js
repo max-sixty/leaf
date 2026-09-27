@@ -52,7 +52,7 @@ export function createAnchorControls({
 }) {
   const visualActionHolders = new Map();
   const reactionSeats = new Map();
-  const anchorNotes = createAnchorNoteProjection({ openThread });
+  const anchorNotes = createAnchorNoteProjection({ openThread, labelAnchor });
   let mounted = false;
   let invalidationQueued = false;
   let pendingVisualActions = new Map();

@@ -52,6 +52,27 @@ def sample_events(
     ]
 
 
+def thread_address(events: list, name: str) -> tuple[str, str] | None:
+    """The thread `name` reaches, and the message an event written into it names.
+
+    `name` is the thread's own id or the id of any message in it, which is how every
+    command that addresses a thread takes it. The message is `name` itself, except
+    where `name` is a thread whose opening comment the log lost: that id names no
+    event, so the thread is addressed through the first message it still holds, as
+    the panel answers it. None where `name` reaches no thread."""
+    names = thread_names(events)
+    thread = names.get(name)
+    if thread is None:
+        return None
+    if name != thread or any(event["id"] == name for event in events):
+        return thread, name
+    return thread, next(
+        message
+        for message, owner in names.items()
+        if owner == thread and message != name
+    )
+
+
 def thread_names(events: list) -> dict:
     """Every name that reaches a thread → that thread's id.
 
@@ -234,7 +255,7 @@ MESSAGE_FIELDS = (
 
 # How much of one thread a wait digest carries: the message that opened it,
 # because it holds the question the thread is about, and the most recent, being
-# what a new one answers. `leaf events --thread` selects the exchange whole when
+# what a new one answers. `leaf page events --thread` selects the exchange whole when
 # a reader needs the middle.
 #
 # The bound is the point. A delivery reprints the entire thread every time,
@@ -276,7 +297,7 @@ def thread_digest(
     exchange its own events land in without printing them twice. `pin` keeps a
     message the bound would otherwise drop. `elided` says how many went, so a
     reader can tell a short thread from a shortened one and knows to
-    read the exact records with `leaf events --thread`."""
+    read the exact records with `leaf page events --thread`."""
     kept = [m for m in thread["msgs"] if m["seq"] not in omit]
     shown = ends_kept(kept, pin)
     return {

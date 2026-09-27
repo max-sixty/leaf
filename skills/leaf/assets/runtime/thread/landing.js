@@ -213,13 +213,12 @@ export const retainPanelLanding = (source, panelIsOpen, threadsBox) =>
   retainUserIntent({ source, available: panelIsOpen, fallback: threadsBox });
 
 // Landing belongs to the list, not to whatever moved the focus. The list already says
-// which of its own edges cannot be stood on — `scroll-padding`, room for a stuck
-// heading and for the focused card's edge — and every route that could reach a thread
-// was scrolling it into that band for itself, so a route that did not scroll got
-// nothing. A press does not: the browser focuses the card under the pointer and scrolls
-// nothing, so a list nudged a dozen pixels leaves the first card of a run two pixels
-// under its heading, which hides its top border and leaves the current card's quiet
-// edge-and-surface cue incomplete.
+// which of its own edges cannot be stood on — `scroll-padding`, room for the focused
+// card's edge — and every route that could reach a thread was scrolling it into that
+// band for itself, so a route that did not scroll got nothing. A press does not: the
+// browser focuses the card under the pointer and scrolls nothing, so a list nudged a
+// dozen pixels leaves its first card two pixels past the top edge, which hides its top
+// border and leaves the current card's quiet edge-and-surface cue incomplete.
 // The routes that resolve a thread rather than press one — a page mark's comment note,
 // the thread a resolve or a reopen hands the user on to — landed only by chance of
 // having remembered the line.

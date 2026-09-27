@@ -12,8 +12,7 @@
 
    Order is the panel's other view question: Page reads the list in the page's order,
    and Recent puts the thread spoken in last first. It hides nothing, so it is not a
-   narrowing: it has no count, and Reset and a direct arrival keep it. Its day headings
-   say which order the list is in.
+   narrowing: it has no count, and Reset and a direct arrival keep it.
 
    The panel title stays fixed. The search row's View button discloses the controls; a
    narrowed view states its result and active facets even while those controls are
@@ -83,10 +82,10 @@ const messageWords = (message) => {
     .toLowerCase();
 };
 
-const threadWords = (thread, threadGroup) =>
+const threadWords = (thread, place) =>
   [
     anchorLabel(thread.detached_from ?? thread.anchor, thread.root.about),
-    threadGroup.label,
+    place.section,
     thread.title,
     ...thread.msgs.map(messageWords),
     ...thread.summaries.map((summary) => summary.text),
@@ -109,8 +108,8 @@ export const threadSearchReading = (thread, finding) =>
     ),
   });
 
-const matchesSearch = (reading, thread, threadGroup) =>
-  !reading.finding || threadWords(thread, threadGroup).includes(reading.finding);
+const matchesSearch = (reading, thread, place) =>
+  !reading.finding || threadWords(thread, place).includes(reading.finding);
 const matchesStatus = (reading, thread) =>
   reading.status === "all" ||
   Boolean(thread.resolved) === (reading.status === "resolved");
@@ -125,8 +124,7 @@ const matchesScope = (reading, thread) =>
 const matchesSubject = (reading, thread) =>
   reading.subject === "all" ||
   (reading.subject === "design") === (thread.root.about === "design");
-const matchesGone = (reading, _thread, threadGroup) =>
-  !reading.onlyGone || threadGroup.key === "gone";
+const matchesGone = (reading, _thread, place) => !reading.onlyGone || place.gone;
 
 // Set one predicate. Counts describe that named subset, while a press on its active
 // control clears it. Both paths share status transitions and their waiting reset.
@@ -140,13 +138,13 @@ export function transition(reading, kind, value) {
   return Object.freeze({ ...reading, ...changes });
 }
 
-const includesThread = (reading, thread, threadGroup) =>
-  matchesSearch(reading, thread, threadGroup) &&
+const includesThread = (reading, thread, place) =>
+  matchesSearch(reading, thread, place) &&
   matchesStatus(reading, thread) &&
   matchesWaiting(reading, thread) &&
   matchesScope(reading, thread) &&
   matchesSubject(reading, thread) &&
-  matchesGone(reading, thread, threadGroup);
+  matchesGone(reading, thread, place);
 
 const count = (rows, predicate) => rows.filter(predicate).length;
 const entryReading = (declaration, selected, amount, disabled, hidden = false) =>
@@ -155,8 +153,8 @@ const entryReading = (declaration, selected, amount, disabled, hidden = false) =
 // Counts describe each named subset under the other standing filters, including
 // Status clearing Waiting on. An active choice keeps its subset count; clearing it
 // broadens the results rather than changing what its label counts.
-function presentationReading(reading, threads, shown, groups) {
-  const rows = threads.map((thread) => ({ thread, group: groups.get(thread) }));
+function presentationReading(reading, threads, shown, places) {
+  const rows = threads.map((thread) => ({ thread, place: places.get(thread) }));
   const baseline = threads.filter((thread) => matchesStatus(reading, thread)).length;
   const lifecycle = reading.status === "all" ? "" : `${reading.status} `;
   const amount =
@@ -199,8 +197,8 @@ function presentationReading(reading, threads, shown, groups) {
             facet.kind,
             facet.kind === "gone" ? true : declaration.value,
           );
-          const switched = count(rows, ({ thread, group }) =>
-            includesThread(destination, thread, group),
+          const switched = count(rows, ({ thread, place }) =>
+            includesThread(destination, thread, place),
           );
           const recovery = facet.kind === "status" && declaration.value === "open";
           return entryReading(
@@ -217,7 +215,7 @@ function presentationReading(reading, threads, shown, groups) {
   const userDestination = transition(reading, "waiting", "user");
   const userAvailable =
     reading.waiting === "user" ||
-    rows.some(({ thread, group }) => includesThread(userDestination, thread, group));
+    rows.some(({ thread, place }) => includesThread(userDestination, thread, place));
   return Object.freeze({
     summary,
     hidden:
@@ -254,15 +252,16 @@ function emptyReading(reading) {
               : "No threads.";
 }
 
-export function narrowingReading(reading, threads, groups = new Map()) {
+// `places` holds each thread's `threadSection` reading (placement.js).
+export function narrowingReading(reading, threads, places) {
   const shown = Object.freeze(
-    threads.filter((thread) => includesThread(reading, thread, groups.get(thread))),
+    threads.filter((thread) => includesThread(reading, thread, places.get(thread))),
   );
   return Object.freeze({
     intent: reading,
     shown,
     emptyText: emptyReading(reading),
-    presentation: presentationReading(reading, threads, shown, groups),
+    presentation: presentationReading(reading, threads, shown, places),
   });
 }
 
@@ -284,8 +283,7 @@ export function createThreadNarrowing({ view, listRoot, readThreads, ready, repa
     intent.onlyGone;
   // Capture intent once for each list candidate. Its rows, summary and facets all
   // derive from the same reading.
-  const model = (threads, groups = new Map()) =>
-    narrowingReading(intent, threads, groups);
+  const model = (threads, places) => narrowingReading(intent, threads, places);
 
   function renarrow() {
     if (!ready()) return;

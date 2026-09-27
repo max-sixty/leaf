@@ -2467,7 +2467,7 @@ def test_page_fixture_renders(browser, serve, source):
     space, no sideways scroll, no words on screen a selection can't reach. A
     widget that upgrades into a 1x1 box, or a heading painted by a pseudo-element,
     is the shape of failure a static lint cannot see. The invariants live in
-    render_gate.version.render_version — the pass `version check --render` runs on
+    render_gate.version.render_version — the pass `page check --render` runs on
     agent-authored pages — so this sweep also proves the gate a user's page goes through.
 
     It also reads the theme's frame trim, which the gate leaves to the suite: every box
@@ -3648,7 +3648,7 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
     panel stands over the page rather than taking room from it, so the panel decides
     nothing about where a note stands: the window does.
 
-    `version check --render` and the render sweep normally open with no panel, so this
+    `page check --render` and the render sweep normally open with no panel, so this
     test exercises the panel's state they do not otherwise visit.
 
     Three readings distinguish a real container response from either never floating the

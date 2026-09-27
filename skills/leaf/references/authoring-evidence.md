@@ -19,7 +19,7 @@ freshness channel. After every run:
    itself ran; an earlier instant is already behind the write and reads as stale
    the moment it is authored.
 
-If the source's `updated` instant later moves past `at`, `version check` advises
+If the source's `updated` instant later moves past `at`, `page check` advises
 that the pinned number needs another look. This detects a rerun the version
 missed, not a measurement that is merely old. Use one source id for one stable
 measurement definition.
@@ -34,7 +34,7 @@ Use `lf-diagram` for flows, state machines, sequences, class relationships, ER
 schemas, and the other Mermaid families its entry lists. It travels in the `diagram`
 package rather than in every page: initialize a page that wants one with
 `leaf page init --package diagram <page>`, then read the entry for styling and where
-its renderer parts from Mermaid. `version check --render` reports a diagram the
+its renderer parts from Mermaid. `page check --render` reports a diagram the
 renderer refuses or draws empty, not one it draws only in part, so inspect each
 rendered diagram. Without visual access, check the source's labels and relations
 against the claims it supports, and state those claims in prose or a table beside it
@@ -46,7 +46,7 @@ layout, geometry, a wireframe, or a thumbnail inside an option, as the `svg.draw
 idiom in a `<figure>` with an `id`, and give the figure `data-width="wide"` when it
 needs the room. The figure scales the drawing to its width, labels included, so draw
 the `viewBox` near the width it is shown at: 1600 units in a 720px column draw an 11px
-label at 5px, and `version check --render` advises when a label is drawn under 10px.
+label at 5px, and `page check --render` advises when a label is drawn under 10px.
 Keep it schematic: a window is a rounded box, a line of text a grey bar, a marker a
 dot, and only what the figure is about takes the accent colour. Put the states being
 compared side by side in one figure at one scale, drawn alike except where they
@@ -124,7 +124,13 @@ element, supplies its text. Add `collapsed` to a large diff so each file starts 
 a comment or navigation target still opens the file that owns its line.
 
 Run `leaf page media <page> <file>…` and use the printed `/media/…` path for
-images. Never inline image bytes. For a real visual change, use `lf-shot` with
-before and after captures from the same viewport. Put invented examples inside
-`lf-sample` and make them visibly fictional. Render tickets, source locations,
-and URLs as real links.
+images. Never inline image bytes. Put invented examples inside `lf-sample` and
+make them visibly fictional. Render tickets, source locations, and URLs as real
+links.
+
+For a real visual change, use `lf-shot` with before and after captures from the
+same viewport, of the versions the page compares. Before writing the prose and
+`alt` around a pair, open both images and compare them where the change should be.
+The page shows each spot from one side of the divider at a time, so a screenshot of
+the page cannot show that the two sides match. Where they match, capture a case that
+shows the change, or say that nothing changed.

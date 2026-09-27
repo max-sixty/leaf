@@ -106,7 +106,7 @@ to a genuine replacement. Open a new thread for a different subject.
 
 A declared visual part is held only while a live thread's current anchor names
 it, so a version may drop the part once every thread on it has moved, detached, or
-been resolved, and `version check` names those three moves while one still holds it.
+been resolved, and `page check` names those three moves while one still holds it.
 Move or detach rather than resolving a thread whose part you are about to remove: the
 user can reopen a resolved thread, and it comes back pointing at a coordinate no
 revision declares any more, while a detached thread reads as **No longer in this

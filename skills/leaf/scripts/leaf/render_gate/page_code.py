@@ -1,4 +1,4 @@
-"""The run plain `version check` gives a page's own code.
+"""The run plain `page check` gives a page's own code.
 
 A page can carry code of its own: module scripts, and page widgets below `/page/`,
 with whatever each imports. No static reading can say whether that

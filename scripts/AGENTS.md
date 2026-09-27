@@ -1,12 +1,12 @@
 # Repository tooling
 
 These scripts are developer tooling. A host copies them with the tracked tree, but
-nothing under `skills/leaf` reads them at runtime. Python tools use the root
-`pyproject.toml` and `uv.lock`; the JavaScript builds use `package.json` and
-`package-lock.json`.
+nothing under `skills/leaf` reads them at runtime. They use the root `pyproject.toml`
+and `uv.lock`. What builds the committed browser bundles lives in `build/`
+(`build/AGENTS.md`).
 
 A script's output lands under `.tmp/` unless its reader finds it at a committed
-path: the vendored bundles, `examples/corpus.html` and its companions, the catalog
+path: `examples/corpus.html` and its companions, the catalog
 pin in `example-previews.json`, and the demo frames the README and site cards draw.
 Evidence, previews, staged sites, and probe results leave the tracked tree unchanged.
 
@@ -45,7 +45,7 @@ Evidence, previews, staged sites, and probe results leave the tracked tree uncha
 - `eval_claude_delivery.py [BASE_REF]` compares how an agent handles a comment
   through `leaf wait`, and what the page shows meanwhile, between a base plugin
   and HEAD's.
-- `bench_render_check.py [BASE_REF]` times `leaf version check --render` on a few
+- `bench_render_check.py [BASE_REF]` times `leaf page check --render` on a few
   examples, base plugin against HEAD's, with no model: wall time and a phase
   breakdown traced by `bench-render-check/sitecustomize.py`.
 - `bench_page_latency.py [BASE_REF]` times an open page's answer to a gesture, an
@@ -57,7 +57,7 @@ Evidence, previews, staged sites, and probe results leave the tracked tree uncha
 - `stills.py [BASE_REF]` screenshots a catalogue of UI states, at rest and reached
   by input, on a base runtime and HEAD's, and crops each state that changed into a
   before/after pair under `.tmp/stills/`.
-- `record-demo.sh` regenerates `docs/demo.gif`, the README stills, and
+- `record-demo.py` regenerates `docs/demo.gif`, the README stills, and
   `docs/session-card.png`.
 
 ## MCP Apps probe
@@ -66,20 +66,3 @@ Evidence, previews, staged sites, and probe results leave the tracked tree uncha
 host; `mcp-app/README.md` owns it. Its evidence under `.tmp/mcp-app/experiments/`
 is scratch. Copy into `notes/mcp-apps/experiments/<number>/results/` only what a
 written-up result cites.
-
-## Vendored bundles
-
-`browser/build.mjs` builds the browser framework and `lit.js` from the TypeScript
-under `scripts/browser/`; `vendor.py` rebuilds every other third-party bundle.
-Installation, page init, and export consume the committed output and never run a
-compiler. After `npm ci`, both reproduce the tracked bytes, so a diff after a
-rebuild means the lock, a build script, or the registry input changed:
-
-```sh
-npm ci
-npm run build:browser      # npm run check:browser compares without writing
-uv run scripts/vendor.py   # all bundles, or name the ones to rebuild
-```
-
-Rebuild after `npm install` moves a pin or the lock, or after changing registry
-input a bundle reads. `package.json` pins every JavaScript version that ships.

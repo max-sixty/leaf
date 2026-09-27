@@ -1,0 +1,50 @@
+schema_version: '1.0'
+name: shot-pair-differs
+description: "Source files and media, guardrail: a pair whose captures show the change goes on the page as one lf-shot described by what it shows."
+tags:
+- evidence
+- guardrail
+context:
+  add_dirs:
+  - captures
+execution:
+  prompt: |
+    You are writing a Leaf page for the user about a change to Leaf's margin thread
+    card, on branch thread-card-geometry. Your notes:
+
+    Growth. On main, the reply box in the thread card is capped at 35% of the room
+    above the card's foot, so a long reply scrolls inside it. On the branch it grows
+    until the card reaches the top of the window, and only then scrolls.
+
+    A probe typed a thirty-line reply into the open card at 1440x900 on each runtime
+    and captured the window's right half. `leaf page media` registered the captures and
+    printed each one's page path beside its source file, which sits under the Leaf
+    plugin's root (two directories above the leaf skill's base directory):
+
+        /media/card-before.png  evals/shot-pair-differs/captures/before.png  (main)
+        /media/card-after.png   evals/shot-pair-differs/captures/after.png   (the branch)
+
+    Write the HTML for the page's section on growth, with its before/after pair.
+    The page directory is not reachable from here, so reply with the HTML fragment
+    rather than writing a file.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-authoring-evidence
+  type: tool_used
+  tool: Read
+  input_match: authoring-evidence
+- name: pair-in-one-lf-shot
+  type: regex
+  pattern: <lf-shot\b(?=[^>]*\bbefore=["'][^"']*card-before\.png)(?=[^>]*\bafter=["'][^"']*card-after\.png)
+  flags: i
+- name: judgment
+  type: llm
+  criteria: |
+    The captures differ: before, the reply box is short and scrolled to show only
+    lines 17 to 29; after, the box is much taller and shows all thirty lines. Read
+    the reply. Pass if the HTML shows the pair as one lf-shot and its prose or alt
+    describes that difference. Fail if it leaves the pair out, or says the captures
+    match or do not show the change.

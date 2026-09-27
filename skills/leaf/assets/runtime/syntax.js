@@ -41,7 +41,7 @@ const loadHljs = () =>
 // Code as [{text, role}] — a flat run in source order, roles from the table above and
 // null where the block's own ink is the answer. A list rather than markup because the two
 // callers build different DOM from it: a plain <pre> emits one span per token, lf-code
-// interleaves the line spans it numbers. A declared language is validated by `version check` against the
+// interleaves the line spans it numbers. A declared language is validated by `page check` against the
 // registry's $languages.names, so an unknown one here means the vendored bundle was built
 // from a different list — thrown, caught by the caller's failSoft, and reported by the
 // render gate, which fails on a console error.
@@ -136,7 +136,7 @@ export const langForPath = (path) =>
 // else needs no translation to land here. A language outside $languages stays the
 // colour of its ink, as the same block would in any page that colours nothing: plain
 // HTML claims no vocabulary. lf-code declares `language` instead, because a custom
-// element's vocabulary is the registry's to state, and `version check` holds it there.
+// element's vocabulary is the registry's to state, and `page check` holds it there.
 //
 // The spans change no text: a <span> is no text block, so the anchor pass reads exactly
 // the run of characters it read before. That is what lets this run over the document

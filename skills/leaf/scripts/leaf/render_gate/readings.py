@@ -527,18 +527,6 @@ def swept_overflow(readings, viewports) -> list[str]:
     return found
 
 
-def margin_cover_advice(page) -> list[str]:
-    """Advice naming each pin that stands over lines of the page's text."""
-    width = page.viewport_size["width"]
-    return [
-        f"at {width}px wide the margin pin for {pin['at']} stands over "
-        f"{pin['covered']} line(s) of text: a pin stands inside its block's "
-        "top-right corner, so give the block padding on its right, or the page a rail "
-        "(page-authoring.md, the rail and the margin), where those words matter"
-        for pin in evaluate_probe(page, "coveringMargins")
-    ]
-
-
 # The drawn size below which a shrunk label is advised about. The theme's drawing idiom
 # sets its labels at 10–12px in the viewBox's units (theme.css, `svg.drawing`; its 9px
 # step glyph is one bold numeral on a dot), so an idiom drawing shown at its own width

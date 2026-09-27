@@ -666,8 +666,10 @@ The call returns the box's one seam onto its draft, and a box holds more than it
 `.value`: an image pasted into one is kept as Markdown and shown as a thumbnail beside
 the words, never in the field. So `sync.value()` reads the whole draft, `sync.load()`
 replaces it — a stored record, a draft arriving from another tab, the emptiness a send
-leaves — and `sync()` repaints the send button and placeholder around whatever stands.
-Write `.value` only to seed the box before wiring it.
+leaves — and `sync()` says the box's standing changed. The send button, placeholder, and
+whatever the widget's own `paint` option draws from the box repaint once, in the
+runtime's next standing paint, before that frame shows. Write `.value` only to seed the
+box before wiring it.
 
 ## User state
 

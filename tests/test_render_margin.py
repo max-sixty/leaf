@@ -6798,8 +6798,18 @@ def test_margin_card_anchors_reading_by_top_and_drafting_by_foot(browser, serve)
     assert editor.evaluate("box => box.scrollHeight > box.clientHeight")
 
     write(editor, "Sent")
-    preview.get_by_role("button", name="Send", exact=True).click()
+    send = preview.get_by_role("button", name="Send", exact=True)
+    pressed = send.evaluate("button => button.getBoundingClientRect().top")
+    send.click()
     expect(preview).to_contain_text("Sent")
+    # The pressed Send keeps the focus, and the card holds under it; leaving the reply
+    # row ends the drafting, and the card returns to where reading put it.
+    rendered(page)
+    expect(send).to_be_focused()
+    assert send.evaluate(
+        "button => button.getBoundingClientRect().top"
+    ) == pytest.approx(pressed, abs=0.5)
+    send.evaluate("button => button.blur()")
     page.wait_for_function(
         """top => Math.abs(document.querySelector('.lf-margin-preview')
           .getBoundingClientRect().top - top) < 0.5""",
@@ -6917,16 +6927,23 @@ def test_an_agent_reply_leaves_the_reply_being_typed_where_it_stands(
     assert preview.evaluate(DRAFTING_CARD) == before
 
 
+@pytest.mark.parametrize("how", ["key", "press"])
 @pytest.mark.parametrize("size", [(1200, 900), (800, 520)])
-def test_a_sent_reply_leaves_the_reply_box_where_it_stands(browser, serve, size):
-    """The sent turn joins the transcript above the box the user sent it from."""
+def test_a_sent_reply_leaves_the_reply_box_where_it_stands(browser, serve, size, how):
+    """The sent turn joins the transcript above the box the user sent it from. A pressed
+    Send keeps the focus while the send empties the box, and the card read that as the
+    drafting over: it chose its spot again, flipping sides under the pointer."""
     page, preview, editor = drafting_in_a_short_card(browser, serve, *size)
     before = preview.evaluate(DRAFTING_CARD)
+    send = preview.locator(".lf-say .lf-compose-submit")
     with sending(page, "the reply"):
-        editor.press("Enter")
+        if how == "key":
+            editor.press("Enter")
+        else:
+            send.click()
     expect(preview.locator(".lf-page-thread-msg").last).to_contain_text("words")
     rendered(page)
-    expect(editor).to_be_focused()
+    expect(editor if how == "key" else send).to_be_focused()
     assert preview.evaluate(DRAFTING_CARD) == before
 
 

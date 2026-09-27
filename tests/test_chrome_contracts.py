@@ -185,9 +185,8 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     expect(page.locator(".lf-live")).to_have_text("6 replies in 2 threads")
 
 
-# Where a followed thread stands: the arriving turn's newest words in view, and at the
-# list's foot the thread's end, reply box included, or the turn's own tail where the turn
-# is too tall to show with the box.
+# Where a followed thread stands: its end, reply box included, at the list's foot, with
+# the arriving turn's newest words in view above it.
 FOLLOWED = """id => {
   const list = document.querySelector('.lf-threads');
   const fold = list.getBoundingClientRect().bottom -
@@ -195,7 +194,7 @@ FOLLOWED = """id => {
   const message = list.querySelector(`.lf-msg[data-mid="${id}"]`);
   const end = message.closest('.lf-thread').getBoundingClientRect().bottom;
   const tail = message.getBoundingClientRect().bottom;
-  return tail <= fold + 2 && (Math.abs(end - fold) <= 2 || Math.abs(tail - fold) <= 2);
+  return tail <= fold + 2 && Math.abs(end - fold) <= 2;
 }"""
 
 
@@ -339,14 +338,8 @@ def test_incoming_reply_follows_when_the_panel_has_unfilled_room(
     page.evaluate(
         "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
     )
-    message = page.locator(f'.lf-msg[data-mid="{newest["id"]}"]')
     page.wait_for_function("() => document.querySelector('.lf-threads').scrollTop > 0")
-    assert message.evaluate("el => el.getBoundingClientRect().bottom") == pytest.approx(
-        threads.evaluate(
-            "el => el.getBoundingClientRect().bottom - parseFloat(getComputedStyle(el).scrollPaddingBottom)"
-        ),
-        abs=2,
-    )
+    assert page.evaluate(FOLLOWED, newest["id"])
 
 
 def test_incoming_reply_follows_a_visible_composer_below_earlier_words(browser, serve):

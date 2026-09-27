@@ -266,7 +266,8 @@ const land = (thread, behavior, threadsBox, block) => {
   // A fold still holds the room it is giving back, so a landing measured now aims past
   // where the thread will stand, and the fold's place hold then writes over a smooth one:
   // resolving a long thread left the next one's title above the list. Land once the fold
-  // has ended and its removal painted, if the user is still standing there.
+  // has ended and its removal painted, if the user is still standing there and has
+  // made no newer gesture.
   if (hasFolding(threadsBox)) {
     const mayLand = retainUserIntent({
       source: thread,

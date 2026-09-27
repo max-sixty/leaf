@@ -686,9 +686,12 @@ export function createMarginProjection({
   function placeThreadPreview({ dismissDetached = false } = {}) {
     if (!previewOpen() || !previewMarginEntry?.isConnected) return false;
     const replyEditor = previewList.querySelector(REPLY_BOX);
+    // Drafting is standing anywhere in the reply's row, Send included: a pressed Send
+    // keeps its focus while the send empties the box, and the card must not move then.
     const drafting =
       replyEditor?.checkVisibility() &&
-      (replyEditor === document.activeElement || replyEditor.value !== "");
+      (replyEditor.closest(".lf-say").contains(document.activeElement) ||
+        replyEditor.value !== "");
     // Drafting holds the card where it stood when the drafting began.
     held = drafting ? (held ?? lastHold) : null;
     const cluster = threadCardCluster();
@@ -2723,7 +2726,12 @@ export function createMarginProjection({
     });
     previewClose.onclick = () => closePreview(true);
     preview.addEventListener("focusout", (event) => {
-      if (event.target.matches(REPLY_BOX) && !event.target.value)
+      const row = event.target.closest?.(".lf-say");
+      if (
+        row &&
+        !row.contains(event.relatedTarget) &&
+        !row.querySelector(REPLY_BOX)?.value
+      )
         scheduleThreadPreviewPosition();
     });
     sizeObserver(() => scheduleThreadPreviewPosition()).observe(preview);

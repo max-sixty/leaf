@@ -533,7 +533,7 @@ def arrangement_changes(readings) -> list[tuple[int, str, str]]:
         moved = [box for box, rows in wide.items() if narrow.get(box) != rows]
         if moved:
             said = "; ".join(
-                f"{box} {wide[box]} → {narrow.get(box, 'none')}" for box in moved
+                f"{box} {wide[box]} → {narrow.get(box, 'unarranged')}" for box in moved
             )
             changes.append((high, moved[0], said))
     return changes

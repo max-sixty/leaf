@@ -40,12 +40,11 @@ has tried; settle that before building it.
 
 ### Agent and author experience
 
-- **Extend the agent-usability baseline, including #19.** The
-  [first slice](notes/agent-usability-evals.md#first-baseline-2026-09-27) passed every
-  check, so it calls for no new reading interface. Add the cases it leaves uncovered:
-  a live handoff with its status and the delivery-receipt loop, the elided thread, the
-  mixed event batch, the unfamiliar package and the shared-source record. Compare
-  authoring and a feedback cycle with plain HTML before improving Leaf's authoring guidance;
+- **Compare Leaf authoring with plain HTML (#19).** The
+  [agent-usability baseline](notes/agent-usability-evals.md#second-slice-2026-09-27)
+  now covers the live loop, a mixed batch, an elided thread, an unfamiliar package and a
+  shared data source, and calls for no new interface. Compare authoring and a feedback
+  cycle with plain HTML before improving Leaf's authoring guidance;
   **#20** then [teaches the compositions that prove useful](notes/workspace-followups.md#item-20),
   including how authors discover diagram comparison suggestions.
 - **Keep agent activity intelligible throughout a task.** Run the
@@ -130,8 +129,8 @@ and its chrome coordinate.
   to one row. A key sequence and the shelf must still wrap, so truncating brings back
   a one-row mode beside them, and it has to keep More, which sits last, from being
   cut first.
-- **Unconfirmed: scrolling a live specimen sometimes sticks.** A user reported it
-  while a specimen still scrolled inside a fixed-height frame, with no reproduction.
+- **Unconfirmed: scrolling a live sample sometimes sticks.** A user reported it
+  while a sample still scrolled inside a fixed-height frame, with no reproduction.
   The frame now takes its page's height, so nothing scrolls inside it; check that the
   report no longer reproduces once the scrolling changes land.
 
@@ -181,12 +180,6 @@ and its chrome coordinate.
 
 ### Shared definitions
 
-- **Hold focus in the thread seats with `holdFocus`.** `focus.js` `holdFocus` is the
-  one hand-over of the user's place across a DOM move, but `thread/inline.js`
-  `ThreadSeat.present` (across one render) and `retain` (across a refused batch) still
-  pair `readCaret` with `focusDestination` by hand. Cutting `retain` over also lets a
-  user who moved on while the batch waited keep their new place. Left while the
-  `thread-focus-scroll` branch had unmerged edits to `present`.
 - **Say which panes the workspace holds without naming `lf-pane`.** `layouts.css`
   holds an authored pane only as the workspace body or a cell of it (a pane in a
   section flows), and a generated pane at any depth. It tells the two apart by the

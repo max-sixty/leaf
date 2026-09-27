@@ -43,7 +43,7 @@ focused surface, then that surface, then steps outside it, with `STACK` and
 `RUNG_LADDER` ranking siblings. Native modal and popover layers keep the
 browser's order.
 
-- The document is the base; a live specimen holding focus adds a final step back
+- The document is the base; a live sample holding focus adds a final step back
   to its containing page.
 - Draw and Design are page modes; surfaces opened within them close first.
 - An auxiliary surface contains its own state, such as the Threads narrowing.

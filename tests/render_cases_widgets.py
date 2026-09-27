@@ -902,12 +902,12 @@ FRAMED_WIDE_PAGE = leaf_page(
     <lf-column id="s2" label="Done"></lf-column>
   </lf-board>
 </section>
-<lf-specimen id="quoted" label="a board">
-  <lf-board id="in-specimen">
+<lf-sample id="quoted" label="a board">
+  <lf-board id="in-sample">
     <lf-column id="q1" label="Todo"><lf-card id="qk1"><strong>One</strong></lf-card></lf-column>
     <lf-column id="q2" label="Done"></lf-column>
   </lf-board>
-</lf-specimen>
+</lf-sample>
 <lf-ask id="pick-decision"><h2>Should the option include evidence?</h2>
 <lf-options id="pick" choose>
   <lf-option id="opt-a"><strong>With evidence</strong>

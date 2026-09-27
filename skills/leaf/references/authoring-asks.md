@@ -1,15 +1,20 @@
 # Asks and sign-off
 
-On a quick-answer page, open with the Ask. Put its short shared premise inside
-the `lf-ask`, before the control, and put backing detail after it in a
-disclosure. The first viewport should show the objective, current state, and
+The user answers an Ask from what is on screen when they reach it, and `a`
+brings its heading to the top with everything above it out of view. So the
+`lf-ask` holds what answering takes: its question heading, then the short shared
+premise and the evidence that tells the alternatives apart, then the control.
+Backing detail and reproductions of the current behavior follow the Ask.
+
+On a quick-answer page, open with the Ask and put its backing in a disclosure
+after it. The first viewport should show the objective, current state, and
 available move together.
 
-On a record or system page, put each Ask where the user has just read what it
-turns on, and let the page continue after it. An Ask about one item of a list
-follows that item, and an Ask that turns on a claim follows the claim rather
-than the backing collapsed under it. Only an Ask that turns on the whole record
-comes last.
+On a record or system page, put each Ask in the part of the page it decides,
+and let the page continue after it. An Ask about one item of a list sits with
+that item, and an Ask that turns on a claim holds the claim and its evidence
+rather than following them. Only an Ask that turns on the whole record comes
+last.
 
 Every Ask is an `lf-ask`: `page check` refuses a widget that takes an answer
 anywhere else. Write related, independently answerable Asks as separate `lf-ask`

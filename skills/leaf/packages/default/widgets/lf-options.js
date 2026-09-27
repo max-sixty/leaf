@@ -304,7 +304,7 @@ customElements.define(
 
     #wire(exhibited) {
       this.#wired = true;
-      // Quoted material is exhibited, not offered, so a specimen renders exactly like a
+      // Quoted material is exhibited, not offered, so a sample renders exactly like a
       // group that was never choosable: it shows what a decision looks like without
       // taking one.
       this.#choosable = this.hasAttribute("choose") && !exhibited;

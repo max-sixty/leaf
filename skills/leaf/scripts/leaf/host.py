@@ -16,13 +16,15 @@ import json
 import os
 import socket
 import sys
+import time
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import ClassVar
 
 from leaf.files import read_json
 from leaf.leases import adapter_is_live, hooks_ran
-from leaf.machine import ancestry, process_argv
+from leaf.machine import ancestry, pid_alive, process_argv
 
 
 @dataclass(frozen=True)
@@ -121,6 +123,17 @@ class Harness:
         along with the session it served."""
         return False
 
+    def live_turn(self) -> dict | None:
+        """What the host itself says about this session right now, or None where it
+        says nothing a reader can take.
+
+        `{"state": "busy" | "waiting" | "idle", "since": <iso>}`, dated by the
+        host's own last change: `idle` once no turn runs, `waiting` while a turn
+        holds a dialog open in the session's own window. `activity.claimant_turn`
+        weighs it by that date against the claim's turn stamps, which the hooks
+        write and so cannot see a turn end that runs no hook."""
+        return None
+
 
 class EnvironmentHarness(Harness):
     """A harness the environment implies, by the variable its session id arrives
@@ -186,6 +199,38 @@ class ClaudeCodeHarness(EnvironmentHarness):
             "no watcher. Start `leaf wait` in the background for all this session's "
             "pages, or run `leaf status <page> idle` if this page is done."
         )
+
+    def live_turn(self) -> dict | None:
+        """The session's live status in Claude Code's session registry
+        (`claude_code_session_records`), from the newest record whose process
+        still runs: `waiting` while a turn holds a dialog open (a permission
+        prompt, a question), `idle` once no turn runs (`shell` too, which is idle
+        with a background command running), and `busy` otherwise.
+
+        Its `idle` is the one reading of a turn's end that an interrupt moves:
+        Escape ends a turn without running the Stop hook, and the record turns
+        `idle` at that moment (measured at Claude Code 2.1.283). `busy` is weaker:
+        a background job's record stays `busy` across turn endings while its
+        background work runs, so it does not prove a turn is running. The record
+        belongs to the worker hosting the session's current sitting, so a
+        background job whose worker has retired has none."""
+        stamped = [
+            record
+            for record in claude_code_session_records(self.session)
+            if isinstance(record.get("statusUpdatedAt"), int | float)
+            and isinstance(record.get("pid"), int)
+            and pid_alive(record["pid"])
+        ]
+        record = max(stamped, key=lambda item: item["statusUpdatedAt"], default={})
+        state = {"busy": "busy", "waiting": "waiting", "idle": "idle", "shell": "idle"}
+        if record.get("status") not in state:
+            return None
+        return {
+            "state": state[record["status"]],
+            "since": datetime.fromtimestamp(record["statusUpdatedAt"] / 1000)
+            .astimezone()
+            .isoformat(),
+        }
 
     def nudge(self, page_dir: Path) -> bool:
         return message_claude_code_session(
@@ -404,18 +449,69 @@ def message_identity() -> dict:
     return {"agent": harness.agent, "session": harness.session}
 
 
+def claude_code_sessions() -> Path:
+    """Claude Code's session registry: one `<pid>.json` per running session."""
+    config = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
+    return config / "sessions"
+
+
+def claude_code_session_records(session_id: str) -> list[dict]:
+    """The registry records Claude Code publishes for a session, found by id.
+
+    Each session writes `sessions/<pid>.json` in its config directory, carrying
+    `sessionId`, `pid`, its live `status` and when it last changed
+    (`statusUpdatedAt`, epoch milliseconds), and `messagingSocketPath`. It is
+    found by session id each time rather than written into the claim, because a
+    background job's worker pid, and the record with it, changes over the job's
+    life; a worker that died without removing its record leaves a second one.
+    Each record is another program's live file, and a session can exit between
+    listing and reading it, so a file that vanished or was caught mid-write is
+    passed over.
+
+    Every state read asks this of each claimed page, so a listing is reused for
+    `REGISTRY_READ_S` while the directory's own stamp holds, well inside the
+    presence cache's interval: a record added, removed or atomically replaced
+    moves the stamp at once."""
+    sessions = claude_code_sessions()
+    try:
+        stamp = sessions.stat().st_mtime_ns
+    except OSError:
+        return []
+    held = _registry_cache.get(sessions)
+    if (
+        held is None
+        or held[1] != stamp
+        or time.monotonic() - held[0] >= REGISTRY_READ_S
+    ):
+        held = (time.monotonic(), stamp, _registry_records(sessions))
+        _registry_cache[sessions] = held
+    return [record for record in held[2] if record.get("sessionId") == session_id]
+
+
+REGISTRY_READ_S = 1.0
+_registry_cache: dict[Path, tuple[float, int, list[dict]]] = {}
+
+
+def _registry_records(sessions: Path) -> list[dict]:
+    records = []
+    for record_path in sessions.glob("*.json"):
+        try:
+            record = json.loads(record_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(record, dict):
+            records.append(record)
+    return records
+
+
 def message_claude_code_session(session_id: str, text: str) -> bool:
     """Put `text` into a Claude Code session as a user message, through the
     messaging socket every session binds, and say whether a socket took it.
 
-    A session publishes itself as `sessions/<pid>.json` in its config directory,
-    carrying `sessionId` and `messagingSocketPath`, beside a 0600
-    `<pid>.<hash>.key` holding the `peerToken` the socket authenticates. The
-    record is found by session id when the message is sent rather than written
-    into the claim, because a background job's worker pid, and the socket with
-    it, changes over the job's life. The socket reads newline JSON and answers
-    nothing: an auth line, then a user frame whose `session_id` makes a socket
-    that has since passed to another session drop it.
+    Each registry record for the session (`claude_code_session_records`) names the
+    socket, beside a 0600 `<pid>.<hash>.key` holding the `peerToken` it authenticates.
+    The socket reads newline JSON and answers nothing: an auth line, then a user frame
+    whose `session_id` makes a socket that has since passed to another session drop it.
 
     The recipient decides delivery. Measured on Claude Code 2.1.274: a session
     in a prompting permission mode queues the text as a user turn, which wakes
@@ -431,13 +527,9 @@ def message_claude_code_session(session_id: str, text: str) -> bool:
     between reading its record and connecting, so a file that vanished, was
     caught mid-write, lacks a field this reads, or names a socket nobody listens
     on skips that record."""
-    config = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
-    sessions = config / "sessions"
-    for record_path in sessions.glob("*.json"):
+    sessions = claude_code_sessions()
+    for record in claude_code_session_records(session_id):
         try:
-            record = json.loads(record_path.read_text(encoding="utf-8"))
-            if record["sessionId"] != session_id:
-                continue
             key_path = next(sessions.glob(f"{record['pid']}.*.key"))
             token = json.loads(key_path.read_text(encoding="utf-8"))["peerToken"]
             address = record["messagingSocketPath"]

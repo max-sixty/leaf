@@ -150,7 +150,7 @@ class ReleasedAssetEndpoint(website_server.WebsitePageEndpoint):
     One public origin is two servers in production: `worker/src/index.ts` answers
     `/_leaf-release/<release>/<key>/…` out of the build's sibling asset tree and
     hands every other route to this adapter, inside the user's own container.
-    A specimen captures that release namespace as its asset root, so a child page
+    A sample captures that release namespace as its asset root, so a child page
     this adapter serves names dependencies only the edge holds; a fixture standing
     the adapter up alone serves a document whose runtime nothing answers for.
 
@@ -1200,7 +1200,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
     url = serve(FEATURE_GALLERY)
     page_dir = serve.page_dir
     # Let every child present before starting the timed sequence. Otherwise the
-    # first replay can finish while open_page still waits for another specimen.
+    # first replay can finish while open_page still waits for another sample.
     context = browser.new_context(reduced_motion="reduce")
     page = open_page(browser, f"{url}#bg-interactions", context=context)
     before = read_events(page_dir)
@@ -1455,7 +1455,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
     assert page.evaluate("() => document.activeElement?.tagName") != "IFRAME"
     # The positive ready edge is where each inner page would open its own news
     # stream and two-second heartbeat. Hold through that interval: only the outer
-    # page and operable specimen own live leases; the passive replays stop after one read.
+    # page and operable sample own live leases; the passive replays stop after one read.
     page.wait_for_timeout(2_200)
     assert news_frames and not any(
         name.startswith("interaction-") for name in news_frames
@@ -1778,7 +1778,7 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
             storage_url,
         )
         assert storage["liveRoot"] is True
-        assert "/api/specimens/" in storage["pageScope"]
+        assert "/api/samples/" in storage["pageScope"]
         contained_document.evaluate(
             "dispatchEvent(new PageTransitionEvent('pagehide'))"
         )
@@ -1796,7 +1796,7 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
 
 
 def test_a_contained_page_retries_a_failed_first_state_read(serve, browser):
-    """A specimen retries startup state without retaining a live page feed."""
+    """A sample retries startup state without retaining a live page feed."""
     url = serve(FEATURE_GALLERY)
     context = browser.new_context(reduced_motion="reduce")
     page = context.new_page()

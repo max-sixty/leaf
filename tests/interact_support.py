@@ -590,6 +590,7 @@ def record_claim(page, harness="claude-code", **fields):
         "ts": "t",
         "released": None,
         "turn": "turn-1",
+        "turn_opened": events_model.now_iso(),
         "turn_closed": None,
         **fields,
     }

@@ -507,7 +507,7 @@ html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-band-h: 0px; }
  * block change kept 13 over its first, in exactly the widgets that build the most chrome.
  * The generated markers are the same pair the anchor pass reads (`GENERATED`, leaf.js),
  * because it is the same question: which of these words are the page's. That also
- * dissolves the specimen's two arrangements into one, its "quoted ·" note being a
+ * dissolves the sample's two arrangements into one, its "quoted ·" note being a
  * generated child on a live page and a pseudo-element on a page carrying no script.
  *
  * A first or last child can also hand its own children's margins on rather than
@@ -599,12 +599,12 @@ html { background: var(--paper); }
     body { min-height: 100%; }
     body::before { content: ""; display: block; height: var(--lf-banner-h); }
   }
-  /* A live specimen is a block of its containing page, and its frame takes the body's
-   * height (lf-specimen.js). So the body keeps to its content rather than filling the
+  /* A live sample is a block of its containing page, and its frame takes the body's
+   * height (lf-sample.js). So the body keeps to its content rather than filling the
    * frame, which would hold the frame at its tallest, nothing scrolls inside, and a
    * wheel reaches the containing page. The page's rhythm is set for a window; a block
    * takes a block's. The banner keeps only its one row of actions (chrome.css). An open
-   * auxiliary surface covers the specimen at the height its page already has: opening
+   * auxiliary surface covers the sample at the height its page already has: opening
    * one changes nothing about the containing page's layout. */
   html[data-lf-live][data-lf-contained] {
     --lf-banner-h: 48px;
@@ -1435,7 +1435,7 @@ lf-new { background: var(--add-tint); }
  * reads as a stack. That was once the only room the slots could ask for: while the
  * wrapper was boxless they were the flow's own boxes, their outer margins were what a
  * container read at its own edge, and a quoted change stood 10px inside the gutter
- * marking it with nothing able to reach it — a rule for the specimen's last child found
+ * marking it with nothing able to reach it — a rule for the sample's last child found
  * the suggestion, and the suggestion had no box. The wrapper is that box now, and the
  * room stays on one side because it is the better answer anyway: it costs the pair
  * nothing, the gap between two slots and between two suggestions being the second one's
@@ -1924,7 +1924,7 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
  * a board in a pane scrolls its columns inside the pane instead of running out of it. A
  * framed box withholds the page's room from what it holds (`--lf-room`, below), so being
  * a container changes only what a widget measures against itself. The default package
- * makes its card a container for the same reason; its specimen is a table, which
+ * makes its card a container for the same reason; its sample is a table, which
  * containment skips, so it states `--lf-box-cap` for what it holds instead. A tab's panel
  * is the page's own flow, which an exhibit breaks out through, so it is not one. */
 :is(lf-pane, :where([data-lf-reading-role="pane"])) > :not(header, footer) {

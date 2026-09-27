@@ -27,12 +27,12 @@ shared words. A shorter borrowed clause is still a review finding.
 
 `developer/feature-gallery.html` is the one home of synthetic core feature
 scenarios, and every core Leaf feature is directly exercisable there. A change that
-adds or materially changes a core feature adds or updates its specimen in the
-gallery; coverage in a public example does not substitute. A specimen names the real
+adds or materially changes a core feature adds or updates its scenario in the
+gallery; coverage in a public example does not substitute. A scenario names the real
 control or gesture, seeds the state it needs, and tells the developer what result to
 inspect. For injected chrome whose state comes from outside the document, name that
 condition and exercise it in the gallery's browser test. An optional package's
-specimens go on a focused package page, reusing a worked example where one already
+scenarios go on a focused package page, reusing a worked example where one already
 tells that package's story.
 
 Full-page regression journeys that no longer belong in the showcase live under

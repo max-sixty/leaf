@@ -98,9 +98,7 @@ class PageStateService:
             if self.page_snapshot is not None
             else reading
             + "."
-            + presence_model.presence_fingerprint(
-                state["listening"], state["session_alive"], state["others"]
-            )
+            + presence_model.presence_fingerprint(state, state["others"])
         )
         return state
 

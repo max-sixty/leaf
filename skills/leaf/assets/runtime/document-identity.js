@@ -5,7 +5,7 @@
  * so the address is never read for it),
  * whether its executable graph can take a revision in place, and which authored widget
  * bodies may be retained. The composition root initializes the single semantic publisher
- * from this reading before it constructs browser owners. Each specimen receives its
+ * from this reading before it constructs browser owners. Each sample receives its
  * own served identity through the same document delivery as an ordinary page.
  */
 import { applicationState } from "./semantic-state.js";

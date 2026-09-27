@@ -162,8 +162,8 @@
    boundary, so the two edges cannot drift apart. Opaque already (the summary's
    background), because the rows pass underneath it.
    Screen only: paper has no banner and no scroll to pin against. And only where the module says the page's own scroller is the
-   one underneath — inside the panel the pinned slot is the run headings', and a diff in a
-   reply scrolls in that list rather than in the document. */
+   one underneath — a diff in a reply scrolls in the panel's list rather than in the
+   document. */
 @media screen {
   :host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file > details > summary { position: sticky;
                               top: var(--lf-banner-h, 0px); z-index: 2; }
@@ -176,8 +176,8 @@
 /* The room that header takes, so a landing arrives below it rather than behind it. The
    document declares its banner through scroll-padding-top; this is the rest of the same
    sum, measured because a wrapped path makes it a number no stylesheet can work out
-   (declareHeadRoom, lf-diff.js, through the runtime's `declareCoverRoom`, which keeps the
-   thread list's run headings declared under the same name). Only where the header pins:
+   (declareHeadRoom, lf-diff.js, through the runtime's `declareCoverRoom`). Only where
+   the header pins:
    unpinned, it covers nothing. */
 :host(.lf-rendered[data-lf-diff-pinned]) [data-line] { scroll-margin-top: var(--lf-head-room, 0px); }
 /* The path is evidence — a file's name in the file's own voice — and a shadow tree

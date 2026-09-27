@@ -17,7 +17,6 @@ import preview as preview_model
 import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
-from example_data import patch_manifest
 from interact_support import install_payload, wait_for
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -32,6 +31,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf.schema import ELEMENT_ID
 from leaf.structure import UTF8_BOM
+from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import ASK_PAGE
 from render_cases_navigation import (

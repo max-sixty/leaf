@@ -4,10 +4,10 @@
     uv run scripts/bench_page_latency.py [BASE_REF]
 
 BASE_REF defaults to the merge base of HEAD and `main`. Each arm is the plugin payload
-at its commit (`eval_harness.build_arm`), so commit what you want measured. Every page
-is built from this checkout's example source by the arm's own launcher
-(`prepare_page`), and served by that arm's `leaf server run --temporary`, so the
-browser runtime and the server both come from the arm. Pages are
+at its commit (`leaf_dev.harness.build_arm`), so commit what you want measured. Every
+page is built from this checkout's example source by the arm's own launcher
+(`leaf_dev.harness.build_source`), and served by that arm's `leaf server run
+--temporary`, so the browser runtime and the server both come from the arm. Pages are
 `examples/triage-board.html` and the corpus (`examples/corpus.html`, opened on its
 Triage tab), in one headless Chrome (`launch_browser`) at 1440x900 with the Threads
 panel open. The two arms' pages stay open side by side and take turns within each run.
@@ -65,9 +65,15 @@ from functools import partial
 from pathlib import Path
 
 import click
-from eval_harness import build_arm, environment, merge_base, run_leaf, serving
 from leaf.render_gate.browser import launch_browser
-from page_fixtures import prepare_page, read_fixture
+from leaf_dev.harness import (
+    build_arm,
+    build_source,
+    environment,
+    merge_base,
+    run_leaf,
+    serving,
+)
 from playwright.sync_api import Browser, Page, sync_playwright
 from playwright.sync_api import Error as PlaywrightError
 
@@ -484,8 +490,8 @@ def served(browser: Browser, arm: str, arm_dir: Path, source: str, scratch: Path
     """Build `source` into a page with `arm_dir`'s launcher, serve it, and open a tab."""
     state = scratch / f"{arm}-{source}-state"
     page_dir = scratch / f"{arm}-{source}" / "page"
+    build_source(arm_dir, state, ROOT / "examples" / f"{source}.html", page_dir)
     leaf = partial(run_leaf, arm_dir, state, check=True)
-    prepare_page(page_dir, read_fixture(ROOT / "examples" / f"{source}.html"), leaf)
     thread = json.loads(
         leaf(
             "thread", "open", str(page_dir), "--section", PASSAGE, "--quote", QUOTE,

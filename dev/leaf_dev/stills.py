@@ -1,22 +1,22 @@
-#!/usr/bin/env python3
 """Screenshot a fixed catalogue of UI states on BASE_REF's runtime and HEAD's, and
 show which ones changed.
 
-    uv run scripts/stills.py [BASE_REF]
+    uv run leaf-dev stills [BASE_REF]
 
 BASE_REF defaults to the merge base of HEAD and `main`. Each arm is the plugin payload
-at its commit (`eval_harness.build_arm`), so commit what you want compared. Every page
-is built from this checkout's example source by the arm's own launcher and served by
-that arm's `leaf server run --temporary`, so only the runtime, theme and server differ
-between the two stills of a state.
+at its commit (`leaf_dev.harness.build_arm`), so commit what you want compared. Every
+page is built from this checkout's example source by the arm's own launcher and served
+by that arm's `leaf server run --temporary`, so only the runtime, theme and server
+differ between the two stills of a state.
 
 A state is an example, a viewport and color scheme, and the input that brings the page
-there from a fresh load: a margin card opened by pointer or by keyboard, a reply
-being drafted, the Threads panel open, a board card grabbed, a code block focused.
-The catalogue (`STATES`) covers states a user reaches by acting, not only the page at
-rest, because a change can move what one of those states draws: a padding moved for
-layout covered the ring of a thread the keyboard had focused, which no resting page
-shows. Add a state where a change touches a surface the catalogue does not reach.
+there from a fresh load (`DRIVERS`): a margin card opened by pointer or by keyboard, a
+reply being drafted, the Threads panel open, a board card grabbed, a code block
+focused. `leaf-dev probe --do drive:NAME` runs the same input. The catalogue (`STATES`)
+covers states a user reaches by acting, not only the page at rest, because a change
+can move what one of those states draws: a padding moved for layout covered the ring
+of a thread the keyboard had focused, which no resting page shows. Add a state where a
+change touches a surface the catalogue does not reach.
 
 Each state is captured from a fresh tab once the page is ready and settled, with
 reduced motion, at the viewport. States on one example share its page and run in the
@@ -37,23 +37,20 @@ import shutil
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
-from functools import partial
 from pathlib import Path
 
 import click
-from eval_harness import build_arm, merge_base, run_leaf, serving
-from leaf.render_checks import PageNotReady, wait_for_probe, wait_until_ready
+from leaf.render_checks import PageNotReady
 from leaf.render_gate.browser import launch_browser
-from page_fixtures import prepare_page, read_fixture
 from PIL import Image, ImageChops
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page, sync_playwright
 
-ROOT = Path(__file__).resolve().parent.parent
+from leaf_dev import ROOT
+from leaf_dev.browser import BESIDE, DESKTOP, load, settle, tab
+from leaf_dev.harness import build_arm, merge_base, serving_source
+
 OUT = ROOT / ".tmp" / "stills"
-DESKTOP = (1440, 900)
-# The width of a window beside an editor.
-BESIDE = (900, 900)
 CROP_MARGIN = 32
 OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
 
@@ -128,6 +125,21 @@ def code_focused(page: Page) -> None:
     )
 
 
+DRIVERS: dict[str, Callable[[Page], None]] = {
+    drive.__name__.replace("_", "-"): drive
+    for drive in (
+        at_rest,
+        card_by_pointer,
+        card_by_keyboard,
+        card_reply,
+        threads_panel,
+        composer,
+        card_grabbed,
+        code_focused,
+    )
+}
+
+
 @dataclass(frozen=True)
 class State:
     name: str
@@ -156,32 +168,17 @@ STATES = (
 )
 
 
-def settle(page: Page) -> None:
-    wait_until_ready(page)
-    page.evaluate("() => document.fonts.ready")
-    wait_for_probe(page, "pageSettled")
-
-
 def capture(browser, address: str, state: State, path: Path) -> str | None:
     """Bring a fresh tab to `state` and screenshot its viewport to `path`; return
     the error if the state's input failed."""
-    context = browser.new_context(
-        viewport={"width": state.viewport[0], "height": state.viewport[1]},
-        color_scheme=state.scheme,
-        reduced_motion="reduce",
-    )
     try:
-        page = context.new_page()
-        page.set_default_timeout(15_000)
-        page.goto(address)
-        settle(page)
-        state.drive(page)
-        settle(page)
-        page.screenshot(path=path)
+        with tab(browser, state.viewport, state.scheme) as page:
+            load(page, address)
+            state.drive(page)
+            settle(page)
+            page.screenshot(path=path)
     except (PlaywrightError, PageNotReady) as error:
         return str(error).splitlines()[0]
-    finally:
-        context.close()
     return None
 
 
@@ -273,8 +270,9 @@ def report(results: list[Compared], commits: dict) -> Path:
 
 @click.command()
 @click.argument("base_ref", required=False)
-def main(base_ref: str | None) -> None:
-    """Screenshot every state in STATES on BASE_REF's runtime and HEAD's."""
+def stills(base_ref: str | None) -> None:
+    """Screenshot a catalogue of UI states on BASE_REF's runtime and HEAD's, and crop
+    each state that changed into a before/after pair under .tmp/stills/."""
     if OUT.exists():
         shutil.rmtree(OUT)
     OUT.mkdir(parents=True)
@@ -292,14 +290,11 @@ def main(base_ref: str | None) -> None:
                 for source in dict.fromkeys(state.source for state in STATES):
                     states = [state for state in STATES if state.source == source]
                     for arm, arm_dir in arms.items():
-                        state_home = scratch / f"{arm}-{source}-state"
-                        page_dir = scratch / f"{arm}-{source}" / "page"
-                        prepare_page(
-                            page_dir,
-                            read_fixture(ROOT / "examples" / f"{source}.html"),
-                            partial(run_leaf, arm_dir, state_home, check=True),
-                        )
-                        with serving(arm_dir, state_home, page_dir) as address:
+                        with serving_source(
+                            arm_dir,
+                            ROOT / "examples" / f"{source}.html",
+                            scratch / f"{arm}-{source}",
+                        ) as address:
                             for state in states:
                                 folder = OUT / state.name
                                 folder.mkdir(exist_ok=True)
@@ -333,7 +328,3 @@ def main(base_ref: str | None) -> None:
         for arm, error in r.failed.items():
             click.echo(f"  failed {r.state.name} on {arm}: {error}")
     click.echo(f"report: {report(results, commits)}")
-
-
-if __name__ == "__main__":
-    main()

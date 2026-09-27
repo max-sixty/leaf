@@ -8,6 +8,12 @@ resolution-markers = [
     "python_full_version < '3.11'",
 ]
 
+[manifest]
+members = [
+    "leaf",
+    "leaf-dev",
+]
+
 [[package]]
 name = "annotated-types"
 version = "0.8.0"
@@ -633,6 +639,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "axe-playwright-python" },
+    { name = "leaf-dev" },
     { name = "pillow" },
     { name = "pre-commit" },
     { name = "pytest" },
@@ -666,6 +673,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "axe-playwright-python", specifier = ">=0.1.4" },
+    { name = "leaf-dev", editable = "dev" },
     { name = "pillow", specifier = ">=12.1" },
     { name = "pre-commit", specifier = ">=4.6.2" },
     { name = "pytest", specifier = ">=9.1" },
@@ -674,6 +682,21 @@ dev = [
     { name = "pyyaml", specifier = ">=6" },
     { name = "unidiff", specifier = ">=1" },
     { name = "watchfiles", specifier = ">=1.1.0" },
+]
+
+[[package]]
+name = "leaf-dev"
+version = "0"
+source = { editable = "dev" }
+dependencies = [
+    { name = "click" },
+    { name = "pillow" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "click", specifier = ">=8" },
+    { name = "pillow", specifier = ">=12.1" },
 ]
 
 [[package]]

@@ -129,6 +129,8 @@ and Codex install the tracked tree whole.
 - `build/`: the browser framework's TypeScript and the builds of every committed
   browser bundle;
 - `scripts/`: preview, site, demo, corpus, and measurement tooling;
+- `dev/`: the `leaf_dev` package those scripts share, and the `leaf-dev` commands
+  that probe, screenshot, and compare versions of Leaf;
 - `worker/`: the Cloudflare Worker behind <https://leaf.page/>, which routes each
   example to the Python server in a per-user container; `worker/README.md` names
   its tokens and how an unattended agent loads one;
@@ -143,8 +145,8 @@ Read the scoped instructions for the area being changed:
 `skills/leaf/assets/AGENTS.md` (browser runtime, widgets, registry, theme),
 `skills/leaf/scripts/AGENTS.md` (Python owners and protocol references),
 `examples/AGENTS.md` (pages and corpus), `tests/AGENTS.md` (setup and evidence),
-`scripts/AGENTS.md` (tooling and generated outputs), and `build/AGENTS.md`
-(committed bundles).
+`scripts/AGENTS.md` (tooling and generated outputs), `build/AGENTS.md` (committed
+bundles), and `dev/AGENTS.md` (the `leaf-dev` package).
 
 For any work whose subject is Leaf itself, load `/developing-leaf`, including
 research and prototypes that change no tracked code. The shipped `/leaf` skill is

@@ -443,13 +443,13 @@ def page_dir(tmp_path, monkeypatch, initialized_page):
 
 
 def check(d):
-    """`version check`, in-process. A page that runs its own code has the check start
+    """`page check`, in-process. A page that runs its own code has the check start
     Playwright, whose sync API refuses a thread already driving another instance —
     which a worker holding the session `browser` fixture is — so the command gets a
     thread of its own."""
     with ThreadPoolExecutor(1) as pool:
         return pool.submit(
-            CliRunner().invoke, cli_model.cli, ["version", "check", str(d)]
+            CliRunner().invoke, cli_model.cli, ["page", "check", str(d)]
         ).result()
 
 
@@ -514,7 +514,7 @@ def stamp_activation(d):
 
 def publish(d, version=1):
     """Append the note event that makes a version the user-seen baseline:
-    `version check` compares against the last *published* version, and an action
+    `page check` compares against the last *published* version, and an action
     can only ever be made against one the server exposed."""
     activated = stamp_activation(d)
     assert activated.error is None and activated.revision is not None
@@ -660,7 +660,7 @@ def decide(page_dir, outcome, widget="sug-refill"):
 
 def _decided(page_dir, words):
     """v1 carrying a draft the user has since rewritten, and the log that
-    says so. Whatever v2 does about it, `version check` is what has to notice."""
+    says so. Whatever v2 does about it, `page check` is what has to notice."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",

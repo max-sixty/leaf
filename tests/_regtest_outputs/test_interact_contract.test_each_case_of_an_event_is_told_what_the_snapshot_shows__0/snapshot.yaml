@@ -828,7 +828,7 @@ report:
         until a stamped version answers it. Answer it in a stamped version before
         the page ends: write the reported state into the markup, or mark the element
         `overruled` and say why in the version note. A version that leaves the widget
-        as it was leaves the report standing, and `version check` refuses one whose
+        as it was leaves the report standing, and `page check` refuses one whose
         markup contradicts the report without answering it.
 
 error:

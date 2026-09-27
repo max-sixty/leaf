@@ -23,7 +23,7 @@
  * was invisible while document and chrome were the one system face.
  *
  * The serif is stacked, not shipped. theme.css is inlined whole into every
- * `version export` and parsed by `version check` on every version, so a webfont
+ * `version export` and parsed by `page check` on every version, so a webfont
  * would have to arrive as a base64 blob in both — and referenced by URL instead
  * it silently falls back in exactly the medium (an exported file, mailed on) that
  * has no server to ask. Charter and Iowan Old Style ship on macOS, Georgia everywhere
@@ -884,7 +884,7 @@ main {
    *
    * A transparent wrapper declares nothing: a section and a tab's panel are the page's
    * own flow, and an exhibit breaking out through one is the point. What says so when a
-   * box that draws has not declared is `version check --render`, which measures every
+   * box that draws has not declared is `page check --render`, which measures every
    * wide element against the nearest ancestor that draws one. It could not see through a
    * scroll container until a diagram in a board card was drawn 332px across the next
    * column, and four widgets letting a diagram out were found the day it could. */
@@ -1034,7 +1034,7 @@ img { aspect-ratio: attr(width type(<number>)) / attr(height type(<number>)); }
  * run — so whatever wraps in a scrolling table wraps at a word a line, beside a
  * name that could not break (an identifier has nowhere to break until the rule
  * at `code` above gives it one) or because there are more columns than the
- * measure holds. `version check --render` refuses a table that scrolls with a
+ * measure holds. `page check --render` refuses a table that scrolls with a
  * cell in it wrapped (SQUEEZED_TABLES) and leaves the third case to a table with
  * nothing left to wrap.
  *

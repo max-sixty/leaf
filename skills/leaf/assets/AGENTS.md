@@ -272,7 +272,7 @@ key, and keep the widget fenced when its transformation cannot be represented.
 
 ## Render gates
 
-`leaf version check <page> --render` is the browser contract: both color schemes,
+`leaf page check <page> --render` is the browser contract: both color schemes,
 the runtime's actual readiness and motion boundary, screen and print, and
 reapplied standing state. Run it, or the relevant browser test file, after
 changing `leaf.js`, a runtime owner, a widget module, the registry, or the theme.

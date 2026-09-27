@@ -75,7 +75,6 @@ FUNCTIONS = {
     "leaf/render_gate/scheme.py:start_with_pre_upgrade_proof": [],
     "leaf/render_gate/readings.py:_scheme_findings": [],
     "leaf/render_gate/readings.py:sweep": [],
-    "leaf/render_gate/readings.py:margin_cover_advice": [],
     "leaf/render_gate/readings.py:shrunk_label_advice": [],
     "leaf/render_checks.py:wait_for_probe": ["name"],
     "leaf/render_checks.py:one_frame": [],
@@ -161,7 +160,7 @@ def phases(sample: dict) -> tuple[dict[str, float], ...]:
         passes = named("_render_scheme", within=attempts[0])
         once = [
             span
-            for fn in ("sweep", "margin_cover_advice", "shrunk_label_advice")
+            for fn in ("sweep", "shrunk_label_advice")
             for span in named(fn, within=attempts[0])
         ]
         for scheme in passes:

@@ -150,7 +150,7 @@ export {
   syntax,
   tokenLines,
 } from "./syntax.js";
-export { dataBody, failSoft, once } from "./widget-upgrade.js";
+export { bodyText, dataBody, failSoft, once } from "./widget-upgrade.js";
 export { watchUpdates } from "./application.js";
 export { saidAt, updateSequence, watchHistory } from "./updates.js";
 export {

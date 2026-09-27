@@ -184,6 +184,40 @@ LIVE_SPECIMENS_PAGE = leaf_page(
 )
 
 
+def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
+    """Four child pages can hold different panel views and reset independently."""
+    gallery = FEATURE_GALLERY.parent / "thread-panel-gallery.html"
+    page = open_page(browser, serve(gallery))
+    views = {
+        "overview": page.frame_locator("#overview-specimen iframe"),
+        "you": page.frame_locator("#on-you-specimen iframe"),
+        "resolved": page.frame_locator("#resolved-specimen iframe"),
+        "summary": page.frame_locator("#summary-specimen iframe"),
+    }
+    for frame in views.values():
+        expect(frame.locator(".lf-thread-panel")).to_be_visible()
+
+    expect(views["overview"].locator(".lf-thread:not([hidden])")).to_have_count(3)
+    expect(views["you"].locator(".lf-thread-view-summary")).to_have_text(
+        "1 open thread · On you"
+    )
+    expect(views["resolved"].locator(".lf-thread-view-summary")).to_have_text(
+        "1 resolved thread"
+    )
+    expect(
+        views["summary"].locator('.lf-thread[data-id="c1a39980"]')
+    ).to_have_attribute("open", "")
+
+    views["overview"].get_by_role("button", name="Close threads").click()
+    expect(views["overview"].locator(".lf-thread-panel")).to_be_hidden()
+    expect(views["you"].locator(".lf-thread-panel")).to_be_visible()
+    page.locator("#overview-specimen").get_by_role(
+        "button", name="Reset", exact=True
+    ).click()
+    expect(views["overview"].locator(".lf-thread-panel")).to_be_visible()
+    expect(views["overview"].locator(".lf-thread:not([hidden])")).to_have_count(3)
+
+
 def test_live_specimens_keep_real_gestures_and_drafts_inside_the_child(browser, serve):
     """A specimen is a full page: its choices and comments reach only its own log."""
     page = open_page(browser, serve(LIVE_SPECIMENS_PAGE))

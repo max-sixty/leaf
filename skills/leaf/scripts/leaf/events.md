@@ -166,8 +166,8 @@ Read state is separate from thread attention. On a first visit, each agent-autho
 message body, including a failure receipt or authored widget, is unread; an agent
 reaction is not. The original message id names its first content version, and each
 `edit` id names a new one. A version is read once a `read` event names it — the
-browser posts one after presenting and exposing ordinary prose, or when the user
-marks a thread read — or once the user moves in its thread after it, the thread the
+browser posts one after presenting and exposing the visible body, including an
+interactive reply — or once the user moves in its thread after it, the thread the
 move names (`thread_context.event_threads`): a reply or reaction, a resolve or reopen,
 an action or request on a widget one of the thread's messages carries, or an action
 whose admitted answer closes the thread. A move that changes a thread without naming

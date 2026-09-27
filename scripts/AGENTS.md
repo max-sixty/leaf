@@ -34,7 +34,7 @@ Evidence, previews, staged sites, and probe results leave the tracked tree uncha
 - `eval_harness.py` builds the arms and isolated `claude -p` children every Claude
   Code eval runs, holds a live child's session open while a driver posts moves through
   the served page, and reads their traces; `eval_claude_delivery.py`, the two
-  `bench_*.py` scripts, `notes/arrangement-eval/harness.py`,
+  `bench_*.py` scripts, `stills.py`, `notes/arrangement-eval/harness.py`,
   `notes/usability-eval/harness.py`, and the A/B recipe in `evals/README.md` use it.
 - `eval_claude_delivery.py [BASE_REF]` compares how an agent handles a comment
   through `leaf wait`, and what the page shows meanwhile, between a base plugin
@@ -48,6 +48,9 @@ Evidence, previews, staged sites, and probe results leave the tracked tree uncha
 - `profile_page.py SOURCE TRANSITION` says where one of those transitions spends its
   time in this checkout: main-thread tasks up to the painted frame, forced style
   recalculations and the writes that invalidated them, and JS by function.
+- `stills.py [BASE_REF]` screenshots a catalogue of UI states, at rest and reached
+  by input, on a base runtime and HEAD's, and crops each state that changed into a
+  before/after pair under `.tmp/stills/`.
 - `record-demo.sh` regenerates `docs/demo.gif`, the README stills, and
   `docs/session-card.png`.
 

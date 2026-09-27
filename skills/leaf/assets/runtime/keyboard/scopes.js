@@ -463,7 +463,11 @@ export const focused = () => {
 // the same path and no painted surface invents its own exception.
 export const documentFocused = () => {
   let held = focused();
-  for (let host = shadowHost(held?.getRootNode()); host; host = shadowHost(held.getRootNode()))
+  for (
+    let host = shadowHost(held?.getRootNode());
+    host;
+    host = shadowHost(held.getRootNode())
+  )
     held = host;
   return held;
 };

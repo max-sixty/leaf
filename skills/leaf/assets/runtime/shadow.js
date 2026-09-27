@@ -23,7 +23,7 @@ export const shadowRootsIn = (root) =>
 export const pageShadowRoots = () => shadowRootsIn(document);
 // A document may expose a `host` value of its own; only a ShadowRoot's host is
 // a node in the composed tree.
-export const shadowHost = (root) => root instanceof ShadowRoot ? root.host : null;
+export const shadowHost = (root) => (root instanceof ShadowRoot ? root.host : null);
 // The parent, crossing a shadow root's boundary on the way up: the ordinary parent within
 // a tree, and the host where a tree runs out. It is the one walk every reading that
 // climbs out of a widget takes. Every question the runtime asks about where a node sits —

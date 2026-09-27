@@ -1,13 +1,8 @@
 /* This module owns registry loading, pre-upgrade passage fences, dynamic widget
  * imports, and initial presentation. */
-import {
-  MARKED_IN_PAGE,
-  dress,
-  markDeclared,
-  watchExternalLinks,
-} from "./presentation.js";
+import { dress, watchExternalLinks } from "./presentation.js";
+import { MARKED_IN_PAGE, markDeclared } from "./declared-paint.js";
 import { reachScrollers } from "./reach.js";
-import { holdBounds } from "./bounds.js";
 import { adoptRegistry, registry, tagsDeclaring } from "./registry.js";
 import { loadShadowRules } from "./shadow.js";
 import { revealLayer, sameDelivery, sameLayer } from "./layer-client.js";
@@ -203,15 +198,14 @@ export async function patchDocument(scope, patch) {
 }
 
 // What arriving markup owes the document once it stands in it: the dressing passes over
-// each root, then the two readings that are of the document rather than of the markup —
-// where the keyboard can reach. Authored state was already captured from source markup
+// each root, then the reading that is of the document rather than of the markup: where
+// the keyboard can reach. Authored state was already captured from source markup
 // before any module could turn that input into presentation. `presented` is the wait
 // each caller owes: the whole application at startup, the widgets it brought for a patch.
 async function settle(presentation, scope, arrived, presented) {
   await presentation.present(scope, Promise.all(arrived.map(dress)));
   await presented();
   reachScrollers(scope);
-  holdBounds();
 }
 
 export async function upgradeWidgets({ buildReactionBar }) {

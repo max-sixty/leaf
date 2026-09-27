@@ -49,10 +49,19 @@ const landingRoom = (held) => {
   }
   return room;
 };
+// Whether any of the node shows through every box that scrolls it, the window last: a
+// node in view inside a bounded block the page has scrolled away is not on screen.
 const onScreen = (node) => {
-  const band = landingBand(scrollerFor(node));
+  let top = -Infinity;
+  let bottom = Infinity;
+  for (const scroller of scrollersOf(node)) {
+    const band = landingBand(scroller);
+    if (!band) continue;
+    top = Math.max(top, band.top);
+    bottom = Math.min(bottom, band.bottom);
+  }
   const box = shownBox(node);
-  return !band || (box.bottom > band.top && box.top < band.bottom);
+  return box.bottom > top && box.top < bottom;
 };
 
 export const fitsWhole = (held) => shownBox(held).height <= landingRoom(held);

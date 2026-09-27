@@ -6732,6 +6732,53 @@ def open_threads_list(page, width, height):
     panel_settled(page)
 
 
+def test_a_bounded_log_in_an_agent_reply_follows_its_end_as_a_reading_region(
+    browser, serve
+):
+    """A reply's markup is painted where the thread draws it, not by the page's install,
+    so a log bounded at its end in a reply was neither held at its end nor the box
+    scrolling its lines until some later revision swept the page."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "What did the deploy do?")
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "revision": 1,
+            "text": "Here is its log.",
+            "markup": '<div data-bound="end">'
+            + "".join(
+                f"<p>Line {n}: the deploy copied shard {n} to the new key format.</p>"
+                for n in range(60)
+            )
+            + "</div>",
+        },
+    )
+    page = open_page(browser, url)
+    open_threads_list(page, 1400, 900)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    if card.get_attribute("open") is None:
+        card.locator(":scope > .lf-thread-summary").click()
+    log = card.locator(".lf-msg-body [data-lf-bound]")
+    expect(log).to_be_visible()
+    rendered(page)
+    held = log.evaluate(
+        """async log => {
+          const { scrollerFor } = await window.__lfRuntimeImport(
+            '/runtime/reading-regions.js');
+          return {
+            scroller: scrollerFor(log.querySelector('p')) === log,
+            atEnd: log.scrollHeight > log.clientHeight
+              && log.scrollHeight - log.scrollTop - log.clientHeight <= 2,
+          };
+        }"""
+    )
+    assert held == {"scroller": True, "atEnd": True}, held
+
+
 def reply_by_keyboard(page, root):
     """Stand on the thread's title and press `c` into its reply box."""
     card = page.locator(f'.lf-thread[data-id="{root}"]')
@@ -7430,14 +7477,17 @@ def test_settling_a_long_diff_thread_by_key_keeps_it_in_view(browser, serve):
     assert focus_clear_of_the_bar(page), "the reopened thread left the window"
 
 
-@pytest.mark.parametrize("kind", ["task", "diff"])
+@pytest.mark.parametrize("kind", ["task", "diff", "bounded", "bounded-short"])
 def test_a_turn_arriving_leaves_a_user_who_scrolled_away_from_their_box_reading(
     browser, serve, kind
 ):
     """The box a turn arrives above is held still only while it is on screen. A user
     who wheeled up to read the page with focus still in the box is reading the page,
-    and holding the box there moved what they were reading."""
-    url, root = seated_thread(serve, kind, 3)
+    and holding the box there moved what they were reading. A box shown inside a
+    bounded block the page has scrolled away is off screen too, or the growth the
+    block cannot take is handed to the page under the reader."""
+    messages = 1 if kind == "bounded-short" else 3
+    url, root = seated_thread(serve, kind, messages)
     page = open_page(browser, url)
     thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
     box = thread.locator(":scope > .lf-say leaf-text")
@@ -7465,7 +7515,7 @@ def test_a_turn_arriving_leaves_a_user_who_scrolled_away_from_their_box_reading(
         },
     )
     told(page)
-    expect(thread.locator(".lf-page-thread-msg")).to_have_count(4)
+    expect(thread.locator(".lf-page-thread-msg")).to_have_count(messages + 1)
     rendered(page)
     after = page.evaluate("() => document.scrollingElement.scrollTop")
     assert after == pytest.approx(before, abs=1), f"the page moved {after - before}px"

@@ -20,12 +20,8 @@ import {
 } from "../projection/authored.js";
 import { stageWidgetDescriptors } from "../widget-descriptors.js";
 import { strongestWorkflow, workflowLabel, workflowTitle } from "./workflow.js";
-import {
-  markDeclared,
-  MARKED_ANYWHERE,
-  renderQuiet,
-  renderSaid,
-} from "../presentation.js";
+import { renderQuiet, renderSaid } from "../presentation.js";
+import { MARKED_ANYWHERE, markDeclared } from "../declared-paint.js";
 import { highlightBlocks } from "../syntax.js";
 import { ago } from "../presence.js";
 import { elementById, pageQueryAll } from "../passages.js";

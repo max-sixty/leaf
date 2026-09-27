@@ -14,8 +14,8 @@
    so every target outside it would be an invalid anchor. Rows whose targets scroll with
    the document stand in the root lane; each
    bounded reading region (one whose body scrolls on its own) gets a lane of its own,
-   clipped with `clip-path` to what that region shows, and across to the rail where a
-   region reaches the column's edge, which clips a row's paint and presses without
+   clipped with `clip-path` to what that region shows, and across to the rail for a
+   bounded block in the column's flow, which clips a row's paint and presses without
    making the lane a containing block.
 
    An anchor name reaches only its own tree, so a target inside a shadow tree anchors
@@ -34,6 +34,7 @@ import { cancelRender, nextFrame, nextRender, sizeObserver } from "./rendering.j
 import { shellRight, shownBand, shownExtent, shownParts } from "./geometry.js";
 import { under, upFrom } from "./shadow.js";
 import { scrollerFor } from "./reading-regions.js";
+import { boundedBlockOf } from "./bounds.js";
 import { pageScroller } from "./scrolling.js";
 import { packRows, rowPosture } from "./margin-placement.js";
 import { overlaps } from "./rect.js";
@@ -525,20 +526,13 @@ export function layoutMarginRows() {
   const hang = parseFloat(rootStyle.getPropertyValue("--rail-hang")) || 0;
   const pinInset = parseFloat(rootStyle.getPropertyValue("--pin-inset")) || 0;
   const railInner = columnRect.right + hang;
-  // Where the column's content ends. A region reaching it has nothing but the column's
-  // own padding between it and the rail, as a bounded log in the column does, so the
-  // rail stands beside its rows as it does beside the document's; a pane with another
-  // beside it does not reach it.
-  const columnEnd =
-    columnRect.left +
-    main.clientLeft +
-    main.clientWidth -
-    parseFloat(getComputedStyle(main).paddingRight);
-  const besideRail = new Map([[pageScroller, true]]);
+  // The rail lies beside the column, so it stands beside the rows of what flows in the
+  // column: the document's own, and a bounded block's, which scrolls inside the document
+  // as a paragraph does. A pane is not in that flow, so its rows pin wherever it stands.
   const railBeside = (scroller) => {
-    if (!besideRail.has(scroller))
-      besideRail.set(scroller, scroller.getBoundingClientRect().right >= columnEnd - 1);
-    return besideRail.get(scroller);
+    if (scroller === pageScroller) return true;
+    const block = boundedBlockOf(scroller);
+    return Boolean(block) && scrollerFor(upFrom(block)) === pageScroller;
   };
   // The half that decides rail or pin is a rail marker's: a pin's entries are smaller.
   const entry = layer.root.parentElement.querySelector(

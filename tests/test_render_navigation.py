@@ -837,6 +837,45 @@ def test_thread_travel_into_a_bounded_log_scrolls_the_log_and_the_page_no_more(
     assert page.evaluate(placed, handles), "the passage stayed off the window"
 
 
+def test_reading_keys_page_the_bounded_log_the_user_stands_in(browser, serve):
+    """Focus inside a bounded block puts the user in that region, so d and u page the
+    block, as they page a pane, and leave the page where it stands."""
+    entries = "".join(
+        f'<p>Entry {n}: <a href="#t">shard {n}</a> copied to the new key format.</p>'
+        for n in range(60)
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "bounded keys",
+                f'<h1 id="t">Deploy</h1>{BOUNDED_LOG_FILLER}<div id="log" '
+                f'data-bound="start">{entries}</div>{BOUNDED_LOG_FILLER}',
+            )
+        ),
+    )
+    resized(page, 1280, 900)
+    log = page.locator("#log")
+    page.evaluate(
+        """log => { const at = log.getBoundingClientRect();
+          document.scrollingElement.scrollBy({
+            top: at.top + at.height / 2 - innerHeight / 2, behavior: 'instant'}); }""",
+        log.element_handle(),
+    )
+    scroll_settled(page)
+    before = page.evaluate("() => document.scrollingElement.scrollTop")
+    log.locator("a").first.focus()
+    page.keyboard.press("d")
+    page.wait_for_function("() => document.getElementById('log').scrollTop > 100")
+    scroll_settled(page, "#log")
+    paged = log.evaluate("log => log.scrollTop")
+    page.keyboard.press("u")
+    page.wait_for_function(f"() => document.getElementById('log').scrollTop < {paged}")
+    scroll_settled(page, "#log")
+    after = page.evaluate("() => document.scrollingElement.scrollTop")
+    assert after == pytest.approx(before, abs=1), f"the page moved {after - before}px"
+
+
 def test_the_ask_walk_lands_an_ask_in_a_bounded_log_at_the_log_top(browser, serve):
     """An Ask inside a block that bounds its height arrives at the top of that block,
     which is the box scrolling it. The walk measured its run-up against the window and

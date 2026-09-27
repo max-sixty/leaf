@@ -1,41 +1,7 @@
 /* Thread reaction projection and its synchronous Lit owner. The controller
    registers template-owned controls and owns only disclosure, keyboard and focus. */
 import { html, render, repeat } from "../../vendor/browser-runtime.js";
-import { registry } from "../registry.js";
 import { iconTemplate } from "../icons.js";
-import { isAddressable, isReaction } from "./model.js";
-
-export function reactionReading(thread, message, complete) {
-  if (
-    !complete ||
-    thread.resolved ||
-    message.author !== "agent" ||
-    !isAddressable(message)
-  )
-    return null;
-  const latest = thread.msgs.findLast(
-    (item) => item.author === "agent" && isAddressable(item),
-  );
-  const standing = thread.msgs.filter(
-    (item) => isReaction(item) && item.author === "user" && item.parent === message.id,
-  );
-  if (!Object.keys(registry.$reactions?.tokens ?? {}).length) return null;
-  return Object.freeze({
-    latest: latest?.id === message.id,
-    parent: message.id,
-    agent: message.agent || "the agent",
-    choices: Object.freeze(
-      Object.entries(registry.$reactions?.tokens ?? {}).map(([name, entry]) =>
-        Object.freeze({
-          name,
-          glyph: entry.glyph,
-          label: entry.means ? `${name} — ${entry.means}` : name,
-          standing: standing.find((item) => item.token === name) ?? null,
-        }),
-      ),
-    ),
-  });
-}
 
 let ordinal = 0;
 export class ReactionStripView {
@@ -107,19 +73,7 @@ export class ReactionStripView {
 
   #press(name) {
     const model = this.#model;
-    const choice = model.choices.find((item) => item.name === name);
-    const sent = choice.standing
-      ? this.#commands.withdraw(choice.standing)
-      : this.#commands.sendReaction(
-          {
-            kind: "reply",
-            parent: model.parent,
-            revision: this.#commands.currentRevision(),
-            token: name,
-          },
-          null,
-          `${model.agent}'s reply`,
-        );
+    const sent = this.#commands.actions.toggleReaction(model.key, model.parent, name);
     this.#registration.close();
     void sent;
   }

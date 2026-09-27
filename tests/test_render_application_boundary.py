@@ -35,45 +35,21 @@ from render_harness import (
 )
 
 THREAD_READER = r"""
-import {consumeThreads, readThreads, threadSummary, threadTurns} from '/runtime/widget-api.js';
+import {watchThreads, readThreads, threadSummary, threadTurns} from '/runtime/widget-api.js';
 customElements.define('lf-thread-reader', class extends HTMLElement {
   connectedCallback() {
     this.output = document.createElement('pre');
     this.append(this.output);
-    this.consumer = consumeThreads(this, (collection, {signal}) => {
-      this.signals ??= [];
-      this.signals.push(signal);
-      const paint = () => {
-        if (signal.aborted) return;
-        this.paints = (this.paints ?? 0) + 1;
-        this.reading = collection;
-        this.sameReading = collection === readThreads();
-        this.output.textContent = collection.threads.map(thread =>
-          threadTurns(thread).map(message => message.body.text).join('\n')
-        ).join('\n');
-        this.topic = collection.threads[0] && threadSummary(collection.threads[0]).topic;
-      };
-      const held = this.held;
-      this.held = null;
-      if (held) {
-        this.dataset.held = 'true';
-        if (held.cancel) signal.addEventListener('abort', held.cancel, {once: true});
-        return held.then(() => { paint(); this.dataset.finished = 'true'; });
-      }
-      paint();
+    this.stop = watchThreads(this, collection => {
+      this.reading = collection;
+      this.sameReading = collection === readThreads();
+      this.output.textContent = collection.threads.map(thread =>
+        threadTurns(thread).map(message => message.body.text).join('\n')
+      ).join('\n');
+      this.topic = collection.threads[0] && threadSummary(collection.threads[0]).topic;
     });
   }
-  hold(rejectOnAbort = false) {
-    let cancel;
-    this.held = new Promise((resolve, reject) => {
-      this.release = resolve;
-      cancel = () => reject(new DOMException('Consumer cancelled', 'AbortError'));
-    });
-    if (rejectOnAbort) this.held.cancel = cancel;
-    delete this.dataset.held;
-    delete this.dataset.finished;
-  }
-  disconnectedCallback() { this.consumer.unregister(); }
+  disconnectedCallback() { this.stop(); }
 });
 """
 
@@ -140,6 +116,49 @@ THREAD_FILTER_DECLARATION = {
     "x-content": "empty",
     "x-upgrade": True,
     "x-example": '<lf-thread-filter id="example"></lf-thread-filter>',
+}
+
+THREAD_MIRROR = r"""
+import {mountThreadViews, threadSummary} from '/runtime/widget-api.js';
+customElements.define('lf-thread-mirror', class extends HTMLElement {
+  connectedCallback() {
+    if (!this.outlet) {
+      this.input = document.createElement('input');
+      this.input.setAttribute('aria-label', `Filter ${this.id}`);
+      this.input.value = this.getAttribute('filter') ?? '';
+      this.outlet = document.createElement('div');
+      this.append(this.input, this.outlet);
+      this.input.addEventListener('input', () => this.consumer?.update());
+    }
+    this.consumer ??= mountThreadViews(this, (collection, surfaces) => {
+      this.updates = (this.updates ?? 0) + 1;
+      (this.signals ??= []).push(surfaces.signal);
+      if (this.holding) {
+        this.setAttribute('data-held', 'true');
+        return new Promise(resolve => (this.releases ??= []).push(resolve));
+      }
+      const query = this.input.value.toLowerCase();
+      for (const thread of collection.threads)
+        if (threadSummary(thread).topic.toLowerCase().includes(query))
+          surfaces.render(thread.key, this.outlet);
+    });
+  }
+  disconnectedCallback() {
+    this.consumer?.unregister();
+    this.consumer = null;
+  }
+});
+"""
+
+THREAD_MIRROR_DECLARATION = {
+    "description": "A package-owned mirror of core Thread conversations.",
+    "type": "object",
+    "properties": {"id": {"type": "string"}, "filter": {"type": "string"}},
+    "required": ["id"],
+    "additionalProperties": False,
+    "x-content": "empty",
+    "x-upgrade": True,
+    "x-example": '<lf-thread-mirror id="mirror-example"></lf-thread-mirror>',
 }
 
 
@@ -497,91 +516,103 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
     expect(page.locator(f'.lf-thread[data-id="{thread_id}"]')).to_be_visible()
 
 
-def test_thread_consumers_join_presentation_and_cancel_superseded_work(browser, serve):
-    """A blocked first consumer cancels every old callback before it can repaint."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Thread consumers",
-                '<h1>Thread consumers</h1><lf-thread-reader id="first"></lf-thread-reader><lf-thread-reader id="second"></lf-thread-reader>',
-            ),
-            layer_registry={"lf-thread-reader": THREAD_READER_DECLARATION},
-            layer_widgets={"lf-thread-reader.js": THREAD_READER},
+def test_package_thread_mirrors_share_core_conversation_without_claiming_placement(
+    browser, serve
+):
+    """Two package containers render one Thread and keep independent lifetimes."""
+    url = serve(
+        leaf_page(
+            "Thread mirrors",
+            '<h1>Thread mirrors</h1><button id="mirror-subject">Subject</button>'
+            '<lf-thread-mirror id="first" filter="Shared"></lf-thread-mirror>'
+            '<lf-thread-mirror id="second" filter="opening"></lf-thread-mirror>',
         ),
+        layer_registry={"lf-thread-mirror": THREAD_MIRROR_DECLARATION},
+        layer_widgets={"lf-thread-mirror.js": THREAD_MIRROR},
     )
-    page.evaluate("""async () => {
-      const {readApplicationPresentation} = await window.__lfRuntimeImport('/runtime/semantic-state.js');
-      window.threadPresentation = readApplicationPresentation;
-    }""")
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "id": "shared-thread",
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Shared opening",
+            "anchor": {"section": "mirror-subject"},
+        },
+    )
+    page = open_page(browser, url)
     first = page.locator("#first")
     second = page.locator("#second")
-    second.evaluate("node => { node.hold(); node.consumer.update(); }")
-    expect(second).to_have_attribute("data-held", "true")
-    assert page.evaluate("threadPresentation().pending.includes('thread')")
-    prior_paints = second.evaluate("node => node.paints")
-    first.evaluate("node => { node.hold(); node.consumer.update(); }")
-    expect(first).to_have_attribute("data-held", "true")
-    assert second.evaluate("node => node.signals.at(-1).aborted")
-    second.evaluate("node => node.release()")
-    expect(second).to_have_attribute("data-finished", "true")
-    assert second.evaluate("node => node.paints") == prior_paints
-    first.evaluate("node => node.release()")
-    page.wait_for_function("!threadPresentation().pending.includes('thread')")
-    second.evaluate("node => { node.hold(true); node.consumer.update(); }")
-    expect(second).to_have_attribute("data-held", "true")
-    removed = second.element_handle()
-    second.evaluate("node => node.remove()")
-    page.wait_for_function("!threadPresentation().pending.includes('thread')")
-    assert removed.evaluate("node => node.signals.at(-1).aborted")
-    removed.evaluate("node => node.release()")
+    expect(first.locator(".lf-page-thread")).to_contain_text("Shared opening")
+    expect(second.locator(".lf-page-thread")).to_contain_text("Shared opening")
+    assert first.evaluate("node => node.updates")
+    assert second.evaluate("node => node.updates")
+    expect(page.locator('.lf-margin-marker[data-lf-kinds="comment"]')).to_have_count(1)
 
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    expect(page.locator('.lf-thread[data-id="shared-thread"]')).to_be_visible()
+    page.locator(".lf-threads-toggle").click()
 
-def test_failed_panel_presentation_cancels_its_held_package_render(browser, serve):
-    """A sibling failure aborts package work before rollback, without waiting for it."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Thread rollback",
-                '<h1>Thread rollback</h1><lf-thread-reader id="reader"></lf-thread-reader>',
-            ),
-            layer_registry={"lf-thread-reader": THREAD_READER_DECLARATION},
-            layer_widgets={"lf-thread-reader.js": THREAD_READER},
-        ),
+    with sending(page, "a reply from the first package mirror"):
+        write(first.locator(".lf-page-thread .lf-say leaf-text"), "Shared reply")
+        first.locator(".lf-page-thread .lf-say").get_by_role(
+            "button", name="Send"
+        ).click()
+    expect(first.locator(".lf-page-thread")).to_contain_text("Shared reply")
+    expect(second.locator(".lf-page-thread")).to_contain_text("Shared reply")
+    expect(page.locator('.lf-thread[data-id="shared-thread"]')).to_contain_text(
+        "Shared reply"
     )
-    reader = page.locator("#reader")
-    page.evaluate("""async () => {
-      const {readApplicationPresentation} = await window.__lfRuntimeImport('/runtime/semantic-state.js');
-      window.threadPresentation = readApplicationPresentation;
-      const list = document.querySelector('leaf-thread-list');
-      const present = list.present.bind(list);
-      let failures = 2;
-      list.present = async model => {
-        await present(model);
-        if (failures > 0) {
-          failures -= 1;
-          throw new Error('injected panel failure');
-        }
-      };
-      const reader = document.querySelector('#reader');
-      reader.hold();
-      reader.consumer.update();
+    second.locator("input").fill("Absent")
+    expect(second.locator(".lf-page-thread")).to_have_count(0)
+    expect(first.locator(".lf-page-thread")).to_contain_text("Shared reply")
+    second.locator("input").fill("opening")
+    expect(second.locator(".lf-page-thread")).to_contain_text("Shared reply")
+
+    second.evaluate("node => { node.holding = true; node.consumer.update(); }")
+    expect(second).to_have_attribute("data-held", "true")
+    with sending(page, "a reply while a package mirror is held"):
+        write(first.locator(".lf-page-thread .lf-say leaf-text"), "While held")
+        first.locator(".lf-page-thread .lf-say").get_by_role(
+            "button", name="Send"
+        ).click()
+    expect(first.locator(".lf-page-thread")).to_contain_text("While held")
+    expect(page.locator('.lf-thread[data-id="shared-thread"]')).to_contain_text(
+        "While held"
+    )
+    assert second.evaluate("node => node.signals.at(-2).aborted")
+    assert not page.evaluate(
+        """async () => {
+          const {readApplicationPresentation} = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+          return readApplicationPresentation().pending.includes('thread');
+        }"""
+    )
+    second.evaluate("""node => {
+      node.holding = false;
+      for (const release of node.releases.splice(0)) release();
+      node.removeAttribute('data-held');
+      node.consumer.update();
     }""")
-    expect(reader).to_have_attribute("data-held", "true")
-    page.wait_for_function("document.querySelector('#reader').signals.at(-1).aborted")
-    reported_browser_errors(
-        page,
-        "leaf: Presentation failed: Thread list presentation retry failed: "
-        "injected panel failure; injected panel failure",
-    )
-    paints = reader.evaluate("node => node.paints")
-    reader.evaluate("node => node.release()")
-    expect(reader).to_have_attribute("data-finished", "true")
-    assert reader.evaluate("node => node.paints") == paints
-    reader.evaluate("node => node.consumer.update()")
-    page.wait_for_function("!threadPresentation().pending.includes('thread')")
-    assert reader.evaluate("node => node.paints") > paints
+    expect(second.locator(".lf-page-thread")).to_contain_text("While held")
+
+    second_handle = second.element_handle()
+    second.evaluate("node => node.remove()")
+    stopped_at = second_handle.evaluate("node => node.updates")
+    with sending(page, "a reply after the second mirror disconnected"):
+        write(first.locator(".lf-page-thread .lf-say leaf-text"), "After removal")
+        first.locator(".lf-page-thread .lf-say").get_by_role(
+            "button", name="Send"
+        ).click()
+    expect(first.locator(".lf-page-thread")).to_contain_text("After removal")
+    assert second_handle.evaluate("node => node.updates") == stopped_at
+    expect(page.locator('.lf-margin-marker[data-lf-kinds="comment"]')).to_have_count(1)
+    page.locator("#mirror-subject").focus()
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("Tab")
+    expect(page.locator("#mirror-subject")).to_be_focused()
+    expect(page.locator(".lf-margin-thread")).to_contain_text("After removal")
 
 
 PAGE_MODULE = """\
@@ -1807,3 +1838,110 @@ def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
     held_events[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
+
+
+THREAD_ACTIONS = r"""
+import {threadActions, watchThreads} from '/runtime/widget-api.js';
+customElements.define('lf-thread-actions', class extends HTMLElement {
+  connectedCallback() {
+    this.innerHTML = '<input aria-label="Package reply"><button>Reply</button>' +
+      '<button>Resolve</button><button>Reopen</button><button>React</button>';
+    this.stop = watchThreads(this, collection => {
+      this.thread = collection.threads[0];
+      this.dataset.resolved = String(Boolean(this.thread?.resolved));
+      this.dataset.reacted = String(Boolean(this.thread?.msgs.some(msg => msg.token === 'keep')));
+    });
+    this.querySelectorAll('button').forEach(button => button.onclick = () => {
+      const key = this.thread.key;
+      const agent = this.thread.msgs.find(message => message.author === 'agent');
+      this.last = button.textContent === 'Reply'
+        ? threadActions.reply(key, this.querySelector('input').value)
+        : button.textContent === 'Resolve'
+          ? threadActions.resolve(key)
+          : button.textContent === 'Reopen'
+            ? threadActions.reopen(key)
+            : threadActions.toggleReaction(key, agent.id, 'keep');
+      this.dataset.accepted = String(this.last !== null);
+    });
+  }
+  disconnectedCallback() { this.stop(); }
+});
+"""
+
+THREAD_ACTIONS_DECLARATION = {
+    "description": "A package's own Thread action controls.",
+    "type": "object",
+    "properties": {"id": {"type": "string"}},
+    "required": ["id"],
+    "additionalProperties": False,
+    "x-content": "empty",
+    "x-upgrade": True,
+    "x-example": '<lf-thread-actions id="actions-example"></lf-thread-actions>',
+}
+
+
+def test_package_thread_actions_share_core_admission_and_current_availability(
+    browser, serve
+):
+    """Package controls use the core reply, settlement, reaction and undo paths."""
+    url = serve(
+        leaf_page(
+            "Thread actions",
+            '<h1>Thread actions</h1><lf-thread-actions id="actions"></lf-thread-actions>',
+        ),
+        layer_registry={"lf-thread-actions": THREAD_ACTIONS_DECLARATION},
+        layer_widgets={"lf-thread-actions.js": THREAD_ACTIONS},
+    )
+    for event in [
+        {
+            "id": "thread-action-root",
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Choose an approach.",
+        },
+        {
+            "id": "thread-action-agent",
+            "kind": "reply",
+            "author": "agent",
+            "revision": 1,
+            "parent": "thread-action-root",
+            "text": "I propose one.",
+        },
+    ]:
+        events_model.append_event(serve.page_dir, event)
+    page = open_page(browser, url)
+    actions = page.locator("#actions")
+    expect(actions).to_have_attribute("data-resolved", "false")
+    actions.get_by_role("textbox", name="Package reply").fill("Package answer")
+    with sending(page, "a package reply"):
+        actions.get_by_role("button", name="Reply").click()
+    assert (
+        events_model.read_events(serve.page_dir)[-1]["parent"] == "thread-action-root"
+    )
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    expect(page.locator('.lf-thread[data-id="thread-action-root"]')).to_contain_text(
+        "Package answer"
+    )
+
+    with sending(page, "a package resolution"):
+        actions.get_by_role("button", name="Resolve").click()
+    expect(actions).to_have_attribute("data-resolved", "true")
+    actions.get_by_role("button", name="Reply").click()
+    expect(actions).to_have_attribute("data-accepted", "false")
+    with sending(page, "a package reopen"):
+        actions.get_by_role("button", name="Reopen").click()
+    expect(actions).to_have_attribute("data-resolved", "false")
+
+    with sending(page, "a package reaction"):
+        actions.get_by_role("button", name="React").click()
+    expect(actions).to_have_attribute("data-reacted", "true")
+    with sending(page, "the same reaction withdrawn"):
+        actions.get_by_role("button", name="React").click()
+    expect(actions).to_have_attribute("data-reacted", "false")
+    assert [
+        event["kind"]
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("author") == "user" and event["kind"] != "comment"
+    ] == ["reply", "resolve", "unresolve", "reply", "undo"]

@@ -9,14 +9,15 @@ references it needs, as a real session does, so a case scores the guidance as it
 routed and not a passage pasted into the prompt. Run the suite before and after any
 change to that guidance, and add the cases the change was made for.
 
-The suite is early and needs a lot of work. It has five cases, all cold single-turn
-prompts that ask for an HTML fragment or the commands the agent would run in the reply.
+The suite is early and needs a lot of work. It has seven cases, all cold single-turn
+prompts that ask for an HTML fragment, a JavaScript module, or the commands the agent
+would run in the reply.
 None writes a page, runs `leaf`, or continues a long session, and the graders have not
 been checked against pages a person has judged. The child cannot search the plugin, so
-it writes widget markup from the references without reading the registry. Until that changes, a pass here is weak
-evidence. Still, keeping each instruction fix's cases here is better than leaving them
-in a worktree's scratch, so add them as you go, and improve the suite in the same change
-when it gets in the way.
+it answers from the references without reading the registry. Until that changes, a pass
+here is weak evidence. Still, keeping each instruction fix's cases here is better than
+leaving them in a worktree's scratch. Add them as you go, and improve the suite in the
+same change when it gets in the way.
 
 Run it from the repository root:
 
@@ -33,8 +34,8 @@ $0.27.
 its Skill call for `leaf:leaf` and its reads of the references, since they sit outside
 its empty working directory. Without the grant, every run answers with no Leaf
 guidance at all, and `loads-leaf` still passes, because it counts the attempt. So every
-case also carries `reads-page-authoring`. A run where it fails did not read the guidance
-it was meant to test.
+case also checks that the child read the relevant reference. A run where that check
+fails did not read the guidance it was meant to test.
 
 ## A/B
 
@@ -74,3 +75,4 @@ render check and the stamp.
 | 09-25 | This suite, on main at 31373c873, with graders that require the registered captures (an `lf-shot` pair for the Save case) rather than any picture or a filename in prose | All cases ×3 | 9 of 9, $2.54 plus $0.66 for the Save case re-run after its regex was fixed for `lf-shot`'s `before`/`after` attributes |
 | 09-25 | Having the delivered `leaf reply` clause put landed work on the page before the thread report, after session 78ca368e posted a finished fix and its screenshot paths in a thread (fix-instructions) | Cold: a finished visual fix, a finished measurement, and a thread-only question as a guardrail, with each arm's clause pasted in the envelope, ×2 per arm. Replay: the session resumed just before its report, ×3 per arm | Cold: both arms put captures and tables on the page and linked them from the reply (4 of 4), and neither edited the page for the question (4 of 4), so cold cases don't separate the wordings. Replay: with shell calls denied, every arm took the session for a restart and none reached the report, so it measured nothing, at about $25 a run. The change rests on the log: the session followed the old clause, in context from five deliveries, and only grepped `conversation-threads.md` for one unrelated line. `landed-work-goes-on-the-page` keeps the references' half as a regression case: 3 of 3 on the change, $0.97 |
 | 09-26 | Teaching the Layout classes (`layout-wide`, `layout-sidebar`, `layout-tiles`, `layout-workspace`) in place of `lf-grid`, `lf-workspace` and `main[data-width]`, with `page-arrangement-uses-layouts` added for it | All cases ×3 per arm; the base arm built from aec3eea3d, the candidate from the working tree, about 15 minutes apart | The new case went from 0 of 3 to 3 of 3: the base arm wrote `lf-grid` and `main[data-width]`, the candidate a sidebar page with tiles. The other cases held (9 of 9 each arm), except `follow-up-asks-show-their-subject`, which failed its judgment in 2 of 3 base runs and 1 of 3 candidate runs with no change to its clause. $5.97 |
+| 09-26 | Exposing typed Thread actions for package controls, with `thread-widget-actions` added | Base at a47182f22 and candidate working tree, ×3 per arm | Base used `watchThreads` but had no typed action calls (0 of 3); candidate used `watchThreads` and `threadActions` correctly (3 of 3). The mirror case passed 2 of 3 candidate runs; the other run's final answer was an unrelated background-task notice, so its last-message graders saw no JavaScript. |

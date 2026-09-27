@@ -19,6 +19,8 @@ on:
       - 'pyproject.toml'
       - 'uv.lock'
       - 'example-previews.json'
+      - 'dev/pyproject.toml'
+      - 'dev/leaf_dev/__init__.py'
       - 'dev/leaf_dev/example_data.py'
       - 'scripts/example_assets.py'
       - 'dev/leaf_dev/page_fixtures.py'

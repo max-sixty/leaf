@@ -127,6 +127,8 @@ and Codex install the tracked tree whole.
 - `tests/`: the file, CLI, browser, and published-site boundaries, and in
   `tests/runtime/` the runtime's folds, which Node runs without a browser;
 - `scripts/`: preview, site, demo, vendor, and browser-framework tooling;
+- `dev/`: the `leaf_dev` package those scripts share, and the `leaf-dev` commands
+  that probe, screenshot, and compare versions of Leaf;
 - `worker/`: the Cloudflare Worker behind <https://leaf.page/>, which routes each
   example to the Python server in a per-user container; `worker/README.md` names
   its tokens and how an unattended agent loads one;
@@ -141,7 +143,8 @@ Read the scoped instructions for the area being changed:
 `skills/leaf/assets/AGENTS.md` (browser runtime, widgets, registry, theme),
 `skills/leaf/scripts/AGENTS.md` (Python owners and protocol references),
 `examples/AGENTS.md` (pages and corpus), `tests/AGENTS.md` (setup and evidence),
-and `scripts/AGENTS.md` (tooling and generated outputs).
+`scripts/AGENTS.md` (tooling and generated outputs), and `dev/AGENTS.md` (the
+`leaf-dev` package).
 
 For any work whose subject is Leaf itself, load `/developing-leaf`, including
 research and prototypes that change no tracked code. The shipped `/leaf` skill is

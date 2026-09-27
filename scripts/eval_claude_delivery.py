@@ -94,7 +94,8 @@ from functools import partial
 from pathlib import Path
 
 import click
-from eval_harness import (
+from leaf.event_log import read_events
+from leaf_dev.harness import (
     URL,
     LiveChild,
     PageClient,
@@ -107,7 +108,6 @@ from eval_harness import (
     tool_calls,
     waits_started,
 )
-from leaf.event_log import read_events
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / ".tmp" / "eval-claude-delivery"

@@ -86,7 +86,7 @@ from leaf.registry import page as registry_page
 from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
 from leaf.render_gate import preview as render_gate_model
-from page_fixtures import package_selection_args
+from leaf_dev.page_fixtures import package_selection_args
 
 
 def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):

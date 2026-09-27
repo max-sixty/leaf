@@ -8,7 +8,6 @@ from pathlib import Path
 import leaf.validation.command as checking_command
 import pytest
 from click.testing import CliRunner
-from example_data import regression_sources
 from interact_support import (
     COMMAND_SUBJECTS,
     PAGE,
@@ -41,7 +40,8 @@ from leaf.structure import SourceDocument
 from leaf.thread_context import thread_digest
 from leaf.validation import compatibility as validation_model
 from leaf.validation.instances import reference_errors
-from page_fixtures import package_selection_args, prepare_page, read_fixture
+from leaf_dev.example_data import regression_sources
+from leaf_dev.page_fixtures import package_selection_args, prepare_page, read_fixture
 
 PUBLIC_EXAMPLES = tuple(
     path for path in sorted((ROOT / "examples").glob("*.html")) if path.stem != "corpus"

@@ -4,7 +4,7 @@
     uv run scripts/bench_page_latency.py [BASE_REF]
 
 BASE_REF defaults to the merge base of HEAD and `main`. Each arm is the plugin payload
-at its commit (`eval_harness.build_arm`), so commit what you want measured. Every page
+at its commit (`leaf_dev.harness.build_arm`), so commit what you want measured. Every page
 is built from this checkout's example source by the arm's own launcher
 (`prepare_page`), and served by that arm's `leaf server run --temporary`, so the
 browser runtime and the server both come from the arm. Pages are
@@ -65,9 +65,9 @@ from functools import partial
 from pathlib import Path
 
 import click
-from eval_harness import build_arm, environment, merge_base, run_leaf, serving
 from leaf.render_gate.browser import launch_browser
-from page_fixtures import prepare_page, read_fixture
+from leaf_dev.harness import build_arm, environment, merge_base, run_leaf, serving
+from leaf_dev.page_fixtures import prepare_page, read_fixture
 from playwright.sync_api import Browser, Page, sync_playwright
 from playwright.sync_api import Error as PlaywrightError
 

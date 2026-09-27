@@ -1,11 +1,12 @@
-"""Arms and children for evals that run Claude Code against a version of Leaf.
+"""Arms, served pages, and Claude Code children for evals and probes that run a
+version of Leaf.
 
-    uv run scripts/eval_harness.py REF DEST
+    uv run leaf-dev arm REF DEST
 
-builds one arm at DEST from git REF. `eval_claude_delivery.py`,
-`bench_render_check.py`, `bench_page_latency.py`, `stills.py`,
-`notes/arrangement-eval/harness.py` and `notes/usability-eval/harness.py` import the
-rest, and `evals/README.md`'s A/B recipe builds its other arm with the command.
+builds one arm at DEST from git REF; `evals/README.md`'s A/B recipe builds its other
+arm with it. `leaf-dev stills` and `leaf-dev probe`, `eval_claude_delivery.py`, the
+two `bench_*.py` scripts, `notes/arrangement-eval/harness.py` and
+`notes/usability-eval/harness.py` import the rest.
 
 An arm is the plugin payload at one ref (`PAYLOAD`: the manifest, hooks, launcher,
 skills and uv project) and nothing else. It has no `.git`, examples, docs or notes, so a
@@ -46,14 +47,23 @@ import urllib.request
 from collections.abc import Iterable
 from contextlib import contextmanager
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 from typing import Self
 
 import click
 from leaf.host import IDENTITY_VARIABLES
 
-ROOT = Path(__file__).resolve().parent.parent
-PAYLOAD = (".claude-plugin", "bin", "hooks", "skills", "pyproject.toml", "uv.lock")
+from leaf_dev import ROOT
+from leaf_dev.page_fixtures import prepare_page, read_fixture
+
+# The uv project names this package's `pyproject.toml` as a workspace member, so uv
+# needs that file to read the lock. The package itself stays out: the launcher never
+# installs the dev group. A ref from before the package has no such file.
+PAYLOAD = (
+    ".claude-plugin", "bin", "hooks", "skills", "pyproject.toml", "uv.lock",
+    "dev/pyproject.toml",
+)  # fmt: skip
 
 
 def environment(**extra: str) -> dict[str, str]:
@@ -116,6 +126,17 @@ def serving(arm: Path, state: Path, page: Path):
         server.wait(10)
 
 
+@contextmanager
+def serving_source(arm: Path, source: Path, scratch: Path):
+    """Build the authored `source` into a page under `scratch` with the arm's own
+    launcher and a state home of its own, serve it (`serving`), and yield the
+    address. The checkout is an arm too: `ROOT` runs its working tree."""
+    state, page = scratch / "state", scratch / "page"
+    prepare_page(page, read_fixture(source), partial(run_leaf, arm, state, check=True))
+    with serving(arm, state, page) as address:
+        yield address
+
+
 def merge_base() -> str:
     """The commit HEAD branched from `main`: the base an A/B script compares HEAD
     against unless it is handed another."""
@@ -135,8 +156,14 @@ def build_arm(ref: str, dest: Path) -> str:
         subprocess.run(["chmod", "-R", "u+w", dest], check=True)
         shutil.rmtree(dest)
     dest.mkdir(parents=True)
+    present = subprocess.run(
+        ["git", "-C", ROOT, "ls-tree", "--name-only", ref, *PAYLOAD],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split()
     archive = subprocess.run(
-        ["git", "-C", ROOT, "archive", ref, *PAYLOAD], capture_output=True, check=True
+        ["git", "-C", ROOT, "archive", ref, *present], capture_output=True, check=True
     ).stdout
     subprocess.run(["tar", "-x", "-C", dest], input=archive, check=True)
     with tempfile.TemporaryDirectory() as state:
@@ -378,15 +405,3 @@ def completed(trace: list[dict]) -> bool:
     """Whether a trace counts: its model call reached a result that is not an
     error, without auto-memory."""
     return trace_result(trace).get("is_error") is False and not loaded_memory(trace)
-
-
-@click.command()
-@click.argument("ref")
-@click.argument("dest", type=click.Path(path_type=Path))
-def main(ref: str, dest: Path) -> None:
-    """Build an arm at DEST from git REF."""
-    click.echo(f"{dest}: {build_arm(ref, dest.resolve())}")
-
-
-if __name__ == "__main__":
-    main()

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Compare how long `leaf version check --render` takes, base vs HEAD, and where.
 
-Each arm is the plugin payload at a ref, built by `eval_harness.build_arm`: BASE_REF
+Each arm is the plugin payload at a ref, built by `leaf_dev.harness.build_arm`: BASE_REF
 (default `main`) and HEAD, so commit what you want measured. For each page in PAGES
 the script builds a page directory from this checkout's example with the arm's own
-launcher (`page_fixtures.prepare_page`, as `preview.py` does), then runs that arm's
+launcher (`leaf_dev.page_fixtures.prepare_page`, as `preview.py` does), then runs that arm's
 `bin/leaf version check <page> --render` RUNS times, alternating arms within each
 round so drift in machine load falls on both. One untimed run per arm warms the
 environment, Chrome and the OS file cache first.
@@ -52,8 +52,8 @@ from functools import partial
 from pathlib import Path
 
 import click
-from eval_harness import build_arm, environment, run_leaf
-from page_fixtures import prepare_page, read_fixture
+from leaf_dev.harness import build_arm, environment, run_leaf
+from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / ".tmp" / "bench-render-check"

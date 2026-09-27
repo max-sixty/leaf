@@ -42,13 +42,13 @@ fails did not read the guidance it was meant to test.
 ## A/B
 
 For an A/B, build the other arm from its revision and run both arms at once, since
-batches an hour apart drift. `scripts/eval_harness.py` builds an arm as the plugin
-payload at a revision. The other arm goes outside this checkout: a run loads every
-plugin and case below its target, so an arm under `.tmp/` would load as a second leaf.
+batches an hour apart drift. `leaf-dev arm` builds an arm as the plugin payload at a
+revision. The other arm goes outside this checkout: a run loads every plugin and case
+below its target, so an arm under `.tmp/` would load as a second leaf.
 
 ```
 base=$(mktemp -d)/leaf
-uv run scripts/eval_harness.py <rev> "$base"
+uv run leaf-dev arm <rev> "$base"
 cp -R evals "$base/evals"
 ```
 

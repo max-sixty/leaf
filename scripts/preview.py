@@ -91,8 +91,8 @@ from functools import partial
 from pathlib import Path
 from typing import NamedTuple
 
-from example_data import TEST_PAGES, capture_files, example_versions
-from page_fixtures import (
+from leaf_dev.example_data import capture_files, example_versions, named_source
+from leaf_dev.page_fixtures import (
     DEFAULT_PACKAGES,
     media_source,
     package_selection_args,
@@ -105,7 +105,6 @@ from page_fixtures import (
 
 ROOT = Path(__file__).resolve().parent.parent
 TMP = ROOT / ".tmp"
-NAMED_SOURCE_DIRS = (ROOT / "examples", ROOT / "examples" / "developer", TEST_PAGES)
 SLOT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 # The watcher's own dependency, which the dev group beside this script declares. A
 # checkout named by `--runtime` has the `--no-dev` environment `bin/leaf` syncs, so the
@@ -238,19 +237,10 @@ def authored_source(
         if not selected.is_file():
             parser.error(f"no authored source at {selected}")
         return selected
-    name = (example or "triage-board").removesuffix(".html")
-    candidates = [root / f"{name}.html" for root in NAMED_SOURCE_DIRS]
-    found = [path for path in candidates if path.is_file()]
-    if len(found) == 1:
-        return found[0]
-    if len(found) > 1:
-        parser.error(f"{name} names more than one preview source: {found}")
-    available = sorted(
-        path.stem for root in NAMED_SOURCE_DIRS for path in root.glob("*.html")
-    )
-    parser.error(
-        f"no preview source named {name}; available pages: " + ", ".join(available)
-    )
+    try:
+        return named_source(example or "triage-board")
+    except ValueError as error:
+        parser.error(str(error))
 
 
 def preparation_note(source: Path, data_sources: int, versions: int) -> str:

@@ -310,7 +310,7 @@ interpretation of it.
 
 The gates judge contracts, not how the page looks. A change to what the page
 draws, including one made for geometry, is proved with before/after screenshots
-of each state it touches. `uv run scripts/stills.py` takes them for a catalogue of
+of each state it touches. `uv run leaf-dev stills` takes them for a catalogue of
 states and crops the ones that changed (`/developing-leaf`, "Prove and hand off a
 visible change").
 

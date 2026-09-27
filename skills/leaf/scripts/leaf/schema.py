@@ -11,9 +11,10 @@ ORPHAN_GRACE_SECS = 1
 # renewing viewed.json. Four hours permits those gaps while retiring abandoned
 # session pages. Claim renewal and service lifetime: session-lifetime.md.
 ACTIVITY_GRACE_SECS = 4 * 60 * 60
-# Harness-neutral label when no claimant supplies a name. context.js uses the
-# same label before a browser has an authoritative state, including exports.
-UNCLAIMED_AGENT = "Agent"
+# The harness-neutral name of an agent nothing names: a page's when no claimant
+# supplies one, and an agent-authored event's that carries no `agent`. context.js
+# uses the same label before a browser has an authoritative state, including exports.
+UNNAMED_AGENT = "Agent"
 # Non-message gesture kinds eligible for withdrawal; events.undo_error handles
 # reactions. The complete eligibility contract is events.md, "Undo".
 UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done"}
@@ -519,10 +520,15 @@ PAGE_OWNED_DIRS = ("revisions", *PACKAGE_DIRS, MEDIA_DIR, DATA_DIR, "page")
 REVISION_NAME = r"r(?P<revision>[1-9][0-9]*)-[a-f0-9]{16}"
 VERSION_NAME = r"v(?P<version>[1-9][0-9]*)"
 # The directories of a page's URL namespace beneath its root, beside its vendored
-# files: its API, browser layer and media, and its documents. The website adapter
-# routes exactly these and those files to a page, and so does the Worker in front of
-# it, which reads them from the site manifest `scripts/site.py` writes.
-PAGE_ROUTE_DIRS = ("api", *BROWSER_DIRS, MEDIA_DIR, "revisions", "versions")
+# files: its API, its browser layer, and what its session writes after a publish (the
+# media it adds, the revisions it activates, the versions it stamps). The website
+# adapter routes exactly these and those files to a page, and so does the Worker in
+# front of it, which reads the layer and session kinds from the site manifest
+# `scripts/site.py` writes: a static miss under a session directory is a file the
+# page's container has. `api` is the page server's protocol prefix, which the Worker
+# names with the endpoints under it.
+SESSION_ROUTE_DIRS = (MEDIA_DIR, "revisions", "versions")
+PAGE_ROUTE_DIRS = ("api", *BROWSER_DIRS, *SESSION_ROUTE_DIRS)
 # What the server exposes from a page: the browser layer, media, immutable revisions,
 # and event-backed version addresses. Agent-side guidance stays vendored but is read
 # only through the CLI.

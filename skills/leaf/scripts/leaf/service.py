@@ -34,7 +34,7 @@ from leaf.schema import (
     ACTIVITY_GRACE_SECS,
     EVENTS_FILE,
     STATUS_FILE,
-    UNCLAIMED_AGENT,
+    UNNAMED_AGENT,
 )
 
 # A repeated live detail carries only liveness. Renew it comfortably before the
@@ -411,14 +411,14 @@ class PageTransaction:
         """Who a line written on this page speaks as: the posting session where
         one is running, which need not be the claimant, and the page's claimant
         otherwise — a line written by a server speaks in the name of whoever
-        holds the page. `UNCLAIMED_AGENT` covers a page nothing has claimed,
+        holds the page. `UNNAMED_AGENT` covers a page nothing has claimed,
         where there is no name to use and inventing one would put words in a
         program's mouth."""
         identity = message_identity()
         claim = self.claim
         return {
             "agent": identity.get("agent")
-            or (claim["agent"] if claim else UNCLAIMED_AGENT),
+            or (claim["agent"] if claim else UNNAMED_AGENT),
             "session": identity.get("session") or (claim["id"] if claim else None),
         }
 

@@ -99,6 +99,7 @@ from render_harness import (
     ask_actions_hint,
     compare_with,
     consume_browser_errors,
+    draft_control,
     expect_banner_control_offered,
     holding,
     holds_the_window,
@@ -119,6 +120,7 @@ from render_harness import (
     sending,
     shortcut_bar_text,
     stamp_page,
+    suggestion_control,
     take_browser_errors,
     ticked,
     told,
@@ -159,10 +161,7 @@ def test_inspection_and_browser_share_retirement_and_bound_input_origins(
     data_model.cmd_data_set(serve.page_dir, "instructions", "Earlier instructions.\n")
     data_model.cmd_data_set(serve.page_dir, "instructions", "Current instructions.\n")
     page = open_page(browser, url)
-    page.locator(
-        '[data-lf-margin-entry-owner="suggestion:change"]'
-        '[data-lf-margin-entry-key="accept"]:visible'
-    ).click()
+    suggestion_control(page, "change", "accept").click()
     round_trip(page)
     expect(page.locator("#change lf-old")).to_be_hidden()
     expect(page.locator("#change lf-new")).to_be_visible()
@@ -3822,9 +3821,7 @@ def test_a_revision_that_rewrites_a_draft_leaves_the_user_where_they_stand(
     ).replace("<pre>Ship it.</pre>", "<pre>Ship it on Friday.</pre>")
 
     page = open_page(browser, live_url(serve(first)))
-    page.locator(
-        '[data-lf-margin-entry-owner="draft:plan"][data-lf-margin-entry-key="edit"]:visible'
-    ).click()
+    draft_control(page, "edit", "plan").click()
     editor = page.locator("lf-draft textarea")
     expect(editor).to_be_focused()
     editor.fill("Ship it, but louder.")
@@ -4322,10 +4319,7 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
     page.keyboard.press("a")
     suggestion = page.locator("#sug-refill")
     expect(suggestion).to_have_attribute("data-lf-ask", "1")
-    accept = page.locator(
-        '[data-lf-margin-entry-owner="suggestion:sug-refill"]'
-        '[data-lf-margin-entry-key="accept"]:visible'
-    )
+    accept = suggestion_control(page, "sug-refill", "accept")
     accept.focus()
     # Tab inside the margin reaches the same suggestion's ✗ Reject, rendered from the
     # same contribution in the options group. The user is still deciding this change,
@@ -6271,10 +6265,7 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
     )
 
     unfolded_button(
-        page.locator(
-            '[data-lf-margin-entry-owner="suggestion:sug-refill"]'
-            '[data-lf-margin-entry-key="reject"]'
-        )
+        suggestion_control(page, "sug-refill", "reject", visible=False)
     ).click()
     expect(thread).to_have_class(re.compile(r"\bdetached\b"))
     assert painted(page, "lf-mark") == "", (
@@ -6351,19 +6342,24 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     browser, serve, tmp_path, monkeypatch
 ):
     """A settlement is the layer's rendering of the log's decision, never a module
-    obligation: the trial's module only defines the element and
-    supplies no renderState at all — and once its decision replays the holder wears
+    obligation: the trial's module is the product's starter, which only defines the
+    element — it never subscribes to its controller and supplies no renderState — and
+    once its decision replays the holder wears
     data-lf-state, the retired slot is marked and hidden by the theme's one generic
     rule, and the quote anchored in it detaches instead of pointing at words the
     page's reading has dropped. The mark and the hide used to be each holder
     module's own duty, stated in the module contract and the key table and enforced
     nowhere, and the first family that forgot would have split the page's reading
-    from the file's in silence. The second half drives it all back out: the fold
+    from the file's in silence. Later the layer painted them only through a
+    controller the module subscribed to, which left the same duty under another
+    name. The second half drives it all back out: the fold
     keeps the last surviving action per verb and unit, so a decision on an outcome
     that settles nothing displaces the one before it, and the mark, the marker and
     the hide follow it."""
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
+    module = (tmp_path / ".leaf" / "widgets" / "lf-trial.js").read_text()
+    assert "subscribe" not in module, "the holder's module must leave the mark to Leaf"
 
     url = serve(
         TWO_HOLDER_PAGE,
@@ -6418,6 +6414,51 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
         "the displaced decision's slot is back on the page, so its quote must "
         "anchor again"
     )
+
+
+def test_a_settled_holder_in_a_reply_joins_the_panel_wearing_its_mark(
+    browser, serve, tmp_path, monkeypatch
+):
+    """The same mark on a holder an agent sent in a reply. Its markup is frozen and
+    the thread mounts it after the projection has painted the page, so a paint that
+    looks the holder up in the document finds nothing and the reply opens with both
+    slots showing. The holder's node exists before either pass, so the mark is on it
+    when the thread places it."""
+    monkeypatch.chdir(tmp_path)
+    trial_family(tmp_path)
+    url = serve(REPLY_HOST_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-trial",
+            "author": "agent",
+            "revision": 1,
+            "text": "Should the cache warm lazily?",
+            "markup": (
+                '<lf-trial id="rq-cache">'
+                '<lf-current><p id="rq-now">Warm on deploy.</p></lf-current>'
+                '<lf-proposed><p id="rq-next">Warm on first request.</p></lf-proposed>'
+                "</lf-trial>"
+            ),
+        },
+    )
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "rq-cache",
+            "action": "decide",
+            "detail": {"outcome": "shelve"},
+        },
+    )
+    page = open_page(browser, url)
+    page.get_by_role("button", name="Threads (1)").click()
+    expect(page.locator("#rq-now")).to_be_visible()
+    expect(page.locator("#rq-cache")).to_have_attribute("data-lf-state", "shelve")
+    expect(page.locator("#rq-next")).to_be_hidden()
 
 
 def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
@@ -6700,10 +6741,7 @@ def test_a_decision_that_empties_its_widget_detaches_the_element_anchor(browser,
     )
 
     unfolded_button(
-        page.locator(
-            '[data-lf-margin-entry-owner="suggestion:sug-thistle"]'
-            '[data-lf-margin-entry-key="reject"]'
-        )
+        suggestion_control(page, "sug-thistle", "reject", visible=False)
     ).click()
     expect(thread).to_have_class(re.compile(r"\bdetached\b"))
     expect(page.locator("#sug-thistle.lf-mark-el")).to_have_count(0)
@@ -7178,10 +7216,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
     assert body.text_content() == "First line.\nSecond line."
     widget.locator(".lf-draft-body").click()
     widget.locator("textarea").fill("A user's exact words.\n")
-    page.locator(
-        '[data-lf-margin-entry-owner="draft:crossed-draft"]'
-        '[data-lf-margin-entry-key="save"]:visible'
-    ).click()
+    draft_control(page, "save", "crossed-draft").click()
     round_trip(page)
     assert body.text_content() == "A user's exact words.\n"
     undo(page)
@@ -8384,11 +8419,10 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     d = serve.page_dir
     page = open_page(browser, live_url(url))
     draft = page.locator("#ledger-cargo")
-    owner = '[data-lf-margin-entry-owner="draft:ledger-cargo"]'
-    page.locator(f'{owner}[data-lf-margin-entry-key="edit"]:visible').click()
+    draft_control(page, "edit", "ledger-cargo").click()
     provided = "ledger_id,amount\n7,42"
     draft.get_by_role("textbox", name="Edit ledger-cargo").fill(provided)
-    page.locator(f'{owner}[data-lf-margin-entry-key="save"]:visible').click()
+    draft_control(page, "save", "ledger-cargo").click()
     round_trip(page)
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/5")
     expect_banner_control_offered(page.locator(".lf-asks"))
@@ -8745,8 +8779,7 @@ def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve
     d = serve.page_dir
     page = open_page(browser, url)
     draft = page.locator("#ledger-cargo")
-    owner = '[data-lf-margin-entry-owner="draft:ledger-cargo"]'
-    page.locator(f'{owner}[data-lf-margin-entry-key="edit"]:visible').click()
+    draft_control(page, "edit", "ledger-cargo").click()
     editor = draft.get_by_role("textbox", name="Edit ledger-cargo")
     editor.fill(
         "ledger_id,customer_name,billing_email,amount\n7,Alice,a@example.test,42"
@@ -8760,7 +8793,7 @@ def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve
         "ledger_id,customer_name,billing_email,amount\n7,[redacted],[redacted],42"
     )
     with sending(page, "the saved edit"):
-        page.locator(f'{owner}[data-lf-margin-entry-key="save"]:visible').click()
+        draft_control(page, "save", "ledger-cargo").click()
 
     edit = next(
         event

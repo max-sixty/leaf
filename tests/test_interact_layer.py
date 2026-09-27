@@ -3565,19 +3565,12 @@ def test_package_init_starts_one_checked_upgraded_widget(
     assert (package_root / "theme.css").read_bytes() == b""
     module = (package_root / "widgets" / "lf-risk-note.js").read_text()
     assert module == (
-        'import { once, widgetController } from "/runtime/widget-api.js";\n\n'
+        'import { once } from "/runtime/widget-api.js";\n\n'
         "customElements.define(\n"
         '  "lf-risk-note",\n'
         "  class extends HTMLElement {\n"
-        "    #controller = widgetController(this);\n"
-        "    #stop = null;\n"
         "    connectedCallback() {\n"
-        "      once(this);\n"
-        "      this.#stop ??= this.#controller.subscribe(() => {});\n"
-        "    }\n"
-        "    disconnectedCallback() {\n"
-        "      this.#stop?.();\n"
-        "      this.#stop = null;\n"
+        "      if (!once(this)) return;\n"
         "    }\n"
         "  },\n"
         ");\n"

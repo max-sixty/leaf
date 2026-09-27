@@ -63,6 +63,7 @@ from render_harness import (
     select,
     sending,
     stamp_page,
+    suggestion_control,
     ticked,
     told,
     undo,
@@ -1224,8 +1225,8 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
         item.get_by_role("button", name=re.compile(f"^{outcome.title()} the ")).click()
         round_trip(page)
         expect(controls.locator(".lf-margin-receipt")).to_have_count(0)
-        page.locator(
-            f'[data-lf-margin-entry-owner="suggestion:{target}"][aria-label^="Undo "]'
+        suggestion_control(page, target, visible=False).and_(
+            page.locator('[aria-label^="Undo "]')
         ).click()
         round_trip(page)
         expect(

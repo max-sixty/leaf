@@ -1338,13 +1338,13 @@ def test_the_render_gate_requires_a_declared_threads_host(
     registry_path.write_text(json.dumps(registry, indent=2))
     module = package / "widgets" / "lf-callout.js"
     source = module.read_text()
-    runtime_import = 'import { once, widgetController } from "/runtime/widget-api.js";'
+    runtime_import = 'import { once } from "/runtime/widget-api.js";'
     assert source.count(runtime_import) == 1
     source = source.replace(
         runtime_import,
-        'import { threadBox, once, widgetController } from "/runtime/widget-api.js";',
+        'import { threadBox, once } from "/runtime/widget-api.js";',
     )
-    once = "      once(this);\n"
+    once = "      if (!once(this)) return;\n"
     placement = '      if (once(this)) this.append(threadBox(this, "Question"));\n'
     assert source.count(once) == 1
     source = source.replace(
@@ -4019,13 +4019,13 @@ def test_an_authored_project_widget_loads_through_the_real_layer(
     )
     module = widgets / "lf-callout.js"
     source = module.read_text()
-    runtime_import = 'import { once, widgetController } from "/runtime/widget-api.js";'
+    runtime_import = 'import { once } from "/runtime/widget-api.js";'
     assert source.count(runtime_import) == 1
     source = source.replace(
         runtime_import,
         runtime_import + '\nimport { label } from "./callout-label.js";',
     )
-    once = "      once(this);"
+    once = "      if (!once(this)) return;"
     assert source.count(once) == 1
     module.write_text(
         source.replace(once, "      if (once(this)) this.dataset.helper = label;")

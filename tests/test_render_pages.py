@@ -2819,7 +2819,8 @@ def test_a_sidebar_pages_track_is_its_aside_in_the_order_it_is_written(browser, 
     for first in (True, False):
         source = leaf_page(
             "a sidebar page",
-            "<header><h1>Review</h1></header>" + (track + body if first else body + track),
+            "<header><h1>Review</h1></header>"
+            + (track + body if first else body + track),
             layout="sidebar",
         )
         page = open_page(browser, serve(source))

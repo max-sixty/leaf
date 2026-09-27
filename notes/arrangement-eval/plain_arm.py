@@ -277,8 +277,10 @@ def patch_packages(skill: Path) -> None:
         ),
         (
             "monitoring/guidance/author.md",
-            'beside its `aside`, `<main class="layout-sidebar">` with the `aside` written'
-            " after the body.",
+            (
+                'beside its `aside`, `<main class="layout-sidebar">` with the `aside` written'
+                " after the body."
+            ),
             "beside a side track written after it.",
         ),
         (

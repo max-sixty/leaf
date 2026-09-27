@@ -7028,6 +7028,13 @@ def test_a_followed_link_arrives_as_a_fresh_load_of_it_does(browser, serve):
     followed = page.wait_for_function(shown, arg="tree-w-5").json_value()
     assert followed == landed, (followed, landed)
 
+    # Shut again and followed again: a press on a link to the fragment the page already
+    # shows is still a trip there.
+    page.locator("#parser-dedupe > strong").click()
+    expect(page.locator("#tree-w-5")).to_be_hidden()
+    link.click()
+    page.wait_for_function(shown, arg="tree-w-5")
+
     page.go_back()
     page.wait_for_function(
         "(at) => Math.abs(document.scrollingElement.scrollTop - at) <= 1",

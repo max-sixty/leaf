@@ -7,9 +7,8 @@ package under `dev/` (`dev/AGENTS.md`); what builds the committed browser bundle
 lives in `build/` (`build/AGENTS.md`).
 
 A script's output lands under `.tmp/` unless its reader finds it at a committed
-path: `examples/corpus.html` and its companions, the catalog
-pin in `example-previews.json`, and the demo frames the README and site cards draw.
-Evidence, previews, staged sites, and probe results leave the tracked tree unchanged.
+path, as `examples/corpus.html` and its companions are. Evidence, previews, and probe
+results leave the tracked tree unchanged.
 
 ## Examples and previews
 
@@ -17,16 +16,14 @@ Evidence, previews, staged sites, and probe results leave the tracked tree uncha
   with `--export`. `/developing-leaf` says when to pass `--user`.
 - `corpus.py` generates `examples/corpus.html` and its companions.
 - `keydocs.py` writes the `x-` key index in `docs/registry.html`.
-- `example_assets.py` fetches the pinned `max-sixty/leaf-assets` revision;
-  `example-previews.py`, run as `wt refresh-previews`, redraws and republishes it.
 
-## Website and demo
+## Website and Codex
 
-- `site.py` builds <https://leaf.page/> into `.tmp/site`.
-- `verify_site.py` verifies a release at an origin, or with `wrangler` the built
-  site through the local Worker and container, and prints the startup profile;
-  CI runs `wrangler` on pull requests. With `--agent`, or `local` for the Python
-  adapter alone, it runs the hosted-agent journey and emits one JSON sample.
+- `verify_site.py` verifies a release at an origin, or with `wrangler` the site
+  `leaf-dev site` built, through the local Worker and container, and prints the
+  startup profile; CI runs `wrangler` on pull requests. With `--agent`, or `local`
+  for the Python adapter alone, it runs the hosted-agent journey and emits one JSON
+  sample.
 - `deploy-site-dev.sh` deploys the checkout to the standing `leaf-website-dev`
   environment. Production deploys only through `.github/workflows/publish-site.yaml`.
 - `worker/README.md` owns hosted-agent diagnostics and the failure contract.
@@ -35,5 +32,3 @@ Evidence, previews, staged sites, and probe results leave the tracked tree uncha
   is idle, mid-turn, and after the adapter is killed, and fails when a comment is
   not answered exactly once or the page's claim does not name the task's last turn,
   closed. It spends the host's Codex login, so CI does not run it.
-- `record-demo.py` regenerates `docs/demo.gif`, the README stills, and
-  `docs/session-card.png`.

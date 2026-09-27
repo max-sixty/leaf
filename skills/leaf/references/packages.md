@@ -223,6 +223,7 @@ widget's role on the page:
 | `x-visual`           | `lf-chart` declares `whole`, `lf-diagram` in `diagram` `parts`  |
 | `x-bound`            | `lf-activity`                                                  |
 | `x-history`          | `lf-activity`                                                  |
+| `x-patch`            | `lf-tabs`                                                      |
 | `x-thread-surface`   | `lf-diff` in `diff`, `lf-visual-review` in `visual-review`     |
 
 A visual with generated part ids declares accepted `x-visual.prefixes` and calls

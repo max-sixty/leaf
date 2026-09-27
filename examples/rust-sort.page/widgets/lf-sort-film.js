@@ -99,9 +99,11 @@ customElements.define(
         if (!reducedMotion())
           this.#autoPlayTimer = setTimeout(() => {
             this.#autoPlayTimer = 0;
+            // Shown, not merely laid out: a film in a tab the user has not opened still
+            // has boxes, and playing there repaints the page for nobody.
             if (
               this.isConnected &&
-              this.getClientRects().length &&
+              this.checkVisibility() &&
               document.visibilityState === "visible"
             )
               this.#play();

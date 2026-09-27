@@ -706,7 +706,9 @@ export function neighbourhood(origin, fences, at, want, before) {
 // `class` is in the filter for one class. `.lf-ui` is what `uiInside` reads and the rest
 // are the runtime's paint — `lf-mark-el` and its neighbours go on and off the page's own
 // elements between anchor passes, and a walk apiece for a class the reading never looks
-// at is the whole cost this exists to avoid.
+// at is the whole cost this exists to avoid. `slot` and `name` are in it for slot
+// assignment, and `name` assigns only on a `<slot>`: the thread panel rewrites the
+// `name` of its `<details>` rows on every paint, which says nothing about any words.
 const READING_MARKERS = [
   "class",
   "data-lf-said",
@@ -724,6 +726,7 @@ const WATCH_READING = {
   attributeFilter: READING_MARKERS,
 };
 let reading = null;
+let elementReadings = new WeakMap();
 let readingVocabulary;
 let watcher = null;
 // Whether text standing directly under `over` is in the page's reading. The page's
@@ -758,11 +761,13 @@ const changesTheReading = (record) => {
     const was = /(^|\s)lf-ui(\s|$)/.test(record.oldValue ?? "");
     if (was === target.classList.contains("lf-ui")) return false;
   }
+  if (record.attributeName === "name" && target.localName !== "slot") return false;
   const wasSaid = record.attributeName === "data-lf-said" && record.oldValue !== null;
   return wasSaid || holdsSaid(target) || pageReads(target.parentNode);
 };
 const forgetReading = () => {
   reading = null;
+  elementReadings = new WeakMap();
 };
 function watchReading() {
   if (watcher) return watcher;
@@ -809,11 +814,27 @@ export function fencePassageParts(root) {
 // would be handed the reading from before its own edit. Draining the queue at the read asks
 // the observer what it has seen instead of waiting to be told.
 export function pageText() {
+  catchUpReading();
+  return (reading ??= readPage());
+}
+function catchUpReading() {
   const moved = watchReading().takeRecords().some(changesTheReading);
   const vocabulary = registry.$layer?.generation;
   if (moved || vocabulary !== readingVocabulary) forgetReading();
   readingVocabulary = vocabulary;
-  return (reading ??= readPage());
+}
+// A reading of one page element's words, kept exactly as long as the page reading: the
+// watcher above is what says either has moved. Margin rows, the Page Map and every
+// label ask the same elements for their words on every pass, and each walk asks every
+// text node under the element where it stands, which on a long page costs more than
+// the pass it serves. An element whose words the page does not read — chrome, a node
+// since detached — is outside what the watcher answers for, and is read afresh.
+export function elementReading(element, read) {
+  catchUpReading();
+  if (!element.isConnected || !pageReads(element)) return read(element);
+  let value = elementReadings.get(element);
+  if (value === undefined) elementReadings.set(element, (value = read(element)));
+  return value;
 }
 // The walk itself.
 function readPage() {

@@ -1,16 +1,16 @@
-#!/usr/bin/env python3
 """Time how fast an open Leaf page answers, for BASE_REF's runtime and HEAD's.
 
-    uv run scripts/bench_page_latency.py [BASE_REF]
+    uv run leaf-dev bench-latency [BASE_REF]
 
 BASE_REF defaults to the merge base of HEAD and `main`. Each arm is the plugin payload
-at its commit (`leaf_dev.harness.build_arm`), so commit what you want measured. Every
+at its commit (`leaf_dev.harness.build_pair`), so commit what you want measured. Every
 page is built from this checkout's example source by the arm's own launcher
 (`leaf_dev.harness.build_source`), and served by that arm's `leaf server run
 --temporary`, so the browser runtime and the server both come from the arm. Pages are
 `examples/triage-board.html` and the corpus (`examples/corpus.html`, opened on its
-Triage tab), in one headless Chrome (`launch_browser`) at 1440x900 with the Threads
-panel open. The two arms' pages stay open side by side and take turns within each run.
+Triage tab), in one headless Chrome (`leaf_dev.browser.chrome`) at
+`leaf_dev.browser.DESKTOP` with the Threads panel open. The two arms' pages stay open
+side by side and take turns within each run.
 
 Each of RUNS runs reloads the page and times five transitions against the objectives in
 `notes/user-feedback-responsiveness.md`:
@@ -35,9 +35,10 @@ frame after its animation-frame callbacks, from a task posted there, which runs 
 that frame's paint. A DOM change is therefore counted at the frame that paints it, not
 when it happens. The report flags a gesture painted after 100 ms, and a receipt or a
 write painted after 1 s; a receipt is timed from the input rather than from server
-acceptance, which makes its objective stricter than the note's. Page time is `performance.timeOrigin + performance.now()`; file time is
-the filesystem's modification stamp. Both read the machine's wall clock, which the
-script assumes is shared; it prints the page-to-Python offset it observed.
+acceptance, which makes its objective stricter than the note's. Page time is
+`performance.timeOrigin + performance.now()`; file time is the filesystem's
+modification stamp. Both read the machine's wall clock, which the command assumes is
+shared; it prints the page-to-Python offset it observed.
 
 Requests and bytes are the primary comparison; time is diagnostic. They count what the
 page did from the gesture or write until it is quiet (`lfReadiness` null, the traffic
@@ -48,12 +49,15 @@ with bytes as their `transferSize`.
 Limits: request bodies and the long-lived `api/news` stream carry no resource entry,
 so neither is counted; the frame sampler keeps Chrome producing frames while it waits;
 one headless browser on a shared machine measures load too, so read the spread and the
-printed load average before a median; the gestures skip the selection and grab that
-precede them. Results go to `.tmp/bench-page-latency/results.json`.
+printed load average (`leaf_dev.harness.load_average`) before a median; the gestures
+skip the selection and grab that precede them. Results go to
+`.tmp/bench-latency/results.json`.
+
+`leaf-dev profile` runs the same transitions on the same pages (`served`) under a
+profiler, to say where the time goes.
 """
 
 import json
-import os
 import statistics
 import subprocess
 import tempfile
@@ -65,23 +69,23 @@ from functools import partial
 from pathlib import Path
 
 import click
-from leaf.render_gate.browser import launch_browser
+from playwright.sync_api import Browser, Page
+from playwright.sync_api import Error as PlaywrightError
+
+from leaf_dev import ROOT
+from leaf_dev.browser import DESKTOP, chrome
 from leaf_dev.harness import (
-    build_arm,
+    build_pair,
     build_source,
     environment,
-    merge_base,
+    load_average,
     run_leaf,
     serving,
 )
-from playwright.sync_api import Browser, Page, sync_playwright
-from playwright.sync_api import Error as PlaywrightError
 
-ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / ".tmp" / "bench-page-latency"
+OUT = ROOT / ".tmp" / "bench-latency"
 RUNS = 5
 SOURCES = ("triage-board", "corpus")
-VIEWPORT = {"width": 1440, "height": 900}
 # How long a transition may take before the run records it as never shown.
 DEADLINE_S = 30
 # How long a page must stay quiet before its traffic for a transition is read.
@@ -182,7 +186,7 @@ PROBE = """
             } catch {}
             if (met) {
               goal.at = at;
-              // Where a trace of the page finds this frame (profile_page.py).
+              // Where a trace of the page finds this frame (`leaf-dev profile`).
               performance.mark(`lf-bench:${goal.name}`);
             } else open = true;
           }
@@ -323,7 +327,7 @@ class Session:
     url: str
     thread: str
     # What runs around a transition, from just before it starts until its first goal
-    # is painted: nothing here, a profiler in `profile_page.py`.
+    # is painted: nothing here, a profiler in `leaf-dev profile`.
     recording: Callable[[], AbstractContextManager] = nullcontext
 
     def command(self, *args: str) -> list[str]:
@@ -499,7 +503,9 @@ def served(browser: Browser, arm: str, arm_dir: Path, source: str, scratch: Path
         ).stdout
     )["id"]  # fmt: skip
     with serving(arm_dir, state, page_dir) as address:
-        context = browser.new_context(viewport=VIEWPORT)
+        context = browser.new_context(
+            viewport={"width": DESKTOP[0], "height": DESKTOP[1]}
+        )
         try:
             context.add_init_script(script=PROBE)
             page = context.new_page()
@@ -571,58 +577,53 @@ def report(results: list[dict], header: str) -> tuple[str, list[str]]:
 
 @click.command()
 @click.argument("base_ref", required=False)
-def main(base_ref: str | None) -> None:
-    """Time an open page's transitions, RUNS times, for BASE_REF's runtime and HEAD's."""
-    if base_ref is None:
-        base_ref = merge_base()
-    load_before = os.getloadavg()
+def bench_latency(base_ref: str | None) -> None:
+    """Time an open page's answers, base vs HEAD.
+
+    Times a page's answer to a gesture, an agent write, and a revision, on two
+    pages, taking turns between BASE_REF's runtime and HEAD's; BASE_REF defaults to
+    the merge base with main. Prints a table of median [min-max] milliseconds to the
+    painted frame, with the requests and bytes each caused, and each objective a
+    transition missed; every run lands in .tmp/bench-latency/.
+    """
+    load_before = load_average()
     results = []
     offsets = []
     with tempfile.TemporaryDirectory(prefix="leaf-bench-") as built:
         scratch = Path(built)
-        arms = {"base": scratch / "base", "head": scratch / "head"}
-        commits = {
-            "base": build_arm(base_ref, arms["base"]),
-            "head": build_arm("HEAD", arms["head"]),
-        }
-        with sync_playwright() as playwright:
-            browser, _ = launch_browser(playwright)
-            try:
-                for source in SOURCES:
-                    with ExitStack() as stack:
-                        sessions = [
-                            stack.enter_context(
-                                served(browser, arm, arm_dir, source, scratch)
-                            )
-                            for arm, arm_dir in arms.items()
-                        ]
-                        for run in range(RUNS):
-                            # Alternate which arm goes first, so neither always meets
-                            # the machine the other just loaded.
-                            for session in sessions[:: 1 if run % 2 == 0 else -1]:
-                                session.open()
-                                offsets.append(clock_offset(session.page))
-                                for transition in TRANSITIONS:
-                                    result = getattr(session, transition)(run)
-                                    results.append({**result, "run": run})
-                                    click.echo(
-                                        f"{source} {session.arm} run {run + 1} "
-                                        f"{transition}: {result['painted']:.0f} ms",
-                                        err=True,
-                                    )
-                chrome = browser.version
-            finally:
-                browser.close()
+        arms, commits = build_pair(base_ref, scratch)
+        with chrome() as browser:
+            for source in SOURCES:
+                with ExitStack() as stack:
+                    sessions = [
+                        stack.enter_context(
+                            served(browser, arm, arm_dir, source, scratch)
+                        )
+                        for arm, arm_dir in arms.items()
+                    ]
+                    for run in range(RUNS):
+                        # Alternate which arm goes first, so neither always meets
+                        # the machine the other just loaded.
+                        for session in sessions[:: 1 if run % 2 == 0 else -1]:
+                            session.open()
+                            offsets.append(clock_offset(session.page))
+                            for transition in TRANSITIONS:
+                                result = getattr(session, transition)(run)
+                                results.append({**result, "run": run})
+                                click.echo(
+                                    f"{source} {session.arm} run {run + 1} "
+                                    f"{transition}: {result['painted']:.0f} ms",
+                                    err=True,
+                                )
+            version = browser.version
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "results.json").write_text(
         json.dumps({"commits": commits, "results": results}, indent=1)
     )
-    load_after = os.getloadavg()
     header = (
         f"base {commits['base'][:10]} vs head {commits['head'][:10]}, {RUNS} runs, "
-        f"Chrome {chrome}, {VIEWPORT['width']}x{VIEWPORT['height']}\n"
-        f"load average {' '.join(f'{v:.1f}' for v in load_before)} before, "
-        f"{' '.join(f'{v:.1f}' for v in load_after)} after; page clock within "
+        f"Chrome {version}, {DESKTOP[0]}x{DESKTOP[1]}\n"
+        f"load average {load_before} before, {load_average()} after; page clock within "
         f"{max(abs(o) for o in offsets):.1f} ms of Python's\n"
         "times are median [min-max] from input or write to the painted frame"
     )
@@ -631,7 +632,3 @@ def main(base_ref: str | None) -> None:
     for miss in misses:
         click.echo(f"objective missed: {miss}")
     click.echo(f"details: {OUT / 'results.json'}")
-
-
-if __name__ == "__main__":
-    main()

@@ -1,8 +1,8 @@
-"""Per-call wall-clock spans of named functions, for `bench_render_check.py`.
+"""Per-call wall-clock spans of named functions, for `leaf-dev bench-check`.
 
-The benchmark puts this directory on a child's `PYTHONPATH`, so Python imports this
-file at startup inside whichever arm's environment the child runs, and the arm's own
-code is measured as it stands. It does nothing unless `LEAF_BENCH_TRACE` names an
+`leaf_dev.bench_check` puts this directory on a child's `PYTHONPATH`, so Python imports
+this file at startup inside whichever arm's environment the child runs, and the arm's
+own code is measured as it stands. It does nothing unless `LEAF_BENCH_TRACE` names an
 output file, and it removes that variable so a subprocess never writes over it.
 
 `LEAF_BENCH_FUNCTIONS` is a JSON object from `<path suffix>:<qualname>` to the names

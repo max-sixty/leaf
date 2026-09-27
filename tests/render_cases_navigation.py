@@ -11,6 +11,7 @@ from leaf import event_log as events_model
 from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf.registry.storage import read_page_registry
+from leaf.render_checks import rendered
 from leaf.schema import ELEMENT_ID
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -24,7 +25,6 @@ from render_harness import (
     LONG_PAGE,
     leaf_page,
     panel_settled,
-    rendered,
     told,
     write,
 )

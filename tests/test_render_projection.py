@@ -26,7 +26,7 @@ from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import structure as structure_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
 from leaf.schema import ELEMENT_ID
@@ -91,7 +91,6 @@ from render_harness import (
     EXAMPLE_MEDIA,
     EXAMPLE_PACKAGES,
     IMPORTER_CARD,
-    ONE_FRAME,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
     SPECIMEN_MARKUP,
@@ -113,7 +112,6 @@ from render_harness import (
     post_event,
     refuse,
     regions_side_by_side,
-    rendered,
     resized,
     root_overflow,
     round_trip,
@@ -7302,7 +7300,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
         page.locator("#delivery-now").click()
     assert newer.value.ok
     newer.value.finished()
-    page.evaluate(ONE_FRAME)
+    one_frame(page)
     assert page.locator("#crossed-draft").count() == 0
     held[0].continue_()
     page.unroute("**/widgets/lf-draft.js")

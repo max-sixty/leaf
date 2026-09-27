@@ -838,21 +838,12 @@ customElements.define("field-host", class extends HTMLElement {{
 
 def test_a_rendering_turn_is_polled_from_the_driver(browser, serve):
     """A stopped compositor cannot strand the gate inside page.evaluate."""
-    runtime = (render_checks_model.PROBE_ROOT / "runtime.js").read_text()
-    assert "export const framePresented" in runtime
 
     def stop_presenting_frames(page):
-        page.route(
-            "**/_leaf/render-checks/runtime.js",
-            lambda route: route.fulfill(
-                status=200,
-                content_type="text/javascript; charset=utf-8",
-                body=runtime.replace(
-                    "export const framePresented = (requested) => "
-                    "presentedFrame >= requested;",
-                    "export const framePresented = () => false;",
-                ),
-            ),
+        # Runs after the driver's own init script, so it replaces what that installed.
+        page.add_init_script(
+            "globalThis.__leafRenderDriver = Object.freeze({"
+            "...globalThis.__leafRenderDriver, framePresented: () => false });"
         )
 
     failures = render_gate_model.render_version(
@@ -862,8 +853,7 @@ def test_a_rendering_turn_is_polled_from_the_driver(browser, serve):
     ).failures
 
     assert failures
-    assert all("wait probe framePresented" in failure for failure in failures)
-    assert all("within 3000ms" in failure for failure in failures)
+    assert all("no rendering update arrived within 3000ms" in f for f in failures)
 
 
 def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve, monkeypatch):

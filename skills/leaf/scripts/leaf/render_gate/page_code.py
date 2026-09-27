@@ -24,7 +24,7 @@ or replay, and code that throws only after a gesture or a timer is not reached.
 from leaf.render_checks import (
     RENDER_VIEWPORT,
     PageNotReady,
-    evaluate_probe,
+    rendered,
     wait_for_probe,
     wait_until_ready,
 )
@@ -75,8 +75,7 @@ def run_page_code(browser, url: str) -> list[str]:
         wait_until_ready(page, served(page, url, "/api/state").json())
         # A widget that paints from a rendering callback throws there, not in its
         # upgrade; once the rendering has settled, every callback it queued has run.
-        wait_for_probe(page, "framePresented", evaluate_probe(page, "requestFrame"))
-        wait_for_probe(page, "renderingSettled")
+        rendered(page)
         # The report is posted asynchronously, and the route above answers it only
         # while this process is waiting on the page.
         wait_for_probe(page, "sendsAcked")

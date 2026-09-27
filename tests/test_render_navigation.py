@@ -6,6 +6,7 @@ import re
 import pytest
 from leaf import data as data_model
 from leaf import event_log as events_model
+from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASKS_PAGE,
@@ -82,7 +83,6 @@ from render_harness import (
     post_event,
     refuse,
     regions_side_by_side,
-    rendered,
     resized,
     round_trip,
     scroll_settled,

@@ -19,7 +19,7 @@ from leaf import schema as schema_model
 from leaf import structure as structure_model
 from leaf.passages import enclosing_ids, page_passages
 from leaf.registry import storage as registry_storage
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from PIL import Image, ImageChops, ImageStat
 from playwright.sync_api import expect
@@ -79,7 +79,6 @@ from render_harness import (
     page_registry,
     panel_settled,
     refuse,
-    rendered,
     resized,
     root_overflow,
     sending,

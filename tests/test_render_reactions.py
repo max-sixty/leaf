@@ -7,7 +7,7 @@ import pytest
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import thread as thread_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
@@ -33,7 +33,6 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_settled,
-    rendered,
     resized,
     round_trip,
     select,

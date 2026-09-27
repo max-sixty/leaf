@@ -17,6 +17,7 @@ from leaf import files as files_model
 from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
+from leaf.render_checks import rendered
 from leaf.schema import ELEMENT_ID
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -75,7 +76,6 @@ from render_harness import (
     open_versions,
     panel_settled,
     post_event,
-    rendered,
     resized,
     round_trip,
     scroll_settled,

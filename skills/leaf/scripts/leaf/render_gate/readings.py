@@ -21,7 +21,7 @@ from leaf.projection import (
     rewritten_bodies,
 )
 from leaf.registry.state import retirement_slots
-from leaf.render_checks import evaluate_probe, wait_for_probe
+from leaf.render_checks import evaluate_probe, one_frame, rendered
 from leaf.structure import SourceDocument
 
 # A probe's arguments cross as JSON, so a node only CDP can name is handed to the
@@ -342,11 +342,8 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         relative = evaluate_probe(page, "relativeReplays")
     # The replay above can resize what an observer watches. Chrome
     # delivers that notice in the next rendering turn, so closing on the write
-    # would call an attempt complete before its last error channel had spoken. Ask
-    # synchronously and poll the presented-frame fact from the driver: a compositor
-    # that never draws cannot strand page.evaluate on its unresolved Promise.
-    requested_frame = evaluate_probe(page, "requestFrame")
-    wait_for_probe(page, "framePresented", requested_frame)
+    # would call an attempt complete before its last error channel had spoken.
+    one_frame(page)
     found = [f"[{scheme}] console: {e}" for e in errors]
     for failure in failsoft:
         owner = f"<{failure['tag']}" + (
@@ -452,11 +449,9 @@ MARGIN_READING = (
 
 def _settle_at(page, width: int, height: int) -> None:
     page.set_viewport_size({"width": width, "height": height})
-    # One rendering turn for the resize to be heard, then the runtime's settled reading,
-    # so what it set moving in script (an observer, the layout that observer's write
-    # causes, and whatever that chains into) has run and been laid out.
-    wait_for_probe(page, "framePresented", evaluate_probe(page, "requestFrame"))
-    wait_for_probe(page, "renderingSettled")
+    # What the resize set moving in script (an observer, the layout that observer's
+    # write causes, and whatever that chains into) has run and been laid out.
+    rendered(page)
 
 
 def sweep(page, viewports) -> list[tuple[int, dict]]:

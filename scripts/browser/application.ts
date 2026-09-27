@@ -875,11 +875,6 @@ export function createSemanticApplication({
       publish({ data: structuredClone(data) });
       return true;
     },
-    // When the server took the newest data reading accepted, whether or not it changed
-    // the data. Order is not semantic content, so it stays out of the publication.
-    dataTaken() {
-      return dataTaken;
-    },
     // Whether this answer could be adopted with `revision` showing, asked without
     // adopting it. A live activation patches the document before it adopts, and a patch
     // is not something to undo, so the candidate is judged before the user's page is

@@ -27,7 +27,7 @@ import {
   word,
 } from "./bindings.js";
 import { deepFocus } from "../focus.js";
-import { upFrom } from "../shadow.js";
+import { shadowHost, upFrom } from "../shadow.js";
 import { repaint } from "../repaint.js";
 
 // The scopes still owed a first paint. A declaration joins here and `reflectShortcuts`
@@ -463,8 +463,8 @@ export const focused = () => {
 // the same path and no painted surface invents its own exception.
 export const documentFocused = () => {
   let held = focused();
-  for (let root = held?.getRootNode(); root?.host; root = held.getRootNode())
-    held = root.host;
+  for (let host = shadowHost(held?.getRootNode()); host; host = shadowHost(held.getRootNode()))
+    held = host;
   return held;
 };
 export const recoveredLabelFocus = (event) => recoveredLabelKeys.get(event);

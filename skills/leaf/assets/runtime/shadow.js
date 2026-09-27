@@ -21,6 +21,9 @@ export const shadowRootsIn = (root) =>
     .map((host) => host.shadowRoot)
     .filter(Boolean);
 export const pageShadowRoots = () => shadowRootsIn(document);
+// A document may expose a `host` value of its own; only a ShadowRoot's host is
+// a node in the composed tree.
+export const shadowHost = (root) => root instanceof ShadowRoot ? root.host : null;
 // The parent, crossing a shadow root's boundary on the way up: the ordinary parent within
 // a tree, and the host where a tree runs out. It is the one walk every reading that
 // climbs out of a widget takes. Every question the runtime asks about where a node sits —
@@ -28,7 +31,7 @@ export const pageShadowRoots = () => shadowRootsIn(document);
 // page, and a climb that stops at a shadow root answers about the widget's own markup
 // instead.
 export const upFrom = (node) =>
-  node?.parentElement ?? node?.getRootNode()?.host ?? null;
+  node?.parentElement ?? shadowHost(node?.getRootNode()) ?? null;
 // The same step through the tree as rendered: a node slotted into a shadow tree renders
 // inside its slot, so the slot is where it is scrolled and ordered, not its light parent.
 export const renderedParent = (node) => node?.assignedSlot ?? upFrom(node);
@@ -55,7 +58,7 @@ export const under = (node, root) => {
 // questions, which the platform answers only within one tree, are asked of this.
 export const hostIn = (node, root) => {
   let at = node;
-  while (at && at.getRootNode() !== root) at = at.getRootNode().host ?? null;
+  while (at && at.getRootNode() !== root) at = shadowHost(at.getRootNode());
   return at;
 };
 

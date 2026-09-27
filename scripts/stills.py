@@ -27,8 +27,8 @@ A state changed when any pixel differs: two arms with the same runtime capture e
 state here identically, pixel for pixel. What counts as a difference, and how changed
 pixels gather into regions, is `lf-shot`'s rule (`runtime/image-difference.js`), which
 this script loads into its browser. For each changed state the report crops both
-stills to the union of the regions, with a margin, and outlines each region over the
-candidate, a faint one paler. Everything lands in `.tmp/stills/`: `index.html` shows
+stills to the union of its strong regions (of every region when all are slight), with a
+margin, and outlines each region over the candidate, a slight one paler. Everything lands in `.tmp/stills/`: `index.html` shows
 the changed states first, and each state's directory holds `base.png`, `head.png`,
 and for a change `base-crop.png`, `head-crop.png` and `diff.png`. The crops are ready
 to hand off as an `lf-shot` pair, which outlines the same regions itself.
@@ -245,28 +245,24 @@ def compare(
         return result
     base = Image.open(folder / "base.png").convert("RGB")
     head = Image.open(folder / "head.png").convert("RGB")
-    regions = [
-        (r["x"], r["y"], r["x"] + r["width"], r["y"] + r["height"])
-        for r in difference["regions"]
-    ]
+    regions = difference["regions"]
+    cropped = [r for r in regions if not r["slight"]] or regions
     box = (
-        max(min(r[0] for r in regions) - CROP_MARGIN, 0),
-        max(min(r[1] for r in regions) - CROP_MARGIN, 0),
-        min(max(r[2] for r in regions) + CROP_MARGIN, head.width),
-        min(max(r[3] for r in regions) + CROP_MARGIN, head.height),
+        max(min(r["x"] for r in cropped) - CROP_MARGIN, 0),
+        max(min(r["y"] for r in cropped) - CROP_MARGIN, 0),
+        min(max(r["x"] + r["width"] for r in cropped) + CROP_MARGIN, head.width),
+        min(max(r["y"] + r["height"] for r in cropped) + CROP_MARGIN, head.height),
     )
     result.changed, result.box = difference["changed"], box
     base.crop(box).save(folder / "base-crop.png")
     head.crop(box).save(folder / "head-crop.png")
     faded = Image.blend(head, Image.new("RGB", head.size, "white"), 0.6)
     draw = ImageDraw.Draw(faded)
-    # A faint region, one no reader could see change, is outlined in a paler red.
-    for (left, top, right, bottom), region in zip(
-        regions, difference["regions"], strict=True
-    ):
-        colour = (240, 150, 150) if region["faint"] else (220, 0, 0)
+    for r in regions:
         draw.rectangle(
-            (left - 3, top - 3, right + 2, bottom + 2), outline=colour, width=2
+            (r["x"] - 3, r["y"] - 3, r["x"] + r["width"] + 2, r["y"] + r["height"] + 2),
+            outline=(240, 150, 150) if r["slight"] else (220, 0, 0),
+            width=2,
         )
     faded.crop(box).save(folder / "diff.png")
     return result

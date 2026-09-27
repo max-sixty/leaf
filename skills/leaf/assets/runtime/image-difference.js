@@ -2,71 +2,71 @@
  *
  * A pixel differs when any of its channels differs, alpha included, so two captures of
  * one runtime at one viewport compare equal and a redrawn pixel never does. Where the
- * sizes differ, a pixel only one image has differs. There is no tolerance: a pair is
- * screenshots, and a screenshot that changed by one level in one channel was redrawn.
+ * sizes differ, a pixel only one image has differs.
  *
- * A region is faint when no pixel in it moved by FAINT levels in any channel. That is
- * a change a reader can look straight at and not see: a shadow edge redrawn, a
- * contrast or palette shift, lossy encoding. Content that appears, moves or changes
- * colour moves some pixel by far more. Measured on a thread card pair: its shadow
- * edges moved by at most 20 levels, a whole-image contrast change by 17, palette
- * quantization by 35, and the card that grew by 227.
+ * How far a pixel moved separates two kinds of change. Content that appears, moves or
+ * changes colour moves some pixel far. A redrawn shadow edge, a contrast or palette
+ * shift, or lossy encoding moves many pixels a little, and can spread over the whole
+ * image. Measured on a thread card pair: its shadow edges moved at most 20 levels in
+ * any channel, an 8% contrast change 17, palette quantization 35, and the card that
+ * grew 227. A region is slight when none of its pixels moved SLIGHT levels. A slight
+ * change can still be one a reader sees, such as text from #333 to #555, so slight
+ * says how far pixels moved, not whether anyone notices.
  *
  * Changed pixels gather into regions, so a reader sees where the change is rather than
- * a speckle of pixels. The images are cut into CELL-pixel squares; changed squares
- * within REACH squares of one another join, so an edited line or a restyled control
- * reads as one region while two changes a card apart stay two, and a faint region is
- * one made only of faint squares. A region is the exact
- * bounding box of its changed pixels, in the images' own pixels, and regions come in
- * reading order.
+ * a speckle of pixels. The images are cut into CELL-pixel squares, and a square is
+ * slight when its pixels are. Squares within REACH squares of one another join, so an
+ * edited line or a restyled control reads as one region while two changes a card apart
+ * stay two, with one exception that keeps the two kinds apart: a slight square joins a
+ * strong one only as its edge, never through a chain of slight squares, or a speckle
+ * of encoding noise would merge every real change into one region the size of the
+ * frame. A region is the exact bounding box of its changed pixels, in the images' own
+ * pixels, and regions come in reading order. A slight region inside another region's
+ * box is left out; a strong region never is, since a box says nothing about what inside
+ * it changed.
  *
  * A before/after widget outlines the regions over both frames of its pair, and
- * `scripts/stills.py` loads this module into its browser on its own and crops a changed
- * state to their union, so the module imports nothing and touches no document. */
+ * `scripts/stills.py` loads this module into its browser on its own and crops a
+ * changed state to its strong regions, so the module imports nothing and touches no
+ * document. */
 
 const CELL = 8;
 const REACH = 3;
-const FAINT = 48;
-// A region this much of the frame's width and height is a change to the whole image.
-const THROUGHOUT = 0.9;
+const SLIGHT = 48;
+// A region whose squares cover this share of the image is a change throughout it.
+const THROUGHOUT = 0.5;
 
-/* The regions where `a` and `b` differ, each `{x, y, width, height, faint}`, and
- * `changed`, the number of differing pixels. `a` and `b` are ImageData, or `width`, `height`, and
- * RGBA bytes in a `data` array of their own, which each pixel is read from as one
- * 32-bit word. */
+/* The regions where `a` and `b` differ, each `{x, y, width, height, slight,
+ * throughout}`, and `changed`, the number of differing pixels. `a` and `b` are
+ * ImageData, or `width`, `height`, and RGBA bytes in a `data` array of their own, which
+ * each pixel is read from as one 32-bit word. */
 export function differingRegions(a, b) {
   const width = Math.max(a.width, b.width);
   const height = Math.max(a.height, b.height);
   const columns = Math.ceil(width / CELL);
   const rows = Math.ceil(height / CELL);
-  // Per cell, the bounding box of its changed pixels; a cell with none keeps -1.
+  // Per square, the bounding box of its changed pixels; a square with none keeps -1.
   const boxes = new Int32Array(columns * rows * 4).fill(-1);
-  // Per cell, the largest difference in any one channel of its changed pixels.
-  const strengths = new Uint8Array(columns * rows);
+  // Per square, the farthest any of its pixels moved in one channel.
+  const moved = new Uint8Array(columns * rows);
   let changed = 0;
   const one = new Uint32Array(a.data.buffer, a.data.byteOffset, a.width * a.height);
   const other = new Uint32Array(b.data.buffer, b.data.byteOffset, b.width * b.height);
   for (let y = 0; y < height; y += 1) {
-    const inA = y < a.height;
-    const inB = y < b.height;
+    const inBoth = y < a.height && y < b.height;
     const row = Math.floor(y / CELL) * columns;
     for (let x = 0; x < width; x += 1) {
-      if (
-        inA &&
-        inB &&
-        x < a.width &&
-        x < b.width &&
-        one[y * a.width + x] === other[y * b.width + x]
-      )
-        continue;
+      const shared = inBoth && x < a.width && x < b.width;
+      if (shared && one[y * a.width + x] === other[y * b.width + x]) continue;
       changed += 1;
       const cell = row + Math.floor(x / CELL);
-      const at = cell * 4;
-      const strength =
-        inA && inB && x < a.width && x < b.width
+      if (moved[cell] < SLIGHT) {
+        const distance = shared
           ? largest(a.data, (y * a.width + x) * 4, b.data, (y * b.width + x) * 4)
           : 255;
-      if (strength > strengths[cell]) strengths[cell] = strength;
+        if (distance > moved[cell]) moved[cell] = distance;
+      }
+      const at = cell * 4;
       if (boxes[at] < 0) {
         boxes[at] = boxes[at + 2] = x;
         boxes[at + 1] = y;
@@ -76,96 +76,105 @@ export function differingRegions(a, b) {
     }
   }
 
-  // Strong cells, those with a pixel that moved FAINT levels, join one another first.
-  // A faint cell near a strong one then joins that change, as the anti-aliased edge or
-  // shadow around it; the faint cells left join one another. Faint cells never join
-  // across the page to a strong one, or a speckle of encoding noise would merge every
-  // real change into one region the size of the frame.
   const parent = new Int32Array(columns * rows).map((_, cell) => cell);
   const root = (cell) => {
     while (parent[cell] !== cell) cell = parent[cell] = parent[parent[cell]];
     return cell;
   };
-  const changedCell = (cell) => boxes[cell * 4] >= 0;
-  const strong = (cell) => strengths[cell] >= FAINT;
-  const near = (cell) => {
+  const join = (cell, near) => {
+    const [from, to] = [root(cell), root(near)];
+    if (from !== to) parent[to] = from;
+  };
+  const changedAt = (cell) => boxes[cell * 4] >= 0;
+  const strong = (cell) => moved[cell] >= SLIGHT;
+  // Calls `visit` with each changed square within REACH of `cell`, only those after
+  // it in reading order when `later`, which is all a symmetric join needs, and stops
+  // at the first for which it returns true.
+  const around = (cell, later, visit) => {
     const row = Math.floor(cell / columns);
     const column = cell % columns;
-    const cells = [];
-    for (let r = Math.max(0, row - REACH); r <= Math.min(rows - 1, row + REACH); r += 1)
-      for (
-        let c = Math.max(0, column - REACH);
-        c <= Math.min(columns - 1, column + REACH);
-        c += 1
-      ) {
-        const other = r * columns + c;
-        if (other !== cell && changedCell(other)) cells.push(other);
+    const [left, right] = [
+      Math.max(0, column - REACH),
+      Math.min(columns - 1, column + REACH),
+    ];
+    for (
+      let r = later ? row : Math.max(0, row - REACH);
+      r <= Math.min(rows - 1, row + REACH);
+      r += 1
+    )
+      for (let c = left; c <= right; c += 1) {
+        const near = r * columns + c;
+        if (near === cell || (later && near < cell) || !changedAt(near)) continue;
+        if (visit(near)) return;
       }
-    return cells;
-  };
-  const join = (cell, other) => {
-    const [from, to] = [root(cell), root(other)];
-    if (from !== to) parent[to] = from;
   };
   const cells = [];
   for (let cell = 0; cell < columns * rows; cell += 1)
-    if (changedCell(cell)) cells.push(cell);
-  const [strongCells, faintCells] = [
-    cells.filter(strong),
-    cells.filter((c) => !strong(c)),
-  ];
-  for (const cell of strongCells)
-    for (const other of near(cell)) if (strong(other)) join(cell, other);
-  const edges = new Set();
-  for (const cell of faintCells) {
-    const beside = near(cell).find(strong);
-    if (beside === undefined) continue;
-    parent[cell] = root(beside);
-    edges.add(cell);
-  }
-  for (const cell of faintCells)
-    if (!edges.has(cell))
-      for (const other of near(cell))
-        if (!strong(other) && !edges.has(other)) join(cell, other);
+    if (changedAt(cell)) cells.push(cell);
+  for (const cell of cells)
+    if (strong(cell)) around(cell, true, (near) => strong(near) && join(cell, near));
+  const edges = new Uint8Array(columns * rows);
+  for (const cell of cells)
+    if (!strong(cell))
+      around(cell, false, (near) => {
+        if (!strong(near)) return false;
+        parent[cell] = root(near);
+        edges[cell] = 1;
+        return true;
+      });
+  for (const cell of cells)
+    if (!strong(cell) && !edges[cell])
+      around(cell, true, (near) => !strong(near) && !edges[near] && join(cell, near));
 
+  // [left, top, right, bottom, farthest moved, squares]
   const groups = new Map();
   for (const cell of cells) {
     const [left, top, right, bottom] = boxes.subarray(cell * 4, cell * 4 + 4);
     const group = root(cell);
     const box = groups.get(group);
-    if (!box) groups.set(group, [left, top, right, bottom, strengths[cell]]);
+    if (!box) groups.set(group, [left, top, right, bottom, moved[cell], 1]);
     else {
       box[0] = Math.min(box[0], left);
       box[1] = Math.min(box[1], top);
       box[2] = Math.max(box[2], right);
       box[3] = Math.max(box[3], bottom);
-      box[4] = Math.max(box[4], strengths[cell]);
+      box[4] = Math.max(box[4], moved[cell]);
+      box[5] += 1;
     }
   }
-  const regions = [...groups.values()]
-    .map(([left, top, right, bottom, strength]) => ({
+  const regions = [...groups.values()].map(
+    ([left, top, right, bottom, farthest, squares]) => ({
       x: left,
       y: top,
       width: right - left + 1,
       height: bottom - top + 1,
-      faint: strength < FAINT,
-    }))
-    .sort((one, other) => one.y - other.y || one.x - other.x);
-  // A region inside another of its kind adds nothing to where the change is.
-  const inside = (region, other) =>
-    other !== region &&
-    other.faint === region.faint &&
-    other.x <= region.x &&
-    other.y <= region.y &&
-    other.x + other.width >= region.x + region.width &&
-    other.y + other.height >= region.y + region.height;
+      slight: farthest < SLIGHT,
+      throughout: squares >= THROUGHOUT * columns * rows,
+    }),
+  );
+  // Larger boxes first, so a slight region only ever looks at the boxes that could
+  // hold it, and a page of equal specks compares none of them.
+  const area = (region) => region.width * region.height;
+  const bySize = [...regions].sort((one, other) => area(other) - area(one));
+  const holds = (outer, inner) =>
+    outer.x <= inner.x &&
+    outer.y <= inner.y &&
+    outer.x + outer.width >= inner.x + inner.width &&
+    outer.y + outer.height >= inner.y + inner.height;
+  const held = (region) => {
+    for (const outer of bySize) {
+      if (area(outer) <= area(region)) return false;
+      if (holds(outer, region)) return true;
+    }
+    return false;
+  };
   return {
     width,
     height,
     changed,
-    regions: regions.filter(
-      (region) => !regions.some((other) => inside(region, other)),
-    ),
+    regions: regions
+      .filter((region) => !region.slight || !held(region))
+      .sort((one, other) => one.y - other.y || one.x - other.x),
   };
 }
 
@@ -177,24 +186,22 @@ const largest = (one, i, other, j) =>
     Math.abs(one[i + 3] - other[j + 3]),
   );
 
-/* The reading in a few words: "identical", or the changes a reader can see and then
- * the faint ones, each counted or said to run throughout the image: "2 changed
- * areas", "changed throughout", "1 changed area, 3 faint", "faint changes
+/* The reading in a few words: "identical", or the strong changes and then the slight
+ * ones, each counted or said to run throughout the image: "2 changed areas",
+ * "changed throughout", "1 changed area, 3 slight changes", "slight changes
  * throughout". */
-export function describeDifference({ width, height, regions }) {
+export function describeDifference({ regions }) {
   if (!regions.length) return "identical";
-  const whole = (region) =>
-    region.width >= THROUGHOUT * width && region.height >= THROUGHOUT * height;
-  const seen = regions.filter((region) => !region.faint);
-  const faint = regions.filter((region) => region.faint);
-  if (seen.some(whole)) return "changed throughout";
-  const areas = (count) => `${count} changed ${count === 1 ? "area" : "areas"}`;
-  if (!faint.length) return areas(seen.length);
-  if (!seen.length)
-    return faint.some(whole)
-      ? "faint changes throughout"
-      : `${faint.length} faint ${faint.length === 1 ? "change" : "changes"}`;
-  return `${areas(seen.length)}, ${faint.some(whole) ? "faint throughout" : `${faint.length} faint`}`;
+  const strong = regions.filter((region) => !region.slight);
+  const slight = regions.filter((region) => region.slight);
+  if (strong.some((region) => region.throughout)) return "changed throughout";
+  const count = (n, noun) => `${n} ${noun}${n === 1 ? "" : "s"}`;
+  const slightly = slight.some((region) => region.throughout)
+    ? "slight changes throughout"
+    : count(slight.length, "slight change");
+  if (!slight.length) return count(strong.length, "changed area");
+  if (!strong.length) return slightly;
+  return `${count(strong.length, "changed area")}, ${slightly}`;
 }
 
 /* `differingRegions` for two decoded images: HTMLImageElements, ImageBitmaps, or any

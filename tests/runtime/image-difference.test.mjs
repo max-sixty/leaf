@@ -21,7 +21,7 @@ const painted = (image, ...rects) => {
         copy.data[(row * image.width + column) * 4 + channel] = value;
   return copy;
 };
-const faint = (region) => ({ ...region, faint: true });
+const slight = (region) => ({ ...region, slight: true, throughout: false });
 
 test("identical images differ nowhere", () => {
   const image = blank(64, 48);
@@ -41,14 +41,14 @@ test("one level in any one channel, alpha included, is a difference", () => {
       painted(image, [5, 6, 1, 1, channel]),
     );
     assert.equal(changed, 1);
-    assert.deepEqual(regions, [faint({ x: 5, y: 6, width: 1, height: 1 })]);
+    assert.deepEqual(regions, [slight({ x: 5, y: 6, width: 1, height: 1 })]);
   }
 });
 
 test("a region is the exact box of its pixels, not of its cells", () => {
   const image = blank(100, 100);
   const { regions } = differingRegions(image, painted(image, [13, 21, 5, 3]));
-  assert.deepEqual(regions, [faint({ x: 13, y: 21, width: 5, height: 3 })]);
+  assert.deepEqual(regions, [slight({ x: 13, y: 21, width: 5, height: 3 })]);
 });
 
 test("changes close together read as one region, far apart as two", () => {
@@ -60,8 +60,8 @@ test("changes close together read as one region, far apart as two", () => {
   );
   assert.equal(changed, 30 * 10 + 40 * 8 + 40 * 20);
   assert.deepEqual(regions, [
-    faint({ x: 20, y: 20, width: 76, height: 10 }),
-    faint({ x: 350, y: 270, width: 40, height: 20 }),
+    slight({ x: 20, y: 20, width: 76, height: 10 }),
+    slight({ x: 350, y: 270, width: 40, height: 20 }),
   ]);
 });
 
@@ -71,33 +71,35 @@ test("a change that wraps across a diagonal still joins", () => {
     image,
     painted(image, [100, 10, 4, 4], [80, 22, 4, 4]),
   );
-  assert.deepEqual(regions, [faint({ x: 80, y: 10, width: 24, height: 16 })]);
+  assert.deepEqual(regions, [slight({ x: 80, y: 10, width: 24, height: 16 })]);
 });
 
 test("rows only the taller image has are a difference", () => {
-  const short = blank(20, 10);
-  const tall = blank(20, 16);
+  const short = blank(64, 40);
+  const tall = blank(64, 48);
   const { changed, regions, height } = differingRegions(short, tall);
-  assert.equal(height, 16);
-  assert.equal(changed, 20 * 6);
-  assert.deepEqual(regions, [{ x: 0, y: 10, width: 20, height: 6, faint: false }]);
+  assert.equal(height, 48);
+  assert.equal(changed, 64 * 8);
+  assert.deepEqual(regions, [
+    { x: 0, y: 40, width: 64, height: 8, slight: false, throughout: false },
+  ]);
 });
 
-test("a region is faint until some pixel in it moves 48 levels", () => {
+test("a region is slight until some pixel in it moves 48 levels", () => {
   const image = blank(200, 100);
   const { regions } = differingRegions(
     image,
     painted(image, [10, 10, 20, 20, 1, 255 - 47], [150, 60, 20, 20, 1, 255 - 48]),
   );
   assert.deepEqual(
-    regions.map((region) => region.faint),
+    regions.map((region) => region.slight),
     [true, false],
   );
 });
 
-test("faint noise stays apart from a real change, except at its edge", () => {
+test("slight noise stays apart from a strong change, except at its edge", () => {
   const image = blank(400, 200);
-  // A strong block with a faint rim beside it, and faint speckle across the page
+  // A strong block with a slight rim beside it, and slight speckle across the page
   // that would otherwise chain everything into one region.
   const rects = [
     [200, 80, 40, 40, 1, 0],
@@ -106,43 +108,78 @@ test("faint noise stays apart from a real change, except at its edge", () => {
   for (let x = 0; x < 400; x += 16) rects.push([x, 10, 2, 2, 1, 250]);
   for (let y = 10; y < 200; y += 16) rects.push([0, y, 2, 2, 1, 250]);
   const { regions } = differingRegions(image, painted(image, ...rects));
-  const strong = regions.filter((region) => !region.faint);
-  assert.deepEqual(strong, [{ x: 200, y: 80, width: 46, height: 40, faint: false }]);
-  assert.ok(regions.some((region) => region.faint));
+  const strong = regions.filter((region) => !region.slight);
+  assert.deepEqual(strong, [
+    { x: 200, y: 80, width: 46, height: 40, slight: false, throughout: false },
+  ]);
+  assert.ok(regions.some((region) => region.slight));
 });
 
-test("a region inside another of its kind is left out", () => {
+test("a slight region inside another's box is left out, a strong one never", () => {
   const image = blank(200, 200);
-  // A faint ring, and a faint dot at its centre too far from it to join.
-  const rects = [
-    [10, 10, 180, 2, 1, 250],
-    [10, 188, 180, 2, 1, 250],
-    [10, 10, 2, 180, 1, 250],
-    [188, 10, 2, 180, 1, 250],
-    [100, 100, 2, 2, 1, 250],
+  // A ring, a dot at its centre too far from it to join, and a strong mark there too.
+  const ring = (value) => [
+    [10, 10, 180, 2, 1, value],
+    [10, 188, 180, 2, 1, value],
+    [10, 10, 2, 180, 1, value],
+    [188, 10, 2, 180, 1, value],
   ];
-  const { regions } = differingRegions(image, painted(image, ...rects));
-  assert.deepEqual(regions, [faint({ x: 10, y: 10, width: 180, height: 180 })]);
+  const inside = [
+    [60, 100, 2, 2, 1, 250],
+    [130, 100, 4, 4, 1, 0],
+  ];
+  const slightRing = differingRegions(image, painted(image, ...ring(250), ...inside));
+  assert.deepEqual(
+    slightRing.regions.map(({ x, y, slight }) => [x, y, slight]),
+    [
+      [10, 10, true],
+      [130, 100, false],
+    ],
+  );
+  const strongRing = differingRegions(image, painted(image, ...ring(0), ...inside));
+  assert.deepEqual(
+    strongRing.regions.map(({ x, y, slight }) => [x, y, slight]),
+    [
+      [10, 10, false],
+      [130, 100, false],
+    ],
+  );
 });
 
-test("the description counts what a reader can see, then the faint changes", () => {
-  const reading = (...regions) => ({ width: 100, height: 100, regions });
-  const area = (faint, width = 10) => ({ x: 0, y: 0, width, height: width, faint });
+test("a region over half the image's squares is a change throughout", () => {
+  const image = blank(160, 160);
+  const most = differingRegions(image, painted(image, [0, 0, 160, 90, 1, 250]));
+  const ring = differingRegions(
+    image,
+    painted(image, [0, 0, 160, 8, 1, 0], [0, 152, 160, 8, 1, 0], [0, 0, 8, 160, 1, 0]),
+  );
+  assert.deepEqual(
+    [most, ring].map(({ regions }) => regions.map((region) => region.throughout)),
+    [[true], [false]],
+  );
+});
+
+test("the description counts the strong changes, then the slight ones", () => {
+  const reading = (...regions) => ({ regions });
+  const area = (slight, throughout = false) => ({ slight, throughout });
   assert.equal(describeDifference(reading()), "identical");
   assert.equal(describeDifference(reading(area(false))), "1 changed area");
-  assert.equal(describeDifference(reading(area(true))), "1 faint change");
-  assert.equal(describeDifference(reading(area(true), area(true))), "2 faint changes");
+  assert.equal(describeDifference(reading(area(true))), "1 slight change");
+  assert.equal(describeDifference(reading(area(true), area(true))), "2 slight changes");
   assert.equal(
     describeDifference(reading(area(false), area(true), area(true))),
-    "1 changed area, 2 faint",
-  );
-  assert.equal(describeDifference(reading(area(true, 95))), "faint changes throughout");
-  assert.equal(
-    describeDifference(reading(area(false), area(false), area(true, 95))),
-    "2 changed areas, faint throughout",
+    "1 changed area, 2 slight changes",
   );
   assert.equal(
-    describeDifference(reading(area(false, 95), area(true))),
+    describeDifference(reading(area(true, true))),
+    "slight changes throughout",
+  );
+  assert.equal(
+    describeDifference(reading(area(false), area(false), area(true, true))),
+    "2 changed areas, slight changes throughout",
+  );
+  assert.equal(
+    describeDifference(reading(area(false, true), area(true))),
     "changed throughout",
   );
 });

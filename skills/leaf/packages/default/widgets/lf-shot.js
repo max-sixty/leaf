@@ -12,10 +12,10 @@
  *
  * Once the page has presented, the widget compares the two images pixel for pixel
  * (`runtime/image-difference.js` owns what counts as a difference) and outlines each
- * region that changed over both frames, dashed where the change is faint, with its
+ * region that changed over both frames, dashed where no pixel moved far, with its
  * `describeDifference` between the rail labels. A reader looking at one side of the
- * divider, or at a screenshot of the page, then still sees where the pair differs, that
- * a difference there is too faint to see, or that it differs nowhere. `difference` is
+ * divider, or at a screenshot of the page, then still sees where the pair differs,
+ * that the difference there is slight, or that it differs nowhere. `difference` is
  * that reading, `{width, height, changed, regions}` in the images' own pixels, or null
  * for a pair the widget refused; a parent that hides the rail states it from there.
  * Pairs compare one per frame, so a page of large captures does not hold input for the
@@ -310,7 +310,7 @@ customElements.define(
           mark.style.setProperty("--lf-shot-y", share(region.y, height));
           mark.style.setProperty("--lf-shot-w", share(region.width, width));
           mark.style.setProperty("--lf-shot-h", share(region.height, height));
-          if (region.faint) mark.dataset.lfShotFaint = "";
+          if (region.slight) mark.dataset.lfShotSlight = "";
           marks.append(mark);
         }
         frame.append(marks);

@@ -569,18 +569,18 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
 
 
 def test_a_visual_review_states_where_its_pair_differs_in_every_view(browser, serve):
-    """The rail that counts lf-shot's changed regions is hidden outside Flip, and the
-    default focus crop hides the outlines, since it shows one part of the frame. A
-    focus authored on an area that did not change would then show nothing, so the
-    case's position line states the reading, with the visible changes the focus
-    leaves out, and the full frame outlines every region."""
+    """lf-shot's rail is hidden outside Flip, and the default focus crop hides the
+    outlines, since it shows one part of the frame. A focus authored on an area that
+    did not change would then show nothing, so the case's position line states the
+    reading, with the strong changes the focus leaves out, and the full frame outlines
+    every region."""
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     widget = page.locator("#visual-review-run")
     case = widget.locator(".lf-vr-case:not([hidden])")
     marks = case.locator(".lf-shotframe").first.locator(".lf-shotdiff > span")
     expect(widget).to_have_attribute("data-inspection-scope", "focus")
     expect(case.locator(".lf-vr-case-position")).to_have_text(
-        "Case 1 of 3 · Changed · 3 changed areas, 6 faint"
+        "Case 1 of 3 · Changed · 4 changed areas, 1 slight change (1 outside the focus)"
     )
     expect(marks.first).to_be_hidden()
 
@@ -589,7 +589,7 @@ def test_a_visual_review_states_where_its_pair_differs_in_every_view(browser, se
     expect(case.locator(".lf-vr-shot-host")).to_have_attribute(
         "data-focus-active", "false"
     )
-    expect(marks).to_have_count(9)
+    expect(marks).to_have_count(5)
     expect(marks.first).to_be_visible()
     # Below the compare view's frame label, where the image starts.
     image_top, first_mark_top = case.locator(".lf-shotframe").first.evaluate(

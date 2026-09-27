@@ -816,10 +816,10 @@ customElements.define(
       }
     }
 
-    // The rail that counts lf-shot's changed regions stays hidden outside Flip, and a
-    // focus crop hides the outlines, so the case's own position line states the
-    // reading in every view, with the visible changes the focus leaves out: a focus
-    // authored on an area that did not change says so here.
+    // lf-shot's rail stays hidden outside Flip, and a focus crop hides the outlines,
+    // so the case's own position line states the reading in every view, with the
+    // strong changes the focus leaves out: a focus authored on an area that did not
+    // change says so here.
     #paintPosition(entry) {
       const { record, index, total, difference } = entry;
       const parts = [
@@ -827,20 +827,22 @@ customElements.define(
         CLASSIFICATION[record.classification],
       ];
       if (difference) {
-        parts.push(describeDifference(difference));
         const ratio = record.capture.deviceScaleFactor;
         const focus = record.focus;
         const outside = focus
           ? difference.regions.filter(
               (region) =>
-                !region.faint &&
+                !region.slight &&
                 (region.x >= (focus.x + focus.width) * ratio ||
                   region.x + region.width <= focus.x * ratio ||
                   region.y >= (focus.y + focus.height) * ratio ||
                   region.y + region.height <= focus.y * ratio),
             ).length
           : 0;
-        if (outside) parts.push(`${outside} outside the focus`);
+        parts.push(
+          describeDifference(difference) +
+            (outside ? ` (${outside} outside the focus)` : ""),
+        );
       }
       setText(entry.article.querySelector(".lf-vr-case-position"), parts.join(" · "));
     }

@@ -1,13 +1,13 @@
 {
   "format": "leaf-browser-build-v1",
   "sourceRoots": [
-    "scripts/browser"
+    "build/browser"
   ],
   "sourceInputs": [
-    "scripts/browser/application.ts",
-    "scripts/browser/index.ts",
-    "scripts/browser/presentation.ts",
-    "scripts/browser/snapshot.ts",
+    "build/browser/application.ts",
+    "build/browser/index.ts",
+    "build/browser/presentation.ts",
+    "build/browser/snapshot.ts",
     "skills/leaf/assets/runtime/anchor-coordinate.js",
     "skills/leaf/assets/runtime/collapse.js",
     "skills/leaf/assets/runtime/pending/model.js",
@@ -16,7 +16,7 @@
     "skills/leaf/assets/runtime/thread/model.js"
   ],
   "entryPoints": {
-    "skills/leaf/assets/vendor/browser-runtime.js": "scripts/browser/index.ts",
+    "skills/leaf/assets/vendor/browser-runtime.js": "build/browser/index.ts",
     "skills/leaf/assets/vendor/lit.js": "leaf:lit"
   },
   "outputRoot": "skills/leaf/assets/vendor",
@@ -161,18 +161,18 @@
   "pageModules": "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
   "outputs": {
     "skills/leaf/assets/vendor/browser-runtime.js": {
-      "bytes": 28493,
-      "sha256": "252f388a3e94087167d3f156be4ee75c643da6daf5ba60e9f8867baf9b8b0339"
+      "bytes": 27124,
+      "sha256": "09ebf32dff126bf933084597cb547803b1aaed2255f395c15dd54855391eaae1"
     },
-    "scripts/browser/generated/browser-runtime.js.map": {
-      "bytes": 178847,
-      "sha256": "394cb1dfee1a5584ba8ce99445ae75be31dbe9296348be726e4b7e4d7d082726"
+    "build/browser/generated/browser-runtime.js.map": {
+      "bytes": 173086,
+      "sha256": "baecbd97293b006002aaac4713feeb93df46d283869fb8a0e47b722c5423275a"
     },
     "skills/leaf/assets/vendor/lit.js": {
       "bytes": 32020,
       "sha256": "5a7a4e660fe0085f5e81ea8734bdd3468fbeb857f9a6427bddb55fbb6f3531a5"
     },
-    "scripts/browser/generated/lit.js.map": {
+    "build/browser/generated/lit.js.map": {
       "bytes": 363756,
       "sha256": "37c5dcefc083b37cbe938542a4aa7372275913a997a6fe257eadf472a27384d8"
     },

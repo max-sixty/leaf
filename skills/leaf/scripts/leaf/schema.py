@@ -19,11 +19,11 @@ UNNAMED_AGENT = "Agent"
 UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done"}
 MESSAGE_KINDS = {"comment", "reply"}
 # The kinds a widget owns, admitted against the page's registry before they append.
-WIDGET_KINDS = {"action", "report", "request"}
+WIDGET_KINDS = {"action", "report"}
 # The operations that settle a user move the agent owes, as `workflows` and
 # `activity` address them and `$events.answering` explains them. A `turn` answer is
 # a thread reply the claimant's turn writes with its own opening and final messages.
-ANSWER_KINDS = ("reply", "turn", "markup", "receipt")
+ANSWER_KINDS = ("reply", "turn", "markup")
 # The answer kinds that post a message in a thread.
 THREAD_ANSWER_KINDS = frozenset({"reply", "turn"})
 ANSWER_ASK_INSTRUCTION = (
@@ -224,56 +224,6 @@ STATE_SCHEMA = {
         "else": {"properties": {"update": False}},
     },
 }
-# A request is a one-shot instruction for the host, not state the browser can replay.
-# Its declaration owns the offered verbs and typed payload, but no replay form.
-# Authored holders name child offers; projected holders offer their verbs directly.
-# The linked receipt carries the closed, layer-wide outcome envelope;
-# host-specific evidence belongs in external data.
-REQUEST_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "ask": {"type": "boolean"},
-        # This request supplies the commands but not its own question title.
-        # A matching holder therefore stands inside an x-ask-surface region, whose direct
-        # heading owns the reading and arrival.
-        "region": {"const": True},
-        "records": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        "offers": {
-            "type": "object",
-            "minProperties": 1,
-            "propertyNames": {"pattern": f"^{WIDGET_NAME}$"},
-            "additionalProperties": {
-                "type": "string",
-                "pattern": f"^{HTML_NAME}$",
-            },
-        },
-        "verbs": {
-            "type": "object",
-            "minProperties": 1,
-            "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-            "additionalProperties": {
-                "type": "object",
-                "properties": {
-                    "detail": {"type": "object"},
-                    "unit": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-                    "bind": {
-                        "type": "object",
-                        "minProperties": 1,
-                        "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-                        "additionalProperties": {
-                            "type": "string",
-                            "pattern": f"^{HTML_NAME}$",
-                        },
-                    },
-                },
-                "required": ["detail"],
-                "additionalProperties": False,
-            },
-        },
-    },
-    "required": ["verbs"],
-    "additionalProperties": False,
-}
 AWAITS_SCHEMA = {
     "type": "object",
     "properties": {
@@ -367,7 +317,7 @@ EXTENSION_SCHEMA = {
         # Attributes holding line references into the nearest data body — the element's
         # own <pre>, or its enclosing data element's (lf-note's `at` names a line of its
         # lf-code) — by the numbers x-numbering gives that body, 1-based without it.
-        # `version check` refuses one outside the body (line_ref_errors).
+        # `page check` refuses one outside the body (line_ref_errors).
         "x-lines": _ATTRIBUTE_LIST,
         "x-numbering": _ATTRIBUTE_NAME,
         "x-measured": MEASURED_SCHEMA,
@@ -382,7 +332,6 @@ EXTENSION_SCHEMA = {
             "minItems": 1,
         },
         "x-refers": REFERENCE_SCHEMA,
-        "x-request": REQUEST_SCHEMA,
         "x-retired-when": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-says": {
             "type": "object",

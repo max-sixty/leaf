@@ -192,8 +192,7 @@ def _append_event_unlocked(f, event: dict, events: list[dict]) -> tuple[dict, bo
         # the write rather than assumed from width, and the id stays short
         # enough for an agent to read off a projection and retype into `leaf
         # thread reply --for`. Nothing may treat one as a global identifier: a host
-        # keying an external operation on a `request` pairs the id with the page
-        # (`references/packages.md`).
+        # keying an external operation on an event pairs the id with the page.
         while True:
             candidate = secrets.token_hex(4)
             if not _event_id_exists(events, candidate):

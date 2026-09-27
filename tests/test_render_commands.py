@@ -192,7 +192,7 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
 
 
 def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell):
-    """`version check --render` end to end, as the agent runs it: the static lint
+    """`page check --render` end to end, as the agent runs it: the static lint
     passes both sources, and only one renders clean. The broken source is deliberately
     unstamped — refusing it before `version stamp` names it is the gate's whole job,
     so the preview server has to expose the exact candidate without activating it.
@@ -215,7 +215,7 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell)
         return subprocess.run(
             [
                 *LEAF_COMMAND,
-                "version",
+                "page",
                 "check",
                 str(d),
                 "--render",
@@ -261,7 +261,7 @@ def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
     named = unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": str(missing)}
 
     checked = subprocess.run(
-        [*LEAF_COMMAND, "version", "check", str(d), "--render"],
+        [*LEAF_COMMAND, "page", "check", str(d), "--render"],
         capture_output=True,
         text=True,
         check=False,
@@ -275,7 +275,7 @@ def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
 
     for variable in ("CHROME_PATH", "CHROME_BIN"):
         answered = subprocess.run(
-            [*LEAF_COMMAND, "version", "check", str(d), "--render"],
+            [*LEAF_COMMAND, "page", "check", str(d), "--render"],
             capture_output=True,
             text=True,
             check=False,
@@ -337,9 +337,9 @@ def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_pa
         )
 
     ended = "Connection closed while reading from the driver"
-    answered(ran(silent, "version", "check", str(d), "--render"), silent, ended)
+    answered(ran(silent, "page", "check", str(d), "--render"), silent, ended)
     answered(
-        ran(missing, "version", "check", str(d), "--render"),
+        ran(missing, "page", "check", str(d), "--render"),
         missing,
         "No such file or directory",
     )
@@ -390,7 +390,7 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
 
     for executable in ("", headless_shell):
         rendered = subprocess.run(
-            [launcher, "version", "check", page_dir, "--render"],
+            [launcher, "page", "check", page_dir, "--render"],
             cwd=elsewhere,
             capture_output=True,
             text=True,
@@ -963,14 +963,12 @@ def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):
     the error box, which is why the gate is worth its couple of seconds."""
     serve(UNPARSABLE_DIAGRAM)
     d = serve.page_dir
-    assert (
-        CliRunner().invoke(cli_model.cli, ["version", "check", str(d)]).exit_code == 0
-    )
+    assert CliRunner().invoke(cli_model.cli, ["page", "check", str(d)]).exit_code == 0
 
     shim = Path(__file__).parent.parent / "bin" / "leaf"
     for executable in ("", headless_shell):
         run = subprocess.run(
-            [str(shim), "version", "check", str(d), "--render"],
+            [str(shim), "page", "check", str(d), "--render"],
             cwd=tmp_path,
             capture_output=True,
             text=True,
@@ -1003,7 +1001,7 @@ FILM_PAGE = LONG_PAGE.replace(
 
 
 def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_shell):
-    """A quick page takes plain `version check` and nothing else, so that is the check
+    """A quick page takes plain `page check` and nothing else, so that is the check
     that has to run the page's own code: a widget that throws on its first paint, or
     a load that rejects, is otherwise heard of only once the user's browser reports
     it to the watcher. The check fails on those reports, worded as the watcher gets
@@ -1032,7 +1030,7 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
 
     def check(**env):
         return subprocess.run(
-            [*LEAF_COMMAND, "version", "check", str(d)],
+            [*LEAF_COMMAND, "page", "check", str(d)],
             capture_output=True,
             text=True,
             check=False,

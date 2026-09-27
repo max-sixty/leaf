@@ -10,7 +10,6 @@ from leaf.render_checks import one_frame, rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASKS_PAGE,
-    COMMAND_HUB_EXAMPLE,
     PANEL_PAGE,
     SEATED_ASK_LAYER,
     SEATED_ASK_WIDGETS,
@@ -1046,9 +1045,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     )
     expect(page.locator("#bg-thread-states")).to_be_visible()
     expect(pending_title).to_have_text("Generating title")
-    dots = pending_title.locator(".lf-thread-pending-dots > span")
-    expect(dots).to_have_count(3)
-    animation = dots.first.evaluate(
+    animation = pending_title.evaluate(
         "element => getComputedStyle(element).animationName"
     )
     assert animation != "none"
@@ -1264,96 +1261,6 @@ def test_the_feature_gallery_exercises_core_user_workflows(browser, serve):
     expect(retry).to_have_count(0)
 
     consume_browser_errors(page, "400")
-
-
-def test_command_hub_exercises_request_failure_retry_and_success(browser, serve):
-    """The package's worked page carries a request through both terminal outcomes."""
-    page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
-    operations = page.locator("#dedupe-operations")
-    restart = operations.get_by_role(
-        "button", name="Restart with a fresh worker", exact=True
-    )
-
-    page.keyboard.press("?")
-    page.keyboard.press("?")
-    reference = page.get_by_role("dialog", name="Command reference")
-    expect(reference).to_be_visible()
-    resized(page, 320, 900)
-    operation = reference.locator("tr").filter(has_text="Restart with a fresh worker")
-    geometry = operation.evaluate(
-        """row => {
-          const key = row.querySelector('td:first-child kbd');
-          const keyBox = key.getBoundingClientRect();
-          const action = row.cells[1];
-          const actionBox = action.getBoundingClientRect();
-          const range = document.createRange(), broken = [];
-          const walker = document.createTreeWalker(action, NodeFilter.SHOW_TEXT);
-          for (let node = walker.nextNode(); node; node = walker.nextNode())
-            for (const match of node.textContent.matchAll(/[A-Za-z]+/g)) {
-              range.setStart(node, match.index);
-              range.setEnd(node, match.index + match[0].length);
-              if (new Set([...range.getClientRects()].map(rect => Math.round(rect.top))).size > 1)
-                broken.push(match[0]);
-            }
-          return {
-            broken,
-            keyClass: key.parentElement.className,
-            keyFits: key.scrollWidth <= key.clientWidth && key.scrollHeight <= key.clientHeight,
-            keyRight: keyBox.right,
-            actionLeft: actionBox.left,
-          };
-        }"""
-    )
-    assert "lf-key-label" in geometry["keyClass"], geometry
-    assert geometry["keyFits"], geometry
-    assert geometry["keyRight"] <= geometry["actionLeft"], geometry
-    assert geometry["broken"] == [], geometry
-    page.keyboard.press("Escape")
-    resized(page, 1280, 900)
-
-    with sending(page, "the restart request"):
-        restart.click()
-    request = [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "request" and event["widget"] == "dedupe-operations"
-    ][-1]
-    events_model.append_event(
-        serve.page_dir,
-        {
-            "kind": "receipt",
-            "author": "agent",
-            "request": request["id"],
-            "status": "failed",
-            "text": "The branch is protected by another review",
-        },
-    )
-    told(page)
-    expect(operations).to_contain_text(
-        "restart failed · The branch is protected by another review"
-    )
-    expect(restart).to_be_enabled()
-
-    with sending(page, "the retried restart request"):
-        restart.click()
-    retried = [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "request" and event["widget"] == "dedupe-operations"
-    ][-1]
-    events_model.append_event(
-        serve.page_dir,
-        {
-            "kind": "receipt",
-            "author": "agent",
-            "request": retried["id"],
-            "status": "succeeded",
-            "text": "Started a fresh worker",
-        },
-    )
-    told(page)
-    expect(operations).to_contain_text("restart succeeded · Started a fresh worker")
-    expect(restart).to_be_disabled()
 
 
 def test_the_feature_gallery_exercises_live_external_data(browser, serve):
@@ -2301,6 +2208,7 @@ def test_a_delayed_thread_reveal_reports_that_new_user_focus_cancelled_it(
           const landing = createThreadLanding({
             setPanel: () => {},
             scrollToThread: () => {},
+            threadsBox: document.querySelector('.lf-threads'),
             revealThread: () => {
               window.threadRevealStarted = true;
               return held.then(() => { thread.hidden = false; });

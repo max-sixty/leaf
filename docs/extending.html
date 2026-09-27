@@ -151,7 +151,9 @@
           </a>
           <a class="package-card" href="/examples/command-hub/">
             <strong>Command Hub</strong>
-            <span>Inspect delegated work, operations, workers, and receipts.</span>
+            <span
+              >Inspect delegated work, workers, and the decisions they wait on.</span
+            >
             <em>Open page ↗</em>
           </a>
           <a class="package-card" href="/examples/pr-walkthrough/">
@@ -318,7 +320,7 @@ packages/callout/
         ><code class="language-bash">$ leaf package check packages/callout
 $ leaf page init --package packages/callout PAGE
 $ jq '.["lf-callout"], .["$keys"]' PAGE/registry.json
-$ leaf version check PAGE --render</code></pre>
+$ leaf page check PAGE --render</code></pre>
         <p>
           Re-running <code>page init</code> is the explicit update for an existing page.
           Pages that are not re-initialized keep their vendored layer unchanged.
@@ -333,7 +335,7 @@ $ leaf version check PAGE --render</code></pre>
           <dt><a href="/registry/">Registry keys</a></dt>
           <dd>
             The generated reference for declarations such as <code>x-data</code> and
-            <code>x-request</code>.
+            <code>x-state</code>.
           </dd>
           <dt><a href="/event-log/">Event log</a></dt>
           <dd>
@@ -347,8 +349,7 @@ $ leaf version check PAGE --render</code></pre>
             >
           </dt>
           <dd>
-            Composition, guidance, browser modules, external data, requests, and
-            validation.
+            Composition, guidance, browser modules, external data, and validation.
           </dd>
           <dt>
             <a

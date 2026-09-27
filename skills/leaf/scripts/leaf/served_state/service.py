@@ -87,9 +87,9 @@ class PageStateService:
         state["reading"] = (
             self.page_snapshot.reading
             if self.page_snapshot is not None
-            else reading
-            + "."
-            + presence_model.presence_fingerprint(state, state["others"])
+            else served_reading.join_reading(
+                reading, presence_model.presence_fingerprint(state, state["others"])
+            )
         )
         return state
 

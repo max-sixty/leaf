@@ -15,7 +15,7 @@ from leaf.registry.storage import active_registry
 from leaf.structure import parse_revision
 from leaf.thread_context import (
     thread_memberships,
-    thread_roots,
+    thread_names,
     thread_structure,
     thread_widgets,
 )
@@ -28,12 +28,11 @@ def cmd_events(page_dir: Path, after: int, thread: str | None = None) -> None:
         threads = build_threads(events, within)
         if thread not in threads:
             sys.exit(f"unknown thread id {thread!r}")
-        roots = thread_roots(events)
-        structure = thread_structure(events)
+        names = thread_names(events)
         memberships = thread_memberships(
             events,
-            roots,
-            thread_widgets(structure, roots),
+            names,
+            thread_widgets(thread_structure(events), names),
             within,
         )
         events = [event for event in events if thread in memberships[event["id"]]]

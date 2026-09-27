@@ -111,7 +111,9 @@ def browser_thread(
         request_phases=request_phases(requests),
     )
     awaiting = asks["awaiting"]
-    unread = unread_content(events, threads, reading.roots, reading.thread_by_widget)
+    unread = unread_content(
+        events, threads, reading.thread_by_name, reading.thread_by_widget
+    )
     open_ask_threads = {ask["thread"] for ask in asks["user"]}
     summaries_for = active_summaries(events, threads)
     rendered_threads = []

@@ -3074,12 +3074,14 @@ def test_c_lands_where_its_badge_is_and_in_the_card_on_screen(browser, serve, ro
     assert box.evaluate("box => box === document.activeElement")
 
 
-def test_threads_answers_c_in_the_thread_it_expanded_for_a_target(browser, serve):
+@pytest.mark.parametrize("side", ["note", "marker"])
+def test_threads_answers_c_in_the_thread_it_expanded_for_a_target(browser, serve, side):
     """With Threads open, the list's expanded thread plays the margin card's part.
 
     Arriving at a commented element by the keyboard expands its thread in the list, and
     standing there is standing at that thread: its reply box wears `c`, `c` lands in
-    it, and the walk goes on from it.
+    it, and the walk goes on from it. Every side of the target answers alike, so the
+    arrival is made from the target's comment note and from its margin marker.
     """
     url = serve(
         INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
@@ -3102,7 +3104,10 @@ def test_threads_answers_c_in_the_thread_it_expanded_for_a_target(browser, serve
     # whose arrival has to move it.
     expect(listed[1]).not_to_have_attribute("open", "")
     page.keyboard.press("Tab")  # keyboard modality, so the focus below is visible
-    comment_note(page, "#p2").focus()
+    if side == "note":
+        comment_note(page, "#p2").focus()
+    else:
+        page.locator('[data-lf-margin-for="p2"] .lf-margin-marker').focus()
     expect(listed[1]).to_have_attribute("open", "")
     reply = listed[1].locator("leaf-text")
     expect(reply).to_have_attribute("placeholder", "Reply c")
@@ -4387,8 +4392,8 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     inline1 = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{c1}"]')
     inline2 = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{c2}"]')
     expect(note).to_have_role("button")
-    # Reached the way a keyboard reaches anything, the note shows and enters the first
-    # thread, and the walk goes on from there.
+    # Focused with the keyboard's modality, as a screen reader moving to it focuses it,
+    # the note shows and enters the first thread, and the walk goes on from there.
     page.keyboard.press("Tab")
     note.focus()
     expect(note).to_be_focused()
@@ -4473,6 +4478,28 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     expect_comment_notes(page, "#p2", 1)
     assert accessible_details(page, "#p1") == ["2 comments"]
     assert accessible_details(page, "#p2") == ["1 comment"]
+
+
+def test_a_revision_keeps_a_block_naming_its_comment_note(browser, serve):
+    """A revision that keeps a commented block and changes its own `aria-details` writes
+    the new source's value over the block's name for its note. The next pass names the
+    note again after the source's own details, and the note's release keeps the source's
+    value rather than the one the block had when the comment arrived."""
+    url = serve(NOTED_PAGE, anchored=[("p1", "first passage")])
+    page = open_page(browser, live_url(url))
+    expect_comment_notes(page, "#p1", 1)
+    source = (serve.page_dir / "index.html").read_text(encoding="utf-8")
+    stamp_page(
+        serve.page_dir,
+        source.replace('<p id="p1">', '<p id="p1" aria-details="p2">'),
+        "Point the first passage at the second",
+    )
+    told(page)
+    expect(page.locator("#p2")).to_be_attached()
+    page.wait_for_function(
+        """() => document.getElementById('p1').ariaDetailsElements
+            ?.map((el) => el.id || el.textContent).join('|') === 'p2|1 comment'"""
+    )
 
 
 def test_a_comment_leaves_its_block_as_the_page_wrote_it(browser, serve):

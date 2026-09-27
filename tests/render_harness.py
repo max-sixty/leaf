@@ -748,18 +748,6 @@ def holding(page, held, count, what):
         page.wait_for_timeout(20)
 
 
-# The other direction of the same trip. Nothing a test writes into the page directory
-# announces itself — a declared status, a changed wait lease, an appended event all reach
-# the page when it next reads — so an assertion made straight after the write is waiting
-# on whatever budget expect() happens to carry. Timed, that wait takes 1.8 to 2.3 of the
-# default five seconds, and it takes them every time.
-#
-# So ask the page whether it has caught up with what the server holds: its readiness
-# reading answers that against an `/api/state` answer, and names no transport.
-# Counting answered requests said the same thing only while a fixed interval made them
-# the same thing: the page now asks when its news stream says the page has moved, so a
-# count of asks started here reaches the answer that carries the news only by luck of
-# the ordering.
 _NOTES_OF = """(holder) => {
     const root = document.querySelector(holder);
     const named = root ? [root, ...root.querySelectorAll('*')] : [];
@@ -837,6 +825,18 @@ def plant_quiet_word(page, selector, holding):
     return page.locator("#planted-quiet")
 
 
+# The other direction of the same trip. Nothing a test writes into the page directory
+# announces itself — a declared status, a changed wait lease, an appended event all reach
+# the page when it next reads — so an assertion made straight after the write is waiting
+# on whatever budget expect() happens to carry. Timed, that wait takes 1.8 to 2.3 of the
+# default five seconds, and it takes them every time.
+#
+# So ask the page whether it has caught up with what the server holds: its readiness
+# reading answers that against an `/api/state` answer, and names no transport.
+# Counting answered requests said the same thing only while a fixed interval made them
+# the same thing: the page now asks when its news stream says the page has moved, so a
+# count of asks started here reaches the answer that carries the news only by luck of
+# the ordering.
 def told(page):
     """Wait until the page has taken in everything the server now holds.
 

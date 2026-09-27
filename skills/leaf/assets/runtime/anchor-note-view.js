@@ -10,12 +10,14 @@
  * own structural rules would restyle and move it for as long as a comment stood
  * (assets/AGENTS.md, "Space and scrolling"). The block names its note as its details
  * instead, ARIA's relation for an annotation, which the browser exposes on the block's
- * accessibility node for a screen reader to announce and follow. That attribute is the
- * only trace on the block. It is written through element reflection,
+ * accessibility node; screen readers differ in how they announce it and whether they
+ * offer a move to its target, and the note is otherwise found in the chrome. That
+ * attribute is the only trace on the block. It is written through element reflection,
  * which reaches a note in the document from a block inside a widget's shadow tree, where
- * an id reference cannot; `aria-owns`, which would seat the note in the block's reading
- * order, has no reflection in Chrome and so cannot. An authored `aria-details` keeps its
- * elements ahead of the note and is restored when the note goes.
+ * an id reference cannot. `aria-owns` would seat the note in the block's reading order,
+ * but Chrome has no reflection for it, so it could name notes only for blocks in the
+ * document's own tree; one relation serves every block instead. An authored
+ * `aria-details` keeps its elements ahead of the note and is restored when the note goes.
  *
  * The note is no Tab stop: from the chrome it would come after the whole page, away from
  * the block it counts. A keyboard reaches a block's threads from the block itself (`c`,
@@ -39,21 +41,26 @@ export function createAnchorNoteProjection({ openThread }) {
   function claim(holder) {
     const note = offer("button", "lf-skip lf-mark-note");
     note.tabIndex = -1;
-    const record = {
-      note,
-      firstThreadId: null,
-      authored: holder.getAttribute("aria-details"),
-    };
+    const record = { note, firstThreadId: null, authored: null };
     note.addEventListener("click", () =>
       openThread(record.firstThreadId, { focus: "thread" }),
     );
     if (!shelf) shelf = offer("div", "lf-mark-notes");
     if (!shelf.isConnected) chromeRoot.append(shelf);
     shelf.append(note);
-    holder.ariaDetailsElements = [...(holder.ariaDetailsElements ?? []), note];
     holders.set(note, holder);
     claims.set(holder, record);
     return record;
+  }
+
+  // Name the note on its block, keeping whatever the block's own `aria-details` names
+  // ahead of it. Asked on every pass rather than once, because a revision that keeps the
+  // block patches its attributes to the new source and takes the name off with it; the
+  // source's value is then the one to keep and to restore.
+  function name(holder, record) {
+    if (holder.ariaDetailsElements?.includes(record.note)) return;
+    record.authored = holder.getAttribute("aria-details");
+    holder.ariaDetailsElements = [...(holder.ariaDetailsElements ?? []), record.note];
   }
 
   function release(holder, record) {
@@ -68,6 +75,7 @@ export function createAnchorNoteProjection({ openThread }) {
       if (!notes.has(holder) || !holder.isConnected) release(holder, record);
     for (const [holder, threadIds] of notes) {
       const record = claims.get(holder) ?? claim(holder);
+      name(holder, record);
       record.firstThreadId = threadIds[0];
       keepsText(record.note, label(threadIds.length));
     }

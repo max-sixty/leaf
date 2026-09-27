@@ -2523,7 +2523,9 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
             return {id: specimen.id, path: path.reverse()};
         })"""
     )
-    assert specimens, "this page declares no specimen: the reading below asserts nothing"
+    assert specimens, (
+        "this page declares no specimen: the reading below asserts nothing"
+    )
 
     for specimen in specimens:
         for owner in specimen["path"]:
@@ -2531,9 +2533,9 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
                 "tab", name=owner["label"], exact=True
             ).click()
         spec = specimen["id"]
-        assert page.locator(f"#{spec}").evaluate(
-            "el => el.checkVisibility()"
-        ), f"{spec} remained hidden after opening its tabs"
+        assert page.locator(f"#{spec}").evaluate("el => el.checkVisibility()"), (
+            f"{spec} remained hidden after opening its tabs"
+        )
         ink = tuple(
             int(n)
             for n in re.findall(

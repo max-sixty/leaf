@@ -121,11 +121,8 @@ function navigationSummary(navigation, model) {
   if (!navigation) return nothing;
   const pendingTitle = model.titlePending;
   const title = model.summary.topic;
-  const count = model.summary.count;
   const latest = model.summary.latest;
   const status = model.resolved ? "Resolved" : model.attention?.label || "";
-  const action = model.attention?.action;
-  const statusText = [status, action].filter(Boolean).join(" · ");
   const draft = Boolean(loadDraft("reply:" + model.key)?.trim());
   const hasMeta = draft || status || model.unreadCount;
   return html`<summary
@@ -153,10 +150,10 @@ function navigationSummary(navigation, model) {
               data-lf-turn=${model.attention?.kind === "needs_user" ? "user" : nothing}
               title=${
                 model.attention?.secondary
-                  ? `${statusText} · ${model.attention.secondary}`
-                  : statusText
+                  ? `${status} · ${model.attention.secondary}`
+                  : status
               }
-              >${statusText}</span
+              >${status}</span
             >`
           : nothing
       }
@@ -171,21 +168,15 @@ function navigationSummary(navigation, model) {
       }
     </span>
     <span class="lf-thread-trailing">
-      <span
-        class="lf-thread-count"
-        aria-label=${`${count} ${count === 1 ? "message" : "messages"}`}
-        >${count}</span
-      >
       ${
         latest
-          ? html`<span class="lf-thread-trailing-separator" aria-hidden="true">·</span>
-              <time
-                class="lf-thread-recency"
-                datetime=${latest}
-                title=${`Last message activity ${new Date(latest).toLocaleString()}`}
-                aria-label=${`Last message activity ${ago(latest)}`}
-                >${shortAgo(latest)}</time
-              >`
+          ? html`<time
+              class="lf-thread-recency"
+              datetime=${latest}
+              title=${`Last message activity ${new Date(latest).toLocaleString()}`}
+              aria-label=${`Last message activity ${ago(latest)}`}
+              >${shortAgo(latest)}</time
+            >`
           : nothing
       }
     </span>
@@ -201,9 +192,7 @@ function readBoundary(kind) {
     data-kind=${kind}
     role="separator"
     aria-label=${label}
-  >
-    <span aria-hidden="true">${label}</span>
-  </div>`;
+  ></div>`;
 }
 
 export class ThreadView {
@@ -214,7 +203,6 @@ export class ThreadView {
   #summaryResolved = null;
   #keys = new WeakSet();
   #settlements = new Map();
-  #markReadButton = null;
   #metadataActions = document.createElement("span");
   #expandedSummaries = new Set();
   #growing = false;
@@ -308,16 +296,13 @@ export class ThreadView {
     const wanted = new Set(model.messages.map((message) => message.key));
     for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
     const settlement = this.#settlement(model);
-    const markRead = panel && model.unreadCount ? this.#markReadControl() : null;
     const marginControls = model.surface === "margin" ? this.#marginControls : null;
     let headerActions = null;
     if (!model.resolved || model.folding || marginControls) {
       this.#metadataActions.className = "lf-thread-meta-actions";
       const actions = marginControls
         ? [marginControls.nav, settlement, marginControls.close].filter(Boolean)
-        : markRead
-          ? [markRead, settlement]
-          : [settlement];
+        : [settlement];
       for (const child of [...this.#metadataActions.children])
         if (!actions.includes(child)) child.remove();
       actions.forEach((control, index) => {
@@ -452,7 +437,7 @@ export class ThreadView {
                       : nothing
                   }</span
                 >
-                ${markRead ?? nothing}${settlement}
+                ${settlement}
               </div>`
             : nothing
         }
@@ -460,9 +445,7 @@ export class ThreadView {
       this.node,
     );
     this.#wireKeys();
-    if (panel && standing === this.#markReadButton && !markRead) {
-      focusThread(this.node, { preventScroll: true });
-    } else if (
+    if (
       summaryReplacedFocusedMessage &&
       focused() !== standing &&
       standing?.isConnected
@@ -574,20 +557,6 @@ export class ThreadView {
     }
     render(reopen ? state.label : iconTemplate("check", "lf-action-icon"), button);
     return button;
-  }
-
-  #markReadControl() {
-    if (!this.#markReadButton) {
-      const button = offer(
-        "button",
-        "lf-btn lf-mark-read lf-thread-action",
-        "Mark thread read",
-      );
-      button.type = "button";
-      button.onclick = () => this.#commands.read.markThread(this.#model.id);
-      this.#markReadButton = button;
-    }
-    return this.#markReadButton;
   }
 
   #settle = () => {

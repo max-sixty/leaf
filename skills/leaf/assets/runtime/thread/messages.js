@@ -242,7 +242,6 @@ export class MessageView {
               ? html`<span class="lf-edited" title=${model.edited}>edited</span>`
               : nothing
           }
-          ${model.unread ? html`<span class="lf-unread-label">Unread</span>` : nothing}
         </span>
       `,
       this.#header,

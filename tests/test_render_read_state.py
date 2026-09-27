@@ -49,9 +49,7 @@ def _agent_metric_reply(page_dir, root, number, for_event=None):
     )["id"]
 
 
-def test_new_since_last_looked_bounds_each_unread_run_and_summary_originals(
-    browser, serve
-):
+def test_unread_summary_keeps_hidden_original_unread(browser, serve):
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Can we review this?", author="user")
     first = _agent_metric_reply(serve.page_dir, root, 1, for_event=root)
@@ -60,7 +58,7 @@ def test_new_since_last_looked_bounds_each_unread_run_and_summary_originals(
         {"kind": "reply", "author": "user", "parent": root, "text": "One more detail."},
     )["id"]
     middle = _agent_metric_reply(serve.page_dir, root, 2, for_event=user)
-    last = _agent_metric_reply(serve.page_dir, root, 3)
+    _agent_metric_reply(serve.page_dir, root, 3)
     accepted, _ = endpoint_model.accept_event(
         serve.page_dir,
         {
@@ -87,54 +85,10 @@ def test_new_since_last_looked_bounds_each_unread_run_and_summary_originals(
         "1 unread original"
     )
     expect(checkpoint.locator(".lf-summary-originals")).to_be_hidden()
-    expect(card.locator('.lf-read-boundary[data-kind="end"]')).to_have_count(0)
-    expect(
-        card.locator(f'.lf-read-boundary[data-kind="new"] + .lf-msg[data-mid="{last}"]')
-    ).to_be_visible()
-    checkpoint.locator(".lf-summary-expand").click()
-    expect(
-        card.get_by_role("separator", name="New since you last looked")
-    ).to_have_count(2)
-    expect(
-        card.locator(
-            f'.lf-read-boundary[data-kind="new"] + .lf-msg[data-mid="{first}"]'
-        )
-    ).to_be_visible()
-    expect(card.locator('.lf-read-boundary[data-kind="new"]')).to_have_count(2)
-    expect(card.locator('.lf-read-boundary[data-kind="end"]')).to_have_count(1)
-    expect(
-        card.locator(f'.lf-read-boundary + .lf-msg[data-mid="{middle}"]')
-    ).to_have_count(0)
-    # The boundary opening the originals hangs its label in the gap below the fold
-    # control, not over it.
-    label = card.locator(".lf-summary-messages > .lf-read-boundary > span").first
-    assert (
-        label.bounding_box()["y"]
-        >= checkpoint.locator(".lf-summary-expand").bounding_box()["y"]
-        + checkpoint.locator(".lf-summary-expand").bounding_box()["height"]
-    )
-
-    draft = card.locator("leaf-text").first
-    write(draft, "Compare the revised update.")
-    last_message = card.locator(f'.lf-msg[data-mid="{last}"]')
-    last_message.focus()
-    list_scroll = page.locator(".lf-threads")
-    list_scroll.evaluate("element => element.scrollTop = element.scrollHeight")
-    assert list_scroll.evaluate(
-        "element => element.scrollTop + element.clientHeight >= element.scrollHeight - 1"
-    )
-    page.keyboard.press("m")
-    expect(card.locator(".lf-read-boundary")).to_have_count(0)
-    expect(checkpoint.locator(".lf-summary-unread")).to_have_count(0)
-    expect(draft).to_have_js_property("value", "Compare the revised update.")
-    expect(last_message).to_be_focused()
-    assert last_message.is_visible()
-    assert list_scroll.evaluate(
-        "element => element.scrollTop + element.clientHeight >= element.scrollHeight - 1"
-    )
+    expect(card.locator(".lf-unread-label")).to_have_count(0)
 
 
-def test_first_unread_reveals_divider_inside_resolved_summary(browser, serve):
+def test_first_unread_reveals_resolved_summary_original(browser, serve):
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Is this metric settled?", author="user")
     answer = _agent_metric_reply(serve.page_dir, root, 4, for_event=root)
@@ -155,48 +109,7 @@ def test_first_unread_reveals_divider_inside_resolved_summary(browser, serve):
         "data-expanded", "true"
     )
     expect(card.locator(f'.lf-msg[data-mid="{answer}"]')).to_be_focused()
-    expect(
-        card.locator(
-            f'.lf-read-boundary[data-kind="new"] + .lf-msg[data-mid="{answer}"]'
-        )
-    ).to_be_visible()
-
-
-def test_unread_agent_root_boundary_precedes_hoisted_header(browser, serve):
-    url = serve(PANEL_PAGE)
-    root = thread_model.cmd_comment(
-        serve.page_dir,
-        "",
-        "",
-        "",
-        "Review this metric.",
-        '<lf-metric id="root-metric" value="1">Completed steps</lf-metric>',
-    )["id"]
-    page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    card = page.locator(f'.lf-thread[data-id="{root}"]')
-    card.locator(":scope > .lf-thread-summary").click()
-    expect(
-        card.locator(":scope > .lf-read-boundary + .lf-thread-root-meta")
-    ).to_be_visible()
-    expect(
-        card.locator(f':scope > .lf-thread-root-meta + .lf-msg[data-mid="{root}"]')
-    ).to_be_visible()
-    expect(
-        card.get_by_role("separator", name="New since you last looked")
-    ).to_have_count(1)
-    resolve = card.get_by_role("button", name="Resolve thread")
-    resolve.focus()
-    accepted, _ = endpoint_model.accept_event(
-        serve.page_dir,
-        {"kind": "read", "messages": [{"message": root, "version": root}]},
-        dict,
-    )
-    assert accepted == 200
-    told(page)
-    expect(card.locator(".lf-read-boundary")).to_have_count(0)
-    expect(resolve).to_be_focused()
+    expect(page.locator(".lf-first-unread")).to_be_hidden()
 
 
 def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
@@ -207,7 +120,10 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     root = panel_comment(serve.page_dir, "An answer for the user.", author="agent")
     page = open_page(browser, url)
 
-    expect(page.locator(".lf-first-unread")).to_have_text("Unread 1")
+    expect(page.locator(".lf-first-unread")).to_have_text("Next unread")
+    expect(page.locator(".lf-first-unread")).to_have_attribute(
+        "aria-label", "1 unread message. Go to first unread message"
+    )
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
     expect(page.locator(".lf-threads-toggle")).to_have_attribute(
         "aria-label", "Threads (2), 1 unread thread"
@@ -294,7 +210,7 @@ def test_opening_threads_acknowledges_the_first_visible_answer(
     ]
 
 
-def test_authored_reply_requires_explicit_read_even_when_open(browser, serve):
+def test_authored_reply_is_read_when_its_visible_body_is_shown(browser, serve):
     url = serve(PANEL_PAGE)
     root = thread_model.cmd_comment(
         serve.page_dir,
@@ -314,27 +230,18 @@ def test_authored_reply_requires_explicit_read_even_when_open(browser, serve):
     card = page.locator(f'.lf-thread[data-id="{root}"]')
     card.locator(":scope > .lf-thread-summary").click()
     expect(card.locator("#read-choice")).to_be_visible()
-    expect(card.locator(f'.lf-msg[data-mid="{root}"]')).to_have_class(
-        re.compile(r"(^|\s)lf-unread(\s|$)")
-    )
-    assert _read_events(serve.page_dir) == []
-
-    page.keyboard.press("Tab")
-    expect(card.get_by_role("button", name="Mark thread read")).to_be_focused()
-    page.keyboard.press("Enter")
-    expect(card.locator(":scope > .lf-thread-summary")).to_be_focused()
-    page.keyboard.press("Tab")
-    expect(card.get_by_role("button", name="Resolve")).to_be_focused()
     expect(card.locator(f'.lf-msg[data-mid="{root}"]')).not_to_have_class(
         re.compile(r"(^|\s)lf-unread(\s|$)")
     )
+    expect(card.locator(".lf-mark-read")).to_have_count(0)
+    expect(card.locator(".lf-thread-status")).to_have_text("On you to answer")
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": root, "version": root}
     ]
     expect(card.locator("#read-choice")).to_be_visible()
 
 
-def test_oversized_message_needs_contiguous_traversal_or_explicit_read(browser, serve):
+def test_oversized_message_needs_contiguous_traversal(browser, serve):
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir,
@@ -413,7 +320,10 @@ def test_first_unread_reveals_a_resolved_thread_and_covered_original(browser, se
     panel_settled(page)
     card = page.locator(f'.lf-thread[data-id="{root}"]')
     expect(card).to_be_hidden()
-    expect(page.locator(".lf-first-unread")).to_have_text("Unread 2")
+    expect(page.locator(".lf-first-unread")).to_have_text("Next unread")
+    expect(page.locator(".lf-first-unread")).to_have_attribute(
+        "aria-label", "2 unread messages. Go to first unread message"
+    )
     expect(page.locator(".lf-threads-toggle")).to_have_attribute(
         "aria-label", "Threads (0), 1 unread thread"
     )
@@ -445,7 +355,7 @@ def test_edit_reopens_only_its_new_content_version(browser, serve):
 
     edit = thread_model.cmd_edit(serve.page_dir, root, "Revised answer.")
     told(page)
-    expect(page.locator(".lf-first-unread")).to_have_text("Unread 1")
+    expect(page.locator(".lf-first-unread")).to_have_text("Next unread")
     page.locator(".lf-threads-toggle").click()
     with sending(page, "edited answer read"):
         page.locator(".lf-first-unread").click()
@@ -535,7 +445,7 @@ def test_a_wide_code_reply_is_acknowledged_once_shown(browser, serve):
     ]
 
 
-def test_explicit_mark_read_reports_refusal_as_read_action(browser, serve):
+def test_automatic_read_refusal_keeps_message_unread(browser, serve):
     url = serve(PANEL_PAGE)
     root = thread_model.cmd_comment(
         serve.page_dir,
@@ -552,22 +462,35 @@ def test_explicit_mark_read_reports_refusal_as_read_action(browser, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     card = page.locator(f'.lf-thread[data-id="{root}"]')
-    card.locator(":scope > .lf-thread-summary").click()
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    card.get_by_role("button", name="Mark thread read").click()
-    holding(page, held, 1, "explicit read")
+    card.locator(":scope > .lf-thread-summary").click()
+    holding(page, held, 1, "automatic read")
     request = held.pop()
     request.fulfill(
         status=400,
         json={"ok": False, "final": True, "error": "refused before append"},
     )
-    expect(card.get_by_role("button", name="Mark thread read")).to_be_visible()
-    expect(page.locator(".lf-notice")).to_contain_text("Couldn't mark thread read")
+    expect(card.locator(f'.lf-msg[data-mid="{root}"]')).to_have_class(
+        re.compile(r"(^|\s)lf-unread(\s|$)")
+    )
+    expect(card.locator(".lf-mark-read")).to_have_count(0)
     assert _read_events(serve.page_dir) == []
     assert take_browser_errors(page) == [
         f"400 {request.request.url}",
         "Failed to load resource: the server responded with a status of 400 (Bad Request)",
+    ]
+    page.unroute("**/api/event")
+    with sending(page, "read on a new visit"):
+        page.evaluate("""() => {
+          window.dispatchEvent(new Event('blur'));
+          window.dispatchEvent(new Event('focus'));
+        }""")
+    expect(card.locator(f'.lf-msg[data-mid="{root}"]')).not_to_have_class(
+        re.compile(r"(^|\s)lf-unread(\s|$)")
+    )
+    assert _read_events(serve.page_dir)[-1]["messages"] == [
+        {"message": root, "version": root}
     ]
 
 
@@ -621,8 +544,9 @@ def test_visible_message_waits_for_whole_document_presentation(browser, serve):
     ]
 
 
-def test_keyboard_first_unread_and_mark_read_retain_draft_and_focus(browser, serve):
+def test_keyboard_first_unread_exposes_authored_reply(browser, serve):
     url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "The earlier user thread.")
     root = thread_model.cmd_comment(
         serve.page_dir,
         None,
@@ -639,22 +563,12 @@ def test_keyboard_first_unread_and_mark_read_retain_draft_and_focus(browser, ser
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     page.locator(".lf-threads").focus()
-    page.keyboard.press("u")
+    with sending(page, "authored reply read"):
+        page.keyboard.press("u")
     card = page.locator(f'.lf-thread[data-id="{root}"]')
     expect(card).to_have_attribute("open", "")
     expect(card.locator(f'.lf-msg[data-mid="{root}"]')).to_be_focused()
-    expect(card.locator(".lf-thread-unread")).to_have_text("1 unread")
-
-    draft = card.locator("leaf-text").first
-    write(draft, "I need to compare these choices.")
-    draft.evaluate("element => { window.__readDraft = element; }")
-    draft.blur()
-    card.locator(":scope > .lf-thread-summary").focus()
-    page.keyboard.press("m")
     expect(page.locator(".lf-first-unread")).to_be_hidden()
-    expect(draft).to_have_js_property("value", "I need to compare these choices.")
-    assert draft.evaluate("element => element === window.__readDraft")
-    expect(card.locator(":scope > .lf-thread-summary")).to_be_focused()
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": root, "version": root}
     ]
@@ -666,8 +580,8 @@ def test_read_converges_across_two_tabs(browser, serve):
     root = panel_comment(serve.page_dir, "The shared user answer.", author="agent")
     first = open_page(browser, url)
     second = open_page(browser, url)
-    expect(first.locator(".lf-first-unread")).to_have_text("Unread 1")
-    expect(second.locator(".lf-first-unread")).to_have_text("Unread 1")
+    expect(first.locator(".lf-first-unread")).to_have_text("Next unread")
+    expect(second.locator(".lf-first-unread")).to_have_text("Next unread")
     first.locator(".lf-threads-toggle").click()
     panel_settled(first)
     first.locator(".lf-first-unread").click()
@@ -713,13 +627,13 @@ def test_offscreen_specimen_cannot_acknowledge_child_viewport(browser, serve):
     specimen = page.locator("#read-practice")
     frame = specimen.locator("iframe")
     child = frame.element_handle().content_frame()
-    expect(child.locator(".lf-first-unread")).to_have_text("Unread 1")
+    expect(child.locator(".lf-first-unread")).to_have_text("Next unread")
     child.locator(".lf-threads-toggle").focus()
     frame.evaluate("element => element.style.transform = 'translateY(1200px)'")
     child.locator(".lf-threads-toggle").evaluate("element => element.click()")
     child.locator(".lf-first-unread").evaluate("element => element.click()")
     page.wait_for_timeout(100)
-    expect(child.locator(".lf-first-unread")).to_have_text("Unread 1")
+    expect(child.locator(".lf-first-unread")).to_have_text("Next unread")
     assert frame.bounding_box()["y"] > 800
 
     clip.evaluate(
@@ -728,7 +642,7 @@ def test_offscreen_specimen_cannot_acknowledge_child_viewport(browser, serve):
     frame.evaluate("element => element.style.transform = ''")
     page.set_viewport_size({"width": 1280, "height": 1400})
     page.wait_for_timeout(100)
-    expect(child.locator(".lf-first-unread")).to_have_text("Unread 1")
+    expect(child.locator(".lf-first-unread")).to_have_text("Next unread")
     # Below the first screen and taller than the window, the specimen is read through
     # the band the containing page shows as it scrolls: its edge coming into view shows
     # nothing, and a later scroll of the containing page shows the message.
@@ -750,7 +664,7 @@ def test_offscreen_specimen_cannot_acknowledge_child_viewport(browser, serve):
         scrollBy(0, top - innerHeight + 20);
     }""")
     page.wait_for_timeout(200)
-    expect(child.locator(".lf-first-unread")).to_have_text("Unread 1")
+    expect(child.locator(".lf-first-unread")).to_have_text("Next unread")
     page.evaluate("scrollBy(0, 700)")
     expect(child.locator(".lf-first-unread")).to_be_hidden()
 
@@ -941,18 +855,14 @@ _CARD_BOXES = """card => {
 
 
 def test_reading_a_thread_moves_nothing_in_it(browser, serve):
-    """Read state is bookkeeping: a read receipt takes a thread's rails, boundaries,
-    labels and Mark read control away without moving anything the user is looking
-    at. Only a row that loses a label or control may close up sideways."""
+    """A read receipt removes rails and boundaries without moving the thread's
+    content. The title's unread count may close up sideways."""
     url = serve(PANEL_PAGE)
-    root = thread_model.cmd_comment(
+    root = panel_comment(
         serve.page_dir,
-        None,
-        None,
-        None,
-        "Review this metric.",
-        '<lf-metric id="root-metric" value="1">Completed steps</lf-metric>',
-    )["id"]
+        "Review this metric.\n\n" + "The complete context matters. " * 250,
+        author="agent",
+    )
     second = _agent_metric_reply(serve.page_dir, root, 2)
     accepted, _ = endpoint_model.accept_event(
         serve.page_dir,

@@ -4,8 +4,8 @@ The log owns the fact, and this module is its one reading. A message's original 
 each later edit id name distinct content versions; a version stands unread until the
 log holds evidence the user took it in. Two kinds of evidence count:
 
-- a `read` event naming that exact version, which the browser posts when the version
-  has been shown to the user or when they mark its thread read;
+- a `read` event naming that exact version, which the browser posts when its visible
+  body has been shown to the user;
 - a user move made in the version's thread and logged after the version, which is
   the thread the move names (`thread_context.event_threads`): a reply or reaction,
   a resolve or reopen, an action or request on a widget a message of that thread

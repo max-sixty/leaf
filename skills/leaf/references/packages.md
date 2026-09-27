@@ -1100,7 +1100,7 @@ and returns a handle with `read()`, `reveal(key)`, `update()`, `open(datum,
 the built-in Threads panel reads, `{phase, threads, done}`, on its initial
 presentation and on later publications and placement updates. `readThreads()` returns
 that collection outside a surface; `threadTurns(thread)` selects a Thread's displayed
-turns and `threadSummary(thread)` its topic, turn count, and `latest`. For whether a
+turns and `threadSummary(thread)` its topic and `latest` activity. For whether a
 Thread waits on the user, read unresolved `attention.kind === "needs_user"`, which
 includes recovery after a failed response; `"waiting"` means it is with the agent.
 Each Thread's `key` survives admission of a pending gesture, and its `anchor`

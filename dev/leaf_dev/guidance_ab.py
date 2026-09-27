@@ -16,9 +16,10 @@ globs select, and puts a case newer than the base on the base too.
 
 Both runs start at once, with `evals/README.md`'s flags, since batches an hour apart
 drift. Each runs in a process group of its own, which its `claude -p` children join,
-and however this command stops, SIGTERM included, it stops both groups, since those
-children bill while they run. Each run's `aggregate-result.json`, `report.html` and
-log stay in a directory of their own under `.tmp/guidance-ab/`; the arms are deleted.
+and however the runs or this command end, SIGTERM included, it stops whatever is left
+in both groups, since those children bill while they run. Each run's
+`aggregate-result.json`, `report.html` and log stay in a directory of their own under
+`.tmp/guidance-ab/`; the arms are deleted.
 
 A case's count on an arm is the runs `claude plugin eval` passed, and it names the runs
 that errored, such as on a rate limit or a timeout, since those measured nothing about
@@ -36,6 +37,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -66,9 +68,9 @@ def select_cases(globs: tuple[str, ...]) -> list[str]:
 def run_together(runs: list[tuple[list[str], Path, Path]]) -> None:
     """Start each (command, cwd, log) at once in a session of its own and wait for all.
 
-    If this process stops first, by an error, Ctrl-C or SIGTERM, each command still
-    running has its whole process group stopped: SIGTERM, then SIGKILL after
-    GRACE_SECONDS."""
+    However it ends, when every command has exited or when this process stops first
+    by an error, Ctrl-C or SIGTERM, whatever is left in each command's process group
+    is stopped (`stop_group`), since a command may exit before a child it started."""
     procs = []
     previous = signal.signal(signal.SIGTERM, lambda *_: sys.exit(128 + signal.SIGTERM))
     try:
@@ -90,13 +92,27 @@ def run_together(runs: list[tuple[list[str], Path, Path]]) -> None:
     finally:
         signal.signal(signal.SIGTERM, previous)
         for proc in procs:
-            if proc.poll() is None:
-                os.killpg(proc.pid, signal.SIGTERM)
-                try:
-                    proc.wait(GRACE_SECONDS)
-                except subprocess.TimeoutExpired:
-                    os.killpg(proc.pid, signal.SIGKILL)
-                    proc.wait()
+            stop_group(proc)
+
+
+def stop_group(proc: subprocess.Popen) -> None:
+    """Stop every process left in `proc`'s group, whether or not `proc` itself has
+    exited: SIGTERM, then SIGKILL for whatever remains after GRACE_SECONDS. The group
+    ceases to exist once its last member has exited and been reaped."""
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+        deadline = time.monotonic() + GRACE_SECONDS
+        while time.monotonic() < deadline:
+            # Reap the leader, whose zombie would keep the group alive.
+            proc.poll()
+            os.killpg(proc.pid, 0)
+            time.sleep(0.1)
+        os.killpg(proc.pid, signal.SIGKILL)
+    # macOS answers EPERM, rather than ESRCH, for a group whose only members are
+    # zombies another process will reap: an orphaned child that has already exited.
+    except (ProcessLookupError, PermissionError):
+        pass
+    proc.wait()
 
 
 def read_run(out: Path) -> tuple[dict[str, list[dict]], float]:

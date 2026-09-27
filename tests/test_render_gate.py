@@ -3281,7 +3281,6 @@ def test_a_scroller_the_page_styled_is_reached_whatever_rule_made_it(browser, se
     )
     owed = {"scrolls": True, "tab": 0, "holds": True, "sideways": True}
     assert reached == dict.fromkeys(reached, owed), reached
-    page.close()
 
 
 def test_the_render_gate_reports_content_set_past_the_column(browser, serve):

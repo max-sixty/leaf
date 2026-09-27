@@ -167,7 +167,7 @@ export function createDrawingController({
         on
           ? `Draw mode: draw anywhere on the page; each stroke adds to one drawing. ${
               coarsePointer.matches
-                ? "Exit Draw on the banner leaves."
+                ? "Exit Draw mode on the banner leaves."
                 : "Escape leaves."
             }`
           : "Draw mode off",
@@ -487,7 +487,7 @@ export function createDrawingController({
         keys: ["w"],
         does: "Exit Draw mode",
         line: "exit Draw mode",
-        touch: "Exit Draw",
+        touch: "Exit Draw mode",
         run: () => setDrawMode(false),
       },
     ],

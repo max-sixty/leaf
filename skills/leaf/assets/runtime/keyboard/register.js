@@ -14,7 +14,13 @@
  * presentation describe the same available step. The standing scope handles letting go
  * of a page destination before the fallback ladder.
  */
-import { bindings, checked, word } from "./bindings.js";
+import {
+  answersTouch,
+  bindings,
+  checked,
+  touchPresses as pressesOf,
+  word,
+} from "./bindings.js";
 import { focused } from "./scopes.js";
 import { under } from "../shadow.js";
 
@@ -210,7 +216,7 @@ function assemble() {
   const rows = PAGE_COMMANDS.map((id) => commands.get(id));
   // Every page command answers whether a finger needs a stand-in for its keys (AGENTS.md,
   // "Touch routes"), so a new one meets the question where it is declared.
-  const unanswered = rows.filter((row) => row.touch === undefined).map((row) => row.id);
+  const unanswered = rows.filter((row) => !answersTouch(row)).map((row) => row.id);
   if (unanswered.length)
     throw new Error(
       `leaf: ${unanswered.join(", ")} must declare \`touch\`: its words under a finger, or false where a finger reaches it directly`,
@@ -250,21 +256,22 @@ export function pageScopes() {
   }
   return resolved;
 }
-// The rows a finger reaches through a banner control rather than a key (AGENTS.md, "Touch
-// routes"): each page command declaring `touch` words, in line order, and each row of a page
-// scope declaring them, beside the scopes it stands in. Read from the live register, since
-// a scope may join or leave it.
-export function touchRows() {
+// The presses a finger reaches through a banner control rather than a key (AGENTS.md,
+// "Touch routes"): each a page command declares, in line order, and each a page scope's
+// rows declare, scope by scope in STACK order, so the first that stands is the one the
+// user is innermost in. Read from the live register, since a scope may join or leave it.
+export function touchPresses() {
   pageScopes();
-  const steps = new Map();
-  for (const name of STACK)
-    if (typeof name === "string")
-      for (const scope of scopes.get(name) ?? [])
-        for (const row of scope.rows)
-          if (row.touch) steps.set(row, [...(steps.get(row) ?? []), scope]);
   return {
-    commands: PAGE_COMMANDS.map((id) => commands.get(id)).filter((row) => row?.touch),
-    steps: [...steps].map(([row, standsIn]) => ({ row, standsIn })),
+    commands: PAGE_COMMANDS.flatMap((id) => pressesOf(commands.get(id))),
+    steps: STACK.flatMap((name) =>
+      typeof name === "string"
+        ? (scopes.get(name) ?? []).map((scope) => ({
+            scope,
+            presses: scope.rows.flatMap(pressesOf),
+          }))
+        : [],
+    ).filter(({ presses }) => presses.length),
   };
 }
 export const universalCommandReference = () => commands.get(COMMAND_REFERENCE);

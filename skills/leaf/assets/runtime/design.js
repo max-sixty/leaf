@@ -77,7 +77,7 @@ export function createDesignMode({
         on
           ? `Design mode: a click comments on what it lands on — a widget, a control, the chrome. ${
               coarsePointer.matches
-                ? "Exit Design on the banner leaves."
+                ? "Exit Design mode on the banner leaves."
                 : "Escape leaves."
             }`
           : "Design mode off",
@@ -331,9 +331,7 @@ export function createDesignMode({
         keys: ["l"],
         does: "Exit Design mode",
         line: "exit Design mode",
-        // Short, because a touch selection's Comment on selection can stand beside it on a
-        // 320px row.
-        touch: "Exit Design",
+        touch: "Exit Design mode",
         run: () => setDesignMode(false),
       },
     ],

@@ -548,7 +548,8 @@ export function createTargetChooser({
 
   const PAGE_SEARCH = {
     id: "page.search.open",
-    touch: false,
+    // A finger can select words it can see, but not find them elsewhere on a long page.
+    touch: "Search page",
     keys: ["/"],
     does: "Search all the text on the page",
     line: "search page",
@@ -688,14 +689,16 @@ export function createTargetChooser({
         keys: ["Tab", "Shift+Tab"],
         routes: [
           {
-            id: "page.search.match.next",
-            binding: "Tab",
-            does: "Go to the next search match",
-          },
-          {
             id: "page.search.match.previous",
             binding: "Shift+Tab",
             does: "Go to the previous search match",
+            touch: "Previous",
+          },
+          {
+            id: "page.search.match.next",
+            binding: "Tab",
+            does: "Go to the next search match",
+            touch: "Next",
           },
         ],
         does: "Next / previous search match",

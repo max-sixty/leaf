@@ -511,11 +511,11 @@ function availableRouteSnapshot() {
 // take this snapshot before that point.
 export const availableCommands = () => availableRouteSnapshot().commands;
 export const availableCommandRoutes = () => availableRouteSnapshot().routes;
-// A control standing in for a row's keys (touch-controls.js) makes the row's one press
-// itself: there is no binding to resolve, and a nearer claim on the letter is about the
-// key, not the command.
-export function invokeRow(row) {
-  const invocation = invocationFor(row, undefined, { id: row.id });
+// A control standing in for a press (touch-controls.js) makes that press itself: the
+// binding names which of a routed row's results it is, and a nearer claim on the key is
+// about the key, not the command.
+export function invokePress({ id, row, binding }) {
+  const invocation = invocationFor(row, binding, { id });
   if (!invocation) return false;
   announceInvocation(invocation);
   invocation.run();

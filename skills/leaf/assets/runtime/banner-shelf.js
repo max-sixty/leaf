@@ -17,7 +17,10 @@
  *   thing the user came to the banner for, so it stands on the row in the reading
  *   loop's place until the gesture ends. The row has no
  *   room to seat both beside More on a 320px phone, and a step hidden behind More is
- *   two presses on a door nothing points to.
+ *   two presses on a door nothing points to. For the same reason one contributor's
+ *   steps stand at a time, and the higher rank is the nearer gesture: words selected
+ *   inside a mode or a search are what the user is doing now, and the mode's steps
+ *   return once the selection goes.
  */
 import { html, render, repeat } from "../vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
@@ -61,10 +64,19 @@ const ordered = () =>
     (left, right) => left.rank - right.rank || left.sequence - right.sequence,
   );
 const onOffer = (entry) => entry.present && (!entry.conditional || entry.offered);
-// A gesture step displaces the reading loop only while it is on the row itself.
-const gestureHeld = () =>
-  row.some((entry) => entry.seat === "gesture" && onOffer(entry));
-const visible = (entry) => onOffer(entry) && !(entry.seat === "row" && gestureHeld());
+// A gesture step displaces the reading loop only while it is on the row itself, and the
+// nearest gesture displaces the others.
+const nearestGesture = () =>
+  Math.max(
+    ...row
+      .filter((entry) => entry.seat === "gesture" && onOffer(entry))
+      .map((e) => e.rank),
+  );
+const visible = (entry) => {
+  if (!onOffer(entry)) return false;
+  if (entry.seat === "row") return nearestGesture() === -Infinity;
+  return entry.seat !== "gesture" || entry.rank === nearestGesture();
+};
 
 function rowTemplate() {
   return html`
@@ -213,7 +225,7 @@ export function showBannerControl(control, shown) {
   const wasInMenu = menu.includes(entry);
   const loopFocus = row.find(
     (candidate) =>
-      candidate.seat === "row" && document.activeElement === candidate.focusTarget,
+      candidate.seat !== "menu" && document.activeElement === candidate.focusTarget,
   );
   const prior = entry;
   entry = Object.freeze({ ...entry, present: shown });

@@ -111,9 +111,10 @@ def test_touch_user_selects_an_element_comments_and_finds_its_thread(browser, se
 
 
 def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
-    """Undo, Draw mode and Design mode have no key under a finger, so More holds each, read
-    off the command's own row, and a mode's way out stands on the banner's row while the
-    mode holds. Design mode lets that step's press through rather than commenting on it."""
+    """Undo, Draw mode, Design mode and search have no key under a finger, so More holds
+    each, read off the command's own row, and what a finger does inside one stands on the
+    banner's row while it holds. Design mode lets that step's press through rather than
+    commenting on it."""
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )
@@ -137,8 +138,8 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
 
     for entry, mode, exit_step in (
-        ("Draw mode", "data-lf-draw-mode", "Exit Draw"),
-        ("Design mode", "data-lf-design-mode", "Exit Design"),
+        ("Draw mode", "data-lf-draw-mode", "Exit Draw mode"),
+        ("Design mode", "data-lf-design-mode", "Exit Design mode"),
     ):
         banner_control(page, f".lf-banner-menu .lf-btn:text-is('{entry}')").tap()
         expect(page.locator("body")).to_have_attribute(mode, "")
@@ -158,24 +159,56 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     expect(cancel).to_be_visible()
     banner_control(page, ".lf-banner-menu .lf-btn:text-is('Design mode')").tap()
     expect(page.locator(".lf-live")).to_contain_text(
-        "Exit Design on the banner leaves."
+        "Exit Design mode on the banner leaves."
     )
     expect(cancel).to_have_count(0)
     expect(page.locator(".lf-target-chooser-hint")).to_have_count(0)
-    exit_design = row.get_by_role("button", name="Exit Design", exact=True)
+    exit_design = row.get_by_role("button", name="Exit Design mode", exact=True)
 
-    # Prose still selects in Design mode, so a touch selection's step can stand beside the
-    # mode's own on the narrowest phone row.
+    # Prose still selects in Design mode. The selection is the nearer gesture, so its step
+    # takes the narrowest phone row until the words are let go, and the mode's returns.
     page.set_viewport_size({"width": 320, "height": 700})
     page.locator("#h").evaluate("el => getSelection().selectAllChildren(el)")
-    expect(
-        row.get_by_role("button", name="Comment on selection", exact=True)
-    ).to_be_visible()
-    assert row.evaluate("el => el.scrollWidth <= el.clientWidth"), (
-        "the mode's exit and the selection's step overflow a 320px row"
-    )
+    comment = row.get_by_role("button", name="Comment on selection", exact=True)
+    expect(comment).to_be_visible()
+    expect(exit_design).to_be_hidden()
+    page.evaluate("getSelection().removeAllRanges()")
+    expect(comment).to_be_hidden()
     exit_design.tap()
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+
+    # Selecting words reaches only what is on screen; search finds the rest, and its
+    # walk stands on the row beside its way out.
+    banner_control(page, ".lf-banner-menu .lf-btn:text-is('Search page')").tap()
+    box = page.get_by_role("searchbox", name="Search page text")
+    expect(box).to_be_focused()
+    box.fill("mounts")
+    expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
+    next_match = row.get_by_role("button", name="Next", exact=True)
+    expect(row.get_by_role("button", name="Previous", exact=True)).to_be_visible()
+    assert row.evaluate("el => el.scrollWidth <= el.clientWidth"), (
+        "search's steps overflow a 320px row"
+    )
+    next_match.tap()
+    expect(page.locator(".lf-live")).to_contain_text("Match 2 of 3")
+    row.get_by_role("button", name="Close search", exact=True).tap()
+    expect(box).to_be_hidden()
+    expect(next_match).to_have_count(0)
+
+    # Searching inside a mode puts search's steps on the row in place of the mode's, and
+    # the mode's way out returns when search closes.
+    banner_control(page, ".lf-banner-menu .lf-btn:text-is('Draw mode')").tap()
+    exit_draw = row.get_by_role("button", name="Exit Draw mode", exact=True)
+    expect(exit_draw).to_be_visible()
+    banner_control(page, ".lf-banner-menu .lf-btn:text-is('Search page')").tap()
+    expect(next_match).to_be_visible()
+    expect(exit_draw).to_be_hidden()
+    expect(row.locator(".lf-btn:visible").filter(has_not_text="⋯")).to_have_text(
+        ["Previous", "Next", "Close search"]
+    )
+    row.get_by_role("button", name="Close search", exact=True).tap()
+    exit_draw.tap()
+    expect(page.locator("body")).not_to_have_attribute("data-lf-draw-mode", "")
 
 
 def test_desktop_target_hints_leave_plain_link_clicks_available(browser, serve):

@@ -4783,7 +4783,7 @@ def test_specimen_references_see_only_selected_threads(
     result = check(page_dir)
     assert (result.exit_code == 0) == seeded, result.output
     if not seeded:
-        assert "names no comment in this document" in result.output
+        assert "names no thread in this document" in result.output
 
 
 def test_specimen_checks_available_history_beside_forward_thread_references(

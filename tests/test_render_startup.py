@@ -73,6 +73,7 @@ from render_harness import (
     compare_with,
     consume_browser_errors,
     displayed,
+    draft_control,
     expect_banner_control_offered,
     holding,
     leaf_page,
@@ -1822,10 +1823,7 @@ def test_user_overrides_identify_state_that_differs_from_authored_inputs(
     draft = page.locator("#draft-ops")
     draft.locator(".lf-draft-body").dblclick()
     draft.locator("textarea").fill(DRAFT_EDITED)
-    page.locator(
-        '[data-lf-margin-entry-owner="draft:draft-ops"]'
-        '[data-lf-margin-entry-key="save"]:visible'
-    ).click()
+    draft_control(page, "save", "draft-ops").click()
     expect(page.locator("#draft-ops[data-lf-user-override]")).to_have_count(1)
 
     # Both actions must be in the log before the next version publishes, and the

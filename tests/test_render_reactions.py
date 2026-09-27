@@ -39,6 +39,7 @@ from render_harness import (
     select,
     sending,
     shortcut_bar_text,
+    suggestion_control,
     told,
     write,
 )
@@ -653,10 +654,7 @@ def test_deciding_a_reaction_target_releases_its_temporary_choices(
     # about reconciliation when another owner settles the target, not banner overflow.
     page.locator(".lf-page-map-toggle").evaluate("button => button.click()")
     sheet = page.get_by_role("dialog", name="Page Map", exact=True)
-    decision = sheet.locator(
-        f'[data-lf-margin-entry-owner="suggestion:{target}"]'
-        f'[data-lf-margin-entry-key="{action}"]'
-    )
+    decision = suggestion_control(sheet, target, action, visible=False)
     decision.focus()
     expect(decision).to_be_focused()
     with sending(page, "the map decision"):

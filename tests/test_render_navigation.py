@@ -66,7 +66,9 @@ from render_harness import (
     ROOT,
     TOKEN,
     ask_actions_hint,
+    command_reference_rows,
     consume_browser_errors,
+    draft_control,
     hold_selection,
     holding,
     leaf_page,
@@ -88,6 +90,7 @@ from render_harness import (
     sending,
     shortcut_bar_text,
     stamp_page,
+    suggestion_control,
     take_browser_errors,
     told,
     wait_for_revision,
@@ -95,20 +98,6 @@ from render_harness import (
 )
 
 pytestmark = pytest.mark.nightly
-
-
-def draft_control(page, key, draft_id):
-    return page.locator(
-        f'[data-lf-margin-entry-owner="draft:{draft_id}"]'
-        f'[data-lf-margin-entry-key="{key}"]:visible'
-    )
-
-
-def command_reference_rows(page, heading):
-    heading_id = page.get_by_role("heading", name=heading, exact=True).get_attribute(
-        "id"
-    )
-    return page.locator(f'tbody[aria-labelledby="{heading_id}"]')
 
 
 READING_REGIONS_PAGE = leaf_page(
@@ -1144,16 +1133,10 @@ def test_the_feature_gallery_keeps_a_choice_when_its_proposal_is_undone(browser,
     page = open_page(browser, url)
     page.locator("#bg-route-river").click()
     round_trip(page)
-    page.locator(
-        '[data-lf-margin-entry-owner="suggestion:bg-nested-change"]'
-        '[data-lf-margin-entry-key="accept"]:visible'
-    ).click()
+    suggestion_control(page, "bg-nested-change", "accept").click()
     round_trip(page)
     expect(page.locator("#bg-nested-change > lf-old")).to_be_hidden()
-    page.locator(
-        '[data-lf-margin-entry-owner="suggestion:bg-nested-change"]'
-        '[data-lf-margin-entry-key="undo"]:visible'
-    ).click()
+    suggestion_control(page, "bg-nested-change", "undo").click()
     round_trip(page)
 
     expect(page.locator("#bg-nested-change > lf-old")).to_be_visible()
@@ -10712,10 +10695,7 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
     # A decision with no seat: focus on its action names the rewrite, and the composer
     # anchors there rather than on the page.
     rendered(page)
-    rewrite_action = page.locator(
-        '[data-lf-margin-entry-owner="suggestion:sug-window"]'
-        '[data-lf-margin-entry-key="accept"]:visible'
-    )
+    rewrite_action = suggestion_control(page, "sug-window", "accept")
     rewrite_action.focus()
     expect(rewrite_action).to_be_focused()
     expect(page.locator("#sug-window")).to_have_attribute("data-lf-ask", "1")

@@ -1679,6 +1679,50 @@ def margins_laid_out(page):
     )
 
 
+def margin_entry(owner: str, key: str | None = None) -> str:
+    """The selector for the margin entries a contribution registered under `owner`,
+    narrowed to its entry `key` when one is given. A page script that must find the
+    control itself takes this; a test otherwise takes `margin_control`."""
+    selector = f'[data-lf-margin-entry-owner="{owner}"]'
+    return selector if key is None else f'{selector}[data-lf-margin-entry-key="{key}"]'
+
+
+def margin_control(scope, owner: str, key: str | None = None, *, visible=True):
+    """A margin entry within `scope` (a page, frame, or locator) by its contribution's
+    owner key and its own entry key; only the visible one unless `visible` is False."""
+    return scope.locator(margin_entry(owner, key) + (":visible" if visible else ""))
+
+
+# A content widget's contribution key is its module's own choice, and these two are the
+# suite's one spelling of each: `lf-draft` registers as `draft:<id>`, `lf-suggestion`
+# as `suggestion:<id>`.
+def draft_owner(draft_id: str) -> str:
+    return f"draft:{draft_id}"
+
+
+def suggestion_owner(suggestion_id: str) -> str:
+    return f"suggestion:{suggestion_id}"
+
+
+def draft_control(scope, key: str, draft_id: str, *, visible=True):
+    """The draft `draft_id`'s margin entry `key` (edit, save, cancel)."""
+    return margin_control(scope, draft_owner(draft_id), key, visible=visible)
+
+
+def suggestion_control(scope, suggestion_id: str, key=None, *, visible=True):
+    """The suggestion `suggestion_id`'s margin entry `key` (accept, reject, undo), or
+    all of its entries."""
+    return margin_control(scope, suggestion_owner(suggestion_id), key, visible=visible)
+
+
+def command_reference_rows(page, heading):
+    """The rows of the command reference table titled `heading`."""
+    heading_id = page.get_by_role("heading", name=heading, exact=True).get_attribute(
+        "id"
+    )
+    return page.locator(f'tbody[aria-labelledby="{heading_id}"]')
+
+
 # The page shell's box on screen: where the document's room starts and ends. The runtime
 # reads the same edge as `shellRight` (geometry.js). This is the suite's one spelling of it, read off the DOM
 # rather than through that function, so a test comparing it with a region's box compares

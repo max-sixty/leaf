@@ -43,6 +43,7 @@ from render_harness import (
     author_test_widget,
     banner_control,
     consume_browser_errors,
+    draft_control,
     expect_banner_control_offered,
     holding,
     leaf_page,
@@ -56,6 +57,7 @@ from render_harness import (
     round_trip,
     sending,
     stamp_page,
+    suggestion_control,
     take_browser_errors,
     told,
     undo,
@@ -69,22 +71,6 @@ DRAG_HELD = (
 )
 
 pytestmark = pytest.mark.nightly
-
-
-def margin_control(page, owner, key, *, visible=True):
-    return page.locator(
-        f'[data-lf-margin-entry-owner="{owner}"]'
-        f'[data-lf-margin-entry-key="{key}"]'
-        f"{':visible' if visible else ''}"
-    )
-
-
-def suggestion_control(page, suggestion_id, key, *, visible=True):
-    return margin_control(page, f"suggestion:{suggestion_id}", key, visible=visible)
-
-
-def draft_control(page, draft_id="note-cli"):
-    return margin_control(page, f"draft:{draft_id}", "edit")
 
 
 def test_a_refused_message_cannot_present_before_its_thread_reconciles(
@@ -1628,7 +1614,7 @@ def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
     page.route("**/api/event", lambda route: held.append(route))
     draft = page.locator("#note-cli")
     with page.expect_request("**/api/event"):
-        draft_control(page).click()
+        draft_control(page, "edit", "note-cli").click()
         draft.locator("textarea").fill("Local C")
         page.keyboard.press("Meta+Enter")
     holding(page, held, 1, "the refused draft")
@@ -1685,7 +1671,7 @@ def test_a_draft_commit_stages_before_deferred_projection_retries(browser, serve
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     draft = page.locator("#note-cli")
-    draft_control(page).click()
+    draft_control(page, "edit", "note-cli").click()
     draft.locator("textarea").fill("Local C")
 
     append_command(
@@ -1727,7 +1713,7 @@ def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
     authored = body.inner_text()
     assert "\n\n" in authored
 
-    draft_control(page).click()
+    draft_control(page, "edit", "note-cli").click()
     page.locator("lf-draft textarea").fill("Rewritten.")
     page.keyboard.press("Meta+Enter")
     round_trip(page)
@@ -1899,14 +1885,14 @@ def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve)
     body = "lf-draft .lf-draft-body"
     authored = one.locator(body).inner_text()
 
-    draft_control(one).click()
+    draft_control(one, "edit", "note-cli").click()
     one.locator("lf-draft textarea").fill("Rewritten.")
     one.keyboard.press("Meta+Enter")
     round_trip(one)
     expect(two.locator(body)).to_have_text("Rewritten.")
 
     # The second tab is now holding words of its own, so the log may not write over it.
-    draft_control(two).click()
+    draft_control(two, "edit", "note-cli").click()
     expect(two.locator("lf-draft textarea")).to_be_focused()
     undo(one)
     expect(one.locator(body)).to_have_text(authored)

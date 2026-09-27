@@ -6997,7 +6997,10 @@ def test_a_followed_link_arrives_as_a_fresh_load_of_it_does(browser, serve):
     destination, so they arrive alike: the worker's worktree sits in a goal the command
     hub keeps shut (`display: none`, which `hidden="until-found"` would not be), and the
     browser's own jump landed on nothing where the fresh load revealed it. Back then
-    returns the user to where they pressed."""
+    returns the user to where they pressed, and Forward to the link's entry after the
+    goal is shut again arrives there as well: the offset that entry was left at was
+    read over the open goal, and restoring it over the shut one landed further down the
+    page with the worktree still hidden."""
     url = live_url(serve(COMMAND_HUB_EXAMPLE))
     shown = """(id) => { const t = document.getElementById(id);
                          const r = t.getBoundingClientRect();
@@ -7029,6 +7032,12 @@ def test_a_followed_link_arrives_as_a_fresh_load_of_it_does(browser, serve):
         "(at) => Math.abs(document.scrollingElement.scrollTop - at) <= 1",
         arg=pressed_at,
     )
+
+    page.locator("#parser-dedupe > strong").click()
+    expect(page.locator("#tree-w-5")).to_be_hidden()
+    page.go_forward()
+    returned = page.wait_for_function(shown, arg="tree-w-5").json_value()
+    assert returned == landed, (returned, landed)
 
 
 def test_an_arrival_lands_where_the_url_aimed(browser, serve):

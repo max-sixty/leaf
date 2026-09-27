@@ -4,11 +4,9 @@ A command belongs here once agents keep rewriting it as a throwaway script. Each
 lives in the module that owns its mechanism and is registered below.
 """
 
-from pathlib import Path
-
 import click
 
-from leaf_dev.harness import build_arm
+from leaf_dev.guidance_ab import guidance_ab
 from leaf_dev.probe import probe
 from leaf_dev.stills import stills
 
@@ -18,13 +16,6 @@ def cli() -> None:
     """Leaf's developer tooling."""
 
 
-@cli.command()
-@click.argument("ref")
-@click.argument("dest", type=click.Path(path_type=Path))
-def arm(ref: str, dest: Path) -> None:
-    """Build an arm, the plugin payload at git REF, at DEST."""
-    click.echo(f"{dest}: {build_arm(ref, dest.resolve())}")
-
-
+cli.add_command(guidance_ab)
 cli.add_command(probe)
 cli.add_command(stills)

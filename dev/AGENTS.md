@@ -19,8 +19,9 @@ command: a module here that owns its mechanism, registered in `cli.py`. A mechan
 two tools need, such as building an arm or serving a page, lives in one module here
 and the others import it; a script under `scripts/` imports it too.
 
-- `harness.py`: arms (the plugin payload at a ref), pages served from an authored
-  source on an arm, and the isolated `claude -p` children evals run.
+- `harness.py`: arms (the plugin payload at a ref, or as the working tree has it),
+  pages served from an authored source on an arm, and the isolated `claude -p`
+  children evals run.
 - `page_fixtures.py` builds a page directory from an authored source;
   `example_data.py` reads the catalog, names, and each page's companions.
 - `browser.py` opens and settles a tab the same way for every command that reads one.
@@ -30,4 +31,6 @@ and the others import it; a script under `scripts/` imports it too.
 - `leaf-dev stills [BASE_REF]` screenshots a catalogue of UI states, at rest and
   reached by input, on a base runtime and HEAD's, and crops each state that changed
   into a before/after pair under `.tmp/stills/`.
-- `leaf-dev arm REF DEST` builds one arm, for an eval's A/B (`evals/README.md`).
+- `leaf-dev guidance-ab [CASE]...` runs the guidance cases in `evals/` on the merge
+  base's guidance and the working tree's at once, and prints each case's passes per
+  arm and a Record row (`evals/README.md`).

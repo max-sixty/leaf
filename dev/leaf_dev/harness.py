@@ -1,15 +1,12 @@
 """Arms, served pages, and Claude Code children for evals and probes that run a
 version of Leaf.
 
-    uv run leaf-dev arm REF DEST
+`leaf-dev guidance-ab`, `leaf-dev stills` and `leaf-dev probe`,
+`eval_claude_delivery.py`, the two `bench_*.py` scripts,
+`notes/arrangement-eval/harness.py` and `notes/usability-eval/harness.py` import it.
 
-builds one arm at DEST from git REF; `evals/README.md`'s A/B recipe builds its other
-arm with it. `leaf-dev stills` and `leaf-dev probe`, `eval_claude_delivery.py`, the
-two `bench_*.py` scripts, `notes/arrangement-eval/harness.py` and
-`notes/usability-eval/harness.py` import the rest.
-
-An arm is the plugin payload at one ref (`PAYLOAD`: the manifest, hooks, launcher,
-skills and uv project) and nothing else. It has no `.git`, examples, docs or notes, so a
+An arm is the plugin payload (`PAYLOAD`: the manifest, hooks, launcher, skills and uv
+project) at one ref, or as the working tree has it, and nothing else. It has no `.git`, examples, docs or notes, so a
 child cannot read its way to another arm's version through history or the worked
 corpus. Building runs the launcher once, so uv builds the arm's environment before a
 timed run starts.
@@ -154,28 +151,51 @@ def merge_base() -> str:
     ).stdout.strip()
 
 
-def build_arm(ref: str, dest: Path) -> str:
-    """Extract PAYLOAD at `ref` into `dest`, replacing any earlier arm there, and
-    build its environment; return the commit."""
+def copy_working(paths: Iterable[str], dest: Path) -> None:
+    """Copy the files under `paths` into `dest` as the working tree has them: tracked
+    or untracked, edits included, and nothing git ignores."""
+    listed = subprocess.run(
+        ["git", "-C", ROOT, "ls-files", "-z", "--cached", "--others"]
+        + ["--exclude-standard", "--", *paths],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split("\0")
+    # A conflicted file is listed once per stage; a deleted one is still in the index.
+    for name in dict.fromkeys(filter(None, listed)):
+        if (ROOT / name).is_file():
+            (dest / name).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / name, dest / name)
+
+
+def build_arm(ref: str | None, dest: Path) -> str:
+    """Put PAYLOAD at `ref`, or as the working tree has it when `ref` is None, into
+    `dest`, replacing any earlier arm there, and build its environment; return the
+    commit, HEAD's for the working tree."""
     if dest.exists():
         # A caller may have made an arm read-only.
         subprocess.run(["chmod", "-R", "u+w", dest], check=True)
         shutil.rmtree(dest)
     dest.mkdir(parents=True)
-    present = subprocess.run(
-        ["git", "-C", ROOT, "ls-tree", "--name-only", ref, *PAYLOAD],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.split()
-    archive = subprocess.run(
-        ["git", "-C", ROOT, "archive", ref, *present], capture_output=True, check=True
-    ).stdout
-    subprocess.run(["tar", "-x", "-C", dest], input=archive, check=True)
+    if ref is None:
+        copy_working(PAYLOAD, dest)
+    else:
+        present = subprocess.run(
+            ["git", "-C", ROOT, "ls-tree", "--name-only", ref, *PAYLOAD],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.split()
+        archive = subprocess.run(
+            ["git", "-C", ROOT, "archive", ref, *present],
+            capture_output=True,
+            check=True,
+        ).stdout
+        subprocess.run(["tar", "-x", "-C", dest], input=archive, check=True)
     with tempfile.TemporaryDirectory() as state:
         run_leaf(dest, Path(state), "--root", check=True)
     return subprocess.run(
-        ["git", "-C", ROOT, "rev-parse", f"{ref}^{{commit}}"],
+        ["git", "-C", ROOT, "rev-parse", f"{ref or 'HEAD'}^{{commit}}"],
         capture_output=True,
         text=True,
         check=True,

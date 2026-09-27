@@ -867,7 +867,7 @@ test("widget selections publish the canonical held thread", () => {
     },
   ];
   app.adopt(accepted);
-  assert.equal(selected.read().thread.heldBy, root.id);
+  assert.equal(selected.read().thread.heldBy, accepted.browser.thread.threads[0].id);
 
   const released = state(3);
   released.browser.thread.threads = [

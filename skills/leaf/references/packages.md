@@ -308,8 +308,8 @@ author change to those facts fails closed. Its methods are `read`, `subscribe`,
 `read()` returns an immutable `{authored, state, thread, provenance, actions,
 requests, request, delivery}` snapshot. `authored` is the typed baseline decoded from
 validated source markup; `state` is that baseline with admitted and unresolved records
-folded over it; `thread.heldBy` is the unresolved admitted hold root naming this
-widget, or `null`. Each `actions` or `requests` entry carries its availability and
+folded over it; `thread.heldBy` is the `id` of the open, admitted Thread whose root
+holds this widget, or `null`. Each `actions` or `requests` entry carries its availability and
 exact history or Undo candidates. Guard every optimistic mutation with its entry's
 availability; `dispatch()` repeats the same check.
 
@@ -404,8 +404,8 @@ continues from there and no `tabindex` is left on the page behind the user. What
 it is a widget's own Escape step landing them back in the thing it took them out of: the
 patch a file filter belongs to, the exhibit a box was about.
 
-A module that takes the user to a thread calls `openThread(rootId, {focus})`
-with the root comment's id. It opens the thread where the page shows it, inline beside
+A module that takes the user to a thread calls `openThread(id, {focus})`
+with the Thread's `id`. It opens the thread where the page shows it, inline beside
 its passage or widget, and in Threads when it has no place on the page, the same choice a
 mark and `t` make; `focus: "thread"` lands on the thread and the default `"reply"` lands in
 its reply box. A place on the page is an ordinary fragment link.
@@ -1099,7 +1099,7 @@ collection initially and after relevant application updates; it returns a stop
 function for `disconnectedCallback`. Each widget keeps its own search, filter, and
 order state and derives its displayed rows from the collection. `threadTurns(thread)`
 selects a Thread's displayed turns, and `threadSummary(thread)` gives its topic and
-latest activity. `openThread(thread.root.id)` takes the user to Leaf's canonical
+latest activity. `openThread(thread.id)` takes the user to Leaf's canonical
 conversation surface for that Thread. The widget does not need to render or own the
 conversation to provide that route.
 
@@ -1113,6 +1113,8 @@ the built-in Threads panel reads, `{phase, threads, done}`, on its initial
 presentation and on later publications and placement updates. For whether a
 Thread waits on the user, read unresolved `attention.kind === "needs_user"`, which
 includes recovery after a failed response; `"waiting"` means it is with the agent.
+A Thread's `id` is the name Asks and workflows give it; its `root` is the first
+message it still holds, whose id differs where the log lost the opening message.
 Each Thread's `key` survives admission of a pending gesture, and its `anchor`
 names the `section` (the widget's id) and `datum` it rests on. A returned promise
 participates in document presentation. The second argument's `signal` is aborted when

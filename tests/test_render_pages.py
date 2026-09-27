@@ -8,6 +8,7 @@ import re
 import pytest
 from click.testing import CliRunner
 from interact_support import (
+    add_test_widget,
     record_claim,
 )
 from leaf import cli as cli_model
@@ -70,7 +71,6 @@ from render_harness import (
     LONG_PAGE,
     REPLY_HOST_PAGE,
     TOKEN,
-    author_test_widget,
     consume_browser_errors,
     leaf_page,
     margins_laid_out,
@@ -2101,7 +2101,7 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
     earlier would stand before the handover, and on a fast machine that is where an
     unheld one would land."""
     monkeypatch.chdir(tmp_path)
-    author_test_widget(tmp_path, "lf-callout", upgrade=True)
+    add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     (tmp_path / ".leaf" / "widgets" / "lf-callout.js").write_text(LATE_MARGIN_WIDGET)
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})

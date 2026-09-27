@@ -1,27 +1,41 @@
-"""Arms and children for evals that run an agent host against a version of Leaf.
+"""Arms, served pages, and agent-host children for evals and probes that run a
+version of Leaf.
 
-    uv run scripts/eval_harness.py REF DEST
+The `leaf-dev` commands, `verify_codex_task.py`, `verify_site.py`,
+`notes/arrangement-eval/harness.py` and `notes/usability-eval/harness.py` import it.
 
-builds one arm at DEST from git REF. `eval_claude_delivery.py`,
-`bench_render_check.py`, `bench_page_latency.py`, `stills.py`, `verify_codex_task.py`,
-`verify_site.py`, `notes/arrangement-eval/harness.py` and
-`notes/usability-eval/harness.py` import the rest, and `evals/README.md`'s A/B recipe
-builds its other arm with the command.
+An arm is the plugin payload (`PAYLOAD`: both hosts' manifests, hooks, launcher, skills
+and uv project) at one ref, or as the working tree has it, and nothing else. It has no
+`.git`, examples, docs or notes, so a child cannot read its way to another arm's
+version through history or the worked corpus. Building runs the launcher once, so uv
+builds the arm's environment before a timed run starts. `extract_payload` alone
+writes the payload without building it, which a Codex home (`codex_home`) installs as
+its plugin.
 
-An arm is the plugin payload at one ref (`PAYLOAD`: both hosts' manifests, hooks,
-launcher, skills and uv project) and nothing else. It has no `.git`, examples, docs or
-notes, so a child cannot read its way to another arm's version through history or the
-worked corpus. Building runs the launcher once, so uv builds the arm's environment
-before a timed run starts. `extract_payload` alone also copies the working tree's
-payload, which a Codex home (`codex_home`) installs as its plugin.
+An A/B command compares two arms, `base` and `head` (`build_pair`), or, as
+`leaf-dev guidance-ab` does, a base and the working tree's arm. Its base is the
+merge base with `main` unless the caller names another ref (`base_ref`), so a branch
+behind `main` is compared with where it started rather than with changes it has not
+merged. A timed one prints the machine's load average before and after
+(`load_average`), since other processes' load moves every timing.
 
-A child is `claude -p` from a scratch cwd outside any repository, with project-only
-settings, no MCP servers, auto-memory off, and none of the variables that identify an
-agent session running the harness (`environment`). Claude Code loads project
-instructions above its cwd, so a child whose cwd sat in this checkout read its
-`AGENTS.md` whatever arm it ran. With auto-memory on it also read the repository's
-memory, and saved to it. `--add-dir` grants reads without loading a directory's
-project instructions.
+A child is `claude -p` from a scratch cwd outside any repository, under a home of its
+own, with no MCP servers, auto-memory off, and none of the variables that identify an
+agent session running the harness (`environment`). Its permissions are bypassed, so what
+a child writes to its host's user configuration by `~` lands in that home and not the
+user's: a child told of a standing preference saves it where its host keeps them, as the
+guidance says to, and children given the user's home appended six copies to the user's
+own `~/.claude/CLAUDE.md`. The home holds nothing the user wrote, so none of the user's
+instructions, settings, plugins or memory load either. The login is all it takes of the
+user's: on macOS it lives in the keychain, which the child reaches through a link to
+`~/Library/Keychains` alone, and elsewhere in `~/.claude/.credentials.json`, which the
+home gets a copy of. uv keeps the user's cache. Claude Code loads project instructions
+above its cwd, so a child whose cwd sat in this checkout read its `AGENTS.md` whatever
+arm it ran. `--add-dir` grants reads without loading a directory's project instructions.
+Two phases of one session share a cwd, and so a home, which is where `--resume` finds
+the session. The home stands beside the cwd rather than in it, so a child listing its
+own files never meets its host's; and `CLAUDE_CONFIG_DIR`, which would point the child
+back at a config directory of the user's, does not reach it.
 The child's `TMPDIR` is inside its cwd, because concurrent children otherwise write the
 same `/tmp` names and can read each other's.
 
@@ -48,13 +62,19 @@ import urllib.request
 from collections.abc import Iterable
 from contextlib import contextmanager
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 from typing import Self
 
 import click
 from leaf.host import IDENTITY_VARIABLES
 
-ROOT = Path(__file__).resolve().parent.parent
+from leaf_dev import ROOT
+from leaf_dev.page_fixtures import prepare_page, read_fixture
+
+# The uv project names this package's `pyproject.toml` as a workspace member, so uv
+# needs that file to read the lock. The package itself stays out: the launcher never
+# installs the dev group. A ref from before the package has no such file.
 PAYLOAD = (
     ".agents/plugins",
     ".claude-plugin",
@@ -64,6 +84,8 @@ PAYLOAD = (
     "skills",
     "pyproject.toml",
     "uv.lock",
+    "dev/pyproject.toml",
+    "worker/pyproject.toml",
 )
 
 
@@ -127,8 +149,25 @@ def serving(arm: Path, state: Path, page: Path):
         server.wait(10)
 
 
+def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
+    """Build the authored `source` into the page directory `page` with the arm's own
+    launcher under the state home `state`. The checkout is an arm too: `ROOT` runs
+    its working tree."""
+    prepare_page(page, read_fixture(source), partial(run_leaf, arm, state, check=True))
+
+
+@contextmanager
+def serving_source(arm: Path, source: Path, scratch: Path):
+    """Build `source` into a page under `scratch` (`build_source`), serve it
+    (`serving`), and yield the address."""
+    state, page = scratch / "state", scratch / "page"
+    build_source(arm, state, source, page)
+    with serving(arm, state, page) as address:
+        yield address
+
+
 def merge_base() -> str:
-    """The commit HEAD branched from `main`: the base an A/B script compares HEAD
+    """The commit HEAD branched from `main`: the base an A/B command compares HEAD
     against unless it is handed another."""
     return subprocess.run(
         ["git", "-C", ROOT, "merge-base", "HEAD", "main"],
@@ -138,49 +177,83 @@ def merge_base() -> str:
     ).stdout.strip()
 
 
+def copy_working(paths: Iterable[str], dest: Path) -> None:
+    """Copy the files under `paths` into `dest` as the working tree has them: tracked
+    and unignored untracked files, the ones an install copies, with edits included
+    and links kept as links."""
+    listed = subprocess.run(
+        ["git", "-C", ROOT, "ls-files", "-z", "--cached", "--others"]
+        + ["--exclude-standard", "--", *paths],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split("\0")
+    # A conflicted file is listed once per stage; a deleted one is still in the index.
+    for name in dict.fromkeys(filter(None, listed)):
+        source, target = ROOT / name, dest / name
+        if source.is_symlink() or source.is_file():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target, follow_symlinks=False)
+
+
 def extract_payload(dest: Path, ref: str | None = None) -> None:
-    """Write PAYLOAD at git `ref`, or as the working tree has it when `ref` is None,
-    into `dest`, replacing whatever was there. The working tree's payload is its
-    tracked and unignored files, the ones an install copies."""
+    """Write PAYLOAD at git `ref`, or as the working tree has it when `ref` is None
+    (`copy_working`), into `dest`, replacing whatever was there."""
     if dest.exists():
         # A caller may have made an arm read-only.
         subprocess.run(["chmod", "-R", "u+w", dest], check=True)
         shutil.rmtree(dest)
     dest.mkdir(parents=True)
     if ref is not None:
+        # An older ref lacks some of PAYLOAD, which `git archive` would refuse.
+        present = subprocess.run(
+            ["git", "-C", ROOT, "ls-tree", "--name-only", ref, *PAYLOAD],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.split()
         archive = subprocess.run(
-            ["git", "-C", ROOT, "archive", ref, *PAYLOAD],
+            ["git", "-C", ROOT, "archive", ref, *present],
             capture_output=True,
             check=True,
         ).stdout
         subprocess.run(["tar", "-x", "-C", dest], input=archive, check=True)
-        return
-    listed = subprocess.run(
-        ["git", "-C", ROOT, "ls-files", "-z", "--cached", "--others"]
-        + ["--exclude-standard", "--", *PAYLOAD],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout
-    for name in filter(None, listed.split("\0")):
-        # A tracked file deleted from the working tree is still listed.
-        if (ROOT / name).exists():
-            (dest / name).parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(ROOT / name, dest / name)
+    else:
+        copy_working(PAYLOAD, dest)
 
 
-def build_arm(ref: str, dest: Path) -> str:
-    """Extract PAYLOAD at `ref` into `dest`, replacing any earlier arm there, and
-    build its environment; return the commit."""
+def build_arm(ref: str | None, dest: Path) -> str:
+    """Extract PAYLOAD at `ref`, or as the working tree has it when `ref` is None,
+    into `dest`, replacing any earlier arm there, and build its environment; return
+    the commit, HEAD's for the working tree."""
     extract_payload(dest, ref)
     with tempfile.TemporaryDirectory() as state:
         run_leaf(dest, Path(state), "--root", check=True)
     return subprocess.run(
-        ["git", "-C", ROOT, "rev-parse", f"{ref}^{{commit}}"],
+        ["git", "-C", ROOT, "rev-parse", f"{ref or 'HEAD'}^{{commit}}"],
         capture_output=True,
         text=True,
         check=True,
     ).stdout.strip()
+
+
+def base_ref(ref: str | None) -> str:
+    """The ref an A/B command compares HEAD against: the one it was handed, else
+    `merge_base()`."""
+    return ref or merge_base()
+
+
+def build_pair(base: str | None, dest: Path) -> tuple[dict[str, Path], dict[str, str]]:
+    """Build an A/B's arms under `dest`: `base` at `base_ref(base)` and `head` at
+    HEAD. Return each arm's directory and its commit, both keyed `base` and `head`."""
+    refs = {"base": base_ref(base), "head": "HEAD"}
+    arms = {arm: dest / arm for arm in refs}
+    return arms, {arm: build_arm(ref, arms[arm]) for arm, ref in refs.items()}
+
+
+def load_average() -> str:
+    """The machine's 1, 5 and 15 minute load averages."""
+    return " ".join(f"{value:.1f}" for value in os.getloadavg())
 
 
 def codex_home(path: Path, config: str = "") -> Path:
@@ -210,18 +283,32 @@ def claude_child(
     `args` follow `-p`, so a prompt goes first. `dirs` are what the child may read
     beyond `cwd`, and `env` adds to `environment()`. Output is verbose stream-json."""
     (cwd / "tmp").mkdir(exist_ok=True)
+    # The home may hold a copy of the user's login, so no one else may enter it.
+    home = cwd.with_name(f"{cwd.name}-home")
+    home.mkdir(mode=0o700, exist_ok=True)
+    home.chmod(0o700)
+    keychains = Path.home() / "Library/Keychains"
+    if keychains.is_dir() and not (home / "Library/Keychains").is_symlink():
+        (home / "Library").mkdir(parents=True, exist_ok=True)
+        (home / "Library/Keychains").symlink_to(keychains)
+    credentials = Path.home() / ".claude/.credentials.json"
+    if credentials.is_file():
+        (home / ".claude").mkdir(parents=True, exist_ok=True)
+        shutil.copy(credentials, home / ".claude/.credentials.json")
     command = [
-        "claude", "-p", *args, "--setting-sources", "project", "--strict-mcp-config",
+        "claude", "-p", *args, "--strict-mcp-config",
         "--permission-mode", "bypassPermissions", "--output-format", "stream-json",
         "--verbose", *(arg for d in dirs for arg in ("--add-dir", str(d))),
     ]  # fmt: skip
-    return {
-        "args": command,
-        "cwd": cwd,
-        "env": environment(
-            CLAUDE_CODE_DISABLE_AUTO_MEMORY="1", TMPDIR=str(cwd / "tmp"), **(env or {})
-        ),
-    }
+    child_env = environment(
+        HOME=str(home),
+        UV_CACHE_DIR=os.environ.get("UV_CACHE_DIR", str(Path.home() / ".cache/uv")),
+        CLAUDE_CODE_DISABLE_AUTO_MEMORY="1",
+        TMPDIR=str(cwd / "tmp"),
+        **(env or {}),
+    )
+    child_env.pop("CLAUDE_CONFIG_DIR", None)
+    return {"args": command, "cwd": cwd, "env": child_env}
 
 
 def run_claude(
@@ -426,15 +513,3 @@ def completed(trace: list[dict]) -> bool:
     """Whether a trace counts: its model call reached a result that is not an
     error, without auto-memory."""
     return trace_result(trace).get("is_error") is False and not loaded_memory(trace)
-
-
-@click.command()
-@click.argument("ref")
-@click.argument("dest", type=click.Path(path_type=Path))
-def main(ref: str, dest: Path) -> None:
-    """Build an arm at DEST from git REF."""
-    click.echo(f"{dest}: {build_arm(ref, dest.resolve())}")
-
-
-if __name__ == "__main__":
-    main()

@@ -38,6 +38,7 @@ from render_harness import (
     SAMPLE_MARKUP,
     SAMPLE_TEXT,
     SETTLED_PAGE,
+    leaf_page,
     open_page,
     page_registry,
     primed,
@@ -194,7 +195,7 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
 def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell):
     """`page check --render` end to end, as the agent runs it: the static lint
     passes both sources, and only one renders clean. The broken source is deliberately
-    unstamped — refusing it before `version stamp` names it is the gate's whole job,
+    unstamped — refusing it before `page stamp` names it is the gate's whole job,
     so the preview server has to expose the exact candidate without activating it.
 
     Over the clean source once through each browser a host can supply: the installed
@@ -244,6 +245,57 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell)
     broken = gate()
     assert broken.returncode == 1
     assert "scrolls sideways" in broken.stderr
+
+
+def test_a_passing_render_check_saves_the_screens_the_author_reads(
+    serve, headless_shell
+):
+    """A clean `page check --render` saves screens and names them: the page top to
+    bottom at the desktop viewport and on a phone, and one screen at each width where
+    the page's own arrangement is at its tightest before it changes. A sidebar page with
+    four tiles in its body changes twice there: its tiles wrap before its track stacks.
+    A second check replaces the first's screens rather than adding to them."""
+    tiles = "".join(
+        f"<lf-metric id='m{i}' value='{i}'>metric {i}</lf-metric>" for i in range(4)
+    )
+    serve(
+        leaf_page(
+            "a sidebar page",
+            "<header><h1>Rollout</h1></header>"
+            f"<div id='body'><div class='layout-tiles' id='2026-numbers'>{tiles}</div>"
+            + "".join(
+                f"<p id='para-{i}'>{'Body paragraph. ' * 30}</p>" for i in range(60)
+            )
+            + "</div><aside id='checks'><p>Checks beside the body.</p></aside>",
+            layout="sidebar",
+        )
+    )
+
+    def check():
+        ran = subprocess.run(
+            [*LEAF_COMMAND, "page", "check", str(serve.page_dir), "--render"],
+            capture_output=True,
+            text=True,
+            check=True,
+            env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
+        )
+        lines = ran.stdout.splitlines()
+        heading = next(line for line in lines if "screens to read" in line)
+        into = Path(heading.split(" in ", 1)[1].rstrip(":"))
+        return into, lines[lines.index(heading) + 1 :]
+
+    into, listed = check()
+    names = sorted(path.name for path in into.iterdir())
+    assert {"1200px-1.png", "1920px-1.png", "390px-1.png"} <= set(names)
+    stacks = next(line for line in listed if "<main> 1+2 → 1+1+1" in line)
+    assert (into / stacks.split(":")[0].strip()).exists()
+    assert any("<div id=2026-numbers> 4 → " in line for line in listed)
+    # A page longer than its first screens says so rather than passing for read whole.
+    assert "390px-9.png" not in names
+    assert any("phone, the first 8 of the page's" in line for line in listed)
+    again, _listed = check()
+    assert again == into
+    assert sorted(path.name for path in into.iterdir()) == names
 
 
 def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
@@ -375,7 +427,7 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
     stamp = subprocess.run(
         [
             launcher,
-            "version",
+            "page",
             "stamp",
             page_dir,
             "--text",

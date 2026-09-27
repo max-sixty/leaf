@@ -190,7 +190,7 @@ narrower than the floor the widget scrolls inside itself rather than widening th
 When a bounded widget's scroller should be a box inside it, such as a listing under a
 caption that stays in view, the package theme moves the bound there under
 `[data-lf-bound]` and declares `--lf-bound-box: 1` on that box, which is the one Leaf
-keeps on its newest entry. A box a
+registers as the block's reading region and keeps on its newest entry. A box a
 package scrolls sideways needs no declaration of its own: the runtime
 measures every scroller on each layout and marks each edge with content beyond it.
 Leaf fades the content at those edges, so a widget that has to scroll says so without
@@ -750,14 +750,14 @@ direct-ownership relation once an author writes the child into the markup.
 
 A verb whose state the agent writes rather than the user declares `"writer": "agent"`
 beside its `detail`, `unit`, and `record`. A worker posts it with
-`leaf experimental report`, the page paints it live, and it stands until a version
+`leaf page report`, the page paints it live, and it stands until a version
 answers it; the user has no control for it. Its record is required and may not be `body`, and it may name the detail field
 carrying its short human-readable news with `update`. Every verb has exactly one
 writer, so a coordinate never holds a user's action and an agent's report at once.
 Command Hub's `lf-task` `status` is the shipped example, and a widget declaring such a
 verb also declares the boolean `overruled` attribute a version keeps its own state
 with. A worker that reacts to the user's actions follows them as they land with
-`leaf events PAGE --follow`.
+`leaf page events PAGE --follow`.
 
 ## References between widgets
 

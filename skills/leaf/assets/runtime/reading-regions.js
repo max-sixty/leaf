@@ -7,6 +7,13 @@
    containing it or by the page. CSS decides that from the space a workspace has
    (layouts.css, the workspace Layout), so nothing here chooses a posture.
 
+   Every box Leaf makes scroll vertically is a region, so every question that names the
+   box scrolling a node (`scrollerFor`, and `scrollersOf` for the boxes around it) gets
+   that box rather than the page: a pane's body, the Threads list, a compound widget's
+   parts, and a block bounded with x-bound or data-bound, which `bounds.js` registers. A
+   box page CSS makes scroll is none of these. It stays unsupported: `version check`
+   advises bounding the block instead, and nothing here searches the DOM for scrollers.
+
    A region's scroller can change without any gesture: a window crossing the workspace
    threshold, a tab showing, a panel opening. Each region's host is watched for size, and
    a region whose scroller is no longer the one last seen is announced to watchers as a
@@ -160,6 +167,21 @@ export const scrollerFor = (el) => {
   const region = containingReadingRegionFor(el);
   return region ? effectiveScroller(region) : pageScroller;
 };
+
+// Every box whose scroll moves a node, innermost first: its region's scroller, then the
+// box scrolling that one, out to the page. A move the inner box cannot take whole is
+// the next one's to finish: a bounded block not yet full grows in the page rather than
+// scrolling, and a region scrolled to its end moves no further. A fixed box between a
+// node and a scroller stands still while that scroller moves, so the walk ends there.
+export function* scrollersOf(node) {
+  for (let box = scrollerFor(node); ; box = scrollerFor(upFrom(box))) {
+    for (let at = node; at !== box; at = upFrom(at))
+      if (!at || getComputedStyle(at).position === "fixed") return;
+    yield box;
+    if (box === pageScroller) return;
+    node = box;
+  }
+}
 
 export function shownRegionBounds(regionOrNode) {
   const region = asRegion(regionOrNode);

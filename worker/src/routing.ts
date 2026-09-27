@@ -27,7 +27,7 @@ const sitePageSchema = z
     description: z.string().check(z.minLength(1)),
     // The card image a shared link unfurls into: a path on this site, which the
     // container's page head joins to the origin. The build names the media file and
-    // proves it resolves (`check_links` in `scripts/site.py`).
+    // proves it resolves (`check_links` in `dev/leaf_dev/site.py`).
     image: z.string().check(z.startsWith("/")),
     kind: z.union([z.literal("product"), z.literal("example")]),
     layer: z.string().check(z.minLength(1)),
@@ -51,7 +51,7 @@ const sitePageSchema = z
 
 // A page's URL namespace beneath its root, by kind: its browser layer's directories,
 // the directories its session writes, and the vendored files (`schema.BROWSER_DIRS`,
-// `SESSION_ROUTE_DIRS`, `VENDORED_FILES`). `scripts/site.py` writes it into the
+// `SESSION_ROUTE_DIRS`, `VENDORED_FILES`). `leaf-dev site` writes it into the
 // manifest. The API directory is the page server's protocol prefix, fixed with the
 // endpoints under it that this Worker handles by name.
 const API_DIR = "api";

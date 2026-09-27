@@ -187,8 +187,8 @@ def _render_scheme(
 ):
     """Read and report the browser gate for one color scheme and viewport.
 
-    `then`, when given, is handed the settled page after every reading here, for the
-    readings a version takes once rather than per scheme and viewport."""
+    `then`, when given, is handed the settled page and its registry after every reading
+    here, for the readings a version takes once rather than per scheme and viewport."""
     from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -266,7 +266,7 @@ def _render_scheme(
         )
     # Every reading below is of a settled page. The widget layer writes half the
     # document, so a box measured while it is still drawing belongs to no version of
-    # the page — which is the stamp `version export` waits on for the same reason.
+    # the page — which is the stamp `page export` waits on for the same reason.
     try:
         wait_for_probe(page, "upgraded")
     except PlaywrightTimeout:
@@ -383,7 +383,7 @@ def _render_scheme(
     )
     found, notices = _scheme_findings(context)
     if then is not None:
-        then(page)
+        then(page, registry)
     # Revealing a part moves its visual off the state every reading above checked, so
     # the reveals come last, on a page nothing reads again.
     found += [

@@ -1465,7 +1465,3 @@ def main() -> None:
     finally:
         httpd.server_close()
         agent_host.close()
-
-
-if __name__ == "__main__":
-    main()

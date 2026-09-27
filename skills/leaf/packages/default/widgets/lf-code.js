@@ -108,10 +108,8 @@ customElements.define(
           const at = Number(note.getAttribute("at"));
           byLine.set(at, [...(byLine.get(at) ?? []), note]);
         }
-        // No tab stop written here: the box scrolls in the light DOM, where the
-        // runtime's reachScrollers pass grants one to every scrollable box alike —
-        // lf-diff writes its own only because that pass cannot see into a shadow
-        // tree.
+        // No tab stop written here: the runtime's reachScrollers pass grants one to
+        // every scrollable box alike.
         const pre = document.createElement("pre");
         // The gutter fits the widest number, so an excerpt from deep in a file keeps
         // its code aligned with its notes.

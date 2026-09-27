@@ -1,13 +1,15 @@
-#!/usr/bin/env python3
 """Compare how a Claude Code agent handles a Leaf comment, base vs HEAD.
+
+    uv run leaf-dev delivery-ab [BASE_REF]
 
 This is a basic, imperfect eval: a starting point that needs work before its numbers
 support more than "no obvious regression". Each round launches one headless Claude
-Code session per arm and case at the same time, with the plugin from BASE_REF or
-from HEAD, so commit what you want measured. Each arm and child is built by
-`eval_harness.py`. Each session serves the same page (this checkout's
-`examples/triage-board.html`) and starts its background `leaf wait`. The script then
-posts real comments over HTTP, at the moments a case names:
+Code session per arm and case at the same time, with the plugin from BASE_REF, by
+default the merge base of HEAD and `main`, or from HEAD, so commit what you want
+measured. Each arm (`build_pair`) and child is built by `leaf_dev.harness`. Each
+session serves the same page (this checkout's `examples/triage-board.html`) and starts
+its background `leaf wait`. The command then posts real comments over HTTP, at the
+moments a case names:
 
 - `idle`: after the setup turn ends, so the comment reaches an idle session the way
   it does when a user reads the page before commenting, and it arrives through
@@ -56,7 +58,7 @@ disagreements with the stream:
 `claude -p` terminates a background shell once the final result is out and stdin has
 closed, so each session runs with `--input-format stream-json` and stdin held open
 until every comment it was sent has been received and a turn has ended. Each stream
-record is saved with `received_at`, the time the script read it, and each post as an
+record is saved with `received_at`, the time the command read it, and each post as an
 `eval_comment` record.
 
 Known limits:
@@ -68,7 +70,8 @@ Known limits:
   measured.
 - The model is Claude Code's default.
 - Timings include model latency and machine load. Launching every session together
-  controls load only roughly. The page log stamps whole seconds.
+  controls load only roughly; the report prints the load average before and after the
+  sessions, and `results.json` records it. The page log stamps whole seconds.
 - Scoring matches substrings in shell commands.
 - Sampling reads what the page serves, not what a browser draws: a tab derives its
   labels from these values in `runtime/thread/workflow.js`. Each change is placed
@@ -77,9 +80,9 @@ Known limits:
 - Only the `leaf wait` carrier is covered. `verify_site.py local` covers App Server;
   nothing covers the Codex queue.
 
-It needs a logged-in `claude` on PATH. Each session costs about a dollar. Runs
-are written to `.tmp/eval-claude-delivery/<arm>-<case>-<round>/`, with `work-dir`
-naming the child's cwd, which holds the page; `arms.json` records each arm's commit.
+It needs a logged-in `claude` on PATH. Each session costs about a dollar. Runs are
+written to `.tmp/delivery-ab/<arm>-<case>-<round>/`, with `work-dir` naming the
+child's cwd, which holds the page; `arms.json` records each arm's commit.
 """
 
 import json
@@ -94,23 +97,25 @@ from functools import partial
 from pathlib import Path
 
 import click
-from eval_harness import (
+from leaf.event_log import read_events
+
+from leaf_dev import ROOT
+from leaf_dev.harness import (
     URL,
     LiveChild,
     PageClient,
-    build_arm,
+    build_pair,
     commands,
     hook_delivered,
+    load_average,
     now,
     run_leaf,
     scratch,
     tool_calls,
     waits_started,
 )
-from leaf.event_log import read_events
 
-ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / ".tmp" / "eval-claude-delivery"
+OUT = ROOT / ".tmp" / "delivery-ab"
 ROUNDS = 2
 TURN_LIMIT = 600
 SAMPLE_EVERY = 0.25
@@ -135,7 +140,7 @@ COMMENTS = (
 
 
 def attempt(n: int) -> str:
-    return f"eval-claude-delivery-{n}"
+    return f"delivery-ab-{n}"
 
 
 def moment(record: dict) -> float:
@@ -254,7 +259,7 @@ def run_session(arm: Path, case: str, run: Path) -> None:
     leaf("page", "init", str(page), check=True)
     shutil.copy(ROOT / "examples" / "triage-board.html", page / "index.html")
     leaf(
-        "version",
+        "page",
         "stamp",
         str(page),
         "--text",
@@ -320,7 +325,9 @@ def run_session(arm: Path, case: str, run: Path) -> None:
         if sampler:
             sampled.set()
             sampler.result()
-        (run / "events.jsonl").write_text(leaf("events", str(page), check=True).stdout)
+        (run / "events.jsonl").write_text(
+            leaf("page", "events", str(page), check=True).stdout
+        )
     finally:
         sampled.set()
         sampling.shutdown()
@@ -538,11 +545,11 @@ def report(results: dict) -> None:
     for name, readings in results.items():
         for r in readings:
             if r["comment"] is None:
-                print(
+                click.echo(
                     f"{name:18}    {'TIMED OUT' if r['timed_out'] else 'posted nothing'}"
                 )
                 continue
-            print(
+            click.echo(
                 f"{name:18} #{r['comment']} {'TIMED OUT  ' if r['timed_out'] else ''}"
                 f"woken {r['woken_s']}s  pickup {r['pickup_s']}s  "
                 f"reply {r['reply_s']}s  done {r['done_s']}s  turn {r.get('turn_s')}s"
@@ -550,22 +557,22 @@ def report(results: dict) -> None:
             indent = " " * 22
             if "turn_s" in r:
                 seconds, ran = r["slowest"] or (None, "")
-                print(
+                click.echo(
                     f"{indent}model {r['model_s']}s  tools {r['tools_s']}s  "
                     f"slowest {seconds}s {ran[:70]!r}"
                 )
-            print(
+            click.echo(
                 f"{indent}receipt {r['receipt_s']}s via {r['route'] or 'no delivery'}  "
                 f"before claim {[c[:40] for c in r['before_claim'] or []] or 'nothing'}  "
                 f"invented {r['invented_ack'] or 'none'}"
             )
             if "turn_s" in r:
-                print(
+                click.echo(
                     f"{indent}after delivery: Picked up shown "
                     f"+{r['shown_pickup_s']}s (goal 1s)  claim shown "
                     f"+{r['shown_claim_s']}s (goal 2s)"
                 )
-                print(
+                click.echo(
                     f"{indent}workflow {shown(r['stages'])}  "
                     f"banner {shown(r['banner'])}  "
                     f"quiet {r['quiet_s']}s  late {r['late_s']}s"
@@ -573,18 +580,28 @@ def report(results: dict) -> None:
 
 
 @click.command()
-@click.argument("base_ref", default="main")
-def main(base_ref: str) -> None:
-    """Run ROUNDS rounds of every case: BASE_REF's plugin against HEAD's."""
-    refs = {"base": base_ref, "head": "HEAD"}
-    runs = [
-        (arm, case, i) for i in range(1, ROUNDS + 1) for case in CASES for arm in refs
-    ]
+@click.argument("base_ref", required=False)
+def delivery_ab(base_ref: str | None) -> None:
+    """Compare how an agent answers comments.
+
+    Compares how a Claude Code agent handles comments on a Leaf page it serves,
+    BASE_REF's plugin against HEAD's; BASE_REF defaults to the merge base with main.
+    Each round runs a live `claude -p` session per arm and case, about a dollar
+    each, and prints per comment how it reached the agent, how long each step took,
+    and what the page showed meanwhile; every stream and page log lands in
+    .tmp/delivery-ab/.
+    """
     with tempfile.TemporaryDirectory() as built:
-        arms = {arm: Path(built) / arm for arm in refs}
-        commits = {arm: build_arm(ref, arms[arm]) for arm, ref in refs.items()}
+        arms, commits = build_pair(base_ref, Path(built))
+        runs = [
+            (arm, case, i)
+            for i in range(1, ROUNDS + 1)
+            for case in CASES
+            for arm in arms
+        ]
         OUT.mkdir(parents=True, exist_ok=True)
         (OUT / "arms.json").write_text(json.dumps(commits, indent=1))
+        load = [load_average()]
         for i in range(1, ROUNDS + 1):
             with ThreadPoolExecutor(len(arms) * len(CASES)) as pool:
                 for future in [
@@ -593,14 +610,15 @@ def main(base_ref: str) -> None:
                     if j == i
                 ]:
                     future.result()
+        load.append(load_average())
     results = {
         f"{arm}-{case}-{i}": score(OUT / f"{arm}-{case}-{i}")
         for arm, case, i in sorted(runs)
     }
-    (OUT / "results.json").write_text(json.dumps(results, indent=1))
+    (OUT / "results.json").write_text(
+        json.dumps({"load": load, "runs": results}, indent=1)
+    )
+    click.echo(f"base {commits['base'][:10]} vs head {commits['head'][:10]}")
+    click.echo(f"load average {load[0]} before, {load[1]} after")
     report(results)
-    print(f"details: {OUT}/results.json")
-
-
-if __name__ == "__main__":
-    main()
+    click.echo(f"details: {OUT}/results.json")

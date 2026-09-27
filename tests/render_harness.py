@@ -41,7 +41,6 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 
 import pytest
 from click.testing import CliRunner
-from example_data import regression_sources
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -52,8 +51,9 @@ from leaf import schema as schema_model
 from leaf import structure as structure_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
+from leaf_dev.example_data import regression_sources
+from leaf_dev.page_fixtures import package_selection_args, prepare_page, read_fixture
 from model_folds import leaf_page
-from page_fixtures import package_selection_args, prepare_page, read_fixture
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 
@@ -103,7 +103,7 @@ def stamp_page(
     complete_args = [arg for widget in completes for arg in ("--completes", widget)]
     result = CliRunner().invoke(
         cli_model.cli,
-        ["version", "stamp", "--json", str(page_dir), "--text", text, *complete_args],
+        ["page", "stamp", "--json", str(page_dir), "--text", text, *complete_args],
         catch_exceptions=False,
     )
     assert result.exit_code == 0, result.output

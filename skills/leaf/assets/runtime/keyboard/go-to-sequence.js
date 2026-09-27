@@ -805,6 +805,7 @@ export function createGoToSequence({
   // The page-level row promises the sequence rather than any particular ephemeral hint.
   const OPEN_GO_TO = {
     id: "navigation.go-to.open",
+    touch: false,
     keys: ["g"],
     does: "Go to a visible target, panel, page, or edge",
     line: "go to",

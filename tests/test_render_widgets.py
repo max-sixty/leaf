@@ -5,7 +5,6 @@ from itertools import pairwise
 from pathlib import Path
 
 import pytest
-from example_data import patch_manifest
 from interact_support import append_command
 from leaf import data as data_model
 from leaf import delivery as delivery_model
@@ -17,6 +16,7 @@ from leaf import thread as thread_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.schema import ELEMENT_ID
+from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ALL_ASKS_IN_ORDER,
@@ -549,7 +549,7 @@ def test_embedded_tab_selection_preserves_the_document_reading_position(browser,
     page = open_page(browser, serve(source))
     resized(page, 1280, 720)
     tabs = page.locator("#root-tabs")
-    expect(tabs).to_have_attribute("data-lf-tabs-context", "embedded")
+    expect(tabs).to_have_attribute("data-lf-tabs-flow", "box")
     evidence = tabs.get_by_role("tab", name="Evidence", exact=True)
     evidence.evaluate("el => el.scrollIntoView({block: 'start', behavior: 'instant'})")
     scroll_settled(page)
@@ -607,7 +607,7 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     page = open_page(browser, serve(source))
     resized(page, 1440, 900)
     tabs = page.locator("#root-tabs")
-    expect(tabs).to_have_attribute("data-lf-tabs-context", "root")
+    expect(tabs).to_have_attribute("data-lf-tabs-flow", "page")
     boxes = page.evaluate(
         """() => {
           const box = (el) => {
@@ -633,6 +633,116 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     assert boxes["panel"] == boxes["content"], boxes
     assert boxes["strip"]["left"] == boxes["content"]["left"], boxes
     assert boxes["title"]["left"] == boxes["content"]["left"], boxes
+
+
+def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
+    """`list="side"` stands a tab set's list beside its panels: a queue whose items open
+    one at a time. Where the set holds both the list is a column left of the open panel,
+    walked down as well as across; on a phone it is a row above the panel, so the open
+    item never lands below the whole queue. A row carries its panel's summary under its
+    name, and each tab counts the Asks in its panel the user still owes: an answer
+    clears its tab's count while the others keep theirs, and moves no row. A tab's name
+    is its label whatever the row shows, and a panel bounds what it holds."""
+
+    BOARD = (
+        '<lf-board id="board">'
+        + "".join(
+            f'<lf-column id="col-{i}" label="Column {i}"><lf-card id="card-{i}">'
+            f"<strong>Card {i}</strong> text</lf-card></lf-column>"
+            for i in range(6)
+        )
+        + "</lf-board>"
+    )
+
+    def ticket(key):
+        return f"""
+<lf-tab id="t-{key}" label="Ticket {key}" summary="sev {key} · suggested fix">
+  <p id="p-{key}">What went wrong with {key}.</p>{BOARD if key == "a" else ""}
+  <lf-ask id="ask-{key}"><h3 id="q-{key}">What happens to {key}?</h3>
+    <lf-options id="o-{key}" choose>
+      <lf-option id="o-{key}-fix"><strong>Fix</strong> Ship the patch.</lf-option>
+      <lf-option id="o-{key}-close"><strong>Close</strong> Explain and close.</lf-option>
+    </lf-options>
+  </lf-ask>
+</lf-tab>"""
+
+    source = leaf_page(
+        "a queue",
+        "<header><h1>Queue</h1></header>"
+        '<lf-tabs id="queue" list="side">' + "".join(map(ticket, "abc")) + "</lf-tabs>",
+        layout="workspace",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1200, 900)
+    boxes = """() => {
+      const r = (s) => document.querySelector(s).getBoundingClientRect();
+      const strip = r('#queue > .lf-tabstrip'), panel = r('#queue > lf-tab:not([hidden])');
+      return {stripRight: strip.right, stripTop: strip.top, stripBottom: strip.bottom,
+              panelLeft: panel.left, panelTop: panel.top};
+    }"""
+    wide = page.evaluate(boxes)
+    assert wide["stripRight"] <= wide["panelLeft"] + 1, wide
+    owed = page.locator("#queue > .lf-tabstrip .lf-tabowed")
+    expect(owed).to_have_text(["1", "1", "1"])
+    bounds = page.evaluate("""() => ({
+      board: document.querySelector('#board').getBoundingClientRect().right,
+      panel: document.querySelector('#t-a').getBoundingClientRect().right})""")
+    assert bounds["board"] <= bounds["panel"] + 1, bounds
+    expect(page.locator("#queue > .lf-tabstrip .lf-tab-summary").first).to_have_text(
+        "sev a · suggested fix"
+    )
+
+    tabs = page.get_by_role("tab")
+    expect(tabs.first).to_have_accessible_name("Ticket a")
+    rows = (
+        "() => [...document.querySelectorAll('#queue .lf-tab-btn')]"
+        ".map((b) => b.getBoundingClientRect().height)"
+    )
+    heights = page.evaluate(rows)
+    tabs.first.focus()
+    page.keyboard.press("ArrowDown")
+    expect(tabs.nth(1)).to_have_attribute("aria-selected", "true")
+    page.keyboard.press("ArrowUp")
+    expect(tabs.first).to_have_attribute("aria-selected", "true")
+
+    page.locator("#o-a-fix .lf-pick").click()
+    told(page)
+    expect(owed).to_have_text(["", "1", "1"])
+    assert page.evaluate(rows) == heights
+
+    resized(page, 390, 844)
+    narrow = page.evaluate(boxes)
+    assert narrow["stripBottom"] <= narrow["panelTop"] + 1, narrow
+
+    # As a scrolling page's root set, a side list keeps the page's history but is a
+    # box: nothing sticks, so a switch leaves the page where the user stands.
+    def long(key):
+        return "".join(
+            f"<p id='filler-{key}-{i}'>{'Background. ' * 40}</p>" for i in range(12)
+        )
+
+    column = leaf_page(
+        "a long queue",
+        "<header><h1>Queue</h1></header>"
+        '<lf-tabs id="queue" list="side">'
+        + "".join(ticket(k).replace("</lf-tab>", long(k) + "</lf-tab>") for k in "bc")
+        + "</lf-tabs>",
+    )
+    page = open_page(browser, serve(column))
+    resized(page, 1200, 900)
+    # The list is off screen above, so the walk is the gesture: a click would first
+    # scroll the tab into view.
+    page.get_by_role("tab", name="Ticket b", exact=True).evaluate(
+        "tab => tab.focus({preventScroll: true})"
+    )
+    page.evaluate("document.scrollingElement.scrollTop = 900")
+    before = page.evaluate("document.scrollingElement.scrollTop")
+    page.keyboard.press("ArrowDown")
+    expect(page.get_by_role("tab", name="Ticket c", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    rendered(page)
+    assert page.evaluate("document.scrollingElement.scrollTop") == before
 
 
 def test_root_tab_targets_remain_global(browser, serve):
@@ -1102,6 +1212,76 @@ def test_a_bound_at_its_end_follows_a_rebuilt_feed_until_the_user_scrolls_back(
     page.evaluate(rebuild, 120)
     page.evaluate("() => new Promise(requestAnimationFrame)")
     assert page.locator("#feed").evaluate("feed => feed.scrollTop") == 200
+
+
+def revised_log(first, last):
+    """A page whose log bounded at its end holds entries `first` to `last`."""
+    filler = "".join(
+        f"<p>Filler paragraph {n}, long enough to occupy a line of reading.</p>"
+        for n in range(20)
+    )
+    entries = "".join(
+        f"<p>Entry {n}: the deploy copied shard {n} to the new key format.</p>"
+        for n in range(first, last)
+    )
+    return leaf_page(
+        "a revised log",
+        f'<h1 id="t">Deploy</h1>{filler}<div id="log" data-bound="end">{entries}'
+        f"</div>{filler}",
+    )
+
+
+def test_a_revision_leaves_a_following_log_at_its_end_and_a_reader_on_their_line(
+    browser, serve
+):
+    """A bounded log is a reading region, so a revision restores the place the user had
+    in it. The place of a log following its newest entry is its end: restoring the line
+    that stood at its top would have left the user above the entries the revision
+    added, and ended the following. A user who scrolled back keeps the line they were
+    reading, however many entries arrived above it."""
+    url = serve(revised_log(10, 60))
+    page = open_page(browser, live_url(url))
+    resized(page, 1280, 900)
+    log = page.locator("#log")
+    at_end = """log => log.scrollHeight > log.clientHeight
+      && log.scrollHeight - log.scrollTop - log.clientHeight <= 2"""
+    page.wait_for_function(f"({at_end})(document.getElementById('log'))")
+    page.evaluate(
+        """log => { const at = log.getBoundingClientRect();
+          document.scrollingElement.scrollBy({
+            top: at.top + at.height / 2 - innerHeight / 2, behavior: 'instant'}); }""",
+        log.element_handle(),
+    )
+    scroll_settled(page)
+
+    (serve.page_dir / "index.html").write_text(revised_log(10, 80))
+    told(page)
+    expect(log.locator("p")).to_have_count(70)
+    rendered(page)
+    assert log.evaluate(at_end), "the revision left the log above its newest entries"
+
+    # Scrolled back to Entry 30, with ten entries arriving above it.
+    reading = log.locator("p", has_text="Entry 30:")
+    log.evaluate(
+        """(log, line) => log.scrollTop += line.getBoundingClientRect().top
+          - log.getBoundingClientRect().top""",
+        reading.element_handle(),
+    )
+    scroll_settled(page, "#log")
+    where = """([log, line]) => line.getBoundingClientRect().top
+      - log.getBoundingClientRect().top"""
+    handles = [log.element_handle(), reading.element_handle()]
+    before = page.evaluate(where, handles)
+    (serve.page_dir / "index.html").write_text(revised_log(0, 80))
+    told(page)
+    expect(log.locator("p")).to_have_count(80)
+    rendered(page)
+    after = page.evaluate(
+        where,
+        [log.element_handle(), log.locator("p", has_text="Entry 30:").element_handle()],
+    )
+    assert after == pytest.approx(before, abs=2), "the reader lost their line"
+    assert not log.evaluate(at_end)
 
 
 def test_release_rollback_is_the_operators_answer_to_an_ask(browser, serve):

@@ -8,6 +8,13 @@ resolution-markers = [
     "python_full_version < '3.11'",
 ]
 
+[manifest]
+members = [
+    "leaf",
+    "leaf-dev",
+    "leaf-website",
+]
+
 [[package]]
 name = "annotated-types"
 version = "0.8.0"
@@ -633,6 +640,8 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "axe-playwright-python" },
+    { name = "leaf-dev" },
+    { name = "leaf-website" },
     { name = "pillow" },
     { name = "pre-commit" },
     { name = "pytest" },
@@ -666,6 +675,8 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "axe-playwright-python", specifier = ">=0.1.4" },
+    { name = "leaf-dev", editable = "dev" },
+    { name = "leaf-website", editable = "worker" },
     { name = "pillow", specifier = ">=12.1" },
     { name = "pre-commit", specifier = ">=4.6.2" },
     { name = "pytest", specifier = ">=9.1" },
@@ -675,6 +686,32 @@ dev = [
     { name = "unidiff", specifier = ">=1" },
     { name = "watchfiles", specifier = ">=1.1.0" },
 ]
+
+[[package]]
+name = "leaf-dev"
+version = "0"
+source = { editable = "dev" }
+dependencies = [
+    { name = "click" },
+    { name = "pillow" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "click", specifier = ">=8" },
+    { name = "pillow", specifier = ">=12.1" },
+]
+
+[[package]]
+name = "leaf-website"
+version = "0"
+source = { editable = "worker" }
+dependencies = [
+    { name = "leaf" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "leaf", editable = "." }]
 
 [[package]]
 name = "markdown-it-py"

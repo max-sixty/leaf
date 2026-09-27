@@ -41,14 +41,18 @@ from typing import IO, NamedTuple
 from urllib.parse import urlencode, urljoin, urlsplit
 
 import click
-from eval_harness import codex_home
 from leaf.render_gate.browser import launch_browser
 from leaf.served_state.reading import reading_files
+from leaf_dev.harness import codex_home
 from playwright.sync_api import APIResponse, BrowserContext, Page, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = ROOT / ".tmp" / "site" / "_leaf" / "site.json"
+# The site build, run from ROOT, which writes ROOT/.tmp/site (`leaf_dev.site`).
+BUILD_SITE = [sys.executable, "-m", "leaf_dev", "site"]
+# The website's Python server, as its container runs it (`leaf_website`).
+SERVE_SITE = [sys.executable, "-m", "leaf_website"]
 VERIFIER_SCRIPT = ROOT / "scripts" / "verify-site-browser.js"
 PAGES = (
     ("/", "product", True),
@@ -1271,7 +1275,7 @@ def local_adapter():
             (ROOT / "worker" / "codex-config.toml").read_text(),
         )
         subprocess.run(
-            [sys.executable, str(ROOT / "scripts" / "site.py")],
+            BUILD_SITE,
             cwd=ROOT,
             stdout=output,
             stderr=subprocess.STDOUT,
@@ -1305,7 +1309,7 @@ def local_adapter():
             return False
 
         with serving(
-            [sys.executable, str(ROOT / "worker" / "server.py")],
+            SERVE_SITE,
             output,
             ready,
             30,
@@ -1378,7 +1382,7 @@ def local_worker() -> Iterator[str]:
 
 
 def built_release(requested: str | None) -> str:
-    """The release `site.py` last built, which a requested release must match."""
+    """The release `leaf-dev site` last built, which a requested release must match."""
     built = json.loads(MANIFEST.read_text(encoding="utf-8"))["release"]
     check(
         requested is None or requested == built,

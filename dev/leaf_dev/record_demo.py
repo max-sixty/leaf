@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Record docs/demo.gif, the README's two session stills, and the site's card, by
 driving the shipped runtime through one round.
 
@@ -9,11 +8,15 @@ the GIF because that scene is already the one the page's alt text describes — 
 anchored to a marked passage, Claude's reply in the thread, the answered round latest in
 the picker — so shooting them here costs a browser context each and gives them something
 to re-run. The card is here for the same reason: a picture of the product goes stale the
-way the others do, and the one a shared link shows is the first thing most users see."""
+way the others do, and the one a shared link shows is the first thing most users see.
+
+    uv run leaf-dev record-demo [--output PATH]
+
+`--output` names the GIF, and the stills land beside it; it defaults to docs/demo.gif.
+"""
 
 from __future__ import annotations
 
-import argparse
 import io
 import json
 import os
@@ -22,6 +25,7 @@ import subprocess
 import time
 from pathlib import Path
 
+import click
 from leaf.delivery import DELIVERY_FORMAT
 from leaf.event_log import read_events
 from leaf.host import session_harness
@@ -35,9 +39,10 @@ from leaf.session import take_input
 from PIL import Image
 from playwright.sync_api import Page, sync_playwright
 
-ROOT = Path(__file__).resolve().parent.parent
+from leaf_dev import ROOT
+
 LEAF = ROOT / "bin" / "leaf"
-RECORD_DEMO_BROWSER = Path(__file__).with_name("record-demo-browser.js")
+RECORD_DEMO_BROWSER = Path(__file__).with_name("record_demo_browser.js")
 DEFAULT_OUTPUT = ROOT / "docs" / "demo.gif"
 GIF_SIZE = (1120, 700)
 # The viewport used for the README's representative stills.
@@ -366,8 +371,6 @@ def record(
         "thread",
         "reply",
         str(page_dir),
-        "--to",
-        comment_id,
         "--for",
         comment_id,
         "--text",
@@ -375,7 +378,7 @@ def record(
     )
     (page_dir / "index.html").write_text(demo_page(2), encoding="utf-8")
     run_leaf(
-        "version",
+        "page",
         "stamp",
         str(page_dir),
         "--text",
@@ -463,7 +466,7 @@ def shoot_stills(
         demo_page(2, folded_board(page_dir)), encoding="utf-8"
     )
     run_leaf(
-        "version",
+        "page",
         "stamp",
         str(page_dir),
         "--text",
@@ -521,16 +524,16 @@ def write_gif(frames: list[Image.Image], durations: list[int], output: Path) -> 
             )
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=DEFAULT_OUTPUT,
-        help="GIF path (default: docs/demo.gif)",
-    )
-    args = parser.parse_args()
-    output = args.output.resolve()
+@click.command("record-demo")
+@click.option(
+    "--output",
+    type=click.Path(dir_okay=False, path_type=Path),
+    default=DEFAULT_OUTPUT,
+    help="GIF path; the stills are written beside it. Default: docs/demo.gif.",
+)
+def record_demo(output: Path) -> None:
+    """Record the demo GIF, README stills and site card."""
+    output = output.resolve()
 
     # The page is staged beside the recording it produces, so `--output` keeps two
     # runs apart without a second thing to keep unique. A fixed directory under the
@@ -582,7 +585,7 @@ def main() -> None:
         run_leaf("page", "init", str(page_dir))
         (page_dir / "index.html").write_text(demo_page(1), encoding="utf-8")
         run_leaf(
-            "version",
+            "page",
             "stamp",
             str(page_dir),
             "--text",
@@ -624,8 +627,4 @@ def main() -> None:
         shown = output.relative_to(ROOT)
     except ValueError:
         shown = output
-    print(f"Recorded {shown}")
-
-
-if __name__ == "__main__":
-    main()
+    click.echo(f"Recorded {shown}")

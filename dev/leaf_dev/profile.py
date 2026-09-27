@@ -1,11 +1,10 @@
-#!/usr/bin/env python3
 """Attribute one transition's time on an open Leaf page, for this checkout.
 
-    uv run scripts/profile_page.py SOURCE TRANSITION
+    uv run leaf-dev profile SOURCE TRANSITION
 
-`bench_page_latency.py` says how long a transition takes; this says where the time
+`leaf-dev bench-latency` says how long a transition takes; this says where the time
 goes. It serves `examples/SOURCE.html` from this checkout's runtime and server exactly
-as the benchmark does (`bench_page_latency.served`), runs TRANSITION (`comment`,
+as the benchmark does (`leaf_dev.bench_latency.served`), runs TRANSITION (`comment`,
 `move`, `reply`, `status` or `revision`) RUNS times on a freshly loaded page, and
 records each from just before it starts until its result is painted: a V8 CPU profile
 sampled every 100 µs and a Chrome trace with style invalidation tracking.
@@ -24,7 +23,7 @@ delays nothing the user is waiting on. The report, per run and then summed over 
 Invalidation tracking and stack capture slow the page, so read proportions and counts
 here and durations from the benchmark. Each run's `.trace.json` opens in Chrome
 DevTools' Performance panel or Perfetto, and its `.cpuprofile` in DevTools, under
-`.tmp/profile-page/`. For time spent in the server, profile
+`.tmp/profile/`. For time spent in the server, profile
 `PageStateService(page_dir).page_state()` in-process with cProfile.
 """
 
@@ -35,15 +34,14 @@ from collections import Counter
 from contextlib import contextmanager
 from pathlib import Path
 
-import bench_page_latency as bench
 import click
-from leaf.render_gate.browser import launch_browser
-from playwright.sync_api import sync_playwright
 
-ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / ".tmp" / "profile-page"
+from leaf_dev import ROOT
+from leaf_dev.bench_latency import SOURCES, TRANSITIONS, served
+from leaf_dev.browser import chrome
+
+OUT = ROOT / ".tmp" / "profile"
 RUNS = 3
-TRANSITIONS = ("comment", "move", "reply", "status", "revision")
 CATEGORIES = [
     "blink.user_timing",
     "devtools.timeline",
@@ -288,30 +286,30 @@ def show(runs: list) -> None:
 
 
 @click.command()
-@click.argument("source", type=click.Choice(bench.SOURCES))
+@click.argument("source", type=click.Choice(SOURCES))
 @click.argument("transition", type=click.Choice(TRANSITIONS))
-def main(source: str, transition: str) -> None:
+def profile(source: str, transition: str) -> None:
+    """Say where a transition spends its time.
+
+    Runs one `bench-latency` TRANSITION on SOURCE a few times on this working tree,
+    under a CPU profiler and a Chrome trace, and prints the main-thread tasks up to
+    the painted frame, forced style and layout and the writes that invalidated
+    style, and JS by function. Each run's trace and CPU profile land in
+    .tmp/profile/ for DevTools or Perfetto.
+    """
     OUT.mkdir(parents=True, exist_ok=True)
     runs = []
     with (
         tempfile.TemporaryDirectory(prefix="leaf-profile-") as scratch,
-        sync_playwright() as playwright,
+        chrome() as browser,
+        served(browser, "head", ROOT, source, Path(scratch)) as session,
     ):
-        browser, _ = launch_browser(playwright)
-        with bench.served(browser, "head", ROOT, source, Path(scratch)) as session:
-            for run in range(RUNS):
-                session.open()
-                name = f"{source}-{transition}-{run + 1}"
-                session.recording = lambda name=name: recorded(
-                    session, browser, name, runs
-                )
-                getattr(session, transition)(run)
-        browser.close()
+        for run in range(RUNS):
+            session.open()
+            name = f"{source}-{transition}-{run + 1}"
+            session.recording = lambda name=name: recorded(session, browser, name, runs)
+            getattr(session, transition)(run)
     show(runs)
     click.echo(
         f"\nwindows: {statistics.median(ms(r['window']) for r in runs)} ms median; files in {OUT}"
     )
-
-
-if __name__ == "__main__":
-    main()

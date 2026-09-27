@@ -1,28 +1,31 @@
-#!/usr/bin/env python3
 """Compare how long `leaf page check --render` takes, base vs HEAD, and where.
 
-Each arm is the plugin payload at a ref, built by `eval_harness.build_arm`: BASE_REF
-(default `main`) and HEAD, so commit what you want measured. For each page in PAGES
-the script builds a page directory from this checkout's example with the arm's own
-launcher (`page_fixtures.prepare_page`, as `preview.py` does), then runs that arm's
-`bin/leaf page check <page> --render` RUNS times, alternating arms within each
-round so drift in machine load falls on both. One untimed run per arm warms the
-environment, Chrome and the OS file cache first.
+    uv run leaf-dev bench-check [BASE_REF]
+
+Each arm is the plugin payload at a ref (`leaf_dev.harness.build_pair`): BASE_REF,
+by default the merge base of HEAD and `main`, and HEAD, so commit what you want
+measured. For each page in PAGES the command builds a page directory from this
+checkout's example with the arm's own launcher (`leaf_dev.harness.build_source`, as
+`preview.py` does), then runs that arm's `bin/leaf page check <page> --render` RUNS
+times, alternating arms within each round so drift in machine load falls on both. One
+untimed run per arm warms the environment, Chrome and the OS file cache first.
 
 Wall time is the child process's, launcher included. Phase times come from inside
-the same child: its `PYTHONPATH` starts with `bench-render-check/`, so Python loads
-that directory's `sitecustomize.py` at startup, which records through
+the same child: its `PYTHONPATH` starts with `tracer/` beside this module, so Python
+loads that directory's `sitecustomize.py` at startup, which records through
 `sys.monitoring` the start and end of each function FUNCTIONS names, so the check's
-own code runs unchanged. `phases` turns those spans into rows: startup, markup validation, the plain check's page-code run, server and driver
-start, browser launch, each render pass (viewport x color scheme), the once-per-
-version width sweep, a confirming attempt, browser close and teardown. A second
+own code runs unchanged. `phases` turns those spans into rows: startup, markup
+validation, the plain check's page-code run, server and driver start, browser launch,
+each render pass (viewport x color scheme), the once-per-version width sweep, a
+confirming attempt, browser close and teardown. A second
 table splits the passes by stage, and one row sums the frame waits the gate polls
 for across the whole run. A third gives the CPU seconds of the leaf process and of
 the driver and browser it reaped, which is what load from other processes competes
 with. Rows are each arm's fastest run (`table` says why).
 
-The report goes to stdout as Markdown, with `uptime` before and after; every
-sample, trace and each arm's commit lands in `.tmp/bench-render-check/`.
+The report goes to stdout as Markdown, with the load average before and after
+(`leaf_dev.harness.load_average`); every sample, trace and each arm's commit lands in
+`.tmp/bench-check/`.
 
 Known limits:
 
@@ -50,16 +53,15 @@ import shutil
 import statistics
 import subprocess
 import time
-from functools import partial
 from pathlib import Path
 
 import click
-from eval_harness import build_arm, environment, run_leaf
-from page_fixtures import prepare_page, read_fixture
 
-ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / ".tmp" / "bench-render-check"
-TRACER = Path(__file__).with_name("bench-render-check")
+from leaf_dev import ROOT
+from leaf_dev.harness import build_pair, build_source, environment, load_average
+
+OUT = ROOT / ".tmp" / "bench-check"
+TRACER = Path(__file__).with_name("tracer")
 RUNS = 3
 # The page an agent turn was measured on, a page with its own module code (so the
 # plain check's page-code run happens too), and the heaviest page, the render corpus.
@@ -213,7 +215,7 @@ def table(title: str, samples: dict[str, list[dict]], index: int) -> list[str]:
     """One Markdown table of each arm's fastest run, and the change.
 
     The fastest run rather than the median: under other processes' load a run only
-    gets slower, and in an A/A run of this script on a loaded Mac the arms' medians
+    gets slower, and in an A/A run of this command on a loaded Mac the arms' medians
     differed by up to 19% where their fastest runs differed by 4% at most. Rows are
     one run's, so they sum to its wall time."""
     fastest = {arm: min(runs, key=lambda s: s["wall"]) for arm, runs in samples.items()}
@@ -238,42 +240,39 @@ def table(title: str, samples: dict[str, list[dict]], index: int) -> list[str]:
     return lines
 
 
-def uptime() -> str:
-    return subprocess.run(
-        ["uptime"], capture_output=True, text=True, check=True
-    ).stdout.strip()
-
-
 @click.command()
-@click.argument("base_ref", default="main")
-def main(base_ref: str) -> None:
-    """Time RUNS render checks of each page in PAGES: BASE_REF's plugin against HEAD's."""
-    refs = {"base": base_ref, "head": "HEAD"}
-    arms = {arm: OUT / "arms" / arm for arm in refs}
-    commits = {arm: build_arm(ref, arms[arm]) for arm, ref in refs.items()}
-    states = {arm: OUT / "state" / arm for arm in refs}
+@click.argument("base_ref", required=False)
+def bench_check(base_ref: str | None) -> None:
+    """Time `page check --render`, base vs HEAD.
+
+    Runs `leaf page check --render` on a few examples with BASE_REF's plugin and
+    HEAD's, with no model; BASE_REF defaults to the merge base with main. Prints
+    Markdown tables of each arm's fastest run per page: wall time, a phase
+    breakdown, the render passes by stage, and CPU time; every sample and trace
+    lands in .tmp/bench-check/.
+    """
+    arms, commits = build_pair(base_ref, OUT / "arms")
+    states = {arm: OUT / "state" / arm for arm in arms}
     pages = {}
-    for arm in refs:
+    for arm in arms:
         states[arm].mkdir(parents=True, exist_ok=True)
         for name in PAGES:
             page = pages[arm, name] = OUT / "pages" / arm / name
             if page.exists():
                 shutil.rmtree(page)
             page.parent.mkdir(parents=True, exist_ok=True)
-            prepare_page(
-                page,
-                read_fixture(ROOT / "examples" / f"{name}.html"),
-                partial(run_leaf, arms[arm], states[arm], check=True),
+            build_source(
+                arms[arm], states[arm], ROOT / "examples" / f"{name}.html", page
             )
     traces = OUT / "traces"
     traces.mkdir(exist_ok=True)
-    before = uptime()
-    for arm in refs:
+    before = load_average()
+    for arm in arms:
         run_check(arms[arm], states[arm], pages[arm, PAGES[0]], traces / "warm.json")
-    samples = {name: {arm: [] for arm in refs} for name in PAGES}
+    samples = {name: {arm: [] for arm in arms} for name in PAGES}
     for i in range(RUNS):
         for name in PAGES:
-            for arm in refs:
+            for arm in arms:
                 click.echo(f"run {i + 1}/{RUNS} {name} {arm}", err=True)
                 samples[name][arm].append(
                     run_check(
@@ -283,15 +282,15 @@ def main(base_ref: str) -> None:
                         traces / f"{arm}-{name}-{i + 1}.json",
                     )
                 )
-    after = uptime()
+    after = load_average()
     (OUT / "results.json").write_text(
         json.dumps(
-            {"commits": commits, "uptime": [before, after], "samples": samples},
+            {"commits": commits, "load": [before, after], "samples": samples},
             indent=1,
         )
     )
-    click.echo(f"base {base_ref} {commits['base'][:10]}, head {commits['head'][:10]}")
-    click.echo(f"uptime before: {before}\nuptime after:  {after}")
+    click.echo(f"base {commits['base'][:10]} vs head {commits['head'][:10]}")
+    click.echo(f"load average {before} before, {after} after")
     click.echo(f"seconds, each arm's fastest of {RUNS} runs")
     for name in PAGES:
         click.echo(f"\n### {name}\n")
@@ -309,7 +308,3 @@ def main(base_ref: str) -> None:
                     f"{len(failed)}/{len(runs)} runs: {first}"
                 )
     click.echo(f"\ndetails: {OUT}/results.json")
-
-
-if __name__ == "__main__":
-    main()

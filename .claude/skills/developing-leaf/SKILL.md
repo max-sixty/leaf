@@ -63,7 +63,13 @@ Re-vendor before trusting a browser result after a runtime, theme, registry, or
 widget change. A green suite does not judge visual quality; run `/ui-sweep` or
 look at a composed page.
 
-Compare against the merge base with `main`. `uv run scripts/stills.py`
+To ask a page a question, such as where an element sits, what style it computes, or
+what holds focus after a key, run `uv run leaf-dev probe` rather than writing a
+Playwright script: it builds the page from this working tree, runs the input steps
+you give it, and prints what a JavaScript expression returns, with `--base` for the
+merge base beside it (`dev/AGENTS.md`).
+
+Compare against the merge base with `main`. `uv run leaf-dev stills`
 screenshots a catalogue of states on both runtimes and crops each one that
 changed into a before/after pair; commit first, since it compares commits. The
 catalogue holds states a user reaches by acting as well as pages at rest, because
@@ -172,9 +178,12 @@ the user:
 
 ## Author or revise a page
 
-Read `<root>/skills/leaf/SKILL.md` completely and follow its authoring,
-validation, handoff, and conversation-loop routes, using the checkout launcher
-for every `leaf` command and resolving its references from `<root>/skills/leaf/`.
+Every authored Leaf source is a page: a site page under `docs/`, a shipped
+example or fixture, a playground, or a page made for this conversation. Before
+writing its content, read `<root>/skills/leaf/SKILL.md` completely and follow
+its authoring, validation, handoff, and conversation-loop routes, using the
+checkout launcher for every `leaf` command and resolving its references from
+`<root>/skills/leaf/`.
 To make an existing page exercise the current checkout, re-vendor it with the
 checkout launcher (`<root>/skills/leaf/references/serving-pages.md`); fix or
 report a compatibility refusal rather than falling back to the installed plugin.

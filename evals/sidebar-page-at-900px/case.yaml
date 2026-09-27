@@ -1,0 +1,42 @@
+schema_version: '1.0'
+name: sidebar-page-at-900px
+description: "A sidebar page read at 900px: the Layout already keeps its track beside the body there, so the page leaves the Layout's widths alone, and a short track that stays in view sticks at `--lf-top`, below the banner, inside a track stretched to the body's height, so it never sticks over the body where the two stack."
+tags:
+- layout
+execution:
+  prompt: |
+    Write a Leaf page for the user: the rollout of release 4.12. The body is a long event
+    log (40 entries, newest last) and a chart of the error rate; beside it, a short
+    checklist of six release checks with their results, one of which is failing. The
+    user keeps the page open in a window about 900px wide beside their editor, wants the
+    checklist beside the log at that width, and wants it kept in view while they scroll
+    down the log.
+
+    The page directory is not reachable from here, so reply with the complete
+    `index.html`, rather than writing a file.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-page-authoring
+  type: tool_used
+  tool: Read
+  input_match: page-authoring
+- name: judgment
+  type: llm
+  criteria: |
+    Read the HTML and its `<style>`. Pass only if all of these hold. `main` has class
+    `layout-sidebar` and the checklist is in its track. The page's own CSS leaves the
+    Layout's widths alone: fail if it sets `flex`, `flex-basis`, `grid-template-columns`
+    or `display` on `main`, the body or the track, or adds a media or container query to
+    keep them side by side. The checklist is kept in view with `position: sticky` whose
+    `top` clears Leaf's banner through one of its properties, `var(--lf-top)` or
+    `var(--lf-banner-h)`, alone or in a `calc`; fail if its `top` is a fixed length or
+    `0`, which puts it under the banner. The sticking holds only while the two stand side
+    by side: pass if the sticky element is a block inside the track and the track has
+    `align-self: stretch`, so a stacked track has no room to stick in; fail if
+    `position: sticky` is on the track itself, or on a block in a track that does not
+    stretch, since where the two stack the stuck checklist would stand over the log. A
+    width query does not rescue it: the Layout also stacks at wide widths when the body's
+    content needs the room.

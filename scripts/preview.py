@@ -55,7 +55,7 @@ watches any stopped server. The page log and user decisions survive; a refused
 update stays visible in the output and is retried after the next edit. Seeded
 history is installed once, when the page is built, so a change to it is refused
 until the preview is restarted.
-`version stamp` lints the example on the way past. The browser gate a page normally
+`page stamp` lints the example on the way past. The browser gate a page normally
 passes before its URL goes out is left to the suite: `page check --render` and
 `test_page_fixture_renders` drive the same `render_version` over the same files, so
 running it here would only repeat what the suite has already said about these exact
@@ -91,8 +91,8 @@ from functools import partial
 from pathlib import Path
 from typing import NamedTuple
 
-from example_data import TEST_PAGES, capture_files, example_versions
-from page_fixtures import (
+from leaf_dev.example_data import capture_files, example_versions, named_source
+from leaf_dev.page_fixtures import (
     DEFAULT_PACKAGES,
     media_source,
     package_selection_args,
@@ -105,7 +105,6 @@ from page_fixtures import (
 
 ROOT = Path(__file__).resolve().parent.parent
 TMP = ROOT / ".tmp"
-NAMED_SOURCE_DIRS = (ROOT / "examples", ROOT / "examples" / "developer", TEST_PAGES)
 SLOT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 # The watcher's own dependency, which the dev group beside this script declares. A
 # checkout named by `--runtime` has the `--no-dev` environment `bin/leaf` syncs, so the
@@ -238,19 +237,10 @@ def authored_source(
         if not selected.is_file():
             parser.error(f"no authored source at {selected}")
         return selected
-    name = (example or "triage-board").removesuffix(".html")
-    candidates = [root / f"{name}.html" for root in NAMED_SOURCE_DIRS]
-    found = [path for path in candidates if path.is_file()]
-    if len(found) == 1:
-        return found[0]
-    if len(found) > 1:
-        parser.error(f"{name} names more than one preview source: {found}")
-    available = sorted(
-        path.stem for root in NAMED_SOURCE_DIRS for path in root.glob("*.html")
-    )
-    parser.error(
-        f"no preview source named {name}; available pages: " + ", ".join(available)
-    )
+    try:
+        return named_source(example or "triage-board")
+    except ValueError as error:
+        parser.error(str(error))
 
 
 def preparation_note(source: Path, data_sources: int, versions: int) -> str:
@@ -526,7 +516,7 @@ def refresh_preview(
 
     Only the re-vendor takes the server down (`PreviewService.replacing`). The rest
     writes into a live page the way an agent authors one — media, `index.html`, then
-    `version stamp` — so a prose edit arrives in the tab the user is standing in.
+    `page stamp` — so a prose edit arrives in the tab the user is standing in.
     """
     if fixture_seed(source) != state["seed"]:
         return refused(
@@ -563,7 +553,7 @@ def refresh_preview(
                 leaf(
                     launcher,
                     runtime,
-                    "version",
+                    "page",
                     "stamp",
                     str(page),
                     "--text",
@@ -824,10 +814,12 @@ def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) ->
     """Become the preview, in the selected checkout's uv environment.
 
     That environment is the one `bin/leaf` syncs, which carries no dev group, so the
-    watcher's own dependency is overlaid onto it rather than installed into it. The
-    launcher is replaced rather than kept as a parent, so whatever stops this
-    process — Ctrl-C, or a runner's SIGTERM, which `uv run` forwards — reaches the
-    preview itself.
+    watcher's own dependency and this checkout's `leaf_dev`, which builds the page from
+    the fixture, are overlaid onto it rather than installed into it. `leaf_dev` names
+    no `leaf` of its own, so the overlay leaves the selected checkout's `leaf` in
+    place. The launcher is replaced rather than kept as a parent, so whatever stops
+    this process — Ctrl-C, or a runner's SIGTERM, which `uv run` forwards — reaches
+    the preview itself.
     """
     command = [
         "uv",
@@ -838,6 +830,8 @@ def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) ->
         str(runtime),
         "--with",
         WATCHER_PACKAGE,
+        "--with-editable",
+        str(ROOT / "dev"),
         "python",
         str(Path(__file__).resolve()),
         "--source",
@@ -898,7 +892,7 @@ def main() -> None:
             suffix = f"-{args.slot}" if args.slot else ""
             out = TMP / f"example-{source.stem}{suffix}.html"
             out.unlink(missing_ok=True)
-            leaf(launcher, runtime, "version", "export", str(page), "-o", str(out))
+            leaf(launcher, runtime, "page", "export", str(page), "-o", str(out))
         print(
             preparation_note(source, prepared.data_sources, prepared.versions),
             end="\n\n",

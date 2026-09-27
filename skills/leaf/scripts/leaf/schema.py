@@ -178,7 +178,7 @@ REFERENCE_SCHEMA = {
 
 
 # Each verb is {detail, unit, record}. `writer: "agent"` makes it a verb the agent
-# reports through `leaf experimental report` rather than one the user acts on;
+# reports through `leaf page report` rather than one the user acts on;
 # absent, the user writes it. The two writers differ in what their state may be, not in its shape.
 STATE_SCHEMA = {
     "type": "object",
@@ -489,7 +489,7 @@ VERSION_NAME = r"v(?P<version>[1-9][0-9]*)"
 # media it adds, the revisions it activates, the versions it stamps). The website
 # adapter routes exactly these and those files to a page, and so does the Worker in
 # front of it, which reads the layer and session kinds from the site manifest
-# `scripts/site.py` writes: a static miss under a session directory is a file the
+# `leaf-dev site` writes: a static miss under a session directory is a file the
 # page's container has. `api` is the page server's protocol prefix, which the Worker
 # names with the endpoints under it.
 SESSION_ROUTE_DIRS = (MEDIA_DIR, "revisions", "versions")

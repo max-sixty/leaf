@@ -9,7 +9,6 @@ from urllib.parse import urljoin, urlparse
 
 import pytest
 from click.testing import CliRunner
-from example_data import patch_manifest
 from interact_support import (
     append_command,
     record_claim,
@@ -25,6 +24,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
+from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -2331,8 +2331,6 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
             "thread",
             "reply",
             str(d),
-            "--to",
-            "c-store",
             "--for",
             "c-store",
             "--text",

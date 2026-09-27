@@ -32,9 +32,9 @@ Evidence, previews, staged sites, and probe results leave the tracked tree uncha
   environment. Production deploys only through `.github/workflows/publish-site.yaml`.
 - `worker/README.md` owns hosted-agent diagnostics and the failure contract.
 - `eval_harness.py` builds the arms and isolated `claude -p` children every Claude
-  Code eval runs; `eval_claude_delivery.py`, the two `bench_*.py` scripts,
-  `notes/arrangement-eval/harness.py`, and the A/B recipe in `evals/README.md` use
-  it.
+  Code eval runs, and reads their traces; `eval_claude_delivery.py`, the two
+  `bench_*.py` scripts, `notes/arrangement-eval/harness.py`,
+  `notes/usability-eval/harness.py`, and the A/B recipe in `evals/README.md` use it.
 - `eval_claude_delivery.py [BASE_REF]` compares how an agent handles a comment
   through `leaf wait`, and what the page shows meanwhile, between a base plugin
   and HEAD's.

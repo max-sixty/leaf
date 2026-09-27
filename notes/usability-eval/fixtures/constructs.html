@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Payments API release 4.2</title>
+  </head>
+  <body>
+    <main class="layout-column">
+      <h1>Payments API release 4.2</h1>
+      <p class="lede" id="lede">
+        Release 4.2 is ready to ship once its note is agreed and its latency holds.
+      </p>
+
+      <section id="notes">
+        <h2>Release note</h2>
+        <lf-draft id="release-note">
+          <pre>
+Release 4.2 moves card tokenization to the new vault. Rollout starts 12 November.
+</pre>
+        </lf-draft>
+      </section>
+
+      <section id="latency">
+        <h2>Latency</h2>
+        <p id="latency-summary">
+          Checkout p95 is
+          <lf-num id="p95-figure" source="checkout-p95" at="{at}">184 ms</lf-num>
+          against a 300 ms budget.
+        </p>
+      </section>
+
+      <section id="errors">
+        <h2>Errors by region</h2>
+        <lf-chart id="region-errors" kind="bars" y="errors in the last day">
+          <pre>
+region, errors
+us-east, 212
+eu-west, 96
+sa-east, 58
+</pre>
+        </lf-chart>
+      </section>
+    </main>
+  </body>
+</html>

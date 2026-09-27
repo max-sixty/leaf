@@ -1,0 +1,777 @@
+{
+ "model": "claude-opus-5-5",
+ "arms": {
+  "main": "387dfed45c9dbaf772d7cb98db323f022809aec3"
+ },
+ "runs": [
+  {
+   "case": "cold-decision",
+   "arm": "main",
+   "n": 1,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 16,
+     "cost_usd": 0.675,
+     "minutes": 2.1,
+     "input_tokens": 529847,
+     "output_tokens": 9936,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/authoring-asks.md",
+      "references/authoring-evidence.md",
+      "references/packages.md",
+      "references/page-authoring.md",
+      "references/serving-pages.md"
+     ],
+     "output_bytes": {
+      "read": 393035,
+      "reference": 15524,
+      "registry": 13580,
+      "version check": 1691,
+      "version stamp": 656,
+      "index.html": 382,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "reference",
+      "reference",
+      "read",
+      "reference",
+      "registry",
+      "index.html",
+      "index.html",
+      "version check",
+      "version check",
+      "version stamp",
+      "read",
+      "version check"
+     ]
+    }
+   ],
+   "score": {
+    "pages": 1,
+    "valid": true,
+    "agent_checked": true,
+    "stamped": 2,
+    "served": false,
+    "status": "working",
+    "asks": 1,
+    "choose_groups": 1,
+    "options": 3,
+    "multiple": false,
+    "sign_off": false,
+    "evidence_in_ask": 8,
+    "names_gesture": true
+   }
+  },
+  {
+   "case": "cold-decision",
+   "arm": "main",
+   "n": 2,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 11,
+     "cost_usd": 0.386,
+     "minutes": 0.9,
+     "input_tokens": 299039,
+     "output_tokens": 5558,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/packages.md",
+      "references/page-authoring.md"
+     ],
+     "output_bytes": {
+      "bash": 22468,
+      "registry": 14530,
+      "reference": 2248,
+      "version check": 320,
+      "index.html": 186,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "reference",
+      "bash",
+      "registry",
+      "bash",
+      "registry",
+      "index.html",
+      "version check",
+      "version check"
+     ]
+    }
+   ],
+   "score": {
+    "pages": 1,
+    "valid": true,
+    "agent_checked": true,
+    "stamped": 0,
+    "served": false,
+    "status": "working",
+    "asks": 1,
+    "choose_groups": 1,
+    "options": 3,
+    "multiple": false,
+    "sign_off": false,
+    "evidence_in_ask": 6,
+    "names_gesture": true
+   }
+  },
+  {
+   "case": "cold-decision",
+   "arm": "main",
+   "n": 3,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 8,
+     "cost_usd": 0.393,
+     "minutes": 0.9,
+     "input_tokens": 218611,
+     "output_tokens": 4694,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/authoring-asks.md",
+      "references/authoring-evidence.md",
+      "references/page-authoring.md"
+     ],
+     "output_bytes": {
+      "read": 40164,
+      "registry": 13152,
+      "reference": 2248,
+      "version check": 400,
+      "page state": 141,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "reference",
+      "read",
+      "registry",
+      "version check",
+      "page state"
+     ]
+    }
+   ],
+   "score": {
+    "pages": 1,
+    "valid": true,
+    "agent_checked": true,
+    "stamped": 0,
+    "served": false,
+    "status": "working",
+    "asks": 1,
+    "choose_groups": 1,
+    "options": 3,
+    "multiple": false,
+    "sign_off": false,
+    "evidence_in_ask": 8,
+    "names_gesture": true
+   }
+  },
+  {
+   "case": "cold-report",
+   "arm": "main",
+   "n": 1,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 6,
+     "cost_usd": 0.244,
+     "minutes": 0.5,
+     "input_tokens": 127975,
+     "output_tokens": 2549,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/page-authoring.md"
+     ],
+     "output_bytes": {
+      "reference": 28234,
+      "registry": 3723,
+      "version check": 110,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "reference",
+      "registry",
+      "version check"
+     ]
+    }
+   ],
+   "score": {
+    "pages": 1,
+    "valid": true,
+    "agent_checked": true,
+    "stamped": 0,
+    "served": false,
+    "status": "working",
+    "asks": 0,
+    "choose_groups": 0,
+    "options": 0,
+    "multiple": false,
+    "sign_off": false
+   }
+  },
+  {
+   "case": "cold-report",
+   "arm": "main",
+   "n": 2,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 8,
+     "cost_usd": 0.32,
+     "minutes": 0.6,
+     "input_tokens": 211969,
+     "output_tokens": 3332,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/page-authoring.md",
+      "references/serving-pages.md"
+     ],
+     "output_bytes": {
+      "reference": 29573,
+      "registry": 15437,
+      "index.html": 192,
+      "version check": 110,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "reference",
+      "registry",
+      "reference",
+      "index.html",
+      "version check"
+     ]
+    }
+   ],
+   "score": {
+    "pages": 1,
+    "valid": true,
+    "agent_checked": true,
+    "stamped": 0,
+    "served": false,
+    "status": "working",
+    "asks": 0,
+    "choose_groups": 0,
+    "options": 0,
+    "multiple": false,
+    "sign_off": false
+   }
+  },
+  {
+   "case": "cold-report",
+   "arm": "main",
+   "n": 3,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 8,
+     "cost_usd": 0.42,
+     "minutes": 0.8,
+     "input_tokens": 235807,
+     "output_tokens": 4703,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/authoring-evidence.md",
+      "references/conversation-loop.md",
+      "references/host-claude-code.md",
+      "references/page-authoring.md"
+     ],
+     "output_bytes": {
+      "reference": 47002,
+      "registry": 14665,
+      "index.html": 193,
+      "version check": 110,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "reference",
+      "reference",
+      "registry",
+      "index.html",
+      "version check"
+     ]
+    }
+   ],
+   "score": {
+    "pages": 1,
+    "valid": true,
+    "agent_checked": true,
+    "stamped": 0,
+    "served": false,
+    "status": "working",
+    "asks": 0,
+    "choose_groups": 0,
+    "options": 0,
+    "multiple": false,
+    "sign_off": false
+   }
+  },
+  {
+   "case": "near-miss",
+   "arm": "main",
+   "n": 1,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 1,
+     "cost_usd": 0.048,
+     "minutes": 0.1,
+     "input_tokens": 15282,
+     "output_tokens": 597,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [],
+     "output_bytes": {},
+     "calls": []
+    }
+   ],
+   "score": {
+    "pages": 0
+   }
+  },
+  {
+   "case": "near-miss",
+   "arm": "main",
+   "n": 2,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 1,
+     "cost_usd": 0.048,
+     "minutes": 0.1,
+     "input_tokens": 15284,
+     "output_tokens": 593,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [],
+     "output_bytes": {},
+     "calls": []
+    }
+   ],
+   "score": {
+    "pages": 0
+   }
+  },
+  {
+   "case": "near-miss",
+   "arm": "main",
+   "n": 3,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 1,
+     "cost_usd": 0.047,
+     "minutes": 0.1,
+     "input_tokens": 15282,
+     "output_tokens": 543,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [],
+     "output_bytes": {},
+     "calls": []
+    }
+   ],
+   "score": {
+    "pages": 0
+   }
+  },
+  {
+   "case": "reading",
+   "arm": "main",
+   "n": 1,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 4,
+     "cost_usd": 0.165,
+     "minutes": 0.2,
+     "input_tokens": 87229,
+     "output_tokens": 711,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [],
+     "output_bytes": {
+      "events.jsonl": 18323,
+      "bash": 2394,
+      "data/": 2287
+     },
+     "calls": [
+      "bash",
+      "events.jsonl",
+      "data/"
+     ]
+    }
+   ],
+   "score": {
+    "answers": {
+     "plain": true,
+     "collapsed": true,
+     "inactive-tab": true,
+     "widget-data": true,
+     "external-data": true,
+     "standing-action": true,
+     "view": true
+    },
+    "correct": 7,
+    "of": 7
+   }
+  },
+  {
+   "case": "reading",
+   "arm": "main",
+   "n": 2,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 5,
+     "cost_usd": 0.212,
+     "minutes": 0.2,
+     "input_tokens": 121845,
+     "output_tokens": 831,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [],
+     "output_bytes": {
+      "events.jsonl": 19934,
+      "registry": 15323,
+      "bash": 1177
+     },
+     "calls": [
+      "bash",
+      "events.jsonl",
+      "registry",
+      "registry"
+     ]
+    }
+   ],
+   "score": {
+    "answers": {
+     "plain": true,
+     "collapsed": true,
+     "inactive-tab": true,
+     "widget-data": true,
+     "external-data": true,
+     "standing-action": true,
+     "view": true
+    },
+    "correct": 7,
+    "of": 7
+   }
+  },
+  {
+   "case": "reading",
+   "arm": "main",
+   "n": 3,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 5,
+     "cost_usd": 0.115,
+     "minutes": 0.2,
+     "input_tokens": 90186,
+     "output_tokens": 908,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [],
+     "output_bytes": {
+      "events.jsonl": 6033,
+      "index.html": 2105,
+      "bash": 1192
+     },
+     "calls": [
+      "bash",
+      "events.jsonl",
+      "events.jsonl",
+      "index.html"
+     ]
+    }
+   ],
+   "score": {
+    "answers": {
+     "plain": true,
+     "collapsed": true,
+     "inactive-tab": true,
+     "widget-data": true,
+     "external-data": true,
+     "standing-action": true,
+     "view": true
+    },
+    "correct": 7,
+    "of": 7
+   }
+  },
+  {
+   "case": "resume",
+   "arm": "main",
+   "n": 1,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 7,
+     "cost_usd": 0.221,
+     "minutes": 0.4,
+     "input_tokens": 118427,
+     "output_tokens": 1983,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/serving-pages.md"
+     ],
+     "output_bytes": {
+      "page state": 19418,
+      "reference": 3750,
+      "bash": 1441,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "bash",
+      "reference",
+      "page state",
+      "page state"
+     ]
+    },
+    {
+     "completed": true,
+     "turns": 12,
+     "cost_usd": 0.583,
+     "minutes": 1.2,
+     "input_tokens": 503703,
+     "output_tokens": 5403,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [],
+     "output_bytes": {
+      "bash": 33487,
+      "registry": 3512,
+      "page state": 1443,
+      "version check": 510,
+      "index.html": 189
+     },
+     "calls": [
+      "bash",
+      "bash",
+      "registry",
+      "bash",
+      "index.html",
+      "version check",
+      "page state",
+      "version check",
+      "page state",
+      "bash",
+      "page state"
+     ]
+    }
+   ],
+   "score": {
+    "date": true,
+    "approach": true,
+    "next_batch": true,
+    "next_pick": true,
+    "versions": 3,
+    "source_valid": true,
+    "batch_200": true,
+    "batch_edit_elsewhere": false,
+    "chosen_marked": true,
+    "pick_standing": true,
+    "restated": false,
+    "replied": true,
+    "date_final": "Cutover to the new index is scheduled for 21 October."
+   }
+  },
+  {
+   "case": "resume",
+   "arm": "main",
+   "n": 2,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 6,
+     "cost_usd": 0.237,
+     "minutes": 0.4,
+     "input_tokens": 122798,
+     "output_tokens": 1675,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/serving-pages.md"
+     ],
+     "output_bytes": {
+      "page state": 29850,
+      "reference": 1909,
+      "index.html": 385,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "reference",
+      "page state",
+      "index.html"
+     ]
+    },
+    {
+     "completed": true,
+     "turns": 13,
+     "cost_usd": 0.756,
+     "minutes": 1.7,
+     "input_tokens": 674560,
+     "output_tokens": 7357,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [],
+     "output_bytes": {
+      "bash": 53912,
+      "registry": 8522,
+      "page state": 956,
+      "version check": 530,
+      "version stamp": 298,
+      "index.html": 189
+     },
+     "calls": [
+      "bash",
+      "bash",
+      "bash",
+      "registry",
+      "bash",
+      "bash",
+      "index.html",
+      "version check",
+      "version check",
+      "page state",
+      "version stamp",
+      "page state"
+     ]
+    }
+   ],
+   "score": {
+    "date": true,
+    "approach": true,
+    "next_batch": true,
+    "next_pick": true,
+    "versions": 3,
+    "source_valid": true,
+    "batch_200": true,
+    "batch_edit_elsewhere": false,
+    "chosen_marked": true,
+    "pick_standing": true,
+    "restated": false,
+    "replied": true,
+    "date_final": "Cutover to the new index is scheduled for 21 October."
+   }
+  },
+  {
+   "case": "resume",
+   "arm": "main",
+   "n": 3,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 9,
+     "cost_usd": 0.209,
+     "minutes": 0.5,
+     "input_tokens": 158078,
+     "output_tokens": 2693,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/serving-pages.md"
+     ],
+     "output_bytes": {
+      "bash": 4638,
+      "reference": 4323,
+      "version check": 1703,
+      "events.jsonl": 1574,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "bash",
+      "reference",
+      "reference",
+      "events.jsonl",
+      "bash",
+      "version check"
+     ]
+    },
+    {
+     "completed": true,
+     "turns": 15,
+     "cost_usd": 0.768,
+     "minutes": 1.7,
+     "input_tokens": 677957,
+     "output_tokens": 7831,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [],
+     "output_bytes": {
+      "bash": 26164,
+      "page state": 18172,
+      "registry": 11153,
+      "version check": 1322,
+      "version stamp": 389,
+      "index.html": 189
+     },
+     "calls": [
+      "bash",
+      "page state",
+      "bash",
+      "bash",
+      "page state",
+      "registry",
+      "registry",
+      "index.html",
+      "version check",
+      "version check",
+      "version stamp",
+      "page state",
+      "page state"
+     ]
+    }
+   ],
+   "score": {
+    "date": true,
+    "approach": true,
+    "next_batch": true,
+    "next_pick": true,
+    "versions": 3,
+    "source_valid": true,
+    "batch_200": true,
+    "batch_edit_elsewhere": false,
+    "chosen_marked": true,
+    "pick_standing": true,
+    "restated": false,
+    "replied": true,
+    "date_final": "Cutover to the new index is scheduled for 21 October."
+   }
+  }
+ ]
+}

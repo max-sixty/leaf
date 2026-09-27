@@ -1,0 +1,932 @@
+{
+ "model": "claude-opus-5-5",
+ "arms": {
+  "main": "387dfed45c9dbaf772d7cb98db323f022809aec3",
+  "notree": "387dfed45c9dbaf772d7cb98db323f022809aec3"
+ },
+ "runs": [
+  {
+   "case": "constructs",
+   "arm": "main",
+   "n": 1,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 7,
+     "cost_usd": 0.222,
+     "minutes": 0.3,
+     "input_tokens": 129459,
+     "output_tokens": 1431,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [],
+     "output_bytes": {
+      "events.jsonl": 20301,
+      "data/": 1344,
+      "bash": 1177,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "bash",
+      "events.jsonl",
+      "events.jsonl",
+      "data/"
+     ]
+    },
+    {
+     "completed": true,
+     "turns": 8,
+     "cost_usd": 0.473,
+     "minutes": 0.8,
+     "input_tokens": 336146,
+     "output_tokens": 3302,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [],
+     "output_bytes": {
+      "page state": 14320,
+      "bash": 8331,
+      "version check": 7408
+     },
+     "calls": [
+      "bash",
+      "page state",
+      "page state",
+      "version check",
+      "version check",
+      "page state",
+      "page state"
+     ]
+    }
+   ],
+   "score": {
+    "draft_read": true,
+    "p95_read": true,
+    "chart_read": true,
+    "stamped": true,
+    "draft_date": true,
+    "draft_kept_user_words": true,
+    "draft_restated": true,
+    "p95_text": true,
+    "p95_current": true,
+    "chart_85": true
+   }
+  },
+  {
+   "case": "constructs",
+   "arm": "main",
+   "n": 2,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 5,
+     "cost_usd": 0.145,
+     "minutes": 0.3,
+     "input_tokens": 98761,
+     "output_tokens": 1320,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [],
+     "output_bytes": {
+      "registry": 12579,
+      "bash": 4523
+     },
+     "calls": [
+      "bash",
+      "registry",
+      "bash",
+      "registry"
+     ]
+    },
+    {
+     "completed": true,
+     "turns": 8,
+     "cost_usd": 0.36,
+     "minutes": 0.7,
+     "input_tokens": 234005,
+     "output_tokens": 2633,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [],
+     "output_bytes": {
+      "page state": 11700,
+      "registry": 9870,
+      "version check": 510,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "registry",
+      "page state",
+      "version check",
+      "version check",
+      "page state"
+     ]
+    }
+   ],
+   "score": {
+    "draft_read": true,
+    "p95_read": true,
+    "chart_read": true,
+    "stamped": true,
+    "draft_date": true,
+    "draft_kept_user_words": true,
+    "draft_restated": true,
+    "p95_text": true,
+    "p95_current": true,
+    "chart_85": true
+   }
+  },
+  {
+   "case": "constructs",
+   "arm": "main",
+   "n": 3,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 7,
+     "cost_usd": 0.218,
+     "minutes": 0.3,
+     "input_tokens": 127915,
+     "output_tokens": 1404,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [],
+     "output_bytes": {
+      "events.jsonl": 20289,
+      "data/": 2319,
+      "bash": 1177,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "bash",
+      "events.jsonl",
+      "events.jsonl",
+      "data/"
+     ]
+    },
+    {
+     "completed": true,
+     "turns": 8,
+     "cost_usd": 0.469,
+     "minutes": 0.8,
+     "input_tokens": 335815,
+     "output_tokens": 2946,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [],
+     "output_bytes": {
+      "bash": 15194,
+      "page state": 13433,
+      "registry": 4795,
+      "version check": 400
+     },
+     "calls": [
+      "bash",
+      "bash",
+      "page state",
+      "registry",
+      "version check",
+      "page state",
+      "page state"
+     ]
+    }
+   ],
+   "score": {
+    "draft_read": true,
+    "p95_read": true,
+    "chart_read": true,
+    "stamped": true,
+    "draft_date": true,
+    "draft_kept_user_words": true,
+    "draft_restated": true,
+    "p95_text": true,
+    "p95_current": true,
+    "chart_85": true
+   }
+  },
+  {
+   "case": "constructs",
+   "arm": "notree",
+   "n": 1,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 9,
+     "cost_usd": 0.196,
+     "minutes": 0.4,
+     "input_tokens": 162830,
+     "output_tokens": 1860,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [],
+     "output_bytes": {
+      "data/": 5044,
+      "events.jsonl": 4972,
+      "index.html": 2289,
+      "bash": 1208,
+      "registry": 771,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "bash",
+      "events.jsonl",
+      "index.html",
+      "data/",
+      "bash",
+      "registry"
+     ]
+    },
+    {
+     "completed": true,
+     "turns": 8,
+     "cost_usd": 0.43,
+     "minutes": 0.8,
+     "input_tokens": 296652,
+     "output_tokens": 3044,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [
+      "references/page-authoring.md",
+      "references/page-checkpoints.md"
+     ],
+     "output_bytes": {
+      "bash": 14175,
+      "reference": 12271,
+      "page state": 1528,
+      "version check": 407
+     },
+     "calls": [
+      "bash",
+      "reference",
+      "bash",
+      "reference",
+      "version check",
+      "page state",
+      "page state"
+     ]
+    }
+   ],
+   "score": {
+    "draft_read": true,
+    "p95_read": true,
+    "chart_read": true,
+    "stamped": true,
+    "draft_date": true,
+    "draft_kept_user_words": true,
+    "draft_restated": true,
+    "p95_text": true,
+    "p95_current": true,
+    "chart_85": true
+   }
+  },
+  {
+   "case": "constructs",
+   "arm": "notree",
+   "n": 2,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 6,
+     "cost_usd": 0.142,
+     "minutes": 0.3,
+     "input_tokens": 102351,
+     "output_tokens": 1289,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [],
+     "output_bytes": {
+      "index.html": 3489,
+      "events.jsonl": 2651,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "index.html",
+      "events.jsonl",
+      "index.html"
+     ]
+    },
+    {
+     "completed": true,
+     "turns": 7,
+     "cost_usd": 0.338,
+     "minutes": 0.7,
+     "input_tokens": 218414,
+     "output_tokens": 3024,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [],
+     "output_bytes": {
+      "page state": 9976,
+      "bash": 9385,
+      "version check": 626
+     },
+     "calls": [
+      "bash",
+      "page state",
+      "version check",
+      "page state",
+      "bash",
+      "bash"
+     ]
+    }
+   ],
+   "score": {
+    "draft_read": true,
+    "p95_read": true,
+    "chart_read": true,
+    "stamped": true,
+    "draft_date": true,
+    "draft_kept_user_words": true,
+    "draft_restated": true,
+    "p95_text": true,
+    "p95_current": true,
+    "chart_85": true
+   }
+  },
+  {
+   "case": "constructs",
+   "arm": "notree",
+   "n": 3,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 6,
+     "cost_usd": 0.149,
+     "minutes": 0.3,
+     "input_tokens": 112059,
+     "output_tokens": 1381,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [],
+     "output_bytes": {
+      "registry": 8437,
+      "index.html": 3260,
+      "events.jsonl": 2750,
+      "bash": 1177
+     },
+     "calls": [
+      "bash",
+      "events.jsonl",
+      "index.html",
+      "registry",
+      "registry"
+     ]
+    },
+    {
+     "completed": true,
+     "turns": 11,
+     "cost_usd": 0.408,
+     "minutes": 0.7,
+     "input_tokens": 348283,
+     "output_tokens": 3272,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/authoring-evidence.md",
+      "references/authoring-revisions.md"
+     ],
+     "output_bytes": {
+      "page state": 10773,
+      "reference": 8491,
+      "bash": 2493,
+      "version check": 407,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "reference",
+      "page state",
+      "version check",
+      "page state",
+      "page state",
+      "bash",
+      "bash",
+      "bash"
+     ]
+    }
+   ],
+   "score": {
+    "draft_read": true,
+    "p95_read": true,
+    "chart_read": true,
+    "stamped": true,
+    "draft_date": true,
+    "draft_kept_user_words": true,
+    "draft_restated": true,
+    "p95_text": true,
+    "p95_current": true,
+    "chart_85": true
+   }
+  },
+  {
+   "case": "resume",
+   "arm": "main",
+   "n": 1,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 8,
+     "cost_usd": 0.263,
+     "minutes": 0.5,
+     "input_tokens": 157515,
+     "output_tokens": 2755,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/serving-pages.md"
+     ],
+     "output_bytes": {
+      "reference": 12414,
+      "page state": 7757,
+      "bash": 5293,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "bash",
+      "reference",
+      "page state",
+      "bash",
+      "page state"
+     ]
+    },
+    {
+     "completed": true,
+     "turns": 12,
+     "cost_usd": 0.706,
+     "minutes": 1.2,
+     "input_tokens": 578557,
+     "output_tokens": 6095,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [],
+     "output_bytes": {
+      "bash": 43720,
+      "registry": 7230,
+      "page state": 2241,
+      "version check": 969,
+      "index.html": 189
+     },
+     "calls": [
+      "bash",
+      "bash",
+      "registry",
+      "bash",
+      "bash",
+      "bash",
+      "index.html",
+      "version check",
+      "page state",
+      "version check",
+      "page state"
+     ]
+    }
+   ],
+   "score": {
+    "date": true,
+    "approach": true,
+    "next_batch": true,
+    "next_pick": true,
+    "versions": 3,
+    "source_valid": true,
+    "batch_200": true,
+    "batch_edit_elsewhere": false,
+    "chosen_marked": true,
+    "pick_standing": true,
+    "restated": false,
+    "replied": true,
+    "date_final": "Cutover to the new index is scheduled for 21 October."
+   }
+  },
+  {
+   "case": "resume",
+   "arm": "main",
+   "n": 2,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 8,
+     "cost_usd": 0.195,
+     "minutes": 0.5,
+     "input_tokens": 136531,
+     "output_tokens": 2252,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/serving-pages.md"
+     ],
+     "output_bytes": {
+      "bash": 7271,
+      "reference": 4673,
+      "version check": 1493,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "bash",
+      "reference",
+      "bash",
+      "version check",
+      "bash"
+     ]
+    },
+    {
+     "completed": true,
+     "turns": 10,
+     "cost_usd": 0.563,
+     "minutes": 1.2,
+     "input_tokens": 425701,
+     "output_tokens": 5197,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [],
+     "output_bytes": {
+      "bash": 29941,
+      "registry": 8508,
+      "page state": 6264,
+      "version check": 618,
+      "index.html": 189,
+      "thread reply": 53
+     },
+     "calls": [
+      "bash",
+      "bash",
+      "page state",
+      "registry",
+      "registry",
+      "index.html",
+      "version check",
+      "thread reply",
+      "page state"
+     ]
+    }
+   ],
+   "score": {
+    "date": true,
+    "approach": true,
+    "next_batch": true,
+    "next_pick": true,
+    "versions": 3,
+    "source_valid": true,
+    "batch_200": true,
+    "batch_edit_elsewhere": false,
+    "chosen_marked": true,
+    "pick_standing": true,
+    "restated": false,
+    "replied": true,
+    "date_final": "Cutover to the new index is scheduled for 3 November."
+   }
+  },
+  {
+   "case": "resume",
+   "arm": "main",
+   "n": 3,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 6,
+     "cost_usd": 0.169,
+     "minutes": 0.3,
+     "input_tokens": 85141,
+     "output_tokens": 1695,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/serving-pages.md"
+     ],
+     "output_bytes": {
+      "page state": 7139,
+      "reference": 3830,
+      "bash": 2962,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "bash",
+      "reference",
+      "page state"
+     ]
+    },
+    {
+     "completed": true,
+     "turns": 10,
+     "cost_usd": 0.545,
+     "minutes": 1.2,
+     "input_tokens": 393859,
+     "output_tokens": 5583,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [
+      "references/host-claude-code.md",
+      "references/page-authoring.md"
+     ],
+     "output_bytes": {
+      "bash": 27315,
+      "reference": 19931,
+      "page state": 616,
+      "version check": 400,
+      "version stamp": 308,
+      "index.html": 189
+     },
+     "calls": [
+      "bash",
+      "reference",
+      "reference",
+      "reference",
+      "index.html",
+      "version check",
+      "page state",
+      "version stamp",
+      "page state"
+     ]
+    }
+   ],
+   "score": {
+    "date": true,
+    "approach": true,
+    "next_batch": true,
+    "next_pick": true,
+    "versions": 3,
+    "source_valid": true,
+    "batch_200": true,
+    "batch_edit_elsewhere": false,
+    "chosen_marked": true,
+    "pick_standing": true,
+    "restated": false,
+    "replied": true,
+    "date_final": "Cutover to the new index is scheduled for 21 October."
+   }
+  },
+  {
+   "case": "resume",
+   "arm": "notree",
+   "n": 1,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 8,
+     "cost_usd": 0.215,
+     "minutes": 0.6,
+     "input_tokens": 153478,
+     "output_tokens": 2711,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/serving-pages.md"
+     ],
+     "output_bytes": {
+      "page state": 10764,
+      "reference": 2490,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "reference",
+      "page state",
+      "page state",
+      "page state",
+      "page state"
+     ]
+    },
+    {
+     "completed": true,
+     "turns": 13,
+     "cost_usd": 0.662,
+     "minutes": 1.5,
+     "input_tokens": 521126,
+     "output_tokens": 6535,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [],
+     "output_bytes": {
+      "bash": 39888,
+      "registry": 13726,
+      "page state": 2185,
+      "version check": 640,
+      "index.html": 189
+     },
+     "calls": [
+      "bash",
+      "bash",
+      "bash",
+      "registry",
+      "registry",
+      "bash",
+      "index.html",
+      "version check",
+      "version check",
+      "version check",
+      "page state",
+      "bash"
+     ]
+    }
+   ],
+   "score": {
+    "date": true,
+    "approach": true,
+    "next_batch": true,
+    "next_pick": true,
+    "versions": 3,
+    "source_valid": true,
+    "batch_200": true,
+    "batch_edit_elsewhere": false,
+    "chosen_marked": true,
+    "pick_standing": true,
+    "restated": false,
+    "replied": true,
+    "date_final": "Cutover to the new index is scheduled for 21 October."
+   }
+  },
+  {
+   "case": "resume",
+   "arm": "notree",
+   "n": 2,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 10,
+     "cost_usd": 0.257,
+     "minutes": 0.5,
+     "input_tokens": 214652,
+     "output_tokens": 2791,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/serving-pages.md"
+     ],
+     "output_bytes": {
+      "reference": 11890,
+      "bash": 5423,
+      "index.html": 3353,
+      "version check": 1025,
+      "skill": 26
+     },
+     "calls": [
+      "skill",
+      "bash",
+      "reference",
+      "index.html",
+      "index.html",
+      "bash",
+      "version check",
+      "version check"
+     ]
+    },
+    {
+     "completed": true,
+     "turns": 16,
+     "cost_usd": 0.892,
+     "minutes": 1.7,
+     "input_tokens": 860925,
+     "output_tokens": 7908,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [
+      "references/threads.md"
+     ],
+     "output_bytes": {
+      "bash": 47275,
+      "registry": 15642,
+      "reference": 12410,
+      "page state": 6075,
+      "version stamp": 1200,
+      "version check": 400,
+      "index.html": 189
+     },
+     "calls": [
+      "bash",
+      "bash",
+      "page state",
+      "reference",
+      "bash",
+      "registry",
+      "registry",
+      "registry",
+      "index.html",
+      "page state",
+      "page state",
+      "page state",
+      "version check",
+      "version stamp",
+      "page state"
+     ]
+    }
+   ],
+   "score": {
+    "date": true,
+    "approach": true,
+    "next_batch": true,
+    "next_pick": true,
+    "versions": 3,
+    "source_valid": true,
+    "batch_200": true,
+    "batch_edit_elsewhere": false,
+    "chosen_marked": true,
+    "pick_standing": true,
+    "restated": false,
+    "replied": true,
+    "date_final": "Cutover to the new index starts on 3 November with the first group of tenants."
+   }
+  },
+  {
+   "case": "resume",
+   "arm": "notree",
+   "n": 3,
+   "usable": true,
+   "phases": [
+    {
+     "completed": true,
+     "turns": 10,
+     "cost_usd": 0.236,
+     "minutes": 0.5,
+     "input_tokens": 195916,
+     "output_tokens": 2766,
+     "denials": 0,
+     "leaf_skill": true,
+     "references": [
+      "references/serving-pages.md"
+     ],
+     "output_bytes": {
+      "bash": 4813,
+      "page state": 4395,
+      "events.jsonl": 4349,
+      "registry": 2925,
+      "reference": 758,
+      "skill": 26
+     },
+     "calls": [
+      "bash",
+      "events.jsonl",
+      "events.jsonl",
+      "bash",
+      "registry",
+      "skill",
+      "reference",
+      "page state"
+     ]
+    },
+    {
+     "completed": true,
+     "turns": 10,
+     "cost_usd": 0.642,
+     "minutes": 1.3,
+     "input_tokens": 419870,
+     "output_tokens": 6174,
+     "denials": 0,
+     "leaf_skill": false,
+     "references": [],
+     "output_bytes": {
+      "bash": 41815,
+      "registry": 9007,
+      "page state": 1737,
+      "version check": 436,
+      "index.html": 189,
+      "thread reply": 103
+     },
+     "calls": [
+      "bash",
+      "bash",
+      "bash",
+      "registry",
+      "index.html",
+      "page state",
+      "thread reply",
+      "version check",
+      "page state"
+     ]
+    }
+   ],
+   "score": {
+    "date": true,
+    "approach": true,
+    "next_batch": true,
+    "next_pick": true,
+    "versions": 3,
+    "source_valid": true,
+    "batch_200": true,
+    "batch_edit_elsewhere": false,
+    "chosen_marked": true,
+    "pick_standing": true,
+    "restated": false,
+    "replied": true,
+    "date_final": "Cutover to the new index is scheduled for 21 October."
+   }
+  }
+ ]
+}

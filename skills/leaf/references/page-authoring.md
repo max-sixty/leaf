@@ -126,7 +126,7 @@ the measure but gives it no room to break out into, since that room is the page'
 | --- | --- |
 | `layout-column` | the reading column, and a block's breakout beside it |
 | `layout-wide` | a page as wide as the window, up to a cap, holding one flow |
-| `layout-sidebar` | a body beside a side track, with a `header` and `footer` across both |
+| `layout-sidebar` | a body beside its `aside`, with a `header` and `footer` across both |
 | `layout-tiles` | equal cells, as many to a row as fit |
 | `layout-workspace` | a page that fills the window: `header`, one body, `footer` |
 
@@ -145,22 +145,27 @@ the widths and wrapping every page needs.
 When the regions are the page rather than exhibits in an argument — a board with its
 status, a release dashboard, a queue sorted into buckets, a long review whose contents
 and verdict stay beside the code — widen the page itself. `<main class="layout-wide">`
-holds one flow at the page's width. `<main class="layout-sidebar">` puts what the reader
-works through in its first block and what they keep an eye on — status, counts, the
-verdict's follow-ups, the contents — in its last, with the page's `header` above both:
+holds one flow at the page's width. `<main class="layout-sidebar">` sets what the reader
+works through beside what they keep an eye on — status, counts, the verdict's
+follow-ups, the contents — which is the Layout's `aside`, with the page's `header` above
+both:
 
 ```html
 <main class="layout-sidebar">
   <header><h1>…</h1><p class="lede">…</p></header>
   <div id="body">…</div>        <!-- what the reader works through -->
-  <div id="status">…</div>      <!-- what they keep an eye on -->
+  <aside id="status">…</aside>  <!-- what they keep an eye on -->
 </main>
 ```
 
-The body takes two parts of the row and the side track one, and the track wraps below
-the body where the two no longer fit side by side, or where the body could not keep the
-width its content declares: a board whose columns need the room gets the page's whole
-width rather than clipping. Stack each track's regions inside it, so every region stands
+Where the two no longer fit side by side, as on a phone, they stack in the order they are
+written. So write the `aside` where a reader of the stacked page needs it: before the
+body when it is what they read first, such as a review's summary and contents, where it
+also stands on the left; after it when it follows the work, such as a dashboard's checks
+and log, where it stands on the right. The body takes two parts of the row and the track
+one, and the track wraps where the body could not keep the width its content declares
+too: a board whose columns need the room gets the page's whole width rather than
+clipping. Stack each track's regions inside it, so every region stands
 on the same two vertical lines, rather than a new split per row whose edges land
 somewhere new each time.
 

@@ -1,0 +1,36 @@
+schema_version: '1.0'
+name: sidebar-track-is-its-aside
+description: "A sidebar page: its track is the Layout's `aside`, written where a reader of the stacked page needs it, so a review's summary and contents come before the body on a phone."
+tags:
+- layout
+execution:
+  prompt: |
+    Write a Leaf page for the user: the review of moving web sessions off the Redis
+    cluster `sess-redis-prod`, which they send to the platform team before Thursday's
+    decision. It has six sections (why decide now, Redis today, the three options,
+    Postgres risks, the migration plan, the measurements), a short summary (the
+    recommendation is Postgres; two questions are open for the team), and a contents
+    list. The user reads it in a window about 900px wide beside their editor, where they
+    want the summary and contents kept beside the review, and again on their phone on
+    the way in.
+
+    The page directory is not reachable from here, so reply with the complete
+    `index.html`, rather than writing a file.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-page-authoring
+  type: tool_used
+  tool: Read
+  input_match: page-authoring
+- name: judgment
+  type: llm
+  criteria: |
+    Read the HTML. Pass only if all of these hold. `main` has class `layout-sidebar`.
+    The summary and the contents stand together in an `aside` that is a direct child of
+    `main`, and that `aside` comes before the element holding the six sections in the
+    document's order, so a phone, which stacks the two, shows the summary and contents
+    first. The page's own CSS does not rebuild the arrangement: fail if it declares a
+    grid or flex layout for `main`, or moves the summary with `order`, or positions it.

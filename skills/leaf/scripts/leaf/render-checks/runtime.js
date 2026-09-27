@@ -1,20 +1,9 @@
 import { USER_VIEW_RESTORE_CASES } from "/runtime/widget-api.js";
-import { validationPresentationReady } from "/runtime/validation.js";
 import { at } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
 export const runtimeStarted = () => document.querySelector(".lf-banner") !== null;
 export const upgraded = () => document.body.dataset.lfUpgraded === "1";
-export const initiallyPresented = () => document.body.dataset.lfPresented === "1";
-export const currentPresented = () =>
-  initiallyPresented() && validationPresentationReady();
-// A reader holding the server's reading taken at `taken` sees that reading presented,
-// or a later one.
-export const dataApplied = (version, taken) =>
-  document.body.dataset.lfDataVersion === version ||
-  Number(document.body.dataset.lfDataTaken ?? -Infinity) >= taken;
-export const logApplied = (applied) =>
-  Number(document.body.dataset.lfApplied ?? -1) >= applied;
 
 // Finite animations delay final geometry reads. Infinite ambient animation, such as the
 // status indicator, does not. `moving` is the render gate's shared reading of that

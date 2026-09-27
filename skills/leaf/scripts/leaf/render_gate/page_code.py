@@ -23,9 +23,10 @@ or replay, and code that throws only after a gesture or a timer is not reached.
 
 from leaf.render_checks import (
     RENDER_VIEWPORT,
+    PageNotReady,
     evaluate_probe,
-    wait_for_presentation,
     wait_for_probe,
+    wait_until_ready,
 )
 from leaf.revision_artifact import RevisionArtifact
 from leaf.structure import SourceDocument
@@ -71,11 +72,7 @@ def run_page_code(browser, url: str) -> list[str]:
     page.route("**/api/event", report)
     try:
         page.goto(url)
-        wait_for_probe(page, "upgraded")
-        state = served(page, url, "/api/state").json()
-        stage = wait_for_presentation(page, state)
-        if stage is not None:
-            return [*reports, f"the runtime never passed its {stage} stage"]
+        wait_until_ready(page, served(page, url, "/api/state").json())
         # A widget that paints from a rendering callback throws there, not in its
         # upgrade; once the rendering has settled, every callback it queued has run.
         wait_for_probe(page, "framePresented", evaluate_probe(page, "requestFrame"))
@@ -83,6 +80,8 @@ def run_page_code(browser, url: str) -> list[str]:
         # The report is posted asynchronously, and the route above answers it only
         # while this process is waiting on the page.
         wait_for_probe(page, "sendsAcked")
+    except PageNotReady as error:
+        return [*reports, str(error)]
     except PlaywrightError as error:
         # A wait that timed out names what never arrived; any other browser error
         # is as much a failed run, and the reports already taken still stand.

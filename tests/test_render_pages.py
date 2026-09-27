@@ -18,6 +18,7 @@ from leaf import schema as schema_model
 from leaf import structure as structure_model
 from leaf.passages import enclosing_ids, page_passages
 from leaf.registry import storage as registry_storage
+from leaf.render_checks import wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from PIL import Image, ImageChops, ImageStat
 from playwright.sync_api import expect
@@ -62,7 +63,6 @@ from render_cases_widgets import (
 )
 from render_harness import (
     ANCHOR_SOURCES,
-    BOTH_STAMPS,
     CORPUS_SOURCES,
     EXAMPLE_PACKAGES,
     EXAMPLES,
@@ -2114,7 +2114,7 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
         # Both stamps, not the first alone: what makes a claim late is not the handover
         # by itself but everything the page finishes around it. The second stamp is the
         # replay the panel's first render waits on.
-        page.wait_for_function(BOTH_STAMPS)
+        wait_until_ready(page)
         answered.append(True)
         route.fulfill(status=204)
 

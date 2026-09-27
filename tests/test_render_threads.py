@@ -16,6 +16,7 @@ from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import thread as thread_model
+from leaf.render_checks import wait_until_ready
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -46,7 +47,6 @@ from render_cases_layout import (
     token_colour,
 )
 from render_harness import (
-    BOTH_STAMPS,
     EXAMPLE_MEDIA,
     EXAMPLE_PACKAGES,
     EXAMPLES,
@@ -1406,7 +1406,7 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
     )
 
     page.reload()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     panel_settled(page)
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
     thread.locator(".lf-thread-summary").click()

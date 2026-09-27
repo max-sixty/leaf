@@ -23,6 +23,7 @@ from leaf import hosting as hosting_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf.render_checks import wait_until_ready
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -65,7 +66,6 @@ from render_cases_widgets import (
     TYPED_PARTS_PAGE,
 )
 from render_harness import (
-    BOTH_STAMPS,
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
@@ -284,7 +284,7 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
 
     page.route("**/api/state*", identify)
     page.goto(url, wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(page.locator(".lf-banner .lf-status-detail")).not_to_contain_text(
         "239383829012"
     )
@@ -465,7 +465,7 @@ def test_authored_html_paints_while_runtime_startup_is_held(
         ), "a startup sheet replaced the authored document before runtime arrived"
 
         boot.pop().continue_()
-        page.wait_for_function(BOTH_STAMPS)
+        wait_until_ready(page)
         presented = page.locator("body > main").bounding_box()
         assert {key: presented[key] for key in ("x", "y", "width")} == pytest.approx(
             {key: initial[key] for key in ("x", "y", "width")}, abs=1
@@ -612,7 +612,7 @@ def test_a_key_that_is_not_printed_ends_the_held_run(browser, serve, ending):
     page.keyboard.press(ending)
     expect(echo).to_have_count(0)
     release()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     # A replay would run a frame after presentation; let the repaint it causes land.
     rendered(page)
     expect(page.locator("leaf-text:focus")).to_have_count(0)
@@ -639,7 +639,7 @@ def test_escape_or_a_pointer_press_lets_go_of_held_keys(browser, serve, gesture)
     expect(echo).to_have_count(0)
 
     release()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     # A replay would run a frame after presentation; let the repaint it causes land.
     rendered(page)
     assert page.evaluate("() => !document.activeElement?.closest('[data-thread]')")
@@ -756,7 +756,7 @@ def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
         initial = geometry()
 
         held.pop().continue_()
-        page.wait_for_function(BOTH_STAMPS)
+        wait_until_ready(page)
         expect(page.locator("body")).to_have_attribute(
             "data-lf-auxiliary-surface", surface
         )
@@ -1316,7 +1316,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     assert all(frame["startupSheet"] == "none" for frame in frames), frames
 
     held.pop(0).continue_()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
     expect(authored_note).to_have_text("Ship on Friday from the green room.")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
@@ -1370,7 +1370,7 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     expect(page.locator(".lf-status-detail")).to_have_text(re.compile(r"^Connecting"))
 
     held.pop(0).continue_()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(controls).to_be_visible()
     expect(page.locator(".lf-status-detail")).not_to_have_text(
         re.compile(r"^Connecting")
@@ -1402,7 +1402,7 @@ def test_playground_joins_initial_widget_settlement(browser, serve):
     expect(playground).to_have_attribute("data-playground-format", "status strip")
 
     held.pop(0).continue_()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(submit).to_be_enabled()
     expect(compact).to_be_checked()
     expect(page.locator(".lf-status-detail")).not_to_have_text(
@@ -1473,7 +1473,7 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_tray_during_replay(
     context = browser.new_context(viewport={"width": 1200, "height": 900})
     priming = context.new_page()
     priming.goto(url, wait_until="load")
-    priming.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(priming)
     priming.evaluate("localStorage.setItem('lf-auxiliary-surface', 'asks')")
     priming.close()
 
@@ -1497,7 +1497,7 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_tray_during_replay(
     expect(page.locator(".lf-general leaf-text")).to_be_editable()
 
     held.pop(0).continue_()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
     decisions = page.locator(".lf-asks")
     expect_banner_control_offered(decisions)
@@ -1536,7 +1536,7 @@ def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
     expect(page.locator(".lf-thread")).to_have_count(0)
 
     held.pop(0).continue_()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(page.locator(".lf-empty")).to_have_count(0)
     expect(page.locator(".lf-thread")).to_have_count(1)
     expect(page.locator(".lf-msg-body strong")).to_have_text("comment")
@@ -2248,7 +2248,7 @@ def test_an_unavailable_floating_ui_module_withdraws_the_response(browser, serve
     watched(page)
     page.route("**/vendor/floating-ui.esm.js", lambda route: route.abort())
     page.goto(url, wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
 
     with page.expect_event("pageerror") as raised:
         page.locator("#bg-react-ok").click(modifiers=["Alt"])
@@ -5294,7 +5294,7 @@ def test_data_written_during_fresh_revision_startup_waits_for_activation(
     expect(page.locator('[data-lf-datum="api"]')).to_have_count(0)
 
     page.evaluate("() => window.__lfReleaseRevisionRegistry()")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     nudge(d)
     expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
     expect(page.locator("#lede")).to_have_text("Live status follows now.")

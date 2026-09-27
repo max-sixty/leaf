@@ -19,9 +19,11 @@ from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
+from leaf.render_checks import wait_until_ready
 from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 from leaf.validation import compatibility as validation_model
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASKS_PAGE,
@@ -76,7 +78,6 @@ from render_cases_widgets import (
     prefixed_visual_layer,
 )
 from render_harness import (
-    BOTH_STAMPS,
     CORPUS_PAGE,
     CORPUS_SOURCES,
     EXAMPLE_PACKAGES,
@@ -656,11 +657,14 @@ def test_an_async_wait_probe_is_refused_instead_of_passing_as_a_promise(browser,
     assert all("must be synchronous" in failure for failure in failures)
 
 
-def test_current_presentation_probe_reopens_and_ignores_superseded_work(browser, serve):
-    """The arrival latch stays set while current mechanical readiness can reopen."""
+def test_readiness_reopens_on_current_presentation_and_ignores_superseded_work(
+    browser, serve
+):
+    """The presented stamp stays set while the page's readiness reopens on current
+    presentation work, and work a newer presentation superseded never holds it."""
+    readiness = "() => document.querySelector('script[data-lf-entry]').lfReadiness()"
     page = open_page(browser, serve(LONG_PAGE))
-    assert render_checks_model.evaluate_probe(page, "initiallyPresented") is True
-    assert render_checks_model.evaluate_probe(page, "currentPresented") is True
+    assert page.evaluate(readiness) is None
 
     page.evaluate(
         """async () => {
@@ -680,15 +684,15 @@ def test_current_presentation_probe_reopens_and_ignores_superseded_work(browser,
         }"""
     )
     assert page.locator("body").get_attribute("data-lf-presented") == "1"
-    assert render_checks_model.evaluate_probe(page, "currentPresented") is False
+    assert page.evaluate(readiness) == "presented"
 
     page.evaluate("() => probePresentation.present('newer', undefined)")
-    render_checks_model.wait_for_probe(page, "currentPresented")
+    wait_until_ready(page)
     assert page.evaluate("() => probeOlderSettled") is False
 
     page.evaluate("() => releaseProbeOlder()")
     page.evaluate("() => probeOlder")
-    assert render_checks_model.evaluate_probe(page, "currentPresented") is True
+    assert page.evaluate(readiness) != "presented"
     page.evaluate("() => probePresentation.disconnect()")
 
 
@@ -866,7 +870,7 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve, monkeypatch
         assert answer_ready.wait(10), "the first event reached no server answer"
         page.goto(url, wait_until="load")
         assert reload_committed.is_set(), "the replacement document did not commit"
-        page.wait_for_function(BOTH_STAMPS)
+        wait_until_ready(page)
     finally:
         release_answer.set()
     # The first trip of the new document's own cascade, which is the whole of what a
@@ -937,7 +941,7 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
     )
     declared = browser.new_page()
     declared.goto(url, wait_until="load")
-    render_checks_model.wait_for_probe(declared, "currentPresented")
+    wait_until_ready(declared)
     restore_cases = user_view_restore_cases(declared)
     suggestion_state = declared.locator("#sug-rewrite").get_attribute("data-lf-state")
     option_transition = declared.locator("#wait-day").evaluate(
@@ -1014,7 +1018,7 @@ def test_shadow_stage_withholds_package_transitions_until_presentation(browser, 
 
     held.pop().continue_()
     page.unroute("**/api/state*")
-    render_checks_model.wait_for_probe(page, "currentPresented")
+    wait_until_ready(page)
     assert (
         page.evaluate(
             """() => getComputedStyle(document.querySelector("#how-patch")
@@ -1107,7 +1111,7 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
         )
         assert held, "the first poll went through, so no arrival was stood in"
         held.pop(0).continue_()
-        page.wait_for_function(BOTH_STAMPS)
+        wait_until_ready(page)
         # This arrival is complete and the next call navigates away, so no later wait
         # depends on a poll this unroute might strand.
         page.unroute("**/api/state*")
@@ -1690,9 +1694,10 @@ def _author_lying_callout(tmp_path):
     ("failed_stage", "expects_projection"),
     [
         ("pageSettled", True),
-        ("currentPresented", False),
-        ("logApplied", False),
-        ("dataApplied", False),
+        ("arrived", True),
+        ("presented", False),
+        ("log", False),
+        ("data", False),
     ],
 )
 def test_only_a_final_settling_failure_keeps_projection_findings(
@@ -1700,11 +1705,21 @@ def test_only_a_final_settling_failure_keeps_projection_findings(
 ):
     monkeypatch.chdir(tmp_path)
     _author_lying_callout(tmp_path)
-    monkeypatch.setattr(
-        render_gate_scheme,
-        "wait_for_presentation",
-        lambda *_args, **_kwargs: failed_stage,
-    )
+    if failed_stage == "pageSettled":
+        probe = render_gate_scheme.wait_for_probe
+
+        def moving(page, name, *args, **kwargs):
+            if name == "pageSettled":
+                raise PlaywrightTimeout("held moving")
+            return probe(page, name, *args, **kwargs)
+
+        monkeypatch.setattr(render_gate_scheme, "wait_for_probe", moving)
+    else:
+
+        def unready(*_args, **_kwargs):
+            raise render_checks_model.PageNotReady(failed_stage, f"held {failed_stage}")
+
+        monkeypatch.setattr(render_gate_scheme, "wait_until_ready", unready)
 
     failures, _notices, completed = render_gate_scheme._render_scheme(
         browser,
@@ -1743,7 +1758,7 @@ def test_the_data_wait_follows_a_source_rewritten_under_it(browser, serve):
     )
     page._leaf_probe_timeout_ms = 1_000
 
-    assert render_checks_model.wait_for_presentation(page, held) is None
+    wait_until_ready(page, held)
 
 
 def test_the_data_wait_follows_a_source_back_to_the_version_the_page_shows(
@@ -1771,8 +1786,31 @@ def test_the_data_wait_follows_a_source_back_to_the_version_the_page_shows(
     page.unroute("**/api/state*")
     page._leaf_probe_timeout_ms = 5_000
 
-    assert render_checks_model.wait_for_presentation(page, held) is None
+    wait_until_ready(page, held)
     expect(page.locator("#notes code")).to_have_text("First.\n")
+
+
+def test_the_readiness_wait_names_the_stage_a_page_still_owes(browser, serve):
+    """An upgraded page whose first state answer is held has replayed nothing, so the
+    wait fails there by the runtime's own stage rather than timing out unexplained,
+    and passes once the answer lands."""
+    page = browser.new_page()
+    held = []
+    page.route("**/api/state*", lambda route: held.append(route))
+    page.goto(serve(LONG_PAGE), wait_until="load")
+    render_checks_model.wait_for_probe(page, "upgraded")
+
+    with pytest.raises(render_checks_model.PageNotReady) as unready:
+        wait_until_ready(page, timeout_ms=1_000)
+    assert unready.value.stage == "log"
+    assert str(unready.value) == (
+        "the runtime never finished replaying the log within 1000ms"
+    )
+
+    for route in held:
+        route.continue_()
+    page.unroute("**/api/state*")
+    wait_until_ready(page)
 
 
 def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(
@@ -3627,7 +3665,7 @@ def test_the_user_draws_an_edge_to_the_width_they_want(browser, serve, edge):
     stepped = geometry(page, edge)
 
     page.reload(wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     edge_settled(page, edge)
     returned = geometry(page, edge)
     page.close()

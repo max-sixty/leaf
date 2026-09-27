@@ -2834,7 +2834,6 @@ def test_a_sidebar_pages_track_is_its_aside_in_the_order_it_is_written(browser, 
         resized(page, 390, 844)
         body_box, track_box = page.evaluate(box, "body"), page.evaluate(box, "track")
         assert (track_box["top"] < body_box["top"]) is first
-        page.close()
 
 
 def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, serve):

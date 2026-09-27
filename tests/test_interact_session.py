@@ -2108,7 +2108,7 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
     # A dialog in the terminal is observed work the page announces.
     host_says("waiting")
     waiting = _activity_at(claimed)
-    assert (waiting["kind"], waiting["observed_kind"]) == ("working", "awaiting_input")
+    assert (waiting["kind"], waiting["observed_kind"]) == ("working", "awaiting_user")
 
     # Escape: the turn ended with no Stop hook, and the move it held reads Turn
     # ended at once.
@@ -2118,6 +2118,13 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
         "kind": "ended",
         "operation": "work",
     }
+
+    # The next prompt renews the turn the interrupt left open, and the move it
+    # holds is handled in it again.
+    host_says("busy")
+    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+    capsys.readouterr()
+    assert _activity_at(claimed)["counts"]["handling"] == 1
 
     # A status the agent writes after that renews the turn, and work claimed in it
     # stops being believed once the renewal grace has passed since the next
@@ -11485,13 +11492,20 @@ def test_a_user_move_no_carrier_will_pick_up_messages_its_claude_code_session(
             {"state": "waiting", "detail": "", "ts": opened.isoformat(), "after": 0},
         )
         # `None` leaves the record as it stands: more input after the same ending.
-        for status, messaged in (
-            ("busy", False),
-            ("idle", True),
-            (None, False),
-            ("busy", False),
-            ("idle", True),
+        # A `shell` flip is the same ending seen again; a new prompt renews the
+        # turn, and the interrupt after it is a new one.
+        for status, prompt, messaged in (
+            ("busy", False, False),
+            ("idle", False, True),
+            (None, False, False),
+            ("shell", False, False),
+            ("busy", True, False),
+            ("idle", False, True),
         ):
+            if prompt:
+                time.sleep(1)
+                with service_model.PageTransaction(page_dir) as transaction:
+                    transaction.open_turn("s1")
             if status is not None:
                 time.sleep(0.01)
                 files_model.write_json(

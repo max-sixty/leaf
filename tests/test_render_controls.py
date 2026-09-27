@@ -3230,7 +3230,7 @@ def test_a_leaves_clock_change_reopens_only_its_same_epoch_presentation(
           );
           const state = structuredClone(context.runtime.state);
           state.others[0].activity.kind = 'away';
-          state.others[0].activity.quiet = true;
+          state.others[0].activity.counts.overdue = 1;
           state.others[0].activity.dropped = false;
           state.others[0].activity.ts = new Date().toISOString();
           presence.observeServerNow(new Date().toISOString());

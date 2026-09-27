@@ -16,6 +16,7 @@ import json
 import os
 import socket
 import sys
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -465,14 +466,40 @@ def claude_code_session_records(session_id: str) -> list[dict]:
     life; a worker that died without removing its record leaves a second one.
     Each record is another program's live file, and a session can exit between
     listing and reading it, so a file that vanished or was caught mid-write is
-    passed over."""
+    passed over.
+
+    Every state read asks this of each claimed page, so a listing is reused for
+    `REGISTRY_READ_S` while the directory's own stamp holds, well inside the
+    presence cache's interval: a record added, removed or atomically replaced
+    moves the stamp at once."""
+    sessions = claude_code_sessions()
+    try:
+        stamp = sessions.stat().st_mtime_ns
+    except OSError:
+        return []
+    held = _registry_cache.get(sessions)
+    if (
+        held is None
+        or held[1] != stamp
+        or time.monotonic() - held[0] >= REGISTRY_READ_S
+    ):
+        held = (time.monotonic(), stamp, _registry_records(sessions))
+        _registry_cache[sessions] = held
+    return [record for record in held[2] if record.get("sessionId") == session_id]
+
+
+REGISTRY_READ_S = 1.0
+_registry_cache: dict[Path, tuple[float, int, list[dict]]] = {}
+
+
+def _registry_records(sessions: Path) -> list[dict]:
     records = []
-    for record_path in claude_code_sessions().glob("*.json"):
+    for record_path in sessions.glob("*.json"):
         try:
             record = json.loads(record_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        if isinstance(record, dict) and record.get("sessionId") == session_id:
+        if isinstance(record, dict):
             records.append(record)
     return records
 
@@ -481,10 +508,10 @@ def message_claude_code_session(session_id: str, text: str) -> bool:
     """Put `text` into a Claude Code session as a user message, through the
     messaging socket every session binds, and say whether a socket took it.
 
-    Each registry record for the session (`claude_code_session_records`) names the socket, beside a
-    0600 `<pid>.<hash>.key` holding the `peerToken` it authenticates. The socket
-    reads newline JSON and answers nothing: an auth line, then a user frame whose
-    `session_id` makes a socket that has since passed to another session drop it.
+    Each registry record for the session (`claude_code_session_records`) names the
+    socket, beside a 0600 `<pid>.<hash>.key` holding the `peerToken` it authenticates.
+    The socket reads newline JSON and answers nothing: an auth line, then a user frame
+    whose `session_id` makes a socket that has since passed to another session drop it.
 
     The recipient decides delivery. Measured on Claude Code 2.1.274: a session
     in a prompting permission mode queues the text as a user turn, which wakes

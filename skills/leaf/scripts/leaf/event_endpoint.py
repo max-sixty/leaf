@@ -18,6 +18,7 @@ from .event_contracts import (
 )
 from .event_log import AttemptConflict
 from .host import claim_harness
+from .leases import wait_is_live
 from .page_view import PageView
 from .presence import claimant_reading
 from .registry.contract import RegistryError
@@ -141,23 +142,29 @@ def _execute_event(
             claim = page.active_claim
             # Input no carrier will pick up: the claimant takes no input, by the
             # activity fold's own reading (`activity.takes_input`), because its
-            # turn was seen to end — closed by the Stop hook, or interrupted as its
-            # host's record says — and no wait lease is held. A turn Leaf only
-            # stopped believing in may still be running a long step, and a running
-            # turn needs no nudge, because its Stop hook refuses to end with the
-            # input unpicked. Each ending gets one nudge per page, so a user
-            # ticking three boxes queues one turn or one approval rather than
-            # three, while a turn interrupted twice is messaged twice. The claimant's harness decides whether its session
+            # turn was seen to end — closed by the Stop hook, or interrupted as
+            # its host's record says — and no wait lease is held. A turn Leaf
+            # only stopped believing in may still be running a long step, and a
+            # running turn needs no nudge, because its Stop hook refuses to end
+            # with the input unpicked. Each ending gets one nudge per page, named
+            # by the claim's turn and the stamp that ended or last renewed it, so
+            # a user ticking three boxes queues one turn or one approval rather
+            # than three, while a turn interrupted again after a new prompt is
+            # messaged again. The claimant's harness decides whether its session
             # can be reached at all and what to say; a harness whose carrier is a
             # process of its own has nowhere to put this and answers no. It is
             # sent under the lock, so the mark it leaves is exact: a local socket
             # accepts or refuses at once, and input after a refusal tries again.
-            if requires_agent_attention(event) and claim:
+            if (
+                requires_agent_attention(event)
+                and claim
+                and not wait_is_live(page_dir, claim["id"])
+            ):
                 present, turn = claimant_reading(page_dir, page.events)
-                ending = turn.ended
-                mark = f"{claim['turn']}@{ending.isoformat() if ending else ''}"
+                stamp = claim.get("turn_closed") or claim.get("turn_opened")
+                mark = f"{claim['turn']}@{stamp}"
                 if (
-                    ending is not None
+                    turn.ended is not None
                     and not takes_input(present, turn)
                     and claim.get("messaged_ending") != mark
                     and claim_harness(claim).nudge(page_dir)

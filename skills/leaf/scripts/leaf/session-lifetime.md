@@ -12,9 +12,9 @@ and requests another reading at its next deadline; it does not run a second fold
 | work declaration: state, detail, event floor, source message, typed `work` seats | `status.json` | `leaf status`, from a turn of the session driving the page | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
 | live App Server activity: session, turn, typed kind, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's observer-only client | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
 | live App Server reply: one displayed draft plus delivery attempt bindings by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's plain reply | the displayed draft remains on failure or disconnect and is retired by a logged event naming its delivery attempt or its response address; each binding clears after durable commit or terminal failure, and survives connection and turn transitions until then |
-| turn identity, when it opened, and open or closed state | the page's claim record | a prompt or direct delivery opens an opaque `turn` and stamps `turn_opened`; the Stop hook stamps `turn_closed` | the next opening mints a turn; the next closing stamps it |
+| turn identity, when it last opened or took a prompt, and open or closed state | the page's claim record | a prompt or direct delivery opens an opaque `turn` and stamps `turn_opened`, or renews that stamp on a turn still open; the Stop hook stamps `turn_closed` | the next opening mints a turn; the next closing stamps it |
 | the host's own word on the claimant's session: `idle`, `waiting` on a dialog, or `busy`, dated by its last change | the host's record, read at each state read (`Harness.live_turn`): for Claude Code, the `status` of the session's newest registry record whose process runs | the host | read live, so it moves with the host; absent where the host publishes nothing, as for a background job whose worker has retired |
-| the turn ending this page nudged its session after | `messaged_ending` in the page's claim record: the turn id and the moment the fold read that turn as ended | browser-event admission, once the harness's nudge lands | a later ending, a close under a new id or another interrupt under the same one, differs |
+| the turn ending this page nudged its session after | `messaged_ending` in the page's claim record: the turn id and its close stamp, or for an interrupted turn its last opening | browser-event admission, once the harness's nudge lands | a later ending, a close under a new id or an interrupt after a new prompt renewed the same one, differs |
 | wait lease | `waiter.lock`, or `sessions/<session>.wait` for a host session | the live `leaf wait` process, held open for its life and removed when it lets go, SIGTERM and SIGHUP included | process exit |
 | a host wait's start that no tool hook has named | a lock on `sessions/<session>.started` | the `leaf wait` process, taken with the session's wait lease under `sessions/<session>.started.lock` and held for its life | the `PostToolUse` hook removes the file under that same lock when it names the start, or the wait does when it ends unnamed; process exit |
 | the host runs Leaf's hooks for this session | `sessions/<session>.hooks` | every Leaf hook the host runs for the session | removed by its SessionEnd hook |
@@ -28,29 +28,29 @@ and requests another reading at its next deadline; it does not run a second fold
 
 Page activity describes ownership, carrier availability, and current work. Its
 `kind` is `closed`, `unheld`, `away`, `listening`, `working`, or `stalled`. Every
-rule in the fold that asks whether the claimant's turn is running reads one
-answer, `activity.claimant_turn`, which dates each piece of evidence and lets
-the newest decide. The claim's turn stamps are believed open only while the
-opening, a status written during the turn, or the claimant's streamed activity
-renewed them within the working grace. The host's record adds the two things no
-hook sees, each only when newer than what it contradicts: an `idle` newer than
-every renewal ends the open turn (an interrupt), and a `waiting` newer than the
-stamps is a dialog open now. Its `busy` is never read, since a background job's
-record keeps it across turn endings. Browser-event admission reads the same turn
-before it nudges a session (`presence.claimant_reading`), and nudges only after
-an ending something saw: a turn Leaf merely stopped believing in may still be
-running a long step. The claimant takes input
-while its wait lease is held or, for a harness whose hooks carry input, while its
-turn runs. Fresh declared or observed work makes the page working independently
-of how far newer input has progressed; a host-observed wait on the user in its
-own window (an approval, a question) is observed work that stands for as long as
-its observer does. Delivery opened into the claimant's running turn also proves
-generic activity before its first work declaration; the receipt itself remains
-Picked up. `counts.overdue` counts the owed moves that stalled with the agent to
-act, still Sent past the pickup grace or left by a turn that ended or was
-interrupted before answering; over an `away` page they are when the banner asks the user to
-nudge the session. The banner and Leaves tray consume this same reading and present
-delivery counts separately.
+rule in the fold that asks whether the claimant's turn is running reads one answer,
+`activity.claimant_turn`, which dates each piece of evidence and lets the newest
+decide. The claim's turn stamps are believed open only while the opening, a status
+written during the turn, or the claimant's streamed activity renewed them within the
+working grace. The host's record adds the two things no hook sees, each only when
+newer than what it contradicts: an `idle` newer than every renewal ends the open
+turn (an interrupt), and a `waiting` newer than the stamps is a dialog open now,
+observed as `awaiting_user` since the record does not say whether it asks for
+approval or an answer. Its `busy` is never read, since a background job's record
+keeps it across turn endings. Browser-event admission reads the same turn before it
+nudges a session (`presence.claimant_reading`), and nudges only after an ending
+something saw: a turn Leaf merely stopped believing in may still be running a long
+step. The claimant takes input while its wait lease is held or, for a harness whose
+hooks carry input, while its turn runs. Fresh declared or observed work makes the
+page working independently of how far newer input has progressed; a host-observed
+wait on the user in its own window (an approval, a question) is observed work that
+stands for as long as its observer does. Delivery opened into the claimant's running
+turn also proves generic activity before its first work declaration; the receipt
+itself remains Picked up. `counts.overdue` counts the owed moves that stalled with
+the agent to act, still Sent past the pickup grace or left by a turn that ended or
+was interrupted before answering; over an `away` page they are when the banner asks
+the user to nudge the session. The banner and Leaves tray consume this same reading
+and present delivery counts separately.
 
 `workflows` is the shared projection for exact user inputs and proactive subject
 work. Each entry names its `input` event when it has one, its `thread` or `widget`
@@ -222,11 +222,10 @@ running turn, an interrupted one read as ended. A running turn is excluded becau
 its Stop hook already refuses to end with the input unpicked, and a delivering wait
 and the prompt hook both reopen the turn. Each page messages its session once per
 ending of a turn: when a socket takes the message, the claim records that ending as
-`messaged_ending`, so later input after the same ending sends nothing more, a
-later ending sends again, and input after a send no socket took tries again.
-Input that arrived before a repeated Stop let the turn end gets no message, because
-the blocked Stop already reported it and a message would reopen the turn the hook
-just let end.
+`messaged_ending`, so later input after the same ending sends nothing more, a later
+ending sends again, and input after a send no socket took tries again. Input that
+arrived before a repeated Stop let the turn end gets no message, because the blocked
+Stop already reported it and a message would reopen the turn the hook just let end.
 
 The message names the page and tells the agent to start an unnamed `leaf wait`,
 which remains the one delivery path. Claude Code 2.1.274 fires UserPromptSubmit for
@@ -234,11 +233,11 @@ a delivered message, so the prompt hook reopens the turn and lists the input as 
 would for a typed prompt. Delivery is the recipient's decision, and nothing reports
 it back. A session that bypasses permissions holds the message behind an approval
 dialog unless its user set `crossSessionInbound` to `accept`. A background job whose
-worker has retired has no socket to reach. Stop does not fire on an interrupted
-turn (measured), so an interrupted turn is messaged once the session's registry
-record reads `idle`; with no record, not until a Stop closes a later turn. An `adapter` or `embedded` carrier declares no nudge and
-needs none: its process queues or starts turns itself, and if that process is gone
-so is the session it served.
+worker has retired has no socket to reach. Stop does not fire on an interrupted turn
+(measured), so an interrupted turn is messaged once the session's registry record
+reads `idle`; with no record, not until a Stop closes a later turn. An `adapter` or
+`embedded` carrier declares no nudge and needs none: its process queues or starts
+turns itself, and if that process is gone so is the session it served.
 
 In Codex, on either transport, the adapter collects available input, then freezes the delivery. Input
 collected after that boundary belongs to a later delivery. Without an App Server

@@ -19,11 +19,14 @@ WORK_KINDS = {
     "tool",
     "awaiting_approval",
     "awaiting_input",
+    "awaiting_user",
     "replying",
 }
 # Steps that wait on the user in the agent's own window, which renew nothing until
 # the user answers there.
-AWAITING_KINDS = {"awaiting_approval", "awaiting_input"}
+# `awaiting_user` is a dialog whose kind, approval or question, the host does not
+# say.
+AWAITING_KINDS = {"awaiting_approval", "awaiting_input", "awaiting_user"}
 
 
 def _moment(value: str | None) -> datetime | None:
@@ -196,12 +199,13 @@ class Turn(NamedTuple):
     """The claimant session's current turn, as the one reading every rule of the
     fold takes: whether it is running; when it was seen to end, where something saw
     that; until when a running turn is believed on its stamps alone; and an observed
-    step while it waits on the user in its own window."""
+    step while it waits on the user in its own window, with when that wait began."""
 
     running: bool
     ended: datetime | None = None
     until: datetime | None = None
     step: str | None = None
+    step_since: datetime | None = None
 
 
 def claimant_turn(
@@ -215,11 +219,12 @@ def claimant_turn(
     """Whether the claimant's turn is running, from every piece of evidence,
     each dated by when it was written, the newest deciding.
 
-    The claim's stamps are the spine: the prompt hook or a carrier opens the turn
-    and the Stop hook or a carrier closes it. An interrupt runs no hook, so an
-    open stamp is believed only while something in that turn renewed it within
-    the working grace: its opening, a status written during it, or the claimant's
-    streamed activity. Past that nothing says whether it runs, which reads as not
+    The claim's stamps are the spine: the prompt hook or a carrier opens the turn,
+    a prompt or delivery into an open turn renews its stamp, and the Stop hook or
+    a carrier closes it. An interrupt runs no hook, so an open stamp is believed
+    only while something in that turn renewed it within the working grace: its
+    last opening, a status written during it, or the claimant's streamed
+    activity. Past that nothing says whether it runs, which reads as not
     running without calling it ended.
 
     The host's own record (`Harness.live_turn`) adds the two things no hook
@@ -238,11 +243,11 @@ def claimant_turn(
     since = _moment(host.get("since"))
     stamped = max((moment for moment in (opened, closed) if moment), default=None)
     dialog = host.get("state") == "waiting" and since and since >= (stamped or since)
-    step = "awaiting_input" if dialog else None
+    step = {"step": "awaiting_user", "step_since": since} if dialog else {}
     if closed is not None or opened is None or present.get("claim_turn") is None:
-        return Turn(False, ended=closed, step=step)
+        return Turn(False, ended=closed, **step)
     if awaiting or dialog:
-        return Turn(True, step=step)
+        return Turn(True, **step)
     renewals = [opened, _moment(status.get("ts"))]
     if stream and stream.get("session") == present.get("claim_session"):
         renewals.append(_moment(stream.get("ts")))
@@ -355,7 +360,7 @@ def canonical_activity(
     if stream_live and turn.running:
         observed = stream
     elif turn.step is not None and status["state"] != "idle":
-        observed = {"kind": turn.step, "detail": "", "ts": now_iso}
+        observed = {"kind": turn.step, "detail": "", "ts": turn.step_since.isoformat()}
     status_dropped = _dropped(status.get("ts"), turn.ended, now)
     status_quiet = _quiet(status.get("ts"), now, WORKING_GRACE) or status_dropped
     unheld = present["session_alive"] is False or (

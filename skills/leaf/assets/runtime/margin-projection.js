@@ -797,9 +797,11 @@ export function createMarginProjection({
           ? "waiting"
           : ["working", "replying"].includes(receipt.stage)
             ? "activity"
-            : ["picked_up", "queued"].includes(receipt.stage)
+            : receipt.stage === "picked_up"
               ? "pickup"
-              : "sent",
+              : receipt.stage === "queued"
+                ? "queued"
+                : "sent",
       text: label,
       context: [receipt.ts ? ago(receipt.ts) : "", receipt.detail]
         .filter(Boolean)
@@ -983,10 +985,7 @@ export function createMarginProjection({
             ? placedAt(update.target.id)?.element
             : elementById(update.target.id);
         const age = ago(update.ts);
-        const account = [
-          update.agent,
-          update.text || humanized(update.action),
-        ]
+        const account = [update.agent, update.text || humanized(update.action)]
           .filter(Boolean)
           .join(" · ");
         add(groups, target, {

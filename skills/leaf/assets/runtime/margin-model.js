@@ -41,6 +41,12 @@ export const KINDS = Object.freeze(
         priority: 3,
         indication: true,
       },
+      queued: {
+        label: "Queued",
+        icon: "pickup",
+        priority: 3,
+        indication: true,
+      },
       pickup: {
         label: "Picked up",
         icon: "pickup",

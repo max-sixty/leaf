@@ -117,6 +117,7 @@ const WORK_WORDS = {
   tool: "using a tool",
   awaiting_approval: "waiting for approval",
   awaiting_input: "waiting for input",
+  awaiting_user: "waiting for you",
   replying: "replying",
 };
 export const countUpdates = (count) => `${count} update${count === 1 ? "" : "s"}`;
@@ -599,9 +600,11 @@ function renderStatusNow(state) {
     explanation += ` · ${activity.observed}`;
   if (facts.waiting.length && ["working", "listening"].includes(kind))
     explanation += `${explanation.endsWith(".") ? "" : "."} ${facts.waiting.join(" · ")}.`;
-  const actionableWork = ["awaiting_approval", "awaiting_input"].includes(
-    activity.observed_kind,
-  )
+  const actionableWork = [
+    "awaiting_approval",
+    "awaiting_input",
+    "awaiting_user",
+  ].includes(activity.observed_kind)
     ? activity.observed_kind
     : null;
   // An approval or a question the agent's own window holds is answered there, and

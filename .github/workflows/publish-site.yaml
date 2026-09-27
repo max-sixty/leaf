@@ -24,7 +24,6 @@ on:
       - 'scripts/page_fixtures.py'
       - 'scripts/preview.py'
       - 'scripts/site.py'
-      - 'scripts/verify-site-local.sh'
       - 'scripts/verify_site.py'
       - 'worker/**'
       - 'Dockerfile.website'
@@ -81,7 +80,7 @@ jobs:
       # Exercise the bundled graph through the same Worker and container boundary
       # before a deployment can make it public.
       - name: Verify the bundled release locally in Chrome
-        run: scripts/verify-site-local.sh
+        run: uv run scripts/verify_site.py wrangler
 
       - name: Build and push the exact container image
         working-directory: worker

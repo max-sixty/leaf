@@ -1,5 +1,6 @@
-/* This module owns the shared readings of visible boxes and clipping, and the one
- * conversion from viewport boxes to document-positioned chrome. */
+/* This module owns the shared readings of visible boxes and clipping, how much of the
+ * window the page shows, and the one conversion from viewport boxes to
+ * document-positioned chrome. */
 import { sizeObserver } from "./rendering.js";
 import { setRuntimeRootStyle } from "./root-state.js";
 import { uiInside, under, upFrom } from "./shadow.js";
@@ -35,6 +36,48 @@ import { overlaps, overlapsAcross } from "./rect.js";
 // which is what a margin resident is placed against and what the response surface may not
 // overhang. The auxiliary surfaces stand over the page and take none of it.
 export const shellRight = () => document.body.getBoundingClientRect().right;
+
+// How much of the window the page shows: the visible viewport, less the banner over its
+// head and the bottom band at its foot. Both bands are chrome fixed to the window that
+// stand over the page without clipping it, so no clip walk finds them; the owner of each
+// declares it here (`declareBanner`, banner.js; `declareBottomBand`,
+// keyboard/shortcut-bar.js), and every reading of the room the page has starts from
+// `bannerFoot` or `shownWindow` rather than measuring the chrome itself.
+//
+// The banner's foot is its painted edge, since its declared height (`--lf-banner-h`) is a
+// safe-area `calc()` whose serialized value is not a number, and the phone banner wraps to
+// a second row. The bottom band is read as the boxes standing in it rather than as its
+// stated height (`--lf-band-h`), because the status rises above a covering panel's foot;
+// it bounds only the room its boxes stand across.
+//
+// The visible viewport is the part of the window the user sees: pinch zoom and a phone's
+// software keyboard shrink it without resizing the layout viewport the page and its fixed
+// chrome are laid out in, and a surface placed in the layout viewport alone can stand
+// under the keyboard. `within` narrows the room to a box the caller keeps to, such as a
+// reading region's shown bounds, and `gap` holds what stands in the room that far inside
+// each of its edges.
+let banner = null;
+let bottomBand = () => [];
+export const declareBanner = (element) => {
+  banner = element;
+};
+export const declareBottomBand = (boxes) => {
+  bottomBand = boxes;
+};
+export const bannerFoot = () => banner?.getBoundingClientRect().bottom ?? 0;
+export function shownWindow({ within = null, gap = 0 } = {}) {
+  const { offsetLeft, offsetTop, width, height } = window.visualViewport;
+  const left = Math.max(offsetLeft, within?.left ?? -Infinity) + gap;
+  const right = Math.min(offsetLeft + width, within?.right ?? Infinity) - gap;
+  const top = Math.max(offsetTop, bannerFoot(), within?.top ?? -Infinity) + gap;
+  const foot = bottomBand()
+    .filter((box) => overlapsAcross(box, { left, right }))
+    .map((box) => box.top);
+  const bottom =
+    Math.min(offsetTop + height, within?.bottom ?? Infinity, ...foot) - gap;
+  return new DOMRect(left, top, Math.max(0, right - left), Math.max(0, bottom - top));
+}
+
 // Document-anchored chrome is positioned from the document origin, while the boxes it
 // follows are read in viewport coordinates. Convert once at that boundary.
 export function documentPoint(left, top) {

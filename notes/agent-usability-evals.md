@@ -185,16 +185,6 @@ Before automating the slice, choose the agent runner and host, model settings,
 fixture builder, trace format, arm isolation, answer normalization, and
 result-retention policy.
 
-## Structural authoring advice
-
-`version check` offers optional authoring defaults as non-blocking advice rather
-than one-off hints. The first case is a page with two or more section headings
-and no outline element: it recommends a table of contents and leaves the author
-free to omit one when the outline is already visible. The registry's `x-outline`
-marker names the element, so a layer that ships none draws no advice. Keep any
-further advice structural and deterministic rather than attempting to judge prose
-quality.
-
 ## Evaluate the integrated inspection path
 
 Compare the former HTML-plus-state path with the current construction-linked

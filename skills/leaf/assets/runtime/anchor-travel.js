@@ -305,7 +305,7 @@ export function createAnchorTravel({
 
   async function scrollToThread(id, { land = null, keep = false } = {}) {
     const mayArrive = retainTravel();
-    const thread = currentThreads().find((candidate) => candidate.root.id === id);
+    const thread = currentThreads().find((candidate) => candidate.id === id);
     const anchor = thread?.anchor;
     const status = anchors.placedAt(id)?.status;
     const hydrating =

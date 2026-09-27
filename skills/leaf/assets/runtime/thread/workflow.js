@@ -98,6 +98,12 @@ export function threadAttention(thread) {
       ) ?? null)
     : null;
   if (thread.attention?.kind === "needs_user") {
+    const answering = thread.attention.reason === "ask";
+    const nextMove = answering
+      ? "answer"
+      : workflow?.subject.kind === "thread"
+        ? "resend"
+        : "retry";
     const secondary = strongestWorkflow(
       thread.workflows.filter(
         (candidate) =>
@@ -106,20 +112,11 @@ export function threadAttention(thread) {
     );
     return Object.freeze({
       kind: "needs_user",
-      label:
-        thread.attention.reason === "ask"
-          ? "On you"
-          : workflowLabel(workflow) || "Needs you",
-      action:
-        thread.attention.reason === "ask"
-          ? thread.user_prompt
-            ? "answer question"
-            : "answer Ask"
-          : workflow?.subject.kind === "thread"
-            ? "resend"
-            : "retry",
+      label: `On you to ${nextMove}`,
       workflow,
-      secondary: workflowLabel(secondary),
+      secondary: [answering ? "" : workflowLabel(workflow), workflowLabel(secondary)]
+        .filter(Boolean)
+        .join(" · "),
     });
   }
   if (thread.attention?.kind === "waiting")

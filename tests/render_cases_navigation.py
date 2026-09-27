@@ -25,6 +25,7 @@ from render_harness import (
     panel_settled,
     rendered,
     told,
+    write,
 )
 
 BINDING_BADGE_PAGE = leaf_page(
@@ -817,7 +818,7 @@ def compose(page, passage, text=None):
     page.keyboard.press("c")
     expect(page.locator(".lf-fab-input")).to_be_focused()
     if text is not None:
-        page.locator(".lf-fab-input").fill(text)
+        write(page.locator(".lf-fab-input"), text)
 
 
 # The two presses this asks about, on one page: a draft's ✎ (a thing to do) and a pick

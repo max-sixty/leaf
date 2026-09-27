@@ -18,18 +18,19 @@
    Do not merge these stamps. A document can finish upgrading while its first state read
    is pending, or the answer can wait unapplied while upgrades finish. A later semantic
    publication or same-epoch renderer replacement leaves `data-lf-presented` set while
-   the presentation coordinator reopens. Any consumer that reads current final boxes
-   waits for upgraded, applied, the initial presented milestone, the coordinator's
-   current reading, and no finite animation reported by `moving`.
+   the presentation coordinator reopens. A reader outside the page does not combine
+   them itself: `pageReadiness` names the first of these facts, and of those below,
+   still outstanding, and the entry script hands it to every such reader as
+   `lfReadiness`.
 
    Presentation is not the end of the page's arrival. An owner may deliberately keep work
    off the presentation path — a widget's progressive upgrade, a developer surface's
    contained documents — and that work still moves boxes when it lands. `deferredArrival`
-   is where such an owner says so, and `pageArrived` is the one fact that answers whether
-   any of it is still outstanding, so a reader outside the page waits on the page rather
-   than on a widget it had to know about. Without it the only thing outside the page that
-   knows a deferred upgrade exists is whoever remembered to name it, which is a reader
-   repeating what the page should settle.
+   is where such an owner says so, and the `arrived` stage of `pageReadiness` answers
+   whether any of it is still outstanding, so a reader outside the page waits on the
+   page rather than on a widget it had to know about. Without it the only thing outside
+   the page that knows a deferred upgrade exists is whoever remembered to name it, which
+   is a reader repeating what the page should settle.
 
    `afterPresentation` is the whole of that for a widget: it is the wait and the
    declaration together, so there is no way to hold work until the page has presented
@@ -86,9 +87,11 @@
 
 import { elementDeclarations, registry, tagsDeclaring } from "./registry.js";
 import {
+  applicationPresented,
   attachApplicationPresentation,
   whenApplicationPresented,
 } from "./semantic-state.js";
+import { renderingSettled } from "./rendering.js";
 import { highlightBlocks } from "./syntax.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 
@@ -115,7 +118,6 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   upgraded: "data-lf-upgraded",
   inline: "data-lf-inline",
   space: "data-lf-space",
-  measure: "data-lf-measure",
   readingRole: "data-lf-reading-role",
   bound: "data-lf-bound",
   exhibit: "data-lf-exhibit",
@@ -156,9 +158,33 @@ export function deferredArrival(work) {
 /** Run `work` once the page has presented, as an arrival the page answers for. */
 export const afterPresentation = (work) => deferredArrival(presented.then(work));
 
-/** The page has presented and nothing it deferred past presentation is still arriving.
-    Not the render gate's `pageSettled`, which is about animation rather than arrival. */
-export const pageArrived = () => pagePresented() && arriving.size === 0;
+/** The first readiness fact this page has yet to state, or null once a reader outside
+    it may read its final boxes and press its keys.
+
+    The stages run in the order a page reaches them: `upgraded`; `data` and `log`, the
+    external data and event coverage of the `/api/state` reading the reader holds
+    (`{version, taken, coverage}`); `presented`, the initial milestone and the
+    coordinator's current reading; `arrived`, nothing deferred past presentation still
+    outstanding; `rendering`, nothing queued for a rendering update. A reader holding no
+    reading asks only that some log coverage has been applied. A data version is a
+    digest with no order, so a page presenting a reading the server took later has
+    caught up with the one held. Finite animation is not a stage: the render gate's
+    `pageSettled` asks that separately. */
+export function pageReadiness(reading = null) {
+  const stamp = (name) => document.body.getAttribute(PAGE_PAINT_ATTRIBUTE[name]);
+  if (stamp("upgraded") !== "1") return "upgraded";
+  if (
+    reading &&
+    stamp("dataVersion") !== reading.version &&
+    Number(stamp("dataTaken") ?? -Infinity) < reading.taken
+  )
+    return "data";
+  if (Number(stamp("applied") ?? -1) < (reading?.coverage ?? 0)) return "log";
+  if (!pagePresented() || !applicationPresented()) return "presented";
+  if (arriving.size) return "arrived";
+  if (!renderingSettled()) return "rendering";
+  return null;
+}
 
 // The one initial turn in which box-derived page apparatus can read the complete
 // authoritative layout before semantic interaction opens. Widget upgrade gives
@@ -487,18 +513,14 @@ export function dress(root) {
 // widget of the page's vocabulary renders outside the document, where the room is the
 // panel's (see msgNode).
 //
-// Two more are facts of the element wherever it renders. x-measure says whether the
-// widget fills the frame holding it (surface), only groups other blocks (group), or
-// keeps the reading measure inside a frame wider than the column (text); undeclared, a
-// block made of members groups them and anything else is text. x-bound says it holds
-// its own height and scrolls inside it; `bounds.js` keeps an `end` bound on its newest
+// Two more are facts of the element wherever it renders. x-bound says it holds its
+// own height and scrolls inside it; `bounds.js` keeps an `end` bound on its newest
 // entry. A page occurrence overrides x-bound with data-bound, as data-width overrides
 // x-space. x-reading-role is the structural role the theme lays out, so a package's
-// differently named pane or grid takes the same rules as lf-pane and lf-grid.
+// differently named pane takes the same rules as lf-pane.
 export const MARKED_ANYWHERE = Object.freeze({
   "x-inline": PAGE_PAINT_ATTRIBUTE.inline,
   "x-exhibit": PAGE_PAINT_ATTRIBUTE.exhibit,
-  "x-measure": PAGE_PAINT_ATTRIBUTE.measure,
   "x-bound": PAGE_PAINT_ATTRIBUTE.bound,
   "x-reading-role": PAGE_PAINT_ATTRIBUTE.readingRole,
 });
@@ -517,12 +539,8 @@ function* elementsIn(root, selector) {
 // A declaration an authored occurrence may override, and the attribute it is written as.
 const AUTHORED = Object.freeze({ "x-space": "data-width", "x-bound": "data-bound" });
 
-// What an entry declares for a painted key, with the one default a declaration has:
-// see x-measure above.
-const declaration = (entry, key) =>
-  key === "x-measure" && entry["x-content"] === "members" && !entry["x-inline"]
-    ? (entry[key] ?? "group")
-    : entry[key];
+// What an entry declares for a painted key.
+const declaration = (entry, key) => entry[key];
 
 export function markDeclared(root, painted) {
   for (const key of Object.keys(AUTHORED))

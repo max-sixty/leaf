@@ -210,6 +210,13 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     anchor only when an explicit null replacement leaves the thread detached.
     A new spoken reply resumes the thread; reactions and failure receipts
     leave its closure standing. A later resolution closes it again.
+
+    Each thread is keyed by, and carries as ``id``, the id of the message that
+    opened it: the name every Ask, workflow, summary, and title uses for it.
+    ``root`` is the first message the log still holds. The two differ only where
+    a torn line lost the opening message, and then ``root`` is the surviving
+    reply that opens the thread now, under its own id, so a reply or resolve
+    addressed to it names a message the log has.
     """
     floors = retractions(events)
     if withdrawn is None:
@@ -236,6 +243,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             message = dict(e)
             messages[e["id"]] = message
             thread = {
+                "id": e["id"],
                 "root": message,
                 "title": None,
                 "anchor": message.get("anchor"),
@@ -274,10 +282,12 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             # instead cost the whole page — `page state` and every browser state read
             # exited on the KeyError — so one torn line took down every reading of a
             # log that had already been read.
+            message = dict(e)
             thread = thread_for.get(e["parent"])
             if thread is None:
                 thread = {
-                    "root": e,
+                    "id": e["parent"],
+                    "root": message,
                     "title": None,
                     "anchor": e.get("anchor"),
                     "detached_from": None,
@@ -286,7 +296,6 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 }
                 threads[e["parent"]] = thread
                 thread_for[e["parent"]] = thread
-            message = dict(e)
             messages[e["id"]] = message
             thread["msgs"].append(message)
             if "token" not in e and "failure" not in e:

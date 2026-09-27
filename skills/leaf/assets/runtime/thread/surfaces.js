@@ -11,6 +11,7 @@ import { registry } from "../registry.js";
 import { renderThreadSurface, clearThreadSurface } from "./inline.js";
 import { readThreads } from "./state.js";
 import { focusThread } from "./focus.js";
+import { SAY_BOX } from "./selectors.js";
 import { under } from "../shadow.js";
 
 const registrations = new Map();
@@ -62,7 +63,7 @@ export function consumeThreads(owner, render, { invalidate, composition, reveal 
     reveal(key) {
       if (!active) return false;
       const thread = readThreads().threads.find((item) => item.key === key);
-      return thread ? reveal(thread.root.id) : false;
+      return thread ? reveal(thread.id) : false;
     },
     open(datum, { origin = null } = {}) {
       if (!active) return false;
@@ -165,7 +166,7 @@ export function renderSurfaces(collection, placedAt, commands) {
         const target = (key) => {
           const thread = byKey.get(key);
           if (!thread) return null;
-          const placement = placedAt(thread.root.id);
+          const placement = placedAt(thread.id);
           return exact(thread.anchor, placement)
             ? { anchor: thread.anchor, placement }
             : null;
@@ -274,7 +275,7 @@ export function renderSurfaces(collection, placedAt, commands) {
             ? commands.composition.node()
             : null;
         renderThreadSurface(outlet, localThreads, commands, response);
-        for (const thread of localThreads) nextClaimed.add(thread.root.id);
+        for (const thread of localThreads) nextClaimed.add(thread.id);
       }
     }
     if (!compositionSeated) commands.composition.restore();
@@ -296,7 +297,7 @@ export function focusSurface(id, { focus = "reply" } = {}) {
     const target =
       (focus === "thread" ? thread : null) ??
       (summary && !thread.hasAttribute("open") ? summary : null) ??
-      thread.querySelector("textarea:not([disabled])") ??
+      thread.querySelector(SAY_BOX) ??
       summary ??
       thread;
     if (target === thread) focusThread(thread, { preventScroll: true });

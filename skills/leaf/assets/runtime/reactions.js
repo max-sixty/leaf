@@ -48,7 +48,7 @@ import {
 } from "./anchor-resolution.js";
 import { announce, notice } from "./notifications.js";
 import { claimsEsc, focused, saying } from "./keyboard/scopes.js";
-import { letGo } from "./focus.js";
+import { handBack } from "./focus.js";
 import { repaint } from "./repaint.js";
 
 import { allButCommandReference, pageCommand, pageScope } from "./keyboard/register.js";
@@ -161,10 +161,7 @@ export function createReactionController({
     // after it and the palette makes a return of its own, so the landing is asserted once
     // more once everything has settled. The bar owns what that answer is.
     const returnTo = fabReturnTo();
-    const restoreTargetFocus = () => {
-      if (returnTo?.isConnected) returnTo.focus({ preventScroll: true });
-      else letGo();
-    };
+    const restoreTargetFocus = () => handBack(returnTo);
     if (!anchor) return;
     if (standing) {
       await commands.withdrawReaction(standing);

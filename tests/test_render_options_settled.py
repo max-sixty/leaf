@@ -22,6 +22,7 @@ from render_harness import (
     round_trip,
     select,
     undo,
+    write,
 )
 
 pytestmark = pytest.mark.nightly
@@ -147,7 +148,7 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
     page.locator(".lf-fab-input").click()
     expect(page.locator(".lf-composer")).to_be_visible()
-    page.locator(".lf-composer textarea").fill("which copy is this on?")
+    write(page.locator(".lf-composer leaf-text"), "which copy is this on?")
     page.keyboard.press("ControlOrMeta+Enter")
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) >= 2")
     assert sorted(
@@ -186,7 +187,7 @@ def test_a_settled_ask_reconciles_added_options_into_its_disclosure(browser, ser
 
     row.click()
     field = group.get_by_role("textbox", name="Another option", exact=True)
-    field.fill("Insulate the camera battery")
+    write(field, "Insulate the camera battery")
     group.get_by_role("button", name="Add and select option", exact=True).click()
     round_trip(page)
     added = group.locator(":scope > lf-option[data-lf-added]")

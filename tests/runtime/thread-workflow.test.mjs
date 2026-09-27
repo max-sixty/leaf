@@ -62,8 +62,7 @@ test("thread attention gives a standing user Ask precedence over agent work", ()
   };
   assert.deepEqual(threadAttention(thread), {
     kind: "needs_user",
-    label: "On you",
-    action: "answer Ask",
+    label: "On you to answer",
     workflow: recovery,
     secondary: "Working",
   });

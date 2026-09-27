@@ -5,6 +5,7 @@ import re
 from itertools import pairwise
 
 from leaf import event_log as events_model
+from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_READING,
@@ -15,7 +16,6 @@ from render_cases_interaction import (
     live_url,
 )
 from render_harness import (
-    BOTH_STAMPS,
     banner_control,
     consume_browser_errors,
     holding,
@@ -30,6 +30,7 @@ from render_harness import (
     take_browser_errors,
     told,
     wait_for_revision,
+    write,
 )
 
 THREAD_READER = r"""
@@ -84,6 +85,60 @@ THREAD_READER_DECLARATION = {
     "x-content": "empty",
     "x-upgrade": True,
     "x-example": '<lf-thread-reader id="reader-example"></lf-thread-reader>',
+}
+
+THREAD_FILTER = r"""
+import {openThread, readThreads, threadSummary, watchThreads} from '/runtime/widget-api.js';
+customElements.define('lf-thread-filter', class extends HTMLElement {
+  connectedCallback() {
+    if (!this.input) {
+      this.input = document.createElement('input');
+      this.input.setAttribute('aria-label', `Filter ${this.id}`);
+      this.input.value = this.getAttribute('filter') ?? '';
+      this.list = document.createElement('ul');
+      this.input.addEventListener('input', () => this.paint());
+      this.append(this.input, this.list);
+    }
+    this.stop ??= watchThreads(this, collection => {
+      this.reading = collection;
+      this.sameReading = collection === readThreads();
+      this.updates = (this.updates ?? 0) + 1;
+      this.paint();
+    });
+  }
+  paint() {
+    if (!this.reading) return;
+    const query = this.input.value.toLowerCase();
+    this.list.replaceChildren(...this.reading.threads
+      .filter(thread => threadSummary(thread).topic.toLowerCase().includes(query))
+      .map(thread => {
+        const item = document.createElement('li');
+        const button = document.createElement('button');
+        button.textContent = threadSummary(thread).topic;
+        button.onclick = () => openThread(thread.id);
+        item.append(button);
+        return item;
+      }));
+  }
+  disconnectedCallback() {
+    this.stop?.();
+    this.stop = null;
+  }
+});
+"""
+
+THREAD_FILTER_DECLARATION = {
+    "description": "An instance-local filter over Leaf's shared Thread reading.",
+    "type": "object",
+    "properties": {
+        "id": {"type": "string"},
+        "filter": {"type": "string"},
+    },
+    "required": ["id"],
+    "additionalProperties": False,
+    "x-content": "empty",
+    "x-upgrade": True,
+    "x-example": '<lf-thread-filter id="example"></lf-thread-filter>',
 }
 
 
@@ -334,27 +389,25 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    box = page.locator(".lf-general textarea")
-    box.fill("Pending **words**")
+    box = page.locator(".lf-general leaf-text")
+    write(box, "Pending **words**")
     page.locator(".lf-general button").click()
     holding(page, held, 1, "the shared collection's pending root")
     expect(reader).to_contain_text("Pending words")
     pending = reader.evaluate(
         "node => node.reading.threads.find(thread => thread.root.pending)"
     )
-    expect(
-        page.locator(f'.lf-thread[data-id="{pending["root"]["id"]}"]')
-    ).to_have_count(1)
+    expect(page.locator(f'.lf-thread[data-id="{pending["id"]}"]')).to_have_count(1)
     held.pop().continue_()
     round_trip(page)
     admitted = reader.evaluate(
         "(node, key) => node.reading.threads.find(thread => thread.key === key)",
         pending["key"],
     )
-    assert admitted["root"]["id"] != pending["root"]["id"]
+    assert admitted["id"] != pending["id"]
     assert admitted["root"]["key"] == pending["root"]["key"]
 
-    box.fill("Refused words")
+    write(box, "Refused words")
     page.locator(".lf-general button").click()
     holding(page, held, 1, "the shared collection's refused root")
     expect(reader).to_contain_text("Refused words")
@@ -370,10 +423,77 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     )
     round_trip(page)
     expect(reader).not_to_contain_text("Refused words")
-    expect(box).to_have_value("Refused words")
+    expect(box).to_have_js_property("value", "Refused words")
     expect(page.locator('.lf-thread[data-id^="pending:"]')).to_have_count(0)
     consume_browser_errors(page, "400")
     page.unroute("**/api/event")
+
+
+def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions(
+    browser, serve
+):
+    """Two widget instances observe one Thread collection and route through core."""
+    url = serve(
+        leaf_page(
+            "Thread widget instances",
+            "<h1>Thread widget instances</h1>"
+            '<lf-thread-filter id="first" filter="Alpine"></lf-thread-filter>'
+            '<lf-thread-filter id="second" filter="Bay"></lf-thread-filter>',
+        ),
+        layer_registry={"lf-thread-filter": THREAD_FILTER_DECLARATION},
+        layer_widgets={"lf-thread-filter.js": THREAD_FILTER},
+    )
+    for thread_id, words in [("alpine", "Alpine"), ("bay", "Bay")]:
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "id": thread_id,
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": words,
+            },
+        )
+    page = open_page(browser, url)
+    first = page.locator("#first")
+    second = page.locator("#second")
+    expect(first.locator("li")).to_have_text("Alpine")
+    expect(second.locator("li")).to_have_text("Bay")
+    assert first.evaluate("node => node.sameReading")
+    assert second.evaluate("node => node.sameReading")
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    second.locator("input").fill("Cedar")
+    before = [widget.evaluate("node => node.updates") for widget in (first, second)]
+    with sending(page, "a Thread visible to both package widgets"):
+        write(page.locator(".lf-general leaf-text"), "Cedar")
+        page.locator(".lf-general button").click()
+    expect(second.locator("li")).to_have_text("Cedar")
+    expect(first.locator("li")).to_have_text("Alpine")
+    for widget, count in zip((first, second), before):
+        assert widget.evaluate("node => node.updates") > count
+        assert widget.evaluate(
+            "node => node.reading.threads.some(thread => thread.root.body.text.trim() === 'Cedar')"
+        )
+
+    removed = first.element_handle()
+    first.evaluate("node => node.remove()")
+    stopped_at = removed.evaluate("node => node.updates")
+    second.locator("input").fill("Delta")
+    second_before = second.evaluate("node => node.updates")
+    with sending(page, "another Thread after one widget disconnected"):
+        write(page.locator(".lf-general leaf-text"), "Delta")
+        page.locator(".lf-general button").click()
+    expect(second.locator("li")).to_have_text("Delta")
+    assert second.evaluate("node => node.updates") > second_before
+    assert removed.evaluate("node => node.updates") == stopped_at
+
+    thread_id = second.evaluate(
+        "node => node.reading.threads.find(thread => thread.root.body.text.trim() === 'Delta').id"
+    )
+    second.locator("button", has_text="Delta").click()
+    expect(page.locator(f'.lf-thread[data-id="{thread_id}"]')).to_be_visible()
 
 
 def test_thread_consumers_join_presentation_and_cancel_superseded_work(browser, serve):
@@ -682,18 +802,17 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
                 epoch: application.semanticEpoch,
                 presented: presentation.presentedEpoch,
                 pending: presentation.pending,
+                current: runtime.applicationPresented(),
               };
             }"""
     )
     assert waiting["phase"] == "waiting"
     assert waiting["presented"] == waiting["epoch"]
     assert waiting["pending"] == []
-    assert page.evaluate(
-        "document.querySelector('script[data-lf-entry]').lfCurrentPresentationReady()"
-    )
+    assert waiting["current"] is True
 
     held.pop(0).continue_()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(page.locator("#page-local").get_by_role("button")).to_be_enabled()
     expect(page.locator("#page-local")).to_have_attribute(
         "data-controller-renders", str(controller_renders + 1)
@@ -834,8 +953,8 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
 
     threads = page.locator(".lf-threads-toggle")
     threads.click()
-    draft = page.locator(".lf-general textarea")
-    draft.fill("Keep this recoverable draft in the page instance.")
+    draft = page.locator(".lf-general leaf-text")
+    write(draft, "Keep this recoverable draft in the page instance.")
     threads.click()
 
     page.locator("#live-reading").evaluate(
@@ -894,8 +1013,8 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
     )
     assert abs(restored_top - reading_top) < 2, (reading_top, restored_top)
     threads.click()
-    expect(page.locator(".lf-general textarea")).to_have_value(
-        "Keep this recoverable draft in the page instance."
+    expect(page.locator(".lf-general leaf-text")).to_have_js_property(
+        "value", "Keep this recoverable draft in the page instance."
     )
 
     historical = open_page(browser, version_url, pin=True)
@@ -1443,8 +1562,8 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     inline = page.locator(f'#proposal > .lf-thread-seat > [data-thread="{kept["id"]}"]')
-    editor = inline.locator(":scope > .lf-say textarea")
-    editor.fill("draft survives sibling rollback")
+    editor = inline.locator(":scope > .lf-say leaf-text")
+    write(editor, "draft survives sibling rollback")
     editor.evaluate("node => node.setSelectionRange(6, 14, 'backward')")
     expect(editor).to_be_focused()
 
@@ -1466,7 +1585,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
           window.keptInline = document.querySelector(
             `#proposal > .lf-thread-seat > [data-thread="${id}"]`
           );
-          window.keptEditor = keptInline.querySelector(':scope > .lf-say textarea');
+          window.keptEditor = keptInline.querySelector(':scope > .lf-say leaf-text');
 
           const list = document.querySelector('leaf-thread-list');
           const present = list.present.bind(list);
@@ -1539,11 +1658,11 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
             `#proposal > .lf-thread-seat > [data-thread="${id}"]`
           );
           return panel === window.keptPanel && inline === window.keptInline &&
-            inline.querySelector(':scope > .lf-say textarea') === window.keptEditor;
+            inline.querySelector(':scope > .lf-say leaf-text') === window.keptEditor;
         }""",
         kept["id"],
     ), "list retention replaced a committed panel card, seat, or editor"
-    expect(editor).to_have_value("draft survives sibling rollback")
+    expect(editor).to_have_js_property("value", "draft survives sibling rollback")
     expect(editor).to_be_focused()
     assert editor.evaluate(
         "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
@@ -1583,11 +1702,11 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
             `#proposal > .lf-thread-seat > [data-thread="${id}"]`
           );
           return panel === window.keptPanel && inline === window.keptInline &&
-            inline.querySelector(':scope > .lf-say textarea') === window.keptEditor;
+            inline.querySelector(':scope > .lf-say leaf-text') === window.keptEditor;
         }""",
         kept["id"],
     ), "successful list retry replaced a committed panel card, seat, or editor"
-    expect(editor).to_have_value("draft survives sibling rollback")
+    expect(editor).to_have_js_property("value", "draft survives sibling rollback")
     # One failed candidate, named by each boundary that carried it: the presentation
     # publisher, the reading that was applying it, and the feed that asked for that
     # reading. The feed's word waits on the queued projection retry the failed
@@ -1621,8 +1740,8 @@ def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     page.locator('.lf-thread[data-id="standing-thread"] .lf-thread-summary').click()
-    reply = page.locator('.lf-thread[data-id="standing-thread"] textarea')
-    reply.fill("half a thought")
+    reply = page.locator('.lf-thread[data-id="standing-thread"] leaf-text')
+    write(reply, "half a thought")
     reply.evaluate("input => input.setSelectionRange(4, 4)")
     held_events = []
     page.route("**/api/event", lambda route: held_events.append(route))
@@ -1665,7 +1784,7 @@ def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
           const current = document.querySelector(
             '.lf-thread[data-id="standing-thread"]'
           );
-          const input = current.querySelector('textarea');
+          const input = current.querySelector('leaf-text');
           return current === standingThread && document.activeElement === input &&
             input.value === 'half a thought' && input.selectionStart === 4;
         }"""
@@ -1681,7 +1800,7 @@ def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
           const current = document.querySelector(
             '.lf-thread[data-id="standing-thread"]'
           );
-          const input = current.querySelector('textarea');
+          const input = current.querySelector('leaf-text');
           return current === standingThread && document.activeElement === input &&
             input.value === 'half a thought' && input.selectionStart === 4;
         }"""

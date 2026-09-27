@@ -31,6 +31,7 @@ import { openPopovers } from "./keyboard/layer-stack.js";
 import { registerAuxiliaryModality } from "./keyboard/register.js";
 import { hides, placeHolder } from "./geometry.js";
 import { under } from "./shadow.js";
+import { tabStops } from "./focus.js";
 import { userStore } from "./storage.js";
 import { pagePresented } from "./presentation.js";
 
@@ -44,12 +45,7 @@ export const standsBeside = () =>
     getComputedStyle(document.body).getPropertyValue("--lf-auxiliary-beside"),
   ) > 0;
 
-export function createAuxiliarySurfaces({
-  chromeRoot,
-  focusable,
-  syncLayout,
-  afterChange,
-}) {
+export function createAuxiliarySurfaces({ chromeRoot, syncLayout, afterChange }) {
   const controllers = new Map();
   const scrim = document.createElement("div");
   scrim.className = "lf-auxiliary-scrim";
@@ -65,14 +61,6 @@ export function createAuxiliarySurfaces({
     while (node?.shadowRoot?.activeElement) node = node.shadowRoot.activeElement;
     return node;
   };
-  const stops = (surface) =>
-    [...surface.querySelectorAll(focusable)].filter(
-      (node) =>
-        node.tabIndex >= 0 &&
-        !node.matches(":disabled") &&
-        !node.inert &&
-        node.checkVisibility(),
-    );
   const place = (node) => {
     placingFocus = true;
     try {
@@ -255,7 +243,7 @@ export function createAuxiliarySurfaces({
           event.metaKey
         )
           return;
-        const available = stops(active.surface);
+        const available = tabStops(active.surface);
         if (!available.length) {
           event.preventDefault();
           place(active.surface);

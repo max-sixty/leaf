@@ -1,6 +1,6 @@
 /* This module owns layer-review (design) mode, its targets, and legend geometry. */
 import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
-import { documentPoint, shownRect } from "./geometry.js";
+import { bannerFoot, documentPoint, shownRect } from "./geometry.js";
 import { el, WORKS } from "./widget-elements.js";
 import { tabStore } from "./storage.js";
 import { isAddressable, ADDRESSABLE, addressableAt } from "./anchor-resolution.js";
@@ -156,7 +156,7 @@ export function createDesignMode({
     }
     // The reads.
     const clips = new Map();
-    const bannerFoot = banner.getBoundingClientRect().bottom;
+    const roomTop = bannerFoot();
     const placed = addressables.map((addressable) => {
       const entry = legendBoxes.get(addressable);
       entry.radius ??= getComputedStyle(addressable).borderRadius;
@@ -191,7 +191,7 @@ export function createDesignMode({
         height: r.bottom - r.top + 2 + "px",
         borderRadius: radius,
       });
-      const inward = r.top - legendTagH < bannerFoot;
+      const inward = r.top - legendTagH < roomTop;
       box.classList.toggle("lf-in", inward);
       if (!tagW) continue;
       const left = r.left - 1;

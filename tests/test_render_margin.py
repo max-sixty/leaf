@@ -55,6 +55,7 @@ from render_harness import (
     open_page,
     pane_posture,
     panel_settled,
+    regions_side_by_side,
     rendered,
     resized,
     round_trip,
@@ -66,6 +67,7 @@ from render_harness import (
     told,
     undo,
     wait_for_revision,
+    write,
 )
 
 pytestmark = pytest.mark.nightly
@@ -140,8 +142,7 @@ COMMENT_ON_SECOND_SUGGESTION = {
 DUPLICATE_REGION_PAGE = leaf_page(
     "duplicate Page Map subjects",
     """
-<lf-workspace id="duplicate-map-workspace">
-  <lf-grid id="duplicate-map-split" columns="2">
+  <div id="duplicate-map-split">
     <lf-pane id="current-pane" label="Current">
       <div>
         <h2 id="current-deployment">Deployment</h2>
@@ -156,10 +157,10 @@ DUPLICATE_REGION_PAGE = leaf_page(
         <p>The proposed release remains available to users.</p>
       </div>
     </lf-pane>
-  </lf-grid>
-</lf-workspace>
+  </div>
 """,
-    width="available",
+    head=regions_side_by_side("duplicate-map-split"),
+    layout="workspace",
 )
 
 DUPLICATE_REGION_COMMENTS = [
@@ -300,7 +301,7 @@ def test_page_map_qualifies_only_duplicate_subjects_with_their_reading_region(
     ).to_be_visible()
     expect(
         threads.locator(
-            ':scope > .lf-thread[data-id="comment-proposed-deployment"] textarea'
+            ':scope > .lf-thread[data-id="comment-proposed-deployment"] leaf-text'
         )
     ).to_be_focused()
 
@@ -630,52 +631,54 @@ def test_a_surface_over_the_rail_hands_the_user_the_map(browser, serve):
     assert not page.evaluate(offered), "the tray on the left withdrew the rail"
 
 
-@pytest.mark.parametrize(
-    ("touch", "floor"), [(False, 863), (True, 887)], ids=["mouse", "finger"]
-)
-def test_the_rail_is_claimed_only_in_a_shell_that_can_hold_it(
-    browser, serve, touch, floor
+@pytest.mark.parametrize("touch", [False, True], ids=["mouse", "finger"])
+def test_the_rail_stands_where_the_room_beside_the_column_holds_it(
+    browser, serve, touch
 ):
-    """The floor grants the rail out of the shell, so the shell has to hold what it
-    grants: the column (720), its padding (2 x 24) and the rail. A finger raises the
-    rail from 95 to 119, so each pointer has its own floor, and a container query
-    cannot read the rail to derive it. So this walks the shell down through the flip
-    under each pointer and holds the column whole wherever the rail stands.
-
-    A floor set too low reads here as a column narrower than its measure, which is the
-    bug the floor exists to stop: the markers go flush against whatever took the room.
-    One set too high reads as a sweep whose narrowest rail stands well above the floor."""
+    """The rail claims nothing: its markers stand in it wherever the room between a
+    centred column and the shell's right edge holds it, and as pins on their blocks
+    everywhere else, so the column keeps its measure at every width. A finger's larger
+    entries widen the rail, so each pointer flips at its own width: the column's box
+    (720 and 2 x 24 of padding) and a rail on each side. The sweep walks down through
+    that width and reads where the markers stand."""
     context = browser.new_context(
-        viewport={"width": floor + 40, "height": 900}, has_touch=touch
+        viewport={"width": 1200, "height": 900}, has_touch=touch
     )
-    page = open_page(browser, serve(PANEL_PAGE), context=context)
+    page = open_page(
+        browser, serve(PANEL_PAGE, events=[_comment_on("lede")]), context=context
+    )
     assert page.evaluate("() => matchMedia('(pointer: coarse)').matches") == touch
-    stood = []
-    for width in range(floor + 40, floor - 30, -3):
+    rail = page.evaluate(
+        """() => parseFloat(getComputedStyle(document.querySelector('main'))
+             .getPropertyValue('--rail'))"""
+    )
+    floor = 720 + 2 * 24 + 2 * rail
+    places = set()
+    for width in range(round(floor) + 30, round(floor) - 30, -3):
         resized(page, width, 900)
         margins_laid_out(page)
         reading = page.evaluate(
             """() => {
               const main = document.querySelector('main');
               const style = getComputedStyle(main);
+              const row = document.querySelector('[data-lf-margin-for="lede"]');
               return {
-                posture: style.getPropertyValue('--lf-rail-posture').trim(),
+                place: row.dataset.lfPlace,
                 column: Math.round(parseFloat(style.width)),
-                shell: Math.round(document.body.clientWidth),
+                shell: document.body.clientWidth,
               };
             }"""
         )
-        if reading["posture"] != "margin":
+        assert reading["column"] == 720, reading
+        if abs(reading["shell"] - floor) <= 2:
             continue
-        stood.append(reading)
-        assert reading["column"] >= 720, (
-            f"a {reading['shell']}px shell claimed the rail and left a "
-            f"{reading['column']}px column: the floor granted room the page lacks"
+        expected = "rail" if reading["shell"] > floor else "pin"
+        assert reading["place"] == expected, (
+            f"at a {reading['shell']}px shell, with a {rail:g}px rail needing "
+            f"{floor:g}px, the markers stood as {reading['place']}"
         )
-    assert stood, "no width in this sweep claimed the rail, so nothing here was tested"
-    assert min(r["shell"] for r in stood) <= floor + 3, (
-        "the rail folded above its floor, giving up room the page had"
-    )
+        places.add(reading["place"])
+    assert places == {"rail", "pin"}, "the sweep never crossed the rail's width"
 
 
 def test_an_unchanged_compact_margin_keeps_the_user_at_the_document_end(browser, serve):
@@ -1062,7 +1065,8 @@ def resized_shell(page, inline_size, height):
 
 
 ACTION_PAGE = SUGGESTION_PAGE.replace(
-    "<main>", '<main><section id="action-section">'
+    '<main class="layout-column">',
+    '<main class="layout-column"><section id="action-section">',
 ).replace(
     "</main>",
     """
@@ -4518,13 +4522,13 @@ def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
     assert geometry["coveredControls"] == 0, geometry
     assert geometry["bottomChrome"] > 0, geometry
     assert geometry["coveredBottomChrome"] == 0, geometry
-    reply = page.locator(".lf-margin-preview textarea")
+    reply = page.locator(".lf-margin-preview leaf-text")
     page.locator(".lf-margin-preview").get_by_role(
         "button", name="Reply", exact=True
     ).click()
-    reply.fill("The covered terrace is easier to find.")
+    write(reply, "The covered terrace is easier to find.")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(reply).to_have_value("The covered terrace is easier to find.")
+    expect(reply).to_have_js_property("value", "The covered terrace is easier to find.")
 
 
 def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
@@ -4617,17 +4621,19 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
 
 
 def test_a_thread_beside_its_cluster_takes_the_room_to_the_visible_edge(browser, serve):
-    """A rail a few pixels short of the card's measure narrows the card, not its height.
+    """Room beside a cluster a few pixels short of the card's measure narrows the card,
+    not its height.
 
-    The width is the arrangement: the rail beside this cluster grows with half the
-    viewport, and the case only says anything where the room it leaves falls between
-    `--thread-card-min` and `--thread-card`. Wider and the card takes its preferred
-    measure with room to spare, narrower and it is the short-rail case below. The room
-    is asserted before the outcome is, so moving either token reddens the arrangement
-    and names the width to re-pick rather than reading as a layout regression."""
+    The width is the arrangement: this cluster pins on a block that breaks out of the
+    column, so the room right of it grows with half the viewport, and the case only says
+    anything where that room falls between `--thread-card-min` and `--thread-card`.
+    Wider and the card takes its preferred measure with room to spare, narrower and it
+    is the short-rail case below. The room is asserted before the outcome is, so moving
+    either token, or the gallery's arrangement, reddens the arrangement and names the
+    width to re-pick rather than reading as a layout regression."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     page.emulate_media(reduced_motion="reduce")
-    resized(page, 1220, 900)
+    resized(page, 1360, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
     page.locator("body").focus()
     _walk_gallery_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
@@ -4865,6 +4871,10 @@ def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
         has=page.get_by_role("button", name="keep reaction actions", exact=True)
     )
     expect(receipt).to_have_count(1)
+    assert abs(receipt.bounding_box()["y"] - paragraph.bounding_box()["y"]) <= 6
+    # The optimistic receipt is already on screen. Let the accepted reading
+    # finish replacing it before testing the disclosure gesture.
+    told(page)
     assert abs(receipt.bounding_box()["y"] - paragraph.bounding_box()["y"]) <= 6
     reaction = receipt.get_by_role("button", name="keep reaction actions", exact=True)
     reaction.click()
@@ -5178,7 +5188,7 @@ def test_the_margin_reply_pinned_to_the_card_foot_shows_its_whole_ring(browser, 
     assert standing_ring(page)["cuts"] == []
 
     disclosure.press("Enter")
-    editor = preview.locator("textarea")
+    editor = preview.locator("leaf-text")
     expect(editor).to_be_focused()
     assert page.evaluate(pinned, [row.element_handle(), transcript.element_handle()])
     assert standing_ring(page)["cuts"] == []
@@ -5192,15 +5202,15 @@ def test_a_growing_margin_reply_keeps_the_previous_turn_visible(browser, serve):
     expect(preview).to_be_visible()
     transcript = preview.locator(".lf-margin-preview-list")
     preview.get_by_role("button", name="Reply", exact=True).click()
-    editor = preview.locator("textarea")
+    editor = preview.locator("leaf-text")
     transcript.evaluate("list => list.scrollTop = list.scrollHeight")
-    editor.fill("A reply that grows.\n" * 30)
+    write(editor, "A reply that grows.\n" * 30)
     latest = transcript.locator(".lf-page-thread-msg").last
     visible = latest.evaluate(
         """message => {
           const list = document.querySelector('.lf-margin-preview-list');
           const band = list.getBoundingClientRect();
-          const editor = list.querySelector('textarea').getBoundingClientRect();
+          const editor = list.querySelector('leaf-text').getBoundingClientRect();
           return {
             tail: message.getBoundingClientRect().bottom,
             top: band.top,
@@ -5219,8 +5229,8 @@ def test_a_short_margin_thread_lets_the_editor_use_available_room(browser, serve
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     preview = page.locator(".lf-margin-preview")
     preview.get_by_role("button", name="Reply", exact=True).click()
-    editor = preview.locator("textarea")
-    editor.fill("A reply with several lines.\n" * 8)
+    editor = preview.locator("leaf-text")
+    write(editor, "A reply with several lines.\n" * 8)
     assert editor.evaluate("input => input.getBoundingClientRect().height") > 120
 
 
@@ -5335,7 +5345,7 @@ def test_agent_status_leaves_the_margin_transcript_where_the_user_scrolled_it(
     page, preview, transcript = open_long_thread(browser, serve)
     transcript.evaluate("list => list.style.overflowAnchor = 'none'")
     preview.get_by_role("button", name="Reply", exact=True).click()
-    expect(preview.locator("textarea")).to_be_focused()
+    expect(preview.locator("leaf-text")).to_be_focused()
     place = "list => [list.scrollTop, list.scrollHeight - list.clientHeight]"
     settled = (
         "() => new Promise(resolve => "
@@ -5385,7 +5395,7 @@ def test_the_margin_reply_keeps_its_shape_when_the_user_enters_it(
 
     preview = page.locator(".lf-margin-preview")
     reply = preview.get_by_role("button", name="Reply", exact=True)
-    editor = preview.locator("textarea")
+    editor = preview.locator("leaf-text")
     expect(reply).to_be_visible()
     resting_box = reply.bounding_box()
     message_left = preview.locator(".lf-page-thread-msg").first.bounding_box()["x"]
@@ -5495,7 +5505,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(resolve).to_have_text("")
     reply_button = preview.get_by_role("button", name="Reply", exact=True)
     expect(reply_button).to_be_visible()
-    expect(preview.locator("textarea")).to_be_hidden()
+    expect(preview.locator("leaf-text")).to_be_hidden()
     geometry = preview.evaluate(
         """preview => {
           const thread = preview.querySelector('.lf-page-thread');
@@ -5527,17 +5537,17 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     assert geometry["metaRow"]["top"] <= geometry["close"]["top"]
     assert geometry["metaRow"]["bottom"] >= geometry["close"]["bottom"]
     reply_button.click()
-    expect(preview.locator("textarea")).to_be_visible()
+    expect(preview.locator("leaf-text")).to_be_visible()
     page.locator("h1").click()
     expect(preview).to_be_hidden()
     marker.click()
     expect(reply_button).to_be_visible()
-    expect(preview.locator("textarea")).to_be_hidden()
+    expect(preview.locator("leaf-text")).to_be_hidden()
     reply_button.click()
     expect(reply_button).to_be_hidden()
-    expect(preview.locator("textarea")).to_be_focused()
-    expect(preview.locator("textarea")).to_be_visible()
-    preview.locator("textarea").fill("Keep this draft visible.")
+    expect(preview.locator("leaf-text")).to_be_focused()
+    expect(preview.locator("leaf-text")).to_be_visible()
+    write(preview.locator("leaf-text"), "Keep this draft visible.")
     page.locator(".lf-margin-preview-close").click()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(marker).to_be_focused()
@@ -5545,12 +5555,14 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("back to page")
     expect(preview.locator(".lf-page-thread")).to_be_focused()
-    expect(preview.locator("textarea")).to_be_visible()
-    expect(preview.locator("textarea")).to_have_value("Keep this draft visible.")
-    preview.locator("textarea").fill("")
+    expect(preview.locator("leaf-text")).to_be_visible()
+    expect(preview.locator("leaf-text")).to_have_js_property(
+        "value", "Keep this draft visible."
+    )
+    write(preview.locator("leaf-text"), "")
     page.locator(".lf-margin-preview-close").click()
     page.keyboard.press("Enter")
-    expect(preview.locator("textarea")).to_be_visible()
+    expect(preview.locator("leaf-text")).to_be_visible()
     # The card is anchored to a target and hoisted into the chrome, so it lands the
     # user on that target rather than on the marker it hung from, which a `t` from
     # the page would never have stood them on. Letting go of the target takes the card.
@@ -5736,7 +5748,7 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
               return;
             document.removeEventListener('focusin', firstFocus);
             queueMicrotask(() => {
-              window.__firstReplyHint = card.querySelector('textarea')?.placeholder;
+              window.__firstReplyHint = card.querySelector('leaf-text')?.placeholder;
             });
           };
           document.addEventListener('focusin', firstFocus);
@@ -5757,7 +5769,7 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     )
     preview = page.locator(".lf-margin-preview")
     thread = page.locator(".lf-margin-thread")
-    reply = thread.locator("textarea")
+    reply = thread.locator("leaf-text")
 
     assert first_frame["open"] and first_frame["thread"], first_frame
     assert first_frame["opacity"] == "0" or (
@@ -5826,8 +5838,8 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     )
     page.keyboard.press("c")
     expect(reply).to_be_focused()
-    reply.fill("x")
-    reply.fill("")
+    write(reply, "x")
+    write(reply, "")
     page.keyboard.press("Escape")
     preview.locator(".lf-margin-preview-close").click()
     marker.click()
@@ -5836,9 +5848,9 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     expect(reply).to_have_attribute("placeholder", "Reply c")
     page.keyboard.press("c")
     expect(reply).to_be_focused()
-    reply.fill("Yes. One visit can cover both jobs.")
+    write(reply, "Yes. One visit can cover both jobs.")
     ticked(page)
-    expect(reply).to_have_value("Yes. One visit can cover both jobs.")
+    expect(reply).to_have_js_property("value", "Yes. One visit can cover both jobs.")
     expect(reply).to_be_focused()
     with sending(page, "the reply"):
         thread.get_by_role("button", name="Send").click()
@@ -5882,14 +5894,16 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     page.keyboard.press("Enter")
     panel_settled(page)
     expect(preview).to_be_hidden()
-    expect(page.locator(f'.lf-thread[data-id="{root_id}"] textarea')).to_be_focused()
+    expect(page.locator(f'.lf-thread[data-id="{root_id}"] leaf-text')).to_be_focused()
     assert page.evaluate("() => window.__cardOpenings") == []
 
 
 def test_a_thread_margin_entry_opens_inline_when_the_panel_is_closed(browser, serve):
     """The margin entry's destination follows the open auxiliary surface, not available margin."""
     sidebar_page = ASK_PAGE.replace(
-        "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
+        '<main class="layout-column">',
+        '<main class="layout-column"><aside class="sidebar">Page reference</aside>',
+        1,
     )
     page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ASK]))
     resized(page, 1200, 900)
@@ -5900,7 +5914,7 @@ def test_a_thread_margin_entry_opens_inline_when_the_panel_is_closed(browser, se
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread .lf-page-thread")).to_be_focused()
-    expect(page.locator(".lf-margin-thread textarea")).to_be_hidden()
+    expect(page.locator(".lf-margin-thread leaf-text")).to_be_hidden()
     expect(
         page.locator(".lf-margin-thread").get_by_role(
             "button", name="Reply", exact=True
@@ -5925,7 +5939,7 @@ def test_a_new_anchored_comment_keeps_the_users_thread_view(
     page.locator("#mounts-p").click(click_count=3)
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
-    page.locator(".lf-composer textarea").fill("Check the January failure mode.")
+    write(page.locator(".lf-composer leaf-text"), "Check the January failure mode.")
     passage_before = page.locator("#mounts-p").bounding_box()
     with sending(page, "the anchored comment"):
         page.keyboard.press("ControlOrMeta+Enter")
@@ -5959,12 +5973,12 @@ def test_a_new_anchored_comment_keeps_the_users_thread_view(
     )
     expect(focus_target).to_be_focused()
     if panel_open:
-        thread.locator("textarea").click()
+        thread.locator("leaf-text").click()
     else:
         thread.get_by_role("button", name="Reply").click()
-    expect(thread.locator("textarea")).to_be_focused()
+    expect(thread.locator("leaf-text")).to_be_focused()
     page.keyboard.type("the next thought")
-    expect(thread.locator("textarea")).to_have_value("the next thought")
+    expect(thread.locator("leaf-text")).to_have_js_property("value", "the next thought")
     passage_after = page.locator("#mounts-p").bounding_box()
     for coordinate in ("x", "y", "width", "height"):
         assert passage_after[coordinate] == pytest.approx(
@@ -6280,7 +6294,7 @@ def test_a_marker_pressed_with_threads_open_is_left_by_its_thread(browser, serve
     marker.focus()
     page.keyboard.press("Enter")
     expect(
-        threads.locator(f'.lf-thread[data-id="{sent["id"]}"] textarea')
+        threads.locator(f'.lf-thread[data-id="{sent["id"]}"] leaf-text')
     ).to_be_focused()
 
     # The box hands the user back to the thread it belongs to; the marker is Leaf's
@@ -6438,7 +6452,7 @@ THREAD_CARD_GEOMETRY = """() => {
   const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
   const controls = document.querySelector('[data-lf-margin-for] [aria-expanded="true"]')
     .closest('[data-lf-margin-for]').getBoundingClientRect();
-  const reply = document.querySelector('.lf-margin-thread textarea')
+  const reply = document.querySelector('.lf-margin-thread leaf-text')
     .getBoundingClientRect();
   return {
     mainLeft: main.left, mainRight: main.right,
@@ -6458,7 +6472,7 @@ def send_anchored_comment(page, text):
     page.locator("#mounts-p").click(click_count=3)
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
-    page.locator(".lf-composer textarea").fill(text)
+    write(page.locator(".lf-composer leaf-text"), text)
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     expect(page.locator(".lf-margin-preview")).to_be_visible()
@@ -6468,7 +6482,9 @@ def send_anchored_comment(page, text):
 def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, serve):
     """An accepted comment opens readable beside or over either page shape."""
     sidebar_page = ASK_PAGE.replace(
-        "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
+        '<main class="layout-column">',
+        '<main class="layout-column"><aside class="sidebar">Page reference</aside>',
+        1,
     )
     page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ASK]))
     resized(page, 1200, 900)
@@ -6618,18 +6634,18 @@ def test_margin_card_anchors_reading_by_top_and_drafting_by_foot(browser, serve)
     assert reading["top"] == pytest.approx(initial["top"], abs=0.5), (initial, reading)
     assert reading["height"] > initial["height"] + 10, (initial, reading)
     preview.get_by_role("button", name="Reply", exact=True).click()
-    editor = preview.locator("textarea")
+    editor = preview.locator("leaf-text")
     editor.evaluate("node => node.blur()")
     page.wait_for_function(
         """top => Math.abs(document.querySelector('.lf-margin-preview')
           .getBoundingClientRect().top - top) < 0.5""",
         arg=initial["top"],
     )
-    editor.fill("First line")
+    write(editor, "First line")
 
     measure = """() => {
       const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
-      const editor = document.querySelector('.lf-margin-preview textarea').getBoundingClientRect();
+      const editor = document.querySelector('.lf-margin-preview leaf-text').getBoundingClientRect();
       return {cardTop: card.top, cardBottom: card.bottom, editorTop: editor.top,
               editorBottom: editor.bottom,
               placement: document.querySelector('.lf-margin-preview').dataset.lfThreadPlacement};
@@ -6639,9 +6655,9 @@ def test_margin_card_anchors_reading_by_top_and_drafting_by_foot(browser, serve)
     editor.press("End")
     editor.press("Shift+Enter")
     editor.type("Second line")
-    expect(editor).to_have_value("First line\nSecond line")
+    expect(editor).to_have_js_property("value", "First line\nSecond line")
     page.wait_for_function(
-        """top => document.querySelector('.lf-margin-preview textarea')
+        """top => document.querySelector('.lf-margin-preview leaf-text')
           .getBoundingClientRect().top < top - 10""",
         arg=before["editorTop"],
     )
@@ -6655,7 +6671,7 @@ def test_margin_card_anchors_reading_by_top_and_drafting_by_foot(browser, serve)
         before,
         after,
     )
-    editor.fill("\n".join(f"Line {n}" for n in range(30)))
+    write(editor, "\n".join(f"Line {n}" for n in range(30)))
     page.wait_for_function(
         """() => {
           const top = document.querySelector('.lf-margin-preview').getBoundingClientRect().top;
@@ -6667,7 +6683,7 @@ def test_margin_card_anchors_reading_by_top_and_drafting_by_foot(browser, serve)
     assert tall["cardBottom"] <= 847.5, tall
     assert tall["editorBottom"] <= tall["cardBottom"] - 12, tall
 
-    editor.fill("Sent")
+    write(editor, "Sent")
     preview.get_by_role("button", name="Send", exact=True).click()
     expect(preview).to_contain_text("Sent")
     editor.evaluate("node => node.lfCollapseReply()")
@@ -6682,7 +6698,9 @@ def test_margin_card_anchors_reading_by_top_and_drafting_by_foot(browser, serve)
 def test_open_reply_keeps_its_foot_after_card_moves_to_right_rail(browser, serve):
     """A draft opened below its target gains a foot anchor when the rail widens."""
     sidebar_page = ASK_PAGE.replace(
-        "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
+        '<main class="layout-column">',
+        '<main class="layout-column"><aside class="sidebar">Page reference</aside>',
+        1,
     )
     page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ASK]))
     resized(page, 1200, 900)
@@ -6690,21 +6708,21 @@ def test_open_reply_keeps_its_foot_after_card_moves_to_right_rail(browser, serve
     preview = page.locator(".lf-margin-preview")
     expect(preview).not_to_have_attribute("data-lf-thread-placement", "right")
     preview.get_by_role("button", name="Reply", exact=True).click()
-    editor = preview.locator("textarea")
-    editor.fill("First line")
+    editor = preview.locator("leaf-text")
+    write(editor, "First line")
 
     resized(page, 1920, 900)
     expect(preview).to_have_attribute("data-lf-thread-placement", "right")
     before = preview.evaluate(
         """node => ({card: node.getBoundingClientRect().bottom,
-                      editor: node.querySelector('textarea').getBoundingClientRect()})"""
+                      editor: node.querySelector('leaf-text').getBoundingClientRect()})"""
     )
     editor.press("End")
     editor.press("Shift+Enter")
-    expect(editor).to_have_value("First line\n")
+    expect(editor).to_have_js_property("value", "First line\n")
     after = preview.evaluate(
         """node => ({card: node.getBoundingClientRect().bottom,
-                      editor: node.querySelector('textarea').getBoundingClientRect()})"""
+                      editor: node.querySelector('leaf-text').getBoundingClientRect()})"""
     )
     assert after["editor"]["top"] < before["editor"]["top"] - 10, (before, after)
     assert after["editor"]["bottom"] == pytest.approx(
@@ -6737,7 +6755,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
         thread.get_by_role("button", name="Open interactive reply in Threads")
     ).to_have_count(1)
     expect(thread.locator(".lf-page-thread")).to_be_focused()
-    expect(thread.locator("textarea")).to_be_hidden()
+    expect(thread.locator("leaf-text")).to_be_hidden()
     geometry = marker.evaluate(
         """markerNode => {
           const main = document.querySelector('main').getBoundingClientRect();
@@ -6852,7 +6870,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     page.keyboard.press("Enter")
     expect(preview).to_be_visible()
     expect(preview.locator(".lf-page-thread")).to_be_focused()
-    expect(preview.locator("textarea")).to_be_hidden()
+    expect(preview.locator("leaf-text")).to_be_hidden()
 
     resized_shell(page, 1436, 900)
     beside = page.evaluate(
@@ -6900,20 +6918,20 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     marker.evaluate("node => scrollBy(0, node.getBoundingClientRect().top - 330)")
     marker.click()
     preview.get_by_role("button", name="Reply", exact=True).click()
-    editor = preview.locator("textarea")
+    editor = preview.locator("leaf-text")
     draft = "\n".join(
         f"Line {n}: " + "The reply keeps its complete editor visible. " * 2
         for n in range(18)
     )
-    editor.fill(draft)
+    write(editor, draft)
     for edge, caret in [("ArrowLeft", 0), ("ArrowRight", len(draft))]:
         editor.press("ControlOrMeta+a")
         editor.press(edge)
-        expect(editor).to_have_value(draft)
+        expect(editor).to_have_js_property("value", draft)
         assert editor.evaluate("node => node.selectionStart") == caret
         page.wait_for_function("""() => {
           const list = document.querySelector('.lf-margin-preview-list').getBoundingClientRect();
-          const editor = document.querySelector('.lf-margin-preview textarea').getBoundingClientRect();
+          const editor = document.querySelector('.lf-margin-preview leaf-text').getBoundingClientRect();
           const send = document.querySelector('.lf-margin-preview .lf-compose-submit').getBoundingClientRect();
           return editor.top >= list.top - 1 && editor.bottom <= list.bottom + 1
             && send.top >= list.top && send.bottom <= list.bottom + 1;
@@ -7093,7 +7111,9 @@ def test_the_thread_card_survives_trays_and_authored_sidebars(browser, serve):
     page.close()
 
     sidebar_page = ASK_PAGE.replace(
-        "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
+        '<main class="layout-column">',
+        '<main class="layout-column"><aside class="sidebar">Page reference</aside>',
+        1,
     )
     page = open_page(
         browser,
@@ -7290,6 +7310,53 @@ def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, s
     expect(
         dialog.get_by_role("button", name=re.compile(r"^Open your change: Your change"))
     ).to_be_visible()
+
+
+def test_a_marker_level_with_a_hanging_note_pins_and_one_below_it_keeps_the_rail(
+    browser, serve
+):
+    """A sidenote hanging in the right margin holds the strip the rail stands in, so the
+    marker of a paragraph level with it stands on the paragraph as a pin rather than
+    over the note. The control is a paragraph far below the note, whose marker keeps
+    the rail."""
+    filler = "".join(f"<p>Filler paragraph {i}.</p>" for i in range(12))
+    source = leaf_page(
+        "a note beside its paragraph",
+        '<h1 id="t">Notes</h1><aside class="sidenote" id="note">A note beside the '
+        "paragraph it glosses, long enough to stand a few lines tall.</aside>"
+        f'<p id="beside">The paragraph the note glosses.</p>{filler}'
+        '<p id="below">A paragraph well below the note.</p>',
+    )
+    page = open_page(
+        browser, serve(source, events=[_comment_on("beside"), _comment_on("below")])
+    )
+    resized(page, 1600, 900)
+    margins_laid_out(page)
+    assert (
+        page.evaluate("() => getComputedStyle(document.getElementById('note')).float")
+        == "right"
+    )
+    for target, place in (("beside", "pin"), ("below", "rail")):
+        row = page.locator(f'.lf-margin-cluster[data-lf-margin-for="{target}"]')
+        expect(row).to_have_attribute("data-lf-place", place)
+
+
+def test_the_banner_offers_the_map_wherever_the_markers_are_pins(browser, serve):
+    """The Page Map toggle follows the rail the margin measures, not a window width: a
+    920px window leaves a column page too little room beside it for the rail, so its
+    markers are pins and the banner offers the map, as it does on a phone. The control is
+    the same page at 1200px, where the rail stands and the toggle steps aside."""
+    page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
+    rows = page.locator(".lf-margin-projection .lf-margin-cluster")
+    for width, place, offered in ((1200, "rail", False), (920, "pin", True)):
+        resized(page, width, 900)
+        margins_laid_out(page)
+        expect(rows.first).to_have_attribute("data-lf-place", place)
+        toggle = page.locator(".lf-page-map-toggle")
+        if offered:
+            expect(banner_control(page, ".lf-page-map-toggle")).to_be_visible()
+        else:
+            expect(toggle).to_be_hidden()
 
 
 @pytest.mark.parametrize("height", [480, 760])
@@ -7496,10 +7563,10 @@ def _comment_on(section, text="A comment on this.", quote=None):
 @pytest.mark.parametrize(
     ("main", "place"),
     [
-        ("<main>", "rail"),
-        ('<main data-width="available">', "pin"),
-        ('<main data-width="available" data-rail="right">', "rail"),
-        ('<main data-rail="none">', "pin"),
+        ('<main class="layout-column">', "rail"),
+        ('<main class="layout-wide">', "pin"),
+        ('<main class="layout-wide" data-rail="right">', "rail"),
+        ('<main class="layout-column" data-rail="none">', "pin"),
     ],
     ids=["column", "wide", "wide-keeps-the-rail", "column-gives-it-up"],
 )
@@ -7507,40 +7574,101 @@ def test_the_page_form_decides_the_rail_and_main_can_say_otherwise(
     browser, serve, main, place
 ):
     """A column page keeps a rail beside its column and a wide page does not: its markers
-    stand as pins on their blocks. `data-rail` on `main` turns either round. Where no rail
-    is kept the page claims no strip for one, so the wide page has the room."""
+    stand as pins on their blocks. `data-rail` on `main` turns either round: `right`
+    gives up the rail's width at the shell's right edge, and `none` keeps the margin for
+    the page's own residents. Only `right` takes room from the page."""
     source = leaf_page(
         "rail by form",
         '<h1 id="t">Rail by form</h1><p id="p">A paragraph with a comment on it.</p>',
-    ).replace("<main>", main)
+    ).replace('<main class="layout-column">', main)
     page = open_page(browser, serve(source, events=[_comment_on("p")]))
     resized(page, 1440, 900)
     margins_laid_out(page)
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="p"]')
     expect(row).to_have_attribute("data-lf-place", place)
-    claimed = page.evaluate(
-        """() => getComputedStyle(document.querySelector('main'))
-             .getPropertyValue('--lf-rail-posture').trim() === 'margin'"""
+    given = page.evaluate(
+        "() => parseFloat(getComputedStyle(document.body).paddingInlineEnd)"
     )
-    assert claimed == (place == "rail")
+    assert (given > 0) == ('data-rail="right"' in main), given
 
 
-def test_a_page_made_wide_by_its_workspace_claims_no_rail(browser, serve):
-    """A page whose only block is a workspace is a wide page without declaring one, so it
-    gives up the rail's strip as `<main data-width="available">` does."""
+def test_a_pin_on_one_shape_of_a_drawing_stands_on_that_shape(browser, serve):
+    """A shape inside an SVG drawing has no CSS box, so its row anchors through the
+    drawing; as a pin it still stands inside the shape's own top-right corner, not at the
+    drawing's edge beside another shape."""
+    shapes = "".join(
+        f'<g id="{name}"><text x="{x}" y="20">{name}</text>'
+        f'<rect x="{x}" y="30" width="240" height="160"/></g>'
+        for name, x in [("left", 20), ("middle", 380), ("right", 740)]
+    )
+    source = leaf_page(
+        "a drawing's parts",
+        '<h1 id="t">Parts</h1><figure id="fig" data-width="wide">'
+        '<svg class="drawing" viewBox="0 0 1000 200" role="img">'
+        f"<title>Three shapes</title>{shapes}</svg></figure>",
+        layout="wide",
+    )
+    page = open_page(
+        browser, serve(source, events=[_comment_on("left"), _comment_on("right")])
+    )
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    for name in ("left", "right"):
+        row = page.locator(f'.lf-margin-cluster[data-lf-margin-for="{name}"]')
+        expect(row).to_have_attribute("data-lf-place", "pin")
+        row_box = row.bounding_box()
+        shape = page.locator(f"#{name}").bounding_box()
+        assert shape["x"] < row_box["x"], (name, row_box, shape)
+        assert row_box["x"] + row_box["width"] <= shape["x"] + shape["width"], (
+            name,
+            row_box,
+            shape,
+        )
+        assert row_box["y"] == pytest.approx(shape["y"], abs=8), (name, row_box, shape)
+
+
+def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
+    """A `display: contents` target anchors through its first shown part, but its pin
+    stands at the corner of every part together, and shows while they do."""
+    source = leaf_page(
+        "a contents target",
+        '<h1 id="t">Pair</h1><div style="display: flex; gap: 24px">'
+        '<div id="pair" style="display: contents">'
+        '<p style="flex: 1">The first half.</p><p style="flex: 1">The second half.</p>'
+        "</div></div>",
+        layout="wide",
+    )
+    page = open_page(browser, serve(source, events=[_comment_on("pair")]))
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    row = page.locator('.lf-margin-cluster[data-lf-margin-for="pair"]')
+    expect(row).to_have_attribute("data-lf-place", "pin")
+    expect(row).to_be_visible()
+    row_box = row.bounding_box()
+    second = page.locator("#pair > p").nth(1).bounding_box()
+    assert second["x"] < row_box["x"], (row_box, second)
+    assert row_box["x"] + row_box["width"] <= second["x"] + second["width"], (
+        row_box,
+        second,
+    )
+
+
+def test_a_workspace_page_keeps_no_rail(browser, serve):
+    """The workspace Layout stands in the wide page's frame, which leaves no room beside
+    it for a rail, so a comment in a pane stands on its block as a pin, as it does on
+    `<main class="layout-wide">`."""
     source = leaf_page(
         "workspace page",
-        '<lf-workspace id="w"><header><h1 id="t">Workspace</h1></header>'
+        '<header><h1 id="t">Workspace</h1></header>'
         '<lf-pane id="pane" label="Queue"><div><p id="p">A paragraph.</p></div>'
-        "</lf-pane></lf-workspace>",
+        "</lf-pane>",
+        layout="workspace",
     )
-    page = open_page(browser, serve(source))
+    page = open_page(browser, serve(source, events=[_comment_on("p")]))
     resized(page, 1440, 900)
-    posture = page.evaluate(
-        """() => getComputedStyle(document.querySelector('main'))
-             .getPropertyValue('--lf-rail-posture').trim()"""
-    )
-    assert posture != "margin"
+    margins_laid_out(page)
+    row = page.locator('.lf-margin-cluster[data-lf-margin-for="p"]')
+    expect(row).to_have_attribute("data-lf-place", "pin")
 
 
 def test_o_hides_what_is_drawn_over_the_page_and_moves_nothing(browser, serve):
@@ -7607,8 +7735,7 @@ def test_o_hides_what_is_drawn_over_the_page_and_moves_nothing(browser, serve):
 PANE_PIN_PAGE = leaf_page(
     "a pin in a pane",
     """
-<lf-workspace id="pin-workspace">
-  <lf-grid id="pin-split" columns="2">
+  <div id="pin-split">
     <lf-pane id="pin-pane" label="Findings">
       <div>
         <div style="height: 200px"></div>
@@ -7618,10 +7745,10 @@ PANE_PIN_PAGE = leaf_page(
       </div>
     </lf-pane>
     <lf-pane id="other-pane" label="Notes"><div><p>Notes.</p></div></lf-pane>
-  </lf-grid>
-</lf-workspace>
+  </div>
 """,
-    width="available",
+    head=regions_side_by_side("pin-split"),
+    layout="workspace",
 )
 
 
@@ -7901,3 +8028,82 @@ def test_the_gate_advises_where_a_pin_stands_over_text(browser, serve):
         if "sug-refill" in pin["at"]
     ]
     assert narrow and narrow[0]["covered"] > 0, narrow
+
+
+@pytest.mark.parametrize(
+    "window",
+    [
+        {"viewport": {"width": 1280, "height": 800}},
+        {
+            "viewport": {"width": 390, "height": 844},
+            "is_mobile": True,
+            "has_touch": True,
+        },
+    ],
+    ids=["desktop", "phone"],
+)
+def test_a_thread_card_reply_stays_in_the_visible_viewport(browser, serve, window):
+    """Zooming in, like a phone's software keyboard, shrinks the visible viewport without
+    resizing the window, and a card whose reply the user is writing stands inside what
+    is left, below the banner and above the bottom band. The zoom stands in for the
+    keyboard, which no emulation raises; the card starts low in the window, where the
+    shrunk viewport no longer reaches."""
+    filler = "".join(f"<p>Filler paragraph {i}.</p>" for i in range(14))
+    after = "".join(f"<p>After {i}.</p>" for i in range(30))
+    source = leaf_page(
+        "card in a shrunk viewport",
+        f'<h1 id="t">Card</h1>{filler}<p id="low">The paragraph a thread is on.</p>'
+        f"{after}",
+    )
+    context = browser.new_context(**window)
+    page = open_page(
+        browser, serve(source, events=[_comment_on("low")]), context=context
+    )
+    margins_laid_out(page)
+    page.locator("#low").evaluate(
+        "p => scrollBy(0, p.getBoundingClientRect().top - innerHeight * 0.55)"
+    )
+    rendered(page)
+    page.locator('[data-lf-margin-for="low"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_be_visible()
+    card.get_by_role("button", name="Reply", exact=True).click()
+    expect(card.locator("leaf-text")).to_be_focused()
+
+    def stands_in_the_visible_viewport():
+        rendered(page)
+        room = page.evaluate("""() => {
+          const band = document.querySelector('.lf-shortcut-bar');
+          const banner = document.querySelector('.lf-banner');
+          const v = visualViewport;
+          return {
+            card: document.querySelector('.lf-margin-preview').getBoundingClientRect().toJSON(),
+            top: Math.max(v.offsetTop, banner.getBoundingClientRect().bottom),
+            bottom: Math.min(
+              v.offsetTop + v.height,
+              band.checkVisibility() ? band.getBoundingClientRect().top : Infinity,
+            ),
+            left: v.offsetLeft,
+            right: v.offsetLeft + v.width,
+            scrolled: [scrollY, v.offsetTop],
+          };
+        }""")
+        shown = room["card"]
+        assert shown["top"] >= room["top"], room
+        assert shown["bottom"] <= room["bottom"], room
+        assert shown["left"] >= room["left"], room
+        assert shown["right"] <= room["right"], room
+        return room
+
+    context.new_cdp_session(page).send(
+        "Emulation.setPageScaleFactor", {"pageScaleFactor": 1.6}
+    )
+    page.wait_for_function("Math.abs(visualViewport.scale - 1.6) < 0.01")
+    before = stands_in_the_visible_viewport()
+    # A wheel over the page moves the visible viewport inside the window, which scrolls
+    # nothing the document hears.
+    page.mouse.move(4, 150)
+    page.mouse.wheel(0, 120)
+    page.wait_for_function("visualViewport.offsetTop > 0")
+    after = stands_in_the_visible_viewport()
+    assert after["scrolled"][0] == before["scrolled"][0], (before, after)

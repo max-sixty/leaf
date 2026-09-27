@@ -15,7 +15,7 @@
    reasoning as renderSaid — a rule each widget has to remember is a rule that gets
    forgotten, and the forgetting is invisible until a page ships without it. */
 import { SHADOW_STARTUP_CSS, shadowRules } from "./shadow.js";
-import { constructSheet, marksSheet } from "./stylesheets.js";
+import { constructSheet, inBaseLayer, marksSheet } from "./stylesheets.js";
 import { watchDisclosures } from "./keyboard/disclosure.js";
 import { watchLayers } from "./keyboard/layer-stack.js";
 import { setChildren } from "./dom-children.js";
@@ -48,7 +48,7 @@ function liveStages() {
 export function registerWidgetStyles(name, text) {
   const existing = widgetSheets.get(name);
   if (existing) return existing;
-  const sheet = constructSheet(text, name);
+  const sheet = constructSheet(inBaseLayer(text), name);
   widgetSheets.set(name, sheet);
   document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
   for (const root of liveStages())

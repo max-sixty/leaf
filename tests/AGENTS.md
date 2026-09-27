@@ -80,7 +80,9 @@ against the click tree, an `x-` key against the guide, a table against its regis
 Leave wording with no machine side to review.
 
 Focus evidence starts in keyboard modality: press `Tab` to the exact stop and require
-`:focus-visible`; `element.focus()` alone is not that evidence.
+`:focus-visible`, or `:focus` on the runtime's text field (`leaf-text`), a host that
+delegates focus and so never matches `:focus-visible` in Chrome; `element.focus()` alone
+is not that evidence.
 `document.body.focus()` resets the sequential starting point; `blur()` keeps it. Read
 a ring's actual paint through `RINGS_DRAWN` and `ring_faults`, because an ancestor or
 linked carrier may draw it.
@@ -141,12 +143,14 @@ the collector is not an assertion.
 
 ## A page is ready when it says what has finished
 
-Open pages through `open_page`, and wait on `BOTH_STAMPS` after any manual navigation:
-the upgrade, replay, and presentation stamps, then the runtime's current-presentation,
-rendering-settled, and page-arrived probes. They are independent facts, network quiet
-implies none of them, and a key pressed before replay can be lost silently. Never wait
-for a fixture's deferred widget by name; page-arrived covers work an owner declares
-after presentation. Call `displayed` before a pre-runtime measurement.
+Open pages through `open_page`, and call `wait_until_ready` (`leaf.render_checks`)
+after any manual navigation. It waits on the runtime's one readiness reading
+(`pageReadiness`): upgrade, replay, current presentation, deferred arrivals, and
+settled rendering, in that order. They are independent facts, network quiet implies
+none of them, and a key pressed before replay can be lost silently. Never combine the
+stamps yourself, and never wait for a fixture's deferred widget by name; the arrived
+stage covers work an owner declares after presentation. Call `displayed` before a
+pre-runtime measurement.
 
 ## A wait consumes a fact the system states
 

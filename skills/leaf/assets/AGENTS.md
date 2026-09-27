@@ -13,20 +13,19 @@ desktop viewport.
 
 ### Space and scrolling
 
-Allocate width independently of scrolling posture. Prose keeps its reading
-measure; visual evidence may take a wider area, and an inspection surface the
-available task area. Core owns that allocation after chrome, frames, and margin
-occupancy; packages declare their space needs and arrange content inside it.
-Compact navigation doesn't reserve a full sidebar it no longer needs.
+The page owns its arrangement: a shipped Layout class (`@layer lf-layouts` in the
+theme) or its own CSS. Leaf owns what pages and widgets coordinate through: the
+bands, the reading measure as typography, and each widget's contract to fill the box
+it is given, declare the minimum it needs, and never let its content size its holder.
 
-Nothing Leaf draws at run time moves the page's content. A margin row stands in
-the rail a column page reserves, or as a pin inside its target's corner. The
+Nothing Leaf draws at run time moves the page's content. A margin row stands in the
+free room measured beside its target, in a rail the page declares, or as a pin
+inside its target's corner. The
 auxiliary surfaces (Asks tray, thread panel, Leaves tray) stand over the page and
 never change its geometry; the Asks tray and panel leave the page live beside
 them, and cover it where they would leave less than a usable page
-(`--lf-auxiliary-beside`, read by `standsBeside`). A workspace's scrolling
-posture is the stylesheet's container query, which the runtime reads rather than
-decides.
+(`--lf-auxiliary-beside`, read by `standsBeside`). Which box scrolls is the
+stylesheet's, a Layout's or the page's, which the runtime reads rather than decides.
 
 Ordinary content grows in flow. A bounded inspection object may scroll inside the
 document and chain into it at its edges; isolate scrolling only at a bounded task
@@ -143,9 +142,12 @@ lint refuses the browser's own.
 Stylesheets apply in layers. `theme.css` holds page tokens, element styles,
 idioms, and CSS-only widgets, and each package theme follows it; shared shadow
 rules compose into `/shadow.css`, whose shared `.lf-ui` face comes before
-component rules. `runtime/chrome.css` is adopted after page and package sheets and
-wins by its selectors. `runtime/marks.css` is adopted by the document and shadow
-stages. A `:has()` whose rightmost compound carries no class, id, attribute, or
+component rules. In the document all of these, and each widget module's adopted
+sheet, share the `lf-base` cascade layer; `layouts.css` is `lf-layouts` above it,
+and the page's own CSS is unlayered above both (`layer.py`, `CASCADE_LAYERS`).
+`runtime/chrome.css` and `runtime/marks.css` stay unlayered: their paint lies over
+the page, so they are adopted after page and package sheets and win by their
+selectors. `runtime/marks.css` is adopted by the document and shadow stages. A `:has()` whose rightmost compound carries no class, id, attribute, or
 type restyles every element on ordinary runtime writes
 (`test_no_has_rule_restyles_the_whole_document`); key a repeated type by a class
 its owner writes.
@@ -168,7 +170,7 @@ selects from:
 | what the DOM represents | controller presentation tickets and projection commits |
 | when a document-wide renderer paints | the publication that opened the epoch, in the order `runtime/semantic-state.js` declares |
 | where each thread's passage lands | anchor paint's resolution of its anchor in this version |
-| geometry readings: what a scroller shows, what a surface hides, cover room | `geometry.js` (`visibleBand`, `declareOccluder`, `declareCoverRoom`), so being on screen has one answer |
+| geometry readings: what a scroller shows, what a surface hides, cover room, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareOccluder`, `declareCoverRoom`, `shownWindow`), so being on screen has one answer |
 
 Do not add a second cache, pending map, widget-specific replay list, or DOM
 attribute as another source for one of these facts; a rendering may expose state,
@@ -211,11 +213,13 @@ presents, while any other key or a pointer press drops the held run. Durable
 controls wait for `data-lf-presented` (`../references/packages.md`, "A theme change"). An async
 producer joins settlement before `data-lf-upgraded`, or stays off the
 presentation path through `afterPresentation`, which declares the deferred
-arrival so `pageArrived` still answers for it. `presentPage` owns the one
+arrival so `pageReadiness` still answers for it. `presentPage` owns the one
 transition to stateful interaction; its synchronous `PRESENTATION` signal lets
 box-derived apparatus replace provisional geometry before the presented state
-paints. `renderingSettled` in `runtime/rendering.js` is the separate, live
-reading of whether chrome has caught up.
+paints. A reader outside the page waits on `pageReadiness`, through
+`wait_until_ready` in Python, rather than combining these stamps.
+`renderingSettled` in `runtime/rendering.js` is its last stage and also a live
+reading of its own: whether chrome has caught up with input since.
 
 ## Authoritative projection
 
@@ -259,7 +263,6 @@ changing `leaf.js`, a runtime owner, a widget module, the registry, or the theme
 | Reading | Contract |
 | --- | --- |
 | window-error channel | no runtime, module, resource, or ResizeObserver error reached the page |
-| `unnamedFormFields` | every field or form-associated control has an id or name |
 | `issueNode` | a DevTools issue outside a form control's shadow tree is the page's, placed at its frame if it has one |
 | `upgraded`, `moving` | upgrade completed and geometry settled |
 | `invalidPaints` | every var()-backed SVG paint resolves in each scheme |
@@ -267,9 +270,7 @@ changing `leaf.js`, a runtime owner, a widget module, the registry, or the theme
 | `unmarkableElements` | every addressable element has a visible part to outline |
 | `misplacedBoxes` | boxes stay in the column or in reachable overflow at every width |
 | `squeezedTables` | a table scrolls sideways only with every column at its longest unbreakable run |
-| `withheldRoom` | a drawing scrolls only when room, net of margin residents, ran short |
 | `strandedMargins` | every margin marker has an element to stand by |
-| `silentCuts` | a box showing less than it holds marks each edge with content beyond it |
 | `clippedControls` | controls are visible and reachable |
 | `unreachableWords`, `coveredWords` | visible words stay in reachable flow and are not silently clipped or claimed by chrome |
 | `unreadSyntax` | highlighting does not alter source words |
@@ -277,15 +278,14 @@ changing `leaf.js`, a runtime owner, a widget module, the registry, or the theme
 | `silentWords` | `x-says` and `x-paints` promises reach the rendered page |
 | `undeclaredAttrs` | modules write no undeclared author-namespace state |
 | `retiredSlots` | settlement marks agree with the projection |
-| `trappedMargins`, `splitEdges` | framed boxes show only their inset and edge rows line up |
-| `paperWords`, `paperVoids` | print keeps every statement and gives room only to what it draws |
+| `trappedMargins`, `splitEdges` | suite only: the theme's frame trim reaches Leaf's own boxes |
 | `replayOverrides` | the log, not conflicting markup, determines projected state |
 | `relativeReplays` | rendering a complete widget state twice changes nothing |
-| `misalignedSplits`, `coveringMargins`, `shrunkLabels` | advice only |
+| `coveringMargins`, `shrunkLabels` | advice only |
 
 Put a check on the side that can observe the fact: static validation owns schema,
 ids, nesting, passages, event shapes, and file readings; the browser owns computed
-layout, composed trees, module writes, focus, print, and replay idempotence.
+layout, composed trees, module writes, focus, and replay idempotence.
 Readings of widget state use the publisher's own reading; never write a test-only
 interpretation of it.
 

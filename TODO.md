@@ -76,33 +76,84 @@ has tried; settle that before building it.
 
 ### Layout
 
-- **Settle the layout's exact structure.** We're still thinking about it. As of #1203,
-  `main` is the only page, page tabs are sections of it, a page and each block declare
-  their width, and a frame's edge trim needs no wrapper declarations. Still open:
-  - describing the page as named areas that Leaf owns (a left margin, the column, a
-    wide band, the full width, a right margin) and that a block spans, with `main`'s
-    width only a shorthand;
-  - dropping `wide` from `main`, where no page uses it;
-  - a workspace that holds the window whenever it ends the page, with its panes
-    passing scrolling on to the page;
-  - package region boxes declaring a track template to `lf-grid.js` instead of copying
-    `2fr 1fr`'s numbers;
-  - the examples and docs that work around the model: the PR walkthrough's hand-made
-    sticky contents, and the docs' hand-built column grids.
-- **Test the layout recipes on agents.** Give fresh agents tasks across the recipes in
-  `page-authoring.md` ("Composing a page"), then ask them to revise the results: turn
-  a report into a report with live status while keeping its comments. The recipes hold
-  if revisions happen by ordinary composition, with no page-wide CSS and no wholesale
-  restructuring. Include a cold agent asked for "a dashboard", the likeliest trigger
-  for over-tiling. Run it with the agent-usability baseline (#19), by extending the
-  [arrangement eval](notes/arrangement-eval/README.md), which already runs a document,
-  a dashboard and a queue with a revision. **Unconfirmed:**
-  that one global threshold (720×480) suits the comparison and queue-with-detail
-  pages.
-- **Layout values that wait for a task:** row and column spans in `lf-grid` with a
-  narrow-width rule; a selection-and-detail component whose phone form shows one side
-  at a time; canvas regions, whose reading position is two-dimensional; slides as a
-  presentation of `lf-tabs`.
+The page arranges itself in CSS, starting from the Layout classes
+(`skills/leaf/assets/layouts.css`), and Leaf keeps the contracts where pages, widgets
+and its chrome coordinate.
+
+- **Keep page CSS off Leaf's controls (decision E).** Page CSS is unlayered, above
+  `lf-reset` (the runtime's clearing of a control's UA face) and `lf-base` (the theme,
+  `shadow.css` and package sheets, where `.lf-btn` and the other shared control faces
+  are stated). A page's bare `button {}` therefore restyles every button in the banner
+  and thread panel and the controls a widget draws in the page, such as lf-board's
+  grip: family, ink, border, background and padding. Before the Layouts only the
+  family leaked, through `lf-reset`'s `font: inherit`, and so did the whole face of a
+  control dressed by `.lf-ui` alone; a class's specificity kept the rest.
+  `test_a_pages_own_element_rules_leave_the_layers_controls_alone` is xfail on both.
+  The chosen route is to exclude Leaf's controls from the page's selectors.
+  `@scope (:root) to (.lf-ui, .lf-chrome)` can't carry it: Chrome prefixes every scoped
+  selector with `:scope`, so `:root` token rules stop matching. Appending
+  `:not(:where(.lf-ui, .lf-ui *, .lf-chrome, .lf-chrome *))` to each page selector
+  through the CSSOM at boot kept every page rule off the chrome and widget controls
+  and on the page's own content, but it also took the page's rules off the page-local
+  widgets whose controls the page styles (rust-sort's `lf-sort-film button`, and
+  wt-merge's film). The ownership that settles it: a widget's controls take their face
+  from the sheet of the package that ships the widget, so those two films move their
+  control rules into their own package's `theme.css`, and the exclusion then holds for
+  every `.lf-ui` control.
+- **Let a page, not a widget, change more of Leaf's formatting.** A page should be
+  able to restyle Leaf's own surfaces deliberately, such as the thread panel's format,
+  and hide one entirely where the page needs to. The exclusion above stops accidents;
+  this is the deliberate route through it, whether tokens, named parts, or a page
+  sheet Leaf doesn't exclude. Widgets keep to their own boxes.
+- **Cap a widget's minimum by the box that holds it.** lf-board's `min-inline-size` is
+  capped by the shell (`100cqi`), so inside a framed specimen or a column on a phone it
+  runs past its holder: the feature gallery and how-it-works each zero it by hand.
+  Leaf's framed holders (specimen, pane, tab, card) could become inline-size
+  containers.
+- **Give the workspace Layout a column setting.** Each workspace page writes the same
+  four-declaration pane grid that `columns="3fr 2fr"` used to say; a token such as
+  `--layout-columns: 3fr 2fr`, stacking below 720px, would carry it. A bounded box of
+  panes outside a workspace also restates the Layout's pane scrolling (the feature
+  gallery), which could key on `--lf-held` instead.
+- **Keep a held workspace's panes, not its header, in the window.** At 1000×800
+  alert-review's header and footer leave its detail pane about 370px, so the first Ask
+  option is cut by the footer; rust-sort's film controls fall under the fold at 1200px.
+- **Give a held workspace's overflow its end room.** A held workspace is exactly the
+  window's height, and only its body's direct cells pass that height on: a pane inside a
+  section cell flows, overflows `main`, and its end scrolls under the bottom band with no
+  end room after it (`test_a_held_workspace_that_overflows_scrolls_its_end_clear_of_the_band`
+  is xfail on it). The body could scroll as a whole where a cell does not bound itself.
+- **Finish contract 8's margins.** A declared rail (`data-rail`) has no floor, so on a
+  phone it leaves a 295px column. The contents map and other sidebars switch into the
+  margin at different widths (848px against 1296px), which leaves an empty in-flow
+  sidebar and a gap under the header between them (the docs package carries a
+  workaround). Without the default rail, markers pin between 880px and 959px where they
+  used to stand in the rail. The render gate reads the wide page at 1200px, below the
+  1296px and 1536px a sidebar and a sidenote now need, so it never sees either in the
+  margin (`test_the_render_viewport_is_wide_enough_to_have_margins` is xfail on it).
+  With nothing claiming the rail's room, a centred column at 1200px leaves 216px on its
+  right, too little for the comment bar, so it drops below the passage on every column
+  page; there its width depends on what the field held when the room was measured
+  (`composing/surface.js`, `setWidth`), so one draft is laid out differently in two tabs.
+- **Make the outcome checks the gate.** `version check` passed a page that scrolled
+  sideways at 520px. Check sideways scroll and leaking minimums (a box whose content,
+  not its declared minimum, sets its holder's floor) across swept widths. The corpus
+  (`scripts/corpus.py`) sets every example's body in one column page, so its sweeps
+  never read a sidebar, workspace or wide example in its own Layout.
+- **Offer the Page Map with the first paint.** The margin pass marks where markers are
+  pins (`data-lf-pins`), and the banner's Map toggle follows it, so on a phone the
+  toggle appears one pass after the banner rather than with it.
+- **Test the Layouts on agents.** Give fresh agents tasks across the Layouts, then ask
+  them to revise the results: turn a report into a report with live status while
+  keeping its comments. They hold if revisions happen by ordinary composition. Include
+  a cold agent asked for "a dashboard", the likeliest trigger for over-tiling. Run it
+  with the agent-usability baseline (#19), by extending the
+  [arrangement eval](notes/arrangement-eval/README.md).
+- **Balance a tile row.** `.layout-tiles` wraps four metrics 3 + 1 where four don't
+  fit (live-progress at 480–647px), as `lf-grid` did.
+- **Layout values that wait for a task:** a selection-and-detail component whose phone
+  form shows one side at a time; canvas regions, whose reading position is
+  two-dimensional; slides as a presentation of `lf-tabs`.
 - **Place the comment composer correctly on a page that sets a margin on `html`.**
   With `html { margin-left: 40px }` the floating composer lands 40px left of its lane
   and overlaps the element it comments on, on any page wide enough to place it
@@ -125,6 +176,13 @@ has tried; settle that before building it.
 
 ### The agent's text interface
 
+- **Read the render checks after handover.** `version check --render` blocks the
+  agent for the whole browser pass, so quick pages skip it and get none of its
+  advice. Run the render readings on the server when a version goes live and
+  deliver the findings through `leaf wait`: the agent hands the page over at once
+  and refines it if a reading warrants, while a failure still blocks a record's
+  stamp. **Unconfirmed:** measure how long the pass takes on a typical page, and
+  whether agents act on findings that arrive after handover, before building it.
 - **Scale a drawing by the box it was drawn in.** On replay, scale the strokes by
   the anchored element's size over the recorded `box`, so a mark stays on its
   element in a narrower window; reflowed text still moves under it. Verify replay
@@ -208,6 +266,12 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Implementation candidates
 
+- **Hide screen-reader words in an exported page.** `leaf version export` files show
+  `.lf-quiet` words on screen ("highlighted" on lf-code lines, "done" and "active" on
+  lf-task and lf-milestone rows). The rule that clips them is in `runtime/chrome.css`,
+  which `leaf.js` adopts only when the page is not offline, though content widgets use
+  the class. Moving the base rule into the page's own sheet fixes it, but reorders it
+  against page CSS and the suggestion overrides in `theme.css`.
 - **Set interaction-trace privacy before sharing pages.** Define who can inspect
   traces, consent or opt-out, sensitive-field redaction (including passwords,
   pasted text, and selection), and retention/deletion for page-local files and
@@ -229,9 +293,6 @@ Revisit these when their stated trigger becomes real; they are not an active que
   front of every tool-result hook, so Leaf can answer more events itself.
   Rewriting the hook path in a compiled language is the further step if that
   is not enough.
-- **CSS cascade layers:** isolate Leaf chrome from page CSS before reconsidering
-  `@layer`; the earlier trial changed chrome styling. See the
-  [dependency survey](notes/dependency-survey.md).
 - **Invoker commands:** revisit when the browser support Leaf needs can replace
   the current dialog and popover handlers. See the
   [dependency survey](notes/dependency-survey.md).

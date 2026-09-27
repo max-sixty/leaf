@@ -24,6 +24,7 @@ from render_harness import (
     rendered,
     resized,
     sending,
+    write,
 )
 
 pytestmark = pytest.mark.nightly
@@ -51,7 +52,7 @@ def test_short_inline_code_selection_offers_comment(browser, serve):
     page.keyboard.press("c")
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
-    field.fill("Name this variable more clearly.")
+    write(field, "Name this variable more clearly.")
     with sending(page, "the short-code comment"):
         page.keyboard.press("ControlOrMeta+Enter")
 
@@ -97,7 +98,7 @@ def test_touch_user_selects_an_element_comments_and_finds_its_thread(browser, se
     )
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
-    field.fill("Please clarify this paragraph.")
+    write(field, "Please clarify this paragraph.")
     with sending(page, "the touch element comment"):
         page.locator(".lf-fab-bar .lf-compose-submit").tap()
     comment = events_model.read_events(serve.page_dir)[-1]
@@ -242,14 +243,14 @@ def test_s_aims_at_the_addressable_element_named_by_its_hint(browser, serve):
     # the same draft.
     bar = page.locator(".lf-fab-bar")
     page.keyboard.press("s")
-    expect(field).to_have_value("s")
-    field.fill("Keep this draft")
+    expect(field).to_have_js_property("value", "s")
+    write(field, "Keep this draft")
     page.keyboard.press("Tab")
     expect(bar.locator('[data-token="keep"]')).to_be_focused()
     expect(field).to_be_visible()
     page.keyboard.press("Escape")
     expect(field).to_be_focused()
-    expect(field).to_have_value("Keep this draft")
+    expect(field).to_have_js_property("value", "Keep this draft")
     assert page.evaluate(DRAFT_MARK) == "prose"
     assert pending_text(page) == ""
     page.keyboard.press("Escape")
@@ -314,7 +315,7 @@ def test_a_keyboard_comment_gesture_carries_the_current_unsent_draft(browser, se
 
     page.locator("h1").click(modifiers=["Alt"])
     expect(field).to_be_focused()
-    field.fill(draft)
+    write(field, draft)
     page.evaluate("document.activeElement.blur()")
 
     page.keyboard.press("s")
@@ -332,7 +333,7 @@ def test_a_keyboard_comment_gesture_carries_the_current_unsent_draft(browser, se
     page.keyboard.type(prose_code)
 
     expect(field).to_be_focused()
-    expect(field).to_have_value(draft)
+    expect(field).to_have_js_property("value", draft)
     assert page.evaluate(DRAFT_MARK) == "prose"
 
 
@@ -781,7 +782,7 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
     composer = page.locator(".lf-fab-input")
     composer.focus()
     page.keyboard.type("nN")
-    expect(composer).to_have_value("nN")
+    expect(composer).to_have_js_property("value", "nN")
     assert (
         page.evaluate(
             """() => [...CSS.highlights.get('lf-pending')][0]

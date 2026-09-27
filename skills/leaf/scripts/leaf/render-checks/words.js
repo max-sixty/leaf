@@ -52,32 +52,6 @@ export const shownVerbatim = (declarations) =>
       })),
     );
 
-// What the page says, and whether each run of it is showing. Read once in each medium
-// and compared by walk order: media change what is displayed, never the DOM, so the nth
-// run on screen is the nth run on paper. What a page says has to survive being printed,
-// and the ways it can fail to are all silent — a widget's control that is a statement as
-// well as a thing to press (the pick mark, which took the only words naming the option a
-// group carried), a rule of the page's own that hides its content in print. The whole
-// page rather than the widgets in it, because a user's printout losing a paragraph is
-// no better than losing a widget's word. Declared offers are excluded because paper has
-// nothing to press; the runtime's own layer is excluded because it was never the
-// document, and a widget rendered inside it (a reply's markup) is the panel's, not the
-// page's.
-export function paperWords() {
-  const out = [];
-  const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-  for (let n = walk.nextNode(); n; n = walk.nextNode()) {
-    const el = n.parentElement;
-    if (!n.data.trim() || el.closest(".lf-chrome, [data-lf-offer]")) continue;
-    out.push({
-      at: at(el),
-      text: n.data.trim().slice(0, 40),
-      shown: el.checkVisibility(),
-    });
-  }
-  return out;
-}
-
 // Words the page draws in the same place as other words. A copy went out with a settled
 // group's cards laid across the heading above them — the cards kept the collapsed
 // padding, which is the room the group is laid out in — and the user saw it in the
@@ -238,47 +212,6 @@ export function coveredWords({
       );
     }
   return [...new Set(found)];
-}
-
-// Room on paper that prints nothing. `visibility: hidden` is how a live page holds a box
-// open for something that has not arrived yet — the card behind the one being swiped, a
-// value nobody has picked — and paper has nothing coming: the room is a hole in the
-// sheet. It is also the shape a losing print rule takes, which is how this reading came
-// to exist. The swipe pile hid every card behind the first at one class more weight than
-// its own `@media print` reset carried, so a printed decision came out as one card, 308
-// pixels of nothing, and a label still reading "Queue · 3" over it. Nothing said so: the
-// words were in the markup, the boxes were laid out, and both media agreed the run was
-// "shown" — `checkVisibility` answers for display and content-visibility, not for this.
-//
-// Print alone, because on screen a held box is the page keeping still for news it expects
-// ("Reserve space before a generated control appears"). The medium nobody looks at is
-// where a reset silently fails to win, so it is where the reading belongs.
-//
-// The outermost hidden box only: visibility inherits, so its runs would each report the
-// same hole, and the hole is one rule. Words rather than boxes, because a spacer with
-// nothing to say is a spacer — this reports a page withholding something it wrote down.
-// `textContent`, not `innerText`, which is rendered text and comes back empty from
-// exactly the elements this is about. Offers are held out the way `paperWords` holds
-// them out: paper has nothing to press.
-export function paperVoids() {
-  const out = [];
-  const hidden = (el) => {
-    const shown = getComputedStyle(el).visibility;
-    return shown === "hidden" || shown === "collapse";
-  };
-  for (const el of document.body.querySelectorAll("*")) {
-    if (el.closest(".lf-chrome, [data-lf-offer]") || !hidden(el)) continue;
-    if (el.parentElement && hidden(el.parentElement)) continue;
-    const box = el.getBoundingClientRect();
-    if (box.height < 1 || box.width < 1) continue;
-    const words = el.textContent.replace(/\s+/g, " ").trim();
-    if (!words) continue;
-    out.push(
-      `${at(el)} keeps ${Math.round(box.height)}px of the sheet and prints nothing of ` +
-        JSON.stringify(words.slice(0, 40)),
-    );
-  }
-  return out;
 }
 
 // Code that came out the colour of the code around it. Colouring takes two halves that

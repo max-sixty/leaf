@@ -18,7 +18,7 @@
 
 import { nextRender } from "./rendering.js";
 import { blockAt, says } from "./passages.js";
-import { letGo } from "./focus.js";
+import { handBack, letGo } from "./focus.js";
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import { iconTemplate } from "./icons.js";
 import { focused, paintKeys } from "./keyboard/scopes.js";
@@ -88,7 +88,7 @@ export function createPageMapDialog({
   activeInMargin,
   activateItem,
   faceFor,
-  focusFallback,
+  mapControlPlaces,
   targetFor,
 }) {
   let entries = [];
@@ -143,8 +143,7 @@ export function createPageMapDialog({
     const returnTo = from;
     closeOwnsFocus = true;
     dialog.close();
-    if (returnTo?.isConnected && returnTo.checkVisibility())
-      returnTo.focus({ preventScroll: true });
+    handBack(returnTo);
     marginContributionSource(offered).registration.activate(record.key, {
       origin: control,
       surface: "map",
@@ -394,9 +393,7 @@ export function createPageMapDialog({
       target = null;
       paintKeys();
       if (focusOwned) return;
-      if (returnTo?.isConnected && returnTo.checkVisibility())
-        returnTo.focus({ preventScroll: true });
-      else focusFallback();
+      handBack(returnTo, ...mapControlPlaces());
     });
     dialogClose.onclick = () => dialog.close();
     root.append(dialog);

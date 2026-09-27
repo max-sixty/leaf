@@ -946,7 +946,7 @@ graph LR
   </lf-card></lf-column>
   <lf-column id="e2" label="Done"></lf-column>
 </lf-board>
-<lf-grid id="nums">
+<div class="layout-tiles" id="nums">
   <lf-metric id="me1" value="410ms">p95, with the path it measures
     <lf-diagram id="in-metric"><pre>
 graph LR
@@ -954,7 +954,7 @@ graph LR
   B --> C[worker]
 </pre></lf-diagram>
   </lf-metric>
-</lf-grid>
+</div>
 <lf-tasks id="plan">
   <lf-task id="t-outer" status="active"><strong>Rebuild the feeders</strong>
     <lf-task id="t-inner" status="review"><strong>Fit the baffles</strong>
@@ -995,36 +995,35 @@ graph LR
 # wrong is the gate — and the gate could not see through the scroll: `answeredFor`
 # excused anything inside one, which is every card on every board.
 FRAMED_SCROLLER_PAGE = FRAMED_WIDE_PAGE.replace(
-    "<main>",
-    "<main>\n<div id='own-frame' style='border: 1px solid #999; overflow-x: auto'>"
+    '<main class="layout-column">',
+    "<main class=\"layout-column\">\n<div id='own-frame' style='border: 1px solid #999; overflow-x: auto'>"
     "<lf-board id='framed'><lf-column id='f1' label='Todo'>"
     "<lf-card id='fk1'><strong>One</strong></lf-card></lf-column>"
     "<lf-column id='f2' label='Done'></lf-column></lf-board></div>",
 )
 
 
-# How far the exhibit stands outside the page's own box, and the rail it was supposed to
-# leave — both edges, since a room read too wide spends itself on whichever side is free.
-# One reading for the live page and for a copy of it, the fault being the same fault. The
-# room the page states comes with it, so a test waiting for the box to be read again has
-# the reading it is waiting to see changed.
+# How far the exhibit stands into the room a margin resident states it takes
+# (`--lf-taken-l`, `--lf-taken-r`, layouts.css), on both edges, since a room read too
+# wide spends itself on whichever side is free. The room the page states comes with it,
+# so a test waiting for the box to be read again has the reading it is waiting to see
+# changed.
 RAIL_FIT = """() => {
-    const b = document.body;
-    const box = b.getBoundingClientRect();
+    const box = document.body.getBoundingClientRect();
     const main = document.querySelector('main');
     const length = (name) => {
       const probe = document.createElement('i');
-      probe.style.cssText = `position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(${name})`;
+      probe.style.cssText = `position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(${name}, 0px)`;
       main.append(probe);
       const width = probe.getBoundingClientRect().width;
       probe.remove();
       return width;
     };
-    const left = length('--strip-l'), right = length('--strip-r');
+    const left = length('--lf-taken-l'), right = length('--lf-taken-r');
     const r = document.getElementById('plan').getBoundingClientRect();
-    return { rail: `${right}px`, widget: r.width, room: length('--lf-room'),
-             past: Math.max(r.right - (box.right - right), box.left + left - r.left),
-             content: box.width - left - right };
+    return { taken: `${right}px`, widget: r.width, room: length('--lf-room'),
+             right: r.right,
+             past: Math.max(r.right - (box.right - right), box.left + left - r.left) };
 }"""
 # The room the document leaves at each end for a bar standing over it. Both are boxes in
 # the flow, so the reading is the flow's own: what stands above the page's first block and
@@ -1057,10 +1056,11 @@ LATE_MARGIN_PAGE = leaf_page(
 """,
 )
 
-# A project widget that claims a strip of the page margin, and can only say how wide once
-# it has heard what its controls will say — so the claim rides an answer rather than the
-# upgrade that asked for it. The request is answered by the test, which is what puts the
-# claim after the handover on every machine rather than on a fast one.
+# A project widget that stands in the page's right margin and states the room it takes
+# there, and can only say how wide once it has heard what its controls will say — so the
+# statement rides an answer rather than the upgrade that asked for it. The request is
+# answered by the test, which is what puts it after the handover on every machine rather
+# than on a fast one.
 LATE_MARGIN_WIDGET = """\
 import { once } from "/runtime/widget-api.js";
 
@@ -1070,15 +1070,15 @@ customElements.define(
     connectedCallback() {
       if (!once(this)) return;
       fetch("/margin-width").then(() =>
-        document.body.style.setProperty("--lf-claim-right", "160px"),
+        document.body.style.setProperty("--lf-taken-r", "160px"),
       );
     }
   },
 );
 """
 # Where the two things in the right margin stand, and how much of the board is over the
-# controls. The controls are what the strip was reserved for, and they hang off the column
-# rather than out of the strip, so the strip's own edge says nothing about where they are.
+# controls. The controls stand in the rail, and they hang off the column rather than out
+# of the rail's strip, so the strip's own edge says nothing about where they are.
 RAIL_BAND_PAGE = leaf_page(
     "rail band",
     """
@@ -1152,12 +1152,10 @@ graph LR
 </pre></lf-diagram>
 """,
 )
-# A drawing inside a tab panel, which is the shape the reading was written over: the
-# panel's card is the frame a wide exhibit may not leave, the graph is drawn wider than
-# the frame's own inset, and no room the page has can be given to it — so scrolling is
-# the layer's honest answer and WITHHELD_ROOM is right to be quiet about it. Beside it a
-# line of code short enough to fit, which is what the reading must stay quiet about too.
-# The cut box is a drawing on purpose: a cut line of code announces itself by being a
+# A drawing inside a tab panel: the panel's card is the frame a wide exhibit may not
+# leave, the graph is drawn wider than the frame's own inset, and no room the page has
+# can be given to it — so scrolling is the layer's honest answer. Beside it a line of
+# code short enough to fit, which must carry no mark. The cut box is a drawing on purpose: a cut line of code announces itself by being a
 # line, where a graph that continues past its edge looks exactly like a graph that ends
 # there.
 CUT_BOXES_PAGE = leaf_page(
@@ -1181,8 +1179,7 @@ graph LR
 # A five-step plan drawn left to right, the shape three agent-written pages gave their
 # plan, and the same five steps drawn top-down beside it: the chain runs past the room a
 # 1440px window gives it, and the stack fits the column, so it is the control a shaded
-# edge must not appear on. The page's own rule is the plant: a class that outranks the
-# diagram's paint while the mark stays written.
+# edge must not appear on.
 PLAN_STEPS = """\
   A[1. Snapshot the primary and restore it on the new cluster] --> B[2. Start logical replication from the old primary]
   B --> C[3. Verify row counts and checksums on every table]
@@ -1192,8 +1189,6 @@ PLAN_STEPS = """\
 LONG_CHAIN_PAGE = leaf_page(
     "long chain",
     f"""
-<style>lf-diagram.lf-unshaded::before, lf-diagram.lf-unshaded::after {{
-  box-shadow: none !important; }}</style>
 <h1 id="t">Plan</h1>
 <lf-diagram id="chain"><pre>
 flowchart LR
@@ -1233,8 +1228,8 @@ SQUEEZED_BOARD_PAGE = leaf_page(
 # has no rule for a project's own furniture and cannot — this is the case the two claims
 # in it are declarations of, seen from the side where nobody has declared anything.
 OWN_MARGIN_FURNITURE = WIDE_AND_NARROW_PAGE.replace(
-    "<main>",
-    "<main>\n<div id='own-rail' style='position: absolute; left: 100%;"
+    '<main class="layout-column">',
+    "<main class=\"layout-column\">\n<div id='own-rail' style='position: absolute; left: 100%;"
     " margin-left: 22px; top: 0; width: 160px; height: 600px'>Mine.</div>",
 )
 # One reply holding both answers to the question the block-content lists ask: chips are
@@ -1281,10 +1276,10 @@ it reaches this part of the page.</p>
 """,
 )
 
-# Wide enough for an exhibit to grow after the note's 384px strip, but narrow enough
-# that room, not the 1080px shared cap, binds in both live and copied media. With no
-# surplus over prose, a board never asks to share the note's margin.
-NOTE_BAND = 1400
+# Wide enough for a note to hang in the margin, which it does where the room beside the
+# column holds its 384px (1536px of shell), with an exhibit growing past prose into
+# that same margin.
+NOTE_BAND = 1600
 
 
 def _painted_line(page):

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Generate examples/corpus.html: every authored page fixture on one page.
+"""Generate examples/corpus.html: the composable authored fixtures on one page.
 
-The corpus is derived test content — edit an example, regression page, or the
-developer feature gallery and rerun this script (tests fail on a stale corpus). Each page's
+The corpus is derived test content — edit a listed example, regression page, or
+developer gallery and rerun this script (tests fail on a stale corpus). Each page's
 <main> body keeps its ids but not its document-level contents sidebar. Every source
 must therefore keep its ids disjoint, which this script enforces.
 An example that owns an element (a page/registry.json declaration with its module under
@@ -45,6 +45,8 @@ PUBLIC_TABS = [
     ("security-boundary", "Security"),
     ("command-hub", "Command"),
 ]
+# Focused chrome galleries with several live child pages stay separate; their
+# underlying widget and thread states already stand in the feature gallery.
 DEVELOPER_TABS = [
     (EXAMPLES_DIR / "developer" / "feature-gallery.html", "Core features"),
     (EXAMPLES_DIR / "developer" / "swipe-gallery.html", "Swipe package"),
@@ -76,7 +78,7 @@ HEAD = """\
 <title>Leaf example corpus</title>
 </head>
 <body>
-<main>
+<main class="layout-column">
 <p class="eyebrow">internal page corpus</p>
 <h1>Every Leaf page fixture, composed</h1>
 <p class="lede" id="corpus-lede">This internal stress surface puts every
@@ -135,14 +137,6 @@ def build() -> str:
             "public examples and the PUBLIC_TABS table disagree: "
             f"{sorted(on_disk ^ in_table)}"
         )
-    developer_pages = set((EXAMPLES_DIR / "developer").glob("*.html"))
-    declared_developer_pages = {source for source, _ in DEVELOPER_TABS}
-    if developer_pages != declared_developer_pages:
-        sys.exit(
-            "developer pages and the DEVELOPER_TABS table disagree: "
-            f"{sorted(path.name for path in developer_pages ^ declared_developer_pages)}"
-        )
-
     owner = {"corpus": CORPUS.name, "corpus-lede": CORPUS.name}
     tabs = []
     authored_assets = []
@@ -165,8 +159,9 @@ def build() -> str:
                     f"id '{i}' is in both {owner[i]} and {source.name}; rename one"
                 )
             owner[i] = source.name
-        # A page's own width (`<main data-width>`) is its document's to declare;
-        # a tab in the corpus is part of the corpus's page, so only the body carries over.
+        # A page's own Layout (the class on its `<main>`) is its document's to declare;
+        # a tab in the corpus is part of the corpus's column page, so only the body
+        # carries over.
         opens = list(MAIN_OPEN.finditer(text))
         if len(opens) != 1 or text.count("</main>") != 1:
             sys.exit(f"{source.name}: expected exactly one <main>…</main>")

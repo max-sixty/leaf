@@ -1,4 +1,4 @@
-Third-party licenses for webawesome.esm.js
+Third-party licenses for webawesome
 
 ===== @awesome.me/webawesome 3.13.0 (MIT) =====
 Copyright (c) 2025 Fonticons, Inc.

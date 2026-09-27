@@ -1028,7 +1028,7 @@ def test_a_bad_source_save_keeps_the_last_revision_live_and_reports_the_error(
 def test_state_validation_follows_css_edits_and_recovers_cached_readings(
     server, page_dir, monkeypatch
 ):
-    """State reads reuse CSS work, while edits still change syntax and width checks."""
+    """State reads reuse CSS work, while edits still change the syntax check."""
     parsed = []
     parse_stylesheet = tinycss2.parse_stylesheet
 
@@ -1058,15 +1058,6 @@ def test_state_validation_follows_css_edits_and_recovers_cached_readings(
     assert status == 200, body
     assert json.loads(body)["state"]["events"][-1]["text"] == comment["text"]
     assert len(parsed) == parsed_count, "a new event reparsed unchanged CSS"
-
-    theme_path = page_dir / "theme.css"
-    theme = theme_path.read_text()
-    theme_path.write_text(theme.replace("--col: 720px", "--col: 600px"))
-    assert (
-        "column is 600px" in json.loads(fetch(f"{server}/api/state")[1])["source_error"]
-    )
-    theme_path.write_text(theme)
-    assert json.loads(fetch(f"{server}/api/state")[1])["source_error"] is None
 
     path.write_text(source.replace("--probe-width: 700px", "--probe-width  700px"))
     assert (
@@ -5684,6 +5675,11 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
         f"the two readings put the reply in different threads: {list(threads)}"
     )
     assert [m["id"] for m in threads["c-lost"]["msgs"]] == ["r-kept"]
+    # The lost id names the thread; its root is the reply that survived, under that
+    # reply's own id, because a reply or resolve addressed to the root has to name a
+    # message the append door can find.
+    assert threads["c-lost"]["id"] == "c-lost"
+    assert threads["c-lost"]["root"] is threads["c-lost"]["msgs"][0]
 
     # The surviving message is still the frozen document that owns its widgets.
     # Reading only the thread shell would miss this harder half of the torn-root case:

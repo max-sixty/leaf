@@ -5,9 +5,9 @@
  * a horizontal board cannot expose a distant drop target while the pointer is held.
  * The grip is a press (`offer`), so the keyboard path needs no pointer: Enter grabs,
  * arrows restate the card's placement (announced through the live region), Enter drops,
- * and Escape or focus loss restores the origin. During a gesture the board wears
- * .lf-dragging for the whole gesture — the runtime's poll gates on it (no
- * version-follow, no foreign-action replay mid-gesture) — and a completed move
+ * and Escape or focus loss restores the origin. For the whole gesture the board holds
+ * the page's drag (`dragging`) — the runtime's poll gates on it (no version-follow,
+ * no foreign-action replay mid-gesture) — and a completed move
  * reports through #send as one ranked `move` action, indistinguishable on
  * the wire. renderState receives every column's final ordered card ids. One render
  * preserves native nodes, syncs a second tab, and no-ops on the sender. Presentation is theme CSS; authored content
@@ -182,8 +182,8 @@ customElements.define(
     // A board inside a Claude reply detaches when its thread's node is rebuilt —
     // resolving is the occasion the reconciled panel leaves, its cached body
     // re-adopted into the new node — and no blur fires for a detached grip, so
-    // drop a live grab here or it wedges the .lf-dragging gate open — freezing
-    // action replay and version-follow.
+    // drop a live grab here or it holds the page's drag for good — freezing action
+    // replay and version-follow.
     disconnectedCallback() {
       this.#stopActions?.();
       this.#stopActions = null;
@@ -263,9 +263,8 @@ customElements.define(
         keys: PRESS,
         does: "Grab the card",
         line: "grab the card",
-        // .lf-dragging without a grab is a live pointer drag — one gesture at a time.
-        when: () =>
-          this.#available() && !held() && !this.classList.contains("lf-dragging"),
+        // One gesture at a time: a grab, or a pointer drag under way, holds the board.
+        when: () => this.#available() && !this.#resumeProjection,
         run: () => this.#grab(card, grip),
       };
       // The tooltip names the keys the row binds rather than a letter typed beside it: the

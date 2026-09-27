@@ -12,6 +12,9 @@ publishes a file a browser can load, vendoring is three values — the package,
 the file inside it, and where it lands — so those are rows in COPIES. Where
 nothing published is loadable as it stands, or what Leaf ships is cut down to
 what its registry declares, vendoring is a program, so those are functions.
+Either way, what comes out passes through `scripts/browser/shipped.mjs`, the
+owner `scripts/browser/build.mjs` shares: it refuses a module the page CSP
+forbids and writes the bundle's license notices (`vendor`).
 
 Every version they carry is the one `package-lock.json` resolved: `package.json`
 names each package a bundle's entry imports, the lock settles the rest of the
@@ -28,7 +31,6 @@ import argparse
 import json
 import shutil
 import subprocess
-import sys
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
@@ -91,7 +93,8 @@ def run(*args: str, cwd: Path) -> None:
 
 
 def esbuild(*args: str, cwd: Path) -> None:
-    run(str(NODE_MODULES / ".bin/esbuild"), *args, cwd=cwd)
+    """Bundle, recording in the work directory's `meta.json` what the bundle read."""
+    run(str(NODE_MODULES / ".bin/esbuild"), *args, "--metafile=meta.json", cwd=cwd)
 
 
 def languages() -> list[str]:
@@ -182,53 +185,40 @@ def build_jsdiff(work: Path) -> list[Path]:
     return [out]
 
 
-def refuse_if_csp_forbids(out: Path) -> None:
-    """Delete the bundle and stop, if it carries something the page cannot run.
+def build_codemirror(work: Path) -> list[Path]:
+    """CodeMirror 6 is the editor inside every runtime composer (`leaf-text`).
 
-    The interactive export's CSP admits neither eval nor a chunk it did not
-    embed, and both of those are one careless import away: d3 carries a
-    `new Function` in d3-dsv's CSV parser, and Plot reaches for none of d3-dsv
-    today. What keeps that true is this check rather than anyone remembering,
-    because the failure it prevents is a chart that draws in a developer's page
-    and refuses in a user's.
-
-    Bundles call this when their inputs contain no grammar or other data that can
-    legitimately carry these strings. Pierre does not: its TextMate grammars contain
-    the literal `import(` as data and would be refused wrongly.
+    One bundle holds the editor core and the GFM Markdown language, exporting
+    exactly the names `composing/text-field.js` imports. The runtime owns the
+    live-preview decorations; nothing here styles a document. The language comes
+    without `markdown()`, whose HTML-block support would carry the HTML, CSS and
+    JavaScript grammars into the bundle for syntax a comment never highlights.
     """
-    text = out.read_text(encoding="utf-8")
-    for banned in ("new Function", "eval(", "import("):
-        if banned in text:
-            out.unlink()
-            sys.exit(
-                f"refused: the bundle contains {banned}, which the page CSP forbids"
-            )
-
-
-def package_notices(packages: tuple[str, ...], title: str) -> str:
-    """The licenses for the packages a build names as reaching its bundle."""
-    notices = []
-    for package in packages:
-        root = NODE_MODULES / package
-        manifest = json.loads((root / "package.json").read_text(encoding="utf-8"))
-        license_file = next(
-            (
-                path
-                for path in root.iterdir()
-                if path.is_file()
-                and path.name.lower().split(".", 1)[0]
-                in {"license", "licence", "copying"}
-            ),
-            None,
-        )
-        if license_file is None:
-            raise RuntimeError(f"no license file shipped by {manifest['name']}")
-        notices.append(
-            f"===== {manifest['name']} {manifest['version']} "
-            f"({manifest['license']}) =====\n"
-            f"{license_file.read_text(encoding='utf-8').strip()}"
-        )
-    return f"Third-party licenses for {title}\n\n" + "\n\n".join(notices) + "\n"
+    out = ASSETS / "vendor/codemirror.esm.js"
+    (work / "entry.mjs").write_text(
+        (
+            f"/*! CodeMirror {version('@codemirror/view')} — MIT"
+            " — https://codemirror.net */\n"
+            'export { EditorView, keymap, Decoration, ViewPlugin } from "@codemirror/view";\n'
+            'export { EditorState, Compartment } from "@codemirror/state";\n'
+            "export { history, standardKeymap, historyKeymap }"
+            ' from "@codemirror/commands";\n'
+            'export { LanguageSupport } from "@codemirror/language";\n'
+            "export { markdownLanguage, insertNewlineContinueMarkup }"
+            ' from "@codemirror/lang-markdown";\n'
+        ),
+        encoding="utf-8",
+    )
+    esbuild(
+        "entry.mjs",
+        "--bundle",
+        "--format=esm",
+        "--minify",
+        "--legal-comments=inline",
+        f"--outfile={out}",
+        cwd=work,
+    )
+    return [out]
 
 
 def build_agentic_mermaid(work: Path) -> list[Path]:
@@ -241,12 +231,9 @@ def build_agentic_mermaid(work: Path) -> list[Path]:
     keeps the native rasterizer and the code-mode parser out of the bundle.
 
     The renderer carries Material Design Icons path data for architecture diagrams
-    under Apache-2.0. Its `THIRD_PARTY_NOTICES.md` says what that covers and its own
-    `LICENSES/` holds the text, so the notices take both.
+    under Apache-2.0, which its `THIRD_PARTY_NOTICES.md` and `LICENSES/` pass on.
     """
     out = package_vendor("diagram") / "agentic-mermaid.esm.js"
-    notices = package_vendor("diagram") / "agentic-mermaid.LICENSES.txt"
-    packages = ("agentic-mermaid", "elkjs", "entities", "yaml")
     (work / "entry.mjs").write_text(
         'export { renderMermaidSVG } from "agentic-mermaid";\n',
         encoding="utf-8",
@@ -264,22 +251,7 @@ def build_agentic_mermaid(work: Path) -> list[Path]:
         f"--outfile={out}",
         cwd=work,
     )
-    refuse_if_csp_forbids(out)
-    renderer = NODE_MODULES / "agentic-mermaid"
-    bundled = [
-        renderer / "THIRD_PARTY_NOTICES.md",
-        *sorted(renderer.glob("LICENSES/*")),
-    ]
-    notices.write_text(
-        package_notices(packages, out.name)
-        + "".join(
-            f"\n===== agentic-mermaid: {path.relative_to(renderer)} =====\n"
-            f"{path.read_text(encoding='utf-8').strip()}\n"
-            for path in bundled
-        ),
-        encoding="utf-8",
-    )
-    return [out, notices]
+    return [out]
 
 
 def build_floating_ui(work: Path) -> list[Path]:
@@ -292,8 +264,6 @@ def build_floating_ui(work: Path) -> list[Path]:
     esbuild drops the rest.
     """
     out = ASSETS / "vendor/floating-ui.esm.js"
-    notices = ASSETS / "vendor/floating-ui.LICENSES.txt"
-    packages = ("@floating-ui/dom", "@floating-ui/core", "@floating-ui/utils")
     (work / "entry.mjs").write_text(
         "export { autoUpdate, computePosition, flip, limitShift, offset, shift, size } "
         'from "@floating-ui/dom";\n',
@@ -312,9 +282,7 @@ def build_floating_ui(work: Path) -> list[Path]:
         f"--outfile={out}",
         cwd=work,
     )
-    refuse_if_csp_forbids(out)
-    notices.write_text(package_notices(packages, out.name), encoding="utf-8")
-    return [out, notices]
+    return [out]
 
 
 def build_webawesome(work: Path) -> list[Path]:
@@ -332,17 +300,6 @@ def build_webawesome(work: Path) -> list[Path]:
     directory = package_vendor("default")
     directory.mkdir(parents=True, exist_ok=True)
     out = directory / "webawesome.esm.js"
-    notices = directory / "webawesome.LICENSES.txt"
-    packages = (
-        "@awesome.me/webawesome",
-        "@ctrl/tinycolor",
-        "@shoelace-style/localize",
-        "composed-offset-position",
-        "nanoid",
-        "@floating-ui/dom",
-        "@floating-ui/core",
-        "@floating-ui/utils",
-    )
     if (NODE_MODULES / "@awesome.me/webawesome/node_modules/lit").exists():
         raise RuntimeError(
             f"Web Awesome's declared Lit range excludes lit {version('lit')}"
@@ -357,9 +314,6 @@ def build_webawesome(work: Path) -> list[Path]:
         version("@awesome.me/webawesome"),
         cwd=work,
     )
-    consumed = tuple(json.loads((work / "packages.json").read_text()))
-    if set(consumed) != set(packages):
-        raise RuntimeError(f"Web Awesome runtime dependencies changed: {consumed}")
     shared = ASSETS / "vendor/webawesome"
     if shared.exists():
         shutil.rmtree(shared)
@@ -367,11 +321,7 @@ def build_webawesome(work: Path) -> list[Path]:
     shutil.copyfile(work / "bundle/webawesome.esm.js", out)
     chrome = ASSETS / "vendor/webawesome-chrome.js"
     shutil.copyfile(work / "bundle/webawesome-chrome.js", chrome)
-    outputs = [out, chrome, *sorted(shared.glob("*.js"))]
-    for output in outputs:
-        refuse_if_csp_forbids(output)
-    notices.write_text(package_notices(consumed, out.name), encoding="utf-8")
-    return [*outputs, notices]
+    return [out, chrome, *sorted(shared.glob("*.js"))]
 
 
 def build_plot(work: Path) -> list[Path]:
@@ -407,7 +357,6 @@ def build_plot(work: Path) -> list[Path]:
         f"--outfile={out}",
         cwd=work,
     )
-    refuse_if_csp_forbids(out)
     return [out]
 
 
@@ -423,7 +372,6 @@ def build_pierre(work: Path) -> list[Path]:
     sentinel, which this replaces with a dynamic import for each registry language.
     """
     out = package_vendor("diff") / "pierre-diffs.esm.js"
-    notices = package_vendor("diff") / "pierre-diffs.LICENSES.txt"
     shiki_source = (PIERRE_SOURCE / "shiki-leaf.mjs").read_text(encoding="utf-8")
     if shiki_source.count(PIERRE_LANGUAGE_SENTINEL) != 1:
         raise RuntimeError("Pierre's Shiki source must contain one language sentinel")
@@ -441,15 +389,8 @@ def build_pierre(work: Path) -> list[Path]:
     )
     for name in ("themes-leaf.mjs", "entry.mjs", "build.mjs"):
         shutil.copyfile(PIERRE_SOURCE / name, work / name)
-    run(
-        "node",
-        "build.mjs",
-        str(out),
-        str(notices),
-        version("@pierre/diffs"),
-        cwd=work,
-    )
-    return [out, notices]
+    run("node", "build.mjs", str(out), version("@pierre/diffs"), cwd=work)
+    return [out]
 
 
 def build_mcp_app(work: Path) -> list[Path]:
@@ -499,6 +440,7 @@ def build_mcp_app(work: Path) -> list[Path]:
 
 BUILDS: dict[str, Callable[[Path], list[Path]]] = {
     "agentic-mermaid": build_agentic_mermaid,
+    "codemirror": build_codemirror,
     "floating-ui": build_floating_ui,
     "highlight": build_highlight,
     "jsdiff": build_jsdiff,
@@ -509,17 +451,48 @@ BUILDS: dict[str, Callable[[Path], list[Path]]] = {
 }
 
 
+def copy_published(copy: Copy, work: Path) -> list[Path]:
+    """Take a published file as it stands, recorded as esbuild would record it: one
+    output whose every byte came from the one input."""
+    source = NODE_MODULES / copy.package / copy.inside
+    shutil.copyfile(source, copy.out)
+    size = copy.out.stat().st_size
+    meta = {
+        "outputs": {str(copy.out): {"inputs": {str(source): {"bytesInOutput": size}}}}
+    }
+    (work / "meta.json").write_text(json.dumps(meta), encoding="utf-8")
+    return [copy.out]
+
+
 def vendor(name: str) -> list[Path]:
-    if name in COPIES:
-        copy = COPIES[name]
-        shutil.copyfile(NODE_MODULES / copy.package / copy.inside, copy.out)
-        return [copy.out]
+    """Make one bundle, then pass it through `scripts/browser/shipped.mjs`.
+
+    That module owns what a committed bundle must be and carry: it refuses a module
+    the page CSP forbids, and writes `<bundle>.LICENSES.txt` from the packages the
+    build's `meta.json` says reached it. The MCP App's resource is HTML that its host
+    reads under the host's own policy, so it has no module to check and still takes
+    notices.
+    """
     # Under the root, so a bare import in an entry, and in a build script that imports
     # esbuild, resolves the way Node's does: up to the root `node_modules`.
     scratch = ROOT / ".tmp"
     scratch.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(dir=scratch, prefix="vendor-") as tmp:
-        return BUILDS[name](Path(tmp))
+        work = Path(tmp)
+        outputs = (
+            copy_published(COPIES[name], work) if name in COPIES else BUILDS[name](work)
+        )
+        first = outputs[0]
+        notices = first.with_name(f"{first.name.split('.')[0]}.LICENSES.txt")
+        run(
+            "node",
+            str(ROOT / "scripts/browser/shipped.mjs"),
+            "meta.json",
+            str(notices),
+            *(str(output) for output in outputs if output.suffix == ".js"),
+            cwd=work,
+        )
+        return [*outputs, notices]
 
 
 def main() -> None:

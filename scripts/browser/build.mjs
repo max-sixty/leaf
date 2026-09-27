@@ -12,7 +12,10 @@
  * they do not shadow the ordinary ones. The framework imports Lit from it, and so
  * does the Web Awesome bundle (`scripts/vendor-src/webawesome/build.mjs`), so a page
  * registers one LitElement, one template cache, and one version. Outputs import
- * only one another, statically; nothing else crosses the bundle.
+ * only one another, statically; nothing else crosses the bundle. `shipped.mjs`
+ * decides whether each output runs under the page CSP and writes the notices for
+ * the packages that reached them, as it does for every bundle `scripts/vendor.py`
+ * makes.
  */
 import { createHash } from "node:crypto";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
@@ -20,7 +23,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
-import { parse } from "acorn";
+import { bundledPackages, checkModule, licenseNotices } from "./shipped.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const outputRoot = "skills/leaf/assets/vendor";
@@ -31,37 +34,6 @@ const litPath = `${outputRoot}/lit.js`;
 const manifestPath = `${diagnosticsRoot}/browser-runtime.manifest.json`;
 const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const relative = (file) => path.relative(root, file).split(path.sep).join("/");
-
-/** Refuse runtime compilation and every import but a static one of a sibling output. */
-export function checkModule(source, name = modulePath, siblings = new Set()) {
-  const parsed = parse(source, { ecmaVersion: "latest", sourceType: "module" });
-  const sibling = (specifier) =>
-    /^\.{1,2}\//.test(specifier) &&
-    siblings.has(path.posix.join(path.posix.dirname(name), specifier));
-  function visit(node) {
-    if (!node || typeof node !== "object") return;
-    if (
-      node.type === "ImportExpression" ||
-      (["ImportDeclaration", "ExportNamedDeclaration", "ExportAllDeclaration"].includes(
-        node.type,
-      ) &&
-        node.source &&
-        !sibling(node.source.value)) ||
-      (["CallExpression", "NewExpression"].includes(node.type) &&
-        node.callee.type === "Identifier" &&
-        ["eval", "Function", "require"].includes(node.callee.name))
-    ) {
-      throw new Error(
-        "Browser output must be self-contained ESM without runtime compilation",
-      );
-    }
-    for (const value of Object.values(node)) {
-      if (Array.isArray(value)) value.forEach(visit);
-      else visit(value);
-    }
-  }
-  visit(parsed);
-}
 
 /**
  * Build `lit.js` from Lit's published exports, and bind every other Lit import to it.
@@ -165,7 +137,7 @@ export async function buildOutputs() {
     );
     if (edges.some((edge) => !modules.has(edge)))
       throw new Error(`${name} has unbundled imports`);
-    checkModule(built.get(name).toString(), name, modules);
+    checkModule(built.get(name).toString(), name);
     outputs.set(name, built.get(name));
     // Each output's map sits at its own path under the diagnostics root.
     const mapPath = `${diagnosticsRoot}/${path.posix.relative(outputRoot, name)}.map`;
@@ -182,30 +154,20 @@ export async function buildOutputs() {
     outputs.set(mapPath, Buffer.from(JSON.stringify(sourceMap)));
   }
 
-  const packagePaths = [
-    ...new Set(
-      Object.keys(result.metafile.inputs)
-        .filter((name) => name.startsWith("node_modules/"))
-        .map((name) => name.match(/^node_modules\/(?:@[^/]+\/)?[^/]+/)[0]),
-    ),
-  ].sort();
+  const packageRoots = bundledPackages(result.metafile, root);
   const dependencies = {};
-  const licenses = [];
-  for (const packagePath of packagePaths) {
+  for (const packageRoot of packageRoots) {
     const pkg = JSON.parse(
-      await readFile(path.join(root, packagePath, "package.json"), "utf8"),
+      await readFile(path.join(packageRoot, "package.json"), "utf8"),
     );
-    if (lock.packages[packagePath].version !== pkg.version) {
+    if (lock.packages[relative(packageRoot)].version !== pkg.version) {
       throw new Error(`${pkg.name} does not match package-lock.json; run npm ci`);
     }
     dependencies[pkg.name] = pkg.version;
-    licenses.push(
-      `${pkg.name} ${pkg.version}\n\n${await readFile(path.join(root, packagePath, "LICENSE"), "utf8")}`,
-    );
   }
   outputs.set(
     `${outputRoot}/browser-runtime.LICENSES.txt`,
-    Buffer.from(licenses.join("\n\n")),
+    Buffer.from(licenseNotices("browser-runtime", packageRoots)),
   );
   const manifest = {
     format: "leaf-browser-build-v1",

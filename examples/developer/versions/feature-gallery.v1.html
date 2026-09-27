@@ -12,7 +12,7 @@
     </style>
   </head>
   <body>
-    <main>
+    <main class="layout-column">
       <p class="eyebrow">developer playground</p>
       <h1>Leaf feature gallery</h1>
       <p class="lede" id="bg-lede">
@@ -295,7 +295,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
         <section id="bg-metrics-and-chart">
           <h3>Metrics and chart</h3>
-          <lf-grid id="bg-metrics">
+          <div id="bg-metrics" class="layout-tiles">
             <lf-metric id="bg-metric-complete" value="12" delta="+3" direction="up-good"
               >checks complete</lf-metric
             >
@@ -303,7 +303,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               >open failures</lf-metric
             >
             <lf-metric id="bg-metric-neutral" value="4 min">sample duration</lf-metric>
-          </lf-grid>
+          </div>
           <lf-chart id="bg-chart" kind="line" y="checks complete">
             <pre>
 run, baseline, candidate

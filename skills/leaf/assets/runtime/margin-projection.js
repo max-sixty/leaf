@@ -108,10 +108,17 @@ import {
 import { compareMarginContributions } from "./margin-entry-model.js";
 import { mapButton } from "./page-map-dialog.js";
 import { watchProjection } from "./projection-watch.js";
-import { declareRelease, focusDestination, letGo } from "./focus.js";
+import {
+  TEXT_BOX,
+  TEXT_FIELD,
+  declareRelease,
+  focusDestination,
+  handBack,
+  letGo,
+} from "./focus.js";
 import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
-import { clampedRow, PRESS } from "./keyboard/bindings.js";
-import { beginWalk, listWalkPosition } from "./walk-position.js";
+import { PRESS } from "./keyboard/bindings.js";
+import { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
 import { ago, clocked } from "./presence.js";
 import { runtime } from "./context.js";
 import {
@@ -154,6 +161,7 @@ import { createMarginClusterViews } from "./margin-cluster-view.js";
 import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
 import { bannerControlDoor } from "./banner-shelf.js";
 import { threadCardGeometry } from "./thread-card-geometry.js";
+import { shownWindow } from "./geometry.js";
 import { placeKeeper } from "./user-place.js";
 import {
   isLiveWorkflow,
@@ -165,6 +173,9 @@ import {
 } from "./thread/workflow.js";
 import { renderedParent, under } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
+
+// A margin card's reply box.
+const REPLY_BOX = `.lf-say ${TEXT_FIELD}`;
 
 export function createMarginProjection({
   panelIsOpen,
@@ -181,7 +192,6 @@ export function createMarginProjection({
   renderPageMapDialog,
   scrollThreadIntoView,
   renderMarginThread,
-  bottomChromeBoxes,
   placedAt,
   showThread,
   goToAsk,
@@ -613,23 +623,15 @@ export function createMarginProjection({
   }
 
   const CARD_GAP = 8;
-  // The room a card may stand in: its target's reading region, else the viewport, less
-  // the banner over it and the bottom chrome under it. The chrome's boxes stand in one
-  // row at the foot, so the tallest of them bounds the whole width.
+  // The room a card may stand in: the part of the window the page shows (`shownWindow`),
+  // within its target's reading region when it has one. That is the visible viewport, so
+  // a reply editor stays above a phone's software keyboard.
   function threadCardBoundary(target) {
     const region = containingReadingRegionFor(target);
-    const bounds = region ? shownRegionBounds(region) : null;
-    const bannerBottom =
-      document.querySelector(".lf-banner")?.getBoundingClientRect().bottom ?? 0;
-    const left = (bounds?.left ?? 0) + CARD_GAP;
-    const right = (bounds?.right ?? document.documentElement.clientWidth) - CARD_GAP;
-    const top = Math.max(bounds?.top ?? 0, bannerBottom) + CARD_GAP;
-    const bottom =
-      Math.min(
-        bounds?.bottom ?? innerHeight,
-        ...bottomChromeBoxes().map((box) => box.top),
-      ) - CARD_GAP;
-    return new DOMRect(left, top, Math.max(0, right - left), Math.max(0, bottom - top));
+    return shownWindow({
+      within: region ? shownRegionBounds(region) : null,
+      gap: CARD_GAP,
+    });
   }
   function measureThreadCard(width) {
     preview.style.setProperty("--lf-thread-width", `${width}px`);
@@ -642,7 +644,7 @@ export function createMarginProjection({
     const maxListHeight =
       parseFloat(preview.style.getPropertyValue("--lf-thread-max-height")) -
       (preview.offsetHeight - previewList.clientHeight);
-    for (const input of previewList.querySelectorAll(".lf-say textarea")) {
+    for (const input of previewList.querySelectorAll(REPLY_BOX)) {
       const row = input.closest(".lf-say");
       const thread = row.closest(".lf-page-thread");
       const style = getComputedStyle(thread);
@@ -670,7 +672,7 @@ export function createMarginProjection({
   }
   function placeThreadPreview({ dismissDetached = false } = {}) {
     if (!previewOpen() || !previewMarginEntry?.isConnected) return false;
-    const replyEditor = previewList.querySelector(".lf-say textarea");
+    const replyEditor = previewList.querySelector(REPLY_BOX);
     const drafting =
       replyEditor?.checkVisibility() &&
       (replyEditor === document.activeElement || replyEditor.value !== "");
@@ -800,8 +802,8 @@ export function createMarginProjection({
     }
     const representedThreads = new Set();
     for (const thread of threadList()) {
-      if (thread.resolved || !thread.anchor || claimed(thread.root.id)) continue;
-      const id = thread.root.id;
+      if (thread.resolved || !thread.anchor || claimed(thread.id)) continue;
+      const id = thread.id;
       const target = placedAt(id)?.element;
       if (target?.isConnected && !inChrome(target)) representedThreads.add(id);
       const attention = threadAttention(thread);
@@ -1158,8 +1160,7 @@ export function createMarginProjection({
     try {
       renderMargin.refresh();
       if (returnFocus && previousKey) {
-        const more = moreMarginEntries.get(previousKey);
-        if (more?.isConnected && !more.hidden) more.focus({ preventScroll: true });
+        handBack(moreMarginEntries.get(previousKey));
       } else if (focusOption && nextKey) {
         const choices = clusterMarginEntries(hosts.get(nextKey)?.options);
         const fallback = clusterMarginEntries(hosts.get(nextKey));
@@ -1255,25 +1256,18 @@ export function createMarginProjection({
     return true;
   }
 
-  function focusMapControl(entry = null) {
-    const marker = entry ? rows.get(entry.key) : null;
-    if (marker?.isConnected && marker.checkVisibility()) {
-      marker.focus({ preventScroll: true });
-      return;
-    }
-    // The Map is a shelf control, so at a width that folds it the button itself is
-    // behind a shut door and cannot take focus. Ask the shelf for the way in.
-    const door = bannerControlDoor(mapButton);
-    if (door) {
-      door.focus({ preventScroll: true });
-      return;
-    }
+  // Where the Map hands the user back, for `handBack`: the entry's own marker, then the
+  // way into the Map, then a row in view, then the version control. The Map is a shelf
+  // control, so at a width that folds it the button itself is behind a shut door and
+  // cannot take focus; the shelf is asked for the way in.
+  function mapControlPlaces(entry = null) {
     const visible = visibleRows();
-    const last =
-      visible.find((row) => row.tabIndex === 0) ??
-      visible[0] ??
-      bannerControlDoor(versionBtn);
-    last?.focus({ preventScroll: true });
+    return [
+      entry ? rows.get(entry.key) : null,
+      bannerControlDoor(mapButton),
+      visible.find((row) => row.tabIndex === 0) ?? visible[0],
+      bannerControlDoor(versionBtn),
+    ];
   }
 
   // The rail holds one tab stop: the way in from the page, not the reading position,
@@ -1329,22 +1323,6 @@ export function createMarginProjection({
       rovingFrame = 0;
       syncRoving();
     });
-  }
-
-  function walkMarkers(direction, edge = null) {
-    const visible = visibleRows();
-    if (!visible.length) return;
-    const next =
-      edge === "first"
-        ? visible[0]
-        : edge === "last"
-          ? visible.at(-1)
-          : clampedRow(visible, document.activeElement, direction);
-    holdTabStop(next);
-    next.focus({ preventScroll: true });
-    beginWalk("page-map", "Marker", () =>
-      listWalkPosition(visibleRows(), document.activeElement),
-    );
   }
 
   // `o`: the annotation layer (annotation-layer.js). Hiding it takes off what it hides
@@ -1434,31 +1412,19 @@ export function createMarginProjection({
       },
       run: stepClusterMarginEntries,
     },
-    {
-      id: "margin.walk",
-      keys: ["ArrowUp", "ArrowDown"],
-      does: "Walk the visible page-map markers",
-      line: "walk the Page Map",
-      repeat: true,
+    // The walk answers from a marker, not from the entries beside it, which Left and
+    // Right move between.
+    ...rowWalk({
+      id: "margin",
+      noun: "Marker",
+      plural: "visible markers",
+      rows: visibleRows,
+      landed: holdTabStop,
+      scroll: false,
+    }).map((row) => ({
+      ...row,
       when: () => focused()?.matches?.(".lf-margin-marker") && visibleRows().length > 0,
-      run: (binding) => walkMarkers(binding === "ArrowDown" ? 1 : -1),
-    },
-    {
-      id: "margin.first",
-      keys: ["Home"],
-      does: "First visible page-map marker",
-      line: "first marker",
-      when: () => focused()?.matches?.(".lf-margin-marker") && visibleRows().length > 0,
-      run: () => walkMarkers(0, "first"),
-    },
-    {
-      id: "margin.last",
-      keys: ["End"],
-      does: "Last visible page-map marker",
-      line: "last marker",
-      when: () => focused()?.matches?.(".lf-margin-marker") && visibleRows().length > 0,
-      run: () => walkMarkers(0, "last"),
-    },
+    })),
   ];
 
   function pressMarker(event) {
@@ -2083,7 +2049,9 @@ export function createMarginProjection({
       const replacement = [
         ...previewList.querySelectorAll("[data-lf-margin-entry]"),
       ].find((candidate) => candidate.lfMarginItem === focusedItem);
-      const destination = replacement?.matches("button, textarea:not([disabled])")
+      const destination = replacement?.matches(
+        `button, :is(${TEXT_BOX}):not([disabled])`,
+      )
         ? replacement
         : (replacement?.querySelector(".lf-page-thread") ??
           previewList.querySelector(".lf-page-thread") ??
@@ -2244,7 +2212,7 @@ export function createMarginProjection({
     answerThreadPreviewPosition(false);
     resetThreadPreviewPosition();
     if (previewOpen()) {
-      for (const reply of previewList.querySelectorAll("textarea"))
+      for (const reply of previewList.querySelectorAll(TEXT_FIELD))
         reply.lfCollapseReply?.();
       preview.hidden = true;
     }
@@ -2255,11 +2223,9 @@ export function createMarginProjection({
       syncReadingRelation(row, primaryReading(row.lfEntry));
     for (const reading of readingMarginEntries.values())
       syncReadingRelation(reading, reading.lfChoice);
-    if (returnFocus) {
-      if (button?.isConnected && button.checkVisibility())
-        button.focus({ preventScroll: true });
-      else if (button?.lfEntry) focusMapControl(button.lfEntry);
-    } else if (heldInside) letGo();
+    if (returnFocus)
+      handBack(button, ...(button?.lfEntry ? mapControlPlaces(button.lfEntry) : []));
+    else if (heldInside) letGo();
     paintKeys();
   }
 
@@ -2403,7 +2369,7 @@ export function createMarginProjection({
     closePreview();
     leavePageMap();
     const landsOnTarget = focusMap && !entryHasMarginHost(entry);
-    if (focusMap && !landsOnTarget) focusMapControl(entry);
+    if (focusMap && !landsOnTarget) handBack(...mapControlPlaces(entry));
     sourceItem(item).activate();
     // A Page Map-only location has no margin entry to receive the handoff. Reveal its
     // target first, then lend that authored element a programmatic tab stop so keyboard
@@ -2422,7 +2388,7 @@ export function createMarginProjection({
         setOptionsOpen(entry, false);
       closePreview();
       leavePageMap();
-      openPageThread(sourceItem(choice.items[0]).thread.root.id);
+      openPageThread(sourceItem(choice.items[0]).thread.id);
       return;
     }
     if (expandedOptionsKey && expandedOptionsKey !== entry.key)
@@ -2437,7 +2403,7 @@ export function createMarginProjection({
     id,
     { transition = null, onPositioned = null, unfold = true } = {},
   ) {
-    const itemId = marginThreadItem(threadList().find((t) => t.root.id === id));
+    const itemId = marginThreadItem(threadList().find((t) => t.id === id));
     const entry = pageInventory.find((candidate) =>
       candidate.items.some((item) => item.id === itemId),
     );
@@ -2578,10 +2544,9 @@ export function createMarginProjection({
   // Arrival through the keyboard shows the card, as arrival through Tab unfolds a
   // cluster; a pointer that lands on a control in a commented block asked for that
   // control, and the mark and the marker are its way to the thread.
-  const threadIdOf = (entry) =>
-    sourceItem(threadReading(entry).items[0]).thread.root.id;
+  const threadIdOf = (entry) => sourceItem(threadReading(entry).items[0]).thread.id;
   const threadIdsOf = (entry) =>
-    threadReading(entry).items.map((item) => sourceItem(item).thread.root.id);
+    threadReading(entry).items.map((item) => sourceItem(item).thread.id);
   // A thread seat already shows the thread where it stands on the page; a card
   // beside it would be the same thread twice.
   const seatedOnPage = (id) =>
@@ -2769,13 +2734,13 @@ export function createMarginProjection({
     });
     previewClose.onclick = () => closePreview(true);
     preview.addEventListener("focusin", (event) => {
-      if (!event.target.matches(".lf-say textarea") || rightFootOffset !== null) return;
+      if (!event.target.matches(REPLY_BOX) || rightFootOffset !== null) return;
       if (previewMarginEntry && preview.dataset.lfThreadPlacement === "right")
         rightFootOffset =
           preview.getBoundingClientRect().bottom - threadCardCluster().top;
     });
     preview.addEventListener("focusout", (event) => {
-      if (event.target.matches(".lf-say textarea") && !event.target.value)
+      if (event.target.matches(REPLY_BOX) && !event.target.value)
         scheduleThreadPreviewPosition();
     });
     sizeObserver(() => scheduleThreadPreviewPosition()).observe(preview);
@@ -2824,6 +2789,12 @@ export function createMarginProjection({
       scheduleThreadPreviewPosition();
       scheduleWidthRender();
     });
+    // Pinch zoom and a software keyboard move or shrink the visible viewport the card
+    // stands in without resizing the window.
+    for (const type of ["resize", "scroll"])
+      window.visualViewport.addEventListener(type, () =>
+        scheduleThreadPreviewPosition(),
+      );
     renderMargin();
     chromeRoot.append(nav, preview);
     if (!previewRegionMounted) {
@@ -2840,7 +2811,7 @@ export function createMarginProjection({
     activateMapItem: activate,
     faceForMap: (item) => KINDS[item.kind],
     targetFor,
-    focusMapControl,
+    mapControlPlaces,
     renderMargin,
     threadTransitionOrigin,
     scheduleThreadPreviewPosition,

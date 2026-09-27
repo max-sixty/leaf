@@ -5,7 +5,7 @@
    whenever the stylesheet makes it scroll, which is the only reading of posture there
    is: a bounded region's body scrolls, and a flowing one's is carried by the region
    containing it or by the page. CSS decides that from the space a workspace has
-   (packages/default/theme.css, at lf-workspace), so nothing here chooses a posture.
+   (layouts.css, the workspace Layout), so nothing here chooses a posture.
 
    A region's scroller can change without any gesture: a window crossing the workspace
    threshold, a tab showing, a panel opening. Each region's host is watched for size, and

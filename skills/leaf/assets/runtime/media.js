@@ -2,7 +2,7 @@
 
    The draft and event log keep one representation: ordinary Markdown naming immutable
    page media. A composer projects the generated image blocks as thumbnails beside its
-   textarea, then materializes the same Markdown again when its visible words change or
+   text field, then materializes the same Markdown again when its visible words change or
    Send reads the draft. Sent-message images open one native modal viewer. The document
    declares its public page root because a website module may live under an immutable
    release URL shared with a specimen. All three resolve
@@ -16,6 +16,7 @@
 // below dodges the same rewrite; neither may be spelled the obvious way.
 import { LitElement, html } from "../vendor/browser-runtime.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
+import { handBack } from "./focus.js";
 
 const CANONICAL_MEDIA_ROOT = "/" + "media/";
 const MEDIA_NAME = /^[a-f0-9]{16}\.(?:png|jpe?g|gif|webp|svg)$/;
@@ -114,7 +115,7 @@ const open = (url, alt, from) => {
 };
 mediaViewer.addEventListener("close", () => {
   viewerFace.present(null);
-  if (origin?.isConnected) origin.focus({ preventScroll: true });
+  if (origin) handBack(origin);
   origin = null;
 });
 document.addEventListener("click", (event) => {

@@ -1397,9 +1397,13 @@ def main(target: str, release: str | None, agent: bool) -> None:
                 # Docker can change the host interfaces after an activation read
                 # answers. Chrome then aborts in-flight loopback module requests.
                 # A fresh browser pass checks the complete release once more.
-                if agent or not error.failures or any(
-                    failure != "Failed to load resource: net::ERR_NETWORK_CHANGED"
-                    for failure in error.failures
+                if (
+                    agent
+                    or not error.failures
+                    or any(
+                        failure != "Failed to load resource: net::ERR_NETWORK_CHANGED"
+                        for failure in error.failures
+                    )
                 ):
                     raise
                 print(

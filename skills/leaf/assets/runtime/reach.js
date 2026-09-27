@@ -175,6 +175,11 @@ function declaresScroll(style) {
   if (!UNSCROLLED.test(x) || !UNSCROLLED.test(y)) return true;
   return (x === "hidden") !== (y === "hidden") && x !== "clip" && y !== "clip";
 }
+// A selector as the document can query it: `:scope` and `&` stand for what encloses it.
+const resolved = (selector, parent, scope) =>
+  selector
+    .replaceAll(":scope", `:is(${scope ?? "*"})`)
+    .replaceAll("&", `:is(${parent ?? "*"})`);
 function scrollingSelectors(rules, parent, scope, into) {
   for (const rule of rules) {
     if (rule instanceof CSSImportRule) {
@@ -182,16 +187,16 @@ function scrollingSelectors(rules, parent, scope, into) {
         scrollingSelectors(rule.styleSheet.cssRules, null, null, into);
       continue;
     }
+    // A scope's root is itself read against the scope around it, so a nested one's
+    // `:scope > .inner` names the inner root from the outer.
     if (rule instanceof CSSScopeRule) {
-      const root = rule.start ?? "*";
+      const root = rule.start ? resolved(rule.start, parent, scope) : "*";
       scrollingSelectors(rule.cssRules, root, root, into);
       continue;
     }
     const selector =
       rule instanceof CSSStyleRule
-        ? rule.selectorText
-            .replaceAll(":scope", `:is(${scope ?? "*"})`)
-            .replaceAll("&", `:is(${parent ?? "*"})`)
+        ? resolved(rule.selectorText, parent, scope)
         : parent;
     // A nested declaration block reads its parent's selector; a top-level at-rule's
     // own descriptors (@page, @font-face) select no element.

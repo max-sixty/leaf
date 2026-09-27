@@ -82,5 +82,5 @@ def activate_checked_source(page_dir: Path, checked: SourceCheck) -> Activation:
     ):
         return Activation(active, None, False)
     revision = (active or 0) + 1
-    write_artifact(page_dir, revision, checked.artifact)
+    write_artifact(page_dir, revision, checked.artifact, checked.reading)
     return Activation(revision, None, True)

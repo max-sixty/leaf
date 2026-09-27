@@ -410,9 +410,14 @@ def capture_artifact(
     declaration_sources: Mapping[str, str] | None = None,
     widget_sources: Mapping[str, str] | None = None,
 ) -> RevisionArtifact:
-    """Capture the candidate's complete inputs without executing authored code."""
+    """Capture the candidate's complete inputs without executing authored code.
+
+    One complete capture is retained while every input is the same: the document's
+    bytes, the vocabulary and declarations, and the stamp of every mutable file a
+    capture may read. A capture that must be built is built from the caller's own
+    document, which the check that asks has already parsed."""
     page_dir = page_dir.absolute()
-    return _capture_artifact_stamped(
+    key = (
         page_dir,
         document.data,
         _json(registry),
@@ -420,27 +425,28 @@ def capture_artifact(
         _json(dict(widget_sources or {})) if widget_sources is not None else None,
         _capture_input_stamps(page_dir),
     )
-
-
-@lru_cache(maxsize=8)
-def _capture_artifact_stamped(
-    page_dir: Path,
-    html: bytes,
-    registry_json: bytes,
-    declaration_sources_json: bytes,
-    widget_sources_json: bytes | None,
-    input_stamps: tuple[tuple[str, tuple], ...],
-) -> RevisionArtifact:
-    """Retain one complete capture while every mutable input has the same stamp."""
-    return _capture_artifact(
+    with _captures_lock:
+        if (held := _captures.pop(key, None)) is not None:
+            _captures[key] = held
+            return held
+    artifact = _capture_artifact(
         page_dir,
-        SourceDocument(html.decode("utf-8")),
-        json.loads(registry_json),
-        declaration_sources=json.loads(declaration_sources_json),
-        widget_sources=(
-            None if widget_sources_json is None else json.loads(widget_sources_json)
-        ),
+        document,
+        registry,
+        declaration_sources=declaration_sources,
+        widget_sources=widget_sources,
     )
+    with _captures_lock:
+        _captures[key] = artifact
+        while len(_captures) > _CAPTURES_LIMIT:
+            _captures.pop(next(iter(_captures)))
+    return artifact
+
+
+_CAPTURES_LIMIT = 8
+# capture inputs → the capture, least recently asked first.
+_captures: dict[tuple, RevisionArtifact] = {}
+_captures_lock = threading.Lock()
 
 
 def _capture_artifact(
@@ -661,8 +667,16 @@ def artifact_name(revision: int, artifact: RevisionArtifact) -> str:
     return f"r{revision}-{artifact.digest.removeprefix('sha256:')[:16]}"
 
 
-def write_artifact(page_dir: Path, revision: int, artifact: RevisionArtifact) -> Path:
-    """Publish a complete immutable bundle, then its discoverable HTML marker."""
+def write_artifact(
+    page_dir: Path,
+    revision: int,
+    artifact: RevisionArtifact,
+    reading: SourceReading | None = None,
+) -> Path:
+    """Publish a complete immutable bundle, then its discoverable HTML marker.
+
+    `reading` is the checked candidate's document under the vocabulary the artifact
+    captured; the new revision's held reading adopts it (`read_revision`)."""
     revisions = page_dir / "revisions"
     revisions.mkdir(exist_ok=True)
     if revision in list_revisions(page_dir):
@@ -699,6 +713,9 @@ def write_artifact(page_dir: Path, revision: int, artifact: RevisionArtifact) ->
         raise ArtifactError(f"{destination}: immutable artifact digest collision")
     os.link(destination / "index.html", marker)
     fsync_parents([marker])
+    if reading is not None:
+        marker = marker.absolute()
+        _hold(marker, file_stamp(marker), RevisionReading(marker, reading))
     return marker
 
 
@@ -739,9 +756,15 @@ class RevisionReading(SourceReading):
     that initializer.
     """
 
-    def __init__(self, marker: Path):
+    def __init__(self, marker: Path, adopted: SourceReading | None = None):
         self.marker = marker
         self.bundle = marker.with_suffix("")
+        if adopted is not None:
+            # A revision written from a checked candidate is that candidate: its
+            # document is the captured bytes, and its vocabulary the one captured.
+            # So it takes the candidate's reading, with whatever words and passages
+            # the check already read, rather than parsing and walking them again.
+            vars(self).update(vars(adopted))
 
     @cached_property
     def document(self) -> SourceDocument:
@@ -809,14 +832,24 @@ _readings_lock = threading.Lock()
 
 def read_revision(page_dir: Path, revision: int) -> RevisionReading:
     """The one held reading of an immutable revision."""
-    global _readings_bytes
     marker = revision_path(page_dir, revision).absolute()
     stamp = file_stamp(marker)
+    with _readings_lock:
+        held = _readings.get(marker)
+    if held and held[0] == stamp:
+        reading = held[1]
+    else:
+        reading = RevisionReading(marker)
+    return _hold(marker, stamp, reading)
+
+
+def _hold(marker: Path, stamp, reading: RevisionReading) -> RevisionReading:
+    """Hold `reading` as the newest read, within the budget."""
+    global _readings_bytes
     with _readings_lock:
         held = _readings.pop(marker, None)
         if held:
             _readings_bytes -= held[0][2]
-        reading = held[1] if held and held[0] == stamp else RevisionReading(marker)
         if stamp:
             _readings[marker] = (stamp, reading)
             _readings_bytes += stamp[2]

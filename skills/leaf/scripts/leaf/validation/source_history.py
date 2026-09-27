@@ -68,6 +68,11 @@ class TransitionReading(NamedTuple):
     projection: StateProjection
 
 
+# No document to keep anything of: a first version, or a sample's child.
+NO_PREVIOUS = SourceReading(SourceDocument(""), {})
+NO_PREDECESSOR = PredecessorReading(0, False, False, 0, NO_PREVIOUS)
+
+
 def predecessor_reading(
     page_dir: Path,
     data: bytes,
@@ -98,11 +103,7 @@ def predecessor_reading(
         committed_active,
         bool(active and same_as_active and artifact is not None),
         predecessor,
-        (
-            read_revision(page_dir, predecessor)
-            if predecessor
-            else SourceReading(SourceDocument(""), {})
-        ),
+        read_revision(page_dir, predecessor) if predecessor else NO_PREVIOUS,
     )
 
 
@@ -203,19 +204,18 @@ def continuity_errors(
 
 
 def transition_reading(
-    document: SourceDocument,
+    reading: SourceReading,
     events: list,
-    registry: dict | None,
     revision: PredecessorReading,
 ) -> TransitionReading:
     """Project standing log changes onto this source from its predecessor."""
-    words = SourceReading(document, registry).spoken
+    words = reading.spoken
     floors = retractions(events, revision.predecessor)
     projection = state_projection(
         events,
-        document.by_id,
+        reading.document.by_id,
         words,
-        registry or {},
+        reading.registry,
         revision.predecessor,
         floors,
     )

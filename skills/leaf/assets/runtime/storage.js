@@ -1,22 +1,11 @@
-// ---------- where a page's public version addresses are ----------
-// A page's mapped revisions are served at sibling addresses under its own root:
-// versions/v1.html, v2.html… Two things read that path — which version this document
-// is, and where another version of it is — so the shape is spelled once here, and a
-// document served under a directory of its own cannot have one of them agreeing with its
-// URL while the other contradicts it.
-export const VERSION_PATH = /\/versions\/v([1-9]\d*)\.html$/;
-export const PAGE_PATH = location.pathname;
-// Where another version is: beside this one. It was "/versions/vN.html" at the three
-// seats that travel, which is a claim about where the page directory sits — true of a
-// server serving one page at a root of its own, and of nothing else. The published site
-// serves every example from one vendored layer with each page under its own directory,
-// and there each absolute jump left the page for a root that serves nothing. Resolved
-// against the document, the travel agrees with the path the version number itself was
-// read off, which is the one form that cannot disagree with what this document is.
-export const versionUrl = (version) =>
-  `${PAGE_PATH.match(VERSION_PATH) ? "" : "versions/"}v${version}.html`;
-// The live root follows the active revision in place; a virtual version address under
-// the path above stays pinned to its mapped revision.
+// ---------- which address this document is ----------
+// Which version a document is comes from its served `lf-version` marker
+// (`document-identity.js`), and where another version is from that version's `url` in
+// the state reading, which the server addresses at the page root. Neither is read off
+// this path.
+const PAGE_PATH = location.pathname;
+// The live root follows the active revision in place; a virtual version address
+// (`versions/vN.html`) stays pinned to its mapped revision.
 export const LIVE_ROOT = PAGE_PATH.endsWith("/");
 // Which page this document belongs to. The server declares the page's root in the
 // canonical link it adds to every document it serves, the live root and each version

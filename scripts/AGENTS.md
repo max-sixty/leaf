@@ -44,6 +44,9 @@ Evidence, previews, staged sites, and probe results leave the tracked tree uncha
 - `bench_page_latency.py [BASE_REF]` times an open page's answer to a gesture, an
   agent write, and a revision in Chrome, with the traffic each causes, for a base
   runtime and HEAD's.
+- `profile_page.py SOURCE TRANSITION` says where one of those transitions spends its
+  time in this checkout: main-thread tasks up to the painted frame, forced style
+  recalculations and the writes that invalidated them, and JS by function.
 - `record-demo.sh` regenerates `docs/demo.gif`, the README stills, and
   `docs/session-card.png`.
 

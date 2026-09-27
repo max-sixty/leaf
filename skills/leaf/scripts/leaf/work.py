@@ -98,14 +98,16 @@ def widget_work_without_targets(
     return sorted(missing)
 
 
-def work_subject(page_dir: Path, events: list, target: str) -> dict:
+def work_subject(page_dir: Path, events: list, target: str, *, standing: list) -> dict:
     """Resolve one bare CLI id to a typed, locally renderable work subject.
 
     Any id a delivery names as an event's address resolves: a page widget, or a
     thread by its root, by any message in it, or by a widget frozen into its
-    markup. A thread claim also names the newest input the thread holds, a
-    message or a move on its frozen widgets, and that exact input reads Working
-    (`workflows.canonical_workflows`)."""
+    markup. A thread claim also names an input the thread holds, a message or a
+    move on its frozen widgets, and that exact input reads Working
+    (`workflows.canonical_workflows`). Renewing a claim keeps the input the
+    `standing` claim on that thread names while the thread still holds it, so
+    Working stays beside what prompted the work; otherwise it names the newest."""
     widget = None
     widget_revision = None
     widget_projection = None
@@ -169,8 +171,19 @@ def work_subject(page_dir: Path, events: list, target: str) -> dict:
             )
             if item["next_actor"] == "agent" and holder(item["subject"]) == thread_id
         ]
-        if held:
-            work["event"] = max(held, key=lambda item: item["seq"])["input"]
+        inputs = [item["input"] for item in sorted(held, key=lambda item: item["seq"])]
+        kept = next(
+            (
+                claim.get("event")
+                for claim in standing
+                if claim["subject"] == work["subject"]
+            ),
+            None,
+        )
+        if kept in inputs:
+            work["event"] = kept
+        elif inputs:
+            work["event"] = inputs[-1]
         return work
     if widget is not None:
         assert (

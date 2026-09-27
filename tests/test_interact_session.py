@@ -748,6 +748,26 @@ def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
         "workflow": moved["id"],
     }
 
+    # Moving the card again supersedes that move, so a renewed claim holds the
+    # newer one instead of standing beside a move no receipt shows any more.
+    moved = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "feeder-board",
+            "action": "move",
+            "detail": {"card": "card-baffle", "to": "col-done", "rank": "0i"},
+        },
+    )
+    renewed = _status(page_dir, "working", "Moving it on", "--on", "feeder-board")
+    assert renewed.exit_code == 0, renewed.output
+    state, attention = reading()
+    assert [(item["input"], item["stage"]) for item in state["workflows"]] == [
+        (moved["id"], "working")
+    ]
+
     # A mark is no turn; the agent's next spoken turn takes the move in.
     events_model.append_event(
         page_dir,

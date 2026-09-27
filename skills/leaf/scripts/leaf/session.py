@@ -84,17 +84,12 @@ def cmd_status(
         work = None
         if on is not None:
             check_local_claim(state)
-            work = work_subject(page_dir, page.events, on)
-            previous = next(
-                (
-                    claim
-                    for claim in standing_work_claims(page.status, page.events)
-                    if claim["subject"] == work["subject"]
-                ),
-                None,
+            work = work_subject(
+                page_dir,
+                page.events,
+                on,
+                standing=standing_work_claims(page.status, page.events),
             )
-            if previous and previous.get("event"):
-                work["event"] = previous["event"]
         page.set_status(state, detail, work=work)
         return full_state(page_dir, page.events)["activity"]["obligations"]
 

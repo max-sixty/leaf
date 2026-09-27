@@ -109,9 +109,11 @@ provides an explicit input or subject binding; the current host contract does no
 
 A work declaration has to be renewed, and `leaf status` renews it. `--on` names the thread
 or widget the work is about, and is how a delivered move reads **Working**. A thread
-claim also records the newest input the thread holds, a message or a move on a widget
-in one of its messages, so one check-in keeps **Working** beside the input that
-prompted the work even when the user adds another comment.
+claim also records an input the thread holds, a message or a move on a widget in one
+of its messages: the one a standing claim there already names while the thread still
+holds it, and the newest otherwise. So one check-in keeps **Working** beside the input
+that prompted the work even when the user adds another comment, while renewing it
+after the user supersedes a move puts Working on the move that replaced it.
 Nothing in a session touches `status.json` while its turn is over, and its workers
 leave the page to it, so a declaration over work that outlasts the turn stands
 unrenewed until a later turn writes it again.

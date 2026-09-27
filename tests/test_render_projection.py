@@ -29,6 +29,7 @@ from leaf import structure as structure_model
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
+from leaf.schema import ELEMENT_ID
 from leaf.validation import compatibility as validation_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -8916,6 +8917,80 @@ def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser,
     assert sent.exit_code == 0, sent.output
     told(page)
     expect(title).to_be_focused()
+
+
+REORDERED_PROJECTION = """
+import {projectData} from '/runtime/widget-api.js';
+customElements.define('lf-ranked', class extends HTMLElement {
+  connectedCallback() {
+    window.lfRanked = this;
+    this.show(['api', 'worker', 'queue']);
+  }
+  show(keys) {
+    projectData(this, keys.map(key => ({key})), row => row.key, ({key}, prior) => {
+      if (prior) return prior;
+      const row = document.createElement('p');
+      const note = document.createElement('input');
+      note.setAttribute('aria-label', `Note on ${key}`);
+      note.value = `${key} is ready`;
+      row.append(note);
+      return row;
+    });
+  }
+});
+"""
+
+
+def test_a_reordered_projection_keeps_the_user_in_the_row_they_stand_in(browser, serve):
+    """A renderer reusing a row keeps its focused control, so a reorder moving that row
+    must not drop the user to the page body: they stay in its box, caret included. A row
+    hidden in place hands them to the stand-in its renderer names."""
+    entry = {
+        "description": "Rows a widget ranks and re-ranks.",
+        "type": "object",
+        "properties": {"id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+        "x-example": '<lf-ranked id="ranked-example"></lf-ranked>',
+    }
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "ranked projection",
+                '<h1 id="title">Services</h1><lf-ranked id="services"></lf-ranked>',
+            ),
+            layer_registry={"lf-ranked": entry},
+            layer_widgets={"lf-ranked.js": REORDERED_PROJECTION},
+        ),
+    )
+    note = page.get_by_role("textbox", name="Note on worker")
+    note.focus()
+    note.evaluate("(box) => box.setSelectionRange(2, 5)")
+
+    page.evaluate("() => window.lfRanked.show(['queue', 'worker', 'api'])")
+
+    expect(
+        page.locator('[data-lf-datum="queue"] + [data-lf-datum="worker"]')
+    ).to_be_attached()
+    expect(note).to_be_focused()
+    assert note.evaluate("(box) => [box.selectionStart, box.selectionEnd]") == [2, 5]
+
+    # A row the renderer hides with `visibility: hidden` still holds focus until the
+    # browser blurs it a frame later, so the hold hands the user to the stand-in.
+    page.evaluate(
+        """async () => {
+          const {holdFocus} = await window.__lfRuntimeImport('/runtime/focus.js');
+          const row = document.querySelector('[data-lf-datum="worker"]');
+          const restore = holdFocus(row.parentElement);
+          row.style.visibility = 'hidden';
+          window.landed = restore(document.querySelector('[data-lf-datum="api"] input'));
+        }"""
+    )
+    expect(page.get_by_role("textbox", name="Note on api")).to_be_focused()
+    assert page.evaluate("() => window.landed")
 
 
 def test_command_hub_repaints_anchors_after_generated_projections_change(

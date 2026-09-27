@@ -18,6 +18,7 @@ import {
   trackMarginEntryControl,
 } from "./margin-entries.js";
 import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
+import { holdFocus } from "./focus.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-margin-cluster";
@@ -50,9 +51,7 @@ class MarginClusterView extends HTMLElement {
     if (!Object.isFrozen(model))
       throw new Error("Margin presentation models must be immutable");
     if (!this.#owner) throw new Error("Margin presentation needs its view owner");
-    const standing = this.contains(document.activeElement)
-      ? document.activeElement
-      : null;
+    const restoreFocus = holdFocus(this);
     this.lfEntry = model.entry;
     keeps(this, "data-lf-margin-for", model.target);
     keeps(this, "aria-label", model.label);
@@ -63,8 +62,7 @@ class MarginClusterView extends HTMLElement {
       const nodes = this.#owner.materialize(model.items);
       for (const node of nodes) node.removeAttribute("data-lf-margin-entry-primary");
       render(html`${this.#owner.nodes(nodes)}`, this);
-      if (standing?.isConnected && document.activeElement !== standing)
-        standing.focus({ preventScroll: true });
+      restoreFocus?.();
       return null;
     }
     if (!this.#marker || !this.#more || !this.#optionsId)
@@ -99,8 +97,7 @@ class MarginClusterView extends HTMLElement {
       `,
       this,
     );
-    if (standing?.isConnected && document.activeElement !== standing)
-      standing.focus({ preventScroll: true });
+    restoreFocus?.();
     return this.primary;
   }
 

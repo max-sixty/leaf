@@ -200,11 +200,12 @@ and its chrome coordinate.
 
 ### Shared definitions
 
-- **Compose a delivered page's head once.** `http.py` `runtime_document` and
-  `supervised_document` and `exporting.py` `export_document` each prepend the prelude,
-  policy, runtime script, sheets, theme and entry at the head's open, and the MCP ready
-  signal and a specimen's `<html>`/`<body>` marks are spliced in by regex after. One
-  composer taking each host's differences as data would replace all five.
+- **Hold focus in the thread seats with `holdFocus`.** `focus.js` `holdFocus` is the
+  one hand-over of the user's place across a DOM move, but `thread/inline.js`
+  (`ThreadSeat.present`/`retain`) and `thread/landing.js` (`retainThreadFocus`) still
+  pair `readCaret` with `focusDestination` by hand, and `auxiliary-surfaces.js` walks
+  `shadowRoot.activeElement` beside `deepFocus`. They were left while another session
+  had uncommitted edits to those functions.
 - **Say which panes the workspace holds without naming `lf-pane`.** `layouts.css`
   holds an authored pane only as the workspace body or a cell of it (a pane in a
   section flows), and a generated pane at any depth. It tells the two apart by the
@@ -219,6 +220,12 @@ and its chrome coordinate.
   `thread/thread-card.js`), and `lf-activity.js` shows such a row under the claimant's
   name instead. Resolve the name where the browser's threads, margin updates and
   activity rows are served, then delete the JS fallbacks.
+- **Pick "any suggestion's control" without its owner key.** The harness's
+  `suggestion_owner` is the suite's one spelling of `lf-suggestion`'s contribution key,
+  but four prefix selectors in `test_render_controls.py` (`^="suggestion:"`,
+  `^="draft:"`), one that slices the key apart there, and one in
+  `test_render_threads.py` still spell it. Give the harness a by-kind locator, or
+  find these controls by the widget's own element.
 
 ## Etc
 

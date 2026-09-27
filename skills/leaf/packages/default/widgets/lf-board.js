@@ -35,6 +35,7 @@ import {
   saying,
   widgetController,
   dragging,
+  holdFocus,
   motion,
   scrollerFor,
   PRESS,
@@ -611,7 +612,7 @@ customElements.define(
           return [card, card.getBoundingClientRect()];
         }),
       );
-      const focus = document.activeElement;
+      const restoreFocus = holdFocus(this);
       for (const [id, order] of Object.entries(columns)) {
         const column = document.getElementById(id);
         if (!column || column.closest("lf-board") !== this) continue;
@@ -621,8 +622,7 @@ customElements.define(
             column.insertBefore(card, this.#cards(column)[index] ?? null);
         });
       }
-      if (focus?.isConnected && document.activeElement !== focus)
-        focus.focus({ preventScroll: true });
+      restoreFocus?.();
       const movements = [];
       for (const card of cards) {
         const last = card.getBoundingClientRect();

@@ -1001,7 +1001,8 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
 
     prompt = codex_model.prepare_codex_delivery(page_dir, harness)
     assert codex_model.prepare_codex_delivery(page_dir, harness) == prompt
-    [accepted] = codex_model.accept_codex_delivery("hosted-thread")
+    service_model.open_session_turn("hosted-thread", "app-turn")
+    [accepted] = codex_model.accept_codex_delivery("hosted-thread", "app-turn")
 
     assert prompt.prompt.startswith("```xml\n<leaf-delivery ")
     assert 'operation="delivery read"' in prompt.prompt
@@ -1016,13 +1017,8 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
         "pid": os.getpid(),
         "agent": "Leaf guide",
     }
-    assert claim["turn_closed"] is None
-    assert claim["turn"] is not None
-    assert accepted == {
-        "page": page_dir,
-        "events": (comment["id"],),
-        "turn": claim["turn"],
-    }
+    assert (claim["turn"], claim["turn_closed"]) == ("app-turn", None)
+    assert accepted == {"page": page_dir, "events": (comment["id"],)}
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
     activity = page_state(page_dir)["activity"]
     assert activity["kind"] == "working"
@@ -1160,7 +1156,8 @@ def test_embedded_codex_delivery_keeps_steered_input_in_one_claim_turn(page_dir)
         {"kind": "comment", "author": "user", "text": "make this editable"},
     )
     codex_model.prepare_codex_delivery(page_dir, harness)
-    codex_model.accept_codex_delivery("hosted-thread")
+    service_model.open_session_turn("hosted-thread", "app-turn")
+    codex_model.accept_codex_delivery("hosted-thread", "app-turn")
     first_turn = service_model.page_claim(page_dir)["turn"]
 
     second = events_model.append_event(
@@ -1168,7 +1165,7 @@ def test_embedded_codex_delivery_keeps_steered_input_in_one_claim_turn(page_dir)
         {"kind": "comment", "author": "user", "text": "also change the title"},
     )
     codex_model.prepare_codex_delivery(page_dir, harness)
-    codex_model.accept_codex_delivery("hosted-thread")
+    codex_model.accept_codex_delivery("hosted-thread", "app-turn")
 
     claim = service_model.page_claim(page_dir)
     state = page_state(page_dir)
@@ -3906,9 +3903,6 @@ def test_a_delivery_bound_final_is_the_only_plain_reply_writer(page_dir):
             }
         }
     )
-    with service_model.PageTransaction(page_dir) as page:
-        page.open_turn("codex-thread", "turn-2")
-
     with pytest.raises(SystemExit, match="answered by this turn's messages"):
         thread_model.cmd_reply(
             page_dir,
@@ -3999,6 +3993,7 @@ def test_a_delivery_bound_final_cannot_append_after_claim_transfer(page_dir):
         assert page.status["stream"]["reply_bindings"][comment["id"]] == {
             "session": "successor-thread",
             "attempt": service_model.delivery_reply_attempt("delivery-2"),
+            "turn": "turn-1",
         }
 
 
@@ -4123,6 +4118,249 @@ def _observer() -> "codex_adapter_model.TaskObserver":
     return codex_adapter_model.TaskObserver("ws://127.0.0.1:1", "codex-thread")
 
 
+def _delivery_item(payload: dict) -> dict:
+    """The transcript item a turn carrying one App Server delivery holds."""
+    return {
+        "id": "delivery",
+        "type": "functionCallOutput",
+        "name": "leaf_delivery",
+        "output": json.dumps(payload),
+    }
+
+
+def _obligations(page_dir) -> list[dict]:
+    return served_page.full_state(page_dir, events_model.read_events(page_dir))[
+        "activity"
+    ]["obligations"]
+
+
+def test_a_turn_that_ended_unseen_is_recorded_without_reopening(page_dir):
+    """A delivery accepted from a snapshot names its turn and opens nothing.
+
+    The turn took the delivery and ended while the observer's connection was
+    down, and the session's turn has been closed since. Recording the pickup
+    against that ended turn must not open it again, since nothing will see it
+    end a second time.
+    """
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1)
+    )
+    publish(page_dir)
+    action = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "plan-choice",
+            "action": "answer",
+            "detail": {},
+        },
+    )
+    prepared = codex_model.prepare_codex_delivery(
+        page_dir, host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
+    )
+    assert codex_model.stream_reply_target(prepared.payload) is None
+    service_model.close_session_turn("codex-thread")
+    closed = service_model.page_claim(page_dir)
+
+    _observer()._resume(
+        {
+            "status": {"type": "idle"},
+            "turns": [
+                {
+                    "id": "ended-turn",
+                    "status": "completed",
+                    "items": [_delivery_item(prepared.payload)],
+                }
+            ],
+        }
+    )
+
+    assert (
+        codex_model.delivery_record_state("codex-thread", prepared.payload["id"])
+        == "accepted"
+    )
+    [pickup] = [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "pickup"
+    ]
+    assert (pickup["events"], pickup["turn"]) == ([action["id"]], "ended-turn")
+    assert service_model.page_claim(page_dir) == closed
+
+
+def test_a_reply_binding_lapses_when_a_turn_it_does_not_name_opens(page_dir):
+    """A binding hands its move's answer to the turn it names, and to no other.
+
+    The observer bound the delivery's reply to its turn and then lost the
+    connection with the turn still running. While that turn is the claim's, the
+    turn's own messages owe the answer. Once a later turn opens without the
+    carrier taking the binding over, nothing says those messages will be
+    committed, so the move is answered with `leaf thread reply` again, and a
+    carrier that reconnects and commits the delivery turn's final message after
+    all yields to that answer.
+    """
+    comment = events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "Answer me"}
+    )
+    prepared = codex_model.prepare_codex_delivery(
+        page_dir, host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
+    )
+    target = codex_model.stream_reply_target(prepared.payload)
+    thread_model.reserve_delivery_reply("codex-thread", prepared.payload["id"], target)
+    observer = _observer()
+    observer._read(
+        {
+            "method": "turn/started",
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {
+                    "id": "delivery-turn",
+                    "items": [_delivery_item(prepared.payload)],
+                },
+            },
+        }
+    )
+    observer._disconnect_turns()
+    [owed] = _obligations(page_dir)
+    assert owed["answer"]["kind"] == "turn"
+
+    with service_model.PageTransaction(page_dir) as page:
+        page.open_turn("codex-thread", "later-turn")
+
+    [owed] = _obligations(page_dir)
+    assert owed["answer"] == {
+        "kind": "reply",
+        "to": comment["id"],
+        "for": comment["id"],
+    }
+    posted = thread_model.cmd_reply(
+        page_dir,
+        None,
+        "Answered in the later turn",
+        "",
+        for_event=comment["id"],
+        identity={"session": "codex-thread"},
+    )
+    assert posted["responds"] == comment["id"]
+
+    observer._resume(
+        {
+            "status": {"type": "idle"},
+            "turns": [
+                {
+                    "id": "delivery-turn",
+                    "status": "completed",
+                    "items": [
+                        _delivery_item(prepared.payload),
+                        {
+                            "id": "answer",
+                            "type": "agentMessage",
+                            "phase": "final_answer",
+                            "text": "The delivery turn's final",
+                        },
+                    ],
+                }
+            ],
+        }
+    )
+    assert [
+        event["text"]
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "reply"
+    ] == ["Answered in the later turn"]
+
+
+def test_a_reply_binding_lapses_when_its_turn_closes(page_dir):
+    """A turn that has ended writes nothing more, so its binding lapses with it.
+
+    The observer bound the delivery's reply to its turn and then lost the
+    connection. When the session's turn closes without a carrier committing the
+    turn's final message, nothing says one will, so the move is answered with
+    `leaf thread reply` again.
+    """
+    comment = events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "Answer me"}
+    )
+    prepared = codex_model.prepare_codex_delivery(
+        page_dir, host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
+    )
+    target = codex_model.stream_reply_target(prepared.payload)
+    thread_model.reserve_delivery_reply("codex-thread", prepared.payload["id"], target)
+    observer = _observer()
+    observer._read(
+        {
+            "method": "turn/started",
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {
+                    "id": "delivery-turn",
+                    "items": [_delivery_item(prepared.payload)],
+                },
+            },
+        }
+    )
+    observer._disconnect_turns()
+    [owed] = _obligations(page_dir)
+    assert owed["answer"]["kind"] == "turn"
+
+    service_model.close_session_turn("codex-thread", "delivery-turn")
+
+    [owed] = _obligations(page_dir)
+    assert owed["answer"] == {
+        "kind": "reply",
+        "to": comment["id"],
+        "for": comment["id"],
+    }
+    posted = thread_model.cmd_reply(
+        page_dir,
+        None,
+        "Answered after the turn ended",
+        "",
+        for_event=comment["id"],
+        identity={"session": "codex-thread"},
+    )
+    assert posted["responds"] == comment["id"]
+
+
+def test_the_prompt_hook_and_the_observer_open_one_codex_turn(page_dir, capsys):
+    """Codex names each turn to its hooks and its App Server alike.
+
+    The prompt hook opens the turn and records the acknowledged move it re-presents
+    as opened in it; the observer then sees the same turn start. Both name one
+    turn, so the move reads as handled by the turn running now rather than left
+    behind by one the observer's opening replaced.
+    """
+    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
+    events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "Handle me"}
+    )
+    files_model.write_json(
+        page_dir / "cursor.json", {"seq": events_model.read_events(page_dir)[-1]["seq"]}
+    )
+    service_model.close_session_turn("codex-thread")
+
+    hooks_model.cmd_hook(
+        {
+            "hook_event_name": "UserPromptSubmit",
+            "session_id": "codex-thread",
+            "turn_id": "codex-turn",
+        }
+    )
+    capsys.readouterr()
+    _observer()._read(
+        {
+            "method": "turn/started",
+            "params": {"threadId": "codex-thread", "turn": {"id": "codex-turn"}},
+        }
+    )
+
+    assert service_model.page_claim(page_dir)["turn"] == "codex-turn"
+    [owed] = _obligations(page_dir)
+    assert (owed["stage"], owed["condition"]) == ("picked_up", None)
+
+
 def test_reconnect_closes_a_completed_stream_binding(monkeypatch):
     observer = _observer()
     finished = []
@@ -4138,7 +4376,7 @@ def test_reconnect_closes_a_completed_stream_binding(monkeypatch):
     closed = []
     monkeypatch.setattr(
         codex_model,
-        "close_stream_turn",
+        "close_session_turn",
         lambda session, turn: closed.append((session, turn)),
     )
 
@@ -4490,7 +4728,7 @@ def test_a_reply_that_cannot_be_written_still_closes_its_turn(page_dir, monkeypa
     turn = codex_adapter_model.DeliveryTurn(
         _CarriedDeliveries(), "codex-thread", None, "leaf-turn", payload["id"], target
     )
-    codex_model.open_stream_turn("codex-thread", "leaf-turn")
+    turn.open()
     codex_model.set_stream_activity("codex-thread", "leaf-turn", {"kind": "working"})
     turn.open_reply()
     monkeypatch.setattr(thread_model.DeliveryReply, "_set_state", _unopenable)
@@ -8715,6 +8953,7 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
     ):
         codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None, None)
 
+    claim = service_model.page_claim(page)
     observer = _observer()
     observer._reconcile(
         {
@@ -8735,7 +8974,8 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
     recovered = files_model.read_json(history)
     assert recovered["state"] == "accepted"
     assert all(batch["receipted"] for batch in recovered["batches"])
-    assert service_model.page_claim(page)["turn_closed"] is not None
+    # The recovered turn had ended, so recording it opens and closes nothing.
+    assert service_model.page_claim(page) == claim
     accepted = thread_model.cmd_reply(
         page,
         comment["id"],

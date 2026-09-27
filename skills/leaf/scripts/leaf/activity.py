@@ -121,6 +121,30 @@ def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
     )
 
 
+def reply_binding_stands(
+    binding: dict | None, session: str | None, turn: str | None, closed: str | None
+) -> bool:
+    """Whether a reply binding still hands its move's answer to a turn's own
+    messages, given the page's claim session, turn, and when that turn closed.
+
+    A binding names the claim turn it belongs to: the delivery's turn once that
+    turn's reply opens, and before then the turn that stood when the seat was
+    reserved. It stands while that is still the claim's turn and the turn is
+    open. A turn that opens without taking it over is not the delivery's, and a
+    turn that has ended writes nothing more; either way nothing says a carrier
+    will still commit the delivery turn's messages: its start may have produced
+    no turn, or its carrier stopped reading. So the move is answered the ordinary
+    way again, and a carrier that does commit late yields to that answer
+    (`thread.cmd_reply`, `post`). A carrier that is still reading commits before
+    it closes the turn (`codex.TurnFold.commit`)."""
+    return bool(
+        binding
+        and closed is None
+        and binding.get("session") == session
+        and binding.get("turn") == turn
+    )
+
+
 def answer_command(answer: dict) -> str:
     """The one operation that writes an answer, with the id it is addressed to."""
     if answer["kind"] == "reply":
@@ -346,11 +370,12 @@ def canonical_activity(
 ) -> dict:
     """Return the one current reading of agent activity for a page snapshot.
 
-    `bindings` are the stream's reply bindings. A reply address bound to the
-    claimant's session is that session's App Server turn to write, with its own
-    opening and final messages, so its workflow's answer reads as a `turn` under
-    the binding's attempt: every consumer that holds the agent to an answer, or
-    refuses a second writer, reads that answer rather than the binding."""
+    `bindings` are the stream's reply bindings. A reply address whose binding
+    stands (`reply_binding_stands`) is the claimant's App Server turn to write,
+    with its own opening and final messages, so its workflow's answer reads as a
+    `turn` under the binding's attempt: every consumer that holds the agent to an
+    answer, or refuses a second writer, reads that answer rather than the
+    binding."""
     now = datetime.fromisoformat(now_iso)
     status = present["status"]
     turn, stream_live = current_turn(present, stream, now)
@@ -376,8 +401,12 @@ def canonical_activity(
         if (
             item["answer"] is not None
             and item["answer"]["kind"] == "reply"
-            and binding
-            and binding["session"] == present.get("claim_session")
+            and reply_binding_stands(
+                binding,
+                present.get("claim_session"),
+                present.get("claim_turn"),
+                present.get("turn_closed"),
+            )
         ):
             item["answer"] = {
                 **item["answer"],

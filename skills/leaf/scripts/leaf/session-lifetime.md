@@ -11,8 +11,8 @@ and requests another reading at its next deadline; it does not run a second fold
 | --- | --- | --- | --- |
 | work declaration: state, detail, event floor, source message, typed `work` seats | `status.json` | `leaf status`, from a turn of the session driving the page | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
 | live App Server activity: session, turn, typed kind, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's observer-only client | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
-| live App Server reply: one displayed draft plus delivery attempt bindings by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's plain reply | the displayed draft remains on failure or disconnect and is retired by a logged event naming its delivery attempt or its response address; each binding clears after durable commit or terminal failure, and survives connection and turn transitions until then |
-| turn identity, when it last opened or took a prompt, and open or closed state | the page's claim record | a prompt or direct delivery opens an opaque `turn` and stamps `turn_opened`, or renews that stamp on a turn still open; the Stop hook stamps `turn_closed` | the next opening mints a turn; the next closing stamps it |
+| live App Server reply: one displayed draft plus delivery attempt bindings by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's plain reply | the displayed draft remains on failure or disconnect and is retired by a logged event naming its delivery attempt or its response address; each binding names the claim turn it belongs to (the delivery's turn once its reply opens, the turn standing at reservation before then), clears after durable commit or terminal failure, and survives a lost connection; it stands only while that is still the claim's turn and the turn is open (`activity.reply_binding_stands`), and a turn's answer committed after its binding lapsed yields to a reply another writer already gave |
+| turn identity, when it last opened or took a prompt, and open or closed state | the page's claim record | a prompt, a direct delivery, or a carrier following a provider turn opens `turn` and stamps `turn_opened`, or renews that stamp on a turn still open; the id is the host's where it names one (Codex's hooks and App Server name the same turn) and one Leaf mints otherwise; the Stop hook stamps `turn_closed` on whatever turn is open, and a carrier on the turn it follows | the next opening of another id; the next closing stamps it, and a closed id never reopens |
 | the host's own word on the claimant's session: `idle`, `waiting` on a dialog, or `busy`, dated by its last change | the host's record, read at each state read (`Harness.live_turn`): for Claude Code, the `status` of the session's newest registry record whose process runs | the host | read live, so it moves with the host; absent where the host publishes nothing, as for a background job whose worker has retired |
 | the turn ending this page nudged its session after | `messaged_ending` in the page's claim record: the turn id and its close stamp, or for an interrupted turn its last opening | browser-event admission, once the harness's nudge lands | a later ending, a close under a new id or an interrupt after a new prompt renewed the same one, differs |
 | wait lease | `waiter.lock`, or `sessions/<session>.wait` for a host session | the live `leaf wait` process, held open for its life and removed when it lets go, SIGTERM and SIGHUP included | process exit |
@@ -279,16 +279,18 @@ Once every batch is acknowledged, only the delivery record moves under `history/
 
 An embedded host that already controls App Server can deliver the same immutable
 envelope directly with `turn/start` when the task is idle. After App Server accepts
-the turn, the host records the delivery against its Leaf claim turn, advances its
-page cursor, holds that task's wait lease for the container host's lifetime, and
-keeps the initiating connection for activity notifications. The pickup names
-Leaf's claim turn, while streamed activity names App Server's task and turn; each
-projection reads the identity its own fold compares. A retry reads the durable
+the turn, the host opens the claim turn under App Server's turn id, records the
+delivery against it, advances its page cursor, holds that task's wait lease for the
+container host's lifetime, and keeps the initiating connection for activity
+notifications. The pickup, the claim turn, and streamed activity all name that one
+id, which is also the id Codex's own hooks name. A retry reads the durable
 pickup instead of starting the event again. Its subscription spans the active turn,
 the delivery turn's opening, and that turn's terminal notification, recording both
 `opened` and the exact turn close. A host
-that owns a starting connection closes only the matching Leaf claim turn on its
-terminal notification. A direct start binds from its own answer. The request carries
+that owns a starting connection closes only that turn on its terminal
+notification. Every carrier opens and closes a turn through `TurnFold`, which calls
+the same session-wide opening and closing the hooks do; accepting a delivery only
+records which turn took it, so a turn read back after it ended is never reopened. A direct start binds from its own answer. The request carries
 the delivery id as its client message id, and App Server answers with the turn it made
 from it, so the starter knows its turn before reading a notification. The structured
 delivery also stays in the transcript, which is how a client that did not start a turn

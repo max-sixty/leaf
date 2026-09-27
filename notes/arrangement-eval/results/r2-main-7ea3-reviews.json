@@ -1,0 +1,1501 @@
+[
+  {
+    "pass": "reviews",
+    "subject": "dashboard",
+    "n": 1,
+    "phase": 1,
+    "A": "leaf",
+    "B": "plain",
+    "is_error": false,
+    "shots": 32,
+    "unread": [],
+    "verdict": {
+      "winner": "B",
+      "margin": "slight",
+      "by_width": {
+        "laptop": "B",
+        "narrow": "B",
+        "phone": "tie"
+      },
+      "reasons": [
+        "B's error-rate chart labels the time axis with plain HH:MM ticks, so it reads quickly. A labels it with full ISO timestamps like 2026-09-27T14:00Z, which are cluttered and get cut off at the right edge at 900px.",
+        "B's layout is calmer to scan. The headline, a callout with the 16:00 deadline, the four numbers, a large rollout bar per region, the chart, the cause, then the three choices with a recommendation and a short rationale. A packs the page into cards, which works as a dashboard, but on narrow the metric cards wrap unevenly and leave a lone card with gaps beside it.",
+        "A has real strengths. It shows the 0.9% auto-pause line on the chart, and on laptop the failing checkout check sits in the sidebar above the fold. So the margin is slight. On phone both are about equal: the per-region rollout rows shrink to tiny text on both pages."
+      ],
+      "defects": {
+        "A": [
+          "Chart x-axis uses long ISO timestamps; they are cut off at the right edge at 900px and only two fit on phone",
+          "At 900px the four metric cards wrap to 3+1, leaving a lone card with empty space beside it",
+          "On phone the per-region rollout rows (errors, status text) are tiny and hard to read",
+          "On phone the viewer's floating help button covers the end of the 'What should eu-west do now?' heading"
+        ],
+        "B": [
+          "At 900px the checks table fills only about half the width, leaving empty room to its right",
+          "On phone the per-region rollout rows are tiny and hard to read",
+          "The headline says '4.12 is healthy in five regions', but two of those five are only at 10% and 1% and waiting",
+          "The decision options sit far down the page on every width; the top callout doesn't link to them"
+        ]
+      }
+    }
+  },
+  {
+    "pass": "reviews",
+    "subject": "dashboard",
+    "n": 1,
+    "phase": 2,
+    "A": "plain",
+    "B": "leaf",
+    "is_error": false,
+    "shots": 30,
+    "unread": [],
+    "verdict": {
+      "winner": "B",
+      "margin": "slight",
+      "by_width": {
+        "laptop": "B",
+        "narrow": "A",
+        "phone": "B"
+      },
+      "reasons": [
+        "B reads fastest at a glance. Its opening screen has a red 'Decision needed: eu-west' callout, status pills (paused, 3 regions done, 2 waiting, #release post due 16:00) and all four headline numbers. The eu-west row in the rollout table is highlighted, and the chart has a line for the auto-pause threshold, so the 0.9% trigger is easy to see.",
+        "At 900px A is the cleaner layout. The status card and a 2x2 grid of headline numbers sit beside the region bars, and the text is readable. At the same width B wraps its four number cards into 3 plus 1, leaving one card orphaned, and shrinks the region table to very small text.",
+        "At 1440px A leaves a large empty area to the right of the headline, and its side column only starts halfway down the first screen. B uses the full width, with the checks panel beside the decision callout. On a phone, A pushes the status card and headline numbers below the decision options, to the very bottom of the page. B keeps them near the top, which matters more for glancing."
+      ],
+      "defects": {
+        "A": [
+          "At 1440px there is a large empty area to the right of the headline and summary.",
+          "On a phone the status card and headline numbers come after the decision options, near the end of the page.",
+          "The event log's first screen cuts off at 14:20 with no text visible, and a user may not realise the log scrolls.",
+          "The rollout bar labels are small on a phone."
+        ],
+        "B": [
+          "The chart's x-axis uses raw ISO timestamps ('2026-09-27T14:00Z'), which are cluttered, and only two show on a phone.",
+          "At 900px the four number cards wrap 3 plus 1, leaving the crash-free card orphaned and a gap beside it.",
+          "The region table text is very small at 900px and almost unreadable on a phone.",
+          "The event log's first screen cuts off partway through an entry."
+        ]
+      },
+      "preference": {
+        "A": true,
+        "B": true,
+        "why": "At 900px both pages keep a side column beside the main content. A's column holds the status card, headline numbers, checks, event log and follow-ups, and B's holds the checks, follow-ups and event log. Neither stacks them above or below the main content."
+      }
+    }
+  },
+  {
+    "pass": "reviews",
+    "subject": "dashboard",
+    "n": 2,
+    "phase": 1,
+    "A": "leaf",
+    "B": "plain",
+    "is_error": false,
+    "shots": 31,
+    "unread": [],
+    "verdict": {
+      "winner": "A",
+      "margin": "slight",
+      "by_width": {
+        "laptop": "A",
+        "narrow": "B",
+        "phone": "A"
+      },
+      "reasons": [
+        "A's red banner at the top says what is wrong and gives the recommendation: roll eu-west back to 4.11 and ship 4.12.1 with the old timeout. It also links to the decision block. The user gets the answer at a glance. B's banner only says 'eu-west needs your call', so the user has to scroll down to the options to find the recommendation.",
+        "At laptop width, A reads like a dashboard. The metrics, the region rollout grid and the release checks with the failure first all fit in the first screen, and the follow-ups and event log sit in a right-hand column. In B's lower half, the left column is empty beside the follow-ups and the checks table is narrow, which wastes room.",
+        "At 900px, A keeps two columns and shrinks the region rollout grid to tiny text. The metric tiles also wrap unevenly, three and then one. B switches to a single column with the rollout grid at full size, and its chart shows the 0.9% auto-pause threshold line, so it is easier to read there.",
+        "On phone, both pages shrink the rollout grid to near-unreadable text, and in both the help bubble covers the end of the decision heading. A's 2×2 metric tiles and its recommendation near the top keep the key state more compact than B's four stacked tiles."
+      ],
+      "defects": {
+        "A": [
+          "At 900px and on phone, the region rollout grid is scaled down to tiny, hard-to-read text",
+          "At 900px, the metric tiles wrap unevenly (3 + 1)",
+          "On phone, the help bubble covers the end of the heading 'What should eu-west do now?'",
+          "The error chart has no line for the auto-pause threshold"
+        ],
+        "B": [
+          "The top banner has no recommendation; the user must scroll to the options to see it",
+          "At laptop width, there is a large empty area on the left beside the follow-ups, and the checks table uses only part of its column",
+          "On phone, the region rollout grid is scaled down to tiny text",
+          "On phone, the help bubble covers the end of the heading 'What should eu-west do next?'",
+          "On phone, the four metric tiles stack one per row and use a lot of height"
+        ]
+      }
+    }
+  },
+  {
+    "pass": "reviews",
+    "subject": "dashboard",
+    "n": 2,
+    "phase": 2,
+    "A": "plain",
+    "B": "leaf",
+    "is_error": false,
+    "shots": 31,
+    "unread": [],
+    "verdict": {
+      "winner": "B",
+      "margin": "clear",
+      "by_width": {
+        "laptop": "B",
+        "narrow": "B",
+        "phone": "B"
+      },
+      "reasons": [
+        "B puts the answer above the fold at every width. A full-width red callout explains why eu-west is failing and states the recommendation (roll back to 4.11, ship 4.12.1 with the 10 s timeout). Status chips show 3 of 6 regions at 100%, eu-west paused, and the #release post due at 16:00. A's top callout only says 'eu-west needs your call', and its recommendation appears only as a tag inside the decision list further down.",
+        "B's decision block lists the recommended option first, and each option comes with concrete consequences: checkout restored, half failing, or all failing, and whether it is reversible. The resume option also estimates the resulting error rate. A lists the options in the order the user wrote them and describes them more thinly.",
+        "At 900px both keep a side column next to the main content. B's side column holds checks, follow-ups and the event log, and it stays full down the page. A's sidebar ends after the follow-ups and leaves a tall empty strip on the left, while the checks and event log get pushed into the main column far down the page. At 1440px, B's layout also fills the width better: the decision spans the main column instead of sitting in a narrow right column beside the chart."
+      ],
+      "defects": {
+        "A": [
+          "At 900px the left sidebar runs out after the follow-ups, leaving a large empty band beside the chart, the cause, the decision, the checks and the log.",
+          "The decision is buried: at 900px it sits about three screens down, with no recommendation in the top callout.",
+          "On the phone the region stage grid shrinks to very small text.",
+          "On the laptop the decision is squeezed into the narrow right column next to the chart, and there is empty space under the release checks."
+        ],
+        "B": [
+          "At 900px and on the phone the region stage grid text is quite small.",
+          "At 900px the check names wrap onto two or three lines in the narrow side column.",
+          "On the laptop there is empty space under the event log in the right column, beside the decision."
+        ]
+      },
+      "preference": {
+        "A": true,
+        "B": true,
+        "why": "At 900px both pages keep a side column next to the main content instead of stacking it: A has the KPIs and follow-ups on the left, and B has checks, follow-ups and the event log on the right. B's side column stays useful further down the page, while A's goes empty after the first screen."
+      }
+    }
+  },
+  {
+    "pass": "reviews",
+    "subject": "dashboard",
+    "n": 3,
+    "phase": 1,
+    "A": "leaf",
+    "B": "plain",
+    "is_error": false,
+    "shots": 31,
+    "unread": [],
+    "verdict": {
+      "winner": "B",
+      "margin": "slight",
+      "by_width": {
+        "laptop": "tie",
+        "narrow": "B",
+        "phone": "tie"
+      },
+      "reasons": [
+        "B puts the eu-west decision higher on the page: on a laptop it is on the second screen, right after the chart and a clear 'Cause' summary. In A the decision is the last thing on the page, so the user has to scroll past everything else to act.",
+        "B's error chart has readable time labels (14:00 … 15:35) and a caption. A labels its x-axis with raw ISO timestamps ('2026-09-27T14:00'), which are cluttered on a laptop and cut off at 900px. A's chart does have the useful auto-pause threshold line, which B lacks.",
+        "At 900px B switches to one full-width column with a large chart and a readable rollout bar table. A keeps two columns, so its rollout-by-region chart shrinks to tiny text and the checks table wraps into narrow cells.",
+        "A's laptop layout is more balanced, with its sidebar filled. After the first two screens, B leaves the whole left half of the laptop window empty while the checks, follow-ups and event log run down the right column.",
+        "Both pages share the main phone problem: the rollout-by-region graphic shrinks until its labels can't be read. Beyond that each has one small flaw, so the phone width is a tie."
+      ],
+      "defects": {
+        "A": [
+          "The error chart's x-axis uses raw ISO timestamps ('2026-09-27T14:00'), and at 900px the last label is cut off ('T15:3').",
+          "At 900px and on the phone, the rollout-by-region chart shrinks to tiny, hard-to-read text.",
+          "The decision section comes last on the page, below the chart, so it takes scrolling to reach on every width.",
+          "The event log is a region with its own scroll and shows only the latest few entries in its first screen.",
+          "On the phone, the 'Another option' input is cut off ('add t…')."
+        ],
+        "B": [
+          "On a laptop, the left half of the page is empty below the chart while the checks, follow-ups and event log sit in the right column: wasted space.",
+          "On the phone, the rollout bar table shrinks to tiny labels and numbers.",
+          "On the phone, the floating help button covers the heading 'What should eu-west do next?'.",
+          "The error chart doesn't show the 0.9% auto-pause threshold.",
+          "The event log is a scroll region cut off at the bottom on the phone."
+        ]
+      }
+    }
+  },
+  {
+    "pass": "reviews",
+    "subject": "dashboard",
+    "n": 3,
+    "phase": 2,
+    "A": "plain",
+    "B": "leaf",
+    "is_error": false,
+    "shots": 32,
+    "unread": [],
+    "verdict": {
+      "winner": "B",
+      "margin": "slight",
+      "by_width": {
+        "laptop": "B",
+        "narrow": "B",
+        "phone": "A"
+      },
+      "reasons": [
+        "B reads faster at a glance on laptop and at 900px. Its 'Now' card has status chips (3 done, eu-west paused · 0.91%, canary failing, 2 waiting, #release due 16:00) and a red 'needs your call' callout, and its large stage-dot rollout makes eu-west's stop at 50% obvious. A's rollout bars and table text get small and cramped at 900px.",
+        "B's error chart draws the auto-pause threshold at 0.9%, so it shows at once why eu-west paused and that it is still sitting on the line. A's chart has no reference line.",
+        "Both put the decision up front with a recommended option. On laptop, A shows the options on the first screen. On the phone, A puts its status summary first, while B pushes the 'Now' summary below the whole decision block, so A wins the phone."
+      ],
+      "defects": {
+        "A": [
+          "At 900px the rollout-by-region table shrinks to small text, hard to read at a glance",
+          "Laptop and 900px: a large empty area in the left column below the Cause section wastes room while the right column keeps going",
+          "At 900px the decision options start near the bottom of the first screen, so you have to scroll to compare them"
+        ],
+        "B": [
+          "The chart's x-axis shows raw ISO timestamps ('2026-09-27T14:00'). On the phone only two ticks fit, so the time axis is hard to read",
+          "On the phone, the 'Now' status summary comes after the decision options rather than at the top",
+          "Empty space in the left column below the decision card at laptop and 900px"
+        ]
+      },
+      "preference": {
+        "A": true,
+        "B": true,
+        "why": "At 900px both keep two columns. A puts the status summary, decision, checks, follow-ups and event log in a right column beside the rollout, chart and cause. B puts the Now summary, checks, follow-ups and event log in a right column beside the numbers, rollout, chart and decision. Neither stacks the summary above or below the main content."
+      }
+    }
+  },
+  {
+    "pass": "reviews",
+    "subject": "document",
+    "n": 1,
+    "phase": 1,
+    "A": "plain",
+    "B": "leaf",
+    "is_error": false,
+    "shots": 42,
+    "unread": [],
+    "verdict": {
+      "winner": "B",
+      "margin": "slight",
+      "by_width": {
+        "laptop": "B",
+        "narrow": "B",
+        "phone": "B"
+      },
+      "reasons": [
+        "B keeps more of the user's evidence visible in the running text: the 96.1% of 4,210 logout figure, the p99 of 7.8 ms and its batch-window cause, and the stateless 15-minute security risk. A tucks the measurement context into a collapsed toggle and leaves out the 4,210 count.",
+        "B is more accurate about cost. It says the $148k Redis bill shrinks to a cache-only tier, which matches plan step 5. A's lead says 'we stop paying $148k a year', which overstates it for a team that will check the numbers.",
+        "B's three-row diagram shows where each option reads sessions and where logout has to reach. That makes the core trade-off easy to see on laptop. Its horizontal CPU bar chart keeps all its labels at every width, while A's vertical bar chart drops the middle 'load-test' label on phone.",
+        "A has one real strength: its Gantt timeline shows the 1 Nov renewal falling in the middle of dual-write, and its CPU-question options are more concrete. B only mentions the renewal overlap in a side note.",
+        "Both use the same viewer controls for picking an option and for the database owners' question. Both open with the recommendation and the two decisions needed, so the gap between them is small."
+      ],
+      "defects": {
+        "A": [
+          "Lead says 'we stop paying $148k a year for Redis', but the plan keeps Redis as a cache at a smaller tier",
+          "Phone: the timeline chart shrinks until its labels can't be read",
+          "Phone: the CPU bar chart loses the label for its middle 'load-test peak' bar",
+          "Narrow: the '?' badge overlaps the end of the heading 'Database owners: … acceptable?'",
+          "Double-space gaps in units such as '1.2  ms' and '90  s'",
+          "The 96.1% / 4,210 logout figure is missing, and the measurement context is hidden in a collapsed toggle"
+        ],
+        "B": [
+          "Phone: the three-option architecture diagram shrinks until it can't be read",
+          "Narrow: the diagram text is small, and the side note sits indented above the paragraph it belongs to",
+          "On laptop the diagram runs wider than the text column, so the page edges don't line up",
+          "The renewal-overlap point is only a small grey side note, not a chart"
+        ]
+      }
+    }
+  },
+  {
+    "pass": "reviews",
+    "subject": "document",
+    "n": 1,
+    "phase": 2,
+    "A": "leaf",
+    "B": "plain",
+    "is_error": false,
+    "shots": 45,
+    "unread": [],
+    "verdict": {
+      "winner": "B",
+      "margin": "slight",
+      "by_width": {
+        "laptop": "B",
+        "narrow": "B",
+        "phone": "B"
+      },
+      "reasons": [
+        "B's left rail holds the recommendation, the 'waiting on' list and the contents from the first screen. At 1440 and 900 it stays beside the content all the way down, so the two asks are always in view. A's summary card starts only below the hero, which leaves a large empty area to the right of the title.",
+        "On a phone, B puts the recommendation and 'waiting on' list at the top. A pushes its Summary and Contents to the very bottom, after the plan, where a top-to-bottom reader reaches them last.",
+        "B's plan section adds a timeline marking the 1 November renewal against the dual-write window, which makes the timing problem easy to see. A's plan is a clear vertical stepper with a callout, but it has no timeline. A's per-option flow diagrams are useful but add length.",
+        "At 900px, B's rail fits fully in view. The bottom of A's sticky Contents card is hidden behind the viewer's footer for most of the scroll, and A's four stat cards wrap as 3 + 1."
+      ],
+      "defects": {
+        "A": [
+          "At 900px, the last item in the sticky Contents card is cut off behind the footer until you reach the end of the page",
+          "On phone, Summary and Contents come last, after all the content",
+          "On phone, the three option flow diagrams shrink to tiny, hard-to-read text",
+          "At laptop width, there's a large empty area to the right of the hero because the sidebar starts below it",
+          "At 900px, the stat cards wrap as 3 + 1, leaving one card on its own row"
+        ],
+        "B": [
+          "On phone, the migration timeline shrinks to tiny, hard-to-read labels",
+          "On phone, the CPU bar chart drops the middle bar's label ('Load-test peak')",
+          "Stray double spaces before units ('1.2  ms', 'option  2')",
+          "The p99-from-evictions detail is inside a collapsed disclosure with a generic label"
+        ]
+      },
+      "preference": {
+        "A": true,
+        "B": true,
+        "why": "At 900px, both keep a summary and contents column beside the main content instead of stacking it. B's rail fits fully in view. The bottom of A's sticky Contents card is clipped by the footer until the end of the page."
+      }
+    }
+  },
+  {
+    "pass": "reviews",
+    "subject": "document",
+    "n": 2,
+    "phase": 1,
+    "A": "plain",
+    "B": "leaf",
+    "is_error": false,
+    "shots": 43,
+    "unread": [],
+    "verdict": {
+      "winner": "B",
+      "margin": "slight",
+      "by_width": {
+        "laptop": "B",
+        "narrow": "B",
+        "phone": "tie"
+      },
+      "reasons": [
+        "B turns more of the notes into visuals that help the decision. The p95 chart adds a flat Postgres 3.1 ms line, which shows that Redis on failover days is already slower than Postgres. A bar splits the keyspace 29% active and 71% idle, which shows memory alone doesn't force a move. A CPU headroom bar shows 40% today, 55% with sessions and the 70% alert, which frames exactly what the database owners must answer.",
+        "B's logout-everywhere diagram at laptop and 900px is large and legible: replica fan-out, then a single DELETE, then the revocation list with 'only if checked'. A's option diagrams are denser and smaller, and its key notes are in tiny type.",
+        "Both have the same decision structure: a recommendation-first lede, the comparison table, and two choice blocks (store and CPU). B's option tags are colour-coded good or bad, so it scans faster. A's standout piece is a timeline showing that the 1 Nov renewal lands mid-migration. B covers the same point with a readable callout.",
+        "On phone, both shrink their wide diagrams until they're unreadable: A its options diagram and timeline, B its logout diagram, keyspace bar and CPU bar. B adds a table of contents on phone, but it shrinks more figures, so phone comes out even."
+      ],
+      "defects": {
+        "A": [
+          "At 900px the '?' badge covers the end of the 'Database owners: … acceptable?' heading",
+          "On phone the three-option diagram and the migration timeline are scaled down until their text can't be read",
+          "The options diagram uses very small type even on laptop",
+          "The first-screen metric cards don't show the latency figures at all (p95, p99); they appear only in a collapsed section"
+        ],
+        "B": [
+          "On phone the logout diagram, keyspace bar and CPU headroom bar are all scaled down until their labels can't be read",
+          "On phone the '?' badge covers the end of the 'Database owners' heading",
+          "The comparison table wraps into cramped narrow columns on phone",
+          "The logout diagram is wider than the text column on laptop, so it lines up unevenly with the rest of the page"
+        ]
+      }
+    }
+  },
+  {
+    "pass": "reviews",
+    "subject": "document",
+    "n": 2,
+    "phase": 2,
+    "A": "plain",
+    "B": "leaf",
+    "is_error": false,
+    "shots": 44,
+    "unread": [],
+    "verdict": {
+      "winner": "B",
+      "margin": "slight",
+      "by_width": {
+        "laptop": "B",
+        "narrow": "A",
+        "phone": "tie"
+      },
+      "reasons": [
+        "On laptop, B has more for the platform team to read top to bottom. It puts a clear recommendation card at the top right, draws the Postgres load-test line on the latency chart, and adds a bar for the 71% idle keyspace and a CPU headroom bar showing 40% today, 55% under the load test and the 70% alert. Its main column uses the width better. A leaves a wide empty margin on the right, and the text in its option diagrams is small.",
+        "At 900px, A meets the side-by-side preference more fully. Its left rail holds the summary, the two asks, the deadline and the contents, and all of it stays beside the content the whole way down. B puts the recommendation card beside the content only at the top. After that, only the contents list stays alongside, and its main column narrows to about 525px, which makes the table wrap.",
+        "A has one insight B handles less visually: a timeline that plots the 1 November renewal against the cutover. B makes the same point in a highlighted callout under a clear step list, and adds a collapsible section for method and raw figures. Both end with the same two answer blocks, so the reader can act on either page."
+      ],
+      "defects": {
+        "A": [
+          "The pinned summary rail at 900px is cramped: short values wrap badly, e.g. 'Thursday 1 / Oct' and 'accept 55% / peak CPU?'",
+          "On phone, the option diagram and the renewal timeline shrink until their labels can't be read",
+          "On laptop, the text in the option diagrams is small and there is an unused margin on the right",
+          "The 71% idle-sessions figure appears only as a stat card, not in a chart"
+        ],
+        "B": [
+          "The recommendation card scrolls away at 900px and laptop, leaving only the contents list beside the content",
+          "Below the contents list, the right column is mostly empty space at laptop and 900px",
+          "On phone, the keyspace bar, option diagram and CPU bar shrink to very small text",
+          "At 900px the comparison table in the narrower main column wraps its cells"
+        ]
+      },
+      "preference": {
+        "A": true,
+        "B": true,
+        "why": "Both pages keep something beside the content at 900px. A pins its summary, asks, deadline and contents in a left rail for the whole page. B places its recommendation card beside the opening section and keeps the contents list beside the content throughout, so it also meets the preference, though less fully."
+      }
+    }
+  },
+  {
+    "pass": "reviews",
+    "subject": "document",
+    "n": 3,
+    "phase": 1,
+    "A": "plain",
+    "B": "leaf",
+    "is_error": false,
+    "shots": 40,
+    "unread": [],
+    "verdict": {
+      "winner": "B",
+      "margin": "slight",
+      "by_width": {
+        "laptop": "B",
+        "narrow": "B",
+        "phone": "tie"
+      },
+      "reasons": [
+        "B puts more of the notes on the page itself. The option cards carry each option's read p95, logout delay and service count, plus the exact DELETE mechanism and the user's own reasoning. The median, p95 and p99 figures appear as stat cards. A tucks the option details and the latency summary into collapsed toggles.",
+        "B's plan timeline gives every step a length and shows cutover landing after the 1 Nov renewal, with a callout on what that means for the contract. A's timeline draws steps 4 and 5 as empty placeholders, so it is less useful to act on.",
+        "A's diagram of where each option's logout can arrive late is a good touch, and its risks section also names the stateless security finding. That keeps the result close. On phone both pages shrink a wide diagram until it can't be read, so neither wins there."
+      ],
+      "defects": {
+        "A": [
+          "On phone, the three-option diagram and the plan timeline shrink until their text can't be read",
+          "The plan timeline shows steps 4 and 5 as empty dashed placeholders with no dates",
+          "Option details and the p99 figure are hidden behind collapsed toggles, so a reader going top to bottom can miss them",
+          "On phone, the comparison table's columns are cramped and wrap into narrow stacks"
+        ],
+        "B": [
+          "On phone, the plan timeline shrinks until its labels can't be read",
+          "On phone, the three stat cards break into a 2+1 grid and leave a lone card at half width",
+          "On laptop, the timeline spills out of the text column, and the 'Cut reads' label runs into the dashed 1 Nov line",
+          "The risks section leaves out the stateless 15-minute security risk (it appears only in the option card)",
+          "On phone, the comparison table's columns are cramped and wrap into narrow stacks"
+        ]
+      }
+    }
+  },
+  {
+    "pass": "reviews",
+    "subject": "document",
+    "n": 3,
+    "phase": 2,
+    "A": "plain",
+    "B": "leaf",
+    "is_error": false,
+    "shots": 40,
+    "unread": [],
+    "verdict": {
+      "winner": "B",
+      "margin": "slight",
+      "by_width": {
+        "laptop": "B",
+        "narrow": "tie",
+        "phone": "B"
+      },
+      "reasons": [
+        "Both pages meet the 900px preference: the status or summary and the contents stay in a column beside the main text instead of stacking above it. B's side column gives a quick read of the status (2 answers needed, decision Thu 1 Oct, Postgres recommended, 1 Nov +38%) plus a clean numbered contents list. A's column repeats its summary sentence and has a contents list that links to its own 'Waiting on' and 'Contents' headings.",
+        "B carries more of the user's evidence where readers see it. The p99 of 7.8 ms and the 02:00 batch cause appear as stat cards, a bar chart shows how late each option's logout can be, and each option card has tags for read p95, logout and services changed. A hides the latency figures in a collapsed section and its option cards give less detail.",
+        "At 1440px B's main column is wider and its migration timeline is large and easy to read. A has a well-made architecture diagram for each option, but its main column is narrower and the summary sits in a thin column. On a phone, A's diagram and timeline shrink until they can't be read, while B's main charts stay legible."
+      ],
+      "defects": {
+        "A": [
+          "The contents list links to 'Waiting on' and 'Contents' themselves, and a 'Contents' label sits above an 'On this page' label, which looks sloppy",
+          "At 900px and on the phone, the ? button overlaps the heading 'Database owners: is 55% peak CPU on accounts-db acceptable?'",
+          "On the phone, the architecture diagrams and the migration timeline are too small to read",
+          "The p50/p95/p99 figures sit in a collapsed section rather than being shown"
+        ],
+        "B": [
+          "The status box is cramped at both 1440 and 900px: 'Thu 1 / Oct' and '1 Nov, / +38%' wrap awkwardly",
+          "At 1440px there is a large empty area to the right of the title, and the side column only starts beside the first section",
+          "At 900px and on the phone, the migration timeline's labels are very small",
+          "On the phone, the status and contents move to the very bottom of the page, after all the content",
+          "The dashed 1 Nov line runs through the label 'Cut reads over'"
+        ]
+      },
+      "preference": {
+        "A": true,
+        "B": true,
+        "why": "At 900px both pages keep the summary or status and the contents in a column beside the main text instead of stacking them above or below it."
+      }
+    }
+  },
+  {
+    "pass": "reviews",
+    "subject": "queue",
+    "n": 1,
+    "phase": 1,
+    "A": "leaf",
+    "B": "plain",
+    "is_error": false,
+    "shots": 23,
+    "unread": [],
+    "verdict": {
+      "winner": "A",
+      "margin": "clear",
+      "by_width": {
+        "laptop": "A",
+        "narrow": "A",
+        "phone": "A"
+      },
+      "reasons": [
+        "A opens with a header that sums up the queue at a glance (2 × severity 1, 2 security issues, 0 of 8 decided). Each queue item shows its status ('undecided'), so the user can track progress through all eight in one sitting. B has no progress indicator.",
+        "At laptop and narrow widths A's queue and detail pane fill the window. B leaves a blank band above the heading and the right third of the laptop screen empty. After scrolling, both B columns cut off around 740px and leave a dead strip above the footer.",
+        "On phone, A lists the queue and then every ticket in full with its decision options, so the user can work straight down the page. B squeezes the queue into a tiny scroll box that shows one ticket and a sliver of the next, which makes choosing a ticket awkward.",
+        "A's detail pane adds useful cross-ticket context (Orbis is the tenant whose names leaked in ESC-4114), a red 'do not reply' warning, and a timeline for Kettle & Co. Its decision options follow a steady pattern: action title, reason, then a 'suggested' tag."
+      ],
+      "defects": {
+        "A": [
+          "The log excerpt is cut off sideways at 900px and on phone (it scrolls horizontally)",
+          "The floating '?' help button overlaps the end of each 'What happens to…' heading on phone",
+          "On phone every ticket is expanded in one very long page instead of opening one at a time"
+        ],
+        "B": [
+          "Empty band above the heading, and the right third of the laptop screen is unused",
+          "Both columns are fixed-height boxes that cut off around 740px, leaving a blank strip above the footer",
+          "On phone the queue box is only about 150px tall and shows one ticket",
+          "The SAML log is cut off at 900px and on phone",
+          "No decided/undecided status or progress count for the queue"
+        ]
+      }
+    }
+  },
+  {
+    "pass": "reviews",
+    "subject": "queue",
+    "n": 1,
+    "phase": 2,
+    "A": "plain",
+    "B": "leaf",
+    "is_error": false,
+    "shots": 22,
+    "unread": [],
+    "verdict": {
+      "winner": "B",
+      "margin": "clear",
+      "by_width": {
+        "laptop": "B",
+        "narrow": "B",
+        "phone": "B"
+      },
+      "reasons": [
+        "At 1440px, B puts the queue and the open ticket in two panels that use the full width. A's ticket column stops at about 1120px, leaving an empty band on the right, and its page ends early with blank space below both panels.",
+        "B's header shows how many tickets are severity 1 (2), how many are security issues (2), and how many are decided (0 of 8). Each queue card also shows 'undecided' where the user's call will appear. That suits working through all eight in one sitting. A's queue has no progress or decision state at all.",
+        "B's ticket pane makes the key point in its headline, for example 'Vela Analytics can see Orbis Retail's project names'. It adds tag chips and a red 'Do not reply' warning, and it links related tickets (Orbis appears in both 4111 and 4114). A shows the facts plainly, and a user deciding quickly gets less help from it.",
+        "Both pages keep the queue beside the ticket at 900px, as the user asked. B's queue column is a bit narrow and its card titles wrap, but it is still readable. A's layout at 900px is also fine, apart from a log line cut off inside its scroll box.",
+        "On the phone, A squeezes the queue into a tiny scroll box that shows only one ticket, with the next card cut off. B lists the whole queue, then shows every ticket fully in order, each with its decision options. That is long, but it reads well."
+      ],
+      "defects": {
+        "A": [
+          "At laptop width, about 300px of empty space on the right, and the ticket panel ends with a blank area below it",
+          "No progress or decision state anywhere in the queue",
+          "On the phone, the queue is a tiny scroll box showing one ticket, with a second card cut off",
+          "SAML log lines cut off at 900px and on the phone"
+        ],
+        "B": [
+          "At 900px, the narrow queue column makes card titles wrap awkwardly (e.g. '4114 · Vela / Analytics')",
+          "On the phone, the page stacks all eight tickets in one long scroll instead of opening one at a time",
+          "Log lines cut off in their scroll boxes at 900px and on the phone"
+        ]
+      },
+      "preference": {
+        "A": true,
+        "B": true,
+        "why": "At 900px, both pages keep the queue in a column to the left of the open ticket instead of stacking it above or below."
+      }
+    }
+  },
+  {
+    "pass": "reviews",
+    "subject": "queue",
+    "n": 2,
+    "phase": 1,
+    "A": "plain",
+    "B": "leaf",
+    "is_error": false,
+    "shots": 14,
+    "unread": [],
+    "verdict": {
+      "winner": "B",
+      "margin": "clear",
+      "by_width": {
+        "laptop": "B",
+        "narrow": "B",
+        "phone": "B"
+      },
+      "reasons": [
+        "B's queue cards show each ticket's severity, customer, a one-line problem, plan, age and suggested outcome. The user can see what all eight are about before opening any. A's queue is only bare ID lines like 'S1 · ESC-4107 · Northwind Labs · 9 h'.",
+        "At laptop and 900px, B puts the queue and the ticket side by side in the first screen with a compact header. A spends about a third of the first screen on a large intro paragraph, and its four outcome options are pushed below the fold.",
+        "B's ticket view has plan, account value and prior contact as tags, a highlighted key log line with line numbers, and a short note on why the recommended outcome fits before the options. A has the same facts but less framing and a plainer log.",
+        "On the phone both stack the queue above the ticket. B's richer queue is longer to scroll past, but it is readable and useful. A's phone ticket view has the help bubble covering the 'What happens to ESC-4107?' heading."
+      ],
+      "defects": {
+        "A": [
+          "Queue items are terse ID strings with no problem summary or suggested outcome, so the user has to open each ticket to learn what it is",
+          "Large intro paragraph pushes the decision options below the first screen at laptop and narrow widths",
+          "Log excerpt is cut off on the right at 900px and phone and has to be scrolled sideways",
+          "On the phone the help bubble overlaps the 'What happens to ESC-4107?' heading",
+          "On the phone the metadata is stacked label-over-value, which wastes vertical space"
+        ],
+        "B": [
+          "The strip of ticket-number tabs repeats the queue and adds clutter; on the phone it wraps onto two rows",
+          "On the phone the whole eight-card queue comes before the ticket details, which means a long scroll",
+          "Log excerpt is cut off on the right at 900px and phone",
+          "Outcome options are in a fixed order, so the recommended one is not always first (Refund comes before the recommended Fix on ESC-4107)"
+        ]
+      }
+    }
+  },
+  {
+    "pass": "reviews",
+    "subject": "queue",
+    "n": 2,
+    "phase": 2,
+    "A": "plain",
+    "B": "leaf",
+    "is_error": false,
+    "shots": 14,
+    "unread": [],
+    "verdict": {
+      "winner": "B",
+      "margin": "slight",
+      "by_width": {
+        "laptop": "B",
+        "narrow": "B",
+        "phone": "A"
+      },
+      "reasons": [
+        "Each B queue card shows the severity chip, customer, a one-line summary, age and the suggested outcome. The user can triage from the queue alone. A's queue items are bare 'S1 · ESC-4107 · Northwind Labs · 9 h' lines with no summary or suggestion.",
+        "B's header counts (8 open, 2 severity 1, 1 security incident, 1 security bug) give a status summary at a glance. B's queue and ticket panes scroll on their own inside the viewport, so the queue stays in view while the user reads a ticket. In A the whole page scrolls, and on laptop the ticket's decision options go below the fold.",
+        "At 900px both pages keep the queue beside the ticket, as the user asked. A's compact list shows all eight tickets at once. B's richer cards show only about 3.5 on the first screen, but the queue scrolls.",
+        "On phone, A's short list gets the user to the open ticket fast. B makes the user scroll through eight tall cards and a wrapped tab strip before the ticket starts."
+      ],
+      "defects": {
+        "A": [
+          "The queue items are terse, with no summary or suggested action, so the user has to open each ticket to learn what it is about",
+          "The whole page scrolls on laptop, so the decision options are below the fold",
+          "The log excerpt is clipped horizontally at 900px and on phone",
+          "On phone, the '?' viewer bubble overlaps the heading 'What happens to ESC-410…'"
+        ],
+        "B": [
+          "The ID tab strip at the top of the ticket pane repeats the queue",
+          "At 900px only about 3.5 queue cards fit on the first screen",
+          "On phone, the long queue and the wrapped tab strip push the ticket far down",
+          "The log excerpt is clipped horizontally at 900px and on phone",
+          "The recommended option isn't first in the list (Refund comes before the recommended Fix)"
+        ]
+      },
+      "preference": {
+        "A": true,
+        "B": true,
+        "why": "At 900px both pages keep the queue in a left column beside the open ticket instead of stacking it above or below."
+      }
+    }
+  },
+  {
+    "pass": "reviews",
+    "subject": "queue",
+    "n": 3,
+    "phase": 1,
+    "A": "plain",
+    "B": "leaf",
+    "is_error": false,
+    "shots": 13,
+    "unread": [],
+    "verdict": {
+      "winner": "B",
+      "margin": "clear",
+      "by_width": {
+        "laptop": "B",
+        "narrow": "B",
+        "phone": "B"
+      },
+      "reasons": [
+        "B's queue does more work at a glance. Each card shows a severity badge, the customer, the plan, a short problem label and the suggested action, and a '0 of 8 decided' counter tracks progress through the sitting. A's queue is a list of plain grey lines (ID · name · S# · age) that says nothing about what each ticket is.",
+        "B fits the whole workspace in one screen at laptop and 900px. The queue and the ticket each scroll in their own panel, so all eight tickets and the ticket's evidence appear together. A spends the top third of the screen on an intro paragraph, and its decision options fall below the fold.",
+        "On the phone, B stacks the full labelled queue above the ticket and ends each ticket with a 'Next: ESC-4114 →' link, which suits going through all eight in order. A's phone queue becomes a horizontal tab strip showing about one ticket, with the next one cut off at the edge, and it has no next-ticket control.",
+        "Both show the evidence, suggested action and the four refund/fix/escalate/close choices with a recommended chip. B also adds useful context such as account value and when the problem started."
+      ],
+      "defects": {
+        "A": [
+          "The queue items carry no summary or suggested action, so the queue can't be scanned for what matters",
+          "A large intro paragraph pushes the working area down at laptop and narrow widths; the decision options start below the first screen",
+          "On the phone, the sticky tab strip shows only one ticket, cuts the next one off mid-label, and covers body text as the page scrolls",
+          "No progress indicator or next-ticket control for working through all eight",
+          "At 900px the log line is clipped on the right (it has its own scroll)"
+        ],
+        "B": [
+          "At 900px, queue card titles wrap awkwardly ('ESC-4107 · / Northwind Labs')",
+          "On the phone, the whole queue comes before the ticket, so the user scrolls a long way to reach the details",
+          "Log lines are clipped horizontally at narrow and phone widths (they have their own scroll)",
+          "The viewer's help button sits over the 'What happens' heading on the phone"
+        ]
+      }
+    }
+  },
+  {
+    "pass": "reviews",
+    "subject": "queue",
+    "n": 3,
+    "phase": 2,
+    "A": "plain",
+    "B": "leaf",
+    "is_error": false,
+    "shots": 13,
+    "unread": [],
+    "verdict": {
+      "winner": "B",
+      "margin": "clear",
+      "by_width": {
+        "laptop": "B",
+        "narrow": "B",
+        "phone": "A"
+      },
+      "reasons": [
+        "B's queue rows show more than A's: severity chips, a one-line summary and the suggested action for each ticket, plus a '0 of 8 decided' counter in the header. That helps the user track progress through all eight in one sitting. A's queue is a plain text list showing only ID, name, severity and age.",
+        "B fills the laptop window with a two-pane layout, so the ticket, its log and the decision options sit together on the first screen. A spends the top third of its first screen on an intro paragraph, and the decision options only fit after scrolling.",
+        "At 900px both pages keep the queue beside the ticket, as the user asked. B's queue cards are narrow and some summaries wrap, but they stay readable. A's detail column is fine, but its queue gives so little information that the user has to open each ticket to see what it is.",
+        "On a phone, A's horizontal tab strip keeps the ticket near the top. B stacks all eight queue cards above the ticket, so the user scrolls a long way before reaching any detail, although B's 'Next' link helps."
+      ],
+      "defects": {
+        "A": [
+          "The intro paragraph takes up the top of the laptop screen, pushing the decision options below the fold",
+          "Queue items show no summary and no suggested action",
+          "No count of how many tickets have been decided",
+          "The log line is cut off at 900px and on the phone (it needs horizontal scrolling)",
+          "On the phone, the tab strip truncates '4107 · Northwind', so the other tickets are hard to see"
+        ],
+        "B": [
+          "At 900px the queue cards are cramped and their summaries wrap",
+          "Log lines are cut off at 900px and on the phone",
+          "On the phone, the full queue sits above the ticket detail, which means a long scroll",
+          "Only about six queue items fit on the first laptop screen (the queue scrolls)"
+        ]
+      },
+      "preference": {
+        "A": true,
+        "B": true,
+        "why": "At 900px both pages keep the queue in a column beside the open ticket rather than stacking it above or below."
+      }
+    }
+  },
+  {
+    "pass": "reviews-flip",
+    "subject": "dashboard",
+    "n": 1,
+    "phase": 1,
+    "A": "plain",
+    "B": "leaf",
+    "is_error": false,
+    "shots": 32,
+    "unread": [],
+    "verdict": {
+      "winner": "A",
+      "margin": "slight",
+      "by_width": {
+        "laptop": "tie",
+        "narrow": "A",
+        "phone": "tie"
+      },
+      "reasons": [
+        "At 1440px both pages open with the eu-west pause and the need for a decision. B has more at-a-glance signals: status pills, a highlighted eu-west row and an auto-pause threshold line on the chart. But its chart's time axis shows raw ISO timestamps (2026-09-27T14:00Z) where A shows clean HH:MM labels, so the two even out.",
+        "At 900px A stacks into one clean column with readable rollout bars and a full-width chart. B keeps two columns, so its four headline cards wrap 3+1 with a lone orphan card, the rollout rows shrink to tiny text, and the chart's ISO labels get clipped at both edges.",
+        "On the phone both shrink the rollout graphic into nearly unreadable tiny text, and on both the viewer's '?' marker covers the decision heading. A's chart axis stays readable while B's shows only two long ISO stamps. B's two-up headline cards and highlighted eu-west row help a little, so it's roughly even.",
+        "Both lay out the three choices clearly with risk tags and a recommended option, and both cover every section the user asked for."
+      ],
+      "defects": {
+        "A": [
+          "On the phone the rollout-by-region graphic scales down to tiny unreadable labels",
+          "Nothing on the rollout rows or chart marks eu-west beyond its red bar: no row highlight and no auto-pause threshold line"
+        ],
+        "B": [
+          "The chart's time axis uses raw ISO timestamps (2026-09-27T14:00Z), which get clipped at 900px and leave only two ticks on the phone",
+          "At 900px the headline cards wrap 3+1 with a lone orphan card and cramped label text",
+          "At 900px and on the phone the rollout-by-region rows shrink to tiny text",
+          "The event log is cut off at 14:20 in its own scroll area, while A's first view shows more entries"
+        ]
+      }
+    }
+  },
+  {
+    "pass": "reviews-flip",
+    "subject": "dashboard",
+    "n": 1,
+    "phase": 2,
+    "A": "leaf",
+    "B": "plain",
+    "is_error": false,
+    "shots": 30,
+    "unread": [],
+    "verdict": null
+  },
+  {
+    "pass": "reviews-flip",
+    "subject": "dashboard",
+    "n": 2,
+    "phase": 1,
+    "A": "plain",
+    "B": "leaf",
+    "is_error": false,
+    "shots": 31,
+    "unread": [],
+    "verdict": {
+      "winner": "B",
+      "margin": "slight",
+      "by_width": {
+        "laptop": "B",
+        "narrow": "A",
+        "phone": "B"
+      },
+      "reasons": [
+        "B puts the recommendation (roll eu-west back to 4.11 and ship 4.12.1 with the 10 s timeout) in the red banner on the first screen, with status chips (3 of 6 at 100%, eu-west paused 0.91%, 2 waiting, status due 16:00). The user sees the state and the call at a glance. A's banner says eu-west needs a decision but leaves the recommendation for the options block further down.",
+        "On a laptop, B's layout packs more into the first screens: the metric cards, region stage grid and release checks sit side by side, and follow-ups and the event log run down a sidebar. A is clean too, but its release checks table uses only part of its column, so more of the page is spent on empty space.",
+        "At 900px, B's region stage grid shrinks to tiny text and its four metric cards wrap unevenly (three in a row, then one alone). A stacks into one clean column with a readable region grid, so A is better at that width.",
+        "On a phone, both shrink the region grid to near-unreadable size. B still gets its recommendation into the first screen and lays the metric cards out tidily two by two, so it's slightly ahead there."
+      ],
+      "defects": {
+        "A": [
+          "The top banner asks for a decision but gives no recommendation; the user has to scroll to the options block to find it.",
+          "On a phone, the region stage table is scaled down to tiny, hard-to-read text.",
+          "On a laptop, the release checks table is narrow inside its column and leaves empty space; the page is longer than it needs to be."
+        ],
+        "B": [
+          "At 900px, the region stage grid is scaled down to tiny text.",
+          "At 900px, the metric cards wrap unevenly (3 + 1) and the labels wrap onto many lines.",
+          "On a phone, the region stage table is scaled down to near-unreadable size.",
+          "The chart doesn't show the 0.9% auto-pause threshold line."
+        ]
+      }
+    }
+  },
+  {
+    "pass": "reviews-flip",
+    "subject": "dashboard",
+    "n": 2,
+    "phase": 2,
+    "A": "leaf",
+    "B": "plain",
+    "is_error": false,
+    "shots": 31,
+    "unread": [],
+    "verdict": {
+      "winner": "A",
+      "margin": "slight",
+      "by_width": {
+        "laptop": "tie",
+        "narrow": "A",
+        "phone": "A"
+      },
+      "reasons": [
+        "Page A puts its recommendation in a red banner right under the title at every width: roll eu-west back to 4.11 and ship 4.12.1 with the old 10 s timeout. The user sees the call immediately and can act on it. Page B's red card at the top says only that eu-west needs a decision; its recommendation is the last of the three options, further down the page.",
+        "At 900px, Page A's right column holds release checks, follow-ups and the event log beside the main content for most of the page. Page B's left column (alert, metrics, follow-ups) runs out after the first screen and a half. That leaves a wide empty strip on the left while the chart, cause, decision, checks and log continue in a single column on the right.",
+        "On a laptop, Page B shows the decision options in the first screen or two, which helps, and its chart has a line marking the auto-pause threshold. But it also leaves large blank gaps between sections and under the left column. Page A is a tidy two-column layout, but its decision block is the last thing on the page. On balance the laptop view is about even.",
+        "On a phone both pages stack sensibly. Page A shows its recommendation in the first screen. Page B shows follow-ups before the rollout table and puts the recommended option last, so the key call comes later."
+      ],
+      "defects": {
+        "A": [
+          "The rollout-by-region table is very small on the phone and hard to read.",
+          "The decision block sits at the very bottom of the laptop and 900px layouts, far below the other content.",
+          "Below the event log, the right column at 900px and on a laptop is empty for the rest of the page."
+        ],
+        "B": [
+          "The left column at 900px ends early, leaving a large empty strip beside the lower half of the page.",
+          "The laptop layout has large empty gaps between sections.",
+          "The recommended option is listed last, and the red card at the top doesn't say what the recommendation is.",
+          "The rollout table is tiny on the phone."
+        ]
+      },
+      "preference": {
+        "A": true,
+        "B": true,
+        "why": "At 900px both pages put the status and summary material in a column beside the main content: Page A on the right (checks, follow-ups, event log) and Page B on the left (alert, metrics, follow-ups). Page B's column is short, though, so for most of the page it isn't beside anything."
+      }
+    }
+  },
+  {
+    "pass": "reviews-flip",
+    "subject": "dashboard",
+    "n": 3,
+    "phase": 1,
+    "A": "plain",
+    "B": "leaf",
+    "is_error": false,
+    "shots": 31,
+    "unread": [],
+    "verdict": {
+      "winner": "A",
+      "margin": "slight",
+      "by_width": {
+        "laptop": "B",
+        "narrow": "A",
+        "phone": "A"
+      },
+      "reasons": [
+        "At 1440px, B reads more like a dashboard. Its row of coloured status pills shows the rollout state at a glance. The stage-dot track makes it clear where each region stopped. The chart draws the 0.9% auto-pause threshold. A's two-column layout leaves the whole left half blank below the chart for two screens.",
+        "At 900px, A goes to a single column that reads well: large rollout bars, a clean chart with HH:MM labels, then the cause, the decision, the checks, the follow-ups and the event log. B keeps two columns at 900px, so its region table becomes tiny and the chart's x-axis labels are clipped raw ISO timestamps.",
+        "Both pages give the resume, hold and roll-back choice as options with consequences and a recommendation. A puts the decision right after the cause, earlier in the scroll at narrow and phone widths. B puts it below the chart, and on the phone it only shows up after the headline cards, the region table and the chart.",
+        "On the phone, both pages shrink the region table to near-unreadable text. B's chart axis also shows only two long ISO timestamps, while A's chart keeps readable time labels."
+      ],
+      "defects": {
+        "A": [
+          "At laptop width the left column is empty below the chart for about two screens, which wastes a lot of room",
+          "The region rollout table becomes tiny and hard to read on the phone",
+          "The '?' bubble overlaps the heading 'What should eu-west do next?' on the phone",
+          "No compact status summary; the state is spread across a paragraph"
+        ],
+        "B": [
+          "Chart x-axis labels are raw ISO strings ('2026-09-27T14:00'); at 900px the last one is clipped",
+          "At 900px and on the phone the rollout-by-region table shrinks to tiny text",
+          "At 900px the two columns stay, which cramps both the main content and the sidebar",
+          "The decision block comes late on the phone, after the headline cards, the region table and the chart",
+          "Chart legend and threshold lines are cramped on the phone"
+        ]
+      }
+    }
+  },
+  {
+    "pass": "reviews-flip",
+    "subject": "dashboard",
+    "n": 3,
+    "phase": 2,
+    "A": "leaf",
+    "B": "plain",
+    "is_error": false,
+    "shots": 32,
+    "unread": [],
+    "verdict": {
+      "winner": "B",
+      "margin": "slight",
+      "by_width": {
+        "laptop": "B",
+        "narrow": "B",
+        "phone": "B"
+      },
+      "reasons": [
+        "B shows the status callout and the start of the eu-west decision on the first screen at 1440px and 900px. A puts the decision below the region tracker and the chart, so the user has to scroll to the one thing they must act on.",
+        "On a phone, B opens with the 'Paused, waiting on your call' summary right under the title. A pushes its NOW summary below all the metric cards, the chart and the three options, so the page doesn't read at a glance on a phone.",
+        "B's chart has clean HH:MM axis labels and a separate, well-structured Cause section. A's chart axis shows raw ISO timestamps (2026-09-27T14:00) and its region tracker text gets small at 900px. A's option chips (checkout errors: stop/continue/double) are a good touch, but they don't make up for where the decision sits."
+      ],
+      "defects": {
+        "A": [
+          "The chart x-axis uses full ISO timestamps like '2026-09-27T14:00' at every width, which is cluttered and hard to read.",
+          "The eu-west decision sits below the tracker and chart in the main column, so it's off the first screen at laptop and narrow widths.",
+          "On a phone, the NOW status summary and the red 'needs your call' box come after the decision options, well down the page.",
+          "The region tracker's text shrinks to a small size in the 900px main column.",
+          "There's a large empty area at bottom-left beside the long sidebar at 1440px and 900px."
+        ],
+        "B": [
+          "The '?' help badge covers the end of the 'What should eu-west do next?' heading at 900px and on the phone.",
+          "The left column ends after the Cause list, leaving a large empty area beside the checks, follow-ups and event log at 1440px and 900px.",
+          "At 1440px, the fourth metric card wraps onto its own row, leaving a gap beside it."
+        ]
+      },
+      "preference": {
+        "A": true,
+        "B": true,
+        "why": "At 900px both pages keep two columns. A keeps its NOW summary, checks, follow-ups and event log in a right sidebar. B keeps the status callout, the decision, the checks, the follow-ups and the event log in a right column beside the rollout, chart and cause. Neither stacks the summary above or below the main content."
+      }
+    }
+  },
+  {
+    "pass": "reviews-flip",
+    "subject": "document",
+    "n": 1,
+    "phase": 1,
+    "A": "leaf",
+    "B": "plain",
+    "is_error": false,
+    "shots": 42,
+    "unread": [],
+    "verdict": {
+      "winner": "B",
+      "margin": "slight",
+      "by_width": {
+        "laptop": "B",
+        "narrow": "tie",
+        "phone": "B"
+      },
+      "reasons": [
+        "B shows each part of the decision with a chart the team needs: a bar chart of the worst-case logout-everywhere delay makes 'only Postgres closes the logout window' clear at a glance, and a dated timeline shows that 30-day dual-write runs past the 1 November renewal. A only mentions the renewal clash in a small side note.",
+        "Both pages open with the recommendation and the two questions, and both put the options table, the choice of option, and the database owners' CPU question in reading order. B's option text is closer to the notes: it includes the DELETE-by-user-id detail and the 'services changed' tags, and its database-owner choices have a concrete condition (moving vacuum out of the batch window).",
+        "At phone width B's charts and table stay readable apart from the small timeline. A's three-option architecture diagram shrinks to unreadable text on the phone, although A adds a table of contents on the phone.",
+        "At 900px both pages are clean and well laid out. B's question marker touches its heading and A's diagram text is small, so the width is even."
+      ],
+      "defects": {
+        "A": [
+          "On the phone the three-option architecture diagram is scaled down until its labels can't be read",
+          "On the phone the '?' marker covers the end of the 'Database owners: …acceptable?' heading",
+          "The renewal-versus-dual-write timing appears only in a small grey side note, easy to miss",
+          "On the laptop the architecture diagram is wider than the text column, so it looks out of line with the rest of the page"
+        ],
+        "B": [
+          "The opening says 'we stop paying $148k a year for Redis', but the plan keeps Redis as a smaller cache, so this overstates the saving",
+          "At 900px the '?' marker overlaps the word 'acceptable?' in the heading",
+          "On the phone the CPU bar chart drops the label for the middle bar ('Load-test peak')",
+          "On the phone the migration timeline is scaled down to tiny, hard-to-read text",
+          "The logout-delay chart shows Postgres as a zero-length bar, so it looks like missing data"
+        ]
+      }
+    }
+  },
+  {
+    "pass": "reviews-flip",
+    "subject": "document",
+    "n": 1,
+    "phase": 2,
+    "A": "plain",
+    "B": "leaf",
+    "is_error": false,
+    "shots": 45,
+    "unread": [],
+    "verdict": {
+      "winner": "A",
+      "margin": "slight",
+      "by_width": {
+        "laptop": "B",
+        "narrow": "A",
+        "phone": "A"
+      },
+      "reasons": [
+        "At 900px, the width the user actually reads at, A keeps the recommendation, the 'waiting on' list and the full contents list in a left column that fits in the window. B's pinned side column is taller than the window, so its last contents entry is hidden below the footer band for most of the scroll, and its four stat cards wrap as 3 + 1 with an orphaned card.",
+        "B has more in it: diagrams of where each option reads its session and where logout has to reach, the 96.1%-of-4,210 logout detail, and a labelled Recommend/Gain/Cost/Needed summary. Its wording 'Redis bill shrinks to a cache tier' is also more accurate than A's 'stop paying $148k'. On the 1440px laptop that makes B the better read.",
+        "On the phone, A puts the summary and contents at the top, where a top-to-bottom reader needs them. B pushes both to the very end, so its contents list is useless there, and its option diagrams shrink to text too small to read.",
+        "A's timeline chart shows the dual-write crossing the 1 November renewal at a glance. B makes the same point in a highlighted note, which works but is less visual."
+      ],
+      "defects": {
+        "A": [
+          "Says 'we stop paying $148k a year for Redis', but step 5 of the plan keeps Redis as a smaller cache",
+          "On the phone the timeline chart is scaled down so far its labels are barely legible",
+          "On the phone the middle bar of the CPU chart has no label",
+          "At 1440px the left column is narrow and repeats the full intro on every screen, so the main column gets less room"
+        ],
+        "B": [
+          "At 900px the pinned summary-plus-contents column is taller than the window, so the last contents entry is cut off until the end of the page",
+          "At 900px the four stat cards wrap 3 + 1, leaving one orphaned card",
+          "On the phone the summary and contents sit at the bottom of the page",
+          "On the phone the option diagrams shrink to tiny unreadable text",
+          "At 1440px there is a large empty area to the right of the title block before the summary box starts"
+        ]
+      },
+      "preference": {
+        "A": true,
+        "B": true,
+        "why": "At 900px both pages keep the summary and contents beside the main text rather than above or below it. A's column fits in the window completely. B's is taller than the window, so its last contents entry is clipped until the end of the page."
+      }
+    }
+  },
+  {
+    "pass": "reviews-flip",
+    "subject": "document",
+    "n": 2,
+    "phase": 1,
+    "A": "leaf",
+    "B": "plain",
+    "is_error": false,
+    "shots": 43,
+    "unread": [],
+    "verdict": {
+      "winner": "A",
+      "margin": "slight",
+      "by_width": {
+        "laptop": "A",
+        "narrow": "A",
+        "phone": "tie"
+      },
+      "reasons": [
+        "A's latency chart draws the Postgres 3.1 ms load-test line over the Redis p95 series. That makes the 'failover days were already worse than Postgres' argument visible at a glance. B's chart shows only the Redis line.",
+        "A backs its reasoning with small visuals B lacks: a keyspace bar showing 71% of sessions idle, which is why a TTL alone fixes memory, and a CPU headroom bar showing 40% → 55% against the 70% alert, which frames the question for the database owners. A's plan also has step-by-step week tags and a highlighted callout that the timeline runs past the 1 November renewal.",
+        "B's Gantt timeline, with the 1 Nov renewal line and dates, is a strong addition, and its lead paragraph states the two asks in bold, which is tidy. Both pages have the same options table and the same two response forms, so the gap between them is small.",
+        "At 390px both pages shrink their wide diagrams until they can't be read. A does this to three graphics, B to two. A adds an 'On this page' list, which helps offset that. Overall the phone views come out about even."
+      ],
+      "defects": {
+        "A": [
+          "At 390px the keyspace bar, the logout-path diagram and the CPU headroom bar shrink until their labels can't be read",
+          "At 390px the floating '?' button sits on top of the 'Database owners…acceptable?' heading",
+          "At 390px the comparison table wraps its cells into narrow, tall columns",
+          "The stat-card labels wrap to three lines, which leaves the cards uneven heights"
+        ],
+        "B": [
+          "At 390px the three-option logout diagram and the migration Gantt shrink until their text can't be read",
+          "At 900px and 390px the '?' button overlaps the end of the 'acceptable?' heading",
+          "The label on the 3.9% stat card is long and wraps to five lines",
+          "The median/p99 figures and the failovers dropping 0.3% of sessions appear only inside a collapsed section, not in the main flow",
+          "At 390px the comparison table wraps its cells into narrow, tall columns"
+        ]
+      }
+    }
+  },
+  {
+    "pass": "reviews-flip",
+    "subject": "document",
+    "n": 2,
+    "phase": 2,
+    "A": "leaf",
+    "B": "plain",
+    "is_error": false,
+    "shots": 44,
+    "unread": [],
+    "verdict": {
+      "winner": "B",
+      "margin": "slight",
+      "by_width": {
+        "laptop": "B",
+        "narrow": "B",
+        "phone": "tie"
+      },
+      "reasons": [
+        "At 900px, B keeps its whole summary beside the content the entire way down: the recommendation, who must decide what, the Thursday 1 Oct deadline and the contents list. A keeps its contents list beside the content, but its recommendation card scrolls away after the first screen.",
+        "B's side panel tells the platform team and the DB owners exactly what each must reply with. Its contents list includes both decision questions. A's contents list leaves both questions out.",
+        "A has richer supporting visuals: a Postgres 3.1 ms reference line on the latency chart, a bar showing that 71% of the keyspace is idle, and a CPU headroom bar with the 70% alert. B's latency chart has no Postgres line to compare against.",
+        "B's timeline shows clearly that cutover lands after the 1 Nov renewal. That finding matters for the decision, and A covers it only in a text callout.",
+        "On laptop, A leaves a wide empty column on the right under the contents list. B's left side panel uses the width evenly."
+      ],
+      "defects": {
+        "A": [
+          "The recommendation and asks scroll out of view at 900px and at laptop width; only the contents list stays.",
+          "The contents list leaves out the two decision questions.",
+          "Large empty right column on laptop below the contents list.",
+          "On phone, the text in the keyspace, logout and CPU diagrams is very small.",
+          "On phone, the floating '?' button covers part of the 'Database owners' heading."
+        ],
+        "B": [
+          "The latency chart has no Postgres load-test line, so the 1.9 vs 3.1 ms comparison doesn't show in the chart.",
+          "The side panel is narrow, so its values wrap awkwardly ('pick one of / three options', 'Thursday 1 / Oct').",
+          "On phone, the text in the logout diagram and the timeline is very small.",
+          "No visual for CPU headroom or the idle keyspace; they are text bullets only."
+        ]
+      },
+      "preference": {
+        "A": true,
+        "B": true,
+        "why": "Both keep a side panel beside the main content at 900px instead of stacking it. B follows the preference more fully because its recommendation, asks and contents all stay beside the content. In A, only the contents list stays beside it; the recommendation card scrolls away."
+      }
+    }
+  },
+  {
+    "pass": "reviews-flip",
+    "subject": "document",
+    "n": 3,
+    "phase": 1,
+    "A": "leaf",
+    "B": "plain",
+    "is_error": false,
+    "shots": 40,
+    "unread": [],
+    "verdict": {
+      "winner": "B",
+      "margin": "slight",
+      "by_width": {
+        "laptop": "B",
+        "narrow": "B",
+        "phone": "tie"
+      },
+      "reasons": [
+        "Page B's opening states the whole case: immediate logout, shrinking the $148k Redis cluster to a cache, 1.2 ms at p95 and 55% CPU. It then names both answers it needs. Its four stat cards (81%, +38%, 3.9%, 71% idle) cover all the pressures in one row at laptop and narrow widths, and form a tidy 2×2 grid on the phone.",
+        "Page B's three-panel diagram shows where each option's logout can arrive late, and the table below it holds the actual numbers. Its risks section keeps all three risks from the notes, including the stateless 15-minute security finding, which Page A only mentions inside an option card.",
+        "Page B's migration timeline marks the 1 Nov renewal and the ~7 Nov end of dual-write. It says plainly that phases 4 and 5 have no length yet and draws them as placeholders. Page A's timeline gives definite lengths to steps 4–5 that the notes never set, and at laptop width it sticks out past the text column on the left.",
+        "Page A is also clean and complete. It has a helpful worst-case logout bar chart and shows the median/p95/p99 figures up front. At phone width it roughly ties: Page A's timeline shrinks to unreadable text and its three stat cards wrap 2+1, while Page B's diagram and timeline also shrink to unreadable text."
+      ],
+      "defects": {
+        "A": [
+          "On the phone, the migration timeline shrinks until its labels can't be read.",
+          "On the phone, the three stat cards wrap 2+1, leaving one card alone on its own row.",
+          "At laptop width, the timeline sticks out past the text column on the left, and so does its caption.",
+          "The timeline gives lengths to cutover and downsizing steps that the notes don't specify.",
+          "The stateless option's security risk is left out of the risks section."
+        ],
+        "B": [
+          "On the phone, both the three-panel option diagram and the timeline shrink to tiny, unreadable text.",
+          "The median and p99 read latencies and the full option descriptions are hidden in collapsed sections.",
+          "On the phone, the comparison table's columns get cramped and cells wrap to three or four lines."
+        ]
+      }
+    }
+  },
+  {
+    "pass": "reviews-flip",
+    "subject": "document",
+    "n": 3,
+    "phase": 2,
+    "A": "leaf",
+    "B": "plain",
+    "is_error": false,
+    "shots": 40,
+    "unread": [],
+    "verdict": {
+      "winner": "B",
+      "margin": "slight",
+      "by_width": {
+        "laptop": "B",
+        "narrow": "tie",
+        "phone": "B"
+      },
+      "reasons": [
+        "B leads with the summary and the two open asks in a left rail and puts the evidence to the right of it. At laptop width the columns sit centred and balanced, while A's sidebar is squeezed to the far right with values wrapping ('Thu 1 / Oct').",
+        "B adds a small diagram per option showing where a logout can arrive late. That explains the core trade-off faster than A's bar chart, which draws a zero-length bar for Postgres.",
+        "On the phone, B puts the summary and the 'waiting on' asks at the top. A pushes its Status and Contents boxes to the very bottom, below everything else.",
+        "At 900px both pages keep the summary and contents beside the main text and both read cleanly. A's rail is a little tidier there, and B's help icon overlaps a heading."
+      ],
+      "defects": {
+        "A": [
+          "The Status and Contents boxes sit at the very end of the page on the phone.",
+          "The migration Gantt's labels shrink to tiny text at 900px and are unreadable on the phone.",
+          "The dashed 1 Nov line cuts through the label '4 Cut reads over…'.",
+          "In the logout bar chart, Postgres shows no visible bar, so the chart reads oddly.",
+          "The Status box wraps values awkwardly ('Thu 1 / Oct', '1 Nov, / +38%')."
+        ],
+        "B": [
+          "The contents list includes 'Waiting on' and 'Contents' as entries, and 'Contents' and 'On this page' are stacked as two headings.",
+          "The '?' help button overlaps the heading 'Database owners: is 55% peak CPU on accounts-db acceptable' at 900px and on the phone.",
+          "The option diagrams and the Gantt shrink to tiny text on the phone.",
+          "Median/p95/p99 read latency is hidden in a collapsed section instead of shown as figures.",
+          "Phases 4 and 5 in the Gantt are empty placeholder boxes."
+        ]
+      },
+      "preference": {
+        "A": true,
+        "B": true,
+        "why": "At 900px both pages keep the summary, status and contents in a column beside the main content instead of stacking them. A uses a right sidebar with Status and Contents, and B uses a left rail with the summary, Waiting on and Contents."
+      }
+    }
+  },
+  {
+    "pass": "reviews-flip",
+    "subject": "queue",
+    "n": 1,
+    "phase": 1,
+    "A": "plain",
+    "B": "leaf",
+    "is_error": false,
+    "shots": 23,
+    "unread": [],
+    "verdict": {
+      "winner": "B",
+      "margin": "clear",
+      "by_width": {
+        "laptop": "B",
+        "narrow": "B",
+        "phone": "B"
+      },
+      "reasons": [
+        "B fills the laptop width. Its detail pane shows the ticket, the log, the red 'do not reply' warning and three of the four decision options on the first screen. A's detail pane stops about 740px down the window, leaves an empty band under it, and on the first screen shows only the Refund option and part of the next one.",
+        "B puts the Vela cross-tenant leak first ('severity, then security, then age'). It also adds a summary strip (2 × severity 1, 2 security issues, 0 of 8 decided) and an 'undecided' status on each queue item, which helps when working through all eight in one sitting. B also points out that Orbis is both a ticket in the queue and the tenant whose data leaked.",
+        "On a phone, B lists the whole queue and then each ticket in turn, each with its decision options, so it's easy to read and act on. A shrinks the queue to a tiny scroll box showing only one ticket and a sliver of the next, so the list is almost unusable."
+      ],
+      "defects": {
+        "A": [
+          "The detail and queue scroll areas end about 740px down the laptop and 900px windows, leaving a large empty band above the footer.",
+          "The decision options barely show on the first screen at laptop and 900px widths.",
+          "On a phone, the queue is squeezed into a small scroll box showing only one ticket.",
+          "At 900px the SAML log is cut off sideways and needs horizontal scrolling."
+        ],
+        "B": [
+          "At 900px and on a phone, long log lines are cut off sideways and need horizontal scrolling.",
+          "At 900px the narrow queue column wraps company names onto two lines.",
+          "The floating '?' button overlaps the end of each 'What happens to…' heading on a phone."
+        ]
+      }
+    }
+  },
+  {
+    "pass": "reviews-flip",
+    "subject": "queue",
+    "n": 1,
+    "phase": 2,
+    "A": "leaf",
+    "B": "plain",
+    "is_error": false,
+    "shots": 22,
+    "unread": [],
+    "verdict": {
+      "winner": "A",
+      "margin": "clear",
+      "by_width": {
+        "laptop": "A",
+        "narrow": "A",
+        "phone": "A"
+      },
+      "reasons": [
+        "A fills the 1440px window with the queue and the open ticket side by side. Its header chips (2 × severity 1, 2 security issues, 0 of 8 decided) and the 'undecided' line under each queue item help the user track progress through all eight in one sitting. B limits the ticket column to about 720px, leaves the right third of the laptop screen empty, and adds a large blank gap above the content.",
+        "At 900px both pages keep the queue beside the ticket, as the user asked. A uses the width well, and the Vela security warning and the decision options show on the first screen. In B, both scrolling regions stop about 110px above the bottom of the window, leaving a dead strip, and the decision options are pushed below the first screen.",
+        "On the phone, A lists the whole queue and then each ticket in full with its decision options, so it reads cleanly top to bottom. B puts the queue in a scroll box so short that it shows one ticket and a sliver of the next, which makes the queue hard to see or use on a phone."
+      ],
+      "defects": {
+        "A": [
+          "At 900px, queue item titles wrap awkwardly (for example '4114 · Vela / Analytics').",
+          "At 900px and on the phone, log lines are cut off at the right edge and have to be scrolled sideways.",
+          "At 900px, the 'suggested' tag on the escalate option is partly hidden at the bottom of the detail pane's first screen."
+        ],
+        "B": [
+          "On the laptop, the ticket column is capped at about 720px, leaving the right third of the screen empty.",
+          "Unexplained blank space above the heading at every width.",
+          "The queue and ticket scroll regions stop well above the bottom of the window, leaving an empty band.",
+          "On the phone, the queue box shows only one ticket and a sliver of the next.",
+          "No overall progress or decided/undecided status in the queue."
+        ]
+      },
+      "preference": {
+        "A": true,
+        "B": true,
+        "why": "At 900px both pages keep the queue as a column beside the open ticket instead of stacking it above or below."
+      }
+    }
+  },
+  {
+    "pass": "reviews-flip",
+    "subject": "queue",
+    "n": 2,
+    "phase": 1,
+    "A": "leaf",
+    "B": "plain",
+    "is_error": false,
+    "shots": 14,
+    "unread": [],
+    "verdict": {
+      "winner": "A",
+      "margin": "slight",
+      "by_width": {
+        "laptop": "A",
+        "narrow": "A",
+        "phone": "B"
+      },
+      "reasons": [
+        "A's queue cards show each ticket's one-line summary, plan, age and suggested outcome, so the user can triage from the queue itself. B's queue lists only severity, ID, company and age, so the user has to open a ticket to learn what it is about.",
+        "At laptop and 900px, A starts the queue and the open ticket at the top of the window, and the choices begin within the first screen. B spends about 300px on an intro paragraph, so the user has to scroll the page to reach the decision on every ticket. B's queue column is also mostly empty below its eight short rows.",
+        "On a phone, A stacks all eight tall queue cards first and then adds a wrapping row of ticket-number tabs before the ticket. B's short list gets to the ticket and its choices sooner. B also lists the recommended choice first, which helps quick decisions at every width."
+      ],
+      "defects": {
+        "A": [
+          "The row of ticket-number tabs repeats the queue and wastes space. On a phone it wraps onto two lines.",
+          "Log lines are cut off sideways at 900px and on a phone, so the user has to scroll them horizontally.",
+          "The four choices keep a fixed order (Refund first) instead of putting the recommended one first.",
+          "On a phone the ticket only appears after a long run of queue cards.",
+          "The floating '?' button sits close to the 'What happens' heading on a phone."
+        ],
+        "B": [
+          "The large intro heading and paragraph push the ticket and its choices below the first screen at laptop and 900px.",
+          "Queue rows show no summary or suggested outcome, and they are small, grey and low-contrast.",
+          "The queue column is mostly empty space below the list.",
+          "On a phone the '?' button covers the end of the 'What happens to ESC-4107' heading.",
+          "Log lines are cut off sideways at 900px and on a phone."
+        ]
+      }
+    }
+  },
+  {
+    "pass": "reviews-flip",
+    "subject": "queue",
+    "n": 2,
+    "phase": 2,
+    "A": "leaf",
+    "B": "plain",
+    "is_error": false,
+    "shots": 14,
+    "unread": [],
+    "verdict": {
+      "winner": "A",
+      "margin": "slight",
+      "by_width": {
+        "laptop": "A",
+        "narrow": "tie",
+        "phone": "tie"
+      },
+      "reasons": [
+        "A's queue cards show each ticket's severity, customer, a one-line summary, its age and the suggested outcome. That lets the user size up all eight at a glance. B's queue is a faint single line per ticket (severity, ID, customer, age), with no summary and no suggested action.",
+        "Both keep the queue beside the open ticket at 900px, as the standing preference asks. B shows all eight entries at once in its narrower list. A's richer cards show about 3.5 tickets before the queue pane scrolls.",
+        "B's ticket view is tidy: a Plan/Age/Prior contact table and the recommended option listed first. A shows the same evidence plus a short framing sentence, and marks the recommended option inside Refund/Fix/Escalate/Close order. The decision tools are about equal, so the more informative queue decides it for A."
+      ],
+      "defects": {
+        "A": [
+          "The tab strip of bare ticket numbers across the ticket pane repeats the queue and adds noise",
+          "At 900px the log lines are cut off on the right, so the user has to scroll sideways",
+          "On phone the tab strip wraps onto two rows, and the ticket sits below a long queue",
+          "At laptop width the option list starts below the first screen of the ticket pane"
+        ],
+        "B": [
+          "Queue entries are small, low-contrast single lines with no summary or suggested outcome",
+          "At laptop width a large empty area sits in the sidebar below the queue",
+          "At 900px the log lines are cut off on the right",
+          "On phone the viewer's help button covers the 'What happens to ESC-4107?' heading, and the Plan/Age table stacks awkwardly"
+        ]
+      },
+      "preference": {
+        "A": true,
+        "B": true,
+        "why": "At 900px both keep the queue in a column beside the open ticket instead of stacking it above or below."
+      }
+    }
+  },
+  {
+    "pass": "reviews-flip",
+    "subject": "queue",
+    "n": 3,
+    "phase": 1,
+    "A": "leaf",
+    "B": "plain",
+    "is_error": false,
+    "shots": 13,
+    "unread": [],
+    "verdict": {
+      "winner": "A",
+      "margin": "slight",
+      "by_width": {
+        "laptop": "A",
+        "narrow": "tie",
+        "phone": "B"
+      },
+      "reasons": [
+        "At 1440px, A fills the screen with the work: a queue of cards showing severity, age, a short description and the suggested action, plus a '0 of 8 decided' progress chip. The open ticket shows plan, account value, prior contact, the quote, the log and the four choices, mostly on the first screen. B spends its top third on a large heading and intro paragraph. B's queue is a plain list of text lines with no suggested action or summary, so the user can't see the whole queue's status at a glance.",
+        "B's detail panel is well built. It puts the security incident first and has a clear red 'do not reply' warning, and each option explains the tradeoff. A's options also explain the tradeoffs, and A adds a 'Next ticket' link that helps with working through all eight in one sitting.",
+        "At 390px, B keeps the queue as a sticky horizontal tab strip, so the open ticket starts almost right away. A stacks all eight queue cards above the detail, so the user must scroll past the whole queue before reaching the open ticket. At 900px, A's queue cards wrap and feel cramped, while B's intro still takes up space. It comes out about even."
+      ],
+      "defects": {
+        "A": [
+          "At 900px the queue column is narrow, so ticket names wrap onto two lines and the cards get tall and cramped",
+          "On phone, the whole eight-ticket queue sits above the detail, so reaching the open ticket takes a long scroll",
+          "The security incident (ESC-4114) is ranked second behind ESC-4107 instead of first",
+          "The log excerpt is cut off at 900px and on phone (it scrolls sideways)"
+        ],
+        "B": [
+          "A large intro heading and paragraph take up much of the first screen at laptop and narrow widths",
+          "Queue items are bare one-line text with no suggested action, summary or decided/undecided status, and there's no progress count",
+          "The laptop queue column leaves a lot of empty space below the list",
+          "On phone, the tab strip cuts off the next ticket's label and gives no sign of the other seven",
+          "The log line is cut off at narrow and phone widths"
+        ]
+      }
+    }
+  },
+  {
+    "pass": "reviews-flip",
+    "subject": "queue",
+    "n": 3,
+    "phase": 2,
+    "A": "leaf",
+    "B": "plain",
+    "is_error": false,
+    "shots": 13,
+    "unread": [],
+    "verdict": {
+      "winner": "A",
+      "margin": "clear",
+      "by_width": {
+        "laptop": "A",
+        "narrow": "A",
+        "phone": "B"
+      },
+      "reasons": [
+        "Page A's queue gives more to work with at a glance. Each row shows the severity badge, customer, short issue, age and suggested action, and the header shows '0 of 8 decided' so the user can track progress through all eight in one sitting. Page B's queue is a plain text list of ID, name, severity and age, with no suggested action and no progress marker.",
+        "Page A opens with the queue and the selected ticket straight away, so the evidence and the decision choices are in the first screen. Page B puts a large intro paragraph above everything, which pushes the ticket and its choices down. At 1440px the space beside that intro is also left empty.",
+        "At 900px both pages keep the queue beside the ticket. Page A's cards wrap a bit tightly but stay readable, and its Next link helps the user move through the queue in order. On a phone, Page B's sticky horizontal ticket tabs reach the ticket faster than Page A, where the user has to scroll past all eight queue cards before the detail appears."
+      ],
+      "defects": {
+        "A": [
+          "At 900px and on the phone the log lines are cut off at the right edge of the code box and need horizontal scrolling",
+          "On the phone the whole queue stacks above the ticket, so the user must scroll a long way to reach the detail",
+          "At 900px the queue cards wrap the issue text and the suggested-action chip onto extra lines, so fewer tickets fit on screen"
+        ],
+        "B": [
+          "A large intro block takes the top of the page and pushes the ticket down, and at 1440px it leaves empty space beside it",
+          "The queue rows show no suggested action and no decided/undecided status, and the page has no progress count",
+          "At 900px and on the phone the log line is cut off in the code box",
+          "On the phone the ticket tab strip cuts off the second tab at the edge, which hides the other tickets"
+        ]
+      },
+      "preference": {
+        "A": true,
+        "B": true,
+        "why": "At 900px both pages keep the queue in a column to the left of the open ticket instead of stacking it above or below."
+      }
+    }
+  }
+]

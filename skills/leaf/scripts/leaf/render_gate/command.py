@@ -16,6 +16,7 @@ from .browser import (
 from .page_code import run_page_code
 from .preview import preview_server
 from .readings import SWEEP_WIDTHS
+from .screens import save_screens
 from .version import RENDER_VIEWPORTS, render_version
 
 
@@ -93,20 +94,52 @@ def page_code_check(
     return 0
 
 
+def _read_and_shoot(page_dir: Path):
+    """The gate's reading, and, for a page it passes, the screens the author reads."""
+
+    def read(browser, url: str):
+        reading = render_version(browser, url)
+        if reading.failures:
+            return reading, None
+        return reading, save_screens(browser, url, reading, page_dir)
+
+    return read
+
+
+def _screen_lines(screens) -> list[str]:
+    """One line per run of screens that show the same thing, under their directory."""
+    into, saved = screens
+    runs = []
+    for shot, label in saved:
+        if runs and runs[-1][1] == label:
+            runs[-1][0].append(shot.name)
+        else:
+            runs.append(([shot.name], label))
+    return [f"  screens to read before handing the page over, in {into}:"] + [
+        f"    {names[0]}{' … ' + names[-1] if len(names) > 1 else ''}: {label}"
+        for names, label in runs
+    ]
+
+
 def render_check(
     page_dir: Path,
     document: SourceDocument,
     revision: int,
     artifact: RevisionArtifact,
 ) -> int:
-    """Serve candidate source to the host's browser and run the render
-    invariants on it."""
+    """Serve candidate source to the host's browser, run the render invariants on it,
+    and save the screens the pre-handover review reads."""
     ran = _in_browser(
-        "render check", render_version, page_dir, document, revision, artifact
+        "render check",
+        _read_and_shoot(page_dir),
+        page_dir,
+        document,
+        revision,
+        artifact,
     )
     if ran is None:
         return 1
-    reading, browser_name = ran
+    (reading, screens), browser_name = ran
     if reading.failures:
         print(
             f"✗ index.html: renders broken — {len(reading.failures)} issue(s)",
@@ -136,4 +169,6 @@ def render_check(
     )
     for line in reading.advice:
         print(f"  · {line}")
+    for line in _screen_lines(screens):
+        print(line)
     return 0

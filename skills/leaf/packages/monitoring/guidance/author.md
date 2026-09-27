@@ -1,11 +1,12 @@
-Build a release page as a body beside a side track, `<main class="layout-sidebar">`.
+Build a release page as a body beside its `aside`, `<main class="layout-sidebar">`
+with the `aside` written after the body.
 Lead with the release's current state in the lede and a callout: what is live, what
 stopped it or what comes next, and the hold or escalation policy with its deadline.
 Open the body with the headline numbers as `lf-metric` tiles in a `layout-tiles` block,
 and put the evidence the state rests on under them: the run log, bound with
 `data-bound="end"` so it stays on its newest line, beside the named checks with their
-observed and required values in the side track. Keep the release identity, steps,
-notes, owners and rollback procedure in the side track or below in ordinary flow, with
+observed and required values in the `aside`. Keep the release identity, steps,
+notes, owners and rollback procedure in the `aside` or below in ordinary flow, with
 the reference material in `details`. Keep release identity and summary in
 authored markup so a feed update cannot silently change the page's conclusion.
 

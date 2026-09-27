@@ -86,7 +86,7 @@ from leaf.registry import contract as registry_contract
 from leaf.registry import storage as registry_storage
 from leaf.served_state import browser as browser_served_model
 from leaf.served_state import page as served_page
-from page_fixtures import package_selection_args
+from leaf_dev.page_fixtures import package_selection_args
 from websockets.exceptions import ConnectionClosedError, WebSocketException
 from websockets.sync.server import serve as serve_websocket
 from websockets.sync.server import unix_serve as serve_unix_websocket

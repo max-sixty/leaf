@@ -60,12 +60,12 @@ refs.
 
 Choices the note asks for before automating:
 
-- Runner and host: `claude -p` through `eval_harness.claude_child`, with the arm
+- Runner and host: `claude -p` through `leaf_dev.harness.claude_child`, with the arm
   loaded by `--plugin-dir`, so the child finds the skill, its launcher on `PATH` and
   its hooks as an installed Claude Code session does. Nothing names a reference or
   the launcher; cold cases do not name Leaf at all.
 - Model: Opus 5.5 (`MODEL`), default effort and tools, bypass permissions.
-- Isolation: an arm is `eval_harness.build_arm`'s payload at one ref, under
+- Isolation: an arm is `leaf_dev.harness.build_arm`'s payload at one ref, under
   `.tmp/usability-eval/arms/<name>/` with `skills/` read-only. Each run has its own
   scratch cwd outside any repository, which holds the fixture page, and its own
   `XDG_STATE_HOME`. A round starts every case × arm at once.
@@ -85,7 +85,7 @@ Choices the note asks for before automating:
   which is committed so a later run compares against it.
 
 A run counts only when every trace through its phase completed
-(`eval_harness.completed`), and a live run only when every turn did and the session
+(`leaf_dev.harness.completed`), and a live run only when every turn did and the session
 ended before its deadline. The first round of a new case fixes its fixture and
 scorer and is not reported.
 """
@@ -94,7 +94,6 @@ import json
 import re
 import shutil
 import subprocess
-import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -103,11 +102,7 @@ from html import unescape
 from pathlib import Path
 
 import click
-
-HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
-from eval_harness import (
+from leaf_dev.harness import (
     URL,
     LiveChild,
     PageClient,
@@ -126,6 +121,8 @@ from eval_harness import (
     waits_started,
 )
 
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parents[1]
 DATA = ROOT / ".tmp/usability-eval"
 FIXTURES = HERE / "fixtures"
 RESULTS = HERE / "results"

@@ -7,11 +7,33 @@ import sys
 from html.parser import HTMLParser
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+from leaf_dev import ROOT
+
 TEST_PAGES = ROOT / "tests" / "fixtures" / "pages"
 PATCH_MANIFEST = (
     ROOT / "skills" / "leaf" / "packages" / "diff" / "scripts" / "patch_manifest.py"
 )
+
+
+# Where a page named on a command line is looked up.
+NAMED_SOURCE_DIRS = (ROOT / "examples", ROOT / "examples" / "developer", TEST_PAGES)
+
+
+def named_source(name: str) -> Path:
+    """The one authored source a name picks out of `NAMED_SOURCE_DIRS`; a ValueError
+    says why a name picks none, or several."""
+    name = name.removesuffix(".html")
+    found = [
+        path for root in NAMED_SOURCE_DIRS if (path := root / f"{name}.html").is_file()
+    ]
+    if len(found) > 1:
+        raise ValueError(f"{name} names more than one source: {found}")
+    if not found:
+        available = sorted(
+            path.stem for root in NAMED_SOURCE_DIRS for path in root.glob("*.html")
+        )
+        raise ValueError(f"no source named {name}; available: {', '.join(available)}")
+    return found[0]
 
 
 def regression_sources() -> list[Path]:

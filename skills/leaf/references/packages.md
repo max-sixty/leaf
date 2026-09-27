@@ -1091,6 +1091,18 @@ store can instead name their contributing widget seats as `{derived: [{widget: i
 Leaf never infers them from displayed
 text or datum keys.
 
+## Reading and opening Threads from a widget
+
+`readThreads()` returns the same immutable `{phase, threads, done}` collection the
+Threads panel reads. `watchThreads(owner, callback)` gives a connected widget that
+collection initially and after relevant application updates; it returns a stop
+function for `disconnectedCallback`. Each widget keeps its own search, filter, and
+order state and derives its displayed rows from the collection. `threadTurns(thread)`
+selects a Thread's displayed turns, and `threadSummary(thread)` gives its topic and
+latest activity. `openThread(thread.root.id)` takes the user to Leaf's canonical
+conversation surface for that Thread. The widget does not need to render or own the
+conversation to provide that route.
+
 ## Widget-local Thread surfaces
 
 A widget declares `"x-thread-surface": true` to place complete Thread UI beside its
@@ -1098,9 +1110,7 @@ own projected data. `consumeThreads(owner, render)` registers one consumer per E
 and returns a handle with `read()`, `reveal(key)`, `update()`, `open(datum,
 {origin})`, and `unregister()`. The callback receives the same immutable collection
 the built-in Threads panel reads, `{phase, threads, done}`, on its initial
-presentation and on later publications and placement updates. `readThreads()` returns
-that collection outside a surface; `threadTurns(thread)` selects a Thread's displayed
-turns and `threadSummary(thread)` its topic and `latest` activity. For whether a
+presentation and on later publications and placement updates. For whether a
 Thread waits on the user, read unresolved `attention.kind === "needs_user"`, which
 includes recovery after a failed response; `"waiting"` means it is with the agent.
 Each Thread's `key` survives admission of a pending gesture, and its `anchor`

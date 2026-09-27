@@ -50,6 +50,7 @@ export { openAsks, watchAsks } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
 export { threadBox, consumeThreads } from "./application.js";
 export { readThreads } from "./thread/state.js";
+export { watchThreads } from "./thread/watch.js";
 export { turns as threadTurns, threadSummary } from "./thread/model.js";
 export { threadInput } from "./thread/landing.js";
 export { landInThread, openThread } from "./application.js";

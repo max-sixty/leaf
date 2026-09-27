@@ -1514,7 +1514,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
           )""",
         timeout=5000,
     )
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 2")
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     page.evaluate(
         "threadReady = false; "
@@ -1524,7 +1524,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
     )
     page.wait_for_function("threadReady", timeout=3000)
     expect(page.locator("#thread-failing")).to_have_count(1)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 2")
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     assert take_browser_errors(page) == [
         "leaf: Presentation failed: frozen descendant failure"
@@ -1647,7 +1647,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     assert page.evaluate("() => !window.threadPreparationSettled")
     expect(page.locator("#thread-held")).to_have_count(0)
     expect(page.locator('[data-id="held-widget-thread"]')).to_have_count(0)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 1")
     expect(page.locator(".lf-thread-view-summary")).to_have_text("1 open thread")
     assert page.evaluate(
         """id => {
@@ -1677,7 +1677,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     )
     page.wait_for_function(
         """() => document.querySelector('#thread-held') &&
-          document.querySelector('.lf-threads-toggle')?.textContent === 'Threads (2)' &&
+          document.querySelector('.lf-threads-toggle')?.textContent === 'Open threads: 2' &&
           window.readLeafPresentation().pending.includes(
             'widget:thread-held:preparation'
           )""",
@@ -1691,7 +1691,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     )
     expect(page.locator("#thread-held")).to_have_count(1)
     expect(page.locator('[data-id="held-widget-thread"]')).to_have_count(1)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 2")
     expect(page.locator(".lf-thread-view-summary")).to_have_text("2 open threads")
     assert page.evaluate(
         """id => {

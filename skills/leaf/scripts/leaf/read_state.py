@@ -77,12 +77,12 @@ def read_contract_error(event: dict, events: list[dict]) -> str | None:
 
 
 def unread_content(
-    events: list[dict], threads: dict, roots: dict, widgets: dict
+    events: list[dict], threads: dict, names: dict, widgets: dict
 ) -> dict[str, list[dict]]:
     """Each thread's agent content versions the user has not taken in, in log order.
 
-    `threads` is the `build_threads` fold keyed by thread id; `roots` and `widgets`
-    are `thread_context.thread_roots` and `thread_widgets` over the same log.
+    `threads` is the `build_threads` fold keyed by thread id; `names` and `widgets`
+    are `thread_context.thread_names` and `thread_widgets` over the same log.
     """
     marked = set()
     latest_move: dict[str, int] = {}
@@ -95,12 +95,12 @@ def unread_content(
             continue
         if event["author"] != "user" or event["id"] in withdrawn:
             continue
-        for root in event_threads(event, roots, widgets):
-            latest_move[root] = event["seq"]
+        for thread_id in event_threads(event, names, widgets):
+            latest_move[thread_id] = event["seq"]
     unread = {}
-    for root, thread in threads.items():
-        moved = latest_move.get(root, 0)
-        unread[root] = [
+    for thread_id, thread in threads.items():
+        moved = latest_move.get(thread_id, 0)
+        unread[thread_id] = [
             {"message": message["id"], "version": version}
             for message in thread["msgs"]
             if user_message_content(message)

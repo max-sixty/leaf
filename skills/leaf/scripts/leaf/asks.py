@@ -476,10 +476,11 @@ def _thread_ask_records(
         if e["kind"] not in MESSAGE_KINDS:
             continue
         markup = e.get("markup")
-        if not markup or reading.roots[e["id"]] in settled:
+        thread = reading.thread_by_name[e["id"]]
+        if not markup or thread in settled:
             continue
         fragment = reading.structure.fragments[e["id"]]
-        records.extend((reading.roots[e["id"]], rec) for rec in fragment.lf_elements)
+        records.extend((thread, rec) for rec in fragment.lf_elements)
     return records, {rec["attrs"].get("id"): thread for thread, rec in records}
 
 

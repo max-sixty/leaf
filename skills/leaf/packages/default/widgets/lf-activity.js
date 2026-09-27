@@ -141,13 +141,6 @@ function describe(row) {
       return { what: gesturePhrase(row.gesture), widget: row.widget };
     case "report":
       return { what: `reported ${quoted(row.value)} on`, widget: row.widget };
-    case "request":
-      return { what: `requested ${quoted(row.operation)} in`, widget: row.widget };
-    case "receipt":
-      return {
-        what: `${row.status === "succeeded" ? "completed" : "failed"} ${quoted(row.operation)} in`,
-        widget: row.widget,
-      };
     case "note":
       return { what: `published v${row.version}` };
     default:

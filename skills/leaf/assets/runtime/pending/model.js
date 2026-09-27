@@ -37,11 +37,6 @@ export const pendingMessages = (entries, receipts) =>
     .filter((entry) => entry.message)
     .map((entry) => entry.message);
 
-const pendingEvents = (entries, receipts, kinds) =>
-  unaccounted(entries, receipts)
-    .filter((entry) => kinds.includes(entry.event.kind))
-    .map((entry) => entry.event);
-
 export const pendingReactions = (entries, receipts) =>
   unaccounted(entries, receipts)
     .filter((entry) => entry.thread?.token)
@@ -55,10 +50,9 @@ export const pendingSettlements = (entries, receipts) =>
     .map((entry) => ({ ...entry.event, localParent: entry.namedParent }));
 
 export const pendingApprovals = (entries, receipts) =>
-  pendingEvents(entries, receipts, ["done"]);
-
-export const pendingRequests = (entries, receipts) =>
-  pendingEvents(entries, receipts, ["request"]);
+  unaccounted(entries, receipts)
+    .filter((entry) => entry.event.kind === "done")
+    .map((entry) => entry.event);
 
 export const pendingProjectionEntries = (entries, receipts) =>
   unaccounted(entries, receipts)

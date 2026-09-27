@@ -18,7 +18,6 @@ from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from example_data import captured_value, patch_manifest
 from interact_support import (
-    COMMAND_SUBJECTS,
     OPTIONS,
     PAGE,
     SHIPPED_PACKAGES,
@@ -56,7 +55,6 @@ from leaf import leases as leases_model
 from leaf import passages as passages_model
 from leaf import projection as projection_model
 from leaf import publishing as publishing_model
-from leaf import requests as requests_model
 from leaf import revision_artifact as artifact_model
 from leaf import revision_delivery as revision_delivery_model
 from leaf import revisioning as revisioning_model
@@ -343,6 +341,7 @@ def test_a_page_whose_history_predates_the_digest_still_serves_it(page_dir):
         executable=artifact.executable,
         widgets=artifact.widgets,
         resources=artifact.resources,
+        registry=artifact.registry,
         delivery=revision_delivery_model.Delivery(address=lambda path: path),
     )
     assert "lf-executable" not in document and "lf-widgets" not in document
@@ -2277,9 +2276,8 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
     will replace a layer, and refuses the re-vendor rather than the event.
 
     Each arm below is a writer that reaches the log by a different route: a reply
-    whose gate is the record contract alone, a receipt whose gate belongs to
-    `requests`, and a report whose gate belongs to `event_contracts`. All three
-    are refused in the writer's own voice.
+    whose gate is the record contract alone, and a report whose gate belongs to
+    `event_contracts`. Both are refused in the writer's own voice.
     """
     publish(page_dir)
     events_model.append_event(
@@ -2296,13 +2294,6 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
             attempt="r1",
         )
     assert "'r1' does not match" in str(refused.value)
-
-    with pytest.raises(SystemExit) as unknown_request:
-        requests_model.cmd_receipt(page_dir, "no-such-request", "succeeded", "done")
-    assert (
-        "unknown request 'no-such-request'; this page has no open request to receipt"
-        in str(unknown_request.value)
-    )
 
     with pytest.raises(SystemExit) as unknown_widget:
         thread_model.cmd_report(page_dir, "no-such-widget", "status", ())
@@ -2957,249 +2948,6 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
     )
     assert named.exit_code == 0, named.output
     assert named.output == "reported status on t-parser\n"
-
-
-def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
-    """The host's result names the exact request it executed. A second terminal
-    account would make one side effect have two outcomes, so the CLI door refuses it."""
-    operation = (
-        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
-        "<strong>Goal</strong>"
-        + COMMAND_SUBJECTS
-        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
-        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
-        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask></lf-task></lf-command>"
-    )
-    version = page_dir / "index.html"
-    version.write_text(
-        version.read_text().replace("</section>", operation + "</section>")
-    )
-    publish(page_dir)
-    request = append_command(
-        page_dir,
-        {
-            "kind": "request",
-            "author": "user",
-            "revision": 1,
-            "widget": "commands",
-            "action": "restart",
-            "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
-        },
-    )
-    pending = state_json(page_dir)["requests"]
-    assert len(pending) == 1
-    lifecycle = pending[0]
-    assert lifecycle["seat"] == {
-        "document": {"kind": "page", "revision": 1},
-        "widget": "commands",
-        "unit": "commands",
-    }
-    assert lifecycle["phase"] == "pending"
-    assert lifecycle["latest"]["request"]["id"] == request["id"]
-    assert lifecycle["latest"]["receipt"] is None
-    unknown = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "experimental",
-            "receipt",
-            str(page_dir),
-            "missing",
-            "failed",
-            "--text",
-            "No request",
-        ],
-    )
-    assert unknown.exit_code == 1
-    assert f"unknown request 'missing'; open requests: {request['id']!r}" in (
-        unknown.output
-    )
-    # An id the log holds as something else is named as that, with the writer that
-    # takes it, which is what tells an agent it was handed a move and not a request.
-    comment = events_model.append_event(
-        page_dir, {"kind": "comment", "author": "user", "text": "and restart it"}
-    )
-    misdirected = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "experimental",
-            "receipt",
-            str(page_dir),
-            comment["id"],
-            "failed",
-            "--text",
-            "No request",
-        ],
-    )
-    assert misdirected.exit_code == 1
-    assert (
-        f"{comment['id']!r} is not a request; {comment['id']} is a comment in this "
-        f"page's log — `leaf thread reply <page> --for {comment['id']}` answers it; "
-        f"open requests: {request['id']!r}"
-    ) in misdirected.output
-    # And the other way round: a request handed to a writer that takes a message is
-    # sent to its receipt, rather than told only that it is not a comment — from
-    # either door, since what settles it is what the log still owes for it.
-    settles = (
-        f"{request['id']} is a request in this page's log — "
-        f"`leaf experimental receipt <page> {request['id']} succeeded|failed` answers it"
-    )
-    resolved = CliRunner().invoke(
-        cli_model.cli, ["thread", "resolve", str(page_dir), "--to", request["id"]]
-    )
-    assert resolved.exit_code != 0
-    assert settles in resolved.output
-    replied = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            str(page_dir),
-            "--for",
-            request["id"],
-            "--text",
-            "Restarted",
-        ],
-    )
-    assert replied.exit_code != 0
-    assert f"event {request['id']!r} takes no reply; {settles}" in replied.output
-
-    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "coordinator-1")
-    monkeypatch.setenv("LEAF_AGENT", "Atlas lead")
-    accepted = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "experimental",
-            "receipt",
-            str(page_dir),
-            request["id"],
-            "succeeded",
-            "--text",
-            "Started w-9 on the preserved branch",
-        ],
-    )
-    assert accepted.exit_code == 0, accepted.output
-    assert accepted.output == f"settled request {request['id']} as succeeded\n"
-    receipt = events_model.read_events(page_dir)[-1]
-    assert (receipt["kind"], receipt["request"], receipt["status"]) == (
-        "receipt",
-        request["id"],
-        "succeeded",
-    )
-    assert receipt["text"] == "Started w-9 on the preserved branch"
-    assert (receipt["agent"], receipt["session"]) == (
-        "Atlas lead",
-        "coordinator-1",
-    )
-    projected = state_json(page_dir)["requests"][0]
-    assert projected["phase"] == "completed"
-    assert projected["latest"]["receipt"]["id"] == receipt["id"]
-    assert (
-        projected["latest"]["receipt"]["text"] == "Started w-9 on the preserved branch"
-    )
-
-    duplicate = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "experimental",
-            "receipt",
-            str(page_dir),
-            request["id"],
-            "failed",
-            "--text",
-            "Again",
-        ],
-    )
-    assert duplicate.exit_code == 1
-    assert "already has receipt" in duplicate.output
-    assert (
-        len(
-            [
-                event
-                for event in events_model.read_events(page_dir)
-                if event["kind"] == "receipt"
-            ]
-        )
-        == 1
-    )
-
-
-def test_page_state_groups_failed_retry_as_one_request_lifecycle(page_dir):
-    """Attempts belong to the seat that admits them. A failed attempt leaves that
-    lifecycle ready, and the retry becomes its latest attempt rather than a second
-    partly joined request record."""
-    operation = (
-        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
-        "<strong>Goal</strong>"
-        + COMMAND_SUBJECTS
-        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
-        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
-        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask></lf-task></lf-command>"
-    )
-    version = page_dir / "index.html"
-    version.write_text(
-        version.read_text().replace("</section>", operation + "</section>")
-    )
-    publish(page_dir)
-    ready_asks = {ask["id"] for ask in state_json(page_dir)["asks"]}
-    assert "commands-decision" in ready_asks
-    assert "goal" not in ready_asks
-    first = append_command(
-        page_dir,
-        {
-            "kind": "request",
-            "author": "user",
-            "revision": 1,
-            "widget": "commands",
-            "action": "restart",
-            "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
-        },
-    )
-    assert "commands-decision" not in {
-        ask["id"] for ask in state_json(page_dir)["asks"]
-    }
-    # `--json` keeps the receipt event for a caller that reads past the sentence.
-    failed = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "experimental",
-            "receipt",
-            "--json",
-            str(page_dir),
-            first["id"],
-            "failed",
-            "--text",
-            "Worker lease disappeared",
-        ],
-    )
-    assert failed.exit_code == 0, failed.output
-    failure = json.loads(failed.output)
-    assert (failure["kind"], failure["request"]) == ("receipt", first["id"])
-    assert "commands-decision" in {ask["id"] for ask in state_json(page_dir)["asks"]}
-    retry = append_command(
-        page_dir,
-        {
-            "kind": "request",
-            "author": "user",
-            "revision": 1,
-            "widget": "commands",
-            "action": "restart",
-            "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
-        },
-    )
-
-    lifecycles = state_json(page_dir)["requests"]
-    assert len(lifecycles) == 1
-    lifecycle = lifecycles[0]
-    assert lifecycle["phase"] == "pending"
-    assert len(lifecycle["attempts"]) == 2
-    assert lifecycle["attempts"][0]["receipt"]["id"] == failure["id"]
-    assert lifecycle["latest"]["request"]["id"] == retry["id"]
-    assert lifecycle["latest"]["receipt"] is None
-    assert "commands-decision" not in {
-        ask["id"] for ask in state_json(page_dir)["asks"]
-    }
 
 
 def test_a_version_may_not_quietly_contradict_a_standing_report(page_dir):

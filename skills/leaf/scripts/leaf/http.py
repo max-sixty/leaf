@@ -75,6 +75,7 @@ from .schema import (
     BINARY_TYPES,
     CONTENT_TYPES,
     KEY_COOKIE,
+    KEY_COOKIE_MAX_AGE,
     NO_KEY,
     REVISION_NAME,
     SERVED_PATH,
@@ -490,9 +491,10 @@ class PageEndpoint:
     def authorized(self) -> bool:
         """The key, from the handover URL or from the cookie an earlier request
         set out of it. One arrival is enough: the runtime's own fetches are
-        relative and carry no query, and a user who reloads or bookmarks the bare
-        address is the same user. So nothing has to thread the key through the
-        page, and `leaf.js` never learns there is one."""
+        relative and carry no query, and the bootstrap leaves only the bare
+        address in the tab, which the cookie authorizes on reload or from a
+        bookmark. So nothing has to thread the key through the page, and
+        `leaf.js` never learns there is one."""
         if secrets.compare_digest(self.query.get("t", [""])[0], self.token):
             self.set_cookie = True
         else:
@@ -520,7 +522,8 @@ class PageEndpoint:
                 headers["Leaf-Release"] = self.release
         if self.set_cookie:
             headers["Set-Cookie"] = (
-                f"{KEY_COOKIE}={self.token}; Path=/; HttpOnly; SameSite=Strict"
+                f"{KEY_COOKIE}={self.token}; Path=/; Max-Age={KEY_COOKIE_MAX_AGE}; "
+                "HttpOnly; SameSite=Strict"
             )
         if self.body_unread:
             headers["Connection"] = "close"
@@ -768,6 +771,7 @@ class PageEndpoint:
             executable=artifact.executable,
             widgets=artifact.widgets,
             resources=artifact.resources,
+            registry=artifact.registry,
             delivery=self._delivery(artifact, revision),
         )
         return self._content(200, "text/html; charset=utf-8", projected.encode())

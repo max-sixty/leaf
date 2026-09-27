@@ -245,6 +245,7 @@ def export_document(
         executable=artifact.executable,
         widgets=artifact.widgets,
         resources=artifact.resources,
+        registry=artifact.registry,
         delivery=Delivery(
             address=lambda path: (
                 modules[path] if path in modules else inliner.address(path)

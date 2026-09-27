@@ -1500,15 +1500,12 @@ def test_a_detached_board_releases_and_restores_its_lifecycle(browser, serve):
     try:
         page = open_page(browser, serve(BOARD_PAGE), context=context)
         cdp = context.new_cdp_session(page)
+        # The board's own specifier, which the document's import map sends to the
+        # revision, so this is the instance the board constructs from.
         page.evaluate(
             """async () => {
-              const registry = new URL(
-                document.querySelector('script[data-lf-runtime]').dataset.lfProbe,
-                location.href,
-              );
               window.__lfSortablePrototype =
-                (await import(new URL('vendor/sortable.esm.js', registry).href))
-                  .default.prototype;
+                (await import('/vendor/sortable.esm.js')).default.prototype;
             }"""
         )
 

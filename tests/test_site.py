@@ -1047,14 +1047,13 @@ def test_an_invalid_product_document_stops_the_build(tmp_path, monkeypatch):
     assert "<script src>" in str(stopped.value)
 
 
-def test_the_public_catalog_keeps_its_width_as_the_map_enters_the_margin(
+def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
     hosted, browser
 ):
-    """The catalog's horizontal allocation is set before the runtime loads.
+    """The catalog's position and width are set before the runtime loads.
 
-    The authored width determines the cards' horizontal geometry. The map-only
-    sidebar leaves the flow after the runtime measures the margin, so the catalog
-    moves up when that sidebar stops taking vertical space.
+    The map-only sidebar has no vertical room before or after the runtime moves
+    its contents into the margin, so mounting Leaf does not move the cards.
     """
     boot = []
     page = browser.new_page(viewport={"width": 1724, "height": 1036})
@@ -1076,10 +1075,9 @@ def test_the_public_catalog_keeps_its_width_as_the_map_enters_the_margin(
             {key: initial[key] for key in ("x", "y", "width")}, abs=1
         )
         final_catalog = catalog.bounding_box()
-        assert {key: final_catalog[key] for key in ("x", "width")} == pytest.approx(
-            {key: initial_catalog[key] for key in ("x", "width")}, abs=1
+        assert {key: final_catalog[key] for key in ("x", "y", "width")} == pytest.approx(
+            {key: initial_catalog[key] for key in ("x", "y", "width")}, abs=1
         )
-        assert final_catalog["y"] < initial_catalog["y"]
         assert initial_catalog["width"] > page.evaluate(
             "() => parseFloat(getComputedStyle(document.documentElement)"
             ".getPropertyValue('--col'))"

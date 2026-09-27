@@ -68,7 +68,8 @@ from leaf.registry.storage import read_page_registry, require_registry
 from leaf.render_gate import readings as render_gate_readings
 from leaf.served_state.page import read_served_page
 from leaf.validation import compatibility as validation_model
-from leaf.validation.source_history import PROTECTED_REMEDIES
+from leaf.validation.source import check_source
+from leaf.validation.source_history import PROTECTED_REMEDIES, predecessor_reading
 
 
 def test_check_accepts_a_valid_page(page_dir):
@@ -5623,6 +5624,24 @@ def test_a_state_read_walks_an_unchanged_revision_once(page_dir, monkeypatch):
     walks.clear()
     read_served_page(page_dir, events_model.read_events(page_dir))
     assert walks == []
+
+
+def test_a_crlf_source_rechecked_unchanged_is_the_active_revision(page_dir):
+    """A revision's document carries the exact bytes it captured, line endings
+    included, so a CRLF source checked again unchanged is the active revision and
+    no transition is judged for it."""
+    (page_dir / "index.html").write_bytes(PAGE.replace("\n", "\r\n").encode())
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None, activated.error
+    artifact_model._readings.clear()
+    events = events_model.read_events(page_dir)
+    checked = check_source(page_dir, events, allow_transition=False)
+    data = (page_dir / "index.html").read_bytes()
+    assert b"\r\n" in data
+    assert (
+        artifact_model.read_revision(page_dir, activated.revision).document.data == data
+    )
+    assert predecessor_reading(page_dir, data, events, checked.artifact).unchanged
 
 
 def test_held_revision_readings_stay_within_their_source_budget(page_dir, monkeypatch):

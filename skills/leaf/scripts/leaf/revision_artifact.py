@@ -745,7 +745,10 @@ class RevisionReading(SourceReading):
 
     @cached_property
     def document(self) -> SourceDocument:
-        return SourceDocument(self.marker.read_text(encoding="utf-8"))
+        # Bytes, not text: universal newlines would turn CRLF into LF, and
+        # `document.data` must be the captured bytes the digest and the
+        # unchanged-source check compare.
+        return SourceDocument(self.marker.read_bytes().decode("utf-8"))
 
     @cached_property
     def registry(self) -> dict:

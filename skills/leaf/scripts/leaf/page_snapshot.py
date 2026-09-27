@@ -30,7 +30,11 @@ from .structure import SourceDocument
 
 @dataclass(frozen=True, slots=True)
 class PageSnapshot:
-    """The exact page facts an ephemeral browser server may expose."""
+    """The exact page facts an ephemeral browser server may expose.
+
+    Everything it serves is read at capture: each revision's reading has its
+    document and registry in hand, so a later request reads nothing from the page
+    directory for them."""
 
     document: SourceDocument
     active: dict
@@ -96,6 +100,10 @@ def capture_page_snapshot(
         shown = readings.get(active["revision"])
         if shown is None or shown.digest != selected.digest:
             readings[active["revision"]] = SourceReading(document, selected.registry)
+        # Read inside the transaction, so a snapshot serves what it froze even if
+        # the page directory later moves or goes away.
+        for reading in readings.values():
+            _ = (reading.document, reading.registry)
         revision_names = {
             revision: revision_path(page_dir, revision).name for revision in revisions
         }

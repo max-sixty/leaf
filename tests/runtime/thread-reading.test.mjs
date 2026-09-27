@@ -109,38 +109,40 @@ test("attention names the outstanding question rather than the latest message", 
   });
   const [thread] = readThreadRecords([source], NO_DOCUMENT, new Map(), []);
   const attention = threadAttention(thread);
-  assert.equal(attention.label, "On you");
-  assert.equal(attention.action, "answer question");
-  assert.equal(threadAttention({ ...thread, user_prompt: null }).action, "answer Ask");
+  assert.equal(attention.label, "On you to answer");
+  assert.equal(
+    threadAttention({ ...thread, user_prompt: null }).label,
+    "On you to answer",
+  );
   assert.equal(
     threadAttention({
       ...thread,
       attention: { kind: "needs_user", reason: "recovery", workflow: "send" },
       workflows: [{ id: "send", subject: { kind: "thread" } }],
-    }).action,
-    "resend",
+    }).label,
+    "On you to resend",
   );
   assert.equal(
     threadAttention({
       ...thread,
       attention: { kind: "needs_user", reason: "recovery", workflow: "move" },
       workflows: [{ id: "move", subject: { kind: "widget" } }],
-    }).action,
-    "retry",
+    }).label,
+    "On you to retry",
   );
   assert.equal(
     threadAttention({
       ...thread,
       attention: { kind: "waiting", reason: "uncertain", workflow: null },
-    }).action,
-    undefined,
+    }).label,
+    "Uncertain",
   );
   assert.equal(
     threadAttention({
       ...thread,
       attention: { kind: "waiting", reason: "workflow", workflow: null },
-    }).action,
-    undefined,
+    }).label,
+    "Waiting",
   );
   assert.equal(threadAttention({ ...thread, attention: null }), null);
 });

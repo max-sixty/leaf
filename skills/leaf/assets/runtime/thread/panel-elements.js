@@ -17,7 +17,7 @@ closeBtn.append(iconElement("cross", "lf-action-icon"));
 closeBtn.title = "Close threads (Esc)";
 closeBtn.setAttribute("aria-label", "Close threads");
 const panelTitle = el("span", "lf-auxiliary-title", "Threads");
-export const firstUnreadBtn = el("button", "lf-btn lf-first-unread", "Unread");
+export const firstUnreadBtn = el("button", "lf-btn lf-first-unread", "Next unread");
 firstUnreadBtn.type = "button";
 firstUnreadBtn.hidden = true;
 firstUnreadBtn.title = "Go to first unread message";

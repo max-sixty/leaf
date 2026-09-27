@@ -81,7 +81,7 @@ def test_gallery_thread_rows_name_action_in_existing_status(browser, serve):
 
     asked = page.locator('.lf-thread[data-id="2be2443f0bb6cc49fc86b52f340e6073"]')
     expect(asked.locator(":scope > .lf-thread-summary .lf-thread-status")).to_have_text(
-        "On you · answer question"
+        "On you to answer"
     )
     asked.locator(":scope > .lf-thread-summary").focus()
     asked.locator(":scope > .lf-thread-summary").press("Enter")
@@ -3372,7 +3372,7 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     expect(page.locator(".lf-thread")).to_have_count(2)
     expect(
         page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-status')
-    ).to_have_text("On you · answer question")
+    ).to_have_text("On you to answer")
     expect(
         page.locator(f'.lf-thread[data-id="{answered}"] .lf-thread-status')
     ).to_have_count(0)

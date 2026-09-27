@@ -155,7 +155,6 @@ function lastMovedAt(thread) {
 
 export const threadSummary = (thread) => ({
   topic: thread.title ?? thread.root.body.text.trim(),
-  count: turns(thread).length,
   latest: lastMovedAt(thread),
 });
 

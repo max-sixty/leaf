@@ -316,9 +316,7 @@ landing = createThreadLanding({
   scrollToThread: anchorTravel.scrollToThread,
   revealThread: (id) => revealThread(id, app.presentThread),
 });
-declareThreadKeys(landing.landIn, {
-  markThread: (id) => app.read.markThread(id),
-});
+declareThreadKeys(landing.landIn);
 const anchorControls = createAnchorControls({
   commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
   openThread: (...args) => app.margin.openPageThread(...args),

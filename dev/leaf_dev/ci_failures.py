@@ -286,7 +286,10 @@ def compare(sha: str, base: str, branch: dict[str, Job], based: dict[str, Job]) 
     for name in names:
         job = branch.get(name)
         if job is None or job.state == NO_RESULT:
-            if not (job and job.event == "pull_request" and name in PULL_REQUEST_SKIPS):
+            # A pull request's run skips these jobs, and lists none of them until its
+            # other jobs finish, or at all if it was cancelled first.
+            events = {job.event} if job else {j.event for j in branch.values()}
+            if not (name in PULL_REQUEST_SKIPS and events == {"pull_request"}):
                 blocked.append(f"no branch result for {name}")
         elif job.state == CANCELLED:
             blocked.append(

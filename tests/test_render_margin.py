@@ -4636,8 +4636,20 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
         moved["low"]["foot"] - 8, abs=0.5
     ), moved
     expect(page.locator(".lf-margin-preview")).to_be_visible()
+    # Scrolled a window further, the cluster has left over the top, and the card leaves
+    # after it, hanging from where the cluster went.
     page.evaluate("scrollBy(0, innerHeight)")
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    rendered(page)
+    gone = page.evaluate(
+        """() => ({
+          card: document.querySelector('.lf-margin-preview').getBoundingClientRect().top,
+          controls: document.querySelector('[data-lf-margin-for="bg-thread-text"]')
+            .getBoundingClientRect().bottom,
+          head: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
+        })"""
+    )
+    assert gone["controls"] < gone["head"], gone
+    assert gone["card"] == pytest.approx(gone["controls"], abs=0.5), gone
 
 
 def test_a_thread_beside_its_cluster_takes_the_room_to_the_visible_edge(browser, serve):
@@ -6819,18 +6831,17 @@ def test_margin_card_anchors_reading_by_top_and_drafting_by_foot(browser, serve)
     send.click()
     expect(preview).to_contain_text("Sent")
     # The pressed Send keeps the focus, and the card holds under it; leaving the reply
-    # row ends the drafting, and the card returns to where reading put it.
+    # row ends the drafting, and the card holds its top where it now stands.
     rendered(page)
     expect(send).to_be_focused()
     assert send.evaluate(
         "button => button.getBoundingClientRect().top"
     ) == pytest.approx(pressed, abs=0.5)
+    sent = page.evaluate(measure)
     send.evaluate("button => button.blur()")
-    page.wait_for_function(
-        """top => Math.abs(document.querySelector('.lf-margin-preview')
-          .getBoundingClientRect().top - top) < 0.5""",
-        arg=initial["top"],
-    )
+    rendered(page)
+    read = page.evaluate(measure)
+    assert read["cardTop"] == pytest.approx(sent["cardTop"], abs=0.5), (sent, read)
 
 
 def test_open_reply_keeps_its_foot_after_card_moves_to_right_rail(browser, serve):
@@ -6898,13 +6909,13 @@ def test_a_growing_draft_holds_its_card_s_side_and_the_editor_s_foot(
 ):
     """Each new line keeps the card on its side and the caret's line where it was.
 
-    The card extends upward from its held foot, within the room above that foot, until
-    the editor fills its share and scrolls, so no keystroke flips the card over its
+    The card extends upward from its held foot until it fills the room above that foot,
+    and only then does the editor scroll, so no keystroke flips the card over its
     cluster (800x520 stands over it) or slides it along the boundary (1000x600 stands
     under it, where it once grew down into the boundary's foot)."""
     page, preview, editor = drafting_in_a_short_card(browser, serve, *size)
     held = preview.evaluate(DRAFTING_CARD)
-    for line in range(12):
+    for line in range(30):
         editor.press("Shift+Enter")
         rendered(page)
         now = preview.evaluate(DRAFTING_CARD)
@@ -6913,7 +6924,49 @@ def test_a_growing_draft_holds_its_card_s_side_and_the_editor_s_foot(
             held["editorFoot"],
         ), (line, held, now)
     assert editor.evaluate("box => box.scrollHeight > box.clientHeight"), (
-        "twelve lines never outgrew the editor's room"
+        "thirty lines never outgrew the editor's room"
+    )
+
+
+def test_scrolling_a_drafting_card_leaves_its_editor_s_height_alone(browser, serve):
+    """The editor's height follows its words and the room the card has, never the
+    scroll: a scroll carries the card whole, so a draft that fits keeps its lines."""
+    page, _preview, editor = drafting_in_a_short_card(browser, serve, 1000, 600)
+    write(editor, "\n".join(f"line {n}" for n in range(8)))
+    rendered(page)
+    height = editor.evaluate("box => box.getBoundingClientRect().height")
+    assert not editor.evaluate("box => box.scrollHeight > box.clientHeight")
+    for step in range(3):
+        page.evaluate("() => document.scrollingElement.scrollBy(0, 40)")
+        rendered(page)
+        assert editor.evaluate(
+            "box => box.getBoundingClientRect().height"
+        ) == pytest.approx(height, abs=0.5), step
+
+
+def test_a_turn_arriving_leaves_the_card_being_read_where_it_stands(browser, serve):
+    """A card being read holds its top: a turn longer than the room below it scrolls in
+    inside the card rather than lifting the card's top over the words being read."""
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1000, 600)
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    rendered(page)
+    top = preview.evaluate("card => card.getBoundingClientRect().top")
+    reply = events_model.append_event(
+        serve.page_dir,
+        {k: v for k, v in LONG_THREAD[1].items() if k not in ("id", "ts")},
+    )
+    told(page)
+    expect(preview.locator(f'[data-event="{reply["id"]}"]')).to_be_attached()
+    rendered(page)
+    assert preview.evaluate(
+        "card => card.getBoundingClientRect().top"
+    ) == pytest.approx(top, abs=0.5)
+    assert preview.locator(".lf-margin-preview-list").evaluate(
+        "list => list.scrollHeight > list.clientHeight"
     )
 
 

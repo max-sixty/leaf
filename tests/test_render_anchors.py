@@ -4066,10 +4066,14 @@ def test_a_pinned_row_opens_its_card_clear_of_the_passage(browser, serve):
         f"the card spans {card[0]:.0f}\u2013{card[1]:.0f} over the pressed words at "
         f"{words[0]:.0f}\u2013{words[1]:.0f}"
     )
-    # The same box decides when the card has outlived its subject: it leaves when the
-    # pin, and so the passage, does.
+    # The same box decides where the card goes once its subject leaves: it leaves with
+    # the pin, and so the passage.
     page.evaluate("() => document.scrollingElement.scrollBy(0, 900)")
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    rendered(page)
+    assert page.locator(".lf-margin-preview").evaluate(
+        "card => card.getBoundingClientRect().bottom"
+        " <= document.querySelector('.lf-banner').getBoundingClientRect().bottom"
+    )
 
 
 def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):

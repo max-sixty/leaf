@@ -4,7 +4,6 @@ import json
 import shutil
 import threading
 from urllib.error import HTTPError
-from urllib.parse import urlsplit
 from urllib.request import urlopen
 
 from interact_support import ROOT
@@ -381,8 +380,9 @@ def test_process_page_route_runs_the_complete_leaf_interface(
     assert revised.error is None and revised.revision == 3
     page.locator("#late").wait_for()
     page.wait_for_function("() => document.querySelector('#late').naturalWidth > 0")
+    # Media is the page's, so a revision's document names it at the page root.
     assert page.locator("#late").get_attribute("src") == (
-        f"{root}/revisions/{revision_path(page_dir, 3).stem}/media/051bee487bfb5d13.png"
+        f"{root}/media/051bee487bfb5d13.png"
     )
     assert all(
         resource.startswith(f"{page_server.origin}{root}/")
@@ -462,8 +462,9 @@ window.authoredModulePattern = (/api/);
     assert nested.url == private["inline_url"]
     assert nested.title() == "t"
     assert "Ship dark" in nested.locator("body").text_content()
-    expected_root = urlsplit(private["inline_url"]).path.rstrip("/")
-    assert nested.evaluate("window.authoredModulePath") == f"{expected_root}/api/state"
+    # An authored module's own values are what its author wrote, as its prose is:
+    # delivery addresses only its imports, which is how it reaches Leaf.
+    assert nested.evaluate("window.authoredModulePath") == "/api/state"
     assert nested.evaluate("window.authoredModulePattern.source") == "api"
     banner_control(nested, ".lf-version").click()
     expect(nested.locator(".lf-version-row").first).to_be_focused()

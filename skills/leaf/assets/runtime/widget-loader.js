@@ -121,18 +121,11 @@ export function reindexPassageOwners(scope = document, source = ["page", null]) 
 // the same thread again all cost nothing. A failed import stays rejected:
 // startup and activation must not present markup whose required module is absent.
 const modules = new Map();
-const registryUrl = () =>
-  offlineInteractive
-    ? runtimeResource("/registry.json")
-    : (document.querySelector("script[data-lf-runtime][data-lf-probe]")?.dataset
-        .lfProbe ?? "/registry.json");
+const registryUrl = () => runtimeResource("/registry.json");
 const widgetUrl = (tag) =>
   offlineInteractive
     ? runtimeModule(`/widgets/${tag}.js`)
-    : new URL(
-        `widgets/${tag}.js`,
-        new URL("./", new URL(registryUrl(), document.baseURI)),
-      ).href;
+    : runtimeResource(`/widgets/${tag}.js`);
 const presentTags = (scope, holds) =>
   tagsDeclaring(holds).filter((tag) => scope.querySelector(tag));
 

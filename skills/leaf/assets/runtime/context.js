@@ -32,8 +32,18 @@ export const offlineState = () =>
 export const offlineData = () => (offlineInteractive ? offlinePayload.data : null);
 export const runtimeModule = (path) =>
   offlineInteractive ? `leaf:${path.startsWith("/") ? path : `/${path}`}` : path;
+// A layer file by its rooted path in the page directory (`/icon.svg`,
+// `/widgets/lf-tabs.js`), at the address this document's layer is served from. A
+// served document declares its registry's address beside the runtime's other entry
+// points, and the layer is that file's directory; a document nothing declared one for
+// takes the layer at its own root.
+const layerRegistry = document.querySelector("script[data-lf-runtime][data-lf-probe]")
+  ?.dataset.lfProbe;
 export const runtimeResource = (path) => {
-  if (!offlineInteractive) return path;
+  if (!offlineInteractive)
+    return layerRegistry
+      ? new URL(`.${path}`, new URL(layerRegistry, document.baseURI)).href
+      : path;
   const resource = offlinePayload.resources[path];
   if (typeof resource !== "string")
     throw new Error(`Leaf's interactive export is missing ${path}`);

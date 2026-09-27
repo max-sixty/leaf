@@ -176,11 +176,7 @@ const versionedHeadNode = (node) =>
     node.localName === "base" ||
     (node.localName === "meta" &&
       (node.hasAttribute("name") || node.hasAttribute("property"))) ||
-    (node.localName === "link" &&
-      !(
-        node.rel === "stylesheet" &&
-        new URL(node.href, document.baseURI).pathname === "/theme.css"
-      )));
+    node.localName === "link");
 // This document as its author wrote it, kept inert beside the page it became. A patch
 // applies the difference between two revisions, so it needs the revision the page is
 // standing on as source — not the page, which by then carries a tokenizer's spans, a

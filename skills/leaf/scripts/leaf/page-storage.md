@@ -53,7 +53,9 @@ other page files and the external state listed below.
 
 - `media/` — content-addressed page images, shared across revisions. `media.py` owns
   ingestion through `page media` and `/api/media`. Browser drafts and messages refer to
-  them with Markdown; a public filename always identifies the same bytes.
+  them with Markdown; a public filename always identifies the same bytes. A revision
+  captures the media its document names, but every host serves media at the page root,
+  and documents, messages, and the runtime all address it there.
 
 - `events.jsonl` — append-only event log; an event's seq is its line number (1-based)
 

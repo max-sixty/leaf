@@ -1,60 +1,261 @@
-"""Bind captured authored dependencies to one revision's delivery address.
+"""Address a revision's documents and resources for the host delivering them.
 
-Capture validates the graph; delivery only changes how its resources are addressed.
-HTML source spans preserve prose and unrelated attributes, JavaScript rewriting names
-only parsed imports, and CSS rewriting names only the URLs `rewrite_css` reads. The same
-document therefore works at the live, stamped-version, and immutable-revision URLs.
+A document and the captured resources it names use logical page paths: `/page/…` for
+the author's files, `/media/…` for the page's images, and the layer's own files at the
+root (`/icon.svg`, `/runtime/…`). Every host delivers the same captured bytes under an
+address of its own — an HTTP server beneath a revision's URL, a published site beneath
+a release, an offline export as embedded `data:` URLs — so each host passes one
+`address` function, from a logical path to the URL it serves that path at, and the
+walks below apply it. HTML source spans preserve prose and unrelated attributes,
+JavaScript rewriting names only parsed imports, and CSS rewriting names only the URLs
+`rewrite_css` reads. Nothing reads a document or a resource as text.
+
+Over HTTP, media is the page's and everything else a document names is its revision's
+(`DeliveryAddress`). `media/` holds content-addressed images shared across revisions;
+the page root serves them in every host, and the runtime resolves the media a message
+or a widget names against that same root (`runtime/media.js`). The layer's own module
+graph imports rooted paths (`/runtime/…`, `/vendor/…`, `/widgets/…`), which the
+document's import map sends to its revision (`layer_import_map`), so layer modules are
+served as captured.
 """
 
 import html
 import json
+import posixpath
+import re
 from collections.abc import Callable, Mapping
-from urllib.parse import quote, urlsplit
+from dataclasses import dataclass
+from functools import lru_cache
+from urllib.parse import quote, unquote, urlsplit
 
 import turbohtml
 
-from .revision_artifact import Resource, resolve_dependency, rewrite_css, rewrite_module
+from .revision_artifact import Resource, authored_imports, bind_imports, rewrite_css
+from .schema import BROWSER_DIRS, MEDIA_DIR, VENDORED_FILES
 from .structure import (
     DELIVERY_ENCODING_META,
     SourceDocument,
     rel_tokens,
-    rewrite_resource_attribute,
+    rewrite_attribute_references,
+    source_index,
+)
+
+# From a logical page path to the URL one host serves it at.
+Address = Callable[[str], str]
+
+# The paths of a page's namespace a document or resource may name: the author's files,
+# the page's media, and the layer. The API and the page's documents are the runtime's
+# and the server's to address, never an authored reference's.
+_PAGE_PATH = re.compile(
+    "/(?:"
+    + "|".join(
+        [f"(?:page|{MEDIA_DIR}|{'|'.join(BROWSER_DIRS)})/.+"]
+        + [re.escape(name) for name in VENDORED_FILES]
+    )
+    + ")"
 )
 
 
-def _resource_url(value: str, logical_path: str, asset_root: str) -> str:
-    target = resolve_dependency(value, logical_path)
-    if target is None:
-        return value
-    fragment = urlsplit(value).fragment
-    return (
-        asset_root.rstrip("/")
-        + quote(target, safe="/")
-        + ("#" + fragment if fragment else "")
+def page_path(reference: str, base: str) -> tuple[str, str] | None:
+    """The logical page path `reference` names from `base`, and the suffix it keeps.
+
+    None for a reference that does not name the page: one to another origin, a
+    `data:` URL, a fragment of this document, or a path outside the page's namespace.
+    The suffix is the query and fragment, which travel with the path to its address.
+    """
+    if not reference or reference.startswith(("#", "data:")):
+        return None
+    try:
+        parsed = urlsplit(reference)
+    except ValueError:
+        return None
+    if parsed.scheme or parsed.netloc or not parsed.path:
+        return None
+    path = unquote(parsed.path)
+    resolved = posixpath.normpath(
+        path if path.startswith("/") else posixpath.join(posixpath.dirname(base), path)
     )
+    if not _PAGE_PATH.fullmatch(resolved):
+        return None
+    suffix = ("?" + parsed.query if parsed.query else "") + (
+        "#" + parsed.fragment if parsed.fragment else ""
+    )
+    return resolved, suffix
 
 
-def _stylesheet(source: str, logical_path: str, asset_root: str, *, block=False) -> str:
+def _rebase(reference: str, base: str, address: Address) -> str:
+    located = page_path(reference, base)
+    if located is None:
+        return reference
+    path, suffix = located
+    return address(path) + suffix
+
+
+@lru_cache(maxsize=32)
+def rebase_css(
+    source: str, base: str, address: Address, *, declarations: bool = False
+) -> str:
+    """Re-address every URL a stylesheet at `base` loads, the rest byte-for-byte.
+
+    Held for the addresses a server answers again and again: parsing the theme costs
+    tens of milliseconds, and every document and stylesheet request would pay it.
+    """
     return rewrite_css(
         source,
-        lambda url: _resource_url(url, logical_path, asset_root),
-        declarations=block,
+        lambda reference: _rebase(reference, base, address),
+        declarations=declarations,
     )
 
 
-def deliver_resource(resource: Resource, logical_path: str, asset_root: str) -> bytes:
-    """Address a resource by its captured path, including page-widget aliases.
+def rebase_module(data: bytes, base: str, address: Address) -> bytes:
+    """Re-address every literal import of an authored module at `base`."""
+    return bind_imports(data, authored_imports(data, base), address)
 
-    Trusted layer JavaScript still uses the runtime's own route-scoping rules. A
-    page widget served through ``widgets/<tag>.js`` must pass its manifest path
-    here (``/page/widgets/<tag>.js``), which is the base of its authored imports.
+
+def rebase_document(
+    source: str,
+    address: Address,
+    *,
+    inline_stylesheet: Callable[[str], str] | None = None,
+) -> str:
+    """Re-address every reference an HTML document makes, and nothing else in it.
+
+    The references are an authored module's `src` and its literal imports, a
+    stylesheet link, every URL `attribute_references` reads, and the URLs of each
+    `style` element and attribute — in the document and in each declarative shadow
+    root it serializes. Authored prose is also the anchorable record, so a
+    route-looking phrase in text stays byte-for-byte what the revision holds.
+
+    `inline_stylesheet`, for a host that embeds its stylesheets, takes a linked
+    stylesheet's logical path and returns its CSS, which replaces the link as a
+    `style` element keeping the link's media, title, and runtime mark.
+    """
+    tree = turbohtml.parse(source, scripting=True, source_locations=True)
+    index = source_index(source)
+    edits = []
+
+    def span(location) -> tuple[int, int]:
+        return (
+            index(location.start_line, location.start_col),
+            index(location.end_line, location.end_col),
+        )
+
+    def rebase(reference: str) -> str:
+        return _rebase(reference, "/index.html", address)
+
+    roots = [tree]
+    for root in roots:
+        for element in root.find_all(True):
+            if element.shadow_root is not None:
+                roots.append(element.shadow_root)
+            location = element.source_location
+            if location is None:
+                continue
+            attrs = SourceDocument._attrs(element)
+            tag = element.tag
+            stylesheet = tag == "link" and "stylesheet" in rel_tokens(attrs)
+            if (
+                stylesheet
+                and inline_stylesheet is not None
+                and (located := page_path(attrs.get("href", ""), "/index.html"))
+            ):
+                kept = "".join(
+                    f' {name}="{html.escape(value, quote=True)}"'
+                    for name, value in attrs.items()
+                    if name in {"media", "title", "data-lf-runtime", "disabled"}
+                )
+                css = re.sub(
+                    r"</style",
+                    r"<\\/style",
+                    inline_stylesheet(located[0]),
+                    flags=re.IGNORECASE,
+                )
+                start, end = span(location.start_tag)
+                edits.append((start, end, f"<style{kept}>{css}</style>"))
+                continue
+            for name, value in attrs.items():
+                if name == "style":
+                    delivered = rebase_css(
+                        value, "/index.html", address, declarations=True
+                    )
+                elif (tag == "script" and name == "src") or (
+                    stylesheet and name == "href"
+                ):
+                    delivered = rebase(value)
+                else:
+                    delivered = rewrite_attribute_references(
+                        tag, attrs, name, value, rebase
+                    )
+                if delivered != value:
+                    start, end = span(location.attrs[name])
+                    edits.append(
+                        (start, end, f'{name}="{html.escape(delivered, quote=True)}"')
+                    )
+            if tag in {"script", "style"} and location.end_tag is not None:
+                start = index(location.start_tag.end_line, location.start_tag.end_col)
+                end = index(location.end_tag.start_line, location.end_tag.start_col)
+                body = source[start:end]
+                if tag == "style":
+                    delivered = rebase_css(body, "/index.html", address)
+                elif attrs.get("type") == "module" and not attrs.get("src"):
+                    delivered = rebase_module(
+                        body.encode("utf-8"), "/index.html", address
+                    ).decode("utf-8")
+                else:
+                    continue
+                if delivered != body:
+                    edits.append((start, end, delivered))
+
+    for start, end, value in sorted(edits, reverse=True):
+        source = source[:start] + value + source[end:]
+    return source
+
+
+@dataclass(frozen=True)
+class DeliveryAddress:
+    """Where an HTTP host serves each logical path of one revision's document.
+
+    Media is the page's own and answers at the page root. Every other path is the
+    revision's and answers beneath `asset_root`, where its capture is served. A value,
+    so a stylesheet addressed for one revision is parsed once (`rebase_css`).
+    """
+
+    page_root: str
+    asset_root: str
+
+    def __call__(self, path: str) -> str:
+        root = self.page_root if path.startswith(f"/{MEDIA_DIR}/") else self.asset_root
+        return root.rstrip("/") + quote(path, safe="/")
+
+
+def layer_import_map(asset_root: str) -> str:
+    """Send the layer's rooted module imports to the revision serving them.
+
+    Every layer module names its dependencies by rooted path, as the page directory
+    lays them out. The map rebinds each directory for the whole document, so a module
+    keeps its captured bytes wherever the revision is served, and a page module or a
+    render probe importing `/runtime/widget-api.js` reaches the runtime's own instance.
+    """
+    root = asset_root.rstrip("/")
+    return json_script(
+        {"imports": {f"/{name}/": f"{root}/{name}/" for name in BROWSER_DIRS}}
+    )
+
+
+def deliver_resource(resource: Resource, logical_path: str, address: Address) -> bytes:
+    """Address one captured resource, including a page widget served under an alias.
+
+    A stylesheet's URLs and an authored module's imports are re-addressed; a layer
+    module keeps its bytes, since the import map addresses its imports. A page widget
+    served through ``widgets/<tag>.js`` must pass its manifest path here
+    (``/page/widgets/<tag>.js``), which is the base of its authored imports.
     """
     if resource.mime == "application/javascript" and logical_path.startswith("/page/"):
-        return rewrite_module(resource.data, logical_path, asset_root)
-    if resource.mime == "text/css" and logical_path.startswith("/page/"):
-        return _stylesheet(
-            resource.data.decode("utf-8"), logical_path, asset_root
-        ).encode("utf-8")
+        return rebase_module(resource.data, logical_path, address)
+    if resource.mime == "text/css":
+        return rebase_css(resource.data.decode("utf-8"), logical_path, address).encode(
+            "utf-8"
+        )
     return resource.data
 
 
@@ -109,18 +310,15 @@ def json_script(value) -> str:
     )
 
 
-def delivery_sheets(
-    resources: Mapping[str, Resource],
-    rewrite: Callable[[str, str], str] = lambda css, _path: css,
-) -> str:
+def delivery_sheets(resources: Mapping[str, Resource], address: Address) -> str:
     """Carry the layer's adopted stylesheets in the document that runs the layer.
 
     `runtime/stylesheets.js` constructs the chrome's and the marks' sheets while it
     evaluates, so their text must be in hand without a request. WebKit has no CSS module
     scripts to import them with, and a fetch awaited at module scope would make every
     page module that imports the widget API evaluate after `DOMContentLoaded`. Like the
-    identity above, every delivery writes this. `rewrite` addresses the sheet's own
-    URLs for that delivery.
+    identity above, every delivery writes this, with the sheets' own URLs at the
+    delivery's `address`: a constructed sheet resolves them against the document.
 
     The sheets go out as they are written, comments included. They used to be stripped
     here, which is the one thing that made the text a user receives differ from the
@@ -129,7 +327,7 @@ def delivery_sheets(
     or 11KB against 39KB over the wire, at the head of every delivered document.
     """
     sheets = {
-        name: rewrite(resources[path].data.decode("utf-8"), path)
+        name: rebase_css(resources[path].data.decode("utf-8"), path, address)
         for name, path in (
             ("chrome", "/runtime/chrome.css"),
             ("marks", "/runtime/marks.css"),
@@ -139,83 +337,6 @@ def delivery_sheets(
         '<script type="application/json" data-lf-runtime data-lf-sheets>'
         f"{json_script(sheets)}</script>"
     )
-
-
-def deliver_document(source: str, asset_root: str) -> str:
-    """Rebase an admitted authored document before delivery inserts its own head."""
-    document = SourceDocument(source)
-    replacements = []
-    index = document._source_index
-
-    def attribute(element, name, value):
-        span = element.source_location.attrs[name]
-        replacements.append(
-            (
-                index(span.start_line, span.start_col),
-                index(span.end_line, span.end_col),
-                f'{name}="{html.escape(value, quote=True)}"',
-            )
-        )
-
-    for element in document.tree.descendants:
-        if (
-            not isinstance(element, turbohtml.Element)
-            or element.source_location is None
-        ):
-            continue
-        attrs = element.attrs
-        location = element.source_location
-        if element.tag == "script" and attrs.get("src"):
-            target = resolve_dependency(attrs["src"], "/index.html", module=True)
-            if target is not None:
-                attribute(
-                    element, "src", asset_root.rstrip("/") + quote(target, safe="/")
-                )
-        if element.tag == "link" and "stylesheet" in rel_tokens(attrs):
-            attribute(
-                element, "href", _resource_url(attrs["href"], "/index.html", asset_root)
-            )
-        if element.tag != "script":
-            for name, value in attrs.items():
-                if not isinstance(value, str):
-                    continue
-                delivered = rewrite_resource_attribute(
-                    element.tag,
-                    attrs,
-                    name,
-                    value,
-                    lambda reference: (
-                        _resource_url(reference, "/index.html", asset_root)
-                        if reference.startswith(
-                            ("/page/", "page/", "./page/", "/media/")
-                        )
-                        else reference
-                    ),
-                )
-                if delivered != value:
-                    attribute(element, name, delivered)
-        if attrs.get("style"):
-            value = _stylesheet(attrs["style"], "/index.html", asset_root, block=True)
-            if value != attrs["style"]:
-                attribute(element, "style", value)
-        if element.tag in {"script", "style"} and location.end_tag is not None:
-            start = index(location.start_tag.end_line, location.start_tag.end_col)
-            end = index(location.end_tag.start_line, location.end_tag.start_col)
-            body = source[start:end]
-            if element.tag == "script" and not attrs.get("src"):
-                delivered = rewrite_module(
-                    body.encode("utf-8"), "/index.html", asset_root
-                ).decode("utf-8")
-            elif element.tag == "style":
-                delivered = _stylesheet(body, "/index.html", asset_root)
-            else:
-                continue
-            if delivered != body:
-                replacements.append((start, end, delivered))
-
-    for start, end, value in sorted(replacements, reverse=True):
-        source = source[:start] + value + source[end:]
-    return source
 
 
 def delivery_prelude(

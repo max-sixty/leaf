@@ -132,7 +132,6 @@ def test_agent_interaction_command_help(regtest):
     outputs = []
     for command in (
         "wait",
-        "delivery claim",
         "delivery read",
         "page state",
         "thread read",
@@ -4124,7 +4123,7 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     (widget_package / "widgets").mkdir(parents=True)
     (widget_package / "vendor").mkdir()
     (widget_package / "registry.json").write_text(
-        json.dumps({"lf-solo": element_declaration("lf-solo", True)})
+        json.dumps({"lf-solo": element_declaration("lf-solo", upgrade=True)})
     )
     (widget_package / "theme.css").write_text("lf-solo { --lf-block-frame: 1; }\n")
     (widget_package / "widgets" / "lf-solo.js").write_text(

@@ -111,7 +111,7 @@ function heading(title) {
 
 function retitle(box, title) {
   const node = box.querySelector(":scope > h2");
-  if (node.textContent !== title) relabel(node, title, { says: true });
+  relabel(node, title, { says: true });
 }
 
 // A route to a row, not a second place the page says its name. The label is copied off

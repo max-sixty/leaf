@@ -22,7 +22,7 @@ import { handBack, letGo } from "./focus.js";
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import { iconTemplate } from "./icons.js";
 import { focused, paintKeys } from "./keyboard/scopes.js";
-import { el, offer } from "./widget-elements.js";
+import { el, keepsText, offer } from "./widget-elements.js";
 import { placeKeeper } from "./user-place.js";
 import {
   BANNER_CONTROL_RANK,
@@ -316,7 +316,7 @@ export function createPageMapDialog({
     entries = nextEntries;
     const label = `Map (${entries.length})`;
     showBannerControl(mapButton, entries.length > 0);
-    if (mapButton.textContent !== label) mapButton.textContent = label;
+    keepsText(mapButton, label);
     if (dialog.open) renderSheet();
   }
 

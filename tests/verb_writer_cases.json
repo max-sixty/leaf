@@ -1,0 +1,10 @@
+{
+  "declarations": {
+    "lf-user-verb": { "x-state": { "set": {} } },
+    "lf-agent-verb": { "x-state": { "measure": { "writer": "agent" } } }
+  },
+  "writers": [
+    ["lf-user-verb", "set", "user"],
+    ["lf-agent-verb", "measure", "agent"]
+  ]
+}

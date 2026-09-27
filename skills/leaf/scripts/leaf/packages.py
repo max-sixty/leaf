@@ -144,7 +144,11 @@ def starter_element_declaration(tag: str) -> dict:
 
 
 def starter_widget_module(tag: str) -> bytes:
-    """The registration and one-shot upgrade shared by behavioral widgets."""
+    """The registration and one-shot upgrade shared by behavioral widgets.
+
+    The layer paints what the declaration alone determines, settlement included, with
+    no help from the module. A module that adds a `renderState` subscribes to its
+    `widgetController`, which is what calls it."""
     return (
         'import { once } from "/runtime/widget-api.js";\n\n'
         "customElements.define(\n"

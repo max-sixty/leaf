@@ -21,8 +21,8 @@
  * in a shut panel has no box, so measure holds its draw, and the 384KB bundle waits with
  * it instead of loading in front of a user who never opens that panel. */
 import {
+  bodyText,
   cancelRender,
-  dataBody,
   failSoft,
   layerFact,
   measure,
@@ -524,12 +524,12 @@ customElements.define(
     }
 
     async draw() {
-      // Inside the try with everything else: dataBody reaches for a <pre> both markup
+      // Inside the try with everything else: bodyText reaches for a <pre> both markup
       // doors require, and an authored document hand-edited past them threw out of here instead
       // of failing soft, leaving the user the body's raw text and no error at all.
       let source = "";
       try {
-        source = dataBody(this).trim();
+        source = bodyText(this);
         const table = readTable(source);
         const axis = readAxis(table.labels);
         const Plot = await loadPlot();

@@ -835,61 +835,6 @@ def ticked(page):
     page.wait_for_function("() => window.__lfTicked")
 
 
-def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
-    """Author one small widget in the project package for browser fixtures."""
-    package = root / ".leaf"
-    created = CliRunner().invoke(cli_model.cli, ["package", "init", str(package)])
-    assert created.exit_code == 0, created.output
-    registry_path = package / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    entry = {
-        "description": f"A <{tag}> test block.",
-        "type": "object",
-        "properties": {"id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "markup",
-        "x-upgrade": upgrade,
-        "x-example": f'<{tag} id="{tag.removeprefix("lf-")}-example">Example</{tag}>',
-    }
-    if upgrade:
-        entry["x-verbatim"] = True
-    registry[tag] = entry
-    registry_path.write_text(json.dumps(registry, indent=2))
-    with (package / "theme.css").open("a") as theme:
-        theme.write(
-            f"\n{tag} {{\n"
-            "  display: block;\n"
-            "  margin: var(--sp-3) 0;\n"
-            "  padding: var(--sp-3);\n"
-            "  border: 1px solid var(--rule);\n"
-            "  border-radius: var(--r);\n"
-            "  background: var(--card);\n"
-            "  --lf-block-frame: 1;\n"
-            "}\n"
-        )
-    if upgrade:
-        (package / "widgets" / f"{tag}.js").write_text(
-            'import { once, widgetController } from "/runtime/widget-api.js";\n\n'
-            "customElements.define(\n"
-            f'  "{tag}",\n'
-            "  class extends HTMLElement {\n"
-            "    #controller = widgetController(this);\n"
-            "    #stop = null;\n"
-            "    connectedCallback() {\n"
-            "      once(this);\n"
-            "      this.#stop ??= this.#controller.subscribe(() => {});\n"
-            "    }\n"
-            "    disconnectedCallback() {\n"
-            "      this.#stop?.();\n"
-            "      this.#stop = null;\n"
-            "    }\n"
-            "  },\n"
-            ");\n"
-        )
-    return package
-
-
 # `z` is the one press whose subject is read rather than pointed at, so the dispatcher
 # holds it dead while the page holds a gesture no log read has accounted for — this
 # press's own trip included (unrecordedGesture). Every other press acts on what is under
@@ -1016,17 +961,45 @@ one still fails well inside the nightly step's own bound. Waiting longer weakens
 no claim, since the stamps say the same thing whenever they arrive and nothing
 here reads how quickly a page came up — the suite's startup readings are the
 phase profile `scripts/verify_site.py wrangler` takes."""
-STORED_DRAFT_TEXT = """ctx => {
+
+
+def draft_key(page, ctx: str) -> str:
+    """The `localStorage` key the page's own draft store keeps the draft at `ctx`
+    under, page scope included (`whereDraft`, runtime/drafts.js)."""
+    return page.evaluate(
+        """async ctx => (await window.__lfRuntimeImport('/runtime/drafts.js'))
+          .whereDraft(ctx).key""",
+        ctx,
+    )
+
+
+_STORED_DRAFT_TEXT = """key => {
   try {
-    const record = JSON.parse(localStorage.getItem('lf-draft:' + ctx));
+    const record = JSON.parse(localStorage.getItem(key));
     return record && !record.settled ? record.text : null;
   } catch { return null; }
 }"""
-STORED_DRAFT_SETTLED = """ctx => {
+_STORED_DRAFT_SETTLED = """key => {
   try {
-    return JSON.parse(localStorage.getItem('lf-draft:' + ctx))?.settled === true;
+    return JSON.parse(localStorage.getItem(key))?.settled === true;
   } catch { return false; }
 }"""
+
+
+def stored_draft_text(page, ctx: str) -> str | None:
+    """The words storage holds for the draft at `ctx`, or None once it is settled or
+    absent: what another tab or a reload would find, whatever this tab shows."""
+    return page.evaluate(_STORED_DRAFT_TEXT, draft_key(page, ctx))
+
+
+def stored_draft_settled(page, ctx: str) -> bool:
+    """Whether storage holds the draft at `ctx` as settled (its tombstone)."""
+    return page.evaluate(_STORED_DRAFT_SETTLED, draft_key(page, ctx))
+
+
+def until_draft_settled(page, ctx: str) -> None:
+    """Wait until storage holds the draft at `ctx` as settled."""
+    page.wait_for_function(_STORED_DRAFT_SETTLED, arg=draft_key(page, ctx))
 
 
 _BROWSER_PROBLEM_LISTS = None
@@ -1786,6 +1759,13 @@ def resized(page, width, height):
     page.set_viewport_size({"width": width, "height": height})
     page.wait_for_function("() => window.lfResizes > window.lfResizesWas")
     page.evaluate(ONE_FRAME)
+
+
+def root_overflow(page) -> float:
+    """How far the page scrolls sideways, as the render gate reads it (`rootOverflow`):
+    at the root scrollport the runtime scrolls. `body` is not that scroller, and a page
+    that narrows it reads as overflowing where the window scrolls nothing."""
+    return render_checks_model.evaluate_probe(page, "rootOverflow")
 
 
 def hold_selection(page, start, end, steps=8, frame_the_press=False):

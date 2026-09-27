@@ -1061,7 +1061,7 @@ export default {
       );
       if (
         response.status !== 404 ||
-        !isPageSessionFileRequest(route) ||
+        !isPageSessionFileRequest(route, manifest) ||
         existing === null ||
         !active
       ) {

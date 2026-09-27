@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
-from interact_support import install_payload
+from interact_support import add_test_widget, install_payload
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
@@ -38,7 +38,6 @@ from render_harness import (
     SETTLED_PAGE,
     SPECIMEN_MARKUP,
     SPECIMEN_TEXT,
-    author_test_widget,
     open_page,
     page_registry,
     primed,
@@ -919,12 +918,13 @@ def test_render_reads_a_reply_widgets_own_chrome_and_not_the_panel_around_it(
     It would have refused the first page that carried a question in a reply,
     which is a shape the vocabulary describes and `leaf thread reply --markup` posts."""
     monkeypatch.chdir(tmp_path)
-    package = author_test_widget(tmp_path, "lf-badge", upgrade=True)
+    package = tmp_path / ".leaf"
+    add_test_widget(package, "lf-badge", upgrade=True)
     module = package / "widgets" / "lf-badge.js"
     module.write_text(
         module.read_text().replace(
-            "      once(this);",
-            "      once(this);\n" + BADGE_CHROME,
+            "      if (!once(this)) return;",
+            "      if (!once(this)) return;\n" + BADGE_CHROME,
         )
     )
 

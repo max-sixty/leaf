@@ -141,13 +141,17 @@ def canonical_workflows(
         for event_id in event["events"]:
             deliveries.setdefault(event_id, {})[event["phase"]] = event
 
-    effective_claims = {
-        (update["target"]["kind"], update["target"]["id"]): update
+    effective = [
+        update
         for update in canonical_updates(None, claims, threads, events)
         if update["disposition"] == "effective"
+    ]
+    effective_claims = {
+        (update["target"]["kind"], update["target"]["id"]): update
+        for update in effective
     }
-    interaction_claims = {
-        claim["event"]: claim for claim in claims if claim.get("scope") == "interaction"
+    claims_by_event = {
+        update["event"]: update for update in effective if update.get("event")
     }
     used_targets = set()
 
@@ -158,9 +162,6 @@ def canonical_workflows(
         *,
         answer: dict | None,
     ) -> dict:
-        claim = interaction_claims.get(source["id"]) or effective_claims.get(
-            (target["kind"], target["id"])
-        )
         delivery = deliveries.get(source["id"], {})
         opened = delivery.get("opened")
         queued = delivery.get("queued")
@@ -168,20 +169,16 @@ def canonical_workflows(
             (entry["seq"] for entry in (opened, queued) if entry),
             default=source["seq"],
         )
-        claim_matches = (
-            claim
-            and claim["target"] == target
-            and (
-                claim.get("scope") == "interaction"
-                or target["kind"] == "widget"
-                or claim.get("event") == source["id"]
-            )
-        )
-        if claim_matches and (
-            claim.get("event") == source["id"] or claim["log_floor"] >= delivery_seq
-        ):
+        # A claim naming this exact input holds it, wherever the claim stands;
+        # widget work also holds every move on that widget delivered before it.
+        claim = claims_by_event.get(source["id"])
+        if claim is None and target["kind"] == "widget":
+            held = effective_claims.get(("widget", target["id"]))
+            if held and held["log_floor"] >= delivery_seq:
+                claim = held
+        if claim:
             stage, evidence = "working", claim
-            used_targets.add((target["kind"], target["id"]))
+            used_targets.add((claim["target"]["kind"], claim["target"]["id"]))
         elif opened:
             stage, evidence = "picked_up", opened
         elif queued:

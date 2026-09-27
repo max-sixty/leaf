@@ -37,6 +37,7 @@ from interact_support import (
     comment,
     decide,
     declare_data_input,
+    model_layer,
     publish,
     read_page_data,
     stamp,
@@ -740,6 +741,58 @@ def test_rank_rules_match_the_browser_cases():
     assert not any(projection_model.RANK.fullmatch(r) for r in RANK_CASES["invalid"])
 
 
+@pytest.mark.parametrize(
+    "case", RANK_CASES["folds"], ids=[case["name"] for case in RANK_CASES["folds"]]
+)
+def test_the_position_fold_matches_the_browser_cases(case):
+    """`tests/runtime/board-order.test.mjs` folds the same authored containers and
+    standing moves through `foldWidgetStates`, so the two runtimes leave every
+    container in one order."""
+    registry = model_layer()
+    columns = "".join(
+        f'<lf-column id="{column}" label="{column}">'
+        + "".join(f'<lf-card id="{card}">{card}</lf-card>' for card in cards)
+        + "</lf-column>"
+        for column, cards in case["authored"].items()
+    )
+    document = structure_model.SourceDocument(
+        f'<main><lf-board id="board">{columns}</lf-board></main>'
+    )
+    spec = registry["lf-board"]["x-state"]["move"]
+    desired = {
+        ("board", move["card"], "move"): (
+            {
+                "seq": seq,
+                "detail": {key: move[key] for key in ("card", "to", "rank")},
+                # A move is absorbed where the markup authors its container unlike
+                # the units it was made among.
+                "meaning": {"among": []} if move.get("absorbed") else {},
+                "widget": "board",
+            },
+            spec,
+        )
+        for seq, move in enumerate(case["moves"], start=1)
+    }
+    projection = projection_model.StateProjection(
+        actions={},
+        reports={},
+        desired=desired,
+        report_settlements={},
+        classified={},
+        absorbed=frozenset(),
+    )
+    order = projection_model.folded_positions(
+        "board",
+        "move",
+        spec["record"],
+        document.by_id,
+        projection_model.spoken(document, registry),
+        registry,
+        projection,
+    )
+    assert order == case["order"]
+
+
 def test_a_position_is_never_read_as_one_actions_markup_value():
     """A unit's place is read against the whole fold (`recorded_state`); reading it
     the way a pick or a value is read would fall through to the unit's words."""
@@ -1368,6 +1421,30 @@ def test_an_excerpt_is_referenced_by_the_numbers_it_quotes(
         assert refusal in result.output, result.output
     assert (result.exit_code == 1) == bool(refusals), result.output
     assert result.output.count("\n  - ") == len(refusals), result.output
+
+
+BODY_TEXT_CASES = json.loads(
+    (Path(__file__).parent / "body_text_cases.json").read_text()
+)["cases"]
+
+
+def test_a_numbering_counts_the_lines_lf_code_draws(page_dir):
+    """`tests/runtime/body-text.test.mjs` reads the same bodies against `bodyText`, the
+    text lf-code draws and numbers. Each block here numbers exactly those lines, so
+    the gate passes them all only if it trims a body as the module does — the browser's
+    whitespace at the edges, where Python's own `\\s` would count U+FEFF as a line and
+    U+0085 or U+001C as none."""
+    blocks = "\n".join(
+        # The newline after <pre> is the parser's to drop, leaving the body as written.
+        f'<lf-code id="c{i}" lines="1-{text.count(chr(10)) + 1}"><pre>\n{body}</pre>'
+        "</lf-code>"
+        for i, (body, text) in enumerate(BODY_TEXT_CASES)
+    )
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<h2>Plan</h2>", f"<h2>Plan</h2>\n{blocks}")
+    )
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
 
 
 def test_the_collapse_class_is_one_set_on_both_sides():

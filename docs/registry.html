@@ -144,6 +144,7 @@
           <a href="#x-numbering"><code>x-numbering</code></a>
           <a href="#x-owners"><code>x-owners</code></a>
           <a href="#x-paints"><code>x-paints</code></a>
+          <a href="#x-patch"><code>x-patch</code></a>
           <a href="#x-reading-role"><code>x-reading-role</code></a>
           <a href="#x-refers"><code>x-refers</code></a>
           <a href="#x-request"><code>x-request</code></a>
@@ -424,9 +425,11 @@
               <details class="reference-more">
                 <summary aria-label="Full x-numbering contract">Full contract</summary>
                 <p>
-                  <code>version check</code> holds it to one number per body line; a gap
-                  between ranges is lines the body leaves out, and every x-lines
-                  reference into that body names lines by these numbers.
+                  <code>version check</code> holds it to one number per body line,
+                  counting the &lt;pre&gt;'s text without its leading blank lines and
+                  trailing whitespace; a gap between ranges is lines the body leaves
+                  out, and every x-lines reference into that body names lines by these
+                  numbers.
                 </p>
               </details>
             </div>
@@ -458,6 +461,26 @@
                   The runtime speaks each to a user listening (the value, or a flag
                   attribute's own name), silently on screen and out of every selection,
                   so a fact stated in ink is not silent to whoever cannot see it.
+                </p>
+              </details>
+            </div>
+          </section>
+          <section class="reference-entry" id="x-patch">
+            <h3><code>x-patch</code></h3>
+            <div class="reference-copy">
+              <p>How a revision reaches an upgraded widget the user has open.</p>
+              <details class="reference-more">
+                <summary aria-label="Full x-patch contract">Full contract</summary>
+                <p>
+                  By default its module owns everything under the element, so a revision
+                  that changes any of the widget's markup replaces the whole widget and
+                  rebuilds whatever the user had open in it. <code>members</code> says
+                  the module builds its own controls beside its members, leaves them
+                  where the author wrote them, and reads nothing of them but their
+                  attributes: while a revision keeps the element's attributes and each
+                  member's tag and attributes, in order, it edits inside the members in
+                  place and the widget stays. Requires
+                  <code>x-content: members</code> and x-upgrade.
                 </p>
               </details>
             </div>

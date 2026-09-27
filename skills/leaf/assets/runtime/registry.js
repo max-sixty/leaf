@@ -25,8 +25,9 @@ export const elementDeclarations = () =>
 
 // Take in the fetched vocabulary. A verb's writer is resolved here, once: `agent` where
 // its declaration says so, else `user`, the rule Python's `registry.contract.verb_writer`
-// states. Every browser reading, a widget descriptor's captured declaration included,
-// then reads `spec.writer` as one of the two sides rather than restating the default.
+// states and `tests/verb_writer_cases.json` holds both to. Every browser reading, a
+// widget descriptor's captured declaration included, then reads `spec.writer` as one of
+// the two sides rather than restating the default.
 export function adoptRegistry(declarations) {
   Object.assign(registry, declarations);
   for (const [, entry] of elementDeclarations())
@@ -68,13 +69,11 @@ export function layerFact(name) {
 
 export const declarationFor = (el, key) => registry[el?.localName]?.[key];
 
-// The x-state verb whose detail `outcome` decides which of a tag's retirable members
-// leave the page (x-retired-when), the same reserved field Python's `deciding_verb`
-// reads.
-export const decidingVerb = (tag) =>
-  Object.entries(registry[tag]?.["x-state"] ?? {}).find(
-    ([, spec]) => "outcome" in (spec.detail?.properties ?? {}),
-  )?.[0] ?? null;
+// How a tag is decided, or null where no verb decides it: `verb`, the x-state verb whose
+// detail `outcome` is the decision, and `retires`, each outcome's member tags that leave
+// the page under it (x-retired-when). Composition stamps it into the vocabulary as
+// `$decisions` (Python's `registry.state.stamp_decisions`), so nothing here re-derives it.
+export const decisionFor = (tag) => registry.$decisions[tag] ?? null;
 
 export const elementsDeclaring = (root, key, { direct = false } = {}) => {
   const candidates = direct ? [...root.children] : [...root.querySelectorAll("*")];

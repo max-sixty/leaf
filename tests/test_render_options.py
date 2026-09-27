@@ -30,7 +30,6 @@ from render_cases_interaction import (
     STACKED_OPTIONS_PAGE,
     TABLE_REPLY,
     live_url,
-    sent_events,
 )
 from render_cases_navigation import (
     TWICE_PAGE,
@@ -56,6 +55,7 @@ from render_harness import (
     open_page,
     regions_side_by_side,
     resized,
+    root_overflow,
     round_trip,
     sending,
     shortcut_bar_text,
@@ -393,7 +393,7 @@ def test_option_words_render_markdown_without_losing_the_user_draft(browser, ser
     round_trip(page)
     adds = [
         event["detail"]
-        for event in sent_events(serve.page_dir)
+        for event in events_model.read_events(serve.page_dir)
         if event.get("kind") == "action" and event.get("action") == "add"
     ]
     assert adds == [
@@ -1757,9 +1757,9 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     assert not option.evaluate(picked), "selecting the option's evidence answered it"
 
-    assert [e for e in sent_events(serve.page_dir) if e["kind"] == "action"] == [], (
-        "the user working the evidence sent Claude a decision they never made"
-    )
+    assert [
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
+    ] == [], "the user working the evidence sent Claude a decision they never made"
 
     # And the option's own words still answer it, which is what the card is for.
     page.keyboard.press("Escape")
@@ -1769,7 +1769,7 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     round_trip(page)
     assert [
         e["detail"]["options"]
-        for e in sent_events(serve.page_dir)
+        for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "action"
     ] == [["ro-column"]]
 
@@ -2089,7 +2089,7 @@ def test_a_pick_states_the_whole_set(browser, serve):
     round_trip(page)
     picks = [
         (e["widget"], e["detail"])
-        for e in sent_events(serve.page_dir)
+        for e in events_model.read_events(serve.page_dir)
         if e.get("action") == "choose"
     ]
     assert picks == [
@@ -2154,7 +2154,7 @@ def test_a_send_waits_for_the_send_before_it(browser, serve):
     round_trip(page)
     assert [
         e["detail"]["options"]
-        for e in sent_events(serve.page_dir)
+        for e in events_model.read_events(serve.page_dir)
         if e.get("action") == "choose"
     ] == [["br-steel"], ["br-cedar"]]
 
@@ -2208,7 +2208,9 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
     page.locator("#job-heater").click()
     round_trip(page)
     assert [
-        e["detail"]["options"] for e in sent_events(d) if e.get("widget") == "jobs"
+        e["detail"]["options"]
+        for e in events_model.read_events(d)
+        if e.get("widget") == "jobs"
     ] == [
         ["job-mounts"],
         ["job-mounts", "job-camera"],
@@ -2338,7 +2340,7 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
 
     picks = [
         (e["widget"], e["detail"])
-        for e in sent_events(serve.page_dir)
+        for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "action"
     ]
     assert picks == [("jobs", {"options": ["job-heater"]})], picks
@@ -2656,20 +2658,19 @@ def test_a_specimen_holds_a_wide_exhibit_inside_the_column(browser, serve):
     resized(page, 380, 900)
     page.wait_for_function("() => window.lfMarginLayoutWidth === 380")
     wide = page.evaluate(
-        "() => [document.documentElement.scrollWidth,"
-        " document.documentElement.clientWidth,"
+        "() => [document.documentElement.clientWidth,"
         " Math.round(document.getElementById('spec').getBoundingClientRect().width),"
         " document.getElementById('quoted-board').scrollWidth]"
     )
-    document, column, specimen, board = wide
+    column, specimen, board = wide
     assert board > column, (
         f"the board is {board}px in a {column}px column: it has to want more room "
         f"than the column has, or nothing below is being tested"
     )
     assert specimen <= column, f"the specimen is {specimen}px in a {column}px column"
-    assert document == column, (
-        f"the document scrolls sideways ({document}px against {column}px): the "
-        f"exhibit widened the specimen instead of scrolling inside it"
+    assert root_overflow(page) == 0, (
+        "the document scrolls sideways: the exhibit widened the specimen instead of "
+        "scrolling inside it"
     )
 
 

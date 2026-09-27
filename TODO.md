@@ -228,6 +228,12 @@ and its chrome coordinate.
   second after the panes first draw. Both need a mark the stylesheet can read before
   the script: an authored/generated distinction in the paint, and the role in the
   first paint.
+- **Serve an unnamed agent's name to the browser.** Python names an agent with no
+  `agent` field `schema.UNNAMED_AGENT`, but five runtime sites still spell `|| "Agent"`
+  (`context.js`, `margin-projection.js`, `semantic-news.js`, `thread/messages.js`,
+  `thread/thread-card.js`), and `lf-activity.js` shows such a row under the claimant's
+  name instead. Resolve the name where the browser's threads, margin updates and
+  activity rows are served, then delete the JS fallbacks.
 
 ## Etc
 

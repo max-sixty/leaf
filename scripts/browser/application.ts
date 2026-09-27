@@ -46,8 +46,9 @@ interface WireProjection {
   entries: {
     event: Event;
     coordinate: [string, string, string];
-    restated?: string[];
+    restated: string[];
     absorbed: boolean;
+    stands: boolean;
     scope: string;
     spec: Omit<ActionSpec, "writer">;
     value: unknown;
@@ -79,16 +80,21 @@ interface WireAsks {
   unanswered: WireAsk[];
 }
 
+/** One served workflow, as `served_state.browser.served_workflows` serializes it;
+ * `AuthoritativeState.workflows` lists them strongest first. */
 interface WireWorkflow {
   id: string;
+  seq: number;
   revision: number | null;
   input: string | null;
   subject: { kind: "thread" | "widget"; id: string };
+  thread: string | null;
+  holds_thread: boolean;
   coordinate: unknown;
-  answer: { kind: "reply" | "markup" | "receipt" } | null;
+  answer: { kind: "reply" | "turn" | "markup" | "receipt" } | null;
   stage: "sent" | "queued" | "picked_up" | "working" | "replying" | "answered";
   ts: string | null;
-  detail: string;
+  detail: string | null;
   agent: string | null;
   session: string | null;
   delivery_seq: number | null;
@@ -107,6 +113,8 @@ interface WireWorkflow {
     operation: "delivery" | "work" | "response";
   } | null;
   next_actor: "user" | "agent";
+  quiet: boolean;
+  dropped: boolean;
 }
 
 /** The public Ask record packages read. */
@@ -209,8 +217,9 @@ function normalizedProjection(
       entries.push({
         coordinate,
         e,
-        restated: wire.restated ?? [],
+        restated: wire.restated,
         absorbed: wire.absorbed,
+        stands: wire.stands,
         scope: wire.scope,
         spec: wire.spec,
         unit: wire.coordinate[1],
@@ -573,15 +582,16 @@ export function createSemanticApplication({
       message.kind === "reply"
         ? (named.get(message.parent)?.id ?? message.parent)
         : message.id;
+    // The thread a local gesture stands in: its message's, or the thread whose
+    // markup froze the widget it moved; a page widget's stands in none.
+    const threadOfEntry = (entry: any): string | null => {
+      if (entry.message) return threadOf(entry.message);
+      const held = document.descriptors.get(entry.event.widget)?.document;
+      return held?.kind === "thread" ? (held.thread ?? null) : null;
+    };
     const refused = new Map<string, string>();
     for (const entry of unresolved.filter((entry: any) => entry.rejected)) {
-      const message = entry.message;
-      const held = document.descriptors.get(entry.event.widget)?.document;
-      const thread = message
-        ? threadOf(message)
-        : held?.kind === "thread"
-          ? held.thread
-          : undefined;
+      const thread = threadOfEntry(entry);
       if (thread) refused.set(thread, `rejected:${entry.event.attempt}`);
     }
     const obligated = folded.map((thread: any) => {
@@ -605,21 +615,32 @@ export function createSemanticApplication({
         .filter((entry: any) => entry.message)
         .map((entry: any) => [entry.message.id, entry]),
     );
+    // A send this tab has not delivered, in the served workflow's shape. A message
+    // holds its thread as every thread input does; a widget move owes no answer until
+    // the server has read it, so it holds none.
     const localWorkflow = (entry: any, rejected: boolean) => {
       const message = entry.message;
+      const thread = threadOfEntry(entry);
       return {
         id: `${rejected ? "rejected" : "pending"}:${entry.event.attempt}`,
         revision: entry.event.revision ?? document.revision,
         seq: entry.order,
         input: message?.id ?? entry.localId,
         subject: message
-          ? { kind: "thread", id: threadOf(message) }
+          ? { kind: "thread", id: thread }
           : { kind: "widget", id: entry.event.widget },
-        coordinate: entry.projection?.coordinate ?? null,
+        thread,
+        holds_thread: Boolean(message),
+        // The server's list, where the local fold keys a coordinate by its JSON.
+        coordinate: message
+          ? ["thread", thread]
+          : entry.projection
+            ? JSON.parse(entry.projection.coordinate)
+            : null,
         answer: null,
         stage: "sending",
         ts: message?.ts ?? null,
-        detail: "",
+        detail: null,
         agent: null,
         session: null,
         delivery_seq: null,

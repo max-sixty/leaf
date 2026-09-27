@@ -8,18 +8,22 @@ from urllib.parse import urlsplit
 
 import pytest
 import tinycss2
+from click.testing import CliRunner
 from interact_support import (
     COMMAND_HUB_PACKAGE,
     add_test_widget,
     append_command,
     running_http_server,
 )
+from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
+from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
+from leaf import service as service_model
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
@@ -1738,7 +1742,7 @@ def _author_lying_callout(tmp_path):
         ("arrived", True),
         ("presented", False),
         ("log", False),
-        ("data", False),
+        ("state", False),
     ],
 )
 def test_only_a_final_settling_failure_keeps_projection_findings(
@@ -1778,10 +1782,10 @@ def test_only_a_final_settling_failure_keeps_projection_findings(
     )
 
 
-def test_the_data_wait_follows_a_source_rewritten_under_it(browser, serve):
-    """Any process may rewrite a source, so the reading the gate took can hold a
-    version the page has already moved past. A data version is a digest with no
-    order; the page presenting a reading the server took later has caught up."""
+def test_the_state_wait_follows_a_source_rewritten_under_it(browser, serve):
+    """Any process may rewrite a source, so the answer the gate took can name a
+    reading the page has already moved past. A reading is a digest with no order;
+    the page presenting an answer the server took later has caught up."""
     url = serve(
         leaf_page(
             "moving source",
@@ -1795,14 +1799,14 @@ def test_the_data_wait_follows_a_source_rewritten_under_it(browser, serve):
     data_model.cmd_data_set(serve.page_dir, "notes", "Second.\n")
     expect(page.locator("#notes code")).to_have_text("Second.\n")
     expect(page.locator("body")).not_to_have_attribute(
-        "data-lf-data-version", held["data"]["version"]
+        "data-lf-reading", held["reading"]
     )
     page._leaf_probe_timeout_ms = 1_000
 
     wait_until_ready(page, held)
 
 
-def test_the_data_wait_follows_a_source_back_to_the_version_the_page_shows(
+def test_the_state_wait_follows_a_source_back_to_the_version_the_page_shows(
     browser, serve
 ):
     """A source can move away and back between the gate's read and the page's. The page
@@ -1829,6 +1833,29 @@ def test_the_data_wait_follows_a_source_back_to_the_version_the_page_shows(
 
     wait_until_ready(page, held)
     expect(page.locator("#notes code")).to_have_text("First.\n")
+
+
+def test_the_state_wait_covers_a_status_that_moves_neither_log_nor_data(browser, serve):
+    """A declared status and a live watcher are part of what the server holds and of
+    what the page shows, though neither appends to the log or rewrites a source. A page
+    caught up with the answer that carries them already shows them, with no retry left
+    to the reader."""
+    url = serve(LONG_PAGE)
+    page = open_page(browser, url)
+    declared = CliRunner().invoke(
+        cli_model.cli, ["status", str(serve.page_dir), "waiting", "Pick a shard."]
+    )
+    assert declared.exit_code == 0, declared.output
+    claim = service_model.page_claim(serve.page_dir)
+    lease = leases_model.take_lease(
+        leases_model.waiter_lease_path(serve.page_dir, claim["id"] if claim else None)
+    )
+    try:
+        held = render_gate_scheme.served(page, url, "/api/state").json()
+        wait_until_ready(page, held, through="state")
+        assert "Pick a shard." in page.locator(".lf-status-text").text_content()
+    finally:
+        lease.close()
 
 
 def test_the_readiness_wait_names_the_stage_a_page_still_owes(browser, serve):

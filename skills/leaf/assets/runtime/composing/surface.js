@@ -105,13 +105,7 @@ import {
   snapSelection,
 } from "./capture.js";
 import { repaint } from "../repaint.js";
-import {
-  focusDestination,
-  handBack,
-  letGo,
-  readCaret,
-  takesLetters,
-} from "../focus.js";
+import { handBack, holdFocus, letGo, takesLetters } from "../focus.js";
 import { focused } from "../keyboard/scopes.js";
 import { under } from "../shadow.js";
 import { heldAsk } from "../standing-target.js";
@@ -283,25 +277,13 @@ export function createResponseSurface({
       ? Promise.resolve(true)
       : new Promise((resolve) => fabPositionWaiters.push(resolve));
 
-  const captureFabFocus = () => {
-    const element = focused();
-    if (!(element instanceof HTMLElement) || !fabBar.contains(element)) return null;
-    return { element, caret: readCaret(element) };
-  };
-
-  const restoreFabFocus = (held) => {
-    if (!held || focused() === held.element || !held.element.isConnected) return;
-    focusDestination(held.element, held.caret);
-  };
-
-  // Reparenting the canonical response bar is presentation, not a composer transition.
-  // Preserve the exact typing position across light/shadow DOM moves; Chromium may put
-  // focus on the shadow host while a focused field is adopted into its tree.
+  // Reparenting the canonical response bar is presentation, not a composer transition,
+  // so the user's place in it, caret included, crosses light and shadow DOM moves with it.
   function moveFab(parent) {
     if (fabBar.parentElement === parent) return;
-    const held = captureFabFocus();
+    const restoreFocus = holdFocus(fabBar);
     parent.append(fabBar);
-    restoreFabFocus(held);
+    restoreFocus?.();
   }
 
   function seatFab(outlet) {
@@ -322,21 +304,19 @@ export function createResponseSurface({
   function restoreFab({ place = true } = {}) {
     if (!fabInlineOutlet && fabBar.parentElement === responseHome) return false;
     // Resetting the inline presentation hides the response before moving it back to the
-    // viewport plane. Capture the exact focused control first; hiding a focused subtree
-    // makes Chromium move focus to body before moveFab can observe what was held.
-    const held = captureFabFocus();
+    // viewport plane. Hold the user's place first: hiding a focused subtree makes Chromium
+    // move focus to body before moveFab can observe what was held, and the bar takes
+    // focus again only once it is placed.
+    const restoreFocus = holdFocus(fabBar);
     stopFabPositioning({ reset: true, repositioning: place });
     fabInlineOutlet = null;
     fabFloating = true;
     delete fabBar.dataset.lfPresentation;
     moveFab(responseHome);
     if (place && fabAnchor) {
-      const displacedFocus = focused();
       if (!placeFab()) showFab(null);
-      else if (held)
-        void fabPositioned().then((positioned) => {
-          if (positioned && focused() === displacedFocus) restoreFabFocus(held);
-        });
+      else if (restoreFocus)
+        void fabPositioned().then((positioned) => positioned && restoreFocus());
     }
     return true;
   }

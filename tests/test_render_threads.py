@@ -4874,9 +4874,6 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # while the scoped rule only sets its line height in the response bar.
         "lf-compose-placeholder",
         "lf-compose-submit",
-        # Reply disclosure is shared by inline threads in authored content and the
-        # thread surfaces in chrome.
-        "lf-reply-disclosure",
         # The one canonical composer can be seated in a widget's own Thread outlet,
         # where the chrome's scoped rules cannot reach it. The authored theme dresses
         # that seat at document level, under [data-lf-presentation="inline"], so every
@@ -4982,7 +4979,6 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-skip",  # the keyboard entry point stands before the chrome container
         "lf-aiming",
         "lf-over-item",
-        "lf-quiet",
         # The shared textual thread box renders both in page-owned widget seats and in
         # the chrome-owned margin preview, so its pasted-image shelf is dressed here.
         # Its message rows are not: they take the shared face from the theme like every

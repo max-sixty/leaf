@@ -417,6 +417,14 @@ continues from there and no `tabindex` is left on the page behind the user. What
 it is a widget's own Escape step landing them back in the thing it took them out of: the
 patch a file filter belongs to, the exhibit a box was about.
 
+A module that moves, hides, or replaces nodes the user may be standing in, as a reorder or
+a re-render does, calls `holdFocus(scope)` before the change and the function it returns
+after it. Moving a focused node drops its focus to the page body; the returned function
+puts the user back on that node, with its caret, or on the first drawn stand-in it is
+passed, such as the replacement keyed on the same identity. It does nothing once focus was
+placed elsewhere in the meantime, and `holdFocus` returns `null` where the user stands
+outside `scope`.
+
 A module that takes the user to a thread calls `openThread(id, {focus})`
 with the Thread's `id`. It opens the thread where the page shows it, inline beside
 its passage or widget, and in Threads when it has no place on the page, the same choice a
@@ -1084,7 +1092,9 @@ non-empty rendering key, unique in that projection; `render` receives
 preserves a focused control or selection. Leaf marks those words as readable data
 rather than authored prose and reconciles their order by key. A renderer
 that owns a nested layout passes `{nested: true}` and returns its existing descendants;
-Leaf labels those nodes without moving them. Add `labelOf(record, index)` when a thread
+Leaf labels those nodes without moving them, and the module orders each container with
+`setChildren(parent, nodes)`, which moves only what is out of place and keeps the user
+in a node it moves. Add `labelOf(record, index)` when a thread
 should name a projected datum with a human coordinate; the rendering key remains opaque to
 the runtime. A widget declaring `x-data` passes `{snapshot}` with the delivery from
 `watchData`, including `null` when no current value exists. Leaf stamps the projection

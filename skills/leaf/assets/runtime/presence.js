@@ -103,9 +103,13 @@ export const quietSince = (ts) =>
 // Temporal policy belongs to the server's canonical activity fold. The browser uses
 // its calibrated copy of server time only to ask for the next projection when that
 // fold says an answer can change; it never decides what the new answer is.
-export const activityTransitionDue = (state) =>
-  [state?.activity, ...(state?.others ?? []).map((entry) => entry.activity)].some(
-    (activity) =>
-      activity?.next_transition_at &&
-      serverNow() >= Date.parse(activity.next_transition_at),
+// `activityTransitionAt` is when, on the server's clock, the earliest activity in an
+// answer can next change without any file moving, or Infinity when none is timed.
+export const activityTransitionAt = (state) =>
+  Math.min(
+    ...[state?.activity, ...(state?.others ?? []).map((entry) => entry.activity)]
+      .filter((activity) => activity?.next_transition_at)
+      .map((activity) => Date.parse(activity.next_transition_at)),
   );
+export const activityTransitionDue = (state) =>
+  serverNow() >= activityTransitionAt(state);

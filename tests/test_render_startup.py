@@ -1366,6 +1366,9 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     expect(controls).to_be_hidden()
     page.evaluate("releaseHeldPageInterface()")
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Interactions", exact=True
+    ).click()
     expect(controls).to_be_visible()
     expect(page.locator(".lf-status-detail")).to_have_text(re.compile(r"^Connecting"))
 
@@ -4693,12 +4696,9 @@ def test_a_source_that_returns_under_an_unfinished_reading_stays_current(
         ],
     )
 
-    # The page accepted the reading that returned the source, so it is waiting on none;
+    # The page presents the reading that returned the source, so it is waiting on none;
     # what it shows is that reading's value rather than the one it overtook.
-    page.wait_for_function(
-        "taken => Number(document.body.dataset.lfDataTaken) >= taken",
-        arg=back.json()["taken"],
-    )
+    wait_until_ready(page, back.json())
     expect(page.locator("#notes code")).to_have_text("First.\n")
     expect(page.locator(".lf-thread", has_text="A message arriving")).to_have_count(1)
 

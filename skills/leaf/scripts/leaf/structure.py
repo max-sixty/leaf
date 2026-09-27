@@ -300,7 +300,10 @@ class SourceDocument:
         self._source = source
         self._source_index = source_index(source)
         self._first_body_position = None
-        self.head_open_end = None
+        # (start, end) of the first html, head, and body start tag the source spells,
+        # and where its last </body> begins: where delivery writes into the document.
+        self.wrapper_tags = {}
+        self.body_close = None
         self._finish()
 
     @staticmethod
@@ -340,12 +343,18 @@ class SourceDocument:
             if token.type is turbohtml.TokenType.START_TAG and token.tag == "head"
         ]
         self.head_lines = [token.line for token in head_starts]
-        self.head_open_end = (
-            self._source_index(head_starts[0].line, head_starts[0].col)
-            + len(head_starts[0].source)
-            if head_starts
-            else None
-        )
+        for token in tokens:
+            if token.type is turbohtml.TokenType.START_TAG and token.tag in {
+                "html",
+                "head",
+                "body",
+            }:
+                start = self._source_index(token.line, token.col)
+                self.wrapper_tags.setdefault(
+                    token.tag, (start, start + len(token.source))
+                )
+            elif token.type is turbohtml.TokenType.END_TAG and token.tag == "body":
+                self.body_close = self._source_index(token.line, token.col)
         starts = {
             (token.line, token.col): token
             for token in tokens

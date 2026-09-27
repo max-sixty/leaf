@@ -52,8 +52,11 @@ File-side fixtures live in `interact_support.py`, browser fixtures in
 `render_harness.py`, reusable browser cases in `render_cases_*.py`.
 `tests/runtime/*.test.mjs` holds what one runtime module decides on its own, in the
 document `tests/runtime/dom.mjs` puts up; `scripts/browser/application.test.mjs` owns
-the publisher's composition of those folds. `fixtures/pages/` holds full-page
-regressions under `examples/AGENTS.md`'s rules.
+the publisher's composition of those folds. Both build served threads and workflows
+with `served.mjs` from what `served_records.py` folds through the server: a record
+that carries every field the server sends, with only the fields a case is about
+changed, or a whole reading where the case rests on how the server relates them.
+`fixtures/pages/` holds full-page regressions under `examples/AGENTS.md`'s rules.
 
 A fold whose result rests on a platform primitive that differs between Node and
 Chrome, such as `Intl.Segmenter`, is a browser fact: its test stays in the browser
@@ -149,8 +152,10 @@ the collector is not an assertion.
 
 Open pages through `open_page`, and call `wait_until_ready` (`leaf.render_checks`)
 after any manual navigation. It waits on the runtime's one readiness reading
-(`pageReadiness`): upgrade, replay, current presentation, deferred arrivals, and
-settled rendering, in that order. They are independent facts, network quiet implies
+(`pageReadiness`): upgrade, replay, an `/api/state` answer the caller holds
+presented whole, current presentation, deferred arrivals, and settled rendering, in
+that order. `told` holds the answer the server gives now and asks only through the
+`state` stage, so it also answers behind a page held mid-gesture. They are independent facts, network quiet implies
 none of them, and a key pressed before replay can be lost silently. Never combine the
 stamps yourself, and never wait for a fixture's deferred widget by name; the arrived
 stage covers work an owner declares after presentation. Call `displayed` before a

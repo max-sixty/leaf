@@ -23,7 +23,7 @@ from xml.etree import ElementTree
 
 import pytest
 from click.testing import CliRunner
-from conftest import CLAUDE_IDENTITY, CODEX_IDENTITY, HOOKED_SESSIONS, LEAF_COMMAND
+from conftest import CLAUDE_IDENTITY, HOOKED_SESSIONS, LEAF_COMMAND
 from interact_support import (
     COMMAND_SUBJECTS,
     HELD_LEASES,
@@ -895,13 +895,72 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
     for workflows, expected in cases:
         threads = [{"id": "root", "resolved": None, "user_prompt": None}]
         browser_served_model._apply_thread_attention(
-            threads, {"user": []}, workflows, frozen
+            threads,
+            {"user": []},
+            browser_served_model.served_workflows(workflows, frozen),
         )
         assert threads[0]["attention"] == {
             "kind": "waiting",
             "reason": "workflow",
             "workflow": expected,
         }
+
+
+def test_served_workflows_list_the_strongest_first():
+    """Every surface that shows one workflow of several shows the first, so the served
+    order is the one comparator: a move handed back to the user, then work under way,
+    then an uncertain one, then plain delivery by stage, then the newer input. A
+    failed response is the furthest stage a move reaches."""
+
+    def workflow(id, seq, stage, condition=None, next_actor="agent"):
+        return {
+            "id": id,
+            "seq": seq,
+            "subject": {"kind": "thread", "id": "root"},
+            "stage": stage,
+            "answer": None,
+            "condition": condition,
+            "next_actor": next_actor,
+        }
+
+    stale = {"kind": "stale", "operation": "work"}
+    failed = {"kind": "failed", "operation": "response"}
+    cases = [
+        (
+            [workflow("stale", 1, "picked_up", stale), workflow("work", 2, "working")],
+            ["work", "stale"],
+        ),
+        (
+            [workflow("older", 1, "working"), workflow("newer", 2, "working")],
+            ["newer", "older"],
+        ),
+        (
+            [workflow("fresh", 1, "working"), workflow("stale", 2, "working", stale)],
+            ["fresh", "stale"],
+        ),
+        (
+            [
+                workflow("work", 1, "working"),
+                workflow("back", 2, "answered", failed, "user"),
+            ],
+            ["back", "work"],
+        ),
+        (
+            [workflow("queued", 1, "queued"), workflow("sent", 2, "sent")],
+            ["queued", "sent"],
+        ),
+        (
+            [
+                workflow("working", 1, "working", stale),
+                workflow("back", 2, "answered", failed),
+            ],
+            ["back", "working"],
+        ),
+    ]
+    frozen = projection_model.FrozenThreadReading(None, {}, {}, {}, None)
+    for workflows, expected in cases:
+        served = browser_served_model.served_workflows(workflows, frozen)
+        assert [item["id"] for item in served] == expected
 
 
 def test_a_widget_claim_holds_the_moves_delivered_before_it(page_dir):
@@ -4614,10 +4673,10 @@ def test_unheld_activity_drops_interaction_claims_from_the_same_reading(
     state = page_state(page_dir)
     activity = state["activity"]
     assert (activity["kind"], activity["held"]) == ("unheld", False)
-    assert [(item["input"], item["stage"]) for item in state["workflows"]] == [
-        (comment["id"], "sent"),
-        (followup["id"], "sent"),
-    ]
+    assert {item["input"]: item["stage"] for item in state["workflows"]} == {
+        comment["id"]: "sent",
+        followup["id"]: "sent",
+    }
     assert all(
         (workflow["agent"], workflow["detail"]) == (None, None)
         for workflow in state["workflows"]
@@ -9640,7 +9699,7 @@ def test_a_codex_session_id_with_no_codex_above_it_is_refused(page_dir, monkeypa
     events_model.append_event(
         page_dir, {"kind": "comment", "author": "user", "text": "hi"}
     )
-    for name in CLAUDE_IDENTITY + CODEX_IDENTITY:
+    for name in host_model.IDENTITY_VARIABLES:
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("CODEX_THREAD_ID", "thread-nobody")
     monkeypatch.setattr(machine_model, "process_info", lambda _pid: (1, "python"))
@@ -10015,7 +10074,7 @@ def test_a_claim_transfer_stops_a_waiter_already_inside_a_poll(
 @pytest.mark.parametrize(
     "identity_names",
     [
-        pytest.param(CLAUDE_IDENTITY + CODEX_IDENTITY, id="bare-shell"),
+        pytest.param(host_model.IDENTITY_VARIABLES, id="bare-shell"),
         pytest.param((), id="host-session"),
     ],
 )

@@ -52,7 +52,6 @@ from leaf import data_contracts as data_contracts_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as files_model
-from leaf import http as http_model
 from leaf import leases as leases_model
 from leaf import passages as passages_model
 from leaf import projection as projection_model
@@ -335,12 +334,15 @@ def test_a_page_whose_history_predates_the_digest_still_serves_it(page_dir):
     assert descriptor["executable"] is None
 
     # And the document itself still serves, prelude and all.
-    document = http_model.runtime_document(
+    document = revision_delivery_model.compose_document(
         (page_dir / "index.html").read_text(encoding="utf-8"),
         revision,
-        artifact.executable,
-        artifact.widgets,
-    ).decode()
+        None,
+        executable=artifact.executable,
+        widgets=artifact.widgets,
+        resources=artifact.resources,
+        delivery=revision_delivery_model.Delivery(address=lambda path: path),
+    )
     assert "lf-executable" not in document and "lf-widgets" not in document
     assert '<meta name="lf-revision" data-lf-runtime content="1">' in document
 
@@ -780,6 +782,7 @@ def test_the_position_fold_matches_the_browser_cases(case):
         report_settlements={},
         classified={},
         absorbed=frozenset(),
+        standing=frozenset(),
     )
     order = projection_model.folded_positions(
         "board",

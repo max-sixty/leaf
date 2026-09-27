@@ -4,7 +4,7 @@ from pathlib import Path
 
 from markdown_it import MarkdownIt
 
-from leaf.schema import MEDIA_DIR
+from leaf.schema import MEDIA_DIR, SERVED_PATH
 from leaf.structure import (
     AUTHORED_ALLOCATIONS,
     PAGE_ALLOCATIONS,
@@ -273,8 +273,18 @@ def text_media_errors(text: str, page_dir: Path) -> list:
 
 
 def _unanswered_media(refs, page_dir: Path) -> list:
-    return [
-        f"{ref} isn't in the page directory; `leaf page media` puts it there"
-        for ref in sorted(refs)
-        if not (page_dir / ref.lstrip("/")).is_file()
-    ]
+    """Every `/media/…` reference the page will not answer: one whose name the server
+    never serves (`schema.MEDIA_DIGEST`), whatever the directory holds under it, and
+    one the directory has not got."""
+    errors = []
+    for ref in sorted(refs):
+        if not SERVED_PATH.fullmatch(ref):
+            errors.append(
+                f"{ref} isn't a name `leaf page media` gives, so the page never "
+                "serves it"
+            )
+        elif not (page_dir / ref.lstrip("/")).is_file():
+            errors.append(
+                f"{ref} isn't in the page directory; `leaf page media` puts it there"
+            )
+    return errors

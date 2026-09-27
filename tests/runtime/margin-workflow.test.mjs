@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { syncMarginAgentWorkflow } from "../../skills/leaf/assets/runtime/margin-entries.js";
+import { servedWorkflow } from "../served.mjs";
 
-const workflow = (stage, condition = null) => ({
-  id: `${stage}-workflow`,
-  subject: { kind: "thread", id: "thread-1" },
-  stage,
-  condition,
-  detail: "Preparing an update",
-});
+const workflow = (stage, condition = null) =>
+  servedWorkflow({
+    id: `${stage}-workflow`,
+    stage,
+    condition,
+    detail: "Preparing an update",
+  });
 
 test("margin workflow paint distinguishes live work from conditioned history", () => {
   const control = document.createElement("button");

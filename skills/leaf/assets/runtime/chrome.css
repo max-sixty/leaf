@@ -1523,7 +1523,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     margin-top: 0; margin-inline: calc(-1 * var(--sp-2));
     padding-block: var(--sp-3) var(--here-ring-room);
     background: inherit; }
-  .lf-margin-thread .lf-page-thread > .lf-say > .lf-reply-disclosure,
   .lf-margin-thread .lf-say leaf-text { padding-inline-start: 7px; }
   .lf-margin-thread .lf-say leaf-text { min-width: 0;
     max-height: min(50vh, var(--lf-thread-editor-room, 50vh)); }

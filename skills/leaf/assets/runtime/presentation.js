@@ -15,6 +15,11 @@
    - `data-lf-presented` means the initial authoritative projection, or the deliberate
      offline authored fallback, has crossed the semantic-interaction boundary.
 
+   Beside them, `data-lf-reading` names the `/api/state` answer the page last applied
+   (`markStateApplied`): its log, data, status, versions and presence adopted, its
+   document's presentation pass finished, and every data subscriber told. A drag may
+   still hold a region that pass reached; the coordinator, not this stamp, says so.
+
    Do not merge these stamps. A document can finish upgrading while its first state read
    is pending, or the answer can wait unapplied while upgrades finish. A later semantic
    publication or same-epoch renderer replacement leaves `data-lf-presented` set while
@@ -92,6 +97,7 @@ import {
   attachApplicationPresentation,
   whenApplicationPresented,
 } from "./semantic-state.js";
+import { activityTransitionAt } from "./presence.js";
 import { renderingSettled } from "./rendering.js";
 import { highlightBlocks } from "./syntax.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
@@ -110,7 +116,6 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   applied: "data-lf-applied",
   reading: "data-lf-reading",
   dataVersion: "data-lf-data-version",
-  dataTaken: "data-lf-data-taken",
   source: "data-lf-source",
   sourceRevision: "data-lf-source-revision",
   userOverride: "data-lf-user-override",
@@ -159,32 +164,70 @@ export function deferredArrival(work) {
 /** Run `work` once the page has presented, as an arrival the page answers for. */
 export const afterPresentation = (work) => deferredArrival(presented.then(work));
 
+// The `/api/state` answer this page last applied: the reading that names it, the moment
+// the server took it, and the moment its activity could next change with no file
+// moving (`activityTransitionAt`), all on the server's clock. The `state` stage below
+// compares these with the answer a reader holds.
+let appliedState = null;
+
+/** Record `state` as applied. Called once per answer, after its document's presentation
+    pass and every data subscriber it told have finished. */
+export function markStateApplied(state) {
+  setRuntimeRootAttribute(document.body, PAGE_PAINT_ATTRIBUTE.reading, state.reading);
+  appliedState = {
+    reading: state.reading,
+    taken: state.taken,
+    lapses: activityTransitionAt(state),
+  };
+}
+
+const stamp = (name) => document.body.getAttribute(PAGE_PAINT_ATTRIBUTE[name]);
+// In the order a page reaches them. `held` is the `/api/state` answer a reader holds
+// (`{reading, taken}`), or null for a reader holding none, which skips `state`.
+const READINESS = [
+  ["upgraded", () => stamp("upgraded") === "1"],
+  ["log", () => stamp("applied") !== null],
+  [
+    "state",
+    (held) =>
+      !held ||
+      appliedState?.taken >= held.taken ||
+      (appliedState?.reading === held.reading &&
+        held.taken * 1000 < appliedState.lapses),
+  ],
+  ["presented", () => pagePresented() && applicationPresented()],
+  ["arrived", () => arriving.size === 0],
+  ["rendering", () => renderingSettled()],
+];
+const READINESS_STAGES = new Set(READINESS.map(([stage]) => stage));
+
 /** The first readiness fact this page has yet to state, or null once a reader outside
     it may read its final boxes and press its keys.
 
-    The stages run in the order a page reaches them: `upgraded`; `data` and `log`, the
-    external data and event coverage of the `/api/state` reading the reader holds
-    (`{version, taken, coverage}`); `presented`, the initial milestone and the
-    coordinator's current reading; `arrived`, nothing deferred past presentation still
-    outstanding; `rendering`, nothing queued for a rendering update. A reader holding no
-    reading asks only that some log coverage has been applied. A data version is a
-    digest with no order, so a page presenting a reading the server took later has
-    caught up with the one held. Finite animation is not a stage: the render gate's
-    `pageSettled` asks that separately. */
-export function pageReadiness(reading = null) {
-  const stamp = (name) => document.body.getAttribute(PAGE_PAINT_ATTRIBUTE[name]);
-  if (stamp("upgraded") !== "1") return "upgraded";
-  if (
-    reading &&
-    stamp("dataVersion") !== reading.version &&
-    Number(stamp("dataTaken") ?? -Infinity) < reading.taken
-  )
-    return "data";
-  if (Number(stamp("applied") ?? -1) < (reading?.coverage ?? 0)) return "log";
-  if (!pagePresented() || !applicationPresented()) return "presented";
-  if (arriving.size) return "arrived";
-  if (!renderingSettled()) return "rendering";
-  return null;
+    The stages: `upgraded`; `log`, some log coverage applied; `state`, the answer the
+    reader holds applied; `presented`, the initial milestone and the coordinator's
+    current reading; `arrived`, nothing deferred past presentation still outstanding;
+    `rendering`, nothing queued for a rendering update. A reading is a digest with no
+    order, and the server may move past the answer held — a source rewritten, a claim
+    aged, a neighbour started — so a page that applied an answer the server took later
+    has caught up with it too. A reading names files and presence, not the activity the
+    server folds from them against its clock, so an applied answer with the held
+    reading has caught up only if the held one was taken before that activity could
+    change; after it, the page asks again at that moment and catches up by `taken`.
+
+    `through` names the last stage the reader needs. A test that writes behind a page
+    in the middle of a gesture — a drag holding the projection, a fold still animating
+    — asks only that the page has taken the write in, which is `state`.
+
+    Finite animation is not a stage: the render gate's `pageSettled` asks that
+    separately. */
+export function pageReadiness(held = null, through = "rendering") {
+  if (!READINESS_STAGES.has(through))
+    throw new TypeError(`no readiness stage named ${through}`);
+  for (const [stage, met] of READINESS) {
+    if (!met(held)) return stage;
+    if (stage === through) return null;
+  }
 }
 
 // The one initial turn in which box-derived page apparatus can read the complete

@@ -11,6 +11,10 @@ const browserGlobals = Object.fromEntries(
   [
     "AbortController",
     "CSS",
+    "CSSImportRule",
+    "CSSKeyframesRule",
+    "CSSScopeRule",
+    "CSSStyleRule",
     "CSSStyleSheet",
     "CustomEvent",
     "DOMException",

@@ -1,21 +1,36 @@
 /* Swipe decks are RFC index cards, not a second app shell: one queue holds the eye,
  * literal verdict rails state the operation, and compact ledgers retain the result. */
+/* The deck takes its Ask's width and measures itself: the choice between the stacked
+ * deck, two verdict piles side by side, and the body beside its rail is each pile's
+ * placement on six fixed tracks (below), which a query on the deck can make because the
+ * deck is not the box it styles. A package reaches only inside its own widgets
+ * (layer.py), so the Ask that holds the deck is not this package's to make a container.
+ * A deck frozen into thread markup never takes the rail. */
 lf-swipe-deck {
   --lf-block-frame: 1;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: var(--sp-3);
-  width: min(100%, 44rem);
-  margin: var(--sp-4) auto;
-  container-type: inline-size;
+  margin: var(--sp-4) 0;
+  container: lf-swipe-deck / inline-size;
 }
 
-/* The frame the deck's allocation is read from. The deck is a container itself, for its
- * controls, and a container query cannot style the box it measures, so the choice
- * between the stacked deck and the body-and-rail one asks the Ask that holds it. A deck
- * anywhere else — quoted in a thread or a specimen — keeps the stacked layout. */
-lf-ask:has(> lf-swipe-deck) {
-  container: lf-swipe-frame / inline-size;
+lf-swipe-deck > :is(lf-swipe-pile, .lf-swipe-controls) {
+  grid-column: 1 / -1;
+}
+
+/* Two verdict piles side by side under the queue, once each has 15rem, each below the
+ * control that sends a card to it: Pass on the left, Keep on the right. Their row is the
+ * first free one, after the controls or, in a quoted deck, which has none, after the
+ * queue. */
+@container lf-swipe-deck (min-width: 30rem) {
+  lf-swipe-pile[verdict="pass"] {
+    grid-column: 1 / span 3;
+  }
+
+  lf-swipe-pile[verdict="keep"] {
+    grid-column: 4 / span 3;
+  }
 }
 
 /* Every pile is a region of the deck and is drawn as one: a panel headed by its verdict
@@ -354,36 +369,31 @@ lf-swipe-pile[verdict="keep"]
 }
 
 /* Wide enough for a rail, the deck is a wide page's body beside its rail on the page's own
- * tracks (2fr 1fr): the queue and its controls in the body, Kept above
+ * proportions (four tracks to two): the queue and its controls in the body, Kept above
  * Passed in the rail, so both piles stay in view while the reader sorts. The rows are
  * auto: the queue spans the two the rail piles take, so it grows to the rail's height
  * and a taller queue shares its extra height evenly between Kept and Passed. */
-@container lf-swipe-frame (min-width: 43.5rem) {
-  lf-swipe-deck {
-    width: 100%;
-    margin-inline: 0;
-    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-    gap: var(--sp-4);
-  }
+@container lf-swipe-deck (min-width: 43.5rem) {
+  lf-swipe-deck:not(.lf-swipe-quoted) {
+    & > lf-swipe-pile[verdict="unseen"] {
+      grid-column: 1 / span 4;
+      grid-row: 1 / span 2;
+    }
 
-  lf-swipe-pile[verdict="unseen"] {
-    grid-column: 1;
-    grid-row: 1 / span 2;
-  }
+    & > lf-swipe-pile[verdict="keep"] {
+      grid-column: 5 / span 2;
+      grid-row: 1;
+    }
 
-  lf-swipe-pile[verdict="keep"] {
-    grid-column: 2;
-    grid-row: 1;
-  }
+    & > lf-swipe-pile[verdict="pass"] {
+      grid-column: 5 / span 2;
+      grid-row: 2;
+    }
 
-  lf-swipe-pile[verdict="pass"] {
-    grid-column: 2;
-    grid-row: 2;
-  }
-
-  .lf-swipe-controls {
-    grid-column: 1;
-    grid-row: 3;
+    & > .lf-swipe-controls {
+      grid-column: 1 / span 4;
+      grid-row: 3;
+    }
   }
 }
 

@@ -2588,6 +2588,180 @@ def test_the_panel_reads_the_thread_in_the_pages_own_order(browser, serve):
     ).to_be_focused()
 
 
+def test_two_standard_thread_lists_share_updates_but_not_local_state(browser, serve):
+    """Two registered panels follow one Thread publication while retaining their own
+    search and native details group."""
+    url = serve(
+        PANEL_PAGE,
+        events=[
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "Alpha thread",
+            },
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Beta thread"},
+        ],
+    )
+    first_id, second_id = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    authored = thread_model.cmd_reply(
+        serve.page_dir,
+        first_id,
+        "Choose the deployment window.",
+        '<lf-ask id="two-panel-decision"><h3>Deployment window</h3>'
+        '<lf-options id="two-panel-window" choose>'
+        '<lf-option id="today">Today</lf-option>'
+        '<lf-option id="tomorrow">Tomorrow</lf-option>'
+        "</lf-options></lf-ask>",
+        for_event=first_id,
+    )
+    page = open_page(browser, url)
+    page.evaluate(
+        """async () => {
+          const assetRoot = new URL('.', document.querySelector('script[src$="/leaf.js"]').src);
+          const [{ createThreadPanelElements }, { createThreadListController },
+            { createThreadNarrowing }, { threadList },
+            { registerThreadPanel, refreshThread }] = await Promise.all([
+              import(new URL('runtime/thread/panel-elements.js', assetRoot)),
+              import(new URL('runtime/thread/thread-list.js', assetRoot)),
+              import(new URL('runtime/thread/narrowing.js', assetRoot)),
+              import(new URL('runtime/thread/state.js', assetRoot)),
+              import(new URL('runtime/application.js', assetRoot)),
+            ]);
+          const host = document.createElement('div');
+          host.style.cssText = 'display:flex; gap:24px; position:relative; z-index:50';
+          document.body.append(host);
+          const mount = () => {
+            const elements = createThreadPanelElements();
+            const { panel, threadsBox, narrowingView } = elements;
+            panel.style.cssText = 'position:relative; inset:auto; width:420px; height:560px; margin:0';
+            host.append(panel);
+            panel.show();
+            const controller = createThreadListController(elements);
+            let handle;
+            const narrowing = createThreadNarrowing({
+              view: narrowingView,
+              listRoot: threadsBox,
+              readThreads: threadList,
+              ready: () => true,
+              repaint: () => handle.update(),
+            });
+            narrowing.mount();
+            handle = registerThreadPanel({
+              controller,
+              threadsBox,
+              view: {
+                narrowing,
+                panelIsOpen: () => true,
+                scrollToElement: () => {},
+                setThreadCounts: () => {},
+                onListChanged: () => {},
+                refreshAnchorHover: () => {},
+                travel: {
+                  showThread: () => {},
+                  retainPanelLanding: () => {},
+                  retainNarrowing: () => {},
+                },
+              },
+            });
+            controller.mountThreadList(() => true);
+            return { ...elements, handle };
+          };
+          window.__testThreadPanels = [mount(), mount()];
+          await refreshThread();
+        }"""
+    )
+
+    ids = page.evaluate("() => window.__testThreadPanels.map(({ panel }) => panel.id)")
+    assert len({"lf-threads", *ids}) == 3
+    a = page.locator(f"#{ids[0]}")
+    b = page.locator(f"#{ids[1]}")
+    expect(a.locator(".lf-thread")).to_have_count(2)
+    expect(b.locator(".lf-thread")).to_have_count(2)
+    expect(
+        page.locator(
+            f'#lf-threads .lf-msg[data-mid="{authored["id"]}"] #two-panel-window'
+        )
+    ).to_have_count(1)
+    expect(a.locator("#two-panel-window")).to_have_count(0)
+    expect(b.locator("#two-panel-window")).to_have_count(0)
+    expect(
+        a.get_by_role("button", name="Open interactive reply in Threads")
+    ).to_have_count(1)
+    expect(
+        b.get_by_role("button", name="Open interactive reply in Threads")
+    ).to_have_count(1)
+    a.get_by_role("searchbox", name="Find in threads").fill("Alpha")
+    expect(a.locator(f'.lf-thread[data-id="{second_id}"]')).to_be_hidden()
+    expect(b.locator(f'.lf-thread[data-id="{second_id}"]')).to_be_visible()
+
+    # A package panel may take longer to paint. It cannot hold the core Thread
+    # presentation ticket or stall a sibling panel's reading.
+    page.evaluate(
+        """() => {
+          const box = window.__testThreadPanels[0].threadsBox;
+          const present = box.present.bind(box);
+          const waiting = [];
+          box.present = (model) => new Promise((resolve) => waiting.push({ model, resolve }));
+          window.__releaseHeldPanel = () => {
+            box.present = present;
+            for (const { model, resolve } of waiting) resolve(present(model));
+          };
+        }"""
+    )
+
+    later = events_model.append_event(
+        serve.page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Gamma thread"},
+    )
+    told(page)
+    expect(
+        page.locator(f'#lf-threads .lf-thread[data-id="{later["id"]}"]')
+    ).to_have_count(1)
+    expect(a.locator(".lf-thread")).to_have_count(2)
+    expect(b.locator(f'.lf-thread[data-id="{later["id"]}"]')).to_be_visible()
+    pending = page.evaluate(
+        """async () => {
+          const assetRoot = new URL('.', document.querySelector('script[src$="/leaf.js"]').src);
+          const { readApplicationPresentation } = await import(new URL('runtime/semantic-state.js', assetRoot));
+          return readApplicationPresentation().pending;
+        }"""
+    )
+    assert "thread" not in pending
+    page.evaluate("() => window.__releaseHeldPanel()")
+    expect(a.locator(f'.lf-thread[data-id="{later["id"]}"]')).to_be_hidden()
+    expect(b.locator(f'.lf-thread[data-id="{later["id"]}"]')).to_be_visible()
+    expect(a.locator(".lf-thread")).to_have_count(3)
+    expect(b.locator(".lf-thread")).to_have_count(3)
+
+    a.get_by_role("searchbox", name="Find in threads").fill("")
+    first_a = a.locator(f'.lf-thread[data-id="{first_id}"]')
+    second_a = a.locator(f'.lf-thread[data-id="{second_id}"]')
+    first_b = b.locator(f'.lf-thread[data-id="{first_id}"]')
+    second_a.locator(":scope > summary").click()
+    first_b.locator(":scope > summary").click()
+    expect(second_a).to_have_attribute("open", "")
+    expect(first_b).to_have_attribute("open", "")
+    first_a.locator(":scope > summary").click()
+    expect(second_a).not_to_have_attribute("open", "")
+    expect(first_b).to_have_attribute("open", "")
+    assert second_a.get_attribute("name") == a.get_attribute("id")
+    assert first_b.get_attribute("name") == b.get_attribute("id")
+
+    page.evaluate("() => window.__testThreadPanels[1].handle.unregister()")
+    after_removal = events_model.append_event(
+        serve.page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Delta thread"},
+    )
+    told(page)
+    expect(a.locator(f'.lf-thread[data-id="{after_removal["id"]}"]')).to_be_visible()
+    expect(b.locator(f'.lf-thread[data-id="{after_removal["id"]}"]')).to_have_count(0)
+
+
 def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
     """Order is the panel's own view, not a filter. Recent puts the thread spoken in
     last at the top under a day heading. The View control keeps one label whatever is
@@ -4438,17 +4612,14 @@ def test_a_thread_reopened_mid_fold_folds_again_when_it_settles(browser, serve):
     expect(going.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="page CSS is unlayered above the lf-reset and lf-base layers where the "
-    "controls' shared face is stated, so a page's `button` rule reaches it at any "
-    "specificity; TODO.md, Layout, 'Keep page CSS off Leaf's controls (decision E)'",
-)
 def test_a_pages_own_element_rules_leave_the_layers_controls_alone(browser, serve):
     """A page dressing its own `button` and `a` is dressing its prose. The controls a
     widget builds and the chrome's own buttons keep Leaf's face instead: a page's
     element rule once took the family and ink of half corpus.html's widget controls,
-    and the family, ink, border and padding of the banner's and thread panel's."""
+    and the family, ink, border and padding of the banner's and thread panel's. A rule
+    that names the widget is the page restyling its controls on purpose, and reaches
+    them; and a face the page sets on its body reaches its prose by inheritance and
+    stops at the controls and the chrome, which state their own."""
     board = (
         '<h1>t</h1><lf-board id="b"><lf-column id="c1" label="To do">'
         '<lf-card id="k1">One</lf-card><lf-card id="k2">Two</lf-card></lf-column>'
@@ -4461,30 +4632,148 @@ def test_a_pages_own_element_rules_leave_the_layers_controls_alone(browser, serv
             leaf_page(
                 "t",
                 board,
-                head="<style>button, a { font-family: cursive; color: rgb(255, 0, 0); }"
-                "</style>",
+                # Grouped with a member that names the board, the bare `button` is
+                # still the page's own, member by member.
+                head="<style>button, a, lf-board .lf-absent { font-family: cursive;"
+                " color: rgb(255, 0, 0); }"
+                "body { font-style: italic; letter-spacing: 3px; }"
+                "lf-board button { outline: 3px solid rgb(0, 128, 0); }</style>",
             )
         ),
     )
     faces = page.evaluate("""() => {
-        const face = el => [el.className, getComputedStyle(el).fontFamily,
-                            getComputedStyle(el).color];
+        const face = el => { const cs = getComputedStyle(el);
+            return [el.className, cs.fontFamily, cs.color, cs.fontStyle, cs.letterSpacing,
+                    cs.outlineColor]; };
         return {
             controls: [...document.querySelectorAll('main button.lf-ui')].map(face),
             chrome: [...document.querySelectorAll('.lf-chrome button')].map(face),
             prose: face(document.querySelector('main p > a')),
         };
     }""")
-    # The control: the page's rule reaches the page's own link.
-    assert faces["prose"][1:] == ["cursive", "rgb(255, 0, 0)"], faces["prose"]
+    # The control: the page's rules reach the page's own link, by selector and by
+    # inheritance.
+    assert faces["prose"][1:5] == ["cursive", "rgb(255, 0, 0)", "italic", "3px"], faces[
+        "prose"
+    ]
     assert faces["controls"], "the board built no control to read"
     assert faces["chrome"], "the chrome built no button to read"
     reached = [
         face
         for face in faces["controls"] + faces["chrome"]
-        if "cursive" in face[1] or face[2] == "rgb(255, 0, 0)"
+        if "cursive" in face[1]
+        or face[2] == "rgb(255, 0, 0)"
+        or face[3] == "italic"
+        or face[4] == "3px"
     ]
     assert not reached, reached
+    # The deliberate route: every control the board builds takes the rule naming it.
+    assert {face[5] for face in faces["controls"]} == {"rgb(0, 128, 0)"}, faces[
+        "controls"
+    ]
+
+
+def test_a_packages_rules_reach_only_inside_its_widgets(browser, serve, tmp_path):
+    """A package that declares widgets styles those widgets and nothing else, whatever
+    its sheet says: its rule for `p` dresses the paragraph inside its widget and leaves
+    the page's own paragraphs alone, and its rule for the widget's host still reaches
+    the host. The confinement is the composition's (layer.py, `widget_confinement`),
+    so it holds for any package, not only the ones this repository ships."""
+    package = tmp_path / ".leaf"
+    package.mkdir()
+    (package / "theme.css").write_text(
+        "p { color: rgb(0, 128, 0); }\n"
+        "em { @media screen { color: rgb(0, 128, 0); } }\n"
+        "lf-shelf { display: block; border: 3px solid rgb(0, 128, 0); }\n"
+    )
+    url = serve(
+        leaf_page(
+            "t",
+            '<h1>t</h1><p id="out">Outside <em id="out-em">here</em>.</p>'
+            '<lf-shelf id="shelf"><p id="in">Inside <em id="in-em">here</em>.</p>'
+            "</lf-shelf>",
+        ),
+        layer_registry={
+            "lf-shelf": {
+                "description": "A project-supplied box.",
+                "type": "object",
+                "properties": {"id": {"type": "string"}},
+                "required": ["id"],
+                "additionalProperties": False,
+                "x-content": "markup",
+                "x-upgrade": False,
+            }
+        },
+    )
+    page = open_page(browser, url)
+    faces = page.evaluate("""() => Object.fromEntries(
+        ['out', 'in', 'out-em', 'in-em', 'shelf'].map(id => {
+        const cs = getComputedStyle(document.getElementById(id));
+        return [id, [cs.color, cs.borderTopWidth]]; }))""")
+    assert faces["in"][0] == faces["in-em"][0] == "rgb(0, 128, 0)", faces
+    assert "rgb(0, 128, 0)" not in (faces["out"][0], faces["out-em"][0]), faces
+    assert faces["shelf"][1] == "3px", faces
+
+
+def _shadow_tree_widget(tag):
+    """A declaration and module for a widget that renders one word into a declared
+    shadow tree."""
+    declaration = {
+        "description": "A project-supplied tree.",
+        "type": "object",
+        "properties": {"id": {"type": "string"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+        "x-shadow": True,
+        "x-example": f'<{tag} id="example"></{tag}>',
+    }
+    module = f"""
+import {{shadowStage}} from '/runtime/widget-api.js';
+customElements.define('{tag}', class extends HTMLElement {{
+  connectedCallback() {{
+    if (this.shadowRoot) return;
+    const word = document.createElement('span');
+    word.textContent = '{tag}';
+    shadowStage(this, [word]);
+  }}
+}});
+"""
+    return declaration, module
+
+
+def test_a_packages_shadow_rules_reach_only_trees_its_widgets_host(
+    browser, serve, tmp_path
+):
+    """Every declared shadow tree receives the layer's shadow sheet, so a package's
+    `shadow.css` is confined there too: its rule for `span` dresses the tree its own
+    widget hosts and not the tree another package's widget hosts."""
+    own, own_module = _shadow_tree_widget("lf-own-tree")
+    other, other_module = _shadow_tree_widget("lf-other-tree")
+    project = tmp_path / ".leaf"
+    project.mkdir()
+    (project / "shadow.css").write_text("span { color: rgb(0, 128, 0); }\n")
+    neighbour = tmp_path / "other"
+    (neighbour / "widgets").mkdir(parents=True)
+    (neighbour / "registry.json").write_text(json.dumps({"lf-other-tree": other}))
+    (neighbour / "widgets" / "lf-other-tree.js").write_text(other_module)
+    url = serve(
+        leaf_page(
+            "t",
+            '<h1>t</h1><lf-own-tree id="own"></lf-own-tree>'
+            '<lf-other-tree id="other"></lf-other-tree>',
+        ),
+        packages=("./other",),
+        layer_registry={"lf-own-tree": own},
+        layer_widgets={"lf-own-tree.js": own_module},
+    )
+    page = open_page(browser, url)
+    colors = page.evaluate("""() => Object.fromEntries(['own', 'other'].map(id => [id,
+        getComputedStyle(document.getElementById(id).shadowRoot.querySelector('span'))
+            .color]))""")
+    assert colors["own"] == "rgb(0, 128, 0)", colors
+    assert colors["other"] != "rgb(0, 128, 0)", colors
 
 
 def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):

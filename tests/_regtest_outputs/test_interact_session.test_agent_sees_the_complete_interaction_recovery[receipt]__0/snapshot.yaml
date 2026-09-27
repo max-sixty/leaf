@@ -8,81 +8,72 @@ no watcher:
     Leaf needs attention:
     - <page>: no watcher. Start `leaf wait` in the background for all this session's pages, or run `leaf status <page> idle` if this page is done.
 
-unpicked at prompt:
-  hookSpecificOutput:
-    hookEventName: UserPromptSubmit
-    additionalContext: |-
-      Leaf needs attention:
-      - <page>: 1 update you haven't picked up. `leaf wait` prints them.
-
-unpicked at stop:
-  decision: block
-  reason: |-
-    Leaf needs attention:
-    - <page>: 1 update you haven't picked up. `leaf wait` prints them.
-
 idle before pickup:
   exit: 1
   output: |
-    1 update nobody has picked up; read them with `leaf wait` before idling
+    1 update nobody has picked up, so the page cannot idle yet. Leaf's hook puts them in your context at your next turn.
 
-delivered:
-  format: leaf-delivery-v3
-  id: <delivery>
-  created_at: <time>
-  carrier: wait
-  acknowledge: >-
-    Whoever ran the `leaf wait` that printed this delivery acknowledges it; until
-    then the user's moves read Sent rather than Picked up. If the output was cut
-    off, acknowledge nothing and rerun the wait with room for the whole envelope.
-    If you handle it, acknowledge before any other work; if you forward it, acknowledge
-    once it durably arrives there. To acknowledge, start `leaf wait --ack <delivery>`
-    as the next background task: it confirms this delivery and waits for the next.
-  batches:
-    - page: <page>
-      through_seq: 2
-      threads: []
-      handling:
-        h1: >-
-          The user asked you to run an operation the page's package defines; the
-          package's guidance says what the operation means and what to check before
-          running it: `leaf page guidance <page>` lists its audiences, and the one
-          that runs requests, such as `coordinator`, is the guide to read. The request
-          id, with the page, identifies it: after an interruption, check whether
-          it already ran before acting.
-        h2: >-
-          Say what it will do with `leaf status <page> working "<what it does, in
-          a line>"`, run it at most once, then record its outcome with exactly one
-          `leaf experimental receipt <page> <request-id> succeeded|failed --text
-          "…"`. The receipt does not change the page: refresh any data the page
-          shows, update `index.html` to reflect the result, and stamp it if it is
-          worth a note.
-      events:
-        - kind: request
-          author: user
-          revision: 1
-          widget: commands
-          action: restart
-          detail:
-            target: goal
-            worker: worker
-            worktree: tree
-          meaning:
-            scope: page
-            unit: commands
-          id: event-2
-          ts: <time>
-          seq: 2
-          subject:
-            kind: widget
-            id: commands
-          threads: []
-          says:
-            commands: Restart
-          handling: [h1, h2]
-          answer:
-            kind: receipt
-            request: event-2
+wait wakes the session: |
+  <page> has new input; Leaf's prompt hook puts it in your context with this notification
+
+delivered at prompt:
+  instruction: >-
+    Leaf delivered this input into your turn and confirmed it, so the user's moves
+    read Picked up.
+  delivery:
+    format: leaf-delivery-v3
+    id: <delivery>
+    created_at: <time>
+    carrier: hook
+    acknowledge: null
+    batches:
+      - page: <page>
+        through_seq: 2
+        threads: []
+        handling:
+          h1: >-
+            The user asked you to run an operation the page's package defines; the
+            package's guidance says what the operation means and what to check before
+            running it: `leaf page guidance <page>` lists its audiences, and the
+            one that runs requests, such as `coordinator`, is the guide to read.
+            The request id, with the page, identifies it: after an interruption,
+            check whether it already ran before acting.
+          h2: >-
+            Say what it will do with `leaf status <page> working "<what it does,
+            in a line>"`, run it at most once, then record its outcome with exactly
+            one `leaf experimental receipt <page> <request-id> succeeded|failed
+            --text "…"`. The receipt does not change the page: refresh any data
+            the page shows, update `index.html` to reflect the result, and stamp
+            it if it is worth a note.
+        events:
+          - kind: request
+            author: user
+            revision: 1
+            widget: commands
+            action: restart
+            detail:
+              target: goal
+              worker: worker
+              worktree: tree
+            meaning:
+              scope: page
+              unit: commands
+            id: event-2
+            ts: <time>
+            seq: 2
+            subject:
+              kind: widget
+              id: commands
+            threads: []
+            says:
+              commands: Restart
+            handling: [h1, h2]
+            answer:
+              kind: receipt
+              request: event-2
+  attention: |-
+    Leaf needs attention:
+    - <page>: no watcher. Start `leaf wait` in the background for all this session's pages, or run `leaf status <page> idle` if this page is done.
 
 acknowledged at stop:
   decision: block

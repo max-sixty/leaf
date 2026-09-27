@@ -29,12 +29,14 @@ machine's immutable delivery store.
 Some hosts deliver it inline; others deliver a pointer that `leaf delivery read <id>`
 resolves to the same object. Your host contract names which. The shape is the same on
 every carrier, and `carrier` names the one that delivered it: `wait` for `leaf
-wait`'s output, `queue` for a pointer Codex queued, `app-server` for a turn Leaf
-started. Two things differ by carrier, and the envelope states each once:
+wait`'s output, `hook` for the context a host hook adds to the turn it opens,
+`queue` for a pointer Codex queued, `app-server` for a turn Leaf started. Two things differ by carrier, and the envelope states each once:
 
 - `acknowledge` says who confirms receipt and how. On `wait` it is the reader of
   the wait, in the way your host runs the next one; on the other carriers Leaf
-  confirmed receipt itself and it is `null`.
+  confirmed receipt itself and it is `null`. A hook hands over a delivery too
+  large for the turn's context as a pointer to read with `leaf delivery read
+  <id>` instead, and then `acknowledge` says how its reader confirms it.
 - A thread reply's `answer` is `turn` on `app-server`, whose turn writes it with
   its own messages, and `reply`, for `leaf thread reply`, everywhere else.
 
@@ -94,9 +96,10 @@ the covered originals, write the summary, and keep outcomes in the document.
 
 ## Delivery and acknowledgement
 
-Printing is not receipt. The wait owner acknowledges only after the complete
-envelope reaches its next durable consumer, which in the direct loop is model
-context. The envelope's `acknowledge` says how, in the way your host runs the
+A carrier that puts the complete envelope in model context itself, as a hook
+does, confirms receipt as it hands it over. Printing is not receipt: the owner of a
+wait that prints the envelope acknowledges only after the complete envelope
+reaches its next durable consumer, which in the direct loop is model context. The envelope's `acknowledge` says how, in the way your host runs the
 next wait:
 
 ```bash
@@ -108,7 +111,8 @@ Process the received events while it waits. If output is truncated or lost,
 acknowledge nothing and rerun with enough output capacity for the whole envelope;
 a scalar cursor cannot represent a missing event in the middle. Acknowledgement
 is monotonic and idempotent; an event posted after capture has a higher sequence
-and stays pending. Until ack, wait repeats the events. `leaf events` reads the
+and stays pending. Until a delivery is confirmed, a wait that prints it repeats
+the events. `leaf events` reads the
 full log without acking it.
 
 Receipt and work have separate evidence. Confirming a direct delivery records its
@@ -123,8 +127,9 @@ Whatever the host, treat a page-and-sequence pair already handled in this task a
 retry, even if a later delivery also includes newer events; your host contract owns
 the wait and acknowledgement route.
 
-`leaf wait` ends one of two ways: exit 0 with one JSON envelope on stdout, the next input, or exit 2 with the ending named on
-stderr. Exit 1 from `leaf wait --ack` means the acknowledgement was refused. A wait
+`leaf wait` ends one of two ways: exit 0 with the next input, or exit 2 with the
+ending named on stderr. On exit 0 it prints one JSON envelope, or, where the
+host's hook carries input, one line naming the page with new input. Exit 1 from `leaf wait --ack` means the acknowledgement was refused. A wait
 that restarted a dead server says so on stderr. The endings:
 
 - `the leaf ended` or `the leaves ended`: every page left in the watch is idle.

@@ -17,8 +17,6 @@ import { inUi } from "../shadow.js";
 import { pageSelection } from "../composing/capture.js";
 import { heldThread } from "../thread/focus.js";
 import { heldAsk } from "../standing-target.js";
-import { threadsBox } from "../thread/panel-elements.js";
-import { threadSearchActive } from "../thread/narrowing.js";
 import { boxHandsBack } from "../thread/landing.js";
 import { claimsEsc, documentFocused, focused } from "./scopes.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed } from "./disclosure.js";
@@ -116,7 +114,7 @@ const holding = () => {
   return Boolean(active) && active !== document.body;
 };
 let standingFloor = () => null;
-export function declareStanding({ pageState }) {
+export function declareStanding({ pageState, narrowing, threadsBox }) {
   standingFloor = () => {
     if (!holding()) return null;
     if (nativeLayers().length) return null;
@@ -139,7 +137,8 @@ export function declareStanding({ pageState }) {
         keys: ["Escape"],
         does: "Let go of what you are standing on",
         line: () => (standingFloor() === threadsBox ? "back to panel" : "let go"),
-        lineWhen: () => !threadSearchActive() || standingFloor() !== threadsBox,
+        lineWhen: () =>
+          !narrowing.threadSearchActive() || standingFloor() !== threadsBox,
         when: () => Boolean(standingFloor()),
         run: () => {
           const floor = standingFloor();

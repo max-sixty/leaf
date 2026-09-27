@@ -12,8 +12,77 @@ const { moved, readThreadRecords, threadSummary } =
 const { inRecentOrder, recentGroup } = await import("/runtime/thread/placement.js");
 const { unreadBoundaries } = await import("/runtime/thread/summary-ranges.js");
 const { threadAttention } = await import("/runtime/thread/workflow.js");
-const { DEFAULT_INTENT, narrowingReading, transition } =
+const { DEFAULT_INTENT, createThreadNarrowing, narrowingReading, transition } =
   await import("/runtime/thread/narrowing.js");
+const { createThreadPanelElements } = await import("/runtime/thread/panel-elements.js");
+const { createThreadListController } = await import("/runtime/thread/thread-list.js");
+const { createThreadPanelController } = await import("/runtime/thread-panel.js");
+
+test("two Thread panels own separate controls and list state", () => {
+  const first = createThreadPanelElements({ id: "test-threads-first" });
+  const second = createThreadPanelElements({ id: "test-threads-second" });
+  const firstList = createThreadListController(first);
+  const secondList = createThreadListController(second);
+  const card = document.createElement("div");
+  card.className = "lf-thread";
+  card.dataset.id = "thread-a";
+  first.threadsBox.append(card);
+  first.findInput.value = "different filter";
+  first.threadsBox.scrollTop = 72;
+
+  assert.deepEqual(firstList.openThreads({ panelOpen: true }), [card]);
+  assert.deepEqual(secondList.openThreads({ panelOpen: true }), []);
+  assert.notEqual(second.findInput.value, first.findInput.value);
+  assert.equal(second.threadsBox.scrollTop, 0);
+  assert.notEqual(first.panel, second.panel);
+  assert.notEqual(first.generalInput, second.generalInput);
+  first.dispose();
+  second.dispose();
+});
+
+test("two mounted panel controllers keep independent visibility and keyboard rungs", () => {
+  const first = createThreadPanelElements({ id: "test-panel-first" });
+  const second = createThreadPanelElements({ id: "test-panel-second" });
+  const registered = new Map();
+  let selected = null;
+  const auxiliarySurfaces = {
+    registerAuxiliarySurface: ({ key, ...surface }) => {
+      registered.set(key, surface);
+      return () => registered.delete(key);
+    },
+    selectedSurface: () => registered.get(selected)?.surface ?? null,
+    select: (key) => {
+      registered.get(selected)?.hide();
+      selected = key;
+      registered.get(key)?.show({ phase: "gesture" });
+    },
+  };
+  const make = (elements, key) =>
+    createThreadPanelController({
+      key,
+      auxiliarySurfaces,
+      elements: { ...elements, toggleBtn: document.createElement("button") },
+      narrowing: { narrowed: () => false, threadSearchActive: () => false },
+      threadHere: () => null,
+      showThread: () => {},
+      refreshThread: () => {},
+      closeReactionMode: () => {},
+      closePreview: () => {},
+      syncGeneral: () => {},
+    });
+  const firstController = make(first, "test-first");
+  const secondController = make(second, "test-second");
+  firstController.setPanel(true);
+  assert.equal(firstController.panelIsOpen(), true);
+  assert.equal(secondController.panelIsOpen(), false);
+  secondController.setPanel(true);
+  assert.equal(firstController.panelIsOpen(), false);
+  assert.equal(secondController.panelIsOpen(), true);
+  firstController.dispose();
+  secondController.dispose();
+  first.dispose();
+  second.dispose();
+});
 
 const NO_DOCUMENT = { descriptors: new Map(), messageBodies: new Map() };
 
@@ -236,4 +305,50 @@ test("narrowing transitions reset what they contradict and counts name each subs
   assert.equal(amounts["waiting:user"], 1);
   assert.equal(amounts["waiting:agent"], 1);
   assert.equal(model.presentation.userAvailable, true);
+});
+
+test("panel narrowing controllers keep independent intent over shared threads", async () => {
+  const open = { ...recentThread("open", "2026-03-01T00:00:00Z"), resolved: null };
+  const resolved = {
+    ...recentThread("resolved", "2026-03-01T00:00:00Z"),
+    resolved: { author: "user" },
+  };
+  const threads = [open, resolved];
+  const groups = new Map(
+    threads.map((thread) => [thread, { key: "section", label: "Section" }]),
+  );
+  const makePanel = () => {
+    const view = {
+      configure(controls) {
+        this.controls = controls;
+      },
+      setSearchWords(words) {
+        this.words = words;
+      },
+    };
+    const listRoot = { scrollTop: 10 };
+    const narrowing = createThreadNarrowing({
+      view,
+      listRoot,
+      readThreads: () => threads,
+      ready: () => true,
+      repaint: () => Promise.resolve(),
+    });
+    narrowing.mount();
+    return { narrowing, view, listRoot };
+  };
+  const first = makePanel();
+  const second = makePanel();
+
+  await first.view.controls.chooseFacet("status", "resolved");
+  assert.deepEqual(first.narrowing.model(threads, groups).shown, [resolved]);
+  assert.deepEqual(second.narrowing.model(threads, groups).shown, [open]);
+  assert.equal(first.listRoot.scrollTop, 0);
+  assert.equal(second.listRoot.scrollTop, 10);
+
+  await second.narrowing.revealThread("resolved");
+  assert.deepEqual(second.narrowing.model(threads, groups).shown, [resolved]);
+  first.narrowing.widen();
+  assert.deepEqual(first.narrowing.model(threads, groups).shown, [open]);
+  assert.deepEqual(second.narrowing.model(threads, groups).shown, [resolved]);
 });

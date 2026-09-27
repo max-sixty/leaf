@@ -152,7 +152,7 @@ def test_sort_film_comment_restores_its_input_and_step(browser, serve):
     page.locator('#sort-film input[value="nearly"]').check()
     expect(moment).to_have_attribute("data-part", "moment:nearly:7:0")
     expect(page.locator(".lf-thread")).to_contain_text("Random, shuffle 7, step 1")
-    page.get_by_role("button", name="1 comment").click()
+    page.get_by_role("button", name="1 comment").press("Enter")
     expect(moment).to_have_attribute("data-part", "moment:random:7:0")
 
 

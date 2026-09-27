@@ -462,6 +462,7 @@ export class ThreadView {
 
   #summaryRange(range, markerFor) {
     const count = range.messages.length;
+    const messageCount = `${count} message${count === 1 ? "" : "s"}`;
     const unread = range.messages.filter((message) => message.unread).length;
     const id = range.summary.id;
     const originalsId = `lf-summary-originals-${id}`;
@@ -494,8 +495,7 @@ export class ThreadView {
                 aria-controls=${originalsId}
                 @click=${() => this.#setSummaryExpanded(id, !range.expanded)}
               >
-                ${range.expanded ? "Hide" : "Show"} ${count}
-                message${count === 1 ? "" : "s"}
+                ${range.expanded ? "Hide" : "Show"} ${messageCount}
               </button>`
         }
       </div>
@@ -514,11 +514,13 @@ export class ThreadView {
             : html`<button
                 type="button"
                 class="lf-summary-refold"
-                aria-label="Collapse summarized messages"
-                title="Collapse summarized messages"
+                aria-label=${`Hide ${messageCount}`}
+                aria-controls=${originalsId}
+                aria-expanded="true"
+                title=${`Hide ${messageCount}`}
                 @click=${() => this.#setSummaryExpanded(id, false)}
               >
-                <span aria-hidden="true">↑</span>
+                <span aria-hidden="true">Hide</span>
               </button>`
         }
       </div>

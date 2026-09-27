@@ -100,10 +100,10 @@ ever have. It reads, too, how each flex or grid box the page wrote splits its ch
 into rows, and the swept widths where that changes.
 
 A version that passes gets screens for the author to read (`render_gate/screens.py`):
-the page top to bottom at the desktop viewport, at the sweep's widest width and on a
-390px phone, and one screen at
-each swept width where the page's arrangement is at its tightest before it changes, and
-at each margin width. They go to one directory per page under the state home's
+the page's first eight screens down from its top at the desktop viewport, at the
+sweep's widest width and on a 390px phone, each pass's label saying how many screens the
+whole page takes when it takes more, and one screen at each swept width where the page's
+arrangement is at its tightest before it changes, and at each margin width. They go to one directory per page under the state home's
 `screens/`, replaced whole at each check, which the command names. The arrangement is
 read with the sweep, a few milliseconds a width; the screens are the command's, not the
 gate's, and the suite, which reads render_version, takes none.

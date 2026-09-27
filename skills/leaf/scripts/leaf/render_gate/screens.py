@@ -2,9 +2,10 @@
 
 The gate's findings say what is broken; they cannot say whether the page reads well,
 which is the author's judgment of a picture. So the check saves the page as a reader
-meets it: top to bottom three times, on a desktop, in the widest window the sweep
-reaches, where what scales with the window is at its largest, and on a phone; and one
-screen at each width
+meets it: down the page three times, on a desktop, in the widest window the sweep
+reaches, where what scales with the window is at its largest, and on a phone, each as
+far as its first eight screens, where a reader decides whether to go on, with the
+label saying how many of the page's screens they are; and one screen at each width
 where the page's own arrangement is at its tightest before it changes, or where its
 margin content changes, with that box in view. The screens go to one directory per page
 under the state home's screens/, which the check names; a check writes a fresh
@@ -26,8 +27,7 @@ from leaf.render_checks import RENDER_VIEWPORT, rendered, wait_until_ready
 from leaf.render_gate.readings import SWEEP_WIDTHS
 
 PHONE = {"width": 390, "height": 844}
-# How far down a long page the screens go. A page longer than this is read on its first
-# screens, where a reader decides whether to go on.
+# How far down a long page the screens go.
 MOST_SCREENS = 8
 
 
@@ -46,19 +46,20 @@ def _open(browser, url: str, viewport: dict, phone: bool):
     return context, page
 
 
-def _down_the_page(page, into: Path, stem: str) -> list[Path]:
+def _down_the_page(page, into: Path, stem: str) -> tuple[list[Path], int]:
+    """The page's first screens, and how many screens the whole page takes."""
     height = page.viewport_size["height"]
     tall = page.evaluate("document.documentElement.scrollHeight")
     step = int(height * 0.85)
-    count = min(MOST_SCREENS, 1 + max(0, tall - height + step - 1) // step)
+    total = 1 + max(0, tall - height + step - 1) // step
     shots = []
-    for k in range(count):
+    for k in range(min(MOST_SCREENS, total)):
         page.evaluate(f"window.scrollTo(0, {k * step})")
         rendered(page)
         shot = into / f"{stem}-{k + 1}.png"
         page.screenshot(path=shot)
         shots.append(shot)
-    return shots
+    return shots, total
 
 
 def screens_dir(page_dir: Path) -> Path:
@@ -80,8 +81,10 @@ def save_screens(
     def whole(viewport, phone, label):
         context, page = _open(browser, url, viewport, phone)
         try:
-            stem = f"{viewport['width']}px"
-            saved.extend((shot, label) for shot in _down_the_page(page, into, stem))
+            shots, total = _down_the_page(page, into, f"{viewport['width']}px")
+            if total > len(shots):
+                label = f"{label}, the first {len(shots)} of the page's {total} screens"
+            saved.extend((shot, label) for shot in shots)
         finally:
             context.close()
 

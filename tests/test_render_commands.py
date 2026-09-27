@@ -263,8 +263,10 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
             "a sidebar page",
             "<header><h1>Rollout</h1></header>"
             f"<div id='body'><div class='layout-tiles' id='2026-numbers'>{tiles}</div>"
-            + "<p>Body paragraph. " * 30
-            + "</p></div><aside id='checks'><p>Checks beside the body.</p></aside>",
+            + "".join(
+                f"<p id='para-{i}'>{'Body paragraph. ' * 30}</p>" for i in range(60)
+            )
+            + "</div><aside id='checks'><p>Checks beside the body.</p></aside>",
             layout="sidebar",
         )
     )
@@ -288,6 +290,9 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     stacks = next(line for line in listed if "<main> 1+2 → 1+1+1" in line)
     assert (into / stacks.split(":")[0].strip()).exists()
     assert any("<div id=2026-numbers> 4 → " in line for line in listed)
+    # A page longer than its first screens says so rather than passing for read whole.
+    assert "390px-9.png" not in names
+    assert any("phone, the first 8 of the page's" in line for line in listed)
     again, _listed = check()
     assert again == into
     assert sorted(path.name for path in into.iterdir()) == names

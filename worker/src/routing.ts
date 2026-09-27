@@ -13,8 +13,6 @@ const PAGE_ROOT = /^(?:\/|\/[a-z0-9-]+(?:\/[a-z0-9-]+)*)$/;
 const RELEASE_ASSET =
   /^\/_leaf-release\/(?:[0-9a-f]{40}|[0-9a-f]{64})\/[a-z0-9-]+$/;
 const STATE = /^\/_leaf\/state\/[a-z0-9-]+\.json$/;
-// The card image a shared link unfurls into, at the page root that stores it.
-const CARD = /^(?:\/[a-z0-9-]+)*\/media\/[0-9a-f]{16}\.[a-z]+$/;
 
 const sitePageSchema = z
   .object({
@@ -27,7 +25,10 @@ const sitePageSchema = z
       ),
     ),
     description: z.string().check(z.minLength(1)),
-    image: z.string().check(z.regex(CARD)),
+    // The card image a shared link unfurls into: a path on this site, which the
+    // container's page head joins to the origin. The build names the media file and
+    // proves it resolves (`check_links` in `scripts/site.py`).
+    image: z.string().check(z.startsWith("/")),
     kind: z.union([z.literal("product"), z.literal("example")]),
     layer: z.string().check(z.minLength(1)),
     state: z.string().check(z.regex(STATE)),

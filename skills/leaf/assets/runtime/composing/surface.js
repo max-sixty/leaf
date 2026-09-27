@@ -72,7 +72,7 @@ import {
   showBannerControl,
 } from "../banner-shelf.js";
 import {
-  bannerFoot,
+  seenRect,
   shellRight,
   shownExtent,
   shownParts,
@@ -887,8 +887,7 @@ export function createResponseSurface({
   // that box against a passage they have not moved.
   function bringForward(addressable) {
     if (!addressable) return;
-    const seen = shownRect(addressable, new Map());
-    if (!seen || seen.bottom <= bannerFoot()) {
+    if (!seenRect(addressable, new Map())) {
       scrollToElement(addressable, "instant");
       return;
     }

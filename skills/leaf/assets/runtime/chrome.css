@@ -1530,8 +1530,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-thread .lf-say leaf-text { padding-inline-start: 7px; }
   .lf-margin-thread .lf-say leaf-text { min-width: 0;
     max-height: min(50vh, var(--lf-thread-editor-room, 50vh)); }
-  .lf-margin-preview .lf-margin-thread-body > .lf-page-thread {
-    position: static; }
   .lf-margin-preview .lf-thread-root-meta { position: sticky; z-index: 2;
     top: 0; background: var(--paper);
     align-items: center; gap: 4px; min-height: max(28px, var(--aim-floor));

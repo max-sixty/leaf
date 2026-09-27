@@ -5679,12 +5679,21 @@ SEEN_STOP = f"""() => {{
   const e = ({DEEP_FOCUS})();
   if (!e) return null;
   const {{ accent, mixed }} = ({ACCENT_SWATCH})();
+  const ringed = (cs) => cs.outlineStyle === 'solid'
+    && cs.outlineWidth === cs.getPropertyValue('--here-ring-w').trim()
+    && cs.outlineColor === accent;
+  // A box whose own content paints over its outline draws the same ring on a later
+  // pseudo-element instead: the scrolling thread list's frame, a page thread over its
+  // pinned reply row, a code block's host over its sticky notes. That ring is only ever
+  // named, so it answers under the same rule as a named ancestor's outline.
+  const overlaid = (el) => {{
+    const cs = getComputedStyle(el, '::after');
+    return cs.content !== 'none' && ringed(cs)
+      && cs.getPropertyValue('--lf-here-ring').trim() !== 'none';
+  }};
   const shown = (el) => {{
     const cs = getComputedStyle(el);
-    if (cs.outlineStyle === 'auto') return true;
-    return cs.outlineStyle === 'solid'
-      && cs.outlineWidth === cs.getPropertyValue('--here-ring-w').trim()
-      && cs.outlineColor === accent;
+    return cs.outlineStyle === 'auto' || ringed(cs);
   }};
   // An ancestor answers only for a ring whose rule named it. Every ancestor on this
   // chain contains the focus by construction, so containing it says nothing; what
@@ -5694,22 +5703,12 @@ SEEN_STOP = f"""() => {{
   // outline, so neither answers the keyboard's question for every stop underneath it.
   const named = (el) =>
     getComputedStyle(el).getPropertyValue('--lf-here-ring').trim() !== 'none';
-  if (shown(e)) return null;
+  if (shown(e) || overlaid(e)) return null;
   for (let el = e.parentElement ?? e.getRootNode().host ?? null; el;
        el = el.parentElement ?? el.getRootNode().host ?? null)
-    if (shown(el) && (getComputedStyle(el).outlineStyle === 'auto' || named(el)))
+    if ((shown(el) && (getComputedStyle(el).outlineStyle === 'auto' || named(el)))
+        || overlaid(el))
       return null;
-  // The scrolling thread list's children can paint over its inset outline. Its frame
-  // therefore carries a later-painted pseudo-element with the same outline. This
-  // relationship is deliberately exact: unrelated paint elsewhere is not evidence
-  // that the focused stop is visible.
-  if (e.parentElement?.matches('.lf-threads-frame')) {{
-    const overlay = getComputedStyle(e.parentElement, '::after');
-    if (overlay.outlineStyle === 'solid'
-        && overlay.outlineWidth === overlay.getPropertyValue('--here-ring-w').trim()
-        && overlay.outlineColor === accent
-        && overlay.getPropertyValue('--lf-here-ring').trim() !== 'none') return null;
-  }}
   if (({HERE_SHADOW})(getComputedStyle(e), accent, mixed) > 0) return null;
   const cls = typeof e.className === 'string' && e.className.trim()
     ? '.' + e.className.trim().split(/\\s+/).join('.') : '';

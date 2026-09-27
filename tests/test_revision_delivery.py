@@ -6,11 +6,13 @@ from urllib.parse import urljoin, urlsplit
 import pytest
 import tinycss2
 from interact_support import PAGE
-from leaf.exporting import inline_assets, inline_css_assets
+from leaf.exporting import embedding, inline_css_assets
 from leaf.http import scope_page_urls
 from leaf.revision_artifact import ArtifactError, Resource, capture_artifact
 from leaf.revision_delivery import (
+    Delivery,
     DeliveryAddress,
+    compose_document,
     deliver_resource,
     json_script,
     rebase_document,
@@ -80,9 +82,11 @@ def test_stylesheet_rel_is_case_insensitive_in_delivery_and_export():
     delivered = SourceDocument(rebase_document(source, ADDRESS))
     assert delivered.links[0]["attrs"]["href"] == ROOT + "/page/style.css"
 
-    exported = inline_assets(
-        source,
-        read_resource=lambda url: Resource(b"main { color: green; }", "text/css"),
+    embedded = embedding(
+        read_resource=lambda url: Resource(b"main { color: green; }", "text/css")
+    )
+    exported = rebase_document(
+        source, embedded.address, inline_stylesheet=embedded.inline_stylesheet
     )
     assert "<link" not in exported
     assert "<style>" in exported
@@ -297,3 +301,47 @@ def test_inert_json_cannot_end_or_reshape_its_script_element():
 
     assert "<" not in serialized
     assert json.loads(serialized)["said"] == hostile
+
+
+@pytest.mark.parametrize("explicit_html", [True, False])
+def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
+    """A host's marks land on the document's own wrapper tags, whether or not the
+    source spells `<html>`, and a policy's nonce reaches every inline script, the
+    author's and delivery's alike, while the rest of the source stays as written."""
+    source = (
+        '<!doctype html><html lang="en"><head><title>T</title></head>'
+        '<body><main><script type="module">window.ran = 1;</script>'
+        "<p>Text.</p></main></body></html>"
+    )
+    if not explicit_html:
+        source = source.replace('<html lang="en">', "").replace("</html>", "")
+    delivered = compose_document(
+        source,
+        1,
+        None,
+        executable=None,
+        widgets={},
+        resources={},
+        delivery=Delivery(
+            address=ADDRESS,
+            policy=lambda nonce: f"script-src 'nonce-{nonce}'",
+            import_map={"imports": {"/runtime/": ROOT + "/runtime/"}},
+            page_root=PAGE_ROOT,
+            html_attributes={"data-lf-contained": ""},
+            body_attributes={"inert": ""},
+            body_end='<script type="module" src="/ready.js"></script>',
+        ),
+    )
+
+    assert delivered.startswith("﻿<!doctype html>")
+    served = SourceDocument(delivered.removeprefix("﻿"))
+    assert "data-lf-contained" in served.tree.find("html").attrs
+    assert "inert" in served.tree.find("body").attrs
+    assert served.tree.find("body").find_all("script")[-1].attrs["src"] == "/ready.js"
+    policy = served.http_equivs[0]["content"]
+    nonce = policy.removeprefix("script-src 'nonce-").removesuffix("'")
+    assert [script["attrs"].get("nonce") for script in served.inline_scripts] == [
+        nonce,
+        nonce,
+    ]
+    assert served.title == "T" and "<p>Text.</p>" in delivered

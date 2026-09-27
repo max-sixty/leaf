@@ -13,6 +13,7 @@ import secrets
 import sys
 import time
 from collections.abc import Mapping
+from dataclasses import replace
 from functools import partial
 from http.cookies import SimpleCookie
 from pathlib import Path
@@ -55,10 +56,10 @@ from .registry.storage import layer_metadata, require_registry
 from .render_checks import PROBE_SOURCES
 from .revision_artifact import Resource, RevisionArtifact, read_artifact, read_registry
 from .revision_delivery import (
+    Delivery,
     DeliveryAddress,
+    compose_document,
     deliver_resource,
-    delivery_prelude,
-    delivery_sheets,
     layer_import_map,
     rebase_document,
 )
@@ -81,8 +82,6 @@ from .structure import (
     EXTERNAL_SOURCES,
     FRAME_ANCESTORS_CSP,
     PAGE_CSP,
-    UTF8_BOM,
-    SourceDocument,
 )
 
 # How long an open news stream, which re-reads the page every `LOOK_S`, may go without
@@ -141,101 +140,43 @@ def scope_page_urls(value, page_root: str):
     return scoped
 
 
-def head_open_end_offset(document: SourceDocument) -> int:
-    """Locate the first byte inside head, before authored executable content."""
-    if document.head_open_end is None:
-        raise ValueError("document has no explicit <head>")
-    return document.head_open_end
-
-
-def _runtime_assets(asset_root: str = "") -> tuple[str, str]:
-    root = asset_root.rstrip("/")
-    return (
-        f'<link rel="stylesheet" href="{root}/theme.css" data-lf-runtime>',
-        f'<script type="module" src="{root}/leaf.js" data-lf-runtime></script>',
-    )
-
-
-def authorize_inline_scripts(document: SourceDocument, nonce: str) -> str:
-    """Mark every inline script this document arrived with as one delivery composed.
-
-    Written from the parser's own start-tag spans, back to front so the earlier ones
-    keep their offsets. An inline script that reaches the browser without the mark
-    does not run. The mark keeps out markup written after delivery only while that
-    markup cannot learn it, which holds for a nonce minted per response and not for a
-    document written once and served many times (`live_shell`).
-    """
-    source = document.html
-    for end in sorted(
-        (script["start_tag_end"] for script in document.inline_scripts), reverse=True
-    ):
-        source = f'{source[: end - 1]} nonce="{nonce}"{source[end - 1 :]}'
-    return source
-
-
-def runtime_document(
-    source: str,
-    revision: int,
-    executable: str | None,
-    widgets: dict,
-    version: int | None = None,
-) -> bytes:
-    """Give a clean authored document its runtime head and immutable identity.
-
-    A document that goes on to run the layer needs the layer's stylesheets with it
-    (`delivery_sheets`); this composes the head every delivery shares, and its callers
-    differ on that, so each writes the sheets itself.
-    """
-    document = SourceDocument(source)
-    offset = head_open_end_offset(document)
-    theme_head, entry_head = _runtime_assets()
-    runtime = (
-        delivery_prelude(document, revision, version, executable, widgets)
-        + theme_head
-        + entry_head
-    )
-    return (UTF8_BOM + source[:offset] + runtime + source[offset:]).encode()
-
-
-def supervised_document(
-    source: str,
-    revision: int,
-    version: int | None,
+def page_delivery(
+    resources: Mapping[str, Resource],
     *,
-    executable: str | None,
-    widgets: dict,
     server_id: str,
     layer_id: str,
-    resources: Mapping[str, Resource],
     release_id: str | None = None,
     page_root: str = "",
     asset_root: str | None = None,
-    before_runtime: str = "",
-) -> bytes:
-    """Supervise HTTP startup before the module graph or stylesheet can load.
+) -> Delivery:
+    """How an HTTP host delivers a page's document: supervised before anything loads.
 
-    The served document is addressed at `page_root` and `asset_root`
-    (`DeliveryAddress`) and receives the runtime assets, the import map its layer
-    modules resolve through, current layer CSP, this delivery's script nonce, and
-    server incarnation probe, so historical sources inherit the current delivery
-    boundary without carrying delivery markup themselves.
-
-    It also names the page it belongs to. A page answers at three addresses — the
-    live root, each stamped version, and each immutable revision — and every one
-    of them serves this document, so the page root is the address that stands for
-    all of them. The href is relative to the delivery, which has no origin to
-    know: it resolves wherever the page directory is mounted.
+    The document is addressed at `page_root` and `asset_root` (`DeliveryAddress`),
+    and starts under the current layer CSP, the import map its layer modules resolve
+    through, and the runtime bootstrap with its server incarnation probe, so historical
+    sources inherit the current delivery boundary without carrying delivery markup
+    themselves. `write_live_shell` delivers published documents the same way.
     """
     assets = asset_root if asset_root is not None else page_root
-    source = rebase_document(source, DeliveryAddress(page_root, assets))
-    parsed = SourceDocument(source)
-    offset = head_open_end_offset(parsed)
+    address = DeliveryAddress(page_root, assets)
     bootstrap = resources["/runtime/bootstrap.js"].data.decode()
-    # One nonce per delivery. The head's own scripts carry it as they are written;
-    # the authored blocks are marked in place, after addressing so the offsets are
-    # the ones the browser will read.
-    nonce = secrets.token_urlsafe(16)
-    source = authorize_inline_scripts(parsed, nonce)
+    release = (
+        f' data-lf-release="{html.escape(release_id, quote=True)}"'
+        if release_id is not None
+        else ""
+    )
+
+    def runtime(nonce: str | None) -> str:
+        return (
+            f'<script nonce="{nonce}" data-lf-runtime data-lf-server="{server_id}" '
+            f'data-lf-layer="{layer_id}"{release} '
+            f'data-lf-page-root="{html.escape(page_root, quote=True)}" '
+            f'data-lf-entry="{html.escape(address("/leaf.js"), quote=True)}" '
+            f'data-lf-theme="{html.escape(address("/theme.css"), quote=True)}" '
+            f'data-lf-probe="{html.escape(address("/registry.json"), quote=True)}">'
+            f"{bootstrap}</script>"
+        )
+
     # 'unsafe-eval' is delivered for the drivers rather than for the page. An
     # automated browser compiles a wait predicate with eval on each poll — Playwright
     # keeps a compiled function but recompiles a bare expression — and only the poll
@@ -243,44 +184,18 @@ def supervised_document(
     # script-src without the allowance therefore refuses any wait whose fact is not
     # already true when the poll is installed, which surfaces as an intermittent red
     # suite rather than as a policy refusal. Leaf's own runtime never evals, so the
-    # nonce still decides which script runs. `write_live_shell` composes published
-    # documents here too, so the site's static pages carry the allowance to users
-    # no driver polls.
-    csp = (
-        PAGE_CSP
-        + f"; script-src 'self' 'nonce-{nonce}' 'unsafe-eval' {EXTERNAL_SOURCES}"
+    # nonce still decides which script runs. Published documents carry the allowance
+    # to users no driver polls.
+    return Delivery(
+        address=address,
+        policy=lambda nonce: (
+            PAGE_CSP
+            + f"; script-src 'self' 'nonce-{nonce}' 'unsafe-eval' {EXTERNAL_SOURCES}"
+        ),
+        import_map=layer_import_map(assets),
+        runtime=runtime,
+        page_root=page_root,
     )
-    release = (
-        f' data-lf-release="{html.escape(release_id, quote=True)}"'
-        if release_id is not None
-        else ""
-    )
-    public_root = f' data-lf-page-root="{html.escape(page_root, quote=True)}"'
-    theme_head, entry_head = _runtime_assets(assets)
-    asset_path = assets.rstrip("/")
-    bootstrap_head = (
-        f'<script nonce="{nonce}" data-lf-runtime data-lf-server="{server_id}" '
-        f'data-lf-layer="{layer_id}"{release}{public_root} '
-        f'data-lf-entry="{asset_path}/leaf.js" '
-        f'data-lf-theme="{asset_path}/theme.css" '
-        f'data-lf-probe="{asset_path}/registry.json">{bootstrap}</script>'
-    )
-    # The import map precedes every script: a browser reads no map once a module has
-    # begun to load.
-    supervised = (
-        delivery_prelude(parsed, revision, version, executable, widgets)
-        + f'<meta http-equiv="Content-Security-Policy" content="{html.escape(csp, quote=True)}">'
-        + f'<script type="importmap" nonce="{nonce}" data-lf-runtime>'
-        + layer_import_map(assets)
-        + "</script>"
-        + bootstrap_head
-        + theme_head
-        + delivery_sheets(resources, DeliveryAddress(page_root, assets))
-        + before_runtime
-        + entry_head
-        + f'<link rel="canonical" href="{html.escape(page_root, quote=True)}/" data-lf-runtime>'
-    )
-    return (source[:offset] + supervised + source[offset:]).encode()
 
 
 class PageEndpoint:
@@ -836,22 +751,27 @@ class PageEndpoint:
     ) -> Response:
         """Serve one immutable document under the current delivery boundary."""
         self.response_layer = artifact.registry["$layer"]["generation"]
-        asset_root = self._document_asset_root(revision)
-        projected = supervised_document(
+        projected = compose_document(
             artifact.html.decode("utf-8"),
             revision,
             version,
             executable=artifact.executable,
             widgets=artifact.widgets,
+            resources=artifact.resources,
+            delivery=self._delivery(artifact, revision),
+        )
+        return self._content(200, "text/html; charset=utf-8", projected.encode())
+
+    def _delivery(self, artifact: RevisionArtifact, revision: int) -> Delivery:
+        """How this transport delivers a document; a transport adds its own marks."""
+        return page_delivery(
+            artifact.resources,
             server_id=self.server.server_id,
             layer_id=artifact.registry["$layer"]["generation"],
-            resources=artifact.resources,
             release_id=self.release,
             page_root=self.page_root,
-            asset_root=asset_root,
-            before_runtime=self._document_head(),
+            asset_root=self._document_asset_root(revision),
         )
-        return self._content(200, "text/html; charset=utf-8", projected)
 
     def _serve_artifact_resource(self) -> Response | None:
         match = re.fullmatch(
@@ -903,10 +823,6 @@ class PageEndpoint:
         if ctype not in BINARY_TYPES:
             ctype += "; charset=utf-8"
         return self._content(200, ctype, body)
-
-    def _document_head(self) -> str:
-        """Transport-specific delivery metadata inserted before the runtime entry."""
-        return ""
 
     def _serve_page_path(self) -> Response | None:
         path = self.path
@@ -1180,30 +1096,18 @@ class SpecimenEndpoint(PageEndpoint):
     def _document_asset_root(self, revision: int) -> str:
         return self.asset_root
 
-    def _content(self, status: int, ctype: str, body: bytes) -> Response:
-        if ctype.startswith("text/html"):
-            # A live child lays out as a block of its containing page (theme.css). Every
-            # child arrives inert, so its startup cannot take focus from the page; the
-            # host releases a live one once it presents. A passive replay demonstrates a
-            # whole window and never takes input.
-            scope = html.escape(self.page_root + "/", quote=True)
-            contained = "" if self.passive else " data-lf-contained"
-            body = re.sub(
-                rb"<html\b",
-                f'<html{contained} data-lf-user-scope="{scope}"'.encode(),
-                body,
-                count=1,
-                flags=re.IGNORECASE,
-            )
-            passive = b" data-lf-specimen-passive" if self.passive else b""
-            body = re.sub(
-                rb"<body\b",
-                b"<body inert" + passive,
-                body,
-                count=1,
-                flags=re.IGNORECASE,
-            )
-        return super()._content(status, ctype, body)
+    def _delivery(self, artifact: RevisionArtifact, revision: int) -> Delivery:
+        # A live child lays out as a block of its containing page (theme.css). Every
+        # child arrives inert, so its startup cannot take focus from the page; the
+        # host releases a live one once it presents. A passive replay demonstrates a
+        # whole window and never takes input.
+        return replace(
+            super()._delivery(artifact, revision),
+            html_attributes=({} if self.passive else {"data-lf-contained": ""})
+            | {"data-lf-user-scope": self.page_root + "/"},
+            body_attributes={"inert": ""}
+            | ({"data-lf-specimen-passive": ""} if self.passive else {}),
+        )
 
 
 def page_endpoint(

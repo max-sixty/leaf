@@ -500,7 +500,7 @@ def publish_live_shells(
             page_root=page_root,
             release_id=release,
             asset_root=asset_root,
-            before_runtime=site_metadata(page_root, entry),
+            head=site_metadata(page_root, entry),
         )
     write_crawler_directives(assets, sorted(manifest["pages"]))
     manifest_text = json.dumps(manifest, indent=2, sort_keys=True) + "\n"

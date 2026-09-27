@@ -52,7 +52,6 @@ from leaf import data_contracts as data_contracts_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as files_model
-from leaf import http as http_model
 from leaf import leases as leases_model
 from leaf import passages as passages_model
 from leaf import projection as projection_model
@@ -60,6 +59,7 @@ from leaf import publishing as publishing_model
 from leaf import render_checks as render_checks_model
 from leaf import requests as requests_model
 from leaf import revision_artifact as artifact_model
+from leaf import revision_delivery as revision_delivery_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
@@ -335,12 +335,15 @@ def test_a_page_whose_history_predates_the_digest_still_serves_it(page_dir):
     assert descriptor["executable"] is None
 
     # And the document itself still serves, prelude and all.
-    document = http_model.runtime_document(
+    document = revision_delivery_model.compose_document(
         (page_dir / "index.html").read_text(encoding="utf-8"),
         revision,
-        artifact.executable,
-        artifact.widgets,
-    ).decode()
+        None,
+        executable=artifact.executable,
+        widgets=artifact.widgets,
+        resources=artifact.resources,
+        delivery=revision_delivery_model.Delivery(address=lambda path: path),
+    )
     assert "lf-executable" not in document and "lf-widgets" not in document
     assert '<meta name="lf-revision" data-lf-runtime content="1">' in document
 
@@ -374,8 +377,8 @@ export { value } from "./value.js";
     artifact = artifact_model.read_artifact(page_dir, activated.revision)
     resource = artifact.resources["/page/app.js"]
     assert resource.dependencies == ("/page/value.js",)
-    rewritten = artifact_model.rewrite_module(
-        resource.data, "/page/app.js", "/revisions/captured"
+    rewritten = revision_delivery_model.rebase_module(
+        resource.data, "/page/app.js", lambda path: "/revisions/captured" + path
     )
     assert rewritten.decode() == module.replace(
         "import('./value.js')", 'import("/revisions/captured/page/value.js")'

@@ -17,6 +17,7 @@ from leaf.mcp_page import (
     page_state,
 )
 from leaf.mcp_server import make_mcp_server
+from leaf.revision_delivery import json_script, layer_import_map
 from leaf.revisioning import activate_source
 from leaf.structure import EXTERNAL_ORIGINS
 
@@ -85,7 +86,10 @@ def test_process_server_multiplexes_pages_on_one_exact_origin(
         f"{page_server.origin}{assets}/widgets/lf-options.js"
     ) as response:
         widget = response.read().decode()
-    assert f'from "{assets}/runtime/widget-api.js"' in widget
+    # The layer module keeps its rooted import; the document's import map sends it
+    # beneath the capability.
+    assert 'from "/runtime/widget-api.js"' in widget
+    assert json_script(layer_import_map(assets)) in html
 
     with urllib.request.urlopen(f"{page_server.origin}{root}/api/state") as response:
         state = json.load(response)

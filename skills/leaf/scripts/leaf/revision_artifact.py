@@ -785,22 +785,18 @@ def _read_artifact_stamped(
     return artifact
 
 
-def _authored_imports(data: bytes, logical_path: str):
+def authored_imports(data: bytes, logical_path: str):
+    """Yield each literal import of an authored module as its span and logical path."""
     for start, end, specifier in _javascript_imports(data, logical_path):
         target = resolve_dependency(specifier, logical_path, module=True)
         if target is not None:
             yield start, end, target
 
 
-def rewrite_module(data: bytes, logical_path: str, prefix: str) -> bytes:
-    """Bind authored literal imports to the same revision's HTTP resource prefix."""
-    return bind_imports(data, _authored_imports(data, logical_path), prefix)
-
-
-def bind_imports(data: bytes, imports, prefix: str) -> bytes:
-    """Rewrite each ``(start, end, target)`` import span to ``prefix + target``."""
+def bind_imports(data: bytes, imports, address) -> bytes:
+    """Rewrite each ``(start, end, target)`` import span to ``address(target)``."""
     for start, end, target in sorted(imports, reverse=True):
-        data = data[:start] + _json(prefix.rstrip("/") + target) + data[end:]
+        data = data[:start] + _json(address(target)) + data[end:]
     return data
 
 
@@ -814,7 +810,7 @@ def captured_imports(data: bytes, logical_path: str, resources: Mapping[str, Res
     not yielded.
     """
     if logical_path.startswith("/page/"):
-        yield from _authored_imports(data, logical_path)
+        yield from authored_imports(data, logical_path)
         return
     for start, end, specifier in _javascript_imports(
         data,

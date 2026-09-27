@@ -1519,7 +1519,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
                left: var(--sp-4);
                top: var(--lf-banner-h, 0px);
                z-index: 4;
-               width: calc(var(--lf-sidebar-claim) - var(--sp-4));
+               width: calc(var(--sidebar-max) - var(--sp-4));
                box-sizing: border-box;
                padding-block: var(--sp-4);
                pointer-events: none;
@@ -1613,8 +1613,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
        * document beneath it. */
       lf-toc[data-lf-outline] .lf-toc-nav {
         --lf-toc-label-opacity: 1;
-        width: max(40px, min(320px,
-          calc(var(--lf-beside) + var(--lf-shift) - 2 * var(--sp-4))));
+        width: max(40px, min(320px, calc(var(--lf-beside) - 2 * var(--sp-4))));
         background: var(--paper);
         overflow-y: auto; pointer-events: auto;
       }

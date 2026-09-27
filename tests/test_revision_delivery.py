@@ -6,12 +6,22 @@ from urllib.parse import urljoin, urlsplit
 import pytest
 import tinycss2
 from interact_support import PAGE
-from leaf.exporting import inline_assets, inline_css_assets
+from leaf.exporting import embedding, inline_css_assets
+from leaf.http import scope_page_urls
 from leaf.revision_artifact import ArtifactError, Resource, capture_artifact
-from leaf.revision_delivery import deliver_document, deliver_resource, json_script
+from leaf.revision_delivery import (
+    Delivery,
+    DeliveryAddress,
+    compose_document,
+    deliver_resource,
+    json_script,
+    rebase_document,
+)
 from leaf.structure import SourceDocument
 
-ROOT = "/p/user/revisions/r1-0123456789abcdef"
+PAGE_ROOT = "/p/user"
+ROOT = PAGE_ROOT + "/revisions/r1-0123456789abcdef"
+ADDRESS = DeliveryAddress(PAGE_ROOT, ROOT)
 
 
 def test_document_rewrites_only_resource_references_with_exact_source_spans():
@@ -35,7 +45,7 @@ const lazy = () => import('/page/later.js');
 <div style="background: url(&quot;./page/inline.svg&quot;); color: red">Text</div>
 </main></body></html>""".replace("\n", "\r\n")
 
-    delivered = deliver_document(source, ROOT)
+    delivered = rebase_document(source, ADDRESS)
     parsed = SourceDocument(delivered)
 
     assert parsed.external_scripts[0]["attrs"]["src"] == ROOT + "/page/app.js"
@@ -69,13 +79,14 @@ def test_stylesheet_rel_is_case_insensitive_in_delivery_and_export():
         "<body><main></main></body></html>"
     )
 
-    delivered = SourceDocument(deliver_document(source, ROOT))
+    delivered = SourceDocument(rebase_document(source, ADDRESS))
     assert delivered.links[0]["attrs"]["href"] == ROOT + "/page/style.css"
 
-    exported = inline_assets(
-        source,
-        "/index.html",
-        read_resource=lambda url: Resource(b"main { color: green; }", "text/css"),
+    embedded = embedding(
+        read_resource=lambda url: Resource(b"main { color: green; }", "text/css")
+    )
+    exported = rebase_document(
+        source, embedded.address, inline_stylesheet=embedded.inline_stylesheet
     )
     assert "<link" not in exported
     assert "<style>" in exported
@@ -97,7 +108,7 @@ def test_stylesheets_rebase_nested_imports_urls_and_preserve_inert_values():
 } }
 """
     delivered = deliver_resource(
-        Resource(source.encode(), "text/css"), "/page/styles/main.css", ROOT
+        Resource(source.encode(), "text/css"), "/page/styles/main.css", ADDRESS
     ).decode()
 
     assert f'@import "{ROOT}/page/styles/theme.css" layer(palette);' in delivered
@@ -141,7 +152,7 @@ main { background: image-set("./a.png" 1x, url(./b.png) 2x); }
     assert set(captured.dependencies) == expected
     assert "/page/ignored.css" not in artifact.resources
 
-    delivered = deliver_resource(captured, "/page/style.css", ROOT).decode()
+    delivered = deliver_resource(captured, "/page/style.css", ADDRESS).decode()
     assert {path for path in expected if f'"{ROOT}{path}"' in delivered} == expected
     assert '@import "./ignored.css"; @import url(./ignored.css);' in delivered
 
@@ -162,7 +173,9 @@ export { value } from "./value.js";
 const plain = "../helper.js";
 """
     delivered = deliver_resource(
-        Resource(source, "application/javascript"), "/page/widgets/lf-local.js", ROOT
+        Resource(source, "application/javascript"),
+        "/page/widgets/lf-local.js",
+        ADDRESS,
     )
     assert delivered == source.replace(
         b'from "../helper.js"', f'from "{ROOT}/page/helper.js"'.encode()
@@ -170,14 +183,58 @@ const plain = "../helper.js";
         b'from "/runtime/widget-api.js"',
         f'from "{ROOT}/runtime/widget-api.js"'.encode(),
     ).replace(b'from "./value.js"', f'from "{ROOT}/page/widgets/value.js"'.encode())
+    # A layer module keeps its captured bytes, since the document's import map
+    # addresses its rooted imports; a layer stylesheet's URLs are the revision's.
     for resource, path in (
         (Resource(b"\x00\xff", "image/png"), "/page/image.png"),
         (
-            Resource(b'fetch("/api/state")', "application/javascript"),
+            Resource(
+                b'import { a } from "/runtime/a.js"; fetch("/api/state")',
+                "application/javascript",
+            ),
             "/runtime/state.js",
         ),
     ):
-        assert deliver_resource(resource, path, ROOT) == resource.data
+        assert deliver_resource(resource, path, ADDRESS) == resource.data
+    assert (
+        deliver_resource(
+            Resource(b'.mark { mask: url("/icon.svg") }', "text/css"),
+            "/runtime/chrome.css",
+            ADDRESS,
+        )
+        == f'.mark {{ mask: url("{ROOT}/icon.svg") }}'.encode()
+    )
+
+
+def test_media_has_one_address_wherever_a_page_names_it(tmp_path):
+    """Media is the page's and shared across revisions, so every host serves it at the
+    page root, and the runtime resolves a message's or a widget's media there too. A
+    captured document addresses it there in every form capture reads: a resource
+    attribute, any attribute naming it whole, a stylesheet, a declarative shadow root,
+    and frozen message markup in a state reading. Prose naming it stays as written."""
+    media = "/media/0123456789abcdef.png"
+    (tmp_path / "media").mkdir()
+    (tmp_path / "media" / "0123456789abcdef.png").write_bytes(b"\x89PNG")
+    source = PAGE.replace(
+        "</head>", f"<style>main {{ background: url({media}) }}</style></head>"
+    ).replace(
+        "</main>",
+        f'<p><a href="{media}">The shot</a> is at {media}.</p>'
+        f'<img src="{media}" alt="Shot">'
+        f'<div style="background: url({media})"></div>'
+        f'<lf-shot before="{media}" after="{media}"></lf-shot>'
+        f'<div><template shadowrootmode="open"><img src="{media}" alt="Shot">'
+        "</template></div></main>",
+    )
+
+    assert media in capture_artifact(tmp_path, SourceDocument(source), {}).entries
+    delivered = rebase_document(source, ADDRESS)
+    assert delivered.replace(PAGE_ROOT + media, "").count(media) == 1  # the prose
+    assert delivered.count(PAGE_ROOT + media) == 7
+    markup = scope_page_urls(
+        {"markup": f'<p><img src="{media}" alt="Shot"></p>'}, PAGE_ROOT
+    )
+    assert markup["markup"] == f'<p><img src="{PAGE_ROOT}{media}" alt="Shot"></p>'
 
 
 def test_captured_document_entries_resolve_at_every_public_address(tmp_path):
@@ -201,7 +258,7 @@ def test_captured_document_entries_resolve_at_every_public_address(tmp_path):
         'alt="Leaf"></main>',
     )
     artifact = capture_artifact(tmp_path, SourceDocument(source), {})
-    delivered = SourceDocument(deliver_document(source, ROOT))
+    delivered = SourceDocument(rebase_document(source, ADDRESS))
     entries = [
         delivered.external_scripts[0]["attrs"]["src"],
         delivered.links[0]["attrs"]["href"],
@@ -217,7 +274,7 @@ def test_captured_document_entries_resolve_at_every_public_address(tmp_path):
             assert request.startswith(ROOT + "/")
             logical = request.removeprefix(ROOT)
             assert logical in artifact.resources
-            assert deliver_resource(artifact.resources[logical], logical, ROOT)
+            assert deliver_resource(artifact.resources[logical], logical, ADDRESS)
 
 
 def test_capture_refuses_a_missing_svg_resource(tmp_path):
@@ -244,3 +301,47 @@ def test_inert_json_cannot_end_or_reshape_its_script_element():
 
     assert "<" not in serialized
     assert json.loads(serialized)["said"] == hostile
+
+
+@pytest.mark.parametrize("explicit_html", [True, False])
+def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
+    """A host's marks land on the document's own wrapper tags, whether or not the
+    source spells `<html>`, and a policy's nonce reaches every inline script, the
+    author's and delivery's alike, while the rest of the source stays as written."""
+    source = (
+        '<!doctype html><html lang="en"><head><title>T</title></head>'
+        '<body><main><script type="module">window.ran = 1;</script>'
+        "<p>Text.</p></main></body></html>"
+    )
+    if not explicit_html:
+        source = source.replace('<html lang="en">', "").replace("</html>", "")
+    delivered = compose_document(
+        source,
+        1,
+        None,
+        executable=None,
+        widgets={},
+        resources={},
+        delivery=Delivery(
+            address=ADDRESS,
+            policy=lambda nonce: f"script-src 'nonce-{nonce}'",
+            import_map={"imports": {"/runtime/": ROOT + "/runtime/"}},
+            page_root=PAGE_ROOT,
+            html_attributes={"data-lf-contained": ""},
+            body_attributes={"inert": ""},
+            body_end='<script type="module" src="/ready.js"></script>',
+        ),
+    )
+
+    assert delivered.startswith("﻿<!doctype html>")
+    served = SourceDocument(delivered.removeprefix("﻿"))
+    assert "data-lf-contained" in served.tree.find("html").attrs
+    assert "inert" in served.tree.find("body").attrs
+    assert served.tree.find("body").find_all("script")[-1].attrs["src"] == "/ready.js"
+    policy = served.http_equivs[0]["content"]
+    nonce = policy.removeprefix("script-src 'nonce-").removesuffix("'")
+    assert [script["attrs"].get("nonce") for script in served.inline_scripts] == [
+        nonce,
+        nonce,
+    ]
+    assert served.title == "T" and "<p>Text.</p>" in delivered

@@ -23,7 +23,7 @@ from xml.etree import ElementTree
 
 import pytest
 from click.testing import CliRunner
-from conftest import CLAUDE_IDENTITY, CODEX_IDENTITY, HOOKED_SESSIONS, LEAF_COMMAND
+from conftest import CLAUDE_IDENTITY, HOOKED_SESSIONS, LEAF_COMMAND
 from interact_support import (
     COMMAND_SUBJECTS,
     HELD_LEASES,
@@ -9817,7 +9817,7 @@ def test_a_codex_session_id_with_no_codex_above_it_is_refused(page_dir, monkeypa
     events_model.append_event(
         page_dir, {"kind": "comment", "author": "user", "text": "hi"}
     )
-    for name in CLAUDE_IDENTITY + CODEX_IDENTITY:
+    for name in host_model.IDENTITY_VARIABLES:
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("CODEX_THREAD_ID", "thread-nobody")
     monkeypatch.setattr(machine_model, "process_info", lambda _pid: (1, "python"))
@@ -10192,7 +10192,7 @@ def test_a_claim_transfer_stops_a_waiter_already_inside_a_poll(
 @pytest.mark.parametrize(
     "identity_names",
     [
-        pytest.param(CLAUDE_IDENTITY + CODEX_IDENTITY, id="bare-shell"),
+        pytest.param(host_model.IDENTITY_VARIABLES, id="bare-shell"),
         pytest.param((), id="host-session"),
     ],
 )

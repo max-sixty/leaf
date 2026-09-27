@@ -159,33 +159,60 @@ def _srcset_urls(value: str):
             cursor += 1
 
 
-def resource_attribute_urls(tag: str, attrs: dict, name: str, value: str):
-    """Return the resource URLs carried by one admitted HTML attribute."""
+def source_index(source: str):
+    """Map the parser's (line, column) positions back to offsets in `source`.
+
+    The parser's own offsets count a CRLF as one character, so an edit placed by them
+    lands short of its span in a CRLF source; its lines and columns do not.
+    """
+    lines = [0, *(match.end() for match in re.finditer(r"\r\n?|\n", source))]
+    return lambda line, column: lines[line - 1] + column
+
+
+def element_attrs(element) -> dict:
+    """An element's attributes as its source spells them, a token list joined."""
+    return {
+        name: " ".join(value) if isinstance(value, list) else value
+        for name, value in element.attrs.items()
+    }
+
+
+def attribute_references(tag: str, attrs: dict, name: str, value: str):
+    """Yield the `(start, end)` span of each URL one attribute value carries.
+
+    A resource attribute carries the URLs the browser loads for it: an image's `src`
+    or `srcset`, a poster, an SVG image, filter image, or use `href`, an icon link.
+    Any other attribute whose whole value is a page media path names that media — a
+    link to a screenshot, a widget's before and after shot. Capture keeps what these
+    name and delivery re-addresses exactly these, so a revision's record and its
+    delivered document agree about which references it has.
+    """
     normalized_tag = tag.lower()
-    if name == "srcset" and normalized_tag in {"img", "source"}:
-        return tuple(url for _, _, url in _srcset_urls(value))
-    if name in {"src", "poster"} and normalized_tag not in {"script", "iframe"}:
-        return (value,)
-    if name in {"href", "xlink:href"} and (
-        normalized_tag in {"feimage", "image", "use"}
-        or normalized_tag == "link"
-        and "icon" in attrs.get("rel", [])
+    if name == "srcset":
+        if normalized_tag in {"img", "source"}:
+            yield from ((start, end) for start, end, _ in _srcset_urls(value))
+        return
+    if (
+        name in {"src", "poster"}
+        and normalized_tag not in {"script", "iframe"}
+        or name in {"href", "xlink:href"}
+        and (
+            normalized_tag in {"feimage", "image", "use"}
+            or normalized_tag == "link"
+            and "icon" in attrs.get("rel", [])
+        )
+        or value.startswith(f"/{MEDIA_DIR}/")
     ):
-        return (value,)
-    return ()
+        yield 0, len(value)
 
 
-def rewrite_resource_attribute(tag: str, attrs: dict, name: str, value: str, rewrite):
-    """Rewrite just the URL tokens in one resource-valued HTML attribute."""
-    urls = resource_attribute_urls(tag, attrs, name, value)
-    if not urls:
-        return value
-    if name != "srcset":
-        return rewrite(value)
-    rewritten = value
-    for start, end, url in reversed(tuple(_srcset_urls(value))):
-        rewritten = rewritten[:start] + rewrite(url) + rewritten[end:]
-    return rewritten
+def rewrite_attribute_references(
+    tag: str, attrs: dict, name: str, value: str, rewrite
+) -> str:
+    """Rewrite just the URL spans `attribute_references` reads in one value."""
+    for start, end in reversed(tuple(attribute_references(tag, attrs, name, value))):
+        value = value[:start] + rewrite(value[start:end]) + value[end:]
+    return value
 
 
 class SourceDocument:
@@ -271,17 +298,13 @@ class SourceDocument:
         self.nodes = []
         self.tree = None
         self._source = source
-        self._line_offsets = [0]
+        self._source_index = source_index(source)
         self._first_body_position = None
-        self.head_open_end = None
+        # (start, end) of the first html, head, and body start tag the source spells,
+        # and where its last </body> begins: where delivery writes into the document.
+        self.wrapper_tags = {}
+        self.body_close = None
         self._finish()
-
-    @staticmethod
-    def _attrs(element) -> dict:
-        return {
-            name: " ".join(value) if isinstance(value, list) else value
-            for name, value in element.attrs.items()
-        }
 
     @staticmethod
     def _position(element) -> tuple[int, int]:
@@ -298,9 +321,6 @@ class SourceDocument:
                 span.end_line, span.end_col
             )
         ]
-
-    def _source_index(self, line: int, column: int) -> int:
-        return self._line_offsets[line - 1] + column
 
     @staticmethod
     def _source_element(element) -> bool:
@@ -323,12 +343,18 @@ class SourceDocument:
             if token.type is turbohtml.TokenType.START_TAG and token.tag == "head"
         ]
         self.head_lines = [token.line for token in head_starts]
-        self.head_open_end = (
-            self._source_index(head_starts[0].line, head_starts[0].col)
-            + len(head_starts[0].source)
-            if head_starts
-            else None
-        )
+        for token in tokens:
+            if token.type is turbohtml.TokenType.START_TAG and token.tag in {
+                "html",
+                "head",
+                "body",
+            }:
+                start = self._source_index(token.line, token.col)
+                self.wrapper_tags.setdefault(
+                    token.tag, (start, start + len(token.source))
+                )
+            elif token.type is turbohtml.TokenType.END_TAG and token.tag == "body":
+                self.body_close = self._source_index(token.line, token.col)
         starts = {
             (token.line, token.col): token
             for token in tokens
@@ -456,21 +482,20 @@ class SourceDocument:
         )
         if markers:
             self.reserved_markers.append((tag, line, markers))
-        self.media_refs.update(
-            reference
+        references = [
+            (name, value[start:end])
             for name, value in attrs.items()
             if isinstance(value, str)
-            for reference in (
-                resource_attribute_urls(tag, attrs, name, value)
-                or (() if name == "srcset" else (value,))
-            )
+            for start, end in attribute_references(tag, attrs, name, value)
+        ]
+        self.media_refs.update(
+            reference
+            for _, reference in references
             if reference.startswith(f"/{MEDIA_DIR}/")
         )
         self.page_resource_refs.update(
             reference
-            for name, value in attrs.items()
-            if isinstance(value, str)
-            for reference in resource_attribute_urls(tag, attrs, name, value)
+            for _, reference in references
             # A page file, or an absolute URL, which capture either leaves as written
             # or refuses with the origins the page's CSP admits.
             if reference.startswith(("/page/", "page/", "./page/", "https:", "http:"))
@@ -532,7 +557,7 @@ class SourceDocument:
 
     def _specimen_resources(self, template) -> None:
         """Read the complete child document without merging its identity space."""
-        attrs = self._attrs(template)
+        attrs = element_attrs(template)
         location = template.source_location
         content_start = self._source_index(
             location.start_tag.end_line, location.start_tag.end_col
@@ -578,7 +603,7 @@ class SourceDocument:
         skip_implied = not source_element
         parent = element.parent
         parent_tag = parent.tag if isinstance(parent, turbohtml.Element) else None
-        attrs = self._attrs(element)
+        attrs = element_attrs(element)
         line, column = self._position(element)
 
         record = None
@@ -620,9 +645,9 @@ class SourceDocument:
             location = element.source_location
             end = location.end_tag or location.start_tag
             markup = self._source[
-                self._line_offsets[location.start_tag.start_line - 1]
-                + location.start_tag.start_col : self._line_offsets[end.end_line - 1]
-                + end.end_col
+                self._source_index(
+                    location.start_tag.start_line, location.start_tag.start_col
+                ) : self._source_index(end.end_line, end.end_col)
             ]
             node = {
                 "tag": element.tag,
@@ -661,10 +686,10 @@ class SourceDocument:
             if element.tag in POINTABLE_TAGS and not attrs.get("id"):
                 under = next(
                     (
-                        (ancestor.tag, self._attrs(ancestor)["id"])
+                        (ancestor.tag, element_attrs(ancestor)["id"])
                         for ancestor in element.ancestors
                         if isinstance(ancestor, turbohtml.Element)
-                        and self._attrs(ancestor).get("id")
+                        and element_attrs(ancestor).get("id")
                     ),
                     None,
                 )
@@ -702,9 +727,6 @@ class SourceDocument:
             self.title += element.text
 
     def _finish(self):
-        self._line_offsets.extend(
-            match.end() for match in re.finditer(r"\r\n?|\n", self._source)
-        )
         self.tree = turbohtml.parse(self._source, scripting=True, source_locations=True)
         self._source_errors()
         for child in self.tree.children:

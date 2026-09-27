@@ -164,6 +164,13 @@ and its chrome coordinate.
   and refines it if a reading warrants, while a failure still blocks a record's
   stamp. **Unconfirmed:** measure how long the pass takes on a typical page, and
   whether agents act on findings that arrive after handover, before building it.
+- **Consider loading a page once per render check.** `version check --render` loads
+  the page afresh for each of its four passes, including dark mode and the narrow
+  viewport. Switching those in place would save at most about 1.4 s on
+  `triage-board` and 12.6 s on the corpus, measured with
+  `scripts/bench_render_check.py`. The price is that dark mode and the narrow width
+  would no longer be checked from a fresh start. Decide whether that coverage is
+  worth the time before building it.
 - **Scale a drawing by the box it was drawn in.** On replay, scale the strokes by
   the anchored element's size over the recorded `box`, so a mark stays on its
   element in a narrower window; reflowed text still moves under it. Verify replay
@@ -193,20 +200,29 @@ and its chrome coordinate.
 
 ### Shared definitions
 
-- **Re-address resource references in one pass.** Capture, delivery and export share
-  one CSS reference walker (#1217), but `http.py` still rescopes delivered bytes with
-  regexes, `media.js` spells a constant in pieces to get past that pass, and a page's
-  head is composed in three places. One `rebase_document(source, address)`, with an
-  import map for layer JavaScript, would delete the regex scopers.
 - **Ask once whether the page has caught up with a reading.** `tests/render_harness.py`
   `told()` waits for `data-lf-reading` to match the server's reading, and the `data`
   and `log` stages of the runtime's `pageReadiness` (#1250) answer the same question.
+- **Say which panes the workspace holds without naming `lf-pane`.** `layouts.css`
+  holds an authored pane only as the workspace body or a cell of it (a pane in a
+  section flows), and a generated pane at any depth. It tells the two apart by the
+  `lf-pane` tag, so a package's authored pane takes the generated rule, and it names
+  the tag for first paint too: the runtime paints `data-lf-reading-role` about half a
+  second after the panes first draw. Both need a mark the stylesheet can read before
+  the script: an authored/generated distinction in the paint, and the role in the
+  first paint.
 - **Serve an unnamed agent's name to the browser.** Python names an agent with no
   `agent` field `schema.UNNAMED_AGENT`, but five runtime sites still spell `|| "Agent"`
   (`context.js`, `margin-projection.js`, `semantic-news.js`, `thread/messages.js`,
   `thread/thread-card.js`), and `lf-activity.js` shows such a row under the claimant's
   name instead. Resolve the name where the browser's threads, margin updates and
   activity rows are served, then delete the JS fallbacks.
+- **Pick "any suggestion's control" without its owner key.** The harness's
+  `suggestion_owner` is the suite's one spelling of `lf-suggestion`'s contribution key,
+  but four prefix selectors in `test_render_controls.py` (`^="suggestion:"`,
+  `^="draft:"`), one that slices the key apart there, and one in
+  `test_render_threads.py` still spell it. Give the harness a by-kind locator, or
+  find these controls by the widget's own element.
 
 ## Etc
 

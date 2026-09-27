@@ -23,6 +23,7 @@ import time
 from pathlib import Path
 
 from leaf.delivery import DELIVERY_FORMAT
+from leaf.event_log import read_events
 from leaf.host import session_harness
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.browser import launch_browser
@@ -222,11 +223,8 @@ def stop_server(page_dir: Path) -> None:
 
 def wait_for_comment(page_dir: Path) -> str:
     deadline = time.monotonic() + 10
-    log = page_dir / "events.jsonl"
     while time.monotonic() < deadline:
-        events = [
-            json.loads(line) for line in log.read_text().splitlines() if line.strip()
-        ]
+        events = read_events(page_dir)
         comments = [event for event in events if event["kind"] == "comment"]
         if comments:
             return comments[0]["id"]

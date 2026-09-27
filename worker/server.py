@@ -19,6 +19,7 @@ import sys
 import tempfile
 import threading
 import time
+from dataclasses import replace
 from functools import cache, partial
 from html import escape
 from pathlib import Path
@@ -44,6 +45,7 @@ from leaf.hosting import LeafHTTPServer
 from leaf.http import PageEndpoint, scope_page_urls
 from leaf.leases import release_lease, take_lease, waiter_lease_path
 from leaf.registry.storage import layer_metadata
+from leaf.revision_delivery import Delivery
 from leaf.revisioning import activate_source
 from leaf.schema import PAGE_ROUTE_DIRS, SKILL_ROOT, VENDORED_FILES
 from leaf.served_state.page import full_state
@@ -249,9 +251,6 @@ def site_metadata(page_root: str, page: dict) -> str:
     that a clean route, its stamped versions and its revisions are one page. What a
     publication adds is the part that needs an origin: the absolute address an
     unfurler shows, and the image it draws beside it.
-
-    Media paths are absolute because `scope_document_routes` rewrites a root-relative
-    one into the release-scoped tree, which would move a card's image every release.
 
     Each declaration is marked as delivery's own, so a revision arriving at a page
     someone is reading brings the author's head across without this one riding in.
@@ -1327,8 +1326,11 @@ class WebsitePageEndpoint(PageEndpoint):
         # the local adapter has no Worker in front of it to add the same reading.
         return {"Leaf-Session": "active", **super()._delivery_headers()}
 
-    def _document_head(self) -> str:
-        return site_metadata(self.page_root, self.pages[self.page_root or "/"])
+    def _delivery(self, artifact, revision: int) -> Delivery:
+        return replace(
+            super()._delivery(artifact, revision),
+            head=site_metadata(self.page_root, self.pages[self.page_root or "/"]),
+        )
 
     def _specimen_asset_root(self, revision: int) -> str:
         page = self.pages[self.page_root or "/"]

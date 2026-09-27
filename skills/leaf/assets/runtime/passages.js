@@ -222,7 +222,7 @@ export function settledAway(el) {
     )
   );
 }
-const GENERATED = ".lf-ui, [data-lf-gen]";
+export const GENERATED = ".lf-ui, [data-lf-gen]";
 export const DATUM = "[data-lf-projection][data-lf-datum]";
 // A different question the class also used to answer, and not a question about looks at
 // all: which document is this element in? The runtime's layer is one container, so a

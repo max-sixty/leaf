@@ -6963,10 +6963,10 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
     expect(page.locator("#storage-options .lf-pick").first).to_be_focused()
     picks = page.locator("#storage-options .lf-pick")
     expect(picks.nth(0)).to_have_attribute(
-        "aria-keyshortcuts", "ArrowUp ArrowDown Space 1"
+        "aria-keyshortcuts", "ArrowUp ArrowDown Home End Space 1"
     )
     expect(picks.nth(1)).to_have_attribute(
-        "aria-keyshortcuts", "ArrowUp ArrowDown Space 2"
+        "aria-keyshortcuts", "ArrowUp ArrowDown Home End Space 2"
     )
 
     # And nothing of the borrowed stop is left behind: PAGE_PAINT_ATTRIBUTES is the whole

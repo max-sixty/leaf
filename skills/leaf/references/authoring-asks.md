@@ -36,9 +36,10 @@ When the page exists for the user to choose among approaches, it is organized
 around that choice. Its title and headings name the question and state what the
 alternatives differ on without answering it, and your recommendation is advice,
 stated as yours and marked on its option. Each alternative gets the same depth on
-the same example, and a revision that adds detail adds it to each. Detail and Asks
-that matter only under one alternative, the one you recommend included, wait for
-the user's pick.
+the same example, and a revision that adds detail adds it to each. An
+alternative's costs and open questions belong in its case; how to build it, and
+Asks that arise only once it is chosen, wait for the user's pick, the one you
+recommend included.
 
 A page whose approval unblocks work declares:
 

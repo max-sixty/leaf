@@ -8,6 +8,8 @@ import { focused } from "../keyboard/scopes.js";
 import { focusDestination, readCaret } from "../focus.js";
 import { registry } from "../registry.js";
 import { loadDraft } from "../drafts.js";
+import { holdBox } from "./reply-landing.js";
+import { SAY_BOX } from "./selectors.js";
 
 const seats = new WeakMap();
 const activeSeats = new Set();
@@ -38,6 +40,10 @@ class ThreadSeat {
     const standing = focused();
     const held = this.node.contains(standing);
     this.#focus ??= held ? { element: standing, caret: readCaret(standing) } : null;
+    const restoreBox = held ? holdBox(standing) : () => {};
+    const added = model.threads.filter(
+      (thread) => !this.#model.threads.some(({ key }) => key === thread.key),
+    );
     this.#model = model;
     const wanted = new Set(model.threads.map((thread) => thread.key));
     for (const [key, view] of this.#views) if (!wanted.has(key)) view.retire();
@@ -71,6 +77,14 @@ class ThreadSeat {
       this.node.contains(standing)
     )
       focusDestination(standing, caret);
+    // The seat's own box gives way to the thread its message started: the user goes on
+    // in that thread's reply, as they would have gone on in the box they sent from.
+    else if (held && !standing.isConnected && added.length === 1) {
+      const view = this.#views.get(added[0].key);
+      const box = view?.node.querySelector(SAY_BOX);
+      if (box && !this.node.contains(focused())) this.#commands?.landInThread(box);
+    }
+    restoreBox();
     if (!activeBatch) this.commit();
   }
 

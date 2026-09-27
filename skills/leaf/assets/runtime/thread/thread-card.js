@@ -25,6 +25,8 @@ import { summaryRanges, unreadBoundaries } from "./summary-ranges.js";
 import { threadAttention } from "./workflow.js";
 import { shownRect } from "../geometry.js";
 import { ago, shortAgo } from "../presence.js";
+import { retainUserIntent } from "../user-intent.js";
+import { scrollThreadIntoView } from "./reply-landing.js";
 
 function quoteReading(thread, anchors, outline) {
   const group = groupFor(thread, outline, anchors.placedAt);
@@ -557,11 +559,29 @@ export class ThreadView {
       prepareLanding:
         model.surface === "panel"
           ? () => this.#prepareLanding(model.resolved)
-          : model.surface === "margin" && !model.resolved
-            ? this.#marginControls?.prepareLanding
-            : null,
+          : model.surface === "margin"
+            ? model.resolved
+              ? null
+              : this.#marginControls?.prepareLanding
+            : this.#prepareInlineLanding,
       ...this.#commands.settlement,
     }).catch(() => {});
+  };
+
+  // A thread on the page changes shape as it settles: a resolved outlet folds to its
+  // summary, and a reopened one unfolds under it. Where the user still stands in it, land
+  // it around their focus, which a thread too tall to show leaves where it is.
+  #prepareInlineLanding = () => {
+    const mayLand = retainUserIntent({
+      source: this.node,
+      available: () => this.node.isConnected,
+    });
+    const land = () => {
+      if (!mayLand() || !this.node.contains(focused())) return false;
+      scrollThreadIntoView(this.node, focused());
+      return true;
+    };
+    return { optimistic: land, refused: land };
   };
 
   #returnToQuote = (event) => {

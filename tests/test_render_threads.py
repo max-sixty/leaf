@@ -10,6 +10,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import append_command, record_claim
 from leaf import cli as cli_model
+from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import leases as leases_model
@@ -46,6 +47,7 @@ from render_cases_layout import (
     rings_drawn,
     token_colour,
 )
+from render_cases_navigation import source_revision
 from render_harness import (
     EXAMPLE_MEDIA,
     EXAMPLE_PACKAGES,
@@ -6931,6 +6933,290 @@ def test_walking_down_the_list_shows_each_thread_under_its_title(browser, serve)
     assert all(landed["band"][1] - landed["box"][1] > 100 for landed in landings), (
         f"a title landed at the list's foot with its thread below it: {landings}"
     )
+
+
+SEAT_FILLER = "".join(
+    f"<p>Filler paragraph {n}, long enough to occupy a line of reading.</p>"
+    for n in range(40)
+)
+SEAT_WORDS = (
+    "This is a longer message that wraps onto a second line at a normal reading "
+    "width, so a thread of a dozen of them is taller than a short window."
+)
+SEAT_DIFF = (
+    "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+    '@@ -1 +1 @@\n-return "old"\n+return "new"\n'
+)
+THIRTY_LINES = "\n".join(f"Pasted line {n}" for n in range(30))
+
+
+def seated_page(serve, kind):
+    """A page whose seat sits past a screen of filler with more below it, and the
+    selector of the widget holding it: `task` keeps its box after a send to offer
+    Send & pause, `verdict` gives it up to the thread it starts."""
+    if kind == "task":
+        return serve(
+            leaf_page(
+                "seat",
+                f'<h1 id="h">Three jobs</h1>{SEAT_FILLER}<lf-command id="hub" '
+                'label="Before the frost"><lf-task id="jobs" status="active" talk>'
+                "<strong>Which jobs are worth starting?</strong> The mounts came "
+                f"down in January.</lf-task></lf-command>{SEAT_FILLER}",
+            )
+        ), "#jobs"
+    return serve(
+        leaf_page(
+            "seat",
+            f'<h1>Review the plan</h1>{SEAT_FILLER}<lf-verdict id="proposal" asks>'
+            f"Should these jobs share a visit?</lf-verdict>{SEAT_FILLER}",
+        ),
+        layer_registry=SEATED_ASK_LAYER,
+        layer_widgets=SEATED_ASK_WIDGETS,
+    ), "#proposal"
+
+
+def seated_thread(serve, kind, messages):
+    """A thread of `messages` turns on a page seat (`task`, `verdict`) or on a diff
+    line (`diff`, drawn inside the widget's shadow tree), and the page's URL."""
+    if kind == "diff":
+        url = serve(
+            leaf_page(
+                "diff",
+                f'<h1 id="title">Review</h1>{SEAT_FILLER}<lf-diff id="patch" '
+                f'source="review-patch"><pre></pre></lf-diff>{SEAT_FILLER}',
+            )
+        )
+        data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+        anchor = {
+            "section": "patch",
+            "datum": '["app.py","new",1]',
+            "source": "review-patch",
+            "source_revision": source_revision(serve.page_dir, "review-patch"),
+        }
+    else:
+        url, host = seated_page(serve, kind)
+        anchor = {"section": host[1:]}
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Opening remark. " + SEAT_WORDS,
+            "anchor": anchor,
+        },
+    )["id"]
+    for n in range(messages - 1):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent" if n % 2 == 0 else "user",
+                "agent": "Codex",
+                "parent": root,
+                "revision": 1,
+                "text": f"Message {n + 2}. " + SEAT_WORDS,
+            },
+        )
+    return url, root
+
+
+def paste(page, text):
+    """Paste `text` into the focused box through the clipboard, as a user's paste
+    arrives: one edit, which CodeMirror scrolls its caret into view for."""
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.evaluate("text => navigator.clipboard.writeText(text)", text)
+    page.keyboard.press("ControlOrMeta+v")
+    rendered(page)
+
+
+def to_window_foot(page, locator, gap):
+    """Scroll the page so `locator`'s foot stands `gap` px above the window's."""
+    page.evaluate(
+        """([node, gap]) => document.scrollingElement.scrollBy({
+          top: node.getBoundingClientRect().bottom - (innerHeight - gap),
+          behavior: 'instant'})""",
+        [locator.element_handle(), gap],
+    )
+    scroll_settled(page)
+
+
+def clear_of_the_bar(page, locator):
+    """Whether the node is wholly in the window above the fixed shortcut bar."""
+    return page.evaluate(
+        """([node, bar]) => {
+          const box = node.getBoundingClientRect();
+          const foot = bar ? bar.getBoundingClientRect().top : innerHeight;
+          return box.height > 0 && box.top >= 0 && box.bottom <= foot + 0.5;
+        }""",
+        [locator.element_handle(), page.locator(".lf-shortcut-bar").element_handle()],
+    )
+
+
+def focus_clear_of_the_bar(page):
+    """Whether the focused node, through open shadow roots, shows in the window."""
+    return page.evaluate(
+        """() => {
+          let node = document.activeElement;
+          while (node?.shadowRoot?.activeElement) node = node.shadowRoot.activeElement;
+          const box = node.getBoundingClientRect();
+          const bar = document.querySelector('.lf-shortcut-bar');
+          const foot = bar ? bar.getBoundingClientRect().top : innerHeight;
+          return box.height > 0 && box.bottom > 0 && box.top < foot;
+        }"""
+    )
+
+
+def test_a_seat_send_puts_the_user_in_the_thread_it_started(browser, serve):
+    """A seat that gives its box up to the thread its first message starts took the
+    focus with it, so the next keys the user typed ran page commands."""
+    url, host = seated_page(serve, "verdict")
+    page = open_page(browser, url)
+    box = page.locator(f"{host} > .lf-thread-seat > .lf-say leaf-text")
+    box.scroll_into_view_if_needed()
+    write(box, "First thought.")
+    with sending(page, "the first message"):
+        page.keyboard.press("Enter")
+    thread = page.locator(f"{host} > .lf-thread-seat > .lf-page-thread")
+    expect(thread).to_have_count(1)
+    expect(thread.locator(":scope > .lf-say leaf-text")).to_be_focused()
+
+
+@pytest.mark.parametrize("kind", ["task", "verdict"])
+def test_a_seat_send_at_the_window_foot_shows_the_thread_it_started(
+    browser, serve, kind
+):
+    url, host = seated_page(serve, kind)
+    page = open_page(browser, url)
+    box = page.locator(f"{host} > .lf-thread-seat > .lf-say leaf-text")
+    box.scroll_into_view_if_needed()
+    write(box, "First thought.")
+    to_window_foot(page, box, 60)
+    with sending(page, "the first message"):
+        page.keyboard.press("Enter")
+    rendered(page)
+    scroll_settled(page)
+    sent = page.locator(f"{host} .lf-page-thread .lf-page-thread-msg").last
+    expect(sent).to_contain_text("First thought.")
+    assert clear_of_the_bar(page, sent), "the sent message was left below the fold"
+    focused = page.locator(f"{host} leaf-text:focus")
+    expect(focused).to_have_count(1)
+    assert clear_of_the_bar(page, focused), "the box the user is in went below the fold"
+
+
+def test_a_seat_box_grown_by_a_paste_keeps_its_send_above_the_bar(browser, serve):
+    """The growth reveal lived in the reply wiring alone, so a seat's own box grew
+    under the shortcut bar, CodeMirror's caret scrolling knowing nothing of it."""
+    url, host = seated_page(serve, "verdict")
+    page = open_page(browser, url)
+    box = page.locator(f"{host} > .lf-thread-seat > .lf-say leaf-text")
+    box.scroll_into_view_if_needed()
+    write(box, "First line")
+    to_window_foot(page, box, 60)
+    paste(page, THIRTY_LINES)
+    send = page.locator(f"{host} > .lf-thread-seat > .lf-say .lf-compose-submit")
+    assert clear_of_the_bar(page, send)
+
+
+def test_a_diff_thread_reply_grown_by_a_paste_keeps_its_send_above_the_bar(
+    browser, serve
+):
+    """A diff draws its threads in its own shadow tree. The landing's climb stopped at
+    that root, never met the page's scroller, and read a thread taller than the window
+    as one that fits, so the growth reveal moved nothing."""
+    url, root = seated_thread(serve, "diff", 12)
+    page = open_page(browser, url)
+    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    box = thread.locator(":scope > .lf-say leaf-text")
+    box.scroll_into_view_if_needed()
+    write(box, "First line")
+    to_window_foot(page, box, 60)
+    paste(page, THIRTY_LINES)
+    assert clear_of_the_bar(page, thread.locator(":scope > .lf-say .lf-compose-submit"))
+
+
+@pytest.mark.parametrize("kind", ["task", "diff"])
+def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
+    browser, serve, kind
+):
+    """The new turn went in above the reply box the user was typing in and pushed it,
+    caret and all, below the fold. News moves no control under the user's hands."""
+    url, root = seated_thread(serve, kind, 3)
+    page = open_page(browser, url)
+    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    box = thread.locator(":scope > .lf-say leaf-text")
+    box.scroll_into_view_if_needed()
+    write(box, "Half a thought")
+    to_window_foot(page, box, 50)
+    before = box.evaluate("box => box.getBoundingClientRect().top")
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "responds": root,
+            "revision": 1,
+            "text": "The agent's answer. " + SEAT_WORDS,
+        },
+    )
+    told(page)
+    expect(thread.locator(".lf-page-thread-msg")).to_have_count(4)
+    rendered(page)
+    expect(box).to_be_focused()
+    assert box.evaluate("box => box.getBoundingClientRect().top") == pytest.approx(
+        before, abs=1
+    )
+
+
+@pytest.mark.parametrize("kind", ["task", "verdict"])
+def test_resolving_a_long_page_thread_by_its_button_leaves_the_page_still(
+    browser, serve, kind
+):
+    """The pressed Resolve leaves with the state it changed, and the thread took the
+    focus back with a landing: the nearest edge of a thread taller than the window was
+    a 700px jump to its head."""
+    url, root = seated_thread(serve, kind, 12)
+    page = open_page(browser, url)
+    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    resolve = thread.locator(".lf-resolve")
+    resolve.scroll_into_view_if_needed()
+    to_window_foot(page, resolve, 120)
+    before = page.evaluate("() => document.scrollingElement.scrollTop")
+    box = resolve.bounding_box()
+    with sending(page, "the resolve"):
+        page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    rendered(page)
+    scroll_settled(page)
+    expect(thread).to_be_focused()
+    after = page.evaluate("() => document.scrollingElement.scrollTop")
+    assert abs(after - before) < 10, f"the page jumped {after - before}px"
+
+
+def test_settling_a_long_diff_thread_by_key_keeps_it_in_view(browser, serve):
+    """A diff thread folds to its summary when resolved and unfolds when reopened, and
+    nothing landed it either way: the summary the user stood on went above the window,
+    and the reopened thread with it."""
+    url, root = seated_thread(serve, "diff", 12)
+    page = open_page(browser, url)
+    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    box = thread.locator(":scope > .lf-say leaf-text")
+    box.scroll_into_view_if_needed()
+    to_window_foot(page, box, 60)
+    box.focus()
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
+    with sending(page, "the resolve"):
+        page.keyboard.press("r")
+    rendered(page)
+    scroll_settled(page)
+    assert focus_clear_of_the_bar(page), "the resolved thread left the window"
+    with sending(page, "the reopen"):
+        page.keyboard.press("r")
+    rendered(page)
+    scroll_settled(page)
+    assert focus_clear_of_the_bar(page), "the reopened thread left the window"
 
 
 def test_a_walk_to_a_question_the_narrowing_hides_widens_the_list(browser, serve):

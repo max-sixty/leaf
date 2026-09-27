@@ -527,6 +527,9 @@ export function declareThreadKeys(landIn) {
             : "Write a reply",
         line: () =>
           resolutionControl(cardThread())?.matches(".lf-reopen") ? "reopen" : "reply",
+        // A panel title's bar keeps its room for resolution; the reply box under it
+        // already names its key, and the reference lists this row.
+        lineWhen: () => !focused()?.matches?.(".lf-thread-summary"),
         when: () =>
           Boolean(threadInput(cardThread())) ||
           resolutionControl(cardThread())?.matches(

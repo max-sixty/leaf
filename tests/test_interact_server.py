@@ -5675,6 +5675,11 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
         f"the two readings put the reply in different threads: {list(threads)}"
     )
     assert [m["id"] for m in threads["c-lost"]["msgs"]] == ["r-kept"]
+    # The lost id names the thread; its root is the reply that survived, under that
+    # reply's own id, because a reply or resolve addressed to the root has to name a
+    # message the append door can find.
+    assert threads["c-lost"]["id"] == "c-lost"
+    assert threads["c-lost"]["root"] is threads["c-lost"]["msgs"][0]
 
     # The surviving message is still the frozen document that owns its widgets.
     # Reading only the thread shell would miss this harder half of the torn-root case:

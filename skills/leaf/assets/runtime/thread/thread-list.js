@@ -303,7 +303,7 @@ const rowModel = (all, commands) => {
     count: open.length,
     unread: threads.filter((t) => t.unread.length).length,
     narrowing: narrowing.presentation,
-    pageSeats: new Map(inPage.map((t, i) => [t.root.id, i])),
+    pageSeats: new Map(inPage.map((t, i) => [t.id, i])),
   });
 };
 

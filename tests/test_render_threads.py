@@ -5387,6 +5387,24 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
     expect(page.locator('.lf-thread[data-id="tv-lost"]')).to_have_count(1)
     expect(page.locator(".lf-needs")).to_have_text("You (1)")
 
+    # The lost id names the thread and no message, so the user's reply and
+    # resolve address the message that opens it now, and the log admits both.
+    card = page.locator('.lf-thread[data-id="tv-lost"]')
+    card.locator(".lf-thread-summary").click()
+    with sending(page, "a reply in the recovered thread"):
+        write(card.locator("leaf-text"), "Retry is fine.")
+        card.locator(".lf-thread-send").click()
+    expect(card).to_contain_text("Retry is fine.")
+    with sending(page, "resolving the recovered thread"):
+        card.locator(".lf-resolve").click()
+    addressed = [
+        (event["kind"], event["parent"])
+        for event in events_model.read_events(d)
+        if event["kind"] in {"reply", "resolve"} and event.get("author") == "user"
+    ]
+    assert addressed == [("reply", "tv-kept"), ("resolve", "tv-kept")], addressed
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
+
 
 THREAD_STANDING = """() => {
   const active = document.activeElement;

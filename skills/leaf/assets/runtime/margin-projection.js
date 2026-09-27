@@ -802,8 +802,8 @@ export function createMarginProjection({
     }
     const representedThreads = new Set();
     for (const thread of threadList()) {
-      if (thread.resolved || !thread.anchor || claimed(thread.root.id)) continue;
-      const id = thread.root.id;
+      if (thread.resolved || !thread.anchor || claimed(thread.id)) continue;
+      const id = thread.id;
       const target = placedAt(id)?.element;
       if (target?.isConnected && !inChrome(target)) representedThreads.add(id);
       const attention = threadAttention(thread);
@@ -2388,7 +2388,7 @@ export function createMarginProjection({
         setOptionsOpen(entry, false);
       closePreview();
       leavePageMap();
-      openPageThread(sourceItem(choice.items[0]).thread.root.id);
+      openPageThread(sourceItem(choice.items[0]).thread.id);
       return;
     }
     if (expandedOptionsKey && expandedOptionsKey !== entry.key)
@@ -2403,7 +2403,7 @@ export function createMarginProjection({
     id,
     { transition = null, onPositioned = null, unfold = true } = {},
   ) {
-    const itemId = marginThreadItem(threadList().find((t) => t.root.id === id));
+    const itemId = marginThreadItem(threadList().find((t) => t.id === id));
     const entry = pageInventory.find((candidate) =>
       candidate.items.some((item) => item.id === itemId),
     );
@@ -2544,10 +2544,9 @@ export function createMarginProjection({
   // Arrival through the keyboard shows the card, as arrival through Tab unfolds a
   // cluster; a pointer that lands on a control in a commented block asked for that
   // control, and the mark and the marker are its way to the thread.
-  const threadIdOf = (entry) =>
-    sourceItem(threadReading(entry).items[0]).thread.root.id;
+  const threadIdOf = (entry) => sourceItem(threadReading(entry).items[0]).thread.id;
   const threadIdsOf = (entry) =>
-    threadReading(entry).items.map((item) => sourceItem(item).thread.root.id);
+    threadReading(entry).items.map((item) => sourceItem(item).thread.id);
   // A thread seat already shows the thread where it stands on the page; a card
   // beside it would be the same thread twice.
   const seatedOnPage = (id) =>

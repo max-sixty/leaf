@@ -305,653 +305,616 @@
         <lf-toc id="bg-contents" max-level="2"></lf-toc>
       </aside>
       <p id="bg-start">
-        Use the contents spine or Page Map to find a feature. A feature eyebrow lists
-        the literal <code>lf-*</code> code names for what that section demonstrates. On
-        a desktop, hover the compact spine or press <kbd>g</kbd> to reveal its labels
-        over the settled page; wide boards keep the same allocation while the map is
-        open. Leaf puts circular controls and status indicators at page edges. Hover
-        over one for its label, or Tab into a group and use ← / → and Enter. Press
-        <kbd>a</kbd> to move through Asks. Changes persist on reload.
+        Choose a view below. Its contents spine and Page Map lead to each feature; the
+        eyebrow above a specimen names the <code>lf-*</code> elements it exercises.
       </p>
 
-      <section id="bg-widths" data-width="wide">
-        <p class="eyebrow">data-width</p>
-        <h2><strong>Responsive block widths</strong></h2>
-        <p id="bg-widths-guide" data-width="column">
-          Prose keeps the reading column inside this wide section. Individual evidence
-          blocks can instead use the shared wide measure or all space the shell has
-          left.
-        </p>
-        <table id="bg-width-table" data-width="wide">
-          <thead>
-            <tr>
-              <th>Allocation</th>
-              <th>Use</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Column</td>
-              <td>Explanations and other continuous reading</td>
-            </tr>
-            <tr>
-              <td>Wide</td>
-              <td>Tables, code, and comparisons with a shared cap</td>
-            </tr>
-            <tr>
-              <td>Available</td>
-              <td>Dense evidence that benefits from every free pixel</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
-
-      <section id="bg-core-surfaces">
-        <p class="eyebrow bg-feature-elements">lf-ask · lf-options · lf-option</p>
-        <h2>
-          <strong>Asks</strong
-          ><span class="bg-feature-detail">: decisions and answers</span>
-        </h2>
-        <p id="bg-core-surfaces-guide">
-          An <code>lf-ask</code> is one complete Ask: its heading names the question,
-          and one nested widget owns the answer. This sample uses
-          <code>lf-options</code>, which records a choice Leaf can replay as page state.
-          The banner shows completed/total. Press <kbd>a</kbd> for the next Ask waiting
-          on you; open <strong>Asks</strong>, or press <kbd>g</kbd> then
-          <kbd>Shift+A</kbd>, to review every active Ask and its current answer.
-        </p>
-        <lf-ask id="bg-choice-ask">
-          <h3>Which map should the sample team carry?</h3>
-          <lf-options id="bg-choice" choose>
-            <lf-option id="bg-choice-street">Street map</lf-option>
-            <lf-option id="bg-choice-trail">Trail map</lf-option>
-          </lf-options>
-        </lf-ask>
-        <p id="bg-core-controls-guide">
-          The banner also shows <strong>Threads</strong>, the
-          <strong>Versions</strong> menu, <strong>Page Map</strong> (<kbd>g</kbd> then
-          <kbd>Shift+M</kbd>), <strong>Command reference</strong> (<kbd>?</kbd> twice),
-          and <strong>All leaves</strong> when another Leaf page is live. A quiet status
-          line at the bottom right reports the current keyboard walk or a useful command
-          result. It moves above the bottom-left shortcuts when room is tight.
-        </p>
-      </section>
-
-      <section id="bg-changes">
-        <p class="eyebrow bg-feature-elements">lf-suggestion · lf-old · lf-new</p>
-        <h2>
-          <strong>Suggestions</strong
-          ><span class="bg-feature-detail">: proposed text changes</span>
-        </h2>
-        <p id="bg-changes-guide">
-          Accept applies the proposed text; Reject keeps the original. Undo reverses
-          either decision.
-        </p>
-        <p id="bg-change-forms">
-          <span id="bg-replace-line"
-            ><strong>Replace.</strong> The sample meeting starts at
-            <lf-suggestion id="bg-replace"
-              ><lf-old>nine.</lf-old><lf-new>ten.</lf-new></lf-suggestion
-            ></span
-          >
-          <span id="bg-insert-line"
-            ><strong>Insert.</strong> Bring a notebook.
-            <lf-suggestion id="bg-insert"
-              ><lf-new> A pencil is useful too.</lf-new></lf-suggestion
-            ></span
-          >
-          <span id="bg-delete-line"
-            ><strong>Delete.</strong> The room is upstairs.
-            <lf-suggestion id="bg-delete"
-              ><lf-old> Please arrive an hour early.</lf-old></lf-suggestion
-            ></span
-          >
-        </p>
-        <h3>Undo a proposal while keeping its choice</h3>
-        <p id="bg-nested-change-guide">
-          Pick a route inside the proposal, accept the proposal, then use its Undo
-          control. The proposal becomes undecided again; your route remains chosen.
-          Reload to check that both decisions survive.
-        </p>
-        <lf-suggestion id="bg-nested-change">
-          <lf-old><p>Keep the practice walk indoors.</p></lf-old>
-          <lf-new>
-            <p>Take the practice walk outside.</p>
-            <lf-ask id="bg-route-ask">
-              <h4>Which route should the walk follow?</h4>
-              <lf-options id="bg-route" choose>
-                <lf-option id="bg-route-garden">Through the garden</lf-option>
-                <lf-option id="bg-route-river">Along the river</lf-option>
+      <lf-tabs id="bg-gallery-tabs">
+        <lf-tab id="bg-view-decisions" label="Decisions">
+          <section id="bg-core-surfaces">
+            <p class="eyebrow bg-feature-elements">lf-ask · lf-options · lf-option</p>
+            <h2>
+              <strong>Asks</strong
+              ><span class="bg-feature-detail">: decisions and answers</span>
+            </h2>
+            <p id="bg-core-surfaces-guide">
+              An <code>lf-ask</code> is one complete Ask: its heading names the
+              question, and one nested widget owns the answer. This sample uses
+              <code>lf-options</code>, which records a choice Leaf can replay as page
+              state. The banner shows completed/total. Press <kbd>a</kbd> for the next
+              Ask waiting on you; open <strong>Asks</strong>, or press <kbd>g</kbd> then
+              <kbd>Shift+A</kbd>, to review every active Ask and its current answer.
+            </p>
+            <lf-ask id="bg-choice-ask">
+              <h3>Which map should the sample team carry?</h3>
+              <lf-options id="bg-choice" choose>
+                <lf-option id="bg-choice-street">Street map</lf-option>
+                <lf-option id="bg-choice-trail">Trail map</lf-option>
               </lf-options>
             </lf-ask>
-          </lf-new>
-        </lf-suggestion>
-      </section>
+            <p id="bg-core-controls-guide">
+              The banner also shows <strong>Threads</strong>, the
+              <strong>Versions</strong> menu, <strong>Page Map</strong> (<kbd>g</kbd>
+              then <kbd>Shift+M</kbd>), <strong>Command reference</strong> (<kbd>?</kbd>
+              twice), and <strong>All leaves</strong> when another Leaf page is live. A
+              quiet status line at the bottom right reports the current keyboard walk or
+              a useful command result. It moves above the bottom-left shortcuts when
+              room is tight.
+            </p>
+          </section>
 
-      <section id="bg-editing">
-        <p class="eyebrow bg-feature-elements">lf-draft</p>
-        <h2>
-          <strong>Drafts</strong
-          ><span class="bg-feature-detail">: editable passages and history</span>
-        </h2>
-        <p id="bg-editing-guide">
-          Edit opens a draft. Save records the new text; Cancel closes the editor.
-          Changes lists saved versions, and Restore reapplies one.
-        </p>
-        <lf-draft id="bg-draft">
-          <pre>
-Write a different invitation here. Try a few lines to see the editor grow.</pre>
-        </lf-draft>
-        <p id="bg-history-guide">
-          <strong>Picked up</strong> means the saved edit entered an agent turn. The
-          receipt follows that edit through delivery and response. The banner describes
-          the agent’s overall availability, including work on other parts of the page.
-        </p>
-        <lf-draft id="bg-history">
-          <pre>The sample workshop is in the blue room.</pre>
-        </lf-draft>
-      </section>
+          <section id="bg-changes">
+            <p class="eyebrow bg-feature-elements">lf-suggestion · lf-old · lf-new</p>
+            <h2>
+              <strong>Suggestions</strong
+              ><span class="bg-feature-detail">: proposed text changes</span>
+            </h2>
+            <p id="bg-changes-guide">
+              Accept applies the proposed text; Reject keeps the original. Undo reverses
+              either decision.
+            </p>
+            <p id="bg-change-forms">
+              <span id="bg-replace-line"
+                ><strong>Replace.</strong> The sample meeting starts at
+                <lf-suggestion id="bg-replace"
+                  ><lf-old>nine.</lf-old><lf-new>ten.</lf-new></lf-suggestion
+                ></span
+              >
+              <span id="bg-insert-line"
+                ><strong>Insert.</strong> Bring a notebook.
+                <lf-suggestion id="bg-insert"
+                  ><lf-new> A pencil is useful too.</lf-new></lf-suggestion
+                ></span
+              >
+              <span id="bg-delete-line"
+                ><strong>Delete.</strong> The room is upstairs.
+                <lf-suggestion id="bg-delete"
+                  ><lf-old> Please arrive an hour early.</lf-old></lf-suggestion
+                ></span
+              >
+            </p>
+            <h3>Undo a proposal while keeping its choice</h3>
+            <p id="bg-nested-change-guide">
+              Pick a route inside the proposal, accept the proposal, then use its Undo
+              control. The proposal becomes undecided again; your route remains chosen.
+              Reload to check that both decisions survive.
+            </p>
+            <lf-suggestion id="bg-nested-change">
+              <lf-old><p>Keep the practice walk indoors.</p></lf-old>
+              <lf-new>
+                <p>Take the practice walk outside.</p>
+                <lf-ask id="bg-route-ask">
+                  <h4>Which route should the walk follow?</h4>
+                  <lf-options id="bg-route" choose>
+                    <lf-option id="bg-route-garden">Through the garden</lf-option>
+                    <lf-option id="bg-route-river">Along the river</lf-option>
+                  </lf-options>
+                </lf-ask>
+              </lf-new>
+            </lf-suggestion>
+          </section>
 
-      <section id="bg-threads">
-        <h2>
-          <strong>Threads</strong
-          ><span class="bg-feature-detail">: anchored threads</span>
-        </h2>
-        <p id="bg-threads-guide">
-          With Threads closed, a Thread control or marked passage opens the thread
-          inline; t moves to the next inline card and T to the previous one. Open
-          Threads while one is focused, including with g T, and the same thread stays
-          focused in the panel. Under View, filters narrow the list to Open, On you, On
-          agent, or Resolved, and combine Page or Anchored with Content or Layer. Order
-          switches the list from the page's order to Recent, which puts the thread
-          spoken in last first under its day. Collapsed titles retain their message
-          count, last message activity, and current status; On you also names the action
-          owed. Each thread has a short title chosen by the agent; open one to read the
-          full messages beneath it.
-        </p>
-        <p id="bg-thread-notices">
-          <strong>New information.</strong> Have the agent add a message after the page
-          opens: its status-line notice also reaches the live region without moving
-          focus. A new question, response failure, request outcome, or return to page
-          activity uses that same line. Replies still unread when the page opens are
-          announced once on arrival; rereading a stage or tool update creates no new
-          notice.
-        </p>
-        <p id="bg-new-thread">
-          <strong>A clean passage.</strong> Select some of these words, or Alt-click
-          this paragraph, to start a comment. On a touch screen, select words and tap
-          Comment on selection in the banner. The field opens after the native selection
-          menu closes. To comment on the whole paragraph, open More page controls,
-          choose Select element, then tap it. Cancel selection leaves the page
-          unchanged. Type into the floating field and send it. The thread opens with
-          your words already in it, before the server has answered, and becomes another
-          Thread control at this passage. In Threads, three dots pulse in its title row
-          until the agent names it. A send slow enough to notice goes quiet until the
-          log takes it. One the server refuses leaves the words on this passage, where
-          opening the composer again finds them; the general box in Threads gets them
-          back in place.
-        </p>
-        <p id="bg-markdown-draft">
-          <strong>Markdown as you type.</strong> Every box Leaf gives you to write in
-          shows the draft the way the sent message will read. Type <code>`code`</code>,
-          <code>**bold**</code>, <code>*emphasis*</code>, <code>~~struck~~</code> or
-          <code>[a link](https://leaf.page)</code>, or begin a line with
-          <code>#</code> or <code>&gt;</code>: the words take their style and the syntax
-          steps aside until the caret enters it, so every character stays in reach.
-          Shift+Enter starts a line and continues a list or quote, and Mod+Z undoes only
-          what you typed. The message sends exactly what you typed.
-        </p>
-      </section>
-
-      <section id="bg-thread-states" data-width="wide">
-        <h2>
-          <strong>Thread states</strong
-          ><span class="bg-feature-detail">: live before and after examples</span>
-        </h2>
-        <p id="bg-thread-states-guide" data-width="column">
-          These passages have real threads in this gallery. Open Threads to compare each
-          row's status and compact last-activity time, then open a row to inspect its
-          messages. Drag the panel’s left edge inward to see the status move below the
-          title. The first pair shows a title before and after naming.
-        </p>
-        <section id="bg-thread-state-titles">
-          <h3>Thread title</h3>
-          <div id="bg-thread-title-pair">
-            <section id="bg-thread-title-before">
-              <p class="eyebrow">Before · title pending</p>
-              <p id="bg-thread-pending">
-                <strong>A title still pending.</strong> The workshop schedule leaves
-                lunch open. Open Threads to view it. Its title shows three pulsing dots
-                until the agent gives the thread a short name.
-              </p>
-            </section>
-            <section id="bg-thread-title-after">
-              <p class="eyebrow">After · title assigned</p>
-              <p id="bg-thread-text">
-                <strong>An existing thread.</strong> The sample agenda has room for one
-                more topic. Its speech-bubble control carries a blue interior and a blue
-                glyph, and hovering it shows On you under the label. The image question
-                still needs an answer even though the agent added a later progress
-                update. In Threads, On you still says to answer the question. Open the
-                control and reply: the colour goes as the thread comes back to the
-                agent. The same reading fills the panel’s On you filter and this
-                target’s Page Map row.
-              </p>
-              <p id="bg-thread-media">
-                <strong>Pasted images.</strong> That thread includes an image supplied
-                by its companion thread log, outside this document. Click the image to
-                inspect it in Leaf’s Image preview. Paste a screenshot into its reply
-                box to see the thumbnail Leaf keeps in the draft without exposing image
-                Markdown.
-              </p>
-            </section>
-          </div>
-        </section>
-        <section id="bg-thread-state-resolved">
-          <h3>Resolved</h3>
-          <p id="bg-resolved-text">
-            <strong>A resolved thread.</strong> The room has a projector. Its earlier
-            question is resolved. Open Threads in the banner, select Resolved, and try
-            Reopen to bring its Thread control back to the page.
-          </p>
-        </section>
-        <section id="bg-thread-state-summary">
-          <h3>Summarized and unread</h3>
-          <p id="bg-thread-checkpoint">
-            <strong>A summarized discussion.</strong> The workshop planning thread keeps
-            its earlier decisions in a summary. Open it in Threads, expand the covered
-            messages, and use the right-hand control to fold them again. The latest
-            exchange stays below the summary. Keyboard focus can reach both disclosure
-            controls.
-          </p>
-          <p id="bg-thread-unread">
-            <strong>Unread replies.</strong> The seeded agent replies start unread. Open
-            Threads and use Next unread, or press u there, to reveal the earliest unread
-            reply, including one covered by a summary. A fully exposed short reply
-            leaves the count; scroll through a long reply to read all of it. The blue
-            rail marks each unread message without shifting the transcript, and a
-            collapsed summary counts its unread originals until you expand them.
-            Interactive replies clear when their visible body has been shown too;
-            replying, answering, or resolving also marks the thread's current messages
-            read. A margin control whose thread holds unread replies carries the same
-            dot as Threads. On you to answer still identifies an outstanding question
-            after it is read.
-          </p>
-        </section>
-      </section>
-
-      <section id="bg-reactions">
-        <h2>
-          <strong>Reactions</strong
-          ><span class="bg-feature-detail">: short verdicts on a passage</span>
-        </h2>
-        <p id="bg-reactions-guide">
-          Select words and press E, or hover an agent reply and use its corner control.
-          The picker is feedback for the agent, not chat decoration. A saved passage
-          reaction leaves only its emoji; press it to reveal the separate Remove
-          control, then press that control to take the reaction back.
-        </p>
-        <p id="bg-react-ok">
-          <strong>1 · 👍 · keep.</strong> The spare key is with reception.
-        </p>
-        <p id="bg-react-no">
-          <strong>2 · ❌ · change.</strong> This sample claims Tuesday follows Thursday.
-        </p>
-        <p id="bg-react-lost">
-          <strong>3 · 🤔 · clarify.</strong> Bring the thing from the other place.
-        </p>
-        <p id="bg-react-cut">
-          <strong>4 · ✂️ · shorten.</strong> At this point in time, we can now begin.
-        </p>
-        <p id="bg-react-more">
-          <strong>5 · 🔎 · support.</strong> The exercise involves a map.
-        </p>
-        <p id="bg-react-this">
-          <strong>6 · 🎯 · prioritize.</strong> The side entrance closes early.
-        </p>
-      </section>
-
-      <section id="bg-margin-controls">
-        <p class="eyebrow bg-feature-elements">lf-margin-entry</p>
-        <h2>
-          <strong>Margin entries</strong
-          ><span class="bg-feature-detail">: every face, state, and projection</span>
-        </h2>
-        <p id="bg-margin-controls-guide">
-          <strong>One inventory, using the production controls.</strong> A margin entry
-          is runtime-owned chrome whose shared code name is
-          <code>lf-margin-entry</code>, rather than an authored element type. Rank and
-          behavior cover every action, disclosure, status, tone, and ordering rank.
-          Message workflow follows one user move: Sent records admission, Queued means a
-          later turn will handle it, Picked up means a turn accepted it, and Working or
-          Replying reports progress on its answer. Turn ended and Update stale keep
-          uncertainty visible without claiming an interruption. Pickup and work decorate
-          the existing semantic control; a status face carries the same workflow when no
-          control survives. Face anatomy shows the icon-or-glyph choice, a
-          related-reading count, and the transient label with its quieter context. User
-          interaction compares rest, hover or keyboard focus, an open disclosure, and a
-          selected page reading. Hover and Tab onto the live specimens to exercise their
-          real feedback. The projection specimen stands at this exhibit's margin; open
-          Page Map to see that same contributed control as a full labeled row. Reload to
-          see the one-time pulse as Working arrives. A control dims only while its user
-          action is waiting for the log to confirm it.
-        </p>
-        <lf-margin-entry-gallery
-          id="bg-margin-controls-specimens"
-        ></lf-margin-entry-gallery>
-        <h3>
-          <strong>Margin entry lifecycle</strong
-          ><span class="bg-feature-detail">: act, fail, settle, and hand off</span>
-        </h3>
-        <p id="bg-margin-control-workflow-guide">
-          <strong>Act, fail, and settle.</strong> Accept or Reject starts as an action.
-          The content changes immediately, and Undo dims while the event travels. A
-          refused send restores the suggestion and puts Failed in words beside Retry and
-          Cancel. Success leaves the changed content and an Undo control alone in the
-          cluster. The same Agent workflow reports the decision until the result settles
-          it.
-        </p>
-        <p id="bg-margin-control-workflow-line">
-          The practice route uses
-          <lf-suggestion id="bg-margin-control-workflow"
-            ><lf-old>the open courtyard.</lf-old
-            ><lf-new>the covered terrace.</lf-new></lf-suggestion
-          >
-        </p>
-        <p id="bg-button-accepted-line">
-          <strong>Already settled.</strong> This second specimen arrives with an
-          accepted decision in its history:
-          <lf-suggestion id="bg-button-accepted"
-            ><lf-old>meet outside.</lf-old
-            ><lf-new>meet under the awning.</lf-new></lf-suggestion
-          >
-        </p>
-        <p id="bg-button-status-guide">
-          <strong>Edit and hand off.</strong> Opening the draft above replaces Edit with
-          Save and Cancel controls; Save dims while it sends. Delivery and agent work
-          share one workflow reading. Pickup decorates the draft's Edit control; current
-          work fills its interior with one arrival pulse. An uncertain or ended turn
-          loses the active treatment. Hover for the control's action and current work
-          description.
-        </p>
-        <p id="bg-buttons-line">
-          <strong>Combine roles.</strong> Use the
-          <lf-suggestion id="bg-crowded"
-            ><lf-old>courtyard</lf-old><lf-new>covered terrace</lf-new></lf-suggestion
-          >
-          for the practice session. Accept and Reject act immediately; Thread and ⋯
-          disclose more; a reaction mark stands only while its reaction does. Delivery
-          statuses below report what already happened without offering another press.
-        </p>
-        <h3>
-          <strong>Rail and pins</strong
-          ><span class="bg-feature-detail"
-            >: where a marker stands, and hiding them</span
-          >
-        </h3>
-        <p id="bg-margin-layer-guide">
-          <strong>Two postures; nothing moves.</strong> A marker beside prose stands in
-          the rail, 22px past the column. The schedule below is wider than the column
-          and carries a comment, so its marker stands on the schedule as a pin at its
-          top-right. Narrow the window until the room beside the column no longer holds
-          the rail, about 960px, and every marker becomes a pin. Press <kbd>o</kbd> to
-          hide what is drawn over the page, the pins and the passage marks; the rail
-          stays, and nothing on the page moves. Press it again to bring them back.
-        </p>
-        <figure id="bg-margin-layer-figure" data-width="available">
-          <table id="bg-margin-layer-table">
-            <thead>
-              <tr>
-                <th>Session</th>
-                <th>Mon</th>
-                <th>Tue</th>
-                <th>Wed</th>
-                <th>Thu</th>
-                <th>Fri</th>
-                <th>Sat</th>
-                <th>Sun</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Practice</td>
-                <td>9:00</td>
-                <td>9:00</td>
-                <td>—</td>
-                <td>9:00</td>
-                <td>9:00</td>
-                <td>—</td>
-                <td>—</td>
-              </tr>
-              <tr>
-                <td>Debugging</td>
-                <td>13:30</td>
-                <td>—</td>
-                <td>13:30</td>
-                <td>—</td>
-                <td>13:30</td>
-                <td>—</td>
-                <td>—</td>
-              </tr>
-            </tbody>
-          </table>
-          <figcaption>The sample week, wider than the column.</figcaption>
-        </figure>
-      </section>
-
-      <section id="bg-readings">
-        <p class="eyebrow bg-feature-elements">lf-ask · lf-options · lf-option</p>
-        <h2>
-          <strong>Decisions</strong
-          ><span class="bg-feature-detail">: answers in context</span>
-        </h2>
-        <p id="bg-readings-guide">
-          A recorded answer stays visible in the widget that owns it; the Page Map adds
-          no second status.
-        </p>
-        <lf-ask id="bg-outcome-ask">
-          <h3>Where should the sample group meet?</h3>
-          <lf-options id="bg-outcome" choose>
-            <lf-option id="bg-outcome-door">At the door</lf-option>
-            <lf-option id="bg-outcome-desk" chosen>At reception</lf-option>
-          </lf-options>
-        </lf-ask>
-      </section>
-
-      <section id="bg-user-workflows">
-        <h2>
-          <strong>User workflows</strong
-          ><span class="bg-feature-detail">: approval and interface comments</span>
-        </h2>
-
-        <section id="bg-signoff">
-          <h3>
-            <strong>Sign-off</strong
-            ><span class="bg-feature-detail">: approve a version</span>
-          </h3>
-          <p id="bg-signoff-guide">
-            This gallery deliberately leaves specimen Asks unanswered, so
-            <strong>Approve version</strong> remains unavailable. On a settled page it
-            records approval for the current version; <kbd>z</kbd> takes that approval
-            back.
-          </p>
-        </section>
-
-        <section id="bg-design-comments">
-          <h3>
-            <strong>Design mode</strong
-            ><span class="bg-feature-detail">: comment on the interface</span>
-          </h3>
-          <p id="bg-design-guide">
-            Press <kbd>l</kbd>, then click <strong>Street map</strong>. Leaf opens a
-            comment about <code>lf-option · bg-choice-street</code> without choosing the
-            option. Press <kbd>Escape</kbd> to leave design mode.
-          </p>
-        </section>
-
-        <section id="bg-drawing-comments">
-          <h3>
-            <strong>Draw mode</strong
-            ><span class="bg-feature-detail">: point with freehand strokes</span>
-          </h3>
-          <p id="bg-drawing-comments-guide">
-            Press <kbd>w</kbd> and draw anywhere across the page. Start over this guide
-            or in its margin to anchor the comment here; empty space with no addressable
-            element alongside comments on the page whole. Every further stroke joins the
-            same drawing, wherever it starts. Send the drawing alone or add words first.
-            <kbd>Escape</kbd> puts the comment box away with its strokes kept, and the
-            next stroke brings it back; a second <kbd>Escape</kbd> leaves Draw mode.
-            Press <kbd>w</kbd> again and start over this guide: the stroke joins the
-            kept drawing rather than replacing it.
-          </p>
-        </section>
-
-        <section id="bg-kept-draft">
-          <h3>
-            <strong>Kept draft</strong
-            ><span class="bg-feature-detail"
-              >: come back to words the box put away</span
-            >
-          </h3>
-          <p id="bg-kept-draft-guide">
-            Select a few words here, press <kbd>c</kbd>, and type a sentence without
-            sending it. Press <kbd>Escape</kbd>: the box goes, the words stay, and a
-            notice names the destination that returns to them. Scroll somewhere else,
-            then press <kbd>g</kbd> and <kbd>Shift+D</kbd> — the page travels back to
-            this passage and reopens the box on the sentence. That destination stands in
-            the sequence only while a kept draft does, so pressing <kbd>g</kbd> with
-            nothing written offers no such place to go.
-          </p>
-        </section>
-      </section>
-
-      <section id="bg-external-data">
-        <p class="eyebrow bg-feature-elements">lf-text-document · lf-num</p>
-        <h2>
-          <strong>External data</strong
-          ><span class="bg-feature-detail">: live values and provenance</span>
-        </h2>
-
-        <section id="bg-source-captures">
-          <p class="eyebrow bg-feature-elements">lf-text-document</p>
-          <h3>
-            <strong>Text document</strong
-            ><span class="bg-feature-detail">: a captured file</span>
-          </h3>
-          <p id="bg-source-guide">
-            The document follows its source's current value. Its caption names the
-            captured file and line range.
-          </p>
-          <lf-text-document
-            id="bg-source-live"
-            source="gallery-source"
-            label="feature-gallery-source.toml · lines 1–4"
-            language="toml"
-          ></lf-text-document>
-        </section>
-
-        <section id="bg-measurement-lag">
-          <p class="eyebrow bg-feature-elements">lf-num</p>
-          <h3>
-            <strong>Num</strong
-            ><span class="bg-feature-detail">: provenance and stale data</span>
-          </h3>
-          <p id="bg-measurement-guide">
-            This Num stores
-            <lf-num
-              id="bg-latency"
-              source="gallery-latency"
-              at="2000-01-01T00:00:00Z"
-              via="uv run bench-gallery"
-              >184 ms</lf-num
-            >, its timestamp, and the command that produced it. Because the source has a
-            newer update, <code>version check</code> reports that the measurement is
-            behind its source.
-          </p>
-        </section>
-
-        <section id="bg-record-requests">
-          <h3>Requests from data rows</h3>
-          <p>
-            Press Restart on one job. Its request becomes pending while the other
-            remains ready. The Asks tray holds one question for the whole set.
-          </p>
-          <lf-ask id="bg-jobs-question">
-            <h4>Which job needs a restart?</h4>
-            <lf-job-requests id="bg-jobs" source="gallery-jobs"></lf-job-requests>
-          </lf-ask>
-        </section>
-      </section>
-
-      <section id="bg-default-presentation">
-        <h2>
-          <strong>Evidence widgets</strong
-          ><span class="bg-feature-detail">: charts and structured views</span>
-        </h2>
-        <p id="bg-default-guide">
-          These shipped widgets use synthetic data so each feature has a focused
-          example.
-        </p>
-
-        <section id="bg-metrics-and-chart">
-          <p class="eyebrow bg-feature-elements">lf-metric · lf-chart</p>
-          <h3>
-            <strong>Metrics</strong> and <strong>Chart</strong
-            ><span class="bg-feature-detail">: values and trends</span>
-          </h3>
-          <p id="bg-metrics-guide">
-            Metrics show individual values as tiles, in a <code>layout-tiles</code> row,
-            and a Chart compares the values across runs. The metric tiles and the run
-            under them keep to the column, and the three charts take the wide width.
-            Narrow the window: the metric tiles and the charts rewrap a column at a
-            time, and the run's summary and log stack once they are narrower than 696px.
-            The log holds its own height and stays on its newest line until you scroll
-            back.
-          </p>
-          <div id="bg-metrics" class="layout-tiles">
-            <lf-metric id="bg-metric-complete" value="12" delta="+3" direction="up-good"
-              >checks complete</lf-metric
-            >
-            <lf-metric id="bg-metric-open" value="2" delta="-1" direction="up-bad"
-              >open failures</lf-metric
-            >
-            <lf-metric id="bg-metric-neutral" value="4 min">sample duration</lf-metric>
-          </div>
-          <div id="bg-charts" data-width="wide">
-            <lf-chart id="bg-chart" kind="line" y="checks complete">
+          <section id="bg-editing">
+            <p class="eyebrow bg-feature-elements">lf-draft</p>
+            <h2>
+              <strong>Drafts</strong
+              ><span class="bg-feature-detail">: editable passages and history</span>
+            </h2>
+            <p id="bg-editing-guide">
+              Edit opens a draft. Save records the new text; Cancel closes the editor.
+              Changes lists saved versions, and Restore reapplies one.
+            </p>
+            <lf-draft id="bg-draft">
               <pre>
+Write a different invitation here. Try a few lines to see the editor grow.</pre>
+            </lf-draft>
+            <p id="bg-history-guide">
+              <strong>Picked up</strong> means the saved edit entered an agent turn. The
+              receipt follows that edit through delivery and response. The banner
+              describes the agent’s overall availability, including work on other parts
+              of the page.
+            </p>
+            <lf-draft id="bg-history">
+              <pre>The sample workshop is in the blue room.</pre>
+            </lf-draft>
+          </section>
+
+          <section id="bg-reactions">
+            <h2>
+              <strong>Reactions</strong
+              ><span class="bg-feature-detail">: short verdicts on a passage</span>
+            </h2>
+            <p id="bg-reactions-guide">
+              Select words and press E, or hover an agent reply and use its corner
+              control. The picker is feedback for the agent, not chat decoration. A
+              saved passage reaction leaves only its emoji; press it to reveal the
+              separate Remove control, then press that control to take the reaction
+              back.
+            </p>
+            <p id="bg-react-ok">
+              <strong>1 · 👍 · keep.</strong> The spare key is with reception.
+            </p>
+            <p id="bg-react-no">
+              <strong>2 · ❌ · change.</strong> This sample claims Tuesday follows
+              Thursday.
+            </p>
+            <p id="bg-react-lost">
+              <strong>3 · 🤔 · clarify.</strong> Bring the thing from the other place.
+            </p>
+            <p id="bg-react-cut">
+              <strong>4 · ✂️ · shorten.</strong> At this point in time, we can now
+              begin.
+            </p>
+            <p id="bg-react-more">
+              <strong>5 · 🔎 · support.</strong> The exercise involves a map.
+            </p>
+            <p id="bg-react-this">
+              <strong>6 · 🎯 · prioritize.</strong> The side entrance closes early.
+            </p>
+          </section>
+
+          <section id="bg-readings">
+            <p class="eyebrow bg-feature-elements">lf-ask · lf-options · lf-option</p>
+            <h2>
+              <strong>Decisions</strong
+              ><span class="bg-feature-detail">: answers in context</span>
+            </h2>
+            <p id="bg-readings-guide">
+              A recorded answer stays visible in the widget that owns it; the Page Map
+              adds no second status.
+            </p>
+            <lf-ask id="bg-outcome-ask">
+              <h3>Where should the sample group meet?</h3>
+              <lf-options id="bg-outcome" choose>
+                <lf-option id="bg-outcome-door">At the door</lf-option>
+                <lf-option id="bg-outcome-desk" chosen>At reception</lf-option>
+              </lf-options>
+            </lf-ask>
+          </section>
+
+          <section id="bg-user-workflows">
+            <h2>
+              <strong>User workflows</strong
+              ><span class="bg-feature-detail">: approval and interface comments</span>
+            </h2>
+
+            <section id="bg-signoff">
+              <h3>
+                <strong>Sign-off</strong
+                ><span class="bg-feature-detail">: approve a version</span>
+              </h3>
+              <p id="bg-signoff-guide">
+                This gallery deliberately leaves specimen Asks unanswered, so
+                <strong>Approve version</strong> remains unavailable. On a settled page
+                it records approval for the current version; <kbd>z</kbd> takes that
+                approval back.
+              </p>
+            </section>
+
+            <section id="bg-design-comments">
+              <h3>
+                <strong>Design mode</strong
+                ><span class="bg-feature-detail">: comment on the interface</span>
+              </h3>
+              <p id="bg-design-guide">
+                Press <kbd>l</kbd>, then click <strong>Street map</strong>. Leaf opens a
+                comment about <code>lf-option · bg-choice-street</code> without choosing
+                the option. Press <kbd>Escape</kbd> to leave design mode.
+              </p>
+            </section>
+
+            <section id="bg-drawing-comments">
+              <h3>
+                <strong>Draw mode</strong
+                ><span class="bg-feature-detail">: point with freehand strokes</span>
+              </h3>
+              <p id="bg-drawing-comments-guide">
+                Press <kbd>w</kbd> and draw anywhere across the page. Start over this
+                guide or in its margin to anchor the comment here; empty space with no
+                addressable element alongside comments on the page whole. Every further
+                stroke joins the same drawing, wherever it starts. Send the drawing
+                alone or add words first. <kbd>Escape</kbd> puts the comment box away
+                with its strokes kept, and the next stroke brings it back; a second
+                <kbd>Escape</kbd> leaves Draw mode. Press <kbd>w</kbd> again and start
+                over this guide: the stroke joins the kept drawing rather than replacing
+                it.
+              </p>
+            </section>
+
+            <section id="bg-kept-draft">
+              <h3>
+                <strong>Kept draft</strong
+                ><span class="bg-feature-detail"
+                  >: come back to words the box put away</span
+                >
+              </h3>
+              <p id="bg-kept-draft-guide">
+                Select a few words here, press <kbd>c</kbd>, and type a sentence without
+                sending it. Press <kbd>Escape</kbd>: the box goes, the words stay, and a
+                notice names the destination that returns to them. Scroll somewhere
+                else, then press <kbd>g</kbd> and <kbd>Shift+D</kbd> — the page travels
+                back to this passage and reopens the box on the sentence. That
+                destination stands in the sequence only while a kept draft does, so
+                pressing <kbd>g</kbd> with nothing written offers no such place to go.
+              </p>
+            </section>
+          </section>
+        </lf-tab>
+
+        <lf-tab id="bg-view-threads" label="Threads">
+          <section id="bg-threads">
+            <h2>
+              <strong>Threads</strong
+              ><span class="bg-feature-detail">: anchored threads</span>
+            </h2>
+            <p id="bg-threads-guide">
+              With Threads closed, a Thread control or marked passage opens the thread
+              inline; t moves to the next inline card and T to the previous one. Open
+              Threads while one is focused, including with g T, and the same thread
+              stays focused in the panel. Under View, filters narrow the list to Open,
+              On you, On agent, or Resolved, and combine Page or Anchored with Content
+              or Layer. Order switches the list from the page's order to Recent, which
+              puts the thread spoken in last first under its day. Collapsed titles
+              retain their message count, last message activity, and current status; On
+              you also names the action owed. Each thread has a short title chosen by
+              the agent; open one to read the full messages beneath it.
+            </p>
+            <p id="bg-thread-notices">
+              <strong>New information.</strong> Have the agent add a message after the
+              page opens: its status-line notice also reaches the live region without
+              moving focus. A new question, response failure, request outcome, or return
+              to page activity uses that same line. Replies still unread when the page
+              opens are announced once on arrival; rereading a stage or tool update
+              creates no new notice.
+            </p>
+            <p id="bg-new-thread">
+              <strong>A clean passage.</strong> Select some of these words, or Alt-click
+              this paragraph, to start a comment. On a touch screen, select words and
+              tap Comment on selection in the banner. The field opens after the native
+              selection menu closes. To comment on the whole paragraph, open More page
+              controls, choose Select element, then tap it. Cancel selection leaves the
+              page unchanged. Type into the floating field and send it. The thread opens
+              with your words already in it, before the server has answered, and becomes
+              another Thread control at this passage. In Threads, three dots pulse in
+              its title row until the agent names it. A send slow enough to notice goes
+              quiet until the log takes it. One the server refuses leaves the words on
+              this passage, where opening the composer again finds them; the general box
+              in Threads gets them back in place.
+            </p>
+            <p id="bg-markdown-draft">
+              <strong>Markdown as you type.</strong> Every box Leaf gives you to write
+              in shows the draft the way the sent message will read. Type
+              <code>`code`</code>, <code>**bold**</code>, <code>*emphasis*</code>,
+              <code>~~struck~~</code> or <code>[a link](https://leaf.page)</code>, or
+              begin a line with <code>#</code> or <code>&gt;</code>: the words take
+              their style and the syntax steps aside until the caret enters it, so every
+              character stays in reach. Shift+Enter starts a line and continues a list
+              or quote, and Mod+Z undoes only what you typed. The message sends exactly
+              what you typed.
+            </p>
+          </section>
+
+          <section id="bg-thread-states" data-width="wide">
+            <h2>
+              <strong>Thread states</strong
+              ><span class="bg-feature-detail">: live before and after examples</span>
+            </h2>
+            <p id="bg-thread-states-guide" data-width="column">
+              These passages have real threads in this gallery. Open Threads to compare
+              each row's status and compact last-activity time, then open a row to
+              inspect its messages. Drag the panel’s left edge inward to see the status
+              move below the title. The first pair shows a title before and after
+              naming.
+            </p>
+            <section id="bg-thread-state-titles">
+              <h3>Thread title</h3>
+              <div id="bg-thread-title-pair">
+                <section id="bg-thread-title-before">
+                  <p class="eyebrow">Before · title pending</p>
+                  <p id="bg-thread-pending">
+                    <strong>A title still pending.</strong> The workshop schedule leaves
+                    lunch open. Open Threads to view it. Its title shows three pulsing
+                    dots until the agent gives the thread a short name.
+                  </p>
+                </section>
+                <section id="bg-thread-title-after">
+                  <p class="eyebrow">After · title assigned</p>
+                  <p id="bg-thread-text">
+                    <strong>An existing thread.</strong> The sample agenda has room for
+                    one more topic. Its speech-bubble control carries a blue interior
+                    and a blue glyph, and hovering it shows On you under the label. The
+                    image question still needs an answer even though the agent added a
+                    later progress update. In Threads, On you still says to answer the
+                    question. Open the control and reply: the colour goes as the thread
+                    comes back to the agent. The same reading fills the panel’s On you
+                    filter and this target’s Page Map row.
+                  </p>
+                  <p id="bg-thread-media">
+                    <strong>Pasted images.</strong> That thread includes an image
+                    supplied by its companion thread log, outside this document. Click
+                    the image to inspect it in Leaf’s Image preview. Paste a screenshot
+                    into its reply box to see the thumbnail Leaf keeps in the draft
+                    without exposing image Markdown.
+                  </p>
+                </section>
+              </div>
+            </section>
+            <section id="bg-thread-state-resolved">
+              <h3>Resolved</h3>
+              <p id="bg-resolved-text">
+                <strong>A resolved thread.</strong> The room has a projector. Its
+                earlier question is resolved. Open Threads in the banner, select
+                Resolved, and try Reopen to bring its Thread control back to the page.
+              </p>
+            </section>
+            <section id="bg-thread-state-summary">
+              <h3>Summarized and unread</h3>
+              <p id="bg-thread-checkpoint">
+                <strong>A summarized discussion.</strong> The workshop planning thread
+                keeps its earlier decisions in a summary. Open it in Threads, expand the
+                covered messages, and use the right-hand control to fold them again. The
+                latest exchange stays below the summary. Keyboard focus can reach both
+                disclosure controls.
+              </p>
+              <p id="bg-thread-unread">
+                <strong>Unread replies.</strong> The seeded agent replies start unread.
+                Open Threads and use Next unread, or press u there, to reveal the
+                earliest unread reply, including one covered by a summary. A fully
+                exposed short reply leaves the count; scroll through a long reply to
+                read all of it. The blue rail marks each unread message without shifting
+                the transcript, and a collapsed summary counts its unread originals
+                until you expand them. Interactive replies clear when their visible body
+                has been shown too; replying, answering, or resolving also marks the
+                thread's current messages read. A margin control whose thread holds
+                unread replies carries the same dot as Threads. On you to answer still
+                identifies an outstanding question after it is read.
+              </p>
+            </section>
+          </section>
+        </lf-tab>
+
+        <lf-tab id="bg-view-page" label="Page & layout">
+          <section id="bg-widths" data-width="wide">
+            <p class="eyebrow">data-width</p>
+            <h2><strong>Responsive block widths</strong></h2>
+            <p id="bg-widths-guide" data-width="column">
+              Prose keeps the reading column inside this wide section. Individual
+              evidence blocks can instead use the shared wide measure or all space the
+              shell has left.
+            </p>
+            <table id="bg-width-table" data-width="wide">
+              <thead>
+                <tr>
+                  <th>Allocation</th>
+                  <th>Use</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Column</td>
+                  <td>Explanations and other continuous reading</td>
+                </tr>
+                <tr>
+                  <td>Wide</td>
+                  <td>Tables, code, and comparisons with a shared cap</td>
+                </tr>
+                <tr>
+                  <td>Available</td>
+                  <td>Dense evidence that benefits from every free pixel</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section id="bg-margin-controls">
+            <p class="eyebrow bg-feature-elements">lf-margin-entry</p>
+            <h2>
+              <strong>Margin entries</strong
+              ><span class="bg-feature-detail"
+                >: every face, state, and projection</span
+              >
+            </h2>
+            <p id="bg-margin-controls-guide">
+              <strong>One inventory, using the production controls.</strong> A margin
+              entry is runtime-owned chrome whose shared code name is
+              <code>lf-margin-entry</code>, rather than an authored element type. Rank
+              and behavior cover every action, disclosure, status, tone, and ordering
+              rank. Message workflow follows one user move: Sent records admission,
+              Queued means a later turn will handle it, Picked up means a turn accepted
+              it, and Working or Replying reports progress on its answer. Turn ended and
+              Update stale keep uncertainty visible without claiming an interruption.
+              Pickup and work decorate the existing semantic control; a status face
+              carries the same workflow when no control survives. Face anatomy shows the
+              icon-or-glyph choice, a related-reading count, and the transient label
+              with its quieter context. User interaction compares rest, hover or
+              keyboard focus, an open disclosure, and a selected page reading. Hover and
+              Tab onto the live specimens to exercise their real feedback. The
+              projection specimen stands at this exhibit's margin; open Page Map to see
+              that same contributed control as a full labeled row. Reload to see the
+              one-time pulse as Working arrives. A control dims only while its user
+              action is waiting for the log to confirm it.
+            </p>
+            <lf-margin-entry-gallery
+              id="bg-margin-controls-specimens"
+            ></lf-margin-entry-gallery>
+            <h3>
+              <strong>Margin entry lifecycle</strong
+              ><span class="bg-feature-detail">: act, fail, settle, and hand off</span>
+            </h3>
+            <p id="bg-margin-control-workflow-guide">
+              <strong>Act, fail, and settle.</strong> Accept or Reject starts as an
+              action. The content changes immediately, and Undo dims while the event
+              travels. A refused send restores the suggestion and puts Failed in words
+              beside Retry and Cancel. Success leaves the changed content and an Undo
+              control alone in the cluster. The same Agent workflow reports the decision
+              until the result settles it.
+            </p>
+            <p id="bg-margin-control-workflow-line">
+              The practice route uses
+              <lf-suggestion id="bg-margin-control-workflow"
+                ><lf-old>the open courtyard.</lf-old
+                ><lf-new>the covered terrace.</lf-new></lf-suggestion
+              >
+            </p>
+            <p id="bg-button-accepted-line">
+              <strong>Already settled.</strong> This second specimen arrives with an
+              accepted decision in its history:
+              <lf-suggestion id="bg-button-accepted"
+                ><lf-old>meet outside.</lf-old
+                ><lf-new>meet under the awning.</lf-new></lf-suggestion
+              >
+            </p>
+            <p id="bg-button-status-guide">
+              <strong>Edit and hand off.</strong> Opening the draft above replaces Edit
+              with Save and Cancel controls; Save dims while it sends. Delivery and
+              agent work share one workflow reading. Pickup decorates the draft's Edit
+              control; current work fills its interior with one arrival pulse. An
+              uncertain or ended turn loses the active treatment. Hover for the
+              control's action and current work description.
+            </p>
+            <p id="bg-buttons-line">
+              <strong>Combine roles.</strong> Use the
+              <lf-suggestion id="bg-crowded"
+                ><lf-old>courtyard</lf-old
+                ><lf-new>covered terrace</lf-new></lf-suggestion
+              >
+              for the practice session. Accept and Reject act immediately; Thread and ⋯
+              disclose more; a reaction mark stands only while its reaction does.
+              Delivery statuses below report what already happened without offering
+              another press.
+            </p>
+            <h3>
+              <strong>Rail and pins</strong
+              ><span class="bg-feature-detail"
+                >: where a marker stands, and hiding them</span
+              >
+            </h3>
+            <p id="bg-margin-layer-guide">
+              <strong>Two postures; nothing moves.</strong> A marker beside prose stands
+              in the rail, 22px past the column. The schedule below is wider than the
+              column and carries a comment, so its marker stands on the schedule as a
+              pin at its top-right. Narrow the window until the room beside the column
+              no longer holds the rail, about 960px, and every marker becomes a pin.
+              Press <kbd>o</kbd> to hide what is drawn over the page, the pins and the
+              passage marks; the rail stays, and nothing on the page moves. Press it
+              again to bring them back.
+            </p>
+            <figure id="bg-margin-layer-figure" data-width="available">
+              <table id="bg-margin-layer-table">
+                <thead>
+                  <tr>
+                    <th>Session</th>
+                    <th>Mon</th>
+                    <th>Tue</th>
+                    <th>Wed</th>
+                    <th>Thu</th>
+                    <th>Fri</th>
+                    <th>Sat</th>
+                    <th>Sun</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Practice</td>
+                    <td>9:00</td>
+                    <td>9:00</td>
+                    <td>—</td>
+                    <td>9:00</td>
+                    <td>9:00</td>
+                    <td>—</td>
+                    <td>—</td>
+                  </tr>
+                  <tr>
+                    <td>Debugging</td>
+                    <td>13:30</td>
+                    <td>—</td>
+                    <td>13:30</td>
+                    <td>—</td>
+                    <td>13:30</td>
+                    <td>—</td>
+                    <td>—</td>
+                  </tr>
+                </tbody>
+              </table>
+              <figcaption>The sample week, wider than the column.</figcaption>
+            </figure>
+          </section>
+
+          <section id="bg-default-presentation">
+            <h2>
+              <strong>Evidence widgets</strong
+              ><span class="bg-feature-detail">: charts and structured views</span>
+            </h2>
+            <p id="bg-default-guide">
+              These shipped widgets use synthetic data so each feature has a focused
+              example.
+            </p>
+
+            <section id="bg-metrics-and-chart">
+              <p class="eyebrow bg-feature-elements">lf-metric · lf-chart</p>
+              <h3>
+                <strong>Metrics</strong> and <strong>Chart</strong
+                ><span class="bg-feature-detail">: values and trends</span>
+              </h3>
+              <p id="bg-metrics-guide">
+                Metrics show individual values as tiles, in a
+                <code>layout-tiles</code> row, and a Chart compares the values across
+                runs. The metric tiles and the run under them keep to the column, and
+                the three charts take the wide width. Narrow the window: the metric
+                tiles and the charts rewrap a column at a time, and the run's summary
+                and log stack once they are narrower than 696px. The log holds its own
+                height and stays on its newest line until you scroll back.
+              </p>
+              <div id="bg-metrics" class="layout-tiles">
+                <lf-metric
+                  id="bg-metric-complete"
+                  value="12"
+                  delta="+3"
+                  direction="up-good"
+                  >checks complete</lf-metric
+                >
+                <lf-metric id="bg-metric-open" value="2" delta="-1" direction="up-bad"
+                  >open failures</lf-metric
+                >
+                <lf-metric id="bg-metric-neutral" value="4 min"
+                  >sample duration</lf-metric
+                >
+              </div>
+              <div id="bg-charts" data-width="wide">
+                <lf-chart id="bg-chart" kind="line" y="checks complete">
+                  <pre>
 run, baseline, candidate
 1, 4, 5
 2, 7, 9
 3, 9, 12
 </pre>
-            </lf-chart>
-            <lf-chart id="bg-chart-bars" kind="bars" y="checks complete">
-              <pre>
+                </lf-chart>
+                <lf-chart id="bg-chart-bars" kind="bars" y="checks complete">
+                  <pre>
 run, checks
 first, 5
 second, 9
 third, 12
 </pre>
-            </lf-chart>
-            <lf-chart id="bg-chart-stack" kind="stack" y="checks">
-              <pre>
+                </lf-chart>
+                <lf-chart id="bg-chart-stack" kind="stack" y="checks">
+                  <pre>
 run, passed, failed
 first, 5, 3
 second, 9, 2
 third, 12, 0
 </pre>
-            </lf-chart>
-          </div>
-          <div id="bg-run">
-            <section id="bg-run-summary">
-              <h4>Third run</h4>
-              <p>
-                Twelve checks complete and none failed. The log beside this cell is the
-                run's own output.
-              </p>
-            </section>
-            <pre id="bg-run-log" data-bound="end">
+                </lf-chart>
+              </div>
+              <div id="bg-run">
+                <section id="bg-run-summary">
+                  <h4>Third run</h4>
+                  <p>
+                    Twelve checks complete and none failed. The log beside this cell is
+                    the run's own output.
+                  </p>
+                </section>
+                <pre id="bg-run-log" data-bound="end">
 12:00:01 runner   start run=3 checks=12
 12:00:04 check    schema ok
 12:00:07 check    migrations ok
@@ -987,29 +950,30 @@ third, 12, 0
 12:01:42 watcher  heartbeat seq=42
 12:01:45 watcher  heartbeat seq=45
 </pre>
-          </div>
-        </section>
+              </div>
+            </section>
 
-        <section id="bg-code-and-tree">
-          <p class="eyebrow bg-feature-elements">
-            lf-code · lf-gloss · lf-note · lf-tree
-          </p>
-          <h3>
-            <strong>Code</strong>, <strong>Gloss</strong>, <strong>Note</strong>, and
-            <strong>Tree</strong
-            ><span class="bg-feature-detail">: technical evidence</span>
-          </h3>
-          <p id="bg-gloss-line">
-            Gloss explains a marked term such as
-            <lf-gloss
-              id="bg-gloss"
-              tip="A narrow end-to-end path through the real system."
-              >walking skeleton</lf-gloss
-            >. Code adds line numbers and Notes, and quotes an excerpt under its file's
-            own numbers with an elided row where it skips; Tree shows file structure.
-          </p>
-          <lf-code id="bg-code" language="python" lines="40-43,58-59" hi="41-42">
-            <pre>
+            <section id="bg-code-and-tree">
+              <p class="eyebrow bg-feature-elements">
+                lf-code · lf-gloss · lf-note · lf-tree
+              </p>
+              <h3>
+                <strong>Code</strong>, <strong>Gloss</strong>, <strong>Note</strong>,
+                and <strong>Tree</strong
+                ><span class="bg-feature-detail">: technical evidence</span>
+              </h3>
+              <p id="bg-gloss-line">
+                Gloss explains a marked term such as
+                <lf-gloss
+                  id="bg-gloss"
+                  tip="A narrow end-to-end path through the real system."
+                  >walking skeleton</lf-gloss
+                >. Code adds line numbers and Notes, and quotes an excerpt under its
+                file's own numbers with an elided row where it skips; Tree shows file
+                structure.
+              </p>
+              <lf-code id="bg-code" language="python" lines="40-43,58-59" hi="41-42">
+                <pre>
 def route(weather):
     if weather == "rain":
         return "covered terrace"
@@ -1017,617 +981,746 @@ def route(weather):
 def seat(guest):
     return guest.table
 </pre>
-            <lf-note id="bg-code-note" at="41">
-              The branch exists only to make the highlighted walkthrough visible.
-            </lf-note>
-            <lf-note id="bg-code-skip" at="44">The seating chart, loaded once.</lf-note>
-          </lf-code>
-          <lf-tree id="bg-tree">
-            <pre>
+                <lf-note id="bg-code-note" at="41">
+                  The branch exists only to make the highlighted walkthrough visible.
+                </lf-note>
+                <lf-note id="bg-code-skip" at="44"
+                  >The seating chart, loaded once.</lf-note
+                >
+              </lf-code>
+              <lf-tree id="bg-tree">
+                <pre>
 gallery/
   index.html  +20 -1
   data.json  +2
   media/
     after.png
 </pre>
-          </lf-tree>
-        </section>
+              </lf-tree>
+            </section>
 
-        <section id="bg-neutral-comparison">
-          <p class="eyebrow bg-feature-elements">lf-compare · lf-variant · lf-chip</p>
-          <h3>
-            <strong>Compare</strong>, <strong>Variants</strong>, and
-            <strong>Chips</strong
-            ><span class="bg-feature-detail">: parallel alternatives</span>
-          </h3>
-          <aside class="sidenote" id="bg-compare-note">
-            Short variants share a row. Paragraphs make the alternatives stack. Narrow
-            the window to see this note return to the text flow.
-          </aside>
-          <p id="bg-compare-guide">
-            Compare gives each Variant the same frame. Chips label short attributes.
-          </p>
-          <lf-compare id="bg-compare">
-            <lf-variant id="bg-variant-paper">
-              <lf-chip id="bg-chip-power">power: none</lf-chip
-              ><lf-chip tone="ok">weight: low</lf-chip> <strong>Paper map</strong> Easy
-              to annotate and fold.
-            </lf-variant>
-            <lf-variant id="bg-variant-screen">
-              <lf-chip>power: daily</lf-chip
-              ><lf-chip tone="warn">weight: medium</lf-chip>
-              <strong>Tablet map</strong> Searchable and backlit.
-            </lf-variant>
-          </lf-compare>
-          <table id="bg-route-distances">
-            <caption>
-              Route distances — numeric columns align on the right
-            </caption>
-            <thead>
-              <tr>
-                <th>Route</th>
-                <th scope="col">Distance (km)</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <th scope="row">Courtyard loop</th>
-                <td class="num">1.4</td>
-              </tr>
-              <tr>
-                <th scope="row">Riverside path</th>
-                <td class="num">12.6</td>
-              </tr>
-            </tbody>
-          </table>
-          <lf-compare id="bg-compare-prose">
-            <lf-variant id="bg-variant-paper-detail">
-              <strong>Paper on the trail</strong>
-              <p>
-                Mark the route before leaving. The map stays readable when the battery
-                runs out.
+            <section id="bg-neutral-comparison">
+              <p class="eyebrow bg-feature-elements">
+                lf-compare · lf-variant · lf-chip
               </p>
-            </lf-variant>
-            <lf-variant id="bg-variant-screen-detail">
-              <strong>Screen at a junction</strong>
-              <p>
-                Search the nearest stop and update the route. Carry enough power for the
-                return journey.
+              <h3>
+                <strong>Compare</strong>, <strong>Variants</strong>, and
+                <strong>Chips</strong
+                ><span class="bg-feature-detail">: parallel alternatives</span>
+              </h3>
+              <aside class="sidenote" id="bg-compare-note">
+                Short variants share a row. Paragraphs make the alternatives stack.
+                Narrow the window to see this note return to the text flow.
+              </aside>
+              <p id="bg-compare-guide">
+                Compare gives each Variant the same frame. Chips label short attributes.
               </p>
-            </lf-variant>
-          </lf-compare>
-        </section>
-
-        <section id="bg-plans-and-history">
-          <p class="eyebrow bg-feature-elements">
-            lf-milestones · lf-milestone · lf-chronology · lf-chronology-entry
-          </p>
-          <h3>
-            <strong>Milestones</strong> and <strong>Chronology</strong
-            ><span class="bg-feature-detail">: state and history</span>
-          </h3>
-          <p id="bg-plans-guide">
-            Milestones show planned, active, and completed work. A Chronology orders
-            entries by time.
-          </p>
-          <lf-milestones id="bg-milestones">
-            <lf-milestone id="bg-milestone-survey" status="done" when="morning">
-              <strong>Survey the route</strong> Marked the crossings.
-            </lf-milestone>
-            <lf-milestone
-              id="bg-milestone-walk"
-              status="active"
-              when="afternoon"
-              tags="sample,route"
-            >
-              <strong>Walk the route</strong> Checking the covered section.
-            </lf-milestone>
-            <lf-milestone id="bg-milestone-report" status="planned" when="next">
-              <strong>Write the note</strong>
-            </lf-milestone>
-          </lf-milestones>
-          <lf-chronology id="bg-chronology">
-            <lf-chronology-entry id="bg-chronology-alert" at="09:14" kind="warning">
-              <strong>Rain started</strong> The open path became slippery.
-            </lf-chronology-entry>
-            <lf-chronology-entry id="bg-chronology-closed" at="09:18" kind="failure">
-              <strong>Path closed</strong> Standing water blocked the crossing.
-            </lf-chronology-entry>
-            <lf-chronology-entry
-              id="bg-chronology-switch"
-              at="09:20"
-              kind="intervention"
-            >
-              <strong>Route changed</strong> The sample moved under cover.
-            </lf-chronology-entry>
-            <lf-chronology-entry id="bg-chronology-clear" at="09:42" kind="observation">
-              <strong>Walk resumed</strong>
-            </lf-chronology-entry>
-          </lf-chronology>
-        </section>
-
-        <section id="bg-activity-feed">
-          <p class="eyebrow bg-feature-elements">lf-activity</p>
-          <h3>
-            <strong>Activity</strong
-            ><span class="bg-feature-detail">: this page's history, newest first</span>
-          </h3>
-          <p id="bg-activity-guide">
-            The feed reads this page's own log: the seeded threads, reactions, user
-            actions, and published versions. The board move near the end was taken back,
-            so its row stays struck through and marked undone. Press a thread row to
-            open its thread, or a widget row to travel to the widget.
-          </p>
-          <lf-activity id="bg-activity"></lf-activity>
-        </section>
-
-        <section id="bg-tab-set">
-          <p class="eyebrow bg-feature-elements">lf-tabs · lf-tab</p>
-          <h3>
-            <strong>Tabs</strong
-            ><span class="bg-feature-detail">: saved panel selection</span>
-          </h3>
-          <p id="bg-tabs-guide">
-            This embedded specimen is a framed tabbed section. The browser test also
-            presents this same tab set at the root of a page, where it becomes
-            borderless top navigation for page-scale views. Both forms remember the
-            selected panel after reload. At page level, scroll a view and switch away
-            and back: each selection reaches the panel’s beginning below the tab strip.
-            Browser Back and Forward return to the corresponding views.
-          </p>
-          <lf-tabs id="bg-tabs">
-            <lf-tab id="bg-tab-current" label="Current">
-              <p id="bg-tab-current-text">The current sample route is under review.</p>
-            </lf-tab>
-            <lf-tab id="bg-tab-context" label="Context">
-              <p id="bg-tab-context-text">The earlier route crossed the courtyard.</p>
-            </lf-tab>
-          </lf-tabs>
-        </section>
-
-        <section id="bg-drawing">
-          <p class="eyebrow">svg.drawing</p>
-          <h3>
-            <strong>Drawing</strong
-            ><span class="bg-feature-detail">: a schematic in theme colours</span>
-          </h3>
-          <p id="bg-drawing-guide">
-            Two states of a sample page drawn alike in one frame. Switch the colour
-            scheme: every mark follows it.
-          </p>
-          <figure id="bg-drawing-figure" data-width="wide">
-            <svg
-              class="drawing"
-              viewBox="0 0 560 150"
-              role="img"
-              aria-labelledby="bg-drawing-title"
-            >
-              <title id="bg-drawing-title">
-                A note moves from the column into the right margin
-              </title>
-              <defs>
-                <marker
-                  id="bg-drawing-tip"
-                  viewBox="0 0 8 8"
-                  refX="7"
-                  refY="4"
-                  markerWidth="8"
-                  markerHeight="8"
-                  orient="auto"
-                >
-                  <path class="tip" d="M0 0 8 4 0 8z" />
-                </marker>
-              </defs>
-              <text class="strong" x="14" y="16">Before</text>
-              <rect class="frame" x="4" y="24" width="240" height="118" rx="6" />
-              <rect class="frame-head" x="4" y="24" width="240" height="14" rx="6" />
-              <rect class="line" x="24" y="52" width="160" height="6" rx="3" />
-              <rect class="line soft" x="24" y="64" width="140" height="6" rx="3" />
-              <rect class="box hot" x="24" y="80" width="160" height="22" rx="3" />
-              <text class="small" x="32" y="94">note</text>
-              <rect class="line soft" x="24" y="112" width="150" height="6" rx="3" />
-              <path class="arrow" d="M262 83H300" marker-end="url(#bg-drawing-tip)" />
-              <text class="strong" x="326" y="16">After</text>
-              <rect class="frame" x="316" y="24" width="240" height="118" rx="6" />
-              <rect class="frame-head" x="316" y="24" width="240" height="14" rx="6" />
-              <rect class="line" x="336" y="52" width="140" height="6" rx="3" />
-              <rect class="line soft" x="336" y="64" width="120" height="6" rx="3" />
-              <rect class="ghost" x="336" y="80" width="140" height="22" rx="3" />
-              <rect class="box hot" x="488" y="52" width="56" height="30" rx="3" />
-              <text class="small" x="496" y="70">note</text>
-              <line class="guide" x1="482" y1="46" x2="482" y2="134" />
-              <circle class="mark" cx="336" cy="120" r="7" />
-              <text class="glyph" x="336" y="120">1</text>
-              <circle class="ok" cx="356" cy="120" r="4" />
-              <circle class="warn" cx="370" cy="120" r="4" />
-              <circle class="danger" cx="384" cy="120" r="4" />
-              <rect class="highlight" x="396" y="116" width="40" height="8" rx="2" />
-              <line class="dim" x1="488" y1="92" x2="544" y2="92" />
-              <text class="mono" x="500" y="106">96px</text>
-            </svg>
-            <figcaption>
-              The margin exists only above 1152px; the drawing shows the wide case.
-            </figcaption>
-          </figure>
-        </section>
-
-        <section id="bg-quoted-and-visual">
-          <p class="eyebrow bg-feature-elements">
-            lf-specimen · lf-shot · lf-options · lf-option
-          </p>
-          <h3>
-            <strong>Specimen</strong> and <strong>Shot</strong
-            ><span class="bg-feature-detail">: fiction and before/after images</span>
-          </h3>
-          <lf-specimen id="bg-specimen" label="an inert multiple-pick decision">
-            <lf-options id="bg-specimen-options" choose multiple>
-              <lf-option id="bg-specimen-paper">
-                <strong>Paper signs</strong> Nothing to charge.
-              </lf-option>
-              <lf-option id="bg-specimen-screen">
-                <strong>Display signs</strong> Easy to update.
-              </lf-option>
-            </lf-options>
-          </lf-specimen>
-          <section id="bg-live-practice">
-            <h3>Live specimen</h3>
-            <p id="bg-live-specimen-guide">
-              Enter the practice page, accept its suggestion, and add a comment. Its
-              decisions and Threads belong to that page alone. Close any open controls
-              and press Escape to return here; Reset clears the practice page.
-            </p>
-            <lf-specimen id="bg-live-specimen" label="practice release note">
-              <template id="bg-live-specimen-page" data-specimen>
-                <p class="eyebrow">practice page</p>
-                <h1>Weekend train service</h1>
-                <p id="bg-live-specimen-copy">
-                  The sample timetable now
-                  <lf-suggestion id="bg-live-specimen-suggestion"
-                    ><lf-old>sometimes includes</lf-old
-                    ><lf-new>includes</lf-new></lf-suggestion
-                  >
-                  the evening shuttle.
-                </p>
-              </template>
-            </lf-specimen>
-          </section>
-          <p id="bg-shot-guide">
-            Specimen labels invented content. Choose Before or After above the image, or
-            press the Shot control or image to flip.
-          </p>
-          <lf-shot
-            id="bg-shot"
-            alt="a sample run list with and without a status column"
-            before="/media/051bee487bfb5d13.png"
-            after="/media/a99a1b63048502d0.png"
-          ></lf-shot>
-        </section>
-      </section>
-
-      <section
-        class="interaction-gallery"
-        id="bg-interactions"
-        aria-labelledby="bg-interactions-title"
-        data-interaction-gallery
-        data-interaction-viewport="2"
-      >
-        <p class="eyebrow bg-feature-elements">
-          lf-tabs · lf-tab · lf-suggestion · lf-old · lf-new · lf-board · lf-column ·
-          lf-card
-        </p>
-        <h2 id="bg-interactions-title">
-          <strong>Interactions</strong
-          ><span class="bg-feature-detail">: motion and input sequences</span>
-        </h2>
-        <p id="bg-interactions-guide">
-          Selecting a tab starts its focused sequence against Leaf’s production
-          component and transition code. Each replay runs in a Leaf page inside the
-          preview box, so page-wide controls keep their real margin placement while the
-          gallery stays still. Viewport compares the same page at 1×, 2×, or 4× its
-          displayed size. Pause, replay, or loop the sequence; none writes to the page’s
-          event log.
-        </p>
-
-        <lf-tabs id="bg-interaction-tabs">
-          <lf-tab id="bg-interaction-accept" label="Accept a suggestion">
-            <figure class="interaction-demo" data-interaction-demo="accept">
-              <template id="bg-motion-accept-page" data-specimen>
-                <p class="eyebrow">proposed release note</p>
-                <p id="bg-motion-accept-copy">
-                  The importer now
-                  <lf-suggestion id="bg-motion-accept"
-                    ><lf-old>usually finishes</lf-old
-                    ><lf-new>finishes</lf-new></lf-suggestion
-                  >
-                  before the next run begins.
-                </p>
-              </template>
-              <div
-                class="interaction-stage interaction-frame-stage interaction-suggestion-stage"
-              >
-                <iframe
-                  class="interaction-frame"
-                  data-interaction-frame
-                  name="interaction-accept"
-                  title="Contained Leaf suggestion animation"
-                  tabindex="-1"
-                  aria-hidden="true"
-                ></iframe>
-                <span class="interaction-pointer" hidden aria-hidden="true"></span>
-              </div>
-              <figcaption>
-                The pointer presses Accept; Leaf folds away the retired wording and
-                leaves the sentence in its settled state.
-              </figcaption>
-            </figure>
-          </lf-tab>
-
-          <lf-tab id="bg-interaction-move" label="Move a card">
-            <figure class="interaction-demo" data-interaction-demo="move-card">
-              <template id="bg-motion-board-page" data-specimen>
-                <p class="eyebrow">migration checklist</p>
-                <h1>Schema migration</h1>
-                <lf-board id="bg-motion-board">
-                  <lf-column id="bg-motion-ready" label="Ready">
-                    <lf-card id="bg-motion-card"
-                      ><strong>Verify migration</strong> Run the schema sample.</lf-card
-                    >
-                  </lf-column>
-                  <lf-column id="bg-motion-tried" label="Tried"></lf-column>
-                </lf-board>
-              </template>
-              <div class="interaction-stage interaction-frame-stage">
-                <iframe
-                  class="interaction-frame"
-                  data-interaction-frame
-                  name="interaction-move-card"
-                  title="Contained Leaf board animation"
-                  tabindex="-1"
-                  aria-hidden="true"
-                ></iframe>
-                <span class="interaction-pointer" hidden aria-hidden="true"></span>
-              </div>
-              <figcaption>
-                The pointer finds the card’s grip, then Leaf plays the same placement
-                transition used after a keyboard or drag move.
-              </figcaption>
-            </figure>
-          </lf-tab>
-
-          <lf-tab id="bg-interaction-comment" label="Send a comment">
-            <figure
-              class="interaction-demo"
-              data-interaction-demo="send-comment"
-              data-interaction-target="bg-thread-text"
-              data-interaction-thread-id="2be2443f0bb6cc49fc86b52f340e6073"
-            >
-              <template
-                id="bg-motion-comment-page"
-                data-specimen
-                data-specimen-threads="2be2443f0bb6cc49fc86b52f340e6073"
-              >
-                <p class="eyebrow">review note</p>
-                <h1>Agenda draft</h1>
-                <p id="bg-thread-text">
-                  The sample agenda has room for one more topic.
-                </p>
-              </template>
-              <div class="interaction-stage interaction-frame-stage">
-                <iframe
-                  class="interaction-frame"
-                  data-interaction-frame
-                  name="interaction-send-comment"
-                  title="Contained Leaf comment animation"
-                  tabindex="-1"
-                  aria-hidden="true"
-                ></iframe>
-                <kbd
-                  class="interaction-keypress"
-                  data-interaction-keypress="Enter"
-                  hidden
-                ></kbd>
-                <span class="interaction-pointer" hidden aria-hidden="true"></span>
-              </div>
-              <figcaption>
-                Leaf’s real response field submits with Enter, then becomes the real
-                inline thread. A seeded comment lets the gallery replay that
-                accepted-send transition without posting another one.
-              </figcaption>
-            </figure>
-          </lf-tab>
-
-          <lf-tab id="bg-interaction-threads" label="Open and close Threads">
-            <figure class="interaction-demo" data-interaction-demo="open-threads">
-              <template
-                id="bg-motion-threads-page"
-                data-specimen
-                data-specimen-threads="2be2443f0bb6cc49fc86b52f340e6073"
-              >
-                <p class="eyebrow">review workspace</p>
-                <h1>Release notes</h1>
-                <p id="bg-thread-text">
-                  The sample agenda has room for one more topic.
-                </p>
-              </template>
-              <div class="interaction-stage interaction-frame-stage">
-                <iframe
-                  class="interaction-frame"
-                  data-interaction-frame
-                  name="interaction-open-threads"
-                  title="Contained Leaf Threads animation"
-                  tabindex="-1"
-                  aria-hidden="true"
-                ></iframe>
-                <span class="interaction-pointer" hidden aria-hidden="true"></span>
-              </div>
-              <figcaption>
-                The pointer presses the real top-bar control inside a zoomed-out Leaf
-                page; the production Threads panel opens and closes without changing
-                this gallery page.
-              </figcaption>
-            </figure>
-          </lf-tab>
-        </lf-tabs>
-      </section>
-
-      <section id="bg-layout-family">
-        <p class="eyebrow bg-feature-elements">lf-pane</p>
-        <h2>
-          <strong>Workspace regions</strong
-          ><span class="bg-feature-detail">: panes that scroll on their own</span>
-        </h2>
-        <p id="bg-layout-guide">
-          A page whose work is a set of regions puts <code>layout-workspace</code> on
-          <code>main</code>: the page holds the window, and each pane's body scrolls on
-          its own under the pane's header and above its footer. This page is a column,
-          so it bounds the same panes in a box of its own. Open the command trace: the
-          evidence scrolls inside its pane, and the page and the decision under the
-          follow-ups stay where they are. In a window too small to hold the box, the
-          panes stack and the page scrolls.
-        </p>
-        <div id="bg-layout-workspace" data-width="wide">
-          <header><h3>Release candidate review</h3></header>
-          <div id="bg-layout-columns">
-            <lf-pane id="bg-layout-list" label="Changes">
-              <header><h4>Changes</h4></header>
-              <lf-tabs id="bg-layout-tabs">
-                <lf-tab id="bg-layout-summary" label="Summary">
+              <lf-compare id="bg-compare">
+                <lf-variant id="bg-variant-paper">
+                  <lf-chip id="bg-chip-power">power: none</lf-chip
+                  ><lf-chip tone="ok">weight: low</lf-chip>
+                  <strong>Paper map</strong> Easy to annotate and fold.
+                </lf-variant>
+                <lf-variant id="bg-variant-screen">
+                  <lf-chip>power: daily</lf-chip
+                  ><lf-chip tone="warn">weight: medium</lf-chip>
+                  <strong>Tablet map</strong> Searchable and backlit.
+                </lf-variant>
+              </lf-compare>
+              <table id="bg-route-distances">
+                <caption>
+                  Route distances — numeric columns align on the right
+                </caption>
+                <thead>
+                  <tr>
+                    <th>Route</th>
+                    <th scope="col">Distance (km)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th scope="row">Courtyard loop</th>
+                    <td class="num">1.4</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Riverside path</th>
+                    <td class="num">12.6</td>
+                  </tr>
+                </tbody>
+              </table>
+              <lf-compare id="bg-compare-prose">
+                <lf-variant id="bg-variant-paper-detail">
+                  <strong>Paper on the trail</strong>
                   <p>
-                    The candidate changes cache keys, receipts, and settlement jobs.
+                    Mark the route before leaving. The map stays readable when the
+                    battery runs out.
                   </p>
-                  <ul>
-                    <li>Cache migration copies active entries before cutover.</li>
-                    <li>Receipts show refunds in the settlement currency.</li>
-                    <li>Invalid jobs leave the shared queue for review.</li>
-                  </ul>
-                </lf-tab>
-                <lf-tab id="bg-layout-risk" label="Risk">
+                </lf-variant>
+                <lf-variant id="bg-variant-screen-detail">
+                  <strong>Screen at a junction</strong>
                   <p>
-                    The cache migration is the only change that rewrites stored data.
+                    Search the nearest stop and update the route. Carry enough power for
+                    the return journey.
+                  </p>
+                </lf-variant>
+              </lf-compare>
+            </section>
+
+            <section id="bg-plans-and-history">
+              <p class="eyebrow bg-feature-elements">
+                lf-milestones · lf-milestone · lf-chronology · lf-chronology-entry
+              </p>
+              <h3>
+                <strong>Milestones</strong> and <strong>Chronology</strong
+                ><span class="bg-feature-detail">: state and history</span>
+              </h3>
+              <p id="bg-plans-guide">
+                Milestones show planned, active, and completed work. A Chronology orders
+                entries by time.
+              </p>
+              <lf-milestones id="bg-milestones">
+                <lf-milestone id="bg-milestone-survey" status="done" when="morning">
+                  <strong>Survey the route</strong> Marked the crossings.
+                </lf-milestone>
+                <lf-milestone
+                  id="bg-milestone-walk"
+                  status="active"
+                  when="afternoon"
+                  tags="sample,route"
+                >
+                  <strong>Walk the route</strong> Checking the covered section.
+                </lf-milestone>
+                <lf-milestone id="bg-milestone-report" status="planned" when="next">
+                  <strong>Write the note</strong>
+                </lf-milestone>
+              </lf-milestones>
+              <lf-chronology id="bg-chronology">
+                <lf-chronology-entry id="bg-chronology-alert" at="09:14" kind="warning">
+                  <strong>Rain started</strong> The open path became slippery.
+                </lf-chronology-entry>
+                <lf-chronology-entry
+                  id="bg-chronology-closed"
+                  at="09:18"
+                  kind="failure"
+                >
+                  <strong>Path closed</strong> Standing water blocked the crossing.
+                </lf-chronology-entry>
+                <lf-chronology-entry
+                  id="bg-chronology-switch"
+                  at="09:20"
+                  kind="intervention"
+                >
+                  <strong>Route changed</strong> The sample moved under cover.
+                </lf-chronology-entry>
+                <lf-chronology-entry
+                  id="bg-chronology-clear"
+                  at="09:42"
+                  kind="observation"
+                >
+                  <strong>Walk resumed</strong>
+                </lf-chronology-entry>
+              </lf-chronology>
+            </section>
+
+            <section id="bg-activity-feed">
+              <p class="eyebrow bg-feature-elements">lf-activity</p>
+              <h3>
+                <strong>Activity</strong
+                ><span class="bg-feature-detail"
+                  >: this page's history, newest first</span
+                >
+              </h3>
+              <p id="bg-activity-guide">
+                The feed reads this page's own log: the seeded threads, reactions, user
+                actions, and published versions. The board move near the end was taken
+                back, so its row stays struck through and marked undone. Press a thread
+                row to open its thread, or a widget row to travel to the widget.
+              </p>
+              <lf-activity id="bg-activity"></lf-activity>
+            </section>
+
+            <section id="bg-tab-set">
+              <p class="eyebrow bg-feature-elements">lf-tabs · lf-tab</p>
+              <h3>
+                <strong>Tabs</strong
+                ><span class="bg-feature-detail">: saved panel selection</span>
+              </h3>
+              <p id="bg-tabs-guide">
+                This embedded specimen is a framed tabbed section. The browser test also
+                presents this same tab set at the root of a page, where it becomes
+                borderless top navigation for page-scale views. Both forms remember the
+                selected panel after reload. At page level, scroll a view and switch
+                away and back: each selection reaches the panel’s beginning below the
+                tab strip. Browser Back and Forward return to the corresponding views.
+              </p>
+              <lf-tabs id="bg-tabs">
+                <lf-tab id="bg-tab-current" label="Current">
+                  <p id="bg-tab-current-text">
+                    The current sample route is under review.
+                  </p>
+                </lf-tab>
+                <lf-tab id="bg-tab-context" label="Context">
+                  <p id="bg-tab-context-text">
+                    The earlier route crossed the courtyard.
                   </p>
                 </lf-tab>
               </lf-tabs>
-            </lf-pane>
+            </section>
 
-            <div id="bg-layout-rows">
-              <lf-pane id="bg-layout-evidence" label="Evidence">
-                <header><h4>Evidence</h4></header>
-                <article id="bg-layout-article">
-                  <header><strong>Migration rehearsal</strong></header>
-                  <p>
-                    The rehearsal copied 8,412 active keys and preserved every value.
-                  </p>
-                  <details id="bg-layout-trace">
-                    <summary>Inspect the command trace</summary>
-                    <pre><code>copy --source cache-v1 --target cache-v2 --active-only
+            <section id="bg-drawing">
+              <p class="eyebrow">svg.drawing</p>
+              <h3>
+                <strong>Drawing</strong
+                ><span class="bg-feature-detail">: a schematic in theme colours</span>
+              </h3>
+              <p id="bg-drawing-guide">
+                Two states of a sample page drawn alike in one frame. Switch the colour
+                scheme: every mark follows it.
+              </p>
+              <figure id="bg-drawing-figure" data-width="wide">
+                <svg
+                  class="drawing"
+                  viewBox="0 0 560 150"
+                  role="img"
+                  aria-labelledby="bg-drawing-title"
+                >
+                  <title id="bg-drawing-title">
+                    A note moves from the column into the right margin
+                  </title>
+                  <defs>
+                    <marker
+                      id="bg-drawing-tip"
+                      viewBox="0 0 8 8"
+                      refX="7"
+                      refY="4"
+                      markerWidth="8"
+                      markerHeight="8"
+                      orient="auto"
+                    >
+                      <path class="tip" d="M0 0 8 4 0 8z" />
+                    </marker>
+                  </defs>
+                  <text class="strong" x="14" y="16">Before</text>
+                  <rect class="frame" x="4" y="24" width="240" height="118" rx="6" />
+                  <rect
+                    class="frame-head"
+                    x="4"
+                    y="24"
+                    width="240"
+                    height="14"
+                    rx="6"
+                  />
+                  <rect class="line" x="24" y="52" width="160" height="6" rx="3" />
+                  <rect class="line soft" x="24" y="64" width="140" height="6" rx="3" />
+                  <rect class="box hot" x="24" y="80" width="160" height="22" rx="3" />
+                  <text class="small" x="32" y="94">note</text>
+                  <rect
+                    class="line soft"
+                    x="24"
+                    y="112"
+                    width="150"
+                    height="6"
+                    rx="3"
+                  />
+                  <path
+                    class="arrow"
+                    d="M262 83H300"
+                    marker-end="url(#bg-drawing-tip)"
+                  />
+                  <text class="strong" x="326" y="16">After</text>
+                  <rect class="frame" x="316" y="24" width="240" height="118" rx="6" />
+                  <rect
+                    class="frame-head"
+                    x="316"
+                    y="24"
+                    width="240"
+                    height="14"
+                    rx="6"
+                  />
+                  <rect class="line" x="336" y="52" width="140" height="6" rx="3" />
+                  <rect
+                    class="line soft"
+                    x="336"
+                    y="64"
+                    width="120"
+                    height="6"
+                    rx="3"
+                  />
+                  <rect class="ghost" x="336" y="80" width="140" height="22" rx="3" />
+                  <rect class="box hot" x="488" y="52" width="56" height="30" rx="3" />
+                  <text class="small" x="496" y="70">note</text>
+                  <line class="guide" x1="482" y1="46" x2="482" y2="134" />
+                  <circle class="mark" cx="336" cy="120" r="7" />
+                  <text class="glyph" x="336" y="120">1</text>
+                  <circle class="ok" cx="356" cy="120" r="4" />
+                  <circle class="warn" cx="370" cy="120" r="4" />
+                  <circle class="danger" cx="384" cy="120" r="4" />
+                  <rect
+                    class="highlight"
+                    x="396"
+                    y="116"
+                    width="40"
+                    height="8"
+                    rx="2"
+                  />
+                  <line class="dim" x1="488" y1="92" x2="544" y2="92" />
+                  <text class="mono" x="500" y="106">96px</text>
+                </svg>
+                <figcaption>
+                  The margin exists only above 1152px; the drawing shows the wide case.
+                </figcaption>
+              </figure>
+            </section>
+
+            <section id="bg-quoted-and-visual">
+              <p class="eyebrow bg-feature-elements">
+                lf-specimen · lf-shot · lf-options · lf-option
+              </p>
+              <h3>
+                <strong>Specimen</strong> and <strong>Shot</strong
+                ><span class="bg-feature-detail"
+                  >: fiction and before/after images</span
+                >
+              </h3>
+              <lf-specimen id="bg-specimen" label="an inert multiple-pick decision">
+                <lf-options id="bg-specimen-options" choose multiple>
+                  <lf-option id="bg-specimen-paper">
+                    <strong>Paper signs</strong> Nothing to charge.
+                  </lf-option>
+                  <lf-option id="bg-specimen-screen">
+                    <strong>Display signs</strong> Easy to update.
+                  </lf-option>
+                </lf-options>
+              </lf-specimen>
+              <section id="bg-live-practice">
+                <h3>Live specimen</h3>
+                <p id="bg-live-specimen-guide">
+                  Enter the practice page, accept its suggestion, and add a comment. Its
+                  decisions and Threads belong to that page alone. Close any open
+                  controls and press Escape to return here; Reset clears the practice
+                  page.
+                </p>
+                <lf-specimen id="bg-live-specimen" label="practice release note">
+                  <template id="bg-live-specimen-page" data-specimen>
+                    <p class="eyebrow">practice page</p>
+                    <h1>Weekend train service</h1>
+                    <p id="bg-live-specimen-copy">
+                      The sample timetable now
+                      <lf-suggestion id="bg-live-specimen-suggestion"
+                        ><lf-old>sometimes includes</lf-old
+                        ><lf-new>includes</lf-new></lf-suggestion
+                      >
+                      the evening shuttle.
+                    </p>
+                  </template>
+                </lf-specimen>
+              </section>
+              <p id="bg-shot-guide">
+                Specimen labels invented content. Choose Before or After above the
+                image, or press the Shot control or image to flip.
+              </p>
+              <lf-shot
+                id="bg-shot"
+                alt="a sample run list with and without a status column"
+                before="/media/051bee487bfb5d13.png"
+                after="/media/a99a1b63048502d0.png"
+              ></lf-shot>
+            </section>
+          </section>
+
+          <section id="bg-layout-family">
+            <p class="eyebrow bg-feature-elements">lf-pane</p>
+            <h2>
+              <strong>Workspace regions</strong
+              ><span class="bg-feature-detail">: panes that scroll on their own</span>
+            </h2>
+            <p id="bg-layout-guide">
+              A page whose work is a set of regions puts
+              <code>layout-workspace</code> on <code>main</code>: the page holds the
+              window, and each pane's body scrolls on its own under the pane's header
+              and above its footer. This page is a column, so it bounds the same panes
+              in a box of its own. Open the command trace: the evidence scrolls inside
+              its pane, and the page and the decision under the follow-ups stay where
+              they are. In a window too small to hold the box, the panes stack and the
+              page scrolls.
+            </p>
+            <div id="bg-layout-workspace" data-width="wide">
+              <header><h3>Release candidate review</h3></header>
+              <div id="bg-layout-columns">
+                <lf-pane id="bg-layout-list" label="Changes">
+                  <header><h4>Changes</h4></header>
+                  <lf-tabs id="bg-layout-tabs">
+                    <lf-tab id="bg-layout-summary" label="Summary">
+                      <p>
+                        The candidate changes cache keys, receipts, and settlement jobs.
+                      </p>
+                      <ul>
+                        <li>Cache migration copies active entries before cutover.</li>
+                        <li>Receipts show refunds in the settlement currency.</li>
+                        <li>Invalid jobs leave the shared queue for review.</li>
+                      </ul>
+                    </lf-tab>
+                    <lf-tab id="bg-layout-risk" label="Risk">
+                      <p>
+                        The cache migration is the only change that rewrites stored
+                        data.
+                      </p>
+                    </lf-tab>
+                  </lf-tabs>
+                </lf-pane>
+
+                <div id="bg-layout-rows">
+                  <lf-pane id="bg-layout-evidence" label="Evidence">
+                    <header><h4>Evidence</h4></header>
+                    <article id="bg-layout-article">
+                      <header><strong>Migration rehearsal</strong></header>
+                      <p>
+                        The rehearsal copied 8,412 active keys and preserved every
+                        value.
+                      </p>
+                      <details id="bg-layout-trace">
+                        <summary>Inspect the command trace</summary>
+                        <pre><code>copy --source cache-v1 --target cache-v2 --active-only
 verify --source cache-v1 --target cache-v2 --compare values
 switch --readers checkout-api,orders-api</code></pre>
-                  </details>
-                </article>
-              </lf-pane>
+                      </details>
+                    </article>
+                  </lf-pane>
 
-              <lf-pane id="bg-layout-tasks" label="Follow-ups">
-                <header><h4>Follow-ups</h4></header>
-                <lf-board id="bg-layout-board">
-                  <lf-column id="bg-layout-ready" label="Ready">
-                    <lf-card id="bg-layout-cache-card"
-                      ><strong>Verify cache expiry</strong> Confirm old keys leave after
-                      the rollback window.</lf-card
-                    >
-                  </lf-column>
-                  <lf-column id="bg-layout-running" label="Running">
-                    <lf-card id="bg-layout-receipt-card"
-                      ><strong>Sample refund receipts</strong> Compare three settlement
-                      currencies.</lf-card
-                    >
-                  </lf-column>
-                  <lf-column id="bg-layout-done" label="Done"></lf-column>
-                </lf-board>
-                <footer>
-                  <lf-ask id="bg-layout-ask">
-                    <h5>Is this candidate ready?</h5>
-                    <lf-options id="bg-layout-decision" choose>
-                      <lf-option id="bg-layout-ship">Ship this candidate</lf-option>
-                      <lf-option id="bg-layout-hold"
-                        >Hold for another rehearsal</lf-option
-                      >
-                    </lf-options>
-                  </lf-ask>
-                </footer>
-              </lf-pane>
+                  <lf-pane id="bg-layout-tasks" label="Follow-ups">
+                    <header><h4>Follow-ups</h4></header>
+                    <lf-board id="bg-layout-board">
+                      <lf-column id="bg-layout-ready" label="Ready">
+                        <lf-card id="bg-layout-cache-card"
+                          ><strong>Verify cache expiry</strong> Confirm old keys leave
+                          after the rollback window.</lf-card
+                        >
+                      </lf-column>
+                      <lf-column id="bg-layout-running" label="Running">
+                        <lf-card id="bg-layout-receipt-card"
+                          ><strong>Sample refund receipts</strong> Compare three
+                          settlement currencies.</lf-card
+                        >
+                      </lf-column>
+                      <lf-column id="bg-layout-done" label="Done"></lf-column>
+                    </lf-board>
+                    <footer>
+                      <lf-ask id="bg-layout-ask">
+                        <h5>Is this candidate ready?</h5>
+                        <lf-options id="bg-layout-decision" choose>
+                          <lf-option id="bg-layout-ship">Ship this candidate</lf-option>
+                          <lf-option id="bg-layout-hold"
+                            >Hold for another rehearsal</lf-option
+                          >
+                        </lf-options>
+                      </lf-ask>
+                    </footer>
+                  </lf-pane>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      </section>
+          </section>
+        </lf-tab>
 
-      <section id="bg-version-changes">
-        <h2>
-          <strong>Version changes</strong
-          ><span class="bg-feature-detail">: comparison evidence</span>
-        </h2>
-        <p id="bg-version-guide">
-          Open the versions menu and press Compare beside v1. The Change control appears
-          by the edited passage and opens its text diff inline.
-        </p>
-        <p id="bg-change">The sample walk follows the river to the footbridge.</p>
-      </section>
+        <lf-tab id="bg-view-data" label="Data & work">
+          <section id="bg-external-data">
+            <p class="eyebrow bg-feature-elements">lf-text-document · lf-num</p>
+            <h2>
+              <strong>External data</strong
+              ><span class="bg-feature-detail">: live values and provenance</span>
+            </h2>
 
-      <section id="bg-delivery">
-        <p class="eyebrow bg-feature-elements">lf-board · lf-column · lf-card</p>
-        <h2>
-          <strong>Board</strong> and <strong>delivery state</strong
-          ><span class="bg-feature-detail">: work and workflow state</span>
-        </h2>
-        <p id="bg-delivery-guide">
-          Drag the card to Tried, use its grip with Enter and the arrows, or tap a
-          destination on a phone. Sent, Picked up, and Working report the agent
-          workflow. A refused send offers Retry and Cancel.
-        </p>
-        <p id="bg-cut-guide">
-          This board carries more columns than the page has room for, so it scrolls
-          sideways. Its content fades at each edge with more beyond it: the right edge
-          at first, both edges while crossing, and the left edge at the end. The layer
-          writes these marks on any box in that state, because the platform’s own
-          scrollbar draws nothing until something scrolls it. Boxes holding everything
-          they have — the code block and the diagram above — wear none.
-        </p>
-        <lf-board id="bg-work-board">
-          <lf-column id="bg-work-ready" label="Ready">
-            <lf-card id="bg-work"
-              ><strong>Check the sample route</strong>
-              A live work claim puts a Working indicator here because this card has no
-              other margin control to carry its workflow state.
-            </lf-card>
-          </lf-column>
-          <lf-column id="bg-work-tried" label="Tried"></lf-column>
-          <lf-column id="bg-work-reviewing" label="Reviewing"></lf-column>
-          <lf-column id="bg-work-waiting" label="Waiting on a person"></lf-column>
-          <lf-column id="bg-work-handed" label="Handed back">
-            <lf-card id="bg-work-handed-card"
-              ><strong>Redraw the sample legend</strong>
-              One of the cards the edge fade stands for: scroll the board across to
-              reach it.
-            </lf-card>
-          </lf-column>
-          <lf-column id="bg-work-done" label="Done" tone="ok"></lf-column>
-        </lf-board>
-        <p id="bg-feedback">
-          To ask for a refinement, comment on the sample that shows it and say what
-          should change. Plain experiment clicks do not request implementation work.
-        </p>
-        <details id="bg-construction-reading">
-          <summary>Inspect the page and find what to edit</summary>
-          <p id="bg-construction-guide">
-            Move the card, submit a draft, or add an option above. Run
-            <code>leaf page state PAGE</code> against this preview's page directory. Its
-            content keeps your exact words, selected options, and card order; source
-            locations and edit routes distinguish authored content from user decisions
-            and captured data. Change unrelated source wording and inspect again: those
-            user choices survive without copying them into HTML. Use
-            <code>--thread ID</code> to inspect a frozen thread.
-          </p>
-        </details>
-      </section>
+            <section id="bg-source-captures">
+              <p class="eyebrow bg-feature-elements">lf-text-document</p>
+              <h3>
+                <strong>Text document</strong
+                ><span class="bg-feature-detail">: a captured file</span>
+              </h3>
+              <p id="bg-source-guide">
+                The document follows its source's current value. Its caption names the
+                captured file and line range.
+              </p>
+              <lf-text-document
+                id="bg-source-live"
+                source="gallery-source"
+                label="feature-gallery-source.toml · lines 1–4"
+                language="toml"
+              ></lf-text-document>
+            </section>
+
+            <section id="bg-measurement-lag">
+              <p class="eyebrow bg-feature-elements">lf-num</p>
+              <h3>
+                <strong>Num</strong
+                ><span class="bg-feature-detail">: provenance and stale data</span>
+              </h3>
+              <p id="bg-measurement-guide">
+                This Num stores
+                <lf-num
+                  id="bg-latency"
+                  source="gallery-latency"
+                  at="2000-01-01T00:00:00Z"
+                  via="uv run bench-gallery"
+                  >184 ms</lf-num
+                >, its timestamp, and the command that produced it. Because the source
+                has a newer update, <code>version check</code> reports that the
+                measurement is behind its source.
+              </p>
+            </section>
+
+            <section id="bg-record-requests">
+              <h3>Requests from data rows</h3>
+              <p>
+                Press Restart on one job. Its request becomes pending while the other
+                remains ready. The Asks tray holds one question for the whole set.
+              </p>
+              <lf-ask id="bg-jobs-question">
+                <h4>Which job needs a restart?</h4>
+                <lf-job-requests id="bg-jobs" source="gallery-jobs"></lf-job-requests>
+              </lf-ask>
+            </section>
+          </section>
+
+          <section id="bg-version-changes">
+            <h2>
+              <strong>Version changes</strong
+              ><span class="bg-feature-detail">: comparison evidence</span>
+            </h2>
+            <p id="bg-version-guide">
+              Open the versions menu and press Compare beside v1. The Change control
+              appears by the edited passage and opens its text diff inline.
+            </p>
+            <p id="bg-change">The sample walk follows the river to the footbridge.</p>
+          </section>
+
+          <section id="bg-delivery">
+            <p class="eyebrow bg-feature-elements">lf-board · lf-column · lf-card</p>
+            <h2>
+              <strong>Board</strong> and <strong>delivery state</strong
+              ><span class="bg-feature-detail">: work and workflow state</span>
+            </h2>
+            <p id="bg-delivery-guide">
+              Drag the card to Tried, use its grip with Enter and the arrows, or tap a
+              destination on a phone. Sent, Picked up, and Working report the agent
+              workflow. A refused send offers Retry and Cancel.
+            </p>
+            <p id="bg-cut-guide">
+              This board carries more columns than the page has room for, so it scrolls
+              sideways. Its content fades at each edge with more beyond it: the right
+              edge at first, both edges while crossing, and the left edge at the end.
+              The layer writes these marks on any box in that state, because the
+              platform’s own scrollbar draws nothing until something scrolls it. Boxes
+              holding everything they have — the code block and the diagram above — wear
+              none.
+            </p>
+            <lf-board id="bg-work-board">
+              <lf-column id="bg-work-ready" label="Ready">
+                <lf-card id="bg-work"
+                  ><strong>Check the sample route</strong>
+                  A live work claim puts a Working indicator here because this card has
+                  no other margin control to carry its workflow state.
+                </lf-card>
+              </lf-column>
+              <lf-column id="bg-work-tried" label="Tried"></lf-column>
+              <lf-column id="bg-work-reviewing" label="Reviewing"></lf-column>
+              <lf-column id="bg-work-waiting" label="Waiting on a person"></lf-column>
+              <lf-column id="bg-work-handed" label="Handed back">
+                <lf-card id="bg-work-handed-card"
+                  ><strong>Redraw the sample legend</strong>
+                  One of the cards the edge fade stands for: scroll the board across to
+                  reach it.
+                </lf-card>
+              </lf-column>
+              <lf-column id="bg-work-done" label="Done" tone="ok"></lf-column>
+            </lf-board>
+            <p id="bg-feedback">
+              To ask for a refinement, comment on the sample that shows it and say what
+              should change. Plain experiment clicks do not request implementation work.
+            </p>
+            <details id="bg-construction-reading">
+              <summary>Inspect the page and find what to edit</summary>
+              <p id="bg-construction-guide">
+                Move the card, submit a draft, or add an option above. Run
+                <code>leaf page state PAGE</code> against this preview's page directory.
+                Its content keeps your exact words, selected options, and card order;
+                source locations and edit routes distinguish authored content from user
+                decisions and captured data. Change unrelated source wording and inspect
+                again: those user choices survive without copying them into HTML. Use
+                <code>--thread ID</code> to inspect a frozen thread.
+              </p>
+            </details>
+          </section>
+        </lf-tab>
+
+        <lf-tab id="bg-view-interactions" label="Interactions">
+          <section
+            class="interaction-gallery"
+            id="bg-interactions"
+            aria-labelledby="bg-interactions-title"
+            data-interaction-gallery
+            data-interaction-viewport="2"
+          >
+            <p class="eyebrow bg-feature-elements">
+              lf-tabs · lf-tab · lf-suggestion · lf-old · lf-new · lf-board · lf-column
+              · lf-card
+            </p>
+            <h2 id="bg-interactions-title">
+              <strong>Interactions</strong
+              ><span class="bg-feature-detail">: motion and input sequences</span>
+            </h2>
+            <p id="bg-interactions-guide">
+              Selecting a tab starts its focused sequence against Leaf’s production
+              component and transition code. Each replay runs in a Leaf page inside the
+              preview box, so page-wide controls keep their real margin placement while
+              the gallery stays still. Viewport compares the same page at 1×, 2×, or 4×
+              its displayed size. Pause, replay, or loop the sequence; none writes to
+              the page’s event log.
+            </p>
+
+            <lf-tabs id="bg-interaction-tabs">
+              <lf-tab id="bg-interaction-accept" label="Accept a suggestion">
+                <figure class="interaction-demo" data-interaction-demo="accept">
+                  <template id="bg-motion-accept-page" data-specimen>
+                    <p class="eyebrow">proposed release note</p>
+                    <p id="bg-motion-accept-copy">
+                      The importer now
+                      <lf-suggestion id="bg-motion-accept"
+                        ><lf-old>usually finishes</lf-old
+                        ><lf-new>finishes</lf-new></lf-suggestion
+                      >
+                      before the next run begins.
+                    </p>
+                  </template>
+                  <div
+                    class="interaction-stage interaction-frame-stage interaction-suggestion-stage"
+                  >
+                    <iframe
+                      class="interaction-frame"
+                      data-interaction-frame
+                      name="interaction-accept"
+                      title="Contained Leaf suggestion animation"
+                      tabindex="-1"
+                      aria-hidden="true"
+                    ></iframe>
+                    <span class="interaction-pointer" hidden aria-hidden="true"></span>
+                  </div>
+                  <figcaption>
+                    The pointer presses Accept; Leaf folds away the retired wording and
+                    leaves the sentence in its settled state.
+                  </figcaption>
+                </figure>
+              </lf-tab>
+
+              <lf-tab id="bg-interaction-move" label="Move a card">
+                <figure class="interaction-demo" data-interaction-demo="move-card">
+                  <template id="bg-motion-board-page" data-specimen>
+                    <p class="eyebrow">migration checklist</p>
+                    <h1>Schema migration</h1>
+                    <lf-board id="bg-motion-board">
+                      <lf-column id="bg-motion-ready" label="Ready">
+                        <lf-card id="bg-motion-card"
+                          ><strong>Verify migration</strong> Run the schema
+                          sample.</lf-card
+                        >
+                      </lf-column>
+                      <lf-column id="bg-motion-tried" label="Tried"></lf-column>
+                    </lf-board>
+                  </template>
+                  <div class="interaction-stage interaction-frame-stage">
+                    <iframe
+                      class="interaction-frame"
+                      data-interaction-frame
+                      name="interaction-move-card"
+                      title="Contained Leaf board animation"
+                      tabindex="-1"
+                      aria-hidden="true"
+                    ></iframe>
+                    <span class="interaction-pointer" hidden aria-hidden="true"></span>
+                  </div>
+                  <figcaption>
+                    The pointer finds the card’s grip, then Leaf plays the same
+                    placement transition used after a keyboard or drag move.
+                  </figcaption>
+                </figure>
+              </lf-tab>
+
+              <lf-tab id="bg-interaction-comment" label="Send a comment">
+                <figure
+                  class="interaction-demo"
+                  data-interaction-demo="send-comment"
+                  data-interaction-target="bg-thread-text"
+                  data-interaction-thread-id="2be2443f0bb6cc49fc86b52f340e6073"
+                >
+                  <template
+                    id="bg-motion-comment-page"
+                    data-specimen
+                    data-specimen-threads="2be2443f0bb6cc49fc86b52f340e6073"
+                  >
+                    <p class="eyebrow">review note</p>
+                    <h1>Agenda draft</h1>
+                    <p id="bg-thread-text">
+                      The sample agenda has room for one more topic.
+                    </p>
+                  </template>
+                  <div class="interaction-stage interaction-frame-stage">
+                    <iframe
+                      class="interaction-frame"
+                      data-interaction-frame
+                      name="interaction-send-comment"
+                      title="Contained Leaf comment animation"
+                      tabindex="-1"
+                      aria-hidden="true"
+                    ></iframe>
+                    <kbd
+                      class="interaction-keypress"
+                      data-interaction-keypress="Enter"
+                      hidden
+                    ></kbd>
+                    <span class="interaction-pointer" hidden aria-hidden="true"></span>
+                  </div>
+                  <figcaption>
+                    Leaf’s real response field submits with Enter, then becomes the real
+                    inline thread. A seeded comment lets the gallery replay that
+                    accepted-send transition without posting another one.
+                  </figcaption>
+                </figure>
+              </lf-tab>
+
+              <lf-tab id="bg-interaction-threads" label="Open and close Threads">
+                <figure class="interaction-demo" data-interaction-demo="open-threads">
+                  <template
+                    id="bg-motion-threads-page"
+                    data-specimen
+                    data-specimen-threads="2be2443f0bb6cc49fc86b52f340e6073"
+                  >
+                    <p class="eyebrow">review workspace</p>
+                    <h1>Release notes</h1>
+                    <p id="bg-thread-text">
+                      The sample agenda has room for one more topic.
+                    </p>
+                  </template>
+                  <div class="interaction-stage interaction-frame-stage">
+                    <iframe
+                      class="interaction-frame"
+                      data-interaction-frame
+                      name="interaction-open-threads"
+                      title="Contained Leaf Threads animation"
+                      tabindex="-1"
+                      aria-hidden="true"
+                    ></iframe>
+                    <span class="interaction-pointer" hidden aria-hidden="true"></span>
+                  </div>
+                  <figcaption>
+                    The pointer presses the real top-bar control inside a zoomed-out
+                    Leaf page; the production Threads panel opens and closes without
+                    changing this gallery page.
+                  </figcaption>
+                </figure>
+              </lf-tab>
+            </lf-tabs>
+          </section>
+        </lf-tab>
+      </lf-tabs>
     </main>
   </body>
 </html>

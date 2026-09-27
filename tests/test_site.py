@@ -1047,18 +1047,14 @@ def test_an_invalid_product_document_stops_the_build(tmp_path, monkeypatch):
     assert "<script src>" in str(stopped.value)
 
 
-def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
+def test_the_public_catalog_keeps_its_width_as_the_map_enters_the_margin(
     hosted, browser
 ):
-    """The catalog is useful HTML first; mounting its shared Leaf layer must not move it.
+    """The catalog's horizontal allocation is set before the runtime loads.
 
-    The column and the cards are read separately because they answer for different
-    halves of the same promise. `main` is the page's own box, and the catalog is a
-    declared wide exhibit whose width the theme resolves from the authored attribute
-    rather than the one the runtime paints. Both are therefore settled before the
-    module lands, including the margin rail the prepaint bootstrap has already
-    claimed, and a card that resizes or slides under the user's cursor is the
-    failure this names.
+    The authored width determines the cards' horizontal geometry. The map-only
+    sidebar leaves the flow after the runtime measures the margin, so the catalog
+    moves up when that sidebar stops taking vertical space.
     """
     boot = []
     page = browser.new_page(viewport={"width": 1724, "height": 1036})
@@ -1080,11 +1076,10 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
             {key: initial[key] for key in ("x", "y", "width")}, abs=1
         )
         final_catalog = catalog.bounding_box()
-        assert {
-            key: final_catalog[key] for key in ("x", "y", "width")
-        } == pytest.approx(
-            {key: initial_catalog[key] for key in ("x", "y", "width")}, abs=1
+        assert {key: final_catalog[key] for key in ("x", "width")} == pytest.approx(
+            {key: initial_catalog[key] for key in ("x", "width")}, abs=1
         )
+        assert final_catalog["y"] < initial_catalog["y"]
         assert initial_catalog["width"] > page.evaluate(
             "() => parseFloat(getComputedStyle(document.documentElement)"
             ".getPropertyValue('--col'))"

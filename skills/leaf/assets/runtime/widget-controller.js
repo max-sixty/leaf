@@ -7,12 +7,9 @@
    proof. Local editing defers the render region at its newest unpublished reading. */
 import { applicationState, attachWidgetPresentation } from "./semantic-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";
-import { decisionFor } from "./registry.js";
-import { renderRetired } from "./passages.js";
 import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.js";
 import { failSoft } from "./widget-upgrade.js";
 import { dragHeld, watchDragRelease } from "./widget-elements.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 
 const controllers = new WeakMap();
 const lifecycles = new WeakMap();
@@ -26,16 +23,6 @@ watchDragRelease(() => {
   gestureDeferred.clear();
   for (const resume of pending) resume();
 });
-
-function renderSettlement(owner, state) {
-  const decision = decisionFor(owner.localName);
-  if (!decision) return;
-  const outcome = state[decision.verb].detail?.outcome ?? null;
-  if (decision.retires[outcome])
-    owner.setAttribute(PAGE_PAINT_ATTRIBUTE.settlement, outcome);
-  else owner.removeAttribute(PAGE_PAINT_ATTRIBUTE.settlement);
-  renderRetired(owner, outcome);
-}
 
 const visitElements = (node, visit) => {
   if (!(node instanceof Element)) return;
@@ -183,11 +170,6 @@ function createWidgetController(owner) {
             { cause: error },
           ),
         );
-      }
-      try {
-        renderSettlement(owner, reading.state);
-      } catch (error) {
-        failures.push(error);
       }
       // Auxiliary subscribers may read DOM established by the total render. If that
       // prerequisite failed, the one fail-soft owns this reading instead of running

@@ -24,9 +24,9 @@ leaf package run NAME SCRIPT [ARGS]...
 `package init` creates `registry.json`, `theme.css`, `guidance/`, `runtime/`,
 `widgets/`, and `vendor/` without replacing existing contents. Add `--widget TAG` to
 create one upgraded prose widget at the same time. Leaf adds a valid registry example
-and the matching `widgets/TAG.js` module, which registers the element, upgrades it
-`once`, and subscribes to its `widgetController`; it then checks the resulting
-composition, and leaves a new package's empty theme ready for the widget's presentation.
+and the matching `widgets/TAG.js` module, which registers the element and upgrades it
+`once`; it then checks the resulting composition, and leaves a new package's empty
+theme ready for the widget's presentation.
 An existing theme and other package files remain in place. Leaf refuses a tag or module
 that already exists rather than replacing it. The package author edits that directory,
 then checks its composition before adding the package to a page:
@@ -318,7 +318,9 @@ availability; `dispatch()` repeats the same check.
 `subscribe(callback)` invokes immediately, returns cleanup, and should be stopped on
 disconnect; reconnecting subscribes again. For each reading the controller calls the
 module's `renderState(state)` first and these subscribers after. Report-only and quoted
-semantic widgets subscribe too, even with no interactive controls.
+semantic widgets subscribe too, even with no interactive controls. What the declaration
+alone determines, such as a holder's settlement (`x-retired-when`), Leaf paints whether
+or not the module subscribes.
 
 `dispatch({kind: "action" | "request", verb, detail, attempt?})` and
 `dispatch({kind: "undo", target})` return `null` when the newest reading refuses the

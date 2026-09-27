@@ -1660,6 +1660,29 @@ def suggestion_control(scope, suggestion_id: str, key=None, *, visible=True):
     return margin_control(scope, suggestion_owner(suggestion_id), key, visible=visible)
 
 
+def any_owner_entry(kind: str, key: str | None = None) -> str:
+    """The selector for a margin entry any `kind` widget (`draft`, `suggestion`)
+    registered, for a probe that plants one example on a page rather than tracking a
+    particular id. `margin_entry` locates one owner exactly."""
+    selector = f'[data-lf-margin-entry-owner^="{kind}:"]'
+    return selector if key is None else f'{selector}[data-lf-margin-entry-key="{key}"]'
+
+
+def any_draft_control(scope, key: str | None = None, *, visible=True):
+    """Any draft's margin entry `key` on the page, for the same reason `any_owner_entry`
+    exists rather than `draft_control`."""
+    return scope.locator(
+        any_owner_entry("draft", key) + (":visible" if visible else "")
+    )
+
+
+def any_suggestion_control(scope, key: str | None = None, *, visible=True):
+    """Any suggestion's margin entry `key` on the page, or all of its entries."""
+    return scope.locator(
+        any_owner_entry("suggestion", key) + (":visible" if visible else "")
+    )
+
+
 def command_reference_rows(page, heading):
     """The rows of the command reference table titled `heading`."""
     heading_id = page.get_by_role("heading", name=heading, exact=True).get_attribute(

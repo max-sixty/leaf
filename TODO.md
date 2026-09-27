@@ -222,12 +222,6 @@ and its chrome coordinate.
   `thread/thread-card.js`), and `lf-activity.js` shows such a row under the claimant's
   name instead. Resolve the name where the browser's threads, margin updates and
   activity rows are served, then delete the JS fallbacks.
-- **Pick "any suggestion's control" without its owner key.** The harness's
-  `suggestion_owner` is the suite's one spelling of `lf-suggestion`'s contribution key,
-  but four prefix selectors in `test_render_controls.py` (`^="suggestion:"`,
-  `^="draft:"`), one that slices the key apart there, and one in
-  `test_render_threads.py` still spell it. Give the harness a by-kind locator, or
-  find these controls by the widget's own element.
 
 ## Etc
 

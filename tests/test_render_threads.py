@@ -542,9 +542,9 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     expect(expand).to_have_attribute("aria-expanded", "true")
     for message in (first, middle, last):
         expect(card.locator(f'.lf-msg[data-mid="{message["id"]}"]')).to_be_visible()
-    refold = checkpoint.get_by_role(
-        "button", name="Collapse summarized messages", exact=True
-    )
+    refold = checkpoint.locator(".lf-summary-refold")
+    expect(refold).to_have_accessible_name("Hide 3 messages")
+    expect(refold).to_have_text("Hide")
     refold.focus()
     page.keyboard.press("Enter")
     expect(expand).to_have_attribute("aria-expanded", "false")

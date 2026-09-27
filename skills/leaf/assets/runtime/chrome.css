@@ -1123,7 +1123,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-summary-originals:not(:has(> .lf-summary-refold)) > .lf-summary-messages
     > .lf-msg { margin-inline-end: 8px; }
   .lf-summary-refold { min-width: var(--aim-floor); border: 0; border-inline-start: 1px solid var(--rule);
-    padding: 0; background: transparent; color: var(--muted); font: 20px/1 var(--sans); cursor: pointer; }
+    padding: 0; background: transparent; color: var(--muted); font: 600 11px/1.4 var(--sans); cursor: pointer; }
   .lf-summary-refold > span { position: sticky; top: 8px; display: block; padding-block: 10px; }
   .lf-summary-refold:hover { color: var(--accent); background: var(--chip); }
   :is(.lf-summary-expand, .lf-summary-refold):is(:focus-visible, .lf-focus-visible) {

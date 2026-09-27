@@ -538,7 +538,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      its own words, but the shared aim floor states a minimum width in pixels and would
      otherwise let the item shrink past them. */
   .lf-banner-actions > .lf-btn { flex: none; }
-  .lf-banner-actions > :is(.lf-signoff, .lf-threads-toggle) { padding-inline: 6px; }
+  .lf-banner-actions > :is(.lf-signoff, .lf-threads-toggle) { padding-inline: 2px; }
   .lf-banner-actions > .lf-btn:where(:not(.primary)) { border-color: transparent;
     border-radius: 0; background: transparent; }
   .lf-banner-actions > .lf-btn:where(:not(.primary)):hover { background: var(--chip); }
@@ -1865,7 +1865,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
        forty: this rule outranks the shared floor (shadow.css) by weight, so it has to
        carry the floor itself or a touch shelf loses four pixels.
        It states both axes for the same reason, and the band is the shared control's. */
-    .lf-banner-actions > .lf-btn { min-height: max(40px, var(--aim-floor)); padding: 4px 6px; }
+    .lf-banner-actions > .lf-btn { min-height: max(40px, var(--aim-floor)); padding: 4px 2px; }
     .lf-banner-menu { right: auto;
       left: max(calc(8px + var(--lf-safe-left)), anchor(left)); }
     /* The control run starts at the left on this two-row banner. Keep its menu under

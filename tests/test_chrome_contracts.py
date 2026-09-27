@@ -1056,7 +1056,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
             f"{wanted} was not on the row at all, so this order proves little: {widest}"
         )
     for width, order in orders.items():
-        assert order[-1].startswith("Threads"), (
+        assert order[-1].startswith("Open threads:"), (
             f"the thread no longer finishes the row at {width}px: {order}"
         )
     resized(page, 500, 900)

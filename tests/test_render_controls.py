@@ -2636,8 +2636,8 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
 
     The banner is where all of it lands, and it is packed to the right against a spacer,
     which decides who pays. A control that grows moves itself and everything to its
-    *left*; everything to its right keeps its place. So `Threads · 9 open` becoming
-    `Threads · 10 open` — a comment posted from the terminal while the user reads —
+    *left*; everything to its right keeps its place. So `Open threads: 9` becoming
+    `Open threads: 10` — a comment posted from the terminal while the user reads —
     slid the version chooser 6px left, and the Accept all a second tab's decision puts
     away took the New-version chip with it.
 
@@ -2658,7 +2658,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     comments = ".lf-banner .lf-threads-toggle"
     accept_all = '[title^="Accept every"]'
     page.wait_for_function(
-        f"() => document.querySelector('{comments}').textContent === 'Threads · 9 open'"
+        f"() => document.querySelector('{comments}').textContent === 'Open threads: 9'"
     )
     page_at_rest(page)
 
@@ -2693,7 +2693,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
                     "text": "A tenth.",
                 },
             ),
-            f"() => document.querySelector('{comments}').textContent === 'Threads · 10 open'",
+            f"() => document.querySelector('{comments}').textContent === 'Open threads: 10'",
         ),
         (
             "a new version is published",

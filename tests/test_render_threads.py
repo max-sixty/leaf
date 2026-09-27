@@ -885,7 +885,7 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
     resolve.scroll_into_view_if_needed()
     with page.expect_request("**/api/event"):
         resolve.click()
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads · 0 open")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 0")
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     if view == "inline":
         expect(thread.get_by_role("button", name="Resolve thread")).to_have_count(0)
@@ -899,7 +899,7 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
     held.pop().fulfill(
         json={"ok": False, "final": True, "error": "Please retry."},
     )
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads · 1 open")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 1")
     if view == "inline":
         page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
         thread = page.locator(".lf-margin-thread")
@@ -914,7 +914,7 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
     resolve.focus()
     with page.expect_request("**/api/event"):
         page.keyboard.press("Enter")
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads · 0 open")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 0")
     if view == "panel":
         write(
             page.locator(".lf-general leaf-text"), "My next thought can keep its focus."
@@ -968,7 +968,7 @@ def test_resolving_one_of_two_threads_leaves_the_user_in_the_card(browser, serve
     resolve.focus()
     with sending(page, "the resolve"):
         page.keyboard.press("Enter")
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads · 1 open")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 1")
     expect(card).to_be_visible()
     expect(
         card.get_by_role("button", name="Resolve thread", exact=True)
@@ -2027,7 +2027,7 @@ def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
         page.locator(f'.lf-threads > .lf-thread[data-id="{c1}"][hidden]')
     ).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{c1}"] leaf-text')).to_have_count(0)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads · 2 open")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 2")
     # The survivor stays the same node.
     expect(page.locator(f'.lf-thread[data-id="{c2}"] leaf-text')).to_have_attribute(
         "placeholder", "Reply c"
@@ -2076,7 +2076,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
     panel_settled(page)
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator(".lf-thread-view-summary")).to_have_text("1 open thread")
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads · 1 open")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 1")
     page.evaluate(
         """async (id) => {
           const presentation = await window.__lfRuntimeImport(
@@ -2167,7 +2167,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
     )
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator(".lf-thread-view-summary")).to_have_text("1 open thread")
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads · 1 open")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 1")
 
     page.evaluate("window.releaseThreadRetry()")
     page.wait_for_function(
@@ -2183,7 +2183,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
         root,
     ), "successful retry replaced the retained card"
     expect(page.locator(".lf-thread-view-summary")).to_have_text("0 open threads")
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads · 0 open")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 0")
     assert take_browser_errors(page) == [
         "leaf: Presentation failed: injected thread-card failure"
     ]
@@ -2993,7 +2993,7 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator(".lf-thread-view-summary")).to_have_text("1 of 3 open threads")
     # The page's own count is the log's and says so throughout.
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads · 3 open")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 3")
 
     # The part of the page a thread is on is one of its words: a user looking for the
     # merge rule finds the thread under that heading without its message saying so.
@@ -3685,7 +3685,7 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
     expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
         "aria-pressed", "true"
     )
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads · 18 open")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 18")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
 
 
@@ -3900,7 +3900,7 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
         "was stated, so the fold started from somewhere other than the box the user "
         "was looking at"
     )
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads · 2 open")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 2")
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     expect(page.locator(f'[data-id="{c1}"] leaf-text')).to_have_attribute(
         "placeholder", "Reply"
@@ -4627,8 +4627,11 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # stands on, so the movement the theme's rule causes is that deliberate face
         # rather than a leaked one.
         "lf-margin-cluster",
+        # Page Map rows share the margin entry's state and icon face in theme.css.
+        "lf-margin-kind",
         "lf-margin-lane",
         "lf-margin-projection",
+        "lf-page-map-action",
         "lf-msg-head",
         "lf-react-open",
         "lf-react-palette",

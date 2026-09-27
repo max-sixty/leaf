@@ -37,7 +37,7 @@ let openThreads = null;
 let unreadThreads = 0;
 function paintThreadCounts() {
   toggleBtn.textContent =
-    openThreads === null ? "Threads" : `Threads · ${openThreads} open`;
+    openThreads === null ? "Threads" : `Open threads: ${openThreads}`;
   toggleBtn.toggleAttribute("data-unread-threads", unreadThreads > 0);
   const unread = unreadThreads
     ? `${unreadThreads} unread ${unreadThreads === 1 ? "thread" : "threads"}`
@@ -673,7 +673,7 @@ export function stateSignoff(next, syncLayout, paintApproval) {
 // More without changing the page's reading loop.
 function reserveBannerControls() {
   if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
-  reserve(toggleBtn, ["Threads", "Threads · 999 open"]);
+  reserve(toggleBtn, ["Threads", "Open threads: 999"]);
 }
 
 let approving = false;

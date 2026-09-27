@@ -777,7 +777,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     toggle = page.locator(".lf-threads-toggle")
     expect(toggle).to_have_text(
-        "Threads · 1 open"
+        "Open threads: 1"
     )  # counted as open, like any other thread
     toggle.click()
     page.locator(".lf-thread-summary").first.click()
@@ -822,7 +822,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
         },
     )
     page = open_page(browser, live_url(url))
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads · 1 open")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 1")
     stamp_page(d, TWIN_V2, "a twin")
     wait_for_revision(page, 2)
     expect(page.locator(".lf-notice")).not_to_have_class(re.compile(r"\bshow\b"))

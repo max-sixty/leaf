@@ -360,7 +360,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ ((github.event_name == 'workflow_run' && github.event.workflow_run.head_repository.full_name == github.repository) || (github.event.issue && !github.event.issue.pull_request)) && secrets.CLOUDFLARE_API_TOKEN || '' }}
 
-      - uses: max-sixty/tend/codex@0.3.2
+      - uses: max-sixty/tend/codex@0.3.3
         with:
           github_token: ${{ secrets.TEND_BOT_TOKEN }}
           merge: yolo

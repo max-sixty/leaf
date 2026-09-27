@@ -29,7 +29,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: max-sixty/tend/codex/refresh@0.3.2
+      - uses: max-sixty/tend/codex/refresh@0.3.3
         with:
           codex_auth_json: ${{ secrets.CODEX_AUTH_JSON }}
           codex_refresh_auth_json: ${{ secrets.CODEX_REFRESH_AUTH_JSON }}

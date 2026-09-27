@@ -6337,19 +6337,24 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     browser, serve, tmp_path, monkeypatch
 ):
     """A settlement is the layer's rendering of the log's decision, never a module
-    obligation: the trial's module only defines the element and
-    supplies no renderState at all — and once its decision replays the holder wears
+    obligation: the trial's module is the product's starter, which only defines the
+    element — it never subscribes to its controller and supplies no renderState — and
+    once its decision replays the holder wears
     data-lf-state, the retired slot is marked and hidden by the theme's one generic
     rule, and the quote anchored in it detaches instead of pointing at words the
     page's reading has dropped. The mark and the hide used to be each holder
     module's own duty, stated in the module contract and the key table and enforced
     nowhere, and the first family that forgot would have split the page's reading
-    from the file's in silence. The second half drives it all back out: the fold
+    from the file's in silence. Later the layer painted them only through a
+    controller the module subscribed to, which left the same duty under another
+    name. The second half drives it all back out: the fold
     keeps the last surviving action per verb and unit, so a decision on an outcome
     that settles nothing displaces the one before it, and the mark, the marker and
     the hide follow it."""
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
+    module = (tmp_path / ".leaf" / "widgets" / "lf-trial.js").read_text()
+    assert "subscribe" not in module, "the holder's module must leave the mark to Leaf"
 
     url = serve(
         TWO_HOLDER_PAGE,
@@ -6404,6 +6409,51 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
         "the displaced decision's slot is back on the page, so its quote must "
         "anchor again"
     )
+
+
+def test_a_settled_holder_in_a_reply_joins_the_panel_wearing_its_mark(
+    browser, serve, tmp_path, monkeypatch
+):
+    """The same mark on a holder an agent sent in a reply. Its markup is frozen and
+    the thread mounts it after the projection has painted the page, so a paint that
+    looks the holder up in the document finds nothing and the reply opens with both
+    slots showing. The holder's node exists before either pass, so the mark is on it
+    when the thread places it."""
+    monkeypatch.chdir(tmp_path)
+    trial_family(tmp_path)
+    url = serve(REPLY_HOST_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-trial",
+            "author": "agent",
+            "revision": 1,
+            "text": "Should the cache warm lazily?",
+            "markup": (
+                '<lf-trial id="rq-cache">'
+                '<lf-current><p id="rq-now">Warm on deploy.</p></lf-current>'
+                '<lf-proposed><p id="rq-next">Warm on first request.</p></lf-proposed>'
+                "</lf-trial>"
+            ),
+        },
+    )
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "rq-cache",
+            "action": "decide",
+            "detail": {"outcome": "shelve"},
+        },
+    )
+    page = open_page(browser, url)
+    page.get_by_role("button", name="Threads (1)").click()
+    expect(page.locator("#rq-now")).to_be_visible()
+    expect(page.locator("#rq-cache")).to_have_attribute("data-lf-state", "shelve")
+    expect(page.locator("#rq-next")).to_be_hidden()
 
 
 def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(

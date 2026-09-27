@@ -165,9 +165,9 @@ function retiredSlots() {
   return value;
 }
 // The same relation read the other way: owner tag → each settling outcome and the
-// member tags that leave the page under it. Replay reads it to paint the settlement
-// (markSettled, renderRetired), so which verbs settle an owner is the registry's fact
-// here exactly as it is in the selector above. Same registry-loaded guard, for the
+// member tags that leave the page under it. The projection reads it to paint the
+// settlement (paintSettlements, renderRetired), so which verbs settle an owner is
+// the registry's fact here exactly as it is in the selector above. Same registry-loaded guard, for the
 // same aim-window reason.
 let settlementSlotsMemo;
 export function settlementSlots() {

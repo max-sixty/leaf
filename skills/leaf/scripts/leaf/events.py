@@ -376,7 +376,7 @@ def current_anchors(events: list, within: dict) -> list:
     thread yet.
 
     One rule for every reader that asks whether a written anchor still binds the
-    page, because a version check refusing to drop what a thread has already let
+    page, because a page check refusing to drop what a thread has already let
     go is the same bug as a browser painting a mark there. `within` is the
     containment the settlement half reads, as every other fold of the threads
     takes it."""

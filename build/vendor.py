@@ -101,7 +101,7 @@ def languages() -> list[str]:
     """The language names a bundle is cut to.
 
     They are read out of registry.json rather than stated here, because that is
-    the list `version check` refuses an unknown language against and the list an
+    the list `page check` refuses an unknown language against and the list an
     agent queries while authoring. One list, so a bundle cannot offer a language
     the lint rejects or lack one it accepts. Add a language there, then rerun the
     bundles that read this.

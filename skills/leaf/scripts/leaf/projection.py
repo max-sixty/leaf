@@ -327,7 +327,7 @@ class StateProjection(NamedTuple):
 
     `absorbed` holds the moves whose container this document authors differently
     from the revision the move was made on (`move_absorbed`). Every revision that
-    does passed `version check` against the fold that held the move, so its markup
+    does passed `page check` against the fold that held the move, so its markup
     wrote the unit where the move put it. An absorbed move still stands, as a
     written-back pick does, but no longer places its unit: the markup does.
 
@@ -584,7 +584,7 @@ def move_absorbed(
     revision the move was made on: other units, or the same in another order, than
     the move's `meaning.among`. The rank lies among those authored units, so it lands
     in the gap the user chose only while they stand as they did; a document that
-    changes them has written the unit itself (`version check`). `orders` caches each
+    changes them has written the unit itself (`page check`). `orders` caches each
     owner's authored order across the calls one reading makes."""
     among = event["meaning"].get("among")
     if among is None:
@@ -708,7 +708,7 @@ def page_reading(reading: SourceReading, events: list, revision: int) -> PageRea
     """Read one page's markup and log window through one construction.
 
     Document inspection and the passage readings used by `leaf thread open` and
-    `version check` share declarations, floors, and the log window. The document's
+    `page check` share declarations, floors, and the log window. The document's
     own reading (`SourceReading`) travels with the projection for callers that need
     its authored construction; a stored revision's is held across reads, so only
     the fold over the log is taken here."""

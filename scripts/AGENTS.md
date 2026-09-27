@@ -39,7 +39,7 @@ Evidence, previews, staged sites, and probe results leave the tracked tree uncha
 - `eval_claude_delivery.py [BASE_REF]` compares how an agent handles a comment
   through `leaf wait`, and what the page shows meanwhile, between a base plugin
   and HEAD's.
-- `bench_render_check.py [BASE_REF]` times `leaf version check --render` on a few
+- `bench_render_check.py [BASE_REF]` times `leaf page check --render` on a few
   examples, base plugin against HEAD's, with no model: wall time and a phase
   breakdown traced by `bench-render-check/sitecustomize.py`.
 - `bench_page_latency.py [BASE_REF]` times an open page's answer to a gesture, an

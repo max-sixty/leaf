@@ -56,7 +56,7 @@ update stays visible in the output and is retried after the next edit. Seeded
 history is installed once, when the page is built, so a change to it is refused
 until the preview is restarted.
 `version stamp` lints the example on the way past. The browser gate a page normally
-passes before its URL goes out is left to the suite: `version check --render` and
+passes before its URL goes out is left to the suite: `page check --render` and
 `test_page_fixture_renders` drive the same `render_version` over the same files, so
 running it here would only repeat what the suite has already said about these exact
 pages.

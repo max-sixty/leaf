@@ -104,7 +104,7 @@ import {
   under,
   upFrom,
 } from "./shadow.js";
-import { elementDeclarations, registry } from "./registry.js";
+import { decisionFor, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { COLLAPSE } from "./collapse.js";
 
@@ -140,7 +140,9 @@ export const verbatimBoundaryIdentity = new WeakMap();
 //
 // Which slots retire is the registry's to say, so this and passages.py's reading of the
 // same page follow one declaration: x-retired-when names the decision that removes the
-// element, x-owners the wrapper the decision is recorded on.
+// element, x-owners the wrapper the decision is recorded on. Composition stamps that
+// relation, owner by owner, into `$decisions` (Python's `registry.state.stamp_decisions`),
+// and this reads it: one selector per owner and member.
 // Computed once — but only once the registry has loaded: the aim listeners are
 // live from module evaluation, and a pointer move in the upgrade window would
 // otherwise seed the cache from the empty pre-fetch registry and disable the
@@ -149,37 +151,16 @@ export const verbatimBoundaryIdentity = new WeakMap();
 let retiredSlotsMemo;
 function retiredSlots() {
   if (retiredSlotsMemo != null) return retiredSlotsMemo;
-  // One selector per owner, never the array interpolated: `x-owners` is a list, and
-  // `${list}` joins it with a comma, so a member naming two owners wrote a selector
-  // *list* whose first member was a bare tag — every instance of the first owner read
-  // as a retired member, decided or not, and the pair that was meant matched nothing.
-  const value = elementDeclarations()
-    .filter(([, entry]) => entry["x-retired-when"])
-    .flatMap(([tag, entry]) =>
-      entry["x-owners"].map(
-        (owner) => `${owner} > ${tag}[${PAGE_PAINT_ATTRIBUTE.retired}]`,
-      ),
+  const decisions = registry.$decisions;
+  if (!decisions) return "";
+  retiredSlotsMemo = Object.entries(decisions)
+    .flatMap(([owner, { retires }]) =>
+      Object.values(retires)
+        .flat()
+        .map((tag) => `${owner} > ${tag}[${PAGE_PAINT_ATTRIBUTE.retired}]`),
     )
     .join(", ");
-  if (Object.keys(registry).length) retiredSlotsMemo = value;
-  return value;
-}
-// The same relation read the other way: owner tag → each settling outcome and the
-// member tags that leave the page under it. Replay reads it to paint the settlement
-// (markSettled, renderRetired), so which verbs settle an owner is the registry's fact
-// here exactly as it is in the selector above. Same registry-loaded guard, for the
-// same aim-window reason.
-let settlementSlotsMemo;
-export function settlementSlots() {
-  if (settlementSlotsMemo != null) return settlementSlotsMemo;
-  const value = {};
-  for (const [tag, entry] of elementDeclarations().filter(
-    ([, e]) => e["x-retired-when"],
-  ))
-    for (const owner of entry["x-owners"])
-      ((value[owner] ??= {})[entry["x-retired-when"]] ??= []).push(tag);
-  if (Object.keys(registry).length) settlementSlotsMemo = value;
-  return value;
+  return retiredSlotsMemo;
 }
 
 // The rendering of a settlement, in one place for the two occasions that paint it —
@@ -190,7 +171,7 @@ export function settlementSlots() {
 // declares it — by-name rules in theme.css were the closed list wearing CSS's
 // clothes.
 export function renderRetired(el, outcome) {
-  const outcomes = settlementSlots()[el.localName];
+  const outcomes = decisionFor(el.localName)?.retires;
   if (!outcomes) return;
   for (const [candidate, tags] of Object.entries(outcomes))
     for (const tag of tags)

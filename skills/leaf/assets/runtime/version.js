@@ -661,13 +661,9 @@ export function createVersionController({
       // External data is absent from both authored documents. Its seat is opaque, and
       // the authored binding and immutable selector below are the comparison key.
       ...tagsDeclaring((e) => e["x-upgrade"] && e["x-data"]),
-      // flatMap, so the set holds owner tags rather than the arrays naming them: a set
-      // of arrays never dedupes, two array objects never being equal.
-      ...new Set(
-        tagsDeclaring((e) => e["x-retired-when"]).flatMap(
-          (tag) => registry[tag]["x-owners"],
-        ),
-      ),
+      ...Object.entries(registry.$decisions)
+        .filter(([, { retires }]) => Object.keys(retires).length)
+        .map(([owner]) => owner),
       "svg",
     ].join(",");
   // What is being compared, and whether the comparison is standing. Every rendering of

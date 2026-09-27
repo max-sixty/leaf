@@ -10,6 +10,7 @@ import pytest
 import tinycss2
 from interact_support import (
     COMMAND_HUB_PACKAGE,
+    add_test_widget,
     append_command,
     running_http_server,
 )
@@ -89,7 +90,6 @@ from render_harness import (
     TOKEN,
     _traffic,
     _until,
-    author_test_widget,
     consume_browser_errors,
     leaf_page,
     open_page,
@@ -1302,7 +1302,7 @@ def test_the_render_gate_rejects_an_upgrade_that_defines_no_element(
     browser, serve, tmp_path, monkeypatch
 ):
     monkeypatch.chdir(tmp_path)
-    author_test_widget(tmp_path, "lf-callout", upgrade=True)
+    add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text("// Valid JavaScript, but no custom-element definition.\n")
 
@@ -1325,7 +1325,8 @@ def test_the_render_gate_requires_a_declared_threads_host(
     removes only its threadBox placement; a fresh browser context prevents the
     clean load's module cache from answering for the changed file."""
     monkeypatch.chdir(tmp_path)
-    package = author_test_widget(tmp_path, "lf-callout", upgrade=True)
+    package = tmp_path / ".leaf"
+    add_test_widget(package, "lf-callout", upgrade=True)
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())
     registry["lf-callout"]["x-thread-seat"] = {"when": {"id": ["custom-note"]}}
@@ -1373,7 +1374,7 @@ def test_the_render_gate_requires_a_visual_parts_provider(
     Leaf derives both lookup directions before semantic visual anchors can publish.
     """
     monkeypatch.chdir(tmp_path)
-    author_test_widget(tmp_path, "lf-callout", upgrade=True)
+    add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
     declarations["lf-callout"]["properties"]["parts"] = {
@@ -1684,7 +1685,7 @@ flowchart LR
 
 
 def _author_lying_callout(tmp_path):
-    author_test_widget(tmp_path, "lf-callout", upgrade=True)
+    add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
         'import { once } from "/runtime/widget-api.js";\n'
@@ -1910,7 +1911,7 @@ def test_the_render_gate_checks_verbatim_words_in_each_color_scheme(
     browser, serve, tmp_path, monkeypatch
 ):
     monkeypatch.chdir(tmp_path)
-    author_test_widget(tmp_path, "lf-callout", upgrade=True)
+    add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
         'import { once } from "/runtime/widget-api.js";\n'
@@ -1936,7 +1937,7 @@ def test_anonymous_verbatim_owners_keep_distinct_page_and_reply_provenance(
     browser, serve, tmp_path, monkeypatch
 ):
     monkeypatch.chdir(tmp_path)
-    author_test_widget(tmp_path, "lf-shell", upgrade=True)
+    add_test_widget(tmp_path / ".leaf", "lf-shell", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
     declarations["lf-shell"]["properties"]["mode"] = {
@@ -2003,7 +2004,7 @@ def test_anonymous_verbatim_owners_keep_distinct_page_and_reply_provenance(
 
 
 def _author_stateful_verbatim_widget(tmp_path):
-    author_test_widget(tmp_path, "lf-stateful", upgrade=True)
+    add_test_widget(tmp_path / ".leaf", "lf-stateful", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
     stateful = declarations["lf-stateful"]
@@ -2221,7 +2222,7 @@ def test_verbatim_wrapper_owns_prose_and_order_but_not_nested_widget_rendering(
     browser, serve, tmp_path, monkeypatch
 ):
     monkeypatch.chdir(tmp_path)
-    author_test_widget(tmp_path, "lf-shell", upgrade=True)
+    add_test_widget(tmp_path / ".leaf", "lf-shell", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
     declarations["lf-shell"]["properties"]["mode"] = {
@@ -2332,7 +2333,7 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
     the next poll for the painted half, and a bug-back that has to win a race is a
     bug-back that reports the machine."""
     monkeypatch.chdir(tmp_path)
-    author_test_widget(tmp_path, "lf-callout", upgrade=True)
+    add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
     # The fixture's x-verbatim claim is about a body this module no longer shows, and
@@ -2380,7 +2381,7 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
     reading enters a declared root in the host's stead, and a span rendered nowhere has
     no rects."""
     monkeypatch.chdir(tmp_path)
-    author_test_widget(tmp_path, "lf-callout", upgrade=True)
+    add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
     declaration = declarations["lf-callout"]
@@ -2929,7 +2930,7 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
     The host's light tree is empty after upgrade, so a reading that stops at the shadow
     boundary mistakes this for Chromium's empty inline-box rounding artifact."""
     monkeypatch.chdir(tmp_path)
-    author_test_widget(tmp_path, "lf-callout", upgrade=True)
+    add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(registry_path.read_text())
     entries["lf-callout"].pop("x-verbatim")
@@ -3983,7 +3984,7 @@ def test_an_authored_project_widget_loads_through_the_real_layer(
     browser, serve, tmp_path, monkeypatch
 ):
     monkeypatch.chdir(tmp_path)
-    author_test_widget(tmp_path, "lf-callout", upgrade=True)
+    add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     widgets = tmp_path / ".leaf" / "widgets"
     (widgets / "callout-label.js").write_text(
         'export const label = "project-owned helper";\n'

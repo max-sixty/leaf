@@ -9,6 +9,7 @@
    face. Both clamped and cyclic semantic walks use this reading. Native focus traversal
    and gestures that rearrange state are not walks through a named list. */
 import { clampedRow } from "./keyboard/bindings.js";
+import { focused } from "./keyboard/scopes.js";
 import { holdStatus } from "./notifications.js";
 import { repaint } from "./repaint.js";
 
@@ -86,11 +87,11 @@ export function rowWalk({
     does: `${capital(step)} ${noun.toLowerCase()}`,
   });
   const land = (pick) => {
-    const was = document.activeElement;
+    const was = focused();
     const row = pick(rows());
     if (!row) return;
     row.focus({ preventScroll: !scroll });
-    beginWalk(id, noun, () => listWalkPosition(rows(), document.activeElement));
+    beginWalk(id, noun, () => listWalkPosition(rows(), focused()));
     if (row !== was) landed?.(row);
   };
   return [
@@ -103,7 +104,7 @@ export function rowWalk({
       repeat: true,
       run: (binding) =>
         land((list) =>
-          clampedRow(list, document.activeElement, binding === "ArrowDown" ? 1 : -1, 0),
+          clampedRow(list, focused(), binding === "ArrowDown" ? 1 : -1, 0),
         ),
     },
     {

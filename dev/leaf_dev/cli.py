@@ -8,6 +8,7 @@ from pathlib import Path
 
 import click
 
+from leaf_dev.ci_failures import ci_failures
 from leaf_dev.harness import build_arm
 from leaf_dev.probe import probe
 from leaf_dev.stills import stills
@@ -28,3 +29,4 @@ def arm(ref: str, dest: Path) -> None:
 
 cli.add_command(probe)
 cli.add_command(stills)
+cli.add_command(ci_failures)

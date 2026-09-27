@@ -31,3 +31,7 @@ and the others import it; a script under `scripts/` imports it too.
   reached by input, on a base runtime and HEAD's, and crops each state that changed
   into a before/after pair under `.tmp/stills/`.
 - `leaf-dev arm REF DEST` builds one arm, for an eval's A/B (`evals/README.md`).
+- `leaf-dev ci-failures [REF]` reads the failing tests and steps in REF's `ci` runs
+  and in its merge base's, and says whether the branch may land red
+  (`.claude/skills/developing-leaf/SKILL.md`, "Land a change"); `--run ID` lists
+  one run's failures.

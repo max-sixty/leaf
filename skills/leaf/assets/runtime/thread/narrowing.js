@@ -27,11 +27,8 @@
    read them by id. The list captures one immutable user intent and checkpoints the
    resulting summary and facets with its rows; repainting that reading does not change
    native editing or disclosure state. */
-import { runtime } from "../context.js";
 import { anchorLabel } from "./messages.js";
 import { awaitsAgent, awaitsUser } from "./model.js";
-import { narrowingView, threadsBox } from "./panel-elements.js";
-import { threadList } from "./state.js";
 
 const choice = (kind, value, label, className = "") =>
   Object.freeze({ kind, value, label, className });
@@ -74,20 +71,6 @@ export const DEFAULT_INTENT = Object.freeze({
   subject: "all",
   onlyGone: false,
 });
-// The narrowing as a value, replaced whole on every change, so a holder can ask whether
-// the user has changed it since by identity, as `retainNarrowing` does.
-let intent = DEFAULT_INTENT;
-export const threadSearchActive = () => Boolean(intent.finding);
-export const needsYou = () => intent.waiting === "user";
-export const listedInPageOrder = () => intent.order === "page";
-export const narrowed = () =>
-  Boolean(intent.finding) ||
-  intent.status !== "open" ||
-  intent.waiting !== "all" ||
-  intent.scope !== "all" ||
-  intent.subject !== "all" ||
-  intent.onlyGone;
-
 const labelFor = (kind, value) =>
   FACETS.find((facet) => facet.kind === kind)?.choices.find(
     (candidate) => candidate.value === value,
@@ -271,11 +254,6 @@ function emptyReading(reading) {
               : "No threads.";
 }
 
-// Capture user intent once for the list candidate. Its rows, empty state, summary,
-// counts, selections, availability, and keyboard title all derive from this one value.
-export const narrowingModel = (threads, groups = new Map()) =>
-  narrowingReading(intent, threads, groups);
-
 export function narrowingReading(reading, threads, groups = new Map()) {
   const shown = Object.freeze(
     threads.filter((thread) => includesThread(reading, thread, groups.get(thread))),
@@ -288,111 +266,134 @@ export function narrowingReading(reading, threads, groups = new Map()) {
   });
 }
 
-function renarrow(repaintThread) {
-  if (runtime.statePhase !== "ready") return;
-  const ready = repaintThread();
-  // Reset after the keyed list has committed. The coordinator owns rejection reporting;
-  // observe this continuation on both paths so an event listener that discards the
-  // returned ticket cannot create another page-level rejection.
-  void ready.then(
-    () => (threadsBox.scrollTop = 0),
-    () => {},
-  );
-  return ready;
-}
+// Each panel owns its view intent. The reading above remains pure so package views can
+// apply their own intent to the same threads without sharing this panel's controls.
+export function createThreadNarrowing({ view, listRoot, readThreads, ready, repaint }) {
+  // Replace the whole value on every change. A retained arrival can then distinguish
+  // its own transition from a later choice by identity.
+  let intent = DEFAULT_INTENT;
+  const threadSearchActive = () => Boolean(intent.finding);
+  const needsYou = () => intent.waiting === "user";
+  const listedInPageOrder = () => intent.order === "page";
+  const narrowed = () =>
+    Boolean(intent.finding) ||
+    intent.status !== "open" ||
+    intent.waiting !== "all" ||
+    intent.scope !== "all" ||
+    intent.subject !== "all" ||
+    intent.onlyGone;
+  // Capture intent once for each list candidate. Its rows, summary and facets all
+  // derive from the same reading.
+  const model = (threads, groups = new Map()) =>
+    narrowingReading(intent, threads, groups);
 
-function replaceIntent(changes) {
-  intent = Object.freeze({ ...intent, ...changes });
-}
-
-const chooseFacet = (kind, value, repaintThread) => {
-  if (kind === "order") {
-    if (intent.order === value) return;
-    replaceIntent({ order: value });
-    return renarrow(repaintThread);
+  function renarrow() {
+    if (!ready()) return;
+    const ticket = repaint();
+    // Reset after the keyed list commits. The coordinator reports rejection; observe
+    // either outcome because event listeners can discard this ticket.
+    void ticket.then(
+      () => (listRoot.scrollTop = 0),
+      () => {},
+    );
+    return ticket;
   }
-  const next = transition(
-    intent,
-    kind,
-    kind !== "gone" && intent[kind] === value ? "all" : value,
-  );
-  if (next === intent) return;
-  intent = next;
-  return renarrow(repaintThread);
-};
 
-export function mountNarrowing(repaintThread) {
-  narrowingView.configure({
-    initial: narrowingModel([], new Map()).presentation,
-    changeWords: (words) => {
-      replaceIntent({ words, finding: words.trim().toLowerCase() });
-      renarrow(repaintThread);
-    },
-    chooseFacet: (kind, value) => chooseFacet(kind, value, repaintThread),
-    toggleUser: () => chooseFacet("waiting", "user", repaintThread),
-    reset: () => widen(repaintThread),
+  function replaceIntent(changes) {
+    intent = Object.freeze({ ...intent, ...changes });
+  }
+
+  function chooseFacet(kind, value) {
+    if (kind === "order") {
+      if (intent.order === value) return;
+      replaceIntent({ order: value });
+      return renarrow();
+    }
+    const next = transition(
+      intent,
+      kind,
+      kind !== "gone" && intent[kind] === value ? "all" : value,
+    );
+    if (next === intent) return;
+    intent = next;
+    return renarrow();
+  }
+
+  function mount() {
+    view.configure({
+      initial: model([], new Map()).presentation,
+      changeWords: (words) => {
+        replaceIntent({ words, finding: words.trim().toLowerCase() });
+        renarrow();
+      },
+      chooseFacet,
+      toggleUser: () => chooseFacet("waiting", "user"),
+      reset: () => widen(),
+    });
+  }
+
+  // Order is the user's view of the list; it hides nothing and survives a reset.
+  function clearNarrowing(nextStatus = "open") {
+    const changed = narrowed() || intent.status !== nextStatus;
+    intent = Object.freeze({
+      ...DEFAULT_INTENT,
+      status: nextStatus,
+      order: intent.order,
+    });
+    view.setSearchWords("");
+    return changed;
+  }
+
+  // A fallible optimistic arrival can put back the exact view the user was using.
+  function retainNarrowing() {
+    const retained = intent;
+    let replacement = null;
+    return {
+      replaced: () => {
+        replacement = intent;
+      },
+      restore: async (before = null) => {
+        if (intent !== replacement) return false;
+        // The arrival can reveal the refused thread before its first await. Renew the
+        // lease then, but reject any user choice made while it awaits presentation.
+        const preparing = before?.();
+        const prepared = intent;
+        await preparing;
+        if (intent !== prepared) return false;
+        intent = retained;
+        view.setSearchWords(retained.words);
+        await renarrow();
+        return true;
+      },
+    };
+  }
+
+  function widen() {
+    if (!clearNarrowing()) return false;
+    renarrow();
+    return true;
+  }
+
+  // A direct destination selects the lifecycle that contains the requested thread.
+  function revealThread(id) {
+    const thread = readThreads().find(
+      (candidate) =>
+        candidate.id === id || candidate.msgs.some((message) => message.id === id),
+    );
+    if (!thread) return false;
+    clearNarrowing(thread.resolved ? "resolved" : "open");
+    return renarrow();
+  }
+
+  return Object.freeze({
+    model,
+    mount,
+    narrowed,
+    needsYou,
+    listedInPageOrder,
+    threadSearchActive,
+    retainNarrowing,
+    revealThread,
+    widen,
   });
-}
-
-// Order is kept: it is the user's view of the list, and hides nothing to recover.
-function clearNarrowing(nextStatus = "open") {
-  const changed = narrowed() || intent.status !== nextStatus;
-  intent = Object.freeze({
-    ...DEFAULT_INTENT,
-    status: nextStatus,
-    order: intent.order,
-  });
-  narrowingView.setSearchWords("");
-  return changed;
-}
-
-// A direct destination may replace every panel refinement. A fallible optimistic
-// transition captures this reading before it reveals that destination, so refusal can
-// put back the exact list the user was operating rather than merely selecting the
-// thread's lifecycle again.
-export function retainNarrowing(repaintThread) {
-  const retained = intent;
-  let replacement = null;
-  return {
-    replaced: () => {
-      replacement = intent;
-    },
-    // Restore only while the direct arrival's view still stands. Typing in the
-    // optimistic reply box does not change this reading and must not strand a refused
-    // Reopen under the Open filter; changing the search or facets deliberately does.
-    restore: async (before = null) => {
-      if (intent !== replacement) return false;
-      // The supplied arrival may synchronously reveal the refused thread before its
-      // first await, replacing the optimistic intent with another transition-owned one.
-      // Renew the lease after that synchronous work, then reject any user change that
-      // lands while the arrival is waiting.
-      const preparing = before?.();
-      const prepared = intent;
-      await preparing;
-      if (intent !== prepared) return false;
-      intent = retained;
-      narrowingView.setSearchWords(retained.words);
-      await renarrow(repaintThread);
-      return true;
-    },
-  };
-}
-
-export function widen(repaintThread) {
-  if (!clearNarrowing()) return false;
-  renarrow(repaintThread);
-  return true;
-}
-
-// A direct destination overrides the current view, including the default Open state.
-// It clears unrelated refinements and selects the lifecycle value that can contain the
-// requested thread, rather than making Resolved a special disclosure outside filtering.
-export function revealThread(id, repaintThread) {
-  const thread = threadList().find(
-    (candidate) =>
-      candidate.id === id || candidate.msgs.some((message) => message.id === id),
-  );
-  if (!thread) return false;
-  clearNarrowing(thread.resolved ? "resolved" : "open");
-  return renarrow(repaintThread);
 }

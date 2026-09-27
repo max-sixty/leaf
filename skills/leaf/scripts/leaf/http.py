@@ -1,8 +1,9 @@
 """HTTP transport and routes for one served page.
 
 The transport is starlette over uvicorn (`hosting.py` owns the server). This file
-owns what a page means at that boundary: route scoping, the key, the layer gate,
-the `Leaf-*` headers, and the news stream a tab listens on.
+owns what a page means at that boundary: where a page and its revisions answer
+(`revision_delivery` addresses what they name), the key, the layer gate, the `Leaf-*`
+headers, and the news stream a tab listens on.
 """
 
 import html
@@ -54,22 +55,21 @@ from .registry.storage import layer_metadata, require_registry
 from .render_checks import PROBE_SOURCES
 from .revision_artifact import Resource, RevisionArtifact, read_artifact, read_registry
 from .revision_delivery import (
-    deliver_document,
+    DeliveryAddress,
     deliver_resource,
     delivery_prelude,
     delivery_sheets,
+    layer_import_map,
+    rebase_document,
 )
 from .revisioning import activate_source
 from .schema import (
     BINARY_TYPES,
-    BROWSER_DIRS,
     CONTENT_TYPES,
     KEY_COOKIE,
-    MEDIA_DIR,
     NO_KEY,
     REVISION_NAME,
     SERVED_PATH,
-    VENDORED_FILES,
     VIEWED_FILE,
 )
 from .served_state import reading as served_reading
@@ -113,157 +113,13 @@ def _query_int(raw, name: str, minimum: int) -> int:
     return value
 
 
-# A rooted path the page's own layer answers: its API, browser layer, media and
-# authored `page/` tree, and its vendored files. A page served under a prefix has these
-# rebased onto it wherever a script, a stylesheet or an attribute names one. Its
-# documents are left out, since the server writes their addresses itself
-# (`scope_page_urls`). The authored tree is in, though no server routes it at the page
-# root: it is served only beneath a revision's address.
-_ROOTED_PATH = (
-    rb"(?:"
-    + b"|".join(name.encode() for name in ("api", "page", *BROWSER_DIRS, MEDIA_DIR))
-    + rb")/|(?:"
-    + b"|".join(re.escape(name.encode()) for name in VENDORED_FILES)
-    + rb")"
-)
-_ROOTED_SCRIPT_ROUTE = re.compile(
-    rb'(?P<before>["\'`])/(?P<path>' + _ROOTED_PATH + rb")"
-)
-_ROOTED_STYLESHEET_ROUTE = re.compile(
-    rb'(?P<before>["\'`(])/(?P<path>' + _ROOTED_PATH + rb")"
-)
-
-_ROOTED_PAGE_ATTRIBUTE = re.compile(
-    rb'(?P<before>=\s*["\'])/(?P<path>' + _ROOTED_PATH + rb")", re.IGNORECASE
-)
-_HTML_START_TAG = re.compile(rb"<[A-Za-z](?:[^<>\"']|\"[^\"]*\"|'[^']*')*>", re.DOTALL)
-_STYLE_ATTRIBUTE = re.compile(
-    rb'(?P<before>\bstyle\s*=\s*)(?P<quote>["\'])(?P<value>.*?)(?P=quote)',
-    re.IGNORECASE | re.DOTALL,
-)
-_STYLE_ELEMENT = re.compile(
-    rb"(?P<open><style\b(?:[^<>\"']|\"[^\"]*\"|'[^']*')*>)"
-    rb"(?P<value>.*?)(?P<close></style\s*>)",
-    re.IGNORECASE | re.DOTALL,
-)
-_SCRIPT_ELEMENT = re.compile(
-    rb"(?P<open><script\b(?:[^<>\"']|\"[^\"]*\"|'[^']*')*>)"
-    rb"(?P<value>.*?)(?P<close></script\s*>)",
-    re.IGNORECASE | re.DOTALL,
-)
-
-
-def _scope_routes(
-    pattern: re.Pattern[bytes],
-    body: bytes,
-    page_root: str,
-    *,
-    asset_root: str | None = None,
-) -> bytes:
-    if not page_root and not asset_root:
-        return body
-    page = page_root.rstrip("/").encode()
-    assets = (asset_root if asset_root is not None else page_root).rstrip("/").encode()
-    # Captured authored dependencies already carry an address; runtime API strings
-    # still carry logical paths. A page root may itself begin with /api/.
-    addressed = tuple(root.lstrip(b"/") + b"/" for root in (page, assets) if root)
-    return pattern.sub(
-        lambda match: (
-            match.group()
-            if body[match.start("path") :].startswith(addressed)
-            else match.group("before")
-            + (page if match.group("path").startswith((b"api/", b"media/")) else assets)
-            + b"/"
-            + match.group("path")
-        ),
-        body,
-    )
-
-
-def scope_script_routes(
-    body: bytes, page_root: str, *, asset_root: str | None = None
-) -> bytes:
-    """Scope Leaf routes at the start of JavaScript string literals."""
-    return _scope_routes(_ROOTED_SCRIPT_ROUTE, body, page_root, asset_root=asset_root)
-
-
-def scope_stylesheet_routes(
-    body: bytes, page_root: str, *, asset_root: str | None = None
-) -> bytes:
-    """Scope Leaf routes in quoted CSS values and unquoted url() values."""
-    return _scope_routes(
-        _ROOTED_STYLESHEET_ROUTE, body, page_root, asset_root=asset_root
-    )
-
-
-def scope_document_routes(
-    body: bytes, page_root: str, *, asset_root: str | None = None
-) -> bytes:
-    """Scope only route-bearing HTML attributes in an authored document.
-
-    Authored prose is also the anchorable record. A route-looking phrase in that
-    prose must therefore remain byte-for-byte identical to the immutable revision,
-    while actual browser addresses still need the process page capability.
-    """
-    if not page_root and not asset_root:
-        return body
-    page = page_root.rstrip("/").encode()
-    assets = (asset_root if asset_root is not None else page_root).rstrip("/").encode()
-    addressed = tuple(root.lstrip(b"/") + b"/" for root in (page, assets) if root)
-
-    def route_root(match: re.Match) -> bytes:
-        return page if match.group("path").startswith(b"api/") else assets
-
-    def scope_start_tag(tag_match: re.Match) -> bytes:
-        original = tag_match.group()
-        tag = _ROOTED_PAGE_ATTRIBUTE.sub(
-            lambda match: (
-                match.group()
-                if original[match.start("path") :].startswith(addressed)
-                else match.group("before")
-                + route_root(match)
-                + b"/"
-                + match.group("path")
-            ),
-            tag_match.group(),
-        )
-        return _STYLE_ATTRIBUTE.sub(
-            lambda match: (
-                match.group("before")
-                + match.group("quote")
-                + scope_stylesheet_routes(
-                    match.group("value"), page_root, asset_root=asset_root
-                )
-                + match.group("quote")
-            ),
-            tag,
-        )
-
-    scoped = _HTML_START_TAG.sub(scope_start_tag, body)
-    scoped = _STYLE_ELEMENT.sub(
-        lambda match: (
-            match.group("open")
-            + scope_stylesheet_routes(
-                match.group("value"), page_root, asset_root=asset_root
-            )
-            + match.group("close")
-        ),
-        scoped,
-    )
-    return _SCRIPT_ELEMENT.sub(
-        lambda match: (
-            match.group("open")
-            + scope_script_routes(
-                match.group("value"), page_root, asset_root=asset_root
-            )
-            + match.group("close")
-        ),
-        scoped,
-    )
-
-
 def scope_page_urls(value, page_root: str):
-    """Scope the canonical version addresses in a multiplexed state response."""
+    """Address a state response's documents and message markup at a page root.
+
+    A response carries version addresses and frozen message markup in their canonical,
+    root-relative form; beneath a prefix both answer at the page root, as the live
+    page's media does.
+    """
     if not page_root:
         return value
     if isinstance(value, list):
@@ -279,7 +135,7 @@ def scope_page_urls(value, page_root: str):
         ):
             scoped[key] = page_root.rstrip("/") + item
         elif key == "markup" and isinstance(item, str):
-            scoped[key] = scope_document_routes(item.encode(), page_root).decode()
+            scoped[key] = rebase_document(item, DeliveryAddress(page_root, page_root))
         else:
             scoped[key] = scope_page_urls(item, page_root)
     return scoped
@@ -358,10 +214,11 @@ def supervised_document(
 ) -> bytes:
     """Supervise HTTP startup before the module graph or stylesheet can load.
 
-    The served document receives the runtime assets, current layer CSP, this
-    delivery's script nonce, and server incarnation probe, so historical sources
-    inherit the current delivery boundary without carrying delivery markup
-    themselves.
+    The served document is addressed at `page_root` and `asset_root`
+    (`DeliveryAddress`) and receives the runtime assets, the import map its layer
+    modules resolve through, current layer CSP, this delivery's script nonce, and
+    server incarnation probe, so historical sources inherit the current delivery
+    boundary without carrying delivery markup themselves.
 
     It also names the page it belongs to. A page answers at three addresses — the
     live root, each stamped version, and each immutable revision — and every one
@@ -369,17 +226,14 @@ def supervised_document(
     all of them. The href is relative to the delivery, which has no origin to
     know: it resolves wherever the page directory is mounted.
     """
-    source = scope_document_routes(
-        source.encode(), page_root, asset_root=asset_root
-    ).decode()
+    assets = asset_root if asset_root is not None else page_root
+    source = rebase_document(source, DeliveryAddress(page_root, assets))
     parsed = SourceDocument(source)
     offset = head_open_end_offset(parsed)
-    bootstrap = scope_script_routes(
-        resources["/runtime/bootstrap.js"].data, page_root, asset_root=asset_root
-    ).decode()
+    bootstrap = resources["/runtime/bootstrap.js"].data.decode()
     # One nonce per delivery. The head's own scripts carry it as they are written;
-    # the authored blocks are marked in place, after route scoping so the offsets
-    # are the ones the browser will read.
+    # the authored blocks are marked in place, after addressing so the offsets are
+    # the ones the browser will read.
     nonce = secrets.token_urlsafe(16)
     source = authorize_inline_scripts(parsed, nonce)
     # 'unsafe-eval' is delivered for the drivers rather than for the page. An
@@ -402,7 +256,6 @@ def supervised_document(
         else ""
     )
     public_root = f' data-lf-page-root="{html.escape(page_root, quote=True)}"'
-    assets = asset_root if asset_root is not None else page_root
     theme_head, entry_head = _runtime_assets(assets)
     asset_path = assets.rstrip("/")
     bootstrap_head = (
@@ -412,17 +265,17 @@ def supervised_document(
         f'data-lf-theme="{asset_path}/theme.css" '
         f'data-lf-probe="{asset_path}/registry.json">{bootstrap}</script>'
     )
+    # The import map precedes every script: a browser reads no map once a module has
+    # begun to load.
     supervised = (
         delivery_prelude(parsed, revision, version, executable, widgets)
         + f'<meta http-equiv="Content-Security-Policy" content="{html.escape(csp, quote=True)}">'
+        + f'<script type="importmap" nonce="{nonce}" data-lf-runtime>'
+        + layer_import_map(assets)
+        + "</script>"
         + bootstrap_head
         + theme_head
-        + delivery_sheets(
-            resources,
-            lambda css, _path: scope_stylesheet_routes(
-                css.encode(), page_root, asset_root=asset_root
-            ).decode(),
-        )
+        + delivery_sheets(resources, DeliveryAddress(page_root, assets))
         + before_runtime
         + entry_head
         + f'<link rel="canonical" href="{html.escape(page_root, quote=True)}/" data-lf-runtime>'
@@ -985,7 +838,7 @@ class PageEndpoint:
         self.response_layer = artifact.registry["$layer"]["generation"]
         asset_root = self._document_asset_root(revision)
         projected = supervised_document(
-            deliver_document(artifact.html.decode("utf-8"), asset_root),
+            artifact.html.decode("utf-8"),
             revision,
             version,
             executable=artifact.executable,
@@ -1023,13 +876,7 @@ class PageEndpoint:
         logical = "/" + match.group("resource")
         if probe_source := PROBE_SOURCES.get(logical):
             return self._content(
-                200,
-                "text/javascript; charset=utf-8",
-                scope_script_routes(
-                    probe_source.read_bytes(),
-                    self.page_root,
-                    asset_root=self._artifact_root(revision),
-                ),
+                200, "text/javascript; charset=utf-8", probe_source.read_bytes()
             )
         source = logical
         widget = re.fullmatch(r"/widgets/(?P<tag>lf-[a-z0-9-]+)\.js", logical)
@@ -1047,14 +894,11 @@ class PageEndpoint:
         resource = artifact.resources.get(source)
         if resource is None:
             return None
-        root = self._artifact_root(revision)
-        body = deliver_resource(resource, source, root)
-        if resource.mime == "application/javascript" and not source.startswith(
-            "/page/"
-        ):
-            body = scope_script_routes(body, self.page_root, asset_root=root)
-        elif resource.mime == "text/css" and not source.startswith("/page/"):
-            body = scope_stylesheet_routes(body, self.page_root, asset_root=root)
+        body = deliver_resource(
+            resource,
+            source,
+            DeliveryAddress(self.page_root, self._artifact_root(revision)),
+        )
         ctype = resource.mime
         if ctype not in BINARY_TYPES:
             ctype += "; charset=utf-8"
@@ -1137,11 +981,11 @@ class PageEndpoint:
             # have one. On a PNG it is noise.
             if ctype not in BINARY_TYPES:
                 ctype += "; charset=utf-8"
-            body = file.read_bytes()
-            if ctype.startswith("text/css"):
-                body = scope_stylesheet_routes(body, self.page_root)
-            elif ctype.startswith(("text/javascript", "application/javascript")):
-                body = scope_script_routes(body, self.page_root)
+            body = deliver_resource(
+                Resource(file.read_bytes(), ctype.partition(";")[0]),
+                path,
+                DeliveryAddress(self.page_root, self.page_root),
+            )
             return self._content(200, ctype, body)
         return None
 
@@ -1149,9 +993,7 @@ class PageEndpoint:
         path = self.path
         if probe_source := PROBE_SOURCES.get(path):
             return self._content(
-                200,
-                "text/javascript; charset=utf-8",
-                scope_script_routes(probe_source.read_bytes(), self.page_root),
+                200, "text/javascript; charset=utf-8", probe_source.read_bytes()
             )
         if path == "/":
             return self._serve_root()

@@ -59,6 +59,7 @@ from leaf import projection as projection_model
 from leaf import publishing as publishing_model
 from leaf import requests as requests_model
 from leaf import revision_artifact as artifact_model
+from leaf import revision_delivery as revision_delivery_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
@@ -373,8 +374,8 @@ export { value } from "./value.js";
     artifact = artifact_model.read_artifact(page_dir, activated.revision)
     resource = artifact.resources["/page/app.js"]
     assert resource.dependencies == ("/page/value.js",)
-    rewritten = artifact_model.rewrite_module(
-        resource.data, "/page/app.js", "/revisions/captured"
+    rewritten = revision_delivery_model.rebase_module(
+        resource.data, "/page/app.js", lambda path: "/revisions/captured" + path
     )
     assert rewritten.decode() == module.replace(
         "import('./value.js')", 'import("/revisions/captured/page/value.js")'

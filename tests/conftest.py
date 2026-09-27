@@ -11,6 +11,7 @@ from typing import NamedTuple
 import pytest
 from leaf import event_log as events_model
 from leaf import files as files_model
+from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf.mcp_page import ProcessPageServer
 from playwright.sync_api import sync_playwright
@@ -261,6 +262,9 @@ def pytest_collection_modifyitems(config, items):
 # a test about a Codex session, or about no session at all, takes it away.
 CLAUDE_IDENTITY = ("CLAUDE_CODE_SESSION_ID", "CLAUDE_PID", "CLAUDE_JOB_DIR")
 CODEX_IDENTITY = ("CODEX_THREAD_ID", "LEAF_SESSION_ID", "LEAF_AGENT")
+# The Claude Code sessions `isolated_session` marks as hooked: the worker's own
+# and the id lifecycle fixtures claim under (`record_claim`).
+HOOKED_SESSIONS = (f"pytest-{os.getpid()}", "s1")
 
 
 @pytest.fixture(autouse=True)
@@ -293,6 +297,10 @@ def isolated_session(tmp_path_factory, monkeypatch):
     monkeypatch.delenv("CLAUDE_JOB_DIR", raising=False)
     for name in CODEX_IDENTITY:
         monkeypatch.delenv(name, raising=False)
+    # A Claude Code session whose host runs Leaf's hooks, as the plugin installs
+    # them, so its `leaf wait` only wakes it (`Harness.hooks_carry`).
+    for session in HOOKED_SESSIONS:
+        leases_model.mark_hooks(session)
     return machine_model.state_home()
 
 

@@ -1111,9 +1111,10 @@ text or datum keys.
 
 ## Reading and opening Threads from a widget
 
-`readThreads()` returns the same immutable `{phase, threads, done}` collection the
-Threads panel reads. `watchThreads(owner, callback)` gives a connected widget that
-collection initially and after relevant application updates; it returns a stop
+`readThreads()` returns the same immutable `{phase, threads}` collection the
+Threads panel reads. `threads` contains conversations; a bare reaction record without
+a spoken turn is not a listed Thread. `watchThreads(owner, callback)` calls a connected
+widget with that collection initially and after relevant application updates; it returns a stop
 function for `disconnectedCallback`. Each widget keeps its own search, filter, and
 order state and derives its displayed rows from the collection. `threadTurns(thread)`
 selects a Thread's displayed turns, and `threadSummary(thread)` gives its topic and
@@ -1121,26 +1122,71 @@ latest activity. `openThread(thread.id)` takes the user to Leaf's canonical
 conversation surface for that Thread. The widget does not need to render or own the
 conversation to provide that route.
 
-## Widget-local Thread surfaces
+`threadActions` lets a package add its own controls over the current Thread reading
+and Leaf's optimistic event path:
 
-A widget declares `"x-thread-surface": true` to place complete Thread UI beside its
-own projected data. `consumeThreads(owner, render)` registers one consumer per Element
-and returns a handle with `read()`, `reveal(key)`, `update()`, `open(datum,
-{origin})`, and `unregister()`. The callback receives the same immutable collection
-the built-in Threads panel reads, `{phase, threads, done}`, on its initial
-presentation and on later publications and placement updates. For whether a
-Thread waits on the user, read unresolved `attention.kind === "needs_user"`, which
+```js
+threadActions.reply(thread.key, text);
+threadActions.resolve(thread.key);
+threadActions.reopen(thread.key);
+threadActions.toggleReaction(thread.key, agentMessage.id, token);
+```
+
+Each method returns `null` when the current reading does not offer that action,
+otherwise a promise resolving to the admitted event or `null` if admission refuses it.
+The action changes `readThreads()` immediately; the server remains final. A reply
+requires non-empty text. A reaction requires an addressable agent message and a token
+in the current layer's vocabulary; pressing an already standing token takes it back.
+Use the Thread's stable `key`, which survives admission of a locally opened Thread.
+Leaf's reply editors keep one durable draft per Thread; a package input retains its
+own draft.
+
+## Rendering Threads in a widget
+
+`mountThreadViews(owner, render)` lets a package supply containers for Leaf's core
+conversation view. It registers one consumer per Element and returns a handle with
+`read()`, `update()`, and `unregister()`. The callback receives the same immutable
+Thread collection as `readThreads()` on its initial presentation and on later
+publications. A Thread waiting on the user has unresolved
+`attention.kind === "needs_user"`, which
 includes recovery after a failed response; `"waiting"` means it is with the agent.
 A Thread's `id` is the name Asks and workflows give it; its `root` is the first
 message it still holds, whose id differs where the log lost the opening message.
 Each Thread's `key` survives admission of a pending gesture, and its `anchor`
 names the `section` (the widget's id) and `datum` it rests on. A returned promise
-participates in document presentation. The second argument's `signal` is aborted when
-presentation fails, a newer render supersedes it, or the consumer unregisters;
-asynchronous callbacks check it before changing their UI. The owner unregisters on
-disconnect.
+delays that widget's mirror repaint without holding up Leaf's panel, margin, or
+read presentation. The second argument's `signal` is aborted when a newer render
+supersedes it or the consumer unregisters. Asynchronous callbacks check it before
+changing their UI. The owner unregisters on disconnect.
 
-The callback selects its Threads and hands each an outlet it owns. Here
+For a Thread list or dashboard, `surfaces.render(thread.key, outlet)` shows a
+conversation in an Element inside the widget. Each widget chooses its own Threads,
+containers, filters, and order. Several widgets may render the same Thread, and
+removing one does not remove another's view. These are mirrors: they do not take the
+Thread away from its page or margin position. Leaf renders the messages, reply editor,
+reactions, resolution controls, and receipts. An authored message's interactive
+widgets open in the Threads panel, as they do from other inline Thread views.
+
+```js
+this.threads = mountThreadViews(this, (collection, surfaces) => {
+  for (const thread of collection.threads) {
+    const outlet = this.outletFor(thread.key);
+    if (outlet) surfaces.render(thread.key, outlet);
+  }
+});
+```
+
+The widget owns outlet creation and layout. Leaf requires every outlet to remain
+inside its owner, and a consumer may render each Thread only once per callback.
+The handle's `update()` requests a new render after a local layout change.
+
+## Widget-local Thread placement
+
+A widget declares `"x-thread-surface": true` to place Thread UI beside its own
+projected data. Use `consumeThreads(owner, render)` with
+`surfaces.place(thread.key, outlet)` for an exact datum and
+`surfaces.placeComposition(outlet)` for its active composer. The callback
+selects its Threads and hands each an outlet it owns. Here
 `this.outletFor` stands for the widget's own method, which finds or creates the outlet
 element beside the datum and returns `null` when the datum is not displayed
 (`lf-diff`'s `threadOutletFor` is the worked example):
@@ -1163,10 +1209,9 @@ widget, otherwise `null`; `placement.datumElement` is the rendered datum.
 `composition` supplies the equivalent placement for the active composer, which may
 precede any Thread. The widget owns outlet creation, removal, and layout.
 Leaf validates target ownership and outlet containment before committing placements.
-Core moves its
-one composer node or renders retained messages, replies, reactions, settlement controls,
-and receipts into each outlet. A claimed thread does not
-also appear in the margin projection; the Threads panel remains the complete index. With
+Core moves its one composer node or renders retained messages, replies, reactions,
+settlement controls, and receipts into each outlet. A claimed thread does not also
+appear in the margin projection; the Threads panel remains the complete index. With
 Threads closed, `t`/`T` lands on this local surface before trying the margin-projection
 fallback. Clicking the Threads toggle from the focused surface carries the same thread
 into the panel.

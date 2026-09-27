@@ -34,7 +34,9 @@ ANSWER_ASK_INSTRUCTION = (
 WAIT_BATCH_OUTPUT_INSTRUCTION = (
     "Print one page's complete ordered batch, thread context, and response "
     "requirements as an immutable delivery, whose `acknowledge` says how to confirm "
-    "it. `leaf delivery read <id>` reads that same delivery."
+    "it. `leaf delivery read <id>` reads that same delivery. Where the host's hook "
+    "carries input into the turn, as in Claude Code, print one line naming the page "
+    "with new input instead, and end."
 )
 
 HTML_NAME = r"[a-z][a-z0-9-]*"

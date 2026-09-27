@@ -32,11 +32,18 @@ Evidence, previews, staged sites, and probe results leave the tracked tree uncha
   environment. Production deploys only through `.github/workflows/publish-site.yaml`.
 - `worker/README.md` owns hosted-agent diagnostics and the failure contract.
 - `eval_harness.py` builds the arms and isolated `claude -p` children every Claude
-  Code eval runs; `eval_claude_delivery.py`, `notes/arrangement-eval/harness.py`,
-  and the A/B recipe in `evals/README.md` use it.
+  Code eval runs; `eval_claude_delivery.py`, the two `bench_*.py` scripts,
+  `notes/arrangement-eval/harness.py`, and the A/B recipe in `evals/README.md` use
+  it.
 - `eval_claude_delivery.py [BASE_REF]` compares how an agent handles a comment
   through `leaf wait`, and what the page shows meanwhile, between a base plugin
   and HEAD's.
+- `bench_render_check.py [BASE_REF]` times `leaf version check --render` on a few
+  examples, base plugin against HEAD's, with no model: wall time and a phase
+  breakdown traced by `bench-render-check/sitecustomize.py`.
+- `bench_page_latency.py [BASE_REF]` times an open page's answer to a gesture, an
+  agent write, and a revision in Chrome, with the traffic each causes, for a base
+  runtime and HEAD's.
 - `record-demo.sh` regenerates `docs/demo.gif`, the README stills, and
   `docs/session-card.png`.
 

@@ -1245,9 +1245,7 @@ main.layout-column aside.sidenote { --lf-resident: note; }
 }
 /* A contents map in that slot rests as a spine a few pixels wide and reveals its labels
  * over the page; the default package draws it there once this says the slot is in the
- * margin, as the map alone or in a sidebar standing there. The map is fixed to the
- * window, so standing alone it leaves its wrapper in flow, which gives up its margins
- * rather than opening a gap under the header. */
+ * margin, as the map alone or in a sidebar standing there. */
 @media screen and (hover: hover) and (pointer: fine) {
   main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has(lf-toc) {
     --lf-resident: sidebar map; }
@@ -1256,11 +1254,12 @@ main.layout-column aside.sidenote { --lf-resident: note; }
    * short of it (layouts.css, the column's free room); its labels reveal over the page. */
   main.layout-column:is([data-lf-margin~="map"], [data-lf-margin~="sidebar"]):has(
     > aside.sidebar:nth-child(1 of aside.sidebar) lf-toc) { --lf-taken-l: var(--map); }
-  main.layout-column[data-lf-margin~="map"] > aside.sidebar:nth-child(1 of aside.sidebar) {
-    margin-block: 0; }
-  main:has(> aside.sidebar:nth-child(1 of aside.sidebar) lf-toc) {
-    --lf-sidebar-claim: var(--sidebar-max);
-  }
+  /* Standing alone, a map that was all its sidebar held leaves nothing in the flow, so the
+   * sidebar takes no room there: without margins or a formatting context of its own, the
+   * blocks on either side meet as they do where the sidebar floats. */
+  main.layout-column[data-lf-margin~="map"]
+    > aside.sidebar:nth-child(1 of aside.sidebar):has(> lf-toc:only-child) {
+    display: block; margin-block: 0; }
 }
 /* A sidenote hangs in the column's right margin where the margin pass admits it (above),
    and is a small indented block where it was written otherwise, and on paper. It claims

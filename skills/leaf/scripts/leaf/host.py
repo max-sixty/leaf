@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import ClassVar
 
 from leaf.files import read_json
-from leaf.leases import adapter_is_live
+from leaf.leases import adapter_is_live, hooks_ran
 from leaf.machine import ancestry, process_argv
 
 
@@ -42,9 +42,11 @@ class Harness:
     What differs between harnesses is how a leaf's input reaches the session
     between its turns, and the methods below answer for that carrier:
 
-    - Claude Code runs a `leaf wait`/`leaf wait --ack` loop itself, watched by the
-      host's Stop and prompt hooks. It is the one carrier that stops while its
-      session lives on, which is why it is the one with a `nudge`.
+    - Claude Code's model keeps a background `leaf wait` running, which ends when
+      input arrives and so opens a turn; the host's prompt hook, which runs as that
+      turn begins, and its Stop hook put the input in the turn's context and
+      confirm it (`hook_delivers`). The wait is the one carrier part that stops
+      while its session lives on, which is why this is the harness with a `nudge`.
     - Codex has a detached adapter that outlives the turn and proves itself by
       holding the adapter lease. It queues each delivery with `codex queue`, or
       starts its turn over the task's App Server when Leaf can reach one.
@@ -56,6 +58,10 @@ class Harness:
     agent: str
 
     name: ClassVar[str]
+    # Whether the host's hooks can carry input into the turn: they freeze, confirm,
+    # and hand over the whole delivery, and `leaf wait` only wakes the session.
+    # `hooks_carry` says whether they do for this session.
+    hook_delivers: ClassVar[bool] = False
 
     @classmethod
     def from_claim(cls, claim: dict) -> "Harness":
@@ -81,6 +87,13 @@ class Harness:
         this."""
         return listening
 
+    def hooks_carry(self) -> bool:
+        """Whether this session's hooks carry its input: its host runs hooks that
+        can, and one has run for this session. Until one has, `leaf wait` prints
+        the delivery for its reader to confirm, so a session whose hooks never run
+        still reads its input rather than being woken to an empty turn."""
+        return self.hook_delivers and hooks_ran(self.session)
+
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
         """What to do about events past this page's cursor that nothing will
         carry."""
@@ -92,9 +105,10 @@ class Harness:
 
     @classmethod
     def run_ack(cls, delivery_id: str) -> str:
-        """How this session runs the `leaf wait --ack` that confirms one delivery
-        and goes on waiting: the verb phrase the delivery's `acknowledge` ends
-        with. A wait held in a background task is the default."""
+        """How the reader of this session's printed delivery runs the `leaf wait
+        --ack` that confirms it and goes on waiting: the verb phrase the
+        delivery's `acknowledge` ends with. A harness whose hook carries input
+        prints no delivery; a wait held in a background task is the default."""
         return f"start `leaf wait --ack {delivery_id}` as the next background task"
 
     def nudge(self, page_dir: Path) -> bool:
@@ -118,11 +132,15 @@ class EnvironmentHarness(Harness):
 
 
 class ClaudeCodeHarness(EnvironmentHarness):
-    """Claude Code: a wait loop the model runs, and a socket to reach it with."""
+    """Claude Code: a wait the model keeps running to wake it, hooks that carry
+    input into the turn, and a socket to reach it with."""
 
     name = "claude-code"
     default_agent = "Claude"
     session_variables = ("CLAUDE_CODE_SESSION_ID",)
+    # Claude Code runs the prompt hook on every turn a background task's end
+    # opens, idle or mid-turn, and adds what it returns to that turn's context.
+    hook_delivers = True
 
     def lifetime(self) -> dict:
         """A session the user sits at is a process, and Claude Code states it
@@ -155,7 +173,7 @@ class ClaudeCodeHarness(EnvironmentHarness):
         return {"pid": int(os.environ["CLAUDE_PID"])}
 
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
-        return "`leaf wait` prints them."
+        return "Leaf's hook puts them in your context at your next turn."
 
     def nothing_listening(self, page_dir: Path, *, listening: bool) -> str:
         return (
@@ -166,9 +184,9 @@ class ClaudeCodeHarness(EnvironmentHarness):
     def nudge(self, page_dir: Path) -> bool:
         return message_claude_code_session(
             self.session,
-            f"leaf: {page_dir} has new input and no `leaf wait` is running "
-            "for this session to deliver it. Start an unnamed `leaf wait` "
-            "as a background task.",
+            f"leaf: {page_dir} has new input, which arrives with this message, "
+            "and no `leaf wait` is running for this session. Start an unnamed "
+            "`leaf wait` as a background task so later input wakes you.",
         )
 
 

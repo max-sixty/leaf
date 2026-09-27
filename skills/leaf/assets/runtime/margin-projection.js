@@ -140,8 +140,6 @@ import { repaint } from "./repaint.js";
 import { chromeRoot } from "./chrome.js";
 import { versionBtn } from "./version-chooser.js";
 import { motion, scrollBehavior } from "./motion.js";
-import { panel } from "./thread/panel-elements.js";
-import { accompaniedThread, accompanyThread } from "./thread/landing.js";
 import { declareSide } from "./standing-target.js";
 import { closestAcross, elementById, inChrome } from "./passages.js";
 import { addressableSays, addressableWord, visualAt } from "./anchor-resolution.js";
@@ -179,6 +177,9 @@ import { retainUserIntent } from "./user-intent.js";
 const REPLY_BOX = `.lf-say ${TEXT_FIELD}`;
 
 export function createMarginProjection({
+  panel,
+  accompaniedThread,
+  accompanyThread,
   panelIsOpen,
   openAsks,
   designModeActive,
@@ -2529,12 +2530,14 @@ export function createMarginProjection({
   const threadIdOf = (entry) => sourceItem(threadReading(entry).items[0]).thread.id;
   const threadIdsOf = (entry) =>
     threadReading(entry).items.map((item) => sourceItem(item).thread.id);
-  // A thread seat already shows the thread where it stands on the page; a card
-  // beside it would be the same thread twice.
+  // Only a page-owned seat or an exact widget-local placement takes the thread's
+  // page position. A package mirror uses the same card DOM but leaves that position
+  // and its margin preview available.
   const seatedOnPage = (id) =>
+    claimed(id) ||
     [
       ...document.querySelectorAll(`.lf-page-thread[data-thread="${CSS.escape(id)}"]`),
-    ].some((seat) => !preview.contains(seat) && !panel.contains(seat));
+    ].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
   // The innermost target holding the node whose threads the card would show.
   const threadEntryAt = (node) => {
     let standing = null;

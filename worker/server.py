@@ -250,9 +250,6 @@ def site_metadata(page_root: str, page: dict) -> str:
     publication adds is the part that needs an origin: the absolute address an
     unfurler shows, and the image it draws beside it.
 
-    Media paths are absolute because `scope_document_routes` rewrites a root-relative
-    one into the release-scoped tree, which would move a card's image every release.
-
     Each declaration is marked as delivery's own, so a revision arriving at a page
     someone is reading brings the author's head across without this one riding in.
     """

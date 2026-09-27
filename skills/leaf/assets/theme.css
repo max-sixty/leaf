@@ -1250,10 +1250,13 @@ main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; 
       --lf-taken-l: calc(2 * var(--sp-4));
     }
   }
-  main:has(> aside.sidebar:nth-child(1 of aside.sidebar) lf-toc) {
-    --lf-sidebar-claim: var(--sidebar-max);
-    --lf-sidebar-free-left: calc(var(--lf-beside) + var(--lf-shift)
-      - var(--lf-gutter-l));
+  /* Once the map stands in the margin, a sidebar that held only the map has nothing left
+   * in the flow, so it takes no room there. Without margins or a formatting context of
+   * its own, the blocks on either side meet as they do from 1296px of shell, where the
+   * sidebar floats (its float margins above outrank these). */
+  @container lf-content-frame style(--lf-sidebar-posture: margin) {
+    main > aside.sidebar:nth-child(1 of aside.sidebar):has(> lf-toc:only-child) {
+      display: block; margin-block: 0; }
   }
 }
 /* A sidenote hangs in the column's right margin where the room free beside the column

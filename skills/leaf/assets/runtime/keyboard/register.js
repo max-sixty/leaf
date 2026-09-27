@@ -115,17 +115,23 @@ const place = (where, name) => {
     throw new Error(`leaf: ${String(name)} has no place in the page's keyboard`);
 };
 
-/** Declare a scope that stands wherever its own condition holds, rather than where the
- * user is standing. `name` is the place `STACK` holds for it; `declaration` carries the
- * same fields an element scope does — `title`, `root`, `when`, `at`, `claims`, `escape`,
- * `rows`. Called as the owner is constructed, so a row may close over its state. */
+/** Declare a scope at one place in the page's command order. Several instances of an
+ * owner may contribute there; each declaration answers whether its own element is
+ * active. The returned function removes that instance's declaration. */
 export function pageScope(name, declaration) {
   place(STACK, name);
-  if (scopes.has(name)) throw new Error(`leaf: ${name} is declared twice`);
-  scopes.set(name, declaration);
+  const declarations = scopes.get(name) ?? [];
+  declarations.push(declaration);
+  scopes.set(name, declarations);
   resolved = null;
   validated = false;
-  return declaration;
+  return () => {
+    const remaining = scopes.get(name)?.filter((item) => item !== declaration) ?? [];
+    if (remaining.length) scopes.set(name, remaining);
+    else scopes.delete(name);
+    resolved = null;
+    validated = false;
+  };
 }
 
 /** Declare one row of the page's own scope. `PAGE_COMMANDS` ranks it against every other
@@ -140,15 +146,20 @@ export function pageCommand(row) {
   return row;
 }
 
-/** Declare one step of Escape's fallback ladder: a function answering what the press would
+/** Declare one instance's step of Escape's fallback ladder: a function answering what the press would
  * take off right now, as `{says, does, out}` plus an optional `root` for the surface the
  * step is inside and the `lineWhen` and `promoteEscape` this step wants on the compact
  * line, or null where this step has nothing to take. `RUNG_LADDER` orders the steps. */
 export function pageRung(name, reading) {
   place(RUNG_LADDER, name);
-  if (rungs.has(name)) throw new Error(`leaf: the ${name} rung is declared twice`);
-  rungs.set(name, reading);
-  return reading;
+  const readings = rungs.get(name) ?? [];
+  readings.push(reading);
+  rungs.set(name, readings);
+  return () => {
+    const remaining = rungs.get(name)?.filter((item) => item !== reading) ?? [];
+    if (remaining.length) rungs.set(name, remaining);
+    else rungs.delete(name);
+  };
 }
 
 // Resolve from current focus and state. The innermost containing surface takes priority;
@@ -156,8 +167,10 @@ export function pageRung(name, reading) {
 function rung() {
   const steps = [];
   for (const name of RUNG_LADDER) {
-    const step = rungs.get(name)();
-    if (step) steps.push({ ...step, name });
+    for (const reading of rungs.get(name) ?? []) {
+      const step = reading();
+      if (step) steps.push({ ...step, name });
+    }
   }
   const here = focused();
   let surface = null;
@@ -196,7 +209,7 @@ function assemble() {
     throw new Error(`leaf: the page's keyboard has no owner for ${absent.join(", ")}`);
   const rows = PAGE_COMMANDS.map((id) => commands.get(id));
   const covering = rows.filter((row) => row.covering);
-  return STACK.map((name) => {
+  return STACK.flatMap((name) => {
     if (name === PAGE) return { rows };
     // Rooted at the surface the live step is inside, so a step off a covering panel or
     // tray survives the floor that surface establishes while the page below it does not.
@@ -231,7 +244,7 @@ export function pageScopes() {
   return resolved;
 }
 export const universalCommandReference = () => commands.get(COMMAND_REFERENCE);
-export const textEntryScope = () => scopes.get("text entry");
+export const textEntryScope = () => scopes.get("text entry")?.[0];
 // What an interaction claiming the whole keyboard still lets through: the one route to
 // another layer, read off the row so a fact about a binding cannot be written where the
 // binding cannot correct it.

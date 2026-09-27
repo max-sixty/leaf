@@ -7,5 +7,6 @@ socket user frame:
   message:
     role: user
     content: >-
-      leaf: <page> has new input and no `leaf wait` is running for this session
-      to deliver it. Start an unnamed `leaf wait` as a background task.
+      leaf: <page> has new input, which arrives with this message, and no `leaf
+      wait` is running for this session. Start an unnamed `leaf wait` as a background
+      task so later input wakes you.

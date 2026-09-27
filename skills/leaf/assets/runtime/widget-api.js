@@ -49,7 +49,12 @@ export { inUi, uiInside, upFrom } from "./shadow.js";
 export { focusDestination, holdFocus, TEXT_BOX, TEXT_FIELD } from "./focus.js";
 export { openAsks, watchAsks } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
-export { threadBox, consumeThreads } from "./application.js";
+export {
+  threadBox,
+  consumeThreads,
+  mountThreadViews,
+  threadActions,
+} from "./application.js";
 export { readThreads } from "./thread/state.js";
 export { watchThreads } from "./thread/watch.js";
 export { turns as threadTurns, threadSummary } from "./thread/model.js";

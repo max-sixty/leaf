@@ -26,8 +26,6 @@
     padding-inline: var(--col-pad);
     --lf-width: min(var(--col), max(0px, 100cqi - 2 * var(--col-pad)));
     --lf-beside: calc((100cqi - var(--lf-width)) / 2);
-    --lf-shift: 0px;
-    --lf-gutter-l: var(--col-pad);
     --lf-free-l: max(0px, calc(var(--lf-beside) - var(--col-pad) - var(--lf-taken-l, 0px)));
     --lf-free-r: max(0px, calc(var(--lf-beside) - var(--col-pad) - var(--lf-taken-r, 0px)));
     --lf-room: max(0px, calc(100cqi - 2 * var(--col-pad)));

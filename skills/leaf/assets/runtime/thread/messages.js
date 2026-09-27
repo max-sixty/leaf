@@ -362,7 +362,7 @@ function datumLabel(anchor) {
   return datum?.dataset.lfDatumLabel?.trim() ?? "";
 }
 
-export function anchorLabel(anchor, about, omitted = null) {
+export function anchorLabel(anchor, about) {
   if (about === "design") {
     const addressable = anchor?.section ? elementById(anchor.section) : null;
     const name = addressable ? designName(addressable) : anchor?.section || "the page";
@@ -374,12 +374,10 @@ export function anchorLabel(anchor, about, omitted = null) {
   if (anchor?.quote) return `“${anchor.quote}”`;
   if (!anchor?.section) return "";
   const addressable = elementById(anchor.section);
-  if (omitted && omitted === addressable) return "";
   if (anchor.visual) {
     const part = visualPartLabel(addressable, anchor.visual) ?? anchor.visual;
     return `§ ${addressable ? `${addressableWord(addressable)} · ${part}` : `${anchor.section} · ${part}`}`;
   }
-  const says = addressableSays(addressable, omitted);
-  if (omitted && says) return `“${says}”`;
+  const says = addressableSays(addressable);
   return `§ ${says ? `${addressableWord(addressable)} · ${says}` : anchor.section}`;
 }

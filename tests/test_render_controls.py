@@ -158,12 +158,12 @@ VISUAL_REVIEW_GALLERY = next(
 )
 
 
-LIVE_SPECIMENS_PAGE = leaf_page(
+LIVE_SAMPLES_PAGE = leaf_page(
     "Independent practice pages",
     """
 <h1 id="host-heading">Practice without changing this page</h1>
-<lf-specimen id="first-practice" label="First practice">
-  <template id="first-source" data-specimen>
+<lf-sample id="first-practice" label="First practice">
+  <template id="first-source" data-sample>
     <h1 id="child-heading">A practice decision</h1>
     <lf-ask id="child-ask"><h2>Which approach?</h2>
       <lf-options id="child-options" choose>
@@ -172,9 +172,9 @@ LIVE_SPECIMENS_PAGE = leaf_page(
       </lf-options>
     </lf-ask>
   </template>
-</lf-specimen>
-<lf-specimen id="second-practice" label="Second practice">
-  <template id="second-source" data-specimen>
+</lf-sample>
+<lf-sample id="second-practice" label="Second practice">
+  <template id="second-source" data-sample>
     <h1 id="child-heading">Another practice decision</h1>
     <lf-ask id="child-ask"><h2>Which approach?</h2>
       <lf-options id="child-options" choose>
@@ -183,7 +183,7 @@ LIVE_SPECIMENS_PAGE = leaf_page(
       </lf-options>
     </lf-ask>
   </template>
-</lf-specimen>
+</lf-sample>
 """,
 )
 
@@ -193,14 +193,13 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     gallery = FEATURE_GALLERY.parent / "thread-panel-gallery.html"
     page = open_page(browser, serve(gallery))
     views = {
-        "overview": page.frame_locator("#overview-specimen iframe"),
-        "you": page.frame_locator("#on-you-specimen iframe"),
-        "resolved": page.frame_locator("#resolved-specimen iframe"),
-        "summary": page.frame_locator("#summary-specimen iframe"),
+        "overview": page.frame_locator("#overview-sample iframe"),
+        "you": page.frame_locator("#on-you-sample iframe"),
+        "resolved": page.frame_locator("#resolved-sample iframe"),
+        "summary": page.frame_locator("#summary-sample iframe"),
     }
     for frame in views.values():
         expect(frame.locator(".lf-thread-panel")).to_be_visible()
-        expect(frame.locator(".lf-threads > .lf-group")).to_have_count(0)
         topic = frame.locator(".lf-thread[open] .lf-thread-topic")
         expect(topic).to_be_visible()
         assert topic.evaluate("element => element.getBoundingClientRect().width") > 40
@@ -225,7 +224,7 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     views["overview"].get_by_role("button", name="Close threads").click()
     expect(views["overview"].locator(".lf-thread-panel")).to_be_hidden()
     expect(views["you"].locator(".lf-thread-panel")).to_be_visible()
-    page.locator("#overview-specimen").get_by_role(
+    page.locator("#overview-sample").get_by_role(
         "button", name="Reset", exact=True
     ).click()
     expect(views["overview"].locator(".lf-thread-panel")).to_be_visible()
@@ -233,10 +232,10 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
 
 
 def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve):
-    """The catalog tab's presets operate a real panel and survive specimen Reset."""
+    """The catalog tab's presets operate a real panel and survive sample Reset."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
-    frame = page.frame_locator("#bg-panel-specimen iframe")
+    frame = page.frame_locator("#bg-panel-sample iframe")
     panel = frame.locator(".lf-thread-panel")
     expect(panel).to_be_hidden()
     page.locator('#bg-panel-presets [data-view="overview"]').click()
@@ -248,7 +247,7 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
         ("you", "2be2443f0bb6cc49fc86b52f340e6073", 2, "Workshop room photo"),
         ("resolved", "bab3cdfcfb8c02aacbb27da731de947a", 1, "Projector map"),
         ("summary", "9ee465bb3f9c1fa309ea9cb1767fa365", 3, "Afternoon workshop"),
-        ("overview", "72e031c5bf0d485ba9054628e09869d4", 3, "..."),
+        ("overview", "72e031c5bf0d485ba9054628e09869d4", 3, "Generating title"),
     ):
         button = page.locator(f'#bg-panel-presets [data-view="{view}"]')
         button.click()
@@ -280,7 +279,7 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
     page.locator('#bg-panel-presets [data-view="you"]').click()
     page.locator('#bg-panel-presets [data-view="resolved"]').click()
     expect(resolved).to_have_attribute("open", "")
-    page.locator("#bg-panel-specimen").get_by_role(
+    page.locator("#bg-panel-sample").get_by_role(
         "button", name="Reset", exact=True
     ).click()
     expect(panel).to_be_visible()
@@ -290,9 +289,9 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
     ).to_have_attribute("open", "")
 
 
-def test_live_specimens_keep_real_gestures_and_drafts_inside_the_child(browser, serve):
-    """A specimen is a full page: its choices and comments reach only its own log."""
-    page = open_page(browser, serve(LIVE_SPECIMENS_PAGE))
+def test_live_samples_keep_real_gestures_and_drafts_inside_the_child(browser, serve):
+    """A sample is a full page: its choices and comments reach only its own log."""
+    page = open_page(browser, serve(LIVE_SAMPLES_PAGE))
     parent_before = events_model.read_events(serve.page_dir)
     first = page.locator("#first-practice")
     second = page.locator("#second-practice")
@@ -300,7 +299,7 @@ def test_live_specimens_keep_real_gestures_and_drafts_inside_the_child(browser, 
     expect(reset).to_be_enabled()
     expect(second.get_by_role("button", name="Reset", exact=True)).to_be_enabled()
     # The host's controls stand with its label, outside the indented child page.
-    controls = first.locator(".lf-specimen-controls").bounding_box()
+    controls = first.locator(".lf-sample-controls").bounding_box()
     frame = first.locator("iframe").bounding_box()
     assert abs(controls["x"] - first.bounding_box()["x"]) < 1
     assert controls["x"] < frame["x"]
@@ -321,7 +320,7 @@ def test_live_specimens_keep_real_gestures_and_drafts_inside_the_child(browser, 
         )
 
     # The first click lands on the child's control; there is no entry step.
-    with sending(child, "the specimen choice"):
+    with sending(child, "the sample choice"):
         child.locator("#child-a .lf-pick").click()
     expect(child.locator("#child-a .lf-pick")).to_have_attribute("aria-checked", "true")
     expect(other.locator("#child-a .lf-pick")).to_have_attribute(
@@ -339,7 +338,7 @@ def test_live_specimens_keep_real_gestures_and_drafts_inside_the_child(browser, 
     )
     expect(draft).to_be_focused()
     assert child.url == child_url
-    with sending(child, "the specimen comment"):
+    with sending(child, "the sample comment"):
         draft.press("ControlOrMeta+Enter")
     expect(
         child.locator(".lf-thread").filter(has_text="Keep this draft")
@@ -363,7 +362,7 @@ def test_live_specimens_keep_real_gestures_and_drafts_inside_the_child(browser, 
         old_scope,
     )
     other.locator(".lf-threads-toggle").click()
-    write(other.locator(".lf-general leaf-text"), "Keep the other specimen's draft.")
+    write(other.locator(".lf-general leaf-text"), "Keep the other sample's draft.")
     other_scope = other.evaluate("location.pathname")
     reset.click()
     expect(reset).to_be_enabled()
@@ -391,24 +390,24 @@ def test_live_specimens_keep_real_gestures_and_drafts_inside_the_child(browser, 
         other_scope,
     )
     expect(other.locator(".lf-general leaf-text")).to_have_js_property(
-        "value", "Keep the other specimen's draft."
+        "value", "Keep the other sample's draft."
     )
 
 
-def test_live_specimens_retire_before_navigation_and_coalesce_reset(browser, serve):
+def test_live_samples_retire_before_navigation_and_coalesce_reset(browser, serve):
     """A held replacement navigation cannot keep a released child alive."""
-    page = open_page(browser, serve(LIVE_SPECIMENS_PAGE))
+    page = open_page(browser, serve(LIVE_SAMPLES_PAGE))
     page.evaluate("""async () => {
-        const {mountSpecimen} = await window.__lfRuntimeImport('/runtime/specimen.js');
+        const {mountSample} = await window.__lfRuntimeImport('/runtime/sample.js');
         window.practiceFrame = document.createElement('iframe');
         document.body.append(practiceFrame);
-        window.practiceHost = mountSpecimen(practiceFrame, {template: 'first-source'});
+        window.practiceHost = mountSample(practiceFrame, {template: 'first-source'});
         await practiceHost.ready;
     }""")
     previous = page.evaluate("practiceFrame.src")
     held = []
     released = []
-    page.route(re.compile(r"/api/specimens/[^/]+/$"), lambda route: held.append(route))
+    page.route(re.compile(r"/api/samples/[^/]+/$"), lambda route: held.append(route))
     page.on(
         "request",
         lambda request: (
@@ -424,7 +423,7 @@ def test_live_specimens_retire_before_navigation_and_coalesce_reset(browser, ser
         window.samePracticeReset = first === second;
         window.practiceResult = Promise.allSettled([first, second]);
     }""")
-    holding(page, held, 1, "the replacement specimen document")
+    holding(page, held, 1, "the replacement sample document")
     assert page.evaluate("samePracticeReset && oldPracticeWindow.closed")
     assert page.request.get(previous + "api/state").status == 404
     replacement = held[0].request.url
@@ -439,11 +438,11 @@ def test_live_specimens_retire_before_navigation_and_coalesce_reset(browser, ser
     assert released.count(previous + "api/release") == 1
     assert released.count(replacement + "api/release") == 1
     held[0].abort()
-    page.unroute(re.compile(r"/api/specimens/[^/]+/$"))
+    page.unroute(re.compile(r"/api/samples/[^/]+/$"))
 
     # A failed presentation is retired too; Reset can then start a healthy child.
     page.route(
-        re.compile(r"/api/specimens/[^/]+/$"),
+        re.compile(r"/api/samples/[^/]+/$"),
         lambda route: route.fulfill(
             content_type="text/html",
             body='<html data-lf-startup-error="Practice could not start"><body></body></html>',
@@ -451,14 +450,14 @@ def test_live_specimens_retire_before_navigation_and_coalesce_reset(browser, ser
     )
     assert (
         page.evaluate("""async () => {
-        const {mountSpecimen} = await window.__lfRuntimeImport('/runtime/specimen.js');
-        window.practiceHost = mountSpecimen(practiceFrame, {template: 'first-source'});
+        const {mountSample} = await window.__lfRuntimeImport('/runtime/sample.js');
+        window.practiceHost = mountSample(practiceFrame, {template: 'first-source'});
         return practiceHost.ready.catch(error => error.message);
     }""")
         == "Practice could not start"
     )
     assert page.evaluate("!practiceFrame.hasAttribute('src')")
-    page.unroute(re.compile(r"/api/specimens/[^/]+/$"))
+    page.unroute(re.compile(r"/api/samples/[^/]+/$"))
     page.evaluate("practiceHost.reset().then(() => {})")
     assert page.evaluate(
         "practiceFrame.contentDocument.body.hasAttribute('data-lf-presented')"
@@ -466,13 +465,13 @@ def test_live_specimens_retire_before_navigation_and_coalesce_reset(browser, ser
     page.evaluate("practiceHost.destroy()")
 
 
-def test_live_specimens_release_pending_allocations_and_can_reconnect(browser, serve):
+def test_live_samples_release_pending_allocations_and_can_reconnect(browser, serve):
     """Destroy awaits allocation; a detached widget can create a fresh child later."""
-    page = open_page(browser, serve(LIVE_SPECIMENS_PAGE))
-    specimen = page.locator("#first-practice")
-    reset = specimen.get_by_role("button", name="Reset", exact=True)
+    page = open_page(browser, serve(LIVE_SAMPLES_PAGE))
+    sample = page.locator("#first-practice")
+    reset = sample.get_by_role("button", name="Reset", exact=True)
     expect(reset).to_be_enabled()
-    previous = specimen.locator("iframe").get_attribute("src")
+    previous = sample.locator("iframe").get_attribute("src")
     page.evaluate("""() => {
         window.detachedPractice = document.querySelector('#first-practice');
         detachedPractice.remove();
@@ -482,16 +481,16 @@ def test_live_specimens_release_pending_allocations_and_can_reconnect(browser, s
     )
     page.evaluate("document.querySelector('main').append(detachedPractice)")
     expect(reset).to_be_enabled()
-    assert specimen.locator("iframe").get_attribute("src") != previous
+    assert sample.locator("iframe").get_attribute("src") != previous
     assert page.request.get(previous + "api/state").status == 404
 
     held = []
-    page.route("**/api/specimens", lambda route: held.append(route))
+    page.route("**/api/samples", lambda route: held.append(route))
     page.evaluate("""async () => {
-        const {mountSpecimen} = await window.__lfRuntimeImport('/runtime/specimen.js');
+        const {mountSample} = await window.__lfRuntimeImport('/runtime/sample.js');
         window.pendingFrame = document.createElement('iframe');
         document.body.append(pendingFrame);
-        window.pendingHost = mountSpecimen(pendingFrame, {template: 'first-source'});
+        window.pendingHost = mountSample(pendingFrame, {template: 'first-source'});
         window.pendingResult = pendingHost.ready.catch(error => error.name);
     }""")
     holding(page, held, 1, "the child allocation")
@@ -503,13 +502,13 @@ def test_live_specimens_release_pending_allocations_and_can_reconnect(browser, s
     assert page.evaluate("pendingResult") == "AbortError"
     allocated_url = page.evaluate("url => new URL(url, location.href).href", allocated)
     assert page.request.get(allocated_url + "api/state").status == 404
-    page.unroute("**/api/specimens")
+    page.unroute("**/api/samples")
 
     held.clear()
-    page.route(re.compile(r"/api/specimens/[^/]+/$"), lambda route: held.append(route))
+    page.route(re.compile(r"/api/samples/[^/]+/$"), lambda route: held.append(route))
     page.evaluate("""async () => {
-        const {mountSpecimen} = await window.__lfRuntimeImport('/runtime/specimen.js');
-        window.pendingHost = mountSpecimen(pendingFrame, {template: 'first-source'});
+        const {mountSample} = await window.__lfRuntimeImport('/runtime/sample.js');
+        window.pendingHost = mountSample(pendingFrame, {template: 'first-source'});
         window.pendingResult = pendingHost.ready.catch(error => error.name);
     }""")
     holding(page, held, 1, "a child detached before its document arrives")
@@ -520,12 +519,12 @@ def test_live_specimens_release_pending_allocations_and_can_reconnect(browser, s
     page.evaluate("pendingHost.destroy()")
 
 
-def test_live_specimens_preserve_optimistic_refusal_and_child_escape(browser, serve):
+def test_live_samples_preserve_optimistic_refusal_and_child_escape(browser, serve):
     """Delivery rollback and nested Escape remain the ordinary child's behavior."""
-    page = open_page(browser, serve(LIVE_SPECIMENS_PAGE))
-    specimen = page.locator("#first-practice")
-    expect(specimen.get_by_role("button", name="Reset", exact=True)).to_be_enabled()
-    child = specimen.locator("iframe").element_handle().content_frame()
+    page = open_page(browser, serve(LIVE_SAMPLES_PAGE))
+    sample = page.locator("#first-practice")
+    expect(sample.get_by_role("button", name="Reset", exact=True)).to_be_enabled()
+    child = sample.locator("iframe").element_handle().content_frame()
     child.lf_traffic = Traffic(child)
     held = []
     page.route(child.url + "api/event", lambda route: held.append(route))
@@ -555,7 +554,7 @@ def test_live_specimens_preserve_optimistic_refusal_and_child_escape(browser, se
         "aria-expanded", "false"
     )
     page.keyboard.press("Escape")
-    expect(specimen).to_be_focused()
+    expect(sample).to_be_focused()
 
 
 CONTROL_STABILITY_PAGE = leaf_page(
@@ -3230,7 +3229,7 @@ def test_a_leaves_clock_change_reopens_only_its_same_epoch_presentation(
           );
           const state = structuredClone(context.runtime.state);
           state.others[0].activity.kind = 'away';
-          state.others[0].activity.quiet = true;
+          state.others[0].activity.counts.overdue = 1;
           state.others[0].activity.dropped = false;
           state.others[0].activity.ts = new Date().toISOString();
           presence.observeServerNow(new Date().toISOString());
@@ -4361,7 +4360,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     """The feature-gallery sweep above reads broad authored UI with the chrome shut: it
     never presses a key, so the thread panel, its box, the trays, the versions
     menu, the command reference and the sequence's chips are surfaces four readings pass
-    straight over. A `role="list"` whose children are run headings and threads shipped
+    straight over. A `role="list"` whose children were not all list items shipped
     through it, green every time.
 
     One page because the chrome is the same on every document. What varies here is which
@@ -5295,8 +5294,8 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
     rather than past it, so every covered inset ring answered that the control was under
     the same thing and the reading returned what it returns when nothing is wrong.
 
-    So: a run heading, which draws its ring inside itself, under a band exactly as deep
-    as that ring. The control case first, because a reading that reports over any inset
+    So: a thread title, which draws its ring inside itself, under a band exactly as
+    deep as that ring. The control case first, because a reading that reports over any inset
     control would pass the planted one without seeing it.
     """
     url = serve(PANEL_PAGE)
@@ -5305,8 +5304,8 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    heading = page.locator(".lf-threads > button.lf-group").first
-    heading.focus()
+    title = page.locator(".lf-threads > .lf-thread > .lf-thread-summary").first
+    title.focus()
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
     rendered(page)
@@ -5318,7 +5317,7 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
     }"""
     )
     assert inset[1] <= -inset[0], (
-        f"the heading's ring is {inset[0]}px at offset {inset[1]}px, which is not drawn "
+        f"the title's ring is {inset[0]}px at offset {inset[1]}px, which is not drawn "
         "inside its box, so this holds nothing about a reading of one that is"
     )
 
@@ -5345,19 +5344,19 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
 
     page.evaluate(plant, 0)
     assert standing_ring(page)["covers"] == [], (
-        "the heading is reported covered with nothing over it, so the planted case below "
+        "the title is reported covered with nothing over it, so the planted case below "
         "would only be repeating whatever this reading always says"
     )
 
     laid = page.evaluate(plant, inset[0])
     covers = standing_ring(page)["covers"]
     assert any("top edge" in c for c in covers), (
-        f"a {laid}px band over the whole of the heading's {inset[0]}px inset ring, "
-        f"with the rest of the heading in full view, and the reading said {covers}"
+        f"a {laid}px band over the whole of the title's {inset[0]}px inset ring, "
+        f"with the rest of the title in full view, and the reading said {covers}"
     )
 
 
-# One causal specimen for every named ring the layer draws. Each case names its surface,
+# One causal sample for every named ring the layer draws. Each case names its surface,
 # the real keys that open it, and the element whose focus state paints the ring. A null
 # selector means the opening keys themselves leave the required non-focusable carrier lit.
 RING_CASES = (
@@ -5431,8 +5430,8 @@ RING_CASES = (
     # the least room to hang a bar under one.
     #
     # The Tab in front of both sequences is a stop, not a gesture in the mode: target hints
-    # claim Tab for browsing themselves, so the specimen below moves nothing once the mode
-    # is open, and with the document under it the specimen would stand on nothing and read no
+    # claim Tab for browsing themselves, so the sample below moves nothing once the mode
+    # is open, and with the document under it the sample would stand on nothing and read no
     # page at all. Standing on a control first leaves the hint the keyboard is browsing on
     # screen for the sweep, which is where its band is read — the chips are a layer nothing
     # can focus, so the user's place in that mode is not a stop.
@@ -5466,11 +5465,6 @@ RING_CASES = (
         "a contents link",
         (),
         {"feature-gallery": (("#bg-contents li a:visible", "toc-link"),)},
-    ),
-    (
-        "the comments",
-        ("c",),
-        {"ship-review": ((".lf-threads > button.lf-group", "run-heading"),)},
     ),
     # The reaction palette a message's strip opens. Its chips are the last boxes the
     # layer dresses in the chrome's chip face, and they are behind a press: the strip
@@ -5506,7 +5500,7 @@ RING_CASES = (
     ),
     # A Thread card and the compact Page Map dialog are the two layers a Tab walk of the
     # page cannot open for itself. The card is a press on a thread margin entry; the sheet is a
-    # press on a Page Map control the wide posture does not draw at all, so its specimen asks for
+    # press on a Page Map control the wide posture does not draw at all, so its sample asks for
     # the narrow window the control lives in.
     (
         "a thread card",
@@ -5541,7 +5535,7 @@ RING_EXAMPLE_FILES = {
 }
 # Rings whose carrier is semantic state elsewhere in the page rather than the focused
 # control or one of its ancestors. Mark the exact carrier before reading the composed
-# paint so an unrelated ring with the same name cannot credit the specimen.
+# paint so an unrelated ring with the same name cannot credit the sample.
 RING_REMOTE_CARRIER = {
     "ask": None,
     "target-hint": ".lf-target-chooser-hint.lf-current",
@@ -5560,7 +5554,7 @@ def offered(page, selector):
     )
 
 
-# A surface must open before its specimen can count. Conditional banner controls are
+# A surface must open before its sample can count. Conditional banner controls are
 # checked only on a page that offers them.
 RING_SCOPE_SURFACE = {
     "an inline response": (
@@ -5596,11 +5590,11 @@ RING_SCOPE_OPENER = {
 # The window a scope's own surface stands in, where that is not the page's own. These
 # entries are floors the layer states rather than preferences: the Page Map control is drawn
 # under the margin's breakpoint and nowhere else, while the contents-link and thread-card
-# specimens use a wide window where their page-margin surfaces can stand beside the source.
+# samples use a wide window where their page-margin surfaces can stand beside the source.
 # Every other scope is read at the width the page opened at.
 RING_VIEWPORT = (1200, 900)
 # Scopes whose own route starts with Threads shut. A thread card and the narrow map need
-# page-margin surfaces the panel replaces; the thread-list specimen's `g T` is the door
+# page-margin surfaces the panel replaces; the thread-list sample's `g T` is the door
 # under test, and now correctly toggles an already-open panel closed.
 RING_SCOPES_STARTING_WITHOUT_PANEL = {
     "an inline response",
@@ -5622,7 +5616,7 @@ RING_SCOPE_WIDTH = {
 RING_FOCUS_START = "() => document.body.focus()"
 # A keyboard stop this sweep has not reached, one it has, or the document boundary.
 # This deliberately waits for no settled geometry: focus paint is synchronous, and the
-# separate specimen floor below owns ring geometry. Avoiding a layout-settlement probe at
+# separate sample floor below owns ring geometry. Avoiding a layout-settlement probe at
 # every Tab is what makes a complete native-stop sweep cheap.
 RING_NEW_STOP = f"""() => {{
   const e = ({DEEP_FOCUS})();
@@ -5631,7 +5625,7 @@ RING_NEW_STOP = f"""() => {{
   window.__lfSeen.add(e);
   return "new";
 }}"""
-# A focused specimen the user cannot find, or null when they can.
+# A focused sample the user cannot find, or null when they can.
 #
 # Three answers count, because the layer leaves "here" drawn in three ways and every one of
 # them is the user seeing the same thing.
@@ -5653,7 +5647,7 @@ RING_NEW_STOP = f"""() => {{
 # accent shadow. That is a fifth way of drawing "here" and this reading has no honest
 # test for it: accepting a background would pass every stop on a tinted page. No corpus
 # example reaches the state — none carries `restated`, the one shipped log carries no
-# report, and the specimens make no gesture — so nothing here is being excused today. A
+# report, and the samples make no gesture — so nothing here is being excused today. A
 # reading of the wash has to come with the corpus case that shows it.
 #
 # A marked element answers the keyboard with the same named accent ring as any other
@@ -5679,12 +5673,21 @@ SEEN_STOP = f"""() => {{
   const e = ({DEEP_FOCUS})();
   if (!e) return null;
   const {{ accent, mixed }} = ({ACCENT_SWATCH})();
+  const ringed = (cs) => cs.outlineStyle === 'solid'
+    && cs.outlineWidth === cs.getPropertyValue('--here-ring-w').trim()
+    && cs.outlineColor === accent;
+  // A box whose own content paints over its outline draws the same ring on a later
+  // pseudo-element instead: the scrolling thread list's frame, a page thread over its
+  // pinned reply row, a code block's host over its sticky notes. That ring is only ever
+  // named, so it answers under the same rule as a named ancestor's outline.
+  const overlaid = (el) => {{
+    const cs = getComputedStyle(el, '::after');
+    return cs.content !== 'none' && ringed(cs)
+      && cs.getPropertyValue('--lf-here-ring').trim() !== 'none';
+  }};
   const shown = (el) => {{
     const cs = getComputedStyle(el);
-    if (cs.outlineStyle === 'auto') return true;
-    return cs.outlineStyle === 'solid'
-      && cs.outlineWidth === cs.getPropertyValue('--here-ring-w').trim()
-      && cs.outlineColor === accent;
+    return cs.outlineStyle === 'auto' || ringed(cs);
   }};
   // An ancestor answers only for a ring whose rule named it. Every ancestor on this
   // chain contains the focus by construction, so containing it says nothing; what
@@ -5694,22 +5697,12 @@ SEEN_STOP = f"""() => {{
   // outline, so neither answers the keyboard's question for every stop underneath it.
   const named = (el) =>
     getComputedStyle(el).getPropertyValue('--lf-here-ring').trim() !== 'none';
-  if (shown(e)) return null;
+  if (shown(e) || overlaid(e)) return null;
   for (let el = e.parentElement ?? e.getRootNode().host ?? null; el;
        el = el.parentElement ?? el.getRootNode().host ?? null)
-    if (shown(el) && (getComputedStyle(el).outlineStyle === 'auto' || named(el)))
+    if ((shown(el) && (getComputedStyle(el).outlineStyle === 'auto' || named(el)))
+        || overlaid(el))
       return null;
-  // The scrolling thread list's children can paint over its inset outline. Its frame
-  // therefore carries a later-painted pseudo-element with the same outline. This
-  // relationship is deliberately exact: unrelated paint elsewhere is not evidence
-  // that the focused stop is visible.
-  if (e.parentElement?.matches('.lf-threads-frame')) {{
-    const overlay = getComputedStyle(e.parentElement, '::after');
-    if (overlay.outlineStyle === 'solid'
-        && overlay.outlineWidth === overlay.getPropertyValue('--here-ring-w').trim()
-        && overlay.outlineColor === accent
-        && overlay.getPropertyValue('--lf-here-ring').trim() !== 'none') return null;
-  }}
   if (({HERE_SHADOW})(getComputedStyle(e), accent, mixed) > 0) return null;
   const cls = typeof e.className === 'string' && e.className.trim()
     ? '.' + e.className.trim().split(/\\s+/).join('.') : '';
@@ -5741,7 +5734,7 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
 
     assert page.evaluate(SEEN_STOP) is None, (
         "a banner button wearing the layer's own ring reads as a stop nothing draws, so "
-        "the specimen floor cannot trust this reading"
+        "the sample floor cannot trust this reading"
     )
 
     page.evaluate("""() => {
@@ -5756,7 +5749,7 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
     lost = page.evaluate(SEEN_STOP)
     assert lost and "lf-threads-toggle" in lost, (
         "the ring was taken off a focused control and the reading still called it seen "
-        f"({lost}), so the specimen floor cannot report a missing indication"
+        f"({lost}), so the sample floor cannot report a missing indication"
     )
 
     # The thread list's ring is a later-painted pseudo-element because its scrolling
@@ -5828,10 +5821,10 @@ def test_the_focus_sweep_distinguishes_stops_inside_a_live_frame(browser):
 def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     browser, serve, live_leaf
 ):
-    """Every declared ring has a causal specimen whose whole band is visible.
+    """Every declared ring has a causal sample whose whole band is visible.
 
     `RING_NAMES` derives the population from the composed stylesheets. `RING_CASES`
-    names one rendered specimen for each member, including surfaces that must first be
+    names one rendered sample for each member, including surfaces that must first be
     opened. Comparing the two sides catches both an unexercised declaration and painted
     ring with no declaration. A second version and neighbouring leaf provide the two
     runtime states authored examples cannot carry themselves.
@@ -5839,7 +5832,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
 
     def open_containing_thread(target):
         # The accordion keeps a message's controls connected while closed. Enter through
-        # its real title before asking a specimen inside it to take keyboard focus.
+        # its real title before asking a sample inside it to take keyboard focus.
         thread_id = target.evaluate(
             "node => node.matches('.lf-thread-summary') ? null : "
             "node.closest('.lf-thread')?.dataset.id"
@@ -5850,7 +5843,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 card.locator(":scope > .lf-thread-summary").click()
 
     live_leaf("other", "The other leaf")
-    # No ring moves under the default motion setting, so a settled specimen reads the
+    # No ring moves under the default motion setting, so a settled sample reads the
     # value its rule declares. The reduced-motion case has a focused test above.
     rings, lit, faults, seen_faults = {}, set(), [], set()
     unseen = set()
@@ -5877,7 +5870,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             url = url.replace(f"/v{current_version}.html", f"/v{next_version}.html")
         page = open_page(browser, url)
         if name == "release-notes":
-            # Ordinary element marks need a focusable specimen for their conditional ring.
+            # Ordinary element marks need a focusable sample for their conditional ring.
             page.locator("main p").first.evaluate(
                 "node => { node.classList.add('lf-mark-el'); node.tabIndex = 0; }"
             )
@@ -5890,7 +5883,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
         page_at_rest(page)
 
         for scope, keys, cases in RING_CASES:
-            if (specimens := cases.get(name)) is None:
+            if (samples := cases.get(name)) is None:
                 continue
             # The posture the scope's own surface stands in, read after the panel below
             # has settled and put back afterwards, so the next scope reads the page this
@@ -5979,15 +5972,15 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 opened.add(scope)
 
             where = f"in {scope} of {example.stem}"
-            for selector, expected in specimens:
+            for selector, expected in samples:
                 expected = {expected} if isinstance(expected, str) else set(expected)
                 if selector:
                     target = page.locator(selector).first
-                    # A specimen can stand inside a container that is closed on arrival —
+                    # A sample can stand inside a container that is closed on arrival —
                     # the corpus holds each example in a tab, and only one panel is open.
                     # Nothing inside a hidden panel is focusable, so the ring would read
                     # as undrawn for a control that paints it perfectly well. Ask the
-                    # runtime's own disclosure route, so the surface a specimen needs is
+                    # runtime's own disclosure route, so the surface a sample needs is
                     # derived from where it sits rather than from the corpus's tab order —
                     # which follows the examples directory, and moves when one is added.
                     # `reveal` takes the intent its caller's gesture retained, and
@@ -6034,24 +6027,24 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                         assert ask_id, f"{selector} {where} names no ask carrier"
                         carrier_selector = f'[id="{ask_id}"]'
                     page.locator(carrier_selector).evaluate(
-                        "node => node.setAttribute('data-lf-ring-specimen', '')"
+                        "node => node.setAttribute('data-lf-ring-sample', '')"
                     )
                 drawn = rings_drawn(page)
-                page.locator("[data-lf-ring-specimen]").evaluate_all(
+                page.locator("[data-lf-ring-sample]").evaluate_all(
                     "nodes => nodes.forEach(node => "
-                    "node.removeAttribute('data-lf-ring-specimen'))"
+                    "node.removeAttribute('data-lf-ring-sample'))"
                 )
                 found = set()
                 for ring in drawn:
                     if not ring["here"]:
                         continue
                     if ring["ring"]:
-                        if ring["ring"] in expected and ring["specimen"]:
+                        if ring["ring"] in expected and ring["sample"]:
                             found.add(ring["ring"])
                     else:
                         unnamed.add(ring["who"])
                 # One standing defect is one finding, not one per stop: a ring worn by
-                # something the specimen is not moving — a decision's mark, a thread's element
+                # something the sample is not moving — a decision's mark, a thread's element
                 # mark — is read again at every stop it survives.
                 for fault in ring_faults(drawn, where):
                     if fault not in seen_faults:
@@ -6080,7 +6073,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
         page.close()
 
     assert not unseen, (
-        "a specimen stood on a control and nothing on screen said where the keyboard was, "
+        "a sample stood on a control and nothing on screen said where the keyboard was, "
         "so a user arriving by Tab has no way to tell: "
         f"{sorted(unseen)}"
     )
@@ -6093,7 +6086,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     missing = expected_surfaces - opened
     assert not missing, "no selected example reached " + ", ".join(sorted(missing))
     assert not faults, "\n  ".join(
-        [f"{len(faults)} faults over {stops} specimens:"] + faults
+        [f"{len(faults)} faults over {stops} samples:"] + faults
     )
     # A ring nobody named, said from either side. The scan reaches a rule the corpus
     # never paints and cannot tell a ring drawn some other way from no ring at all; the
@@ -6116,7 +6109,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     # the layer's token, so a rule that draws the ring some other way and still names it
     # paints a credit for a name no population holds.
     assert rings, (
-        "the layer declares no rings, so this floor divided by nothing and the specimens "
+        "the layer declares no rings, so this floor divided by nothing and the samples "
         "above is evidence about no rule at all"
     )
     assert not lit - set(rings), (
@@ -6130,7 +6123,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     ]
     assert not unlit, (
         f"{len(unlit)} of the layer's {len(rings)} rings are painted nowhere the "
-        f"corpus specimens exhibit, so nothing above is evidence about them:\n  "
+        f"corpus samples exhibit, so nothing above is evidence about them:\n  "
         + "\n  ".join(unlit)
     )
 

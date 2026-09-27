@@ -592,7 +592,7 @@ def test_read_converges_across_two_tabs(browser, serve):
     ]
 
 
-def test_offscreen_specimen_cannot_acknowledge_child_viewport(browser, serve):
+def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
     root = "a1b2c3d4"
     page = open_page(
         browser,
@@ -602,11 +602,11 @@ def test_offscreen_specimen_cannot_acknowledge_child_viewport(browser, serve):
                 f"""
 <h1>Practice page</h1>
 <div id="read-clip">
-<lf-specimen id="read-practice" label="Read practice">
-  <template id="read-source" data-specimen data-specimen-threads="{root}">
+<lf-sample id="read-practice" label="Read practice">
+  <template id="read-source" data-sample data-sample-threads="{root}">
     <h1>Child page</h1>
   </template>
-</lf-specimen>
+</lf-sample>
 </div>
 """,
             ),
@@ -623,8 +623,8 @@ def test_offscreen_specimen_cannot_acknowledge_child_viewport(browser, serve):
         ),
     )
     clip = page.locator("#read-clip")
-    specimen = page.locator("#read-practice")
-    frame = specimen.locator("iframe")
+    sample = page.locator("#read-practice")
+    frame = sample.locator("iframe")
     child = frame.element_handle().content_frame()
     expect(child.locator(".lf-first-unread")).to_have_text("Next unread")
     child.locator(".lf-threads-toggle").focus()
@@ -642,7 +642,7 @@ def test_offscreen_specimen_cannot_acknowledge_child_viewport(browser, serve):
     page.set_viewport_size({"width": 1280, "height": 1400})
     page.wait_for_timeout(100)
     expect(child.locator(".lf-first-unread")).to_have_text("Next unread")
-    # Below the first screen and taller than the window, the specimen is read through
+    # Below the first screen and taller than the window, the sample is read through
     # the band the containing page shows as it scrolls: its edge coming into view shows
     # nothing, and a later scroll of the containing page shows the message.
     clip.evaluate(

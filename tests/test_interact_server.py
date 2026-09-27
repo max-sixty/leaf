@@ -66,10 +66,10 @@ from leaf import publishing as publishing_model
 from leaf import render_checks as render_checks_model
 from leaf import revision_artifact as artifact_model
 from leaf import revisioning as revisioning_model
+from leaf import samples as samples_model
 from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import service as service_model
-from leaf import specimens as specimens_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
@@ -244,11 +244,11 @@ def test_interaction_trace_does_not_keep_an_unattended_page_active(page_dir):
     assert service_model._touched_recently(page_dir, claimed_at)
 
 
-def test_specimens_use_captured_resources_and_independent_event_logs(server, page_dir):
-    template = '<template id="practice" data-specimen><h1>Practice</h1><p id="child-copy">Child text.</p><script type="module" src="/page/specimen.js"></script></template>'
+def test_samples_use_captured_resources_and_independent_event_logs(server, page_dir):
+    template = '<template id="practice" data-sample><h1>Practice</h1><p id="child-copy">Child text.</p><script type="module" src="/page/sample.js"></script></template>'
     (page_dir / "page").mkdir(exist_ok=True)
     module = b'document.getElementById("child-copy").dataset.module = "captured";'
-    (page_dir / "page/specimen.js").write_bytes(module)
+    (page_dir / "page/sample.js").write_bytes(module)
     (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
     publish(page_dir)
     parent_before = event_model.read_events(page_dir)
@@ -259,9 +259,9 @@ def test_specimens_use_captured_resources_and_independent_event_logs(server, pag
         artifact_model.read_artifact(page_dir, 1).resources["/theme.css"].data
     )
     (page_dir / "theme.css").write_text("/* mutable bytes must not enter the child */")
-    (page_dir / "page/specimen.js").write_text('throw Error("mutable code");')
+    (page_dir / "page/sample.js").write_text('throw Error("mutable code");')
     status, raw = fetch(
-        f"{server}/api/specimens",
+        f"{server}/api/samples",
         data=json.dumps({"template": "practice"}).encode(),
         layer=generation,
         headers={"Leaf-View-Revision": "1"},
@@ -278,8 +278,8 @@ def test_specimens_use_captured_resources_and_independent_event_logs(server, pag
     assert "data-lf-contained" in served.find("html").attrs
     assert "inert" in served.find("body").attrs
     assert fetch(child + "/theme.css") == (200, captured_theme)
-    [module_path] = re.findall(rb'src="([^"]+/page/specimen.js)"', document)
-    assert module_path == f"{root}/page/specimen.js".encode()
+    [module_path] = re.findall(rb'src="([^"]+/page/sample.js)"', document)
+    assert module_path == f"{root}/page/sample.js".encode()
     assert fetch(server + module_path.decode()) == (200, module)
     status, raw = fetch(child + "/api/state")
     assert status == 200, raw
@@ -297,7 +297,7 @@ def test_specimens_use_captured_resources_and_independent_event_logs(server, pag
                 "revision": 1,
                 "text": "A child comment",
                 "anchor": {"section": "child-copy"},
-                "attempt": "specimen-comment",
+                "attempt": "child-sample-comment",
             }
         ).encode(),
     )
@@ -321,10 +321,10 @@ def test_specimens_use_captured_resources_and_independent_event_logs(server, pag
     )
 
 
-def test_specimen_allocations_share_no_parent_lock_and_keep_one_log_reading(
+def test_sample_allocations_share_no_parent_lock_and_keep_one_log_reading(
     server, page_dir, monkeypatch
 ):
-    template = '<template id="practice" data-specimen data-specimen-threads="aabb0011"><h1>Practice</h1></template>'
+    template = '<template id="practice" data-sample data-sample-threads="aabb0011"><h1>Practice</h1></template>'
     (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
     event_model.append_event(
         page_dir,
@@ -339,18 +339,18 @@ def test_specimen_allocations_share_no_parent_lock_and_keep_one_log_reading(
     publish(page_dir)
     allocating = threading.Barrier(3)
     release = threading.Event()
-    original = specimens_model.Specimens.create
+    original = samples_model.Samples.create
 
     def held_allocation(self, *args):
         allocating.wait(timeout=5)
         assert release.wait(5)
         return original(self, *args)
 
-    monkeypatch.setattr(specimens_model.Specimens, "create", held_allocation)
+    monkeypatch.setattr(samples_model.Samples, "create", held_allocation)
     with ThreadPoolExecutor(max_workers=2) as executor:
         allocations = [
             executor.submit(
-                fetch, server + "/api/specimens", data=b'{"template":"practice"}'
+                fetch, server + "/api/samples", data=b'{"template":"practice"}'
             )
             for _ in range(2)
         ]
@@ -381,27 +381,27 @@ def test_specimen_allocations_share_no_parent_lock_and_keep_one_log_reading(
         assert [event["text"] for event in state["events"]] == ["Before allocation"]
 
 
-def test_specimens_seed_only_the_declared_threads_and_reset_by_recreation(
+def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
     server, page_dir
 ):
-    template = '<template id="practice" data-specimen data-specimen-threads="aabb0011"><h1>Practice</h1><p id="plan">The cutoff lives in the plan.</p><p><lf-suggestion id="revision" resolves="aabb0011"><lf-old>Friday</lf-old><lf-new>Monday</lf-new></lf-suggestion></p></template>'
-    unseeded = '<template id="unseeded" data-specimen data-specimen-threads="aabb0011"><h1>Unseeded</h1><p id="note">Nothing here names the thread.</p></template>'
+    template = '<template id="practice" data-sample data-sample-threads="aabb0011"><h1>Practice</h1><p id="plan">The cutoff lives in the plan.</p><p><lf-suggestion id="revision" resolves="aabb0011"><lf-old>Friday</lf-old><lf-new>Monday</lf-new></lf-suggestion></p></template>'
+    unseeded = '<template id="unseeded" data-sample data-sample-threads="aabb0011"><h1>Unseeded</h1><p id="note">Nothing here names the thread.</p></template>'
     (page_dir / "index.html").write_text(
         PAGE.replace("</main>", template + unseeded + "</main>")
     )
     publish(page_dir)
     # The declaration selects from the standing log rather than requiring it, so a
     # page whose log holds none of it yet — a first version, or a copy made from the
-    # source alone — still opens its specimens. What a child may not do is name a
+    # source alone — still opens its samples. What a child may not do is name a
     # thread it does not have, and the ordinary child-document check says so
     # about the element that names it.
-    status, raw = fetch(f"{server}/api/specimens", data=b'{"template":"unseeded"}')
+    status, raw = fetch(f"{server}/api/samples", data=b'{"template":"unseeded"}')
     assert status == 200, raw
     assert (
         json.loads(fetch(server + json.loads(raw)["url"] + "api/state")[1])["events"]
         == []
     )
-    status, raw = fetch(f"{server}/api/specimens", data=b'{"template":"practice"}')
+    status, raw = fetch(f"{server}/api/samples", data=b'{"template":"practice"}')
     assert (
         status == 400
         and "resolves='aabb0011' names no thread" in json.loads(raw)["error"]
@@ -437,7 +437,7 @@ def test_specimens_seed_only_the_declared_threads_and_reset_by_recreation(
     children = []
     for _ in range(2):
         status, raw = fetch(
-            f"{server}/api/specimens", data=b'{"template":"practice","passive":true}'
+            f"{server}/api/samples", data=b'{"template":"practice","passive":true}'
         )
         assert status == 200, raw
         child = server + json.loads(raw)["url"].rstrip("/")
@@ -448,26 +448,26 @@ def test_specimens_seed_only_the_declared_threads_and_reset_by_recreation(
             "Selected thread",
             "Seeded reply",
         ]
-        assert b"data-lf-specimen-passive" in fetch(child + "/")[1]
+        assert b"data-lf-sample-passive" in fetch(child + "/")[1]
     assert children[0] != children[1]
     assert event_model.read_events(page_dir) == before
-    status, raw = fetch(f"{server}/api/specimens", data=b'{"template":"missing"}')
-    assert status == 400 and "unknown specimen template" in json.loads(raw)["error"]
+    status, raw = fetch(f"{server}/api/samples", data=b'{"template":"missing"}')
+    assert status == 400 and "unknown sample template" in json.loads(raw)["error"]
     assert fetch(children[0] + "/api/state", token=None)[0] == 403
 
 
-def test_specimen_template_lookup_stays_within_the_requesting_page(server, page_dir):
-    templates = """<template id="outer" data-specimen><h1>Outer page</h1>
-      <template id="practice" data-specimen><h1>Nested practice</h1></template>
-      <template id="nested-only" data-specimen><h1>Nested only</h1></template>
+def test_sample_template_lookup_stays_within_the_requesting_page(server, page_dir):
+    templates = """<template id="outer" data-sample><h1>Outer page</h1>
+      <template id="practice" data-sample><h1>Nested practice</h1></template>
+      <template id="nested-only" data-sample><h1>Nested only</h1></template>
     </template>
-    <template id="practice" data-specimen><h1>Parent practice</h1></template>"""
+    <template id="practice" data-sample><h1>Parent practice</h1></template>"""
     (page_dir / "index.html").write_text(PAGE.replace("</main>", templates + "</main>"))
     publish(page_dir)
 
     def create(parent, template):
         status, body = fetch(
-            parent + "/api/specimens", data=json.dumps({"template": template}).encode()
+            parent + "/api/samples", data=json.dumps({"template": template}).encode()
         )
         assert status == 200, body
         return server + json.loads(body)["url"].rstrip("/")
@@ -480,15 +480,13 @@ def test_specimen_template_lookup_stays_within_the_requesting_page(server, page_
     assert b"Nested practice" in nested_document
     root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
     assert f'data-lf-entry="{root}/leaf.js"'.encode() in nested_document
-    assert (
-        fetch(server + "/api/specimens", data=b'{"template":"nested-only"}')[0] == 400
-    )
+    assert fetch(server + "/api/samples", data=b'{"template":"nested-only"}')[0] == 400
     assert fetch(outer + "/api/release", data=b"{}")[0] == 200
     assert fetch(nested + "/")[0] == 404
 
 
 @pytest.mark.parametrize("explicit_revision", [False, True])
-def test_frozen_preview_specimens_use_snapshot_inputs_without_parent_writes(
+def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
     page_dir, explicit_revision
 ):
     declare_data_input(page_dir, "builds", {"type": "array"})
@@ -504,7 +502,7 @@ def test_frozen_preview_specimens_use_snapshot_inputs_without_parent_writes(
         },
     )
     data_model.cmd_data_set(page_dir, "builds", ["checked"])
-    template = '<template id="practice" data-specimen data-specimen-threads="aabb0011"><h1>Frozen child</h1></template>'
+    template = '<template id="practice" data-sample data-sample-threads="aabb0011"><h1>Frozen child</h1></template>'
     document = structure_model.SourceDocument(
         PAGE.replace("</main>", template + "</main>")
     )
@@ -528,7 +526,7 @@ def test_frozen_preview_specimens_use_snapshot_inputs_without_parent_writes(
         page_dir, token=TOKEN, page_options={"page_snapshot": snapshot}
     ) as preview:
         status, raw = fetch(
-            preview.origin + "/api/specimens",
+            preview.origin + "/api/samples",
             data=b'{"template":"practice"}',
             layer=snapshot.layer["generation"],
             headers={"Leaf-View-Revision": "2"} if explicit_revision else {},
@@ -3410,10 +3408,10 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
                 '<lf-options id="thread-pick" choose>'
                 '<lf-option id="thread-a"><strong>A</strong></lf-option>'
                 "</lf-options></lf-ask>"
-                '<lf-specimen id="sample">'
+                '<lf-sample id="sample">'
                 '<lf-options id="exhibited-pick" choose>'
                 '<lf-option id="exhibited-a"><strong>A</strong></lf-option>'
-                "</lf-options></lf-specimen>"
+                "</lf-options></lf-sample>"
             ),
         ],
     )
@@ -5256,6 +5254,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
         id="s9",
         agent="Codex",
         cwd="/work/api",
+        turn_opened="2026-01-01T00:00:00-08:00",
     )
     # A server that died leaves its record behind and its lock with the kernel:
     # the file says served and nothing holds it, which is what reads as stale.
@@ -5286,7 +5285,11 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     # list. Untitled, so the title falls back to the directory's name.
     scratch = tmp_path / "scratch"
     claimed_url = neighbour_page(scratch)
-    record_claim(scratch, released="2026-01-01T00:00:00-08:00")
+    record_claim(
+        scratch,
+        released="2026-01-01T00:00:00-08:00",
+        turn_opened="2026-01-01T00:00:00-08:00",
+    )
 
     state = json.loads(fetch(f"{server}/api/state")[1])
     # A directory holding no claims at all is still a complete answer: every
@@ -5295,10 +5298,11 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
         "status": {"state": "idle", "detail": "", "ts": None, "after": 0},
         "claims": [],
         "listening": False,
+        "session_alive": None,
+        "live_turn": None,
         "cursor": 0,
         "pending": 0,
         "agent": "Agent",
-        "session_alive": None,
         "claim_session": None,
         "claim_turn": None,
         "turn_closed": None,
@@ -5310,7 +5314,6 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
         "activity": {
             "kind": "closed",
             "held": True,
-            "quiet": False,
             "dropped": False,
             "detail": "",
             "observed": "",
@@ -5321,6 +5324,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
                 "queued": 0,
                 "picked_up": 0,
                 "pending": 0,
+                "overdue": 0,
                 "total": 0,
             },
             "ts": None,
@@ -5352,6 +5356,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
             "session_alive": False,
             "claim_session": "s1",
             "claim_turn": "turn-1",
+            "turn_opened": "2026-01-01T00:00:00-08:00",
             "session_cwd": str(Path.cwd()),
             "activity": {**unclaimed["activity"], "held": False},
         },
@@ -5369,11 +5374,11 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
             "session_alive": True,
             "claim_session": "s9",
             "claim_turn": "turn-1",
+            "turn_opened": "2026-01-01T00:00:00-08:00",
             "session_cwd": "/work/api",
             "activity": {
                 "kind": "away",
                 "held": True,
-                "quiet": True,
                 "dropped": False,
                 "detail": "measuring",
                 "observed": "",
@@ -5384,6 +5389,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
                     "queued": 0,
                     "picked_up": 0,
                     "pending": 0,
+                    "overdue": 0,
                     "total": 0,
                 },
                 "ts": "2026-01-01T00:00:00-08:00",

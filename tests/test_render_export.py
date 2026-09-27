@@ -977,10 +977,12 @@ def test_terminating_a_preview_mid_update_leaves_no_service(served_preview):
         theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: navy; }\n")
-        deadline = time.monotonic() + 30
-        while json.loads((directory / "service.json").read_text())["enabled"]:
-            assert time.monotonic() < deadline, "watcher did not begin the update"
-            time.sleep(0.05)
+        wait_for(
+            lambda: json.loads((directory / "service.json").read_text())["enabled"],
+            lambda enabled: not enabled,
+            failure="watcher did not begin the update",
+            timeout=30,
+        )
         os.killpg(process.pid, signal.SIGTERM)
     process.wait(timeout=30)
     assert server_model.running_server(directory) is None
@@ -1515,13 +1517,13 @@ def test_exporting_an_example_leaves_the_live_preview_untouched(
         live_server.wait(timeout=5)
 
 
-def test_export_refuses_server_dependent_specimens(serve, tmp_path):
+def test_export_refuses_server_dependent_samples(serve, tmp_path):
     serve(
         leaf_page(
-            "Live specimen",
-            '<lf-specimen id="practice" label="practice">'
-            '<template id="practice-source" data-specimen><h1>Child</h1></template>'
-            "</lf-specimen>",
+            "Live sample",
+            '<lf-sample id="practice" label="practice">'
+            '<template id="practice-source" data-sample><h1>Child</h1></template>'
+            "</lf-sample>",
         )
     )
     output = tmp_path / "offline.html"
@@ -1536,7 +1538,7 @@ def test_export_refuses_server_dependent_specimens(serve, tmp_path):
         ],
     )
     assert result.exit_code != 0
-    assert "Live specimens need a server" in result.output
+    assert "Live samples need a server" in result.output
     assert not output.exists()
 
 

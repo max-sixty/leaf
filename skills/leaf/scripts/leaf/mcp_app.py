@@ -56,7 +56,7 @@ def app_snapshot(page: str) -> tuple[dict, dict]:
     document = compose_document(
         source,
         revision,
-        None,
+        active["version"],
         executable=artifact.executable,
         widgets=artifact.widgets,
         resources=artifact.resources,

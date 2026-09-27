@@ -115,7 +115,7 @@ function navigationSummary(navigation, model) {
   const title = model.summary.topic;
   const latest = model.summary.latest;
   const status = model.resolved ? "Resolved" : model.attention?.label || "";
-  const draft = Boolean(loadDraft("reply:" + model.key)?.trim());
+  const draft = Boolean(loadDraft("reply:" + model.key));
   const hasMeta = draft || status || model.unreadCount;
   // Until the agent names the thread, the title slot says so in words set apart from
   // any title, and the dots after them say the naming is under way.

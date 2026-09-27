@@ -70,6 +70,17 @@
         opacity: 0.6;
       }
 
+      /* The Data tab's survival table: a mark per cell, centred under its column. */
+      #data-survives-table :is(th, td):not(:first-child) {
+        text-align: center;
+      }
+      #data-survives-table .kept {
+        color: var(--ok);
+      }
+      #data-survives-table .lost {
+        color: var(--muted);
+      }
+
       /* A terminal wraps a long line rather than scrolling it, so the transcript
          does too; the delivery is indented, so what wraps is one string value. */
       #loop-transcript {
@@ -2201,59 +2212,74 @@ flowchart TD
             <p id="data-directory">
               Everything durable about a page lives in its directory. Copying the
               directory copies the page, its history, and every decision on it. There
-              is no database.
+              is no database. Three stores hold what a page shows, each written its own
+              way:
+            </p>
+            <lf-diagram
+              id="data-flow"
+              parts="node:Agent node:You node:Cmd node:Proc node:Rev node:Log node:Data node:Read node:Browser node:PageState node:Local"
+            >
+              <pre>
+flowchart TD
+  subgraph Writers["Who writes"]
+    Agent["agent edits index.html"]
+    You["you, in the browser"]
+    Cmd["agent commands"]
+    Proc["any process"]
+  end
+  subgraph Dir["page directory"]
+    Rev[("revisions/ (immutable)")]
+    Log[("events.jsonl (append-only)")]
+    Data[("data/ (replaced whole)")]
+  end
+  Agent -- "valid save" --&gt; Rev
+  You --&gt; Log
+  Cmd --&gt; Log
+  Proc -- "leaf data set" --&gt; Data
+  Rev -- "markup" --&gt; Read["current state, computed on every read"]
+  Log -- "fold" --&gt; Read
+  Data -- "values" --&gt; Read
+  Read --&gt; Browser["your browser"]
+  Read --&gt; PageState["agent: leaf page state"]
+  Browser -.- Local["this browser only: view state, drafts"]
+  classDef computed fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)
+  class Read computed
+</pre>
+            </lf-diagram>
+            <p id="data-bookkeeping-lede">
+              Leaf also keeps bookkeeping about the conversation around the page. None
+              of it changes a widget's state or a thread's messages.
             </p>
             <table id="data-table">
               <thead>
                 <tr>
-                  <th>What</th>
                   <th>Where</th>
-                  <th>Written by</th>
+                  <th>What it tracks</th>
                 </tr>
               </thead>
               <tbody>
-                <tr id="data-row-markup">
-                  <td>The page's content and each widget's starting value</td>
-                  <td>
-                    <code>index.html</code>, copied into <code>revisions/</code> on each
-                    valid save
-                  </td>
-                  <td>the agent</td>
+                <tr id="data-row-cursor">
+                  <td><code>cursor.json</code></td>
+                  <td>How far the agent has read the log</td>
                 </tr>
-                <tr id="data-row-log">
-                  <td>
-                    Your picks, drags, comments, and undos; the agent's replies, notes,
-                    and versions
-                  </td>
-                  <td><code>events.jsonl</code>, append-only</td>
-                  <td>Leaf's one append door, for the browser and commands alike</td>
+                <tr id="data-row-viewed">
+                  <td><code>viewed.json</code></td>
+                  <td>When you last looked at the page</td>
                 </tr>
-                <tr id="data-row-sources">
-                  <td>Values from outside: a measurement, a CI status, a file excerpt</td>
-                  <td>
-                    <code>data/&lt;source&gt;.json</code>, with each source's contract in
-                    <code>data.json</code>
-                  </td>
-                  <td><code>leaf data set</code>, or any process rewriting the file</td>
+                <tr id="data-row-status">
+                  <td><code>status.json</code></td>
+                  <td>The agent's declared status, which the banner shows</td>
                 </tr>
-                <tr id="data-row-bookkeeping">
-                  <td>
-                    Bookkeeping: how far the agent has read, when you last looked, the
-                    agent's declared status, a diagnostic trace of requests
-                  </td>
-                  <td>
-                    <code>cursor.json</code>, <code>viewed.json</code>,
-                    <code>status.json</code>, <code>interactions.jsonl</code>
-                  </td>
-                  <td>Leaf</td>
+                <tr id="data-row-interactions">
+                  <td><code>interactions.jsonl</code></td>
+                  <td>A diagnostic trace of requests and browser interactions</td>
                 </tr>
                 <tr id="data-row-machine">
+                  <td>the machine's state home, outside any page</td>
                   <td>
                     Which session claims each page, the batches delivered to agents, and
                     the access key in the page's URL
                   </td>
-                  <td>the machine's state home, outside any page</td>
-                  <td>Leaf</td>
                 </tr>
               </tbody>
             </table>
@@ -2298,16 +2324,66 @@ flowchart TD
             </p>
           </section>
 
-          <section id="data-browser">
-            <h2>What your browser keeps</h2>
+          <section id="data-survives">
+            <h2>What each kind of data survives</h2>
+            <p id="data-survives-lede">
+              Where a thing is stored decides what can lose it. What reaches the page
+              directory outlasts any tab or server; what stays in the browser stays in
+              that browser.
+            </p>
+            <table id="data-survives-table">
+              <thead>
+                <tr>
+                  <th>What</th>
+                  <th>Reload</th>
+                  <th>Close the tab</th>
+                  <th>Server restarts</th>
+                  <th>Another browser</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr id="survives-sent">
+                  <td>Picks, drags, and comments you have sent</td>
+                  <td class="kept">✓</td>
+                  <td class="kept">✓</td>
+                  <td class="kept">✓</td>
+                  <td class="kept">✓</td>
+                </tr>
+                <tr id="survives-sources">
+                  <td>External values, until the next write replaces them</td>
+                  <td class="kept">✓</td>
+                  <td class="kept">✓</td>
+                  <td class="kept">✓</td>
+                  <td class="kept">✓</td>
+                </tr>
+                <tr id="survives-drafts">
+                  <td>Words you have typed and not sent</td>
+                  <td class="kept">✓</td>
+                  <td class="kept">✓</td>
+                  <td class="kept">✓</td>
+                  <td class="lost">✗</td>
+                </tr>
+                <tr id="survives-chrome">
+                  <td>The chrome you arrange</td>
+                  <td class="kept">✓</td>
+                  <td class="kept">✓</td>
+                  <td class="kept">✓</td>
+                  <td class="lost">✗</td>
+                </tr>
+                <tr id="survives-view">
+                  <td>Reading position, the open tab or panel, design mode</td>
+                  <td class="kept">✓</td>
+                  <td class="lost">✗</td>
+                  <td class="kept">✓</td>
+                  <td class="lost">✗</td>
+                </tr>
+              </tbody>
+            </table>
             <p id="data-browser-lede">
-              The browser keeps your view and your unsent words, nothing more. Each tab
-              remembers its reading position, the tab or panel it has open, and whether
-              design mode is on, and forgets them when it closes. What you have typed
-              and not sent survives a closed tab and shows in every tab of the page, and
-              the chrome you arrange follows you across pages. Once you send a comment
-              or make a move, it is in the log, where every tab and the agent read
-              it.
+              The browser keeps your view and your unsent words, nothing more. View
+              state belongs to one tab. A draft shows in every tab of the page, and the
+              chrome you arrange follows you across pages. Once you send a comment or
+              make a move, it is in the log, where every tab and the agent read it.
             </p>
           </section>
         </lf-tab>

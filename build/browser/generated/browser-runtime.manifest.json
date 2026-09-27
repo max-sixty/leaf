@@ -21,7 +21,7 @@
   },
   "outputRoot": "skills/leaf/assets/vendor",
   "lockfile": "package-lock.json",
-  "lockfileSha256": "21258849ee8c7d3d8a3b7ff0a1c310740c2597cb97b8d04350d28ba5c63efeba",
+  "lockfileSha256": "5fe106316e49d12a21d1046681c063944a8a2b820fb79aa268c2d923230ac815",
   "commands": {
     "install": "npm ci",
     "build": "npm run build:browser",
@@ -29,7 +29,7 @@
     "test": "npm run test:browser"
   },
   "contributorDependencies": {
-    "@awesome.me/webawesome": "3.13.0",
+    "@awesome.me/webawesome": "3.14.0",
     "@codemirror/commands": "6.11.1",
     "@codemirror/lang-markdown": "6.5.2",
     "@codemirror/language": "6.12.4",
@@ -41,7 +41,7 @@
     "@lezer/markdown": "1.7.2",
     "@modelcontextprotocol/ext-apps": "2.0.0",
     "@observablehq/plot": "0.6.17",
-    "@pierre/diffs": "1.4.3",
+    "@pierre/diffs": "1.5.0",
     "@preact/signals-core": "1.14.4",
     "@shikijs/core": "4.4.3",
     "@shikijs/engine-javascript": "4.4.3",

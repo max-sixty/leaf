@@ -1,5 +1,6 @@
 """Thread identity, frozen markup, and bounded delivery context."""
 
+from functools import lru_cache
 from typing import NamedTuple
 
 from leaf.events import (
@@ -83,12 +84,29 @@ class ThreadStructure(NamedTuple):
     fragments: dict
 
 
+def logged_fragment(event: dict) -> SourceDocument:
+    """The parse of one logged event's frozen markup, shared read-only.
+
+    The log is append-only and a logged event is never rewritten, so its markup is
+    one immutable fragment for the page's lifetime, and every reader of the log
+    takes this one parse of it. The parse is a function of the markup alone, so it
+    is held by that text, which names it exactly whichever page and log it came
+    from. Markup a writer hands in has not been admitted yet and is another fact:
+    its gate parses it afresh (`validation.admission.check_markup`)."""
+    return _fragment(event["markup"])
+
+
+@lru_cache(maxsize=4096)
+def _fragment(markup: str) -> SourceDocument:
+    return SourceDocument(markup)
+
+
 def thread_structure(events: list) -> ThreadStructure:
-    """Parse each logged markup fragment once into the panel's id universe."""
+    """Each logged markup fragment (`logged_fragment`) as the panel's id universe."""
     ids, by_id, fragments = set(), {}, {}
     for e in events:
-        if markup := e.get("markup"):
-            fragment = SourceDocument(markup)
+        if e.get("markup"):
+            fragment = logged_fragment(e)
             fragments[e["id"]] = fragment
             ids.update(fragment.ids)
             by_id.update(fragment.by_id)

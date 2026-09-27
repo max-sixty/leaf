@@ -1,7 +1,7 @@
 /* A visual run is one active-case review: a heading, then one evidence pane whose
  * header is the case navigation. Disposition stays above the evidence and supporting
  * capture facts follow it. The pane is the layer's own grammar (data-lf-reading-role,
- * in the default theme), so in a workspace Layout its body fills the review's row and
+ * in the kernel's theme), so in a workspace Layout its body fills the review's row and
  * the stage takes what the case leaves; everywhere else the same order flows with the
  * document and the stage takes a height from the review's width. */
 lf-visual-review {

@@ -3,7 +3,11 @@
    Passages use one representation: ordered segments `{node, start, end}` over composed
    text. `textNodesUnder` produces the segments, and quote capture, quote resolution,
    reading position, element labels, and version-comparison readings all use them. Never
-   introduce another text walk for one of those jobs.
+   introduce another text walk for one of those jobs: the page's words are `pageText()`
+   (its `segments`, `pageBlocks()`), one element's are `elementReading(el, "says" |
+   "wrote")`, and both are kept until the page changes. Each segment also carries the
+   `block` its words read in and the generated element (`gen`) they stand in, which the
+   walk knew on its way down; a segment cut from another keeps both.
 
    Two readings are intentionally different:
 
@@ -31,8 +35,14 @@
    crosses into, and the registry generation, which `pageText` reads each time. A new
    input with no door is a reading that goes stale silently — the mark lands on the
    words the page used to say. The reverse holds too: a change lands where the walk
-   reads or it is no change to the reading, by the walk's own rule (`readsUnder`), so
+   reads or it is no change to the reading, by the walk's own rules (`contextAt`), so
    the runtime repainting its chrome does not cost the page a walk.
+
+   The walk carries its context down (`enter`): each element states once whether it
+   starts chrome, silence, generated words, a block or a passage cell, rather than each
+   text node climbing to ask. `pageText` indexes back from its string by segment
+   (`starts`), and `pointAt` is the one way from a position in `raw` to a node and
+   offset.
 
    `GENERATED` is `.lf-ui, [data-lf-gen]`. It marks words that are not authored.
    `data-lf-said` is nearer than `.lf-ui` and declares that a label inside
@@ -95,6 +105,7 @@ export const TEXT_BLOCK =
 
 import {
   SAID,
+  UI_MARKS,
   hostIn,
   inUi,
   overIn,
@@ -108,8 +119,8 @@ import { decisionFor, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { COLLAPSE } from "./collapse.js";
 
-const opaquePassageRoots = new WeakSet();
-const opaquePassageParts = new WeakSet();
+// Opaque widgets and their original direct children: each is a passage cell of its own.
+const passageFences = new WeakSet();
 export const verbatimOwnerIdentity = new WeakMap();
 export const verbatimBoundaryIdentity = new WeakMap();
 
@@ -179,20 +190,6 @@ export function renderRetired(el, outcome) {
         for (const slot of root.querySelectorAll(`:scope > ${tag}`))
           slot.toggleAttribute(PAGE_PAINT_ATTRIBUTE.retired, candidate === outcome);
 }
-// What no label can speak through, however it is marked: an inline script, the
-// stylesheet a rendered diagram carries inside its <svg>, and a slot the user's
-// decision took off the page. Chrome is the rest of what the anchor pass skips and
-// the one part a label yields — it is a look, and a look cannot make a word the
-// runtime's.
-let silencedMemo;
-function silenced() {
-  if (silencedMemo) return silencedMemo;
-  const retired = retiredSlots();
-  const value = ["script", "style", ...(retired ? [retired] : [])].join(", ");
-  // Same registry-loaded guard as retiredSlots, for the same aim-window reason.
-  if (Object.keys(registry).length) silencedMemo = value;
-  return value;
-}
 
 // An element the user's decision took off the page, asked of an element rather
 // than of text: a retired slot (or anything inside one), or a decided element the
@@ -261,10 +258,11 @@ export const layerPart = (el) => inChrome(el) && el.id.startsWith("lf-");
 //
 // Built per walk rather than per node, because the retired half of the wall is read out
 // of the registry each time it is asked for.
-// A text node's parent is an element, and all four readings of these nodes say so:
-// the two below, pageText's cell walk and snapOut's seam. Written four ways it was four
-// answers to one question, three of them asserting the parent and one quietly admitting
-// a node without one — which is a claim about the page nothing backs: what a widget
+// A text node's parent is an element, and every reading of these nodes says so: the
+// walk asks it of a shadow root's own text and of a slotted node's place, and
+// `authored` of a node it is handed. Written once per reading it was several answers to
+// one question, one of them quietly admitting a node without a parent — which is a
+// claim about the page nothing backs: what a widget
 // stages into a shadow root is the only text these walks reach with no element over it,
 // and a module staging a bare text node would be handing the page words no cell, no
 // fence and no block. So the assertion is one function, and refusing is what it does.
@@ -312,17 +310,136 @@ const frameOf = (node) => {
     if (a.localName?.startsWith("lf-")) return a;
   return null;
 };
-// Whether text standing directly under an element is read, within a frame. The walk asks
-// it of each text node's parent, and the page reading's watcher asks it of the place a
-// change landed, so what the reading skips and what it ignores changing are one rule.
-const readsUnder = (frame) => {
-  const gone = silenced();
-  return (el) => !uiInside(el, frame) && !el.closest(gone);
+// What a reading carries down to the text under an element. Every question the walk
+// asks of a text node is a question about the elements over it, and each is one rule
+// read at one element (`enter`): whether it is chrome or a declared label, the nearer
+// deciding (`uiInside`'s rule); whether it silences what it holds (`silences`); whether
+// an upgrade generated it (`GENERATED`); which generated element and which text block
+// the words stand in; and whether it is one of the passage cells `pageText` fences on.
+// Carried down, each element answers once for everything under it; asked per text node,
+// the same answers came from a climb apiece, most of them to the body.
+//
+// Three of the facts stop at a shadow boundary and the rest cross it, because that is
+// how the readings they carry are defined: `closest` for chrome, silence and the
+// generated marks, the climb through hosts (`closestAcross`, `upFrom`) for blocks and
+// cells. A declared root therefore starts its tree-local facts over (`crossed`).
+//
+// The same rules asked of one element are `contextAt`: the element's ancestors folded
+// through `enter` from the top. A walk starts from it at its root, and the page reading's
+// watcher asks it where a change landed (`pageReads`), so what the reading skips and what
+// it ignores changing are one rule, run in two directions.
+const NO_CONTEXT = Object.freeze({
+  chrome: false,
+  silenced: false,
+  generated: false,
+  gen: null,
+  block: null,
+  island: null,
+  cells: null,
+});
+// The markers are the selectors the point readings climb with — `UI_MARKS` and `SAID`
+// (shadow.js, `uiInside`), `GENERATED` (`authored`), `GEN`, `ISLAND`, `TEXT_BLOCK` — and
+// the walk asks each of one element with `matches`, so a marker added to a selector
+// reaches both. `MARKS` joins the attribute markers, so an element whose attributes are
+// only a class or an id is settled by one match.
+const GEN = "[data-lf-gen]";
+const ISLAND = "[data-lf-markdown-words]";
+const MARKS = [UI_MARKS, GENERATED, ISLAND].join(", ");
+const BLOCK_TAGS = new Set(TEXT_BLOCK.split(","));
+// `uiInside`'s rule at one element: true where it starts chrome, false where a declared
+// label starts the page's words again inside chrome, null where it starts neither.
+const chromeMark = (el) => (el.matches(UI_MARKS) ? !el.matches(SAID) : null);
+// What no label can speak through, however it is marked: an inline script, the
+// stylesheet a rendered diagram carries inside its <svg>, and a slot the user's
+// decision took off the page. Chrome is the rest of what the anchor pass skips and
+// the one part a label yields — it is a look, and a look cannot make a word the
+// runtime's. `retired` is `retiredSlots()`, read once per walk.
+const SILENT_TAGS = new Set(["script", "style"]);
+const silences = (el, retired) =>
+  SILENT_TAGS.has(el.localName) ||
+  (retired !== "" &&
+    el.hasAttribute(PAGE_PAINT_ATTRIBUTE.retired) &&
+    el.matches(retired));
+// A generated element whose words the file cannot model: one the registry does not
+// declare as an `x-says` edge of the element holding it. Controls and the hidden comment
+// count hold no accepted text, and x-says spans are already in the file-side reading.
+const unmodelled = (el) => {
+  const attr = el.getAttribute("data-lf-said");
+  return !(attr && registry[el.parentElement?.localName]?.["x-says"]?.[attr]);
 };
-const quotable = (root) => {
-  const reads = readsUnder(frameOf(root));
-  return (n) => reads(elementOver(n));
+// A cell candidate: an opaque widget or one of its original direct children, which
+// always fence, or an unmodelled generated element, which fences once a word of the
+// page's reading is its own (`readPage`).
+const opaque = (el) => passageFences.has(el);
+// One element's rules applied to the context over it. `inFrame` is false only for a
+// point query's ancestors above the reading's frame, where chrome and the generated
+// marks are somebody else's (`frameOf`). An element that starts nothing — most spans,
+// links and wrappers — hands its parent's context down unchanged.
+function enter(ctx, el, retired, inFrame = true) {
+  const marked = el.hasAttributes() && el.matches(MARKS);
+  const block = BLOCK_TAGS.has(el.localName);
+  const cell = opaque(el) || (marked && el.matches(GEN) && unmodelled(el));
+  const silent = !ctx.silenced && silences(el, retired);
+  if (!marked && !block && !cell && !silent) return ctx;
+  const chrome = (marked && inFrame ? chromeMark(el) : null) ?? ctx.chrome;
+  const generated = ctx.generated || (marked && inFrame && el.matches(GENERATED));
+  return {
+    chrome,
+    silenced: ctx.silenced || silent,
+    generated,
+    gen: marked && el.matches(GEN) ? el : ctx.gen,
+    block: block ? el : ctx.block,
+    island: marked && el.matches(ISLAND) ? el : ctx.island,
+    cells: cell ? { el, up: ctx.cells } : ctx.cells,
+  };
+}
+// The tree-local facts start over inside a declared shadow root, as `closest` does.
+const crossed = (ctx) => ({
+  ...ctx,
+  chrome: false,
+  silenced: false,
+  generated: false,
+  gen: null,
+});
+// Every fact at one element, climbing rather than carrying: its ancestors, host by host,
+// folded through `enter` from the top, the tree-local facts starting over at each shadow
+// root. Chrome and the generated marks count from `frame` down.
+function contextAt(el, frame, retired) {
+  const over = [];
+  for (let a = el; a; a = upFrom(a)) over.push(a);
+  let ctx = NO_CONTEXT;
+  let inFrame = !frame;
+  for (let i = over.length - 1; i >= 0; i--) {
+    const a = over[i];
+    if (a === frame) inFrame = true;
+    if (a.parentNode?.nodeType === Node.DOCUMENT_FRAGMENT_NODE) ctx = crossed(ctx);
+    ctx = enter(ctx, a, retired, inFrame);
+  }
+  return ctx;
+}
+// A whole text node as a segment of the context it stands in. Its block is `blockAt`'s
+// answer, carried.
+const segmentIn = (node, ctx) => ({
+  node,
+  start: 0,
+  end: node.data.length,
+  block: ctx.block ?? (ctx.island ? upFrom(ctx.island) : null),
+  gen: ctx.gen,
+});
+// Which text each named reading keeps. `says` skips the runtime's own words and whatever
+// is silenced; `wrote` skips everything an upgrade generated, a declared label included.
+// `unsilenced` is `says` with nothing silenced, for the one reader asking whether words
+// the page silences are still on screen (render-checks, `retiredSlots`). Like every
+// reading its chrome is bounded at the root's frame, so chrome above that widget is not
+// its apparatus: a settled slot under a bare `.lf-ui` ancestor still shows its words.
+const READINGS = {
+  says: (ctx) => !ctx.chrome && !ctx.silenced,
+  wrote: (ctx) => !ctx.generated,
+  unsilenced: (ctx) => !ctx.chrome,
 };
+// The `wrote` reading asked of one node: whether it is authored, within the frame `root`
+// stands in. Revision installs ask it of every node they place, so it climbs natively
+// with the selector `enter`'s generated test is the element form of.
 export const authored = (root) => {
   const frame = frameOf(root);
   return (n) => !overIn(n.nodeType === 1 ? n : elementOver(n), GENERATED, frame);
@@ -340,28 +457,35 @@ export const authored = (root) => {
 // and indexes every position into it, so shadow text has to arrive at the host's own
 // place in that string — not appended from a second walk, which would put a diff's lines
 // after the page's last paragraph and every neighbour of theirs a lie.
-export function textNodesUnder(rootEl, accepts = quotable(rootEl), boundary = null) {
-  const segments = [];
-  const visit = (node) => {
-    for (const child of node.childNodes) {
+//
+// A slotted node reads in its light context, which is its host's: the hosts and slots the
+// walk passed keep the context they carried, and a node assigned from anywhere else (a
+// flattened fallback, a host above the root) is asked where it stands.
+function walk(root, onText, skip = null) {
+  const frame = frameOf(root);
+  const retired = retiredSlots();
+  const passed = new Map();
+  const contextOver = (node) => {
+    const over = elementOver(node);
+    return passed.get(over) ?? contextAt(over, frame, retired);
+  };
+  const visit = (node, ctx) => {
+    for (let child = node.firstChild; child; child = child.nextSibling) {
       if (child.nodeType === Node.TEXT_NODE) {
-        if (accepts(child))
-          segments.push({ node: child, start: 0, end: child.data.length });
+        // A shadow root's own text has no element over it, which elementOver refuses.
+        if (node.nodeType !== Node.ELEMENT_NODE) elementOver(child);
+        onText(child, ctx);
         continue;
       }
-      if (child.nodeType !== Node.ELEMENT_NODE) continue;
-      if (boundary?.(child, segments.length)) continue;
-      if (child.localName === "slot")
+      if (child.nodeType !== Node.ELEMENT_NODE || skip?.(child)) continue;
+      const inner = enter(ctx, child, retired);
+      if (child.localName === "slot") {
+        passed.set(child, inner);
         for (const assigned of child.assignedNodes({ flatten: true }))
           assigned.nodeType === Node.TEXT_NODE
-            ? accepts(assigned) &&
-              segments.push({
-                node: assigned,
-                start: 0,
-                end: assigned.data.length,
-              })
-            : visit(assigned);
-      else {
+            ? onText(assigned, contextOver(assigned))
+            : visit(assigned, enter(contextOver(assigned), assigned, retired));
+      } else {
         // Only a root the registry declares (x-shadow): the capture asks
         // getComposedRanges for exactly the declared ones, and every climb
         // crosses exactly those — so a walk that entered any open root read
@@ -369,11 +493,40 @@ export function textNodesUnder(rootEl, accepts = quotable(rootEl), boundary = nu
         // root anchored quotes astray instead of staying opaque. The render gate
         // names an undeclared root; this leaves its words alone.
         const declared = child.shadowRoot && registry[child.localName]?.["x-shadow"];
-        visit(declared ? child.shadowRoot : child);
+        if (declared) {
+          passed.set(child, inner);
+          visit(child.shadowRoot, crossed(inner));
+        } else visit(child, inner);
       }
     }
   };
-  visit(rootEl);
+  // A declared tree handed in as the root reads where its host stands, its tree-local
+  // facts starting over as they do when the walk crosses into it; the document starts
+  // with nothing over it.
+  const start =
+    root.nodeType === Node.ELEMENT_NODE
+      ? contextAt(root, frame, retired)
+      : root.host
+        ? crossed(contextAt(root.host, frame, retired))
+        : NO_CONTEXT;
+  visit(root, start);
+}
+// One named reading's segments under `root`, each carrying the block its words read in
+// (`blockAt`), which is where `quoteFrom` puts a space the markup does not hold, and the
+// generated element they stand in (`gen`, the nearest `[data-lf-gen]` in their tree).
+// `boundary(element, segmentsSoFar)` answering true leaves that element's words out of
+// the walk, for a reader that stands something else in their place (render-checks,
+// `shownVerbatim`).
+export function textNodesUnder(root, reading = "says", boundary = null) {
+  const keeps = READINGS[reading];
+  const segments = [];
+  walk(
+    root,
+    (node, ctx) => {
+      if (keeps(ctx)) segments.push(segmentIn(node, ctx));
+    },
+    boundary && ((child) => boundary(child, segments.length)),
+  );
   return segments;
 }
 
@@ -497,11 +650,12 @@ export function segmentsIn(range) {
     root.nodeType === Node.ELEMENT_NODE ? root : root.parentElement,
   );
   const segments = [];
-  for (const { node, end: length } of whole) {
+  for (const segment of whole) {
+    const { node } = segment;
     if (!coveredBy(range, node)) continue;
     const start = node === range.startContainer ? range.startOffset : 0;
-    const end = node === range.endContainer ? range.endOffset : length;
-    if (end > start) segments.push({ node, start, end });
+    const end = node === range.endContainer ? range.endOffset : segment.end;
+    if (end > start) segments.push({ ...segment, start, end });
   }
   return segments;
 }
@@ -521,10 +675,13 @@ export const blockAt = (node) => {
   // A parsed Markdown island stands where one direct source text node stood.
   // Its nested emphasis and links must inherit that text node's parent, while
   // authored sibling elements keep their own boundaries.
-  const island = closestAcross(node, "[data-lf-markdown-words]");
+  const island = closestAcross(node, ISLAND);
   return island ? upFrom(island) : null;
 };
-export const blockOf = (node) => blockAt(node) ?? upFrom(node);
+// The unit a segment's words are read as part of, for where a space falls between two
+// segments: its block as the walk carried it, else the element holding the text (the walk
+// refuses text with none).
+export const segmentBlock = (segment) => segment.block ?? segment.node.parentElement;
 const COLLAPSIBLE = new RegExp(`^(?:${COLLAPSE.source})$`, "u");
 
 // The normalized reading and, when requested, one DOM span for each character in it.
@@ -552,7 +709,7 @@ function readSegments(segments, mapCharacters) {
     if (mapCharacters) units.push({ text: character, start, end });
   };
   segments.forEach((seg, i) => {
-    if (i && blockOf(seg.node) !== blockOf(segments[i - 1].node)) {
+    if (i && segmentBlock(seg) !== segmentBlock(segments[i - 1])) {
       const point = { node: seg.node, offset: seg.start };
       push(" ", point, point);
     }
@@ -583,7 +740,7 @@ export const says = (el) => quoteFrom(textNodesUnder(el));
 // one of its own parts, where `says` would hand back the widget's own declared labels
 // along with the words — a picked row's mark is the page speaking, so it is in the
 // reading a user points at and out of the row's name.
-export const wrote = (el) => quoteFrom(textNodesUnder(el, authored(el)));
+export const wrote = (el) => quoteFrom(textNodesUnder(el, "wrote"));
 
 // A passage as one Range: what paints it, and what measures it for a scroll.
 export function rangeOf(segments) {
@@ -619,17 +776,53 @@ const EDGE = "\u0000"; // no document holds one, so it can't collide with page t
 // `holds` for what checking them means, and what it deliberately refuses to do.
 // Anchors written before this carry none: their quote resolves only when it has a
 // single candidate, since there is no evidence that can identify one repeated copy.
+// The way back from the reading to the page is its segments and where each one starts in
+// `raw` (`starts`): segment k's characters are raw[starts[k] .. starts[k] + its length),
+// and the one raw character after each segment but the last is an EDGE. Every question
+// of the form "which node and offset is raw[i]" goes through `segmentAt`.
+//
+// The last segment starting at or before `i`, or -1 before the first.
+function segmentAt({ starts }, i) {
+  let lo = 0;
+  let hi = starts.length - 1;
+  if (hi < 0 || i < starts[0]) return -1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (starts[mid] <= i) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
+}
+// Where raw[i] came from, as `{node, offset, segment}`, or null for an EDGE or a position
+// outside the reading.
+export function pointAt(reading, i) {
+  const k = segmentAt(reading, i);
+  if (k === -1) return null;
+  const segment = reading.segments[k];
+  const offset = i - reading.starts[k];
+  return offset < segment.end - segment.start
+    ? { node: segment.node, offset: segment.start + offset, segment }
+    : null;
+}
 // The characters of raw[lo..hi) as segments, so a neighbourhood can be read back with the
 // same function that wrote it down. Edges hold no character and are simply absent.
-function spanOf(origin, lo, hi) {
+function spanOf(reading, lo, hi) {
+  const { segments, starts } = reading;
   const out = [];
-  for (let i = Math.max(0, lo); i < Math.min(origin.length, hi); i++) {
-    const at = origin[i];
-    if (!at) continue;
-    const last = out.at(-1);
-    if (last && last.node === at.node && last.end === at.offset)
-      last.end = at.offset + 1;
-    else out.push({ node: at.node, start: at.offset, end: at.offset + 1 });
+  for (let k = Math.max(0, segmentAt(reading, lo)); k < segments.length; k++) {
+    const seg = segments[k];
+    const from = starts[k];
+    if (from >= hi) break;
+    const a = Math.max(lo, from);
+    const b = Math.min(hi, from + seg.end - seg.start);
+    if (b > a)
+      out.push({
+        node: seg.node,
+        start: seg.start + a - from,
+        end: seg.start + b - from,
+        block: seg.block,
+        gen: seg.gen,
+      });
   }
   return out;
 }
@@ -657,10 +850,10 @@ function spanOf(origin, lo, hi) {
 // not a missing constraint but the tightest one there is, and it is checkable — a candidate
 // confirms it by also having nothing there, which exactly one occurrence does. Refusing to
 // read it that way handed the last copy's mark to the first.
-const holds = ({ origin, fences }, at, want, before) => {
+const holds = (reading, at, want, before) => {
   // One character is all it takes to refute an empty side, and asking for none would answer
   // with none: doubling zero never grows.
-  const there = neighbourhood(origin, fences, at, want.length || 1, before);
+  const there = neighbourhood(reading, at, want.length || 1, before);
   if (!want) return there === "";
   return before ? there.endsWith(want) : there.startsWith(want);
 };
@@ -679,14 +872,15 @@ const holds = ({ origin, fences }, at, want, before) => {
 // string's own, which is what its endsWith compares in), and that is an over-decision this can
 // only over-satisfy: reaching N code points takes at least N code units, so its window is
 // never the one short of confirming that a repeated anchor would detach over.
-export function neighbourhood(origin, fences, at, want, before) {
+export function neighbourhood(reading, at, want, before) {
+  const { fences } = reading;
   const edge = before
     ? (fences.filter((f) => f <= at).at(-1) ?? 0)
-    : (fences.find((f) => f >= at) ?? origin.length);
+    : (fences.find((f) => f >= at) ?? reading.raw.length);
   for (let raw = want * 2; ; raw *= 2) {
     const lo = before ? Math.max(edge, at - raw) : at;
     const hi = before ? at : Math.min(edge, at + raw);
-    const text = quoteFrom(spanOf(origin, lo, hi));
+    const text = quoteFrom(spanOf(reading, lo, hi));
     if ([...text].length >= want || (before ? lo === edge : hi === edge)) return text;
   }
 }
@@ -700,7 +894,7 @@ export function neighbourhood(origin, fences, at, want, before) {
 // the shortcut bar, the banner, the thread panel, the composer — and repaints on nearly
 // every gesture: one drag-select release wrote 38 records, every one of them under
 // `.lf-ui`, and each would have bought a walk the reading never needed. So a record counts
-// only where the reading reads, by the walk's own rule (`readsUnder`) asked of the place
+// only where the reading reads, by the walk's own rules (`contextAt`) asked of the place
 // the change landed, rather than by a second list of what chrome looks like.
 //
 // `class` is in the filter for one class. `.lf-ui` is what `uiInside` reads and the rest
@@ -734,26 +928,26 @@ let watcher = null;
 // declared shadow root, the document, a node since detached — is answered yes, since
 // over-forgetting costs a walk and under-forgetting costs a mark on words the page no
 // longer says.
-const pageReads = (over) => over?.nodeType !== 1 || readsUnder(null)(over);
+const pageReads = (over) =>
+  over?.nodeType !== 1 || READINGS.says(contextAt(over, null, retiredSlots()));
 // A declared label is the page's words wherever it stands, chrome included, so a subtree
 // holding one is read whatever its place says.
 const holdsSaid = (node) =>
   node.nodeType === 1 && (node.matches(SAID) || node.querySelector(SAID) !== null);
-// Whether a node, standing under `over`, can put words in the reading. `uiInside(node,
-// node)` is the walk's rule bounded at the node itself: a node that is `.lf-ui` and holds
-// no label is silent wherever it goes, which is what the panel's re-rendered rows are.
-const speaks = (node, over) =>
-  (pageReads(over) && !(node.nodeType === 1 && uiInside(node, node))) ||
-  holdsSaid(node);
+// Whether a node can put words in the reading, standing where `read` says the page reads
+// (`pageReads` of its parent). A node that starts chrome (`chromeMark`) and holds no
+// label is silent wherever it goes, which is what the panel's re-rendered rows are.
+const speaks = (node, read) =>
+  (read && !(node.nodeType === 1 && chromeMark(node) === true)) || holdsSaid(node);
 // Records are read when the queue drains rather than when they were written, so a place
 // is asked about as it stands now. That is still exact: a node that moved between the
 // page and the chrome left a childList record at its page end, which speaks either way.
 const changesTheReading = (record) => {
   const { target } = record;
-  if (record.type === "childList")
-    return [...record.addedNodes, ...record.removedNodes].some((n) =>
-      speaks(n, target),
-    );
+  if (record.type === "childList") {
+    const read = pageReads(target);
+    return [...record.addedNodes, ...record.removedNodes].some((n) => speaks(n, read));
+  }
   if (record.type === "characterData") return pageReads(target.parentNode);
   // A marker moved on `target` itself, so its own markers are what is changing and only
   // its place and its labels answer — including a label it has just stopped being.
@@ -791,8 +985,8 @@ export function watchPassageRoot(root) {
 // from the paragraph above could run straight into them. The marking and the forgetting
 // are one door for that reason.
 export function fencePassageParts(root) {
-  opaquePassageRoots.add(root);
-  for (const child of root.children) opaquePassageParts.add(child);
+  passageFences.add(root);
+  for (const child of root.children) passageFences.add(child);
   forgetReading();
 }
 // What the page says, once, as one string with a way back to the nodes it came from. Built
@@ -828,71 +1022,77 @@ function catchUpReading() {
 // label ask the same elements for their words on every pass, and each walk asks every
 // text node under the element where it stands, which on a long page costs more than
 // the pass it serves. An element whose words the page does not read — chrome, a node
-// since detached — is outside what the watcher answers for, and is read afresh.
-export function elementReading(element, read) {
+// since detached, a node of a parsed revision — is outside what the watcher answers
+// for, and is read afresh.
+//
+// A kept reading is answered before asking where the element stands: it was kept only
+// while the page read the element, and anything that moves the element out of that —
+// its removal, chrome arriving over it — is a change the watcher forgets every kept
+// reading for.
+export function elementReading(element, reading = "says") {
   catchUpReading();
-  if (!element.isConnected || !pageReads(element)) return read(element);
-  let value = elementReadings.get(element);
-  if (value === undefined) elementReadings.set(element, (value = read(element)));
+  let kept = elementReadings.get(element);
+  if (kept?.[reading] !== undefined) return kept[reading];
+  const value = quoteFrom(textNodesUnder(element, reading));
+  if (element.isConnected && element.ownerDocument === document && pageReads(element)) {
+    if (!kept) elementReadings.set(element, (kept = {}));
+    kept[reading] = value;
+  }
   return value;
 }
 // The walk itself.
 function readPage() {
-  let raw = "";
-  const origin = []; // origin[i] = {node, offset} for raw[i]; null for an edge
-  const positions = new WeakMap(); // text node -> its offset-zero position in raw
-  const fences = new Set();
-  const segments = textNodesUnder(document.body);
+  const segments = [];
+  const cellChains = []; // the cell candidates over each segment, nearest first
+  const keeps = READINGS.says;
+  walk(document.body, (node, ctx) => {
+    if (!keeps(ctx)) return;
+    segments.push(segmentIn(node, ctx));
+    cellChains.push(ctx.cells);
+  });
 
-  // Generated page-words that the registry does not model are their own passage
-  // cells. Controls and the hidden comment count contain no accepted text and never
-  // become fences; x-says spans are already present in the file-side reading.
-  const dynamicWords = new WeakSet();
-  for (const seg of segments) {
-    const generated = elementOver(seg.node).closest("[data-lf-gen]");
-    if (!generated) continue;
-    const attr = generated.getAttribute("data-lf-said");
-    const hostEntry = registry[generated.parentElement?.localName];
-    const declared = attr && hostEntry?.["x-says"]?.[attr];
-    if (!declared) dynamicWords.add(generated);
-  }
-  // Climbing crosses the shadow boundary (upFrom), and that is what keeps an x-shadow
-  // widget fenced. The parts were remembered off the light DOM before any module ran,
-  // so nothing inside a shadow tree is in either set; a climb that stopped at the root
-  // would put a diff's lines in no cell at all, which reads as ordinary page prose and
-  // lets a quote run from the paragraph above straight into the first changed line. One
-  // move further up finds the host, which is the opaque root it always was.
-  const cellOf = (node) => {
-    for (let el = upFrom(node); el; el = upFrom(el)) {
-      if (dynamicWords.has(el)) return el;
-      if (opaquePassageParts.has(el) || opaquePassageRoots.has(el)) return el;
-    }
+  // Generated page-words that the registry does not model are their own passage cells:
+  // the generated element a word of the reading stands in, where it is unmodelled.
+  const dynamicWords = new Set();
+  for (const { gen } of segments) if (gen && unmodelled(gen)) dynamicWords.add(gen);
+  // A segment's cell is the nearest candidate over it that fences. The chain crosses the
+  // shadow boundary (upFrom), and that is what keeps an x-shadow widget fenced. The parts
+  // were remembered off the light DOM before any module ran, so nothing inside a shadow
+  // tree is among them; a chain that stopped at the root would put a diff's lines in
+  // no cell at all, which reads as ordinary page prose and lets a quote run from the
+  // paragraph above straight into the first changed line. One move further up finds the
+  // host, which is the opaque root it always was.
+  const cellOf = (chain) => {
+    for (let at = chain; at; at = at.up)
+      if (opaque(at.el) || dynamicWords.has(at.el)) return at.el;
     return null;
   };
 
+  const parts = [];
+  const starts = [];
+  const positions = new WeakMap(); // text node -> its offset-zero position in raw
+  const fences = new Set();
+  let length = 0;
   let previousCell = null;
-  let started = false;
-  for (const seg of segments) {
-    const cell = cellOf(seg.node);
-    if (!started) {
+  segments.forEach((seg, k) => {
+    const cell = cellOf(cellChains[k]);
+    if (k === 0) {
       if (cell) fences.add(0);
-      started = true;
     } else {
-      if (cell !== previousCell && (cell || previousCell)) fences.add(raw.length);
-      origin.push(null);
-      raw += EDGE;
+      if (cell !== previousCell && (cell || previousCell)) fences.add(length);
+      parts.push(EDGE);
+      length += 1;
     }
-    positions.set(seg.node, raw.length - seg.start);
-    for (let i = seg.start; i < seg.end; i++) {
-      origin.push({ node: seg.node, offset: i });
-      raw += seg.node.data[i];
-    }
+    starts.push(length);
+    positions.set(seg.node, length - seg.start);
+    parts.push(seg.node.data);
+    length += seg.end - seg.start;
     previousCell = cell;
-  }
-  if (previousCell) fences.add(raw.length);
+  });
+  if (previousCell) fences.add(length);
   return {
-    raw,
-    origin,
+    raw: parts.join(""),
+    starts,
     positions,
     fences: [...fences].sort((a, b) => a - b),
     segments,
@@ -906,7 +1106,7 @@ export function pageBlocks() {
   if (!text.blocks) {
     const seen = new Set();
     text.blocks = text.segments
-      .map(({ node }) => blockAt(node))
+      .map(({ block }) => block)
       .filter((block) => block && !seen.has(block) && seen.add(block));
   }
   return text.blocks;
@@ -951,7 +1151,7 @@ function confirmRest(raw, at, words) {
   return i;
 }
 export function findQuote(text, quote, anchor, within) {
-  const { raw, origin } = text;
+  const { raw } = text;
   const words = quote.trim().split(/\s+/).filter(Boolean);
   if (!words.length) return [];
   // Whole words up to the cap, and never none: a single word longer than it is still
@@ -983,7 +1183,10 @@ export function findQuote(text, quote, anchor, within) {
     if (stop === -1) continue;
     if (
       within &&
-      !(under(origin[at.index].node, within) && under(origin[stop - 1].node, within))
+      !(
+        under(pointAt(text, at.index).node, within) &&
+        under(pointAt(text, stop - 1).node, within)
+      )
     )
       continue;
     const hit = { from: at.index, to: stop };
@@ -1000,7 +1203,7 @@ export function findQuote(text, quote, anchor, within) {
   // The characters the match covers, cut out of the index the same way a neighbourhood is —
   // walking the segments a second time to rebuild the span would be a second answer to
   // "which text is this", and the two disagree wherever an edge falls inside the match.
-  return found ? spanOf(origin, found.from, found.to) : [];
+  return found ? spanOf(text, found.from, found.to) : [];
 }
 
 // Every occurrence of a user's search, as passages in the page reading. This is not
@@ -1020,15 +1223,15 @@ export function findText(text, query) {
     const from = match.index;
     const to = from + match[0].length;
     if (text.fences.some((fence) => from < fence && fence < to)) continue;
-    out.push(spanOf(text.origin, from, to));
+    out.push(spanOf(text, from, to));
   }
   return out;
 }
 
 export function contextAround(text, segments, length = 28) {
   const [start, end] = spanIn(text, segments);
-  const before = neighbourhood(text.origin, text.fences, start, length, true);
-  const after = neighbourhood(text.origin, text.fences, end, length, false);
+  const before = neighbourhood(text, start, length, true);
+  const after = neighbourhood(text, end, length, false);
   const beforeLength = [...before].length;
   return {
     before: cut(before, Math.max(0, beforeLength - length), beforeLength),

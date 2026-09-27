@@ -18,12 +18,11 @@ import { clippedContents, landingBand, shownBox, shownWindow } from "./geometry.
 import {
   closestAcross,
   cut,
+  elementReading,
   inChrome,
   pageBlocks,
   pageText,
-  quoteFrom,
   rangeOf,
-  textNodesUnder,
 } from "./passages.js";
 import { resolveAnchor } from "./anchor-resolution.js";
 import { targetElement, targetSegments } from "./resolved-target.js";
@@ -71,10 +70,9 @@ export function* blocksOnScreen(region = null, blocks = textBlocks()) {
     if (
       inChrome(block) ||
       closestAcross(block, "[hidden]") ||
-      (region && !under(block, region.body)) ||
-      (!region &&
-        readingRegionFor(block) &&
-        readingPosture(readingRegionFor(block)) === "bounded")
+      (region
+        ? !under(block, region.body)
+        : readingPosture(readingRegionFor(block)) === "bounded")
     )
       continue;
     const range = document.createRange();
@@ -117,7 +115,7 @@ export function capturePlace(region = null, blocks = textBlocks()) {
     }
     // Written down the way a comment's quote is, so the search that re-finds it is
     // looking for a string of the same kind.
-    const text = cut(quoteFrom(textNodesUnder(block)), 0, LANDMARK_CAP);
+    const text = cut(elementReading(block), 0, LANDMARK_CAP);
     // A short line ("Risks") would match anywhere; keep scanning for a quotable block.
     if (text.length >= 24) {
       // Unconditionally, so a quotable block under no section clears the earlier one

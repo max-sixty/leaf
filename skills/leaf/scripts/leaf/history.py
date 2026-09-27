@@ -39,13 +39,13 @@ SHOWN = THREAD_KINDS | {
 }
 
 
-def wants_history(documents, registry_for) -> bool:
-    """Whether any of these (revision, document) pairs holds a widget declaring
+def wants_history(readings) -> bool:
+    """Whether any of these documents (`SourceReading`s) holds a widget declaring
     `x-history` in its own registry."""
     return any(
-        registry_for(revision).get(record["tag"], {}).get("x-history")
-        for revision, document in documents
-        for record in document.lf_elements
+        reading.registry.get(record["tag"], {}).get("x-history")
+        for reading in readings
+        for record in reading.document.lf_elements
     )
 
 

@@ -111,7 +111,7 @@ import {
   stateCoordinate,
 } from "./projection/authored.js";
 import { whenApplicationRegionsPresented } from "./semantic-state.js";
-import { MARKED_IN_PAGE, markDeclared, settlePageInterface } from "./presentation.js";
+import { settlePageInterface } from "./presentation.js";
 import { runtimeRootState } from "./root-state.js";
 import {
   commitWidgetDescriptors,
@@ -831,8 +831,7 @@ export function createVersionController({
   // `.lf-ui`; comments, copies, and later comparisons therefore continue to read the exact
   // current document rather than the temporary historical words on screen.
   const inlineId = (target) => `lf-version-inline-${target.id}`;
-  const authoredReading = (target) =>
-    readingFrom(textNodesUnder(target, authored(target)));
+  const authoredReading = (target) => readingFrom(textNodesUnder(target, "wrote"));
 
   function pointAt(target, reading, offset) {
     if (!reading.units.length) return { node: target, offset: 0 };
@@ -1288,7 +1287,6 @@ export function createVersionController({
         // the readings below ask where it stands: whether an exhibit quotes it, and
         // which declared elements enclose it.
         rememberAuthoredParents(arriving, parent);
-        markDeclared(arriving, MARKED_IN_PAGE);
         const descriptors = stageWidgetDescriptors(arriving, {
           kind: "page",
           revision: target.revision,
@@ -1336,10 +1334,7 @@ export function createVersionController({
         },
         same: (before, after) => sameAuthoredMarkup(before, after, arrivingRoot),
         sameValue: (name, held, value) => sameValue(name, held, value, arrivingRoot),
-        touched: (element) => {
-          markDeclared(element, MARKED_IN_PAGE);
-          touched.push(element);
-        },
+        touched: (element) => touched.push(element),
         // An element going is not the same as its name going. Authored state capture
         // still needs to forget removed upgraded owners here; the complete incoming
         // descriptor inventory below decides which identities actually retired.

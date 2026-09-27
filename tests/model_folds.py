@@ -32,6 +32,7 @@ nothing else on the machine.
 
 from interact_support import ModelPage, model_layer
 from leaf.event_contracts import admitted_event
+from leaf.passages import SourceReading
 from leaf.served_state.browser import browser_state
 from leaf.structure import SourceDocument
 
@@ -127,9 +128,8 @@ def reading(
         "activated_at": NOW,
     }
     state, _reading = browser_state(
-        parsed,
+        {rev: SourceReading(document, registry) for rev, document in parsed.items()},
         log,
-        registry,
         active_revision,
         UNCLAIMED,
         active,

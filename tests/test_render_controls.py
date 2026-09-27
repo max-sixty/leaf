@@ -2841,7 +2841,8 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     # carried, rather than being redirected onto one stamped version.
     assert destination is not None and destination.startswith(f"{other_url}/?t=")
     tab = opened_tab(page, destination, link.click)
-    expect(tab).to_have_url(destination)
+    # The arrival leaves the key in the cookie and the bare address in the tab.
+    expect(tab).to_have_url(f"{other_url}/")
     tab.close()
     # The press left this tab alone, tray still standing.
     expect(others_panel).to_be_visible()
@@ -3393,7 +3394,7 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf, one_user)
     destination = rows.nth(1).get_attribute("href")
     assert destination is not None and destination.startswith(f"{other_url}/?t=")
     tab = opened_tab(page, destination, lambda: page.keyboard.press("Enter"))
-    expect(tab).to_have_url(destination)
+    expect(tab).to_have_url(f"{other_url}/")
     tab.close()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-others-panel")).not_to_be_visible()

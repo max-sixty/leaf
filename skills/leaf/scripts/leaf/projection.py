@@ -15,7 +15,7 @@ from leaf.events import (
     retractions,
     taken_back,
 )
-from leaf.passages import EMPTY, collapse, enclosing_of, spoken
+from leaf.passages import EMPTY, SourceReading, collapse, enclosing_of
 from leaf.registry.contract import WRITERS, decides, event_spec, state_specs
 from leaf.registry.state import retirement_slots
 from leaf.schema import agent_name
@@ -348,16 +348,26 @@ class StateProjection(NamedTuple):
 class PageReading(NamedTuple):
     """One page document and the durable state folded against that exact source."""
 
-    document: SourceDocument
+    reading: SourceReading
     revision: int
     events: list
-    registry: dict
-    spoken: dict
     projection: StateProjection
 
     @property
+    def document(self) -> SourceDocument:
+        return self.reading.document
+
+    @property
+    def registry(self) -> dict:
+        return self.reading.registry
+
+    @property
+    def spoken(self) -> dict:
+        return self.reading.spoken
+
+    @property
     def within(self) -> dict:
-        return enclosing_of(self.spoken)
+        return self.reading.within
 
 
 class FrozenThreadReading(NamedTuple):
@@ -497,9 +507,8 @@ def frozen_thread_reading(events: list, registry: dict) -> FrozenThreadReading:
     structure = thread_structure(events)
     by_name = thread_names(events)
     spk = {}
-    for event in events:
-        if markup := event.get("markup"):
-            spk.update(spoken(SourceDocument(markup), registry))
+    for fragment in structure.fragments.values():
+        spk.update(SourceReading(fragment, registry).spoken)
     by_widget = thread_widgets(structure, by_name)
     return FrozenThreadReading(
         structure,
@@ -695,23 +704,25 @@ def folded_value(e: dict, spec: dict):
     return value
 
 
-def page_reading(
-    document: SourceDocument, events: list, registry: dict, revision: int
-) -> PageReading:
+def page_reading(reading: SourceReading, events: list, revision: int) -> PageReading:
     """Read one page's markup and log window through one construction.
 
     Document inspection and the passage readings used by `leaf thread open` and
-    `version check` share declarations, floors, and the log window. The parser
-    and spoken reading travel with the projection for callers that need its
-    authored construction."""
-    spk = spoken(document, registry)
+    `version check` share declarations, floors, and the log window. The document's
+    own reading (`SourceReading`) travels with the projection for callers that need
+    its authored construction; a stored revision's is held across reads, so only
+    the fold over the log is taken here."""
     return PageReading(
-        document,
+        reading,
         revision,
         events,
-        registry,
-        spk,
-        state_projection(events, document.by_id, spk, registry, revision),
+        state_projection(
+            events,
+            reading.document.by_id,
+            reading.spoken,
+            reading.registry,
+            revision,
+        ),
     )
 
 

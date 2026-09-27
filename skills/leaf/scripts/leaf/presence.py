@@ -19,6 +19,7 @@ from .files import (
 from .host import claim_harness
 from .leases import wait_is_live, waiter_lease_path
 from .machine import state_home
+from .revision_artifact import read_revision
 from .schema import (
     INTERACTIONS_FILE,
     STATUS_FILE,
@@ -35,7 +36,6 @@ from .service import (
     page_claim,
     unacknowledged,
 )
-from .structure import parse_revision
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. The news stream already allowed this much staleness,
@@ -115,7 +115,7 @@ def other_leaves(page_dir: Path) -> list:
     This runs on every /api/state; what it reads of each serving neighbour is
     kept per file, so a state read costs the lease probes and the presence reads
     rather than a parse of every live neighbour's active revision
-    (`parse_revision`)."""
+    (`read_revision`)."""
     others = []
     own = page_dir.resolve()
     seen = set()
@@ -156,7 +156,7 @@ def other_leaves(page_dir: Path) -> list:
                         events = read_events(candidate)
                         revision = latest_revision(candidate)
                         if revision is not None:
-                            parser = parse_revision(candidate, revision)
+                            parser = read_revision(candidate, revision).document
                             # A neighboring row consumes the same canonical
                             # activity as that page's own banner. Import here
                             # to keep the base presence gatherer independent

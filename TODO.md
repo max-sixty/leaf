@@ -202,14 +202,6 @@ and its chrome coordinate.
   `ariaDetailsElements`. The visual actions are Tab stops placed after their drawing
   so Tab reaches them there, so they need a keyboard route that does not depend on
   where they stand in the document.
-- **Say which panes the workspace holds without naming `lf-pane`.** `layouts.css`
-  holds an authored pane only as the workspace body or a cell of it (a pane in a
-  section flows), and a generated pane at any depth. It tells the two apart by the
-  `lf-pane` tag, so a package's authored pane takes the generated rule, and it names
-  the tag for first paint too: the runtime paints `data-lf-reading-role` about half a
-  second after the panes first draw. Both need a mark the stylesheet can read before
-  the script: an authored/generated distinction in the paint, and the role in the
-  first paint.
 
 ## Etc
 

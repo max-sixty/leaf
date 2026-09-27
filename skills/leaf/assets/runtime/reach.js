@@ -156,7 +156,7 @@ function sweep(root) {
   const trees = new Set(shadowRootsIn(root));
   const walk = (scope) => {
     const walker = document.createTreeWalker(scope, NodeFilter.SHOW_ELEMENT, (el) => {
-      if (el.checkVisibility() || !skipped(el)) return NodeFilter.FILTER_ACCEPT;
+      if (!skipped(el)) return NodeFilter.FILTER_ACCEPT;
       wait(el);
       return NodeFilter.FILTER_REJECT;
     });

@@ -44,7 +44,7 @@ from render_cases_layout import (
     EDGE_IDS,
     EDGES,
     FLOATING_PAGE,
-    FOLDED_SCROLLER_PAGE,
+    HIDDEN_SCROLLERS,
     IDENTIFIERS_IN_CODE_PAGE,
     LINKED_CELLS_PAGE,
     LOOSE_SCROLLER_PAGE,
@@ -3208,15 +3208,21 @@ def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
     ), f"the mark did not reach the diff's lines: {diffed}"
 
 
-def test_a_scroller_in_a_closed_disclosure_is_reached_once_it_opens(browser, serve):
+@pytest.mark.parametrize("shape", HIDDEN_SCROLLERS)
+def test_a_hidden_scroller_is_reached_once_it_is_shown(browser, serve, shape):
     """Reach leaves content the browser skips unasked, since asking about any box in
-    it forces the browser to style the whole of it, and sweeps it once it is drawn. A
-    box in a closed disclosure is that case: once the disclosure opens it owes what
-    reach owes any overflowing box, a tab stop, the holds mark, and the sideways
-    paint."""
-    page = open_page(browser, serve(FOLDED_SCROLLER_PAGE))
-    page.locator("#folded > summary").click()
+    it forces the browser to style the whole of it, and sweeps it once it is drawn.
+    So a scrolling box in a closed disclosure or a tab not chosen carries nothing of
+    reach's until it is shown — the holds mark would say it had been read — and once
+    shown it owes what reach owes any overflowing box: a tab stop, the holds mark,
+    and the sideways paint."""
+    html, show = HIDDEN_SCROLLERS[shape]
+    page = open_page(browser, serve(html))
     box = page.locator("#unfolded")
+    assert box.evaluate("(box) => box.hasAttribute('data-lf-holds')") is False, (
+        "reach read a box in skipped content"
+    )
+    show(page)
     expect(box).to_have_attribute("data-lf-holds", "1")
     reached = box.evaluate(
         """(box) => ({

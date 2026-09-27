@@ -550,9 +550,11 @@ export function layoutMarginRows() {
     // A target in skipped content — a tab not chosen, a closed disclosure — has nowhere
     // to stand, and every reading below would force that content's style and layout to
     // say so (`skipped`). Withheld like a target that has gone, it is anchored by the
-    // pass that runs once it is drawn.
+    // pass that runs once it is drawn, and keeps the lane it stands in meanwhile, so a
+    // tab switch does not move the rows of a reading region's hidden panels between
+    // lanes.
     if (skipped(target)) {
-      reads.push({ row, options, lane: layer.root, shown: false });
+      reads.push({ row, options, lane: row.parentElement ?? layer.root, shown: false });
       continue;
     }
     const anchor = anchorElement(target);

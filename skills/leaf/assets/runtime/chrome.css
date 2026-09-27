@@ -1777,8 +1777,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
         calc(14px + var(--lf-safe-left)); gap: 9px; }
     .lf-banner-actions { grid-row: 2; width: 100%; max-width: 100%; min-width: 0;
       justify-content: flex-start;
-      padding: 4px calc(10px + var(--lf-safe-right)) 4px
-        calc(10px + var(--lf-safe-left)); gap: 3px; }
+      padding: 4px calc(3px + var(--lf-safe-right)) 4px
+        calc(3px + var(--lf-safe-left)); gap: 3px; }
     /* A row-wide display states the box of every control it reaches, including the
        ones the page has taken away: hidden is a display of its own, and a rule that
        states display without excluding it puts an absent control back on the row.

@@ -1604,18 +1604,19 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
       --lf-taken-l: calc(2 * var(--sp-4));
     }
   }
-  main:has(> aside.sidebar:nth-child(1 of aside.sidebar) lf-toc) {
-    --lf-sidebar-claim: var(--sidebar-max);
-    --lf-sidebar-free-left: calc(var(--lf-beside) + var(--lf-shift)
-      - var(--lf-gutter-l));
-  }
   @container lf-content-frame style(--lf-sidebar-posture: margin) {
+    /* Once the map stands in the margin, a sidebar that held only the map has nothing
+     * left in the flow, so it takes no room there. Without margins or a formatting
+     * context of its own, the blocks on either side meet as they do from 1296px of
+     * shell, where the core theme floats the sidebar (its float margins outrank these). */
+    main > aside.sidebar:nth-child(1 of aside.sidebar):has(> lf-toc:only-child) {
+      display: block; margin-block: 0; }
     @container style(--lf-sidebar-slot: margin) {
       lf-toc { position: fixed;
                left: var(--sp-4);
                top: var(--lf-banner-h, 0px);
                z-index: 4;
-               width: calc(var(--lf-sidebar-claim) - var(--sp-4));
+               width: calc(var(--sidebar-max) - var(--sp-4));
                box-sizing: border-box;
                padding-block: var(--sp-4);
                pointer-events: none;
@@ -1709,8 +1710,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
        * document beneath it. */
       lf-toc[data-lf-outline] .lf-toc-nav {
         --lf-toc-label-opacity: 1;
-        width: max(40px, min(320px,
-          calc(var(--lf-beside) + var(--lf-shift) - 2 * var(--sp-4))));
+        width: max(40px, min(320px, calc(var(--lf-beside) - 2 * var(--sp-4))));
         background: var(--paper);
         overflow-y: auto; pointer-events: auto;
       }

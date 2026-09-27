@@ -2993,6 +2993,28 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     page.close()
 
     page = open_page(browser, serve(example))
+    # Between the map's margin posture (848px of shell) and the sidebar's float (1296px),
+    # the sidebar stays in the flow with nothing in it, and takes no room there: the
+    # block after it stands where it would with the sidebar gone.
+    resized(page, 1100, 900)
+    margins_laid_out(page)
+    band = page.evaluate(
+        """() => {
+          const sidebar = document.querySelector('aside.sidebar');
+          const next = sidebar.nextElementSibling;
+          const kept = next.getBoundingClientRect().top;
+          sidebar.style.display = 'none';
+          const gone = next.getBoundingClientRect().top;
+          sidebar.style.display = '';
+          return {kept, gone, toc: getComputedStyle(sidebar.firstElementChild).position,
+                  float: getComputedStyle(sidebar).float};
+        }"""
+    )
+    assert band["toc"] == "fixed" and band["float"] == "none", band
+    assert band["kept"] == band["gone"], (
+        f"the sidebar the map left opened a gap in the flow: {band}"
+    )
+
     resized(page, 700, 900)
     narrow = page.evaluate(reading)
     assert narrow["taken"] == 0

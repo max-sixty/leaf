@@ -42,16 +42,6 @@ body.site-page nav.sitenav [aria-current="page"] {
   color: var(--ink);
 }
 
-/* Layout-prototype workaround for the contents spine, which the default package fixes
- * into the left margin from an 848px shell. Below the core theme's 1296px float, the
- * sidebar that held it stays in flow, empty, and its margins open a gap under the
- * header. */
-@container lf-content-frame style(--lf-sidebar-posture: margin) {
-  body.site-page main > aside.sidebar:has(> lf-toc) {
-    margin-block: 0;
-  }
-}
-
 body.site-page header.hero {
   margin-bottom: 40px;
 }

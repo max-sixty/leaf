@@ -2,9 +2,10 @@
 
 The gate's findings say what is broken; they cannot say whether the page reads well,
 which is the author's judgment of a picture. So the check saves the page as a reader
-meets it: top to bottom on a desktop and on a phone, and one screen at each width where
-the page's own arrangement is at its tightest before it changes, or where its margin
-content changes, with that box in view. The screens go to one directory per page
+meets it: top to bottom on a desktop, in the widest window the sweep reaches, where what
+scales with the window is at its largest, and on a phone; and one screen at each width
+where the page's own arrangement is at its tightest before it changes, or where its
+margin content changes, with that box in view. The screens go to one directory per page
 under the state home's screens/, which the check names; a check writes a fresh
 directory beside it and then puts it in its place, so a reader never meets half of one
 check's screens and half of another's. The page directory is the page's record, and a
@@ -21,6 +22,7 @@ from pathlib import Path
 
 from leaf.machine import state_home
 from leaf.render_checks import RENDER_VIEWPORT, rendered, wait_until_ready
+from leaf.render_gate.readings import SWEEP_WIDTHS
 
 PHONE = {"width": 390, "height": 844}
 # How far down a long page the screens go. A page longer than this is read on its first
@@ -98,6 +100,8 @@ def save_screens(
             context.close()
 
     whole(RENDER_VIEWPORT, False, "desktop")
+    widest = {"width": max(SWEEP_WIDTHS), "height": RENDER_VIEWPORT["height"]}
+    whole(widest, False, "the widest window")
     for width, selector, said in reading.arrangement:
         one(width, selector, "arrangement", f"the tightest before {said}")
     for width in reading.margin_widths:

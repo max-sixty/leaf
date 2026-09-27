@@ -296,7 +296,7 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
 
     into, listed = check()
     names = sorted(path.name for path in into.iterdir())
-    assert "1200px-1.png" in names and "390px-1.png" in names
+    assert {"1200px-1.png", "1920px-1.png", "390px-1.png"} <= set(names)
     stacks = next(line for line in listed if "<main> 1+2 → 1+1+1" in line)
     assert (into / stacks.split(":")[0].strip()).exists()
     assert any("<div id=2026-numbers> 4 → " in line for line in listed)

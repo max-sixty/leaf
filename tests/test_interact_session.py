@@ -2038,8 +2038,9 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
         "operation": "work",
     }
 
-    # A `busy` that began in this turn holds it through a long step.
-    host_says("busy")
+    # A `busy` that began with this turn holds it through a long step, though the
+    # host marks it a moment before the prompt hook stamps the opening.
+    host_says("busy", ago=3)
     assert _activity_at(claimed, 16)["counts"]["handling"] == 1
 
     # A dialog in the terminal is observed work the page announces.

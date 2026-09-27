@@ -747,9 +747,9 @@ THREE_PART_ASK_PAGE = leaf_page(
 
 def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     """Only a box that passes the height on holds what it contains. A section in the
-    body's grid is a grouping, so a pane in one takes its natural height and the page
-    scrolls it. The control is the same pane as the workspace's body, which the window
-    holds."""
+    body's grid is a grouping, so a pane in one takes its natural height and the body,
+    which the window holds, scrolls it. The control is the same pane as the workspace's
+    body, which the window holds."""
     page = open_page(browser, serve(SECTIONED_PANE_PAGE))
     resized(page, 1280, 720)
     pane = page.locator("#held-pane")
@@ -758,7 +758,7 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
         """async node => {
           const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
           return leaf.readingPosture(node) === 'flow'
-            && leaf.effectiveScroller(node) === document.scrollingElement;
+            && leaf.effectiveScroller(node) === document.getElementById('cells');
         }"""
     )
     page.close()
@@ -808,6 +808,16 @@ def test_a_held_workspace_that_overflows_scrolls_its_end_clear_of_the_band(
     page = open_page(browser, serve(SECTIONED_PANE_PAGE))
     resized(page, 1280, 720)
     holds_the_window(page, page.locator("main"), True)
+    # Every reader asks one owner which box scrolls a node, so the body that now scrolls
+    # is the answer for the pane it carries: page steps and reading-place recovery move
+    # the box the user sees move.
+    carrier = page.evaluate(
+        """async () => {
+          const {scrollerFor} = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+          return scrollerFor(document.getElementById('pane-end'))?.id ?? null;
+        }"""
+    )
+    assert carrier == "cells", carrier
     page.locator("#pane-end").evaluate("node => node.scrollIntoView({block: 'end'})")
     end = clear_of_the_bottom_chrome(page, "#pane-end")
     assert end["clear"], end

@@ -40,6 +40,7 @@ import { drawnEdge } from "./drawn-edge.js";
 import { overlaps, overlapsAcross } from "./rect.js";
 import { standsBeside } from "./auxiliary-surfaces.js";
 import { scheduleResidency } from "./margin-layout.js";
+import { syncLayoutRegion } from "./reading-regions.js";
 
 // The width the panel stands at for a user who has not moved its edge. 420 since
 // threads carry questions — option rows are the one thread content that can't scroll or
@@ -84,6 +85,7 @@ export function createChromeLayout({
   // Every writer here is a writer of the chrome, so nothing this function does resizes the
   // box it reads.
   function syncLayout() {
+    syncLayoutRegion();
     scheduleResidency();
     scheduleThreadPreviewPosition();
     const panelLive = panelIsOpen() && !panelCovers();

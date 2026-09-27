@@ -101,6 +101,10 @@
     --lf-block-frame: 1;
   }
   main.layout-workspace > header > * { margin-block: 0; }
+  /* A body that is not itself a pane is a reading region of the Layout's own, which the
+   * runtime registers from this mark (reading-regions.js, `syncLayoutRegion`), so a pane
+   * it carries scrolls with it wherever something asks which box scrolls that pane. */
+  main.layout-workspace > :not(header, footer, lf-pane) { --lf-reading-region: layout; }
   main.layout-workspace > header h1 {
     font-size: var(--t-2);
     line-height: 1.25;
@@ -116,16 +120,17 @@
       box-sizing: border-box;
     }
     main.layout-workspace > :is(header, footer) { flex: none; }
-    /* The body takes the window's height to pass on to its panes. A pane it does not
-     * pass the height to, one inside a section of the body, takes its content's height
-     * instead, so the body scrolls as a whole rather than run past the window's foot. */
     main.layout-workspace > :not(header, footer) {
       flex: 1 1 0;
       min-block-size: 0;
       margin-block: 0;
       grid-auto-rows: minmax(0, 1fr);
-      overflow: auto;
     }
+    /* The body takes the window's height to pass on to its panes. A pane it does not
+     * pass the height to, one inside a section of the body, takes its content's height
+     * instead, so the body scrolls as a whole rather than run past the window's foot. A
+     * body that is a pane scrolls its own body already. */
+    main.layout-workspace > :not(header, footer, lf-pane) { overflow: auto; }
     /* A pane is already a grid of header, body and footer (the default package), whose body
      * row takes what a definite height leaves and its content's height otherwise; here it
      * may shrink below its content, and scrolls. That holds for a pane the workspace

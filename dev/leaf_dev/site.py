@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Assemble the published site (https://leaf.page/) into .tmp/site.
 
 Every product document under `docs/` is a Leaf source. The build publishes each one as a
@@ -20,12 +19,13 @@ local href and src it wrote and refuses a site holding one that names no file.
 The build also writes what a crawler reads: `robots.txt`, a `sitemap.xml` of the clean
 routes, and each page's link card. A page's title and description are authored in its
 own source, and the build refuses a page missing either. The rest of the card comes from
-`site_metadata` in `worker/server.py`. Each page's card image is named in the manifest:
+`site_metadata` in `leaf_website` (`worker/`). Each page's card image is named in the manifest:
 `docs/session-card.png` for a product page and the catalog preview for an example.
-`--serve` needs `npm ci --prefix worker` and a running Docker.
 
-Usage: uv run scripts/site.py [--serve]
-       (writes .tmp/site; --serve keeps a local preview open)
+    uv run leaf-dev site [--serve]
+
+`--serve` then keeps a local preview open through `wrangler dev`, which needs
+`npm ci --prefix worker` and a running Docker.
 """
 
 import hashlib
@@ -38,11 +38,10 @@ import sys
 import tempfile
 from functools import partial
 from html.parser import HTMLParser
-from importlib import import_module
 from pathlib import Path
 from urllib.parse import unquote, urljoin, urlsplit
 
-from example_assets import example_previews
+import click
 from leaf.files import latest_revision, list_revisions
 from leaf.host import IDENTITY_VARIABLES
 from leaf.live_shell import write_live_shell
@@ -55,16 +54,12 @@ from leaf.schema import (
     VENDORED_FILES,
 )
 from leaf.structure import FRAME_ANCESTORS_CSP, SourceDocument
+from leaf_website import SITE_MANIFEST, SITE_ORIGIN, initial_state, site_metadata
+
+from leaf_dev import ROOT
+from leaf_dev.example_assets import example_previews
 from leaf_dev.example_data import catalog_sources
 from leaf_dev.page_fixtures import prepare_page, read_fixture
-
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
-worker_server = import_module("worker.server")
-SITE_MANIFEST = worker_server.SITE_MANIFEST
-SITE_ORIGIN = worker_server.SITE_ORIGIN
-initial_state = worker_server.initial_state
-site_metadata = worker_server.site_metadata
 
 LEAF = ROOT / "bin" / "leaf"
 DOCS = ROOT / "docs"
@@ -93,7 +88,7 @@ SITE_PACKAGE = "./docs/package"
 # different shapes: an unfurler draws a card at 1.91:1, and the still is 4:3, so
 # serving the still here handed every user a centre crop of it with the banner cut
 # off the top — the version control, the approval, the thread count, everything that
-# says a page is live. `record-demo.py` shoots this off the same scene at the card's
+# says a page is live. `leaf_dev.record_demo` shoots this off the same scene at the card's
 # own shape, so it stays as true as the stills beside it.
 DEFAULT_SOCIAL_IMAGE = DOCS / "session-card.png"
 
@@ -578,22 +573,25 @@ def bundle_published_runtime(out: Path) -> None:
     deduplicate_tree(asset_site(out))
 
 
-def main() -> None:
-    if sys.argv[1:] not in ([], ["--serve"]):
-        sys.exit("usage: uv run scripts/site.py [--serve]")
+@click.command("site")
+@click.option(
+    "--serve",
+    is_flag=True,
+    help="Keep a local preview open through `wrangler dev` after building.",
+)
+def site(serve: bool) -> None:
+    """Build leaf.page into .tmp/site."""
     build(OUT)
     bundle_published_runtime(OUT)
-    print(f"✓ {len(list(OUT.rglob('*.html')))} pages → {OUT} and {asset_site(OUT)}")
-    if sys.argv[1:] == ["--serve"]:
+    click.echo(
+        f"✓ {len(list(OUT.rglob('*.html')))} pages → {OUT} and {asset_site(OUT)}"
+    )
+    if serve:
         if not WRANGLER.is_file():
             sys.exit("website dependencies are missing; run `npm ci --prefix worker`")
-        print("Preview: http://127.0.0.1:8787/examples/")
+        click.echo("Preview: http://127.0.0.1:8787/examples/")
         result = subprocess.run(
             [str(WRANGLER), "dev"], cwd=ROOT / "worker", check=False
         )
         if result.returncode:
             sys.exit(result.returncode)
-
-
-if __name__ == "__main__":
-    main()

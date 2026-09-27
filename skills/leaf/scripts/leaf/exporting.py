@@ -26,6 +26,7 @@ from leaf.revision_artifact import (
     bind_imports,
     captured_imports,
     read_artifact,
+    read_revision,
 )
 from leaf.revision_delivery import (
     Delivery,
@@ -37,7 +38,6 @@ from leaf.served_state.service import PageStateService
 from leaf.structure import (
     EXTERNAL_SOURCES,
     SourceDocument,
-    parse_revision,
 )
 
 ResourceReader = Callable[[str], Resource]
@@ -290,7 +290,7 @@ def cmd_export(page_dir: Path, out: Path, version) -> int:
         )
     name = version_name(version)
     revision = version_revisions(events)[version]
-    document = parse_revision(page_dir, revision)
+    document = read_revision(page_dir, revision).document
     artifact = read_artifact(page_dir, revision)
     active = {"revision": revision, "version": version, "url": f"/versions/{name}"}
     snapshot = capture_page_snapshot(page_dir, document, active, artifact=artifact)

@@ -78,7 +78,7 @@ def _read_page_registry_stamped(
 ):
     """Compose one candidate vocabulary until any input file or the active revision
     changes."""
-    from leaf.revision_artifact import read_artifact
+    from leaf.revision_artifact import read_revision
 
     layer = load_registry(page_dir)
     if layer is None:
@@ -87,7 +87,7 @@ def _read_page_registry_stamped(
         page_dir,
         layer,
         [path for path, _stamp in widgets],
-        validated=read_artifact(page_dir, active).registry if active else None,
+        validated=read_revision(page_dir, active).registry if active else None,
     )
 
 
@@ -260,8 +260,8 @@ def page_vocabulary(page_dir: Path, revision: int | None) -> dict | None:
     the candidate would be captured under. None before `page init`.
     """
     if revision is not None:
-        from leaf.revision_artifact import read_registry
+        from leaf.revision_artifact import read_revision
 
-        return read_registry(page_dir, revision)
+        return read_revision(page_dir, revision).registry
     candidate = read_page_registry(page_dir)
     return candidate.registry if candidate is not None else None

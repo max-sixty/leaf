@@ -6269,7 +6269,9 @@ def test_a_page_ask_that_settles_a_thread_carries_its_thread(page_dir, capsys):
             page_view_model.PageView(page_dir),
             events[-1],
             event_meaning_model.AdmissionReadings(
-                events, registry_storage.require_registry(page_dir)
+                page_view_model.PageView(page_dir),
+                events,
+                registry_storage.require_registry(page_dir),
             ),
         )
         is None

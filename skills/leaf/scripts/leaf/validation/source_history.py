@@ -4,8 +4,8 @@ from pathlib import Path
 from typing import NamedTuple
 
 from leaf.events import anchored_parts, retractions
-from leaf.files import list_revisions, revision_path
-from leaf.passages import enclosing_of, spoken
+from leaf.files import list_revisions
+from leaf.passages import SourceReading
 from leaf.projection import (
     StateProjection,
     protected_ids,
@@ -13,8 +13,8 @@ from leaf.projection import (
     state_projection,
 )
 from leaf.registry.contract import visual_parts
-from leaf.revision_artifact import RevisionArtifact, read_artifact, read_registry
-from leaf.structure import SourceDocument, parse_revision
+from leaf.revision_artifact import RevisionArtifact, read_revision
+from leaf.structure import SourceDocument
 from leaf.validation.transitions import report_errors, restatement_errors
 
 # What a revision that dropped a protected id does instead, by each reason the id is
@@ -46,7 +46,7 @@ PROTECTED_REMEDIES = {
 }
 
 
-class RevisionReading(NamedTuple):
+class PredecessorReading(NamedTuple):
     """The active and predecessor documents this exact source is checked against."""
 
     active: int
@@ -55,9 +55,9 @@ class RevisionReading(NamedTuple):
     # was checked when that revision activated.
     unchanged: bool
     predecessor: int
-    previous: object
-    previous_words: dict
-    previous_registry: dict
+    # The predecessor's document under the vocabulary it captured; an empty
+    # document where there is none.
+    previous: SourceReading
 
 
 class TransitionReading(NamedTuple):
@@ -68,18 +68,18 @@ class TransitionReading(NamedTuple):
     projection: StateProjection
 
 
-def revision_reading(
+def predecessor_reading(
     page_dir: Path,
     data: bytes,
     events: list,
     artifact: RevisionArtifact | None = None,
-) -> RevisionReading:
+) -> PredecessorReading:
     """Read the predecessor whose still-standing decisions this source must keep."""
     revisions = list_revisions(page_dir)
     active = revisions[-1] if revisions else 0
-    active_data = revision_path(page_dir, active).read_bytes() if active else None
+    active_data = read_revision(page_dir, active).html if active else None
     same_as_active = active_data == data and (
-        artifact is None or artifact.digest == read_artifact(page_dir, active).digest
+        artifact is None or artifact.digest == read_revision(page_dir, active).digest
     )
     committed_active = bool(
         active
@@ -93,21 +93,16 @@ def revision_reading(
         if committed_active
         else (revisions[-2] if same_as_active and len(revisions) > 1 else active)
     )
-    previous = SourceDocument("")
-    previous_words = {}
-    previous_registry = {}
-    if predecessor:
-        previous = parse_revision(page_dir, predecessor)
-        previous_registry = read_registry(page_dir, predecessor)
-        previous_words = spoken(previous, previous_registry)
-    return RevisionReading(
+    return PredecessorReading(
         active,
         committed_active,
         bool(active and same_as_active and artifact is not None),
         predecessor,
-        previous,
-        previous_words,
-        previous_registry,
+        (
+            read_revision(page_dir, predecessor)
+            if predecessor
+            else SourceReading(SourceDocument(""), {})
+        ),
     )
 
 
@@ -115,12 +110,13 @@ def continuity_errors(
     events: list,
     parser,
     registry: dict | None,
-    revision: RevisionReading,
+    revision: PredecessorReading,
 ) -> tuple[list[str], list[str]]:
     """Protect predecessor anchors, standing state, and retirement holders."""
     if not revision.predecessor or revision.committed_active or registry is None:
         return [], []
-    gone = revision.previous.ids - parser.ids
+    previous = revision.previous
+    gone = previous.document.ids - parser.ids
     # Only the parts a live thread still points at, read exactly as the
     # protected ids below are. A declared part is authored markup, not a promise:
     # once every thread on it has moved, detached, or closed, the picture may lose
@@ -129,15 +125,12 @@ def continuity_errors(
     # Prefixes admit ids the file never lists, so for such a widget only a
     # declaration that stops admitting a held id drops it here; a part its drawing
     # stops rendering detaches in the browser.
-    previous_records, current_records = revision.previous.by_id, parser.by_id
+    previous_records, current_records = previous.document.by_id, parser.by_id
     dropped_parts = sorted(
         f"{section} · {part}"
-        for section, part in anchored_parts(
-            events, enclosing_of(revision.previous_words)
-        )
+        for section, part in anchored_parts(events, previous.within)
         if section in parser.ids
-        and part
-        in visual_parts(previous_records.get(section, {}), revision.previous_registry)
+        and part in visual_parts(previous_records.get(section, {}), previous.registry)
         and part not in visual_parts(current_records.get(section, {}), registry)
     )
     errors = []
@@ -149,18 +142,18 @@ def continuity_errors(
         )
     previous_projection = state_projection(
         events,
-        revision.previous.by_id,
-        revision.previous_words,
-        revision.previous_registry,
+        previous_records,
+        previous.spoken,
+        previous.registry,
         revision.predecessor,
     )
     protected = protected_ids(
-        retirement_holders(revision.previous, revision.previous_registry),
+        retirement_holders(previous.document, previous.registry),
         events,
         gone,
         previous_projection,
-        revision.previous_words,
-        revision.previous_registry,
+        previous.spoken,
+        previous.registry,
     )
     dropped = sorted(gone & protected.keys())
     generated = {
@@ -213,10 +206,10 @@ def transition_reading(
     document: SourceDocument,
     events: list,
     registry: dict | None,
-    revision: RevisionReading,
+    revision: PredecessorReading,
 ) -> TransitionReading:
     """Project standing log changes onto this source from its predecessor."""
-    words = spoken(document, registry or {})
+    words = SourceReading(document, registry).spoken
     floors = retractions(events, revision.predecessor)
     projection = state_projection(
         events,
@@ -232,7 +225,7 @@ def transition_reading(
 def transition_errors(
     parser,
     registry: dict | None,
-    revision: RevisionReading,
+    revision: PredecessorReading,
     transition: TransitionReading,
     allow_transition: bool,
 ) -> list[str]:
@@ -241,8 +234,8 @@ def transition_errors(
         return []
     errors = restatement_errors(
         parser,
-        revision.previous,
-        revision.previous_words,
+        revision.previous.document,
+        revision.previous.spoken,
         transition.words,
         revision.predecessor,
         registry or {},
@@ -252,8 +245,8 @@ def transition_errors(
     errors.extend(
         report_errors(
             parser,
-            revision.previous,
-            revision.previous_words,
+            revision.previous.document,
+            revision.previous.spoken,
             transition.words,
             registry or {},
             transition.projection,

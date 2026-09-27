@@ -9,11 +9,11 @@ from leaf.event_log import follow_events, jsonl_line, read_events
 from leaf.events import build_threads, is_reaction, standing_approvals, taken_back
 from leaf.files import latest_revision, revision_label
 from leaf.gesture_words import GestureWords, revisions_on_disk
-from leaf.passages import active_enclosing, enclosing_of, spoken
+from leaf.passages import enclosing_of
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.storage import active_registry
+from leaf.revision_artifact import active_enclosing, read_revision
 from leaf.schema import agent_name
-from leaf.structure import parse_revision
 from leaf.thread_context import (
     thread_memberships,
     thread_names,
@@ -85,7 +85,7 @@ def _revision_title(page_dir: Path) -> tuple[int | None, str]:
     title = ""
     revision = latest_revision(page_dir)
     if revision is not None:
-        title = parse_revision(page_dir, revision).title.strip()
+        title = read_revision(page_dir, revision).document.title.strip()
     return revision, title
 
 
@@ -158,7 +158,7 @@ def _published_reading(
     # transcript is an account of. A page with no valid revision has no reading.
     if revision is None:
         return {}
-    return spoken(parse_revision(page_dir, revision), registry)
+    return read_revision(page_dir, revision).under(registry).spoken
 
 
 def _thread_heading(thread: dict) -> str:

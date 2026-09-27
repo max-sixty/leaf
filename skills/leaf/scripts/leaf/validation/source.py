@@ -10,6 +10,7 @@ from leaf.data_contracts import (
     measurement_lag,
     working_data_document_readings,
 )
+from leaf.passages import SourceReading
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import read_page_registry
 from leaf.revision_artifact import ArtifactError, RevisionArtifact, capture_artifact
@@ -45,9 +46,9 @@ from leaf.validation.markup import (
     unpointable_blocks,
 )
 from leaf.validation.source_history import (
-    RevisionReading,
+    PredecessorReading,
     continuity_errors,
-    revision_reading,
+    predecessor_reading,
     transition_errors,
     transition_reading,
 )
@@ -217,7 +218,7 @@ def _source_advice(
     parser,
     registry: dict | None,
     stored_data: dict,
-    revision: RevisionReading,
+    revision: PredecessorReading,
     dropped_ids: list[str],
     artifact: RevisionArtifact | None,
 ) -> list[str]:
@@ -314,7 +315,9 @@ def check_source(
                 child_readings,
                 selected,
             )
-            initial = RevisionReading(0, False, False, 0, SourceDocument(""), {}, {})
+            initial = PredecessorReading(
+                0, False, False, 0, SourceReading(SourceDocument(""), {})
+            )
             transition = transition_reading(child, child_events, registry, initial)
             child_errors.extend(
                 transition_errors(child, registry, initial, transition, False)
@@ -332,7 +335,7 @@ def check_source(
             )
         except ArtifactError as error:
             errors.append(str(error))
-    revision = revision_reading(page_dir, data, events, artifact)
+    revision = predecessor_reading(page_dir, data, events, artifact)
 
     source_history_errors, dropped_advice = continuity_errors(
         events, document, registry, revision

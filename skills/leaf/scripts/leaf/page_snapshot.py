@@ -14,6 +14,7 @@ from .files import (
     revision_path,
     version_descriptors,
 )
+from .passages import SourceReading
 from .presence import other_leaves, presence_fingerprint, presence_with_activity
 from .registry.storage import read_page_registry
 from .revision_artifact import (
@@ -39,7 +40,8 @@ class PageSnapshot:
     browser_data: dict
     versions: tuple[dict, ...]
     artifacts: dict[int, RevisionArtifact]
-    documents: dict[int, SourceDocument]
+    # Each revision's document under the registry its artifact captured.
+    readings: dict[int, SourceReading]
     revision_names: dict[int, str]
     presence: dict
     live_stream: dict | None
@@ -85,8 +87,10 @@ def capture_page_snapshot(
         registry = copy.deepcopy(selected.registry)
         data = read_data(page_dir, registry)
         layer = copy.deepcopy(registry["$layer"])
-        documents = {
-            revision: SourceDocument(artifact.html.decode("utf-8"))
+        readings = {
+            revision: SourceReading(
+                SourceDocument(artifact.html.decode("utf-8")), artifact.registry
+            )
             for revision, artifact in artifacts.items()
         }
         revision_names = {
@@ -138,7 +142,7 @@ def capture_page_snapshot(
         browser_data=browser_data,
         versions=versions,
         artifacts=artifacts,
-        documents=documents,
+        readings=readings,
         revision_names=revision_names,
         presence=copy.deepcopy(present),
         live_stream=copy.deepcopy(live_stream),

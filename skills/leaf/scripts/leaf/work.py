@@ -15,7 +15,7 @@ from .projection import (
     rewritten_bodies,
 )
 from .registry.storage import require_registry
-from .structure import parse_revision
+from .revision_artifact import read_revision
 from .workflows import canonical_workflows
 
 
@@ -117,10 +117,14 @@ def work_subject(page_dir: Path, events: list, target: str, *, standing: list) -
     spk: dict = {}
     widget_revision = latest_revision(page_dir)
     if widget_revision is not None:
-        document = parse_revision(page_dir, widget_revision)
-        html = document.html
         registry = require_registry(page_dir)
-        page = page_reading(document, events, registry, widget_revision)
+        page = page_reading(
+            read_revision(page_dir, widget_revision).under(registry),
+            events,
+            widget_revision,
+        )
+        document = page.document
+        html = document.html
         widget_projection = page.projection
         spk = page.spoken
         rec = page.document.by_id.get(target)

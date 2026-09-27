@@ -54,7 +54,12 @@ from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .registry.storage import layer_metadata, require_registry
 from .render_checks import PROBE_SOURCES
-from .revision_artifact import Resource, RevisionArtifact, read_artifact, read_registry
+from .revision_artifact import (
+    Resource,
+    RevisionArtifact,
+    read_artifact,
+    read_revision,
+)
 from .revision_delivery import (
     Delivery,
     DeliveryAddress,
@@ -732,7 +737,7 @@ class PageEndpoint:
         """One revision's captured vocabulary, without materializing its bundle."""
         if self.page_snapshot is not None:
             return self.page_snapshot.artifacts[revision].registry
-        return read_registry(self.page_dir, revision)
+        return read_revision(self.page_dir, revision).registry
 
     def _artifact_root(self, revision: int) -> str:
         name = self._revision_name(revision).removesuffix(".html")
@@ -855,7 +860,7 @@ class PageEndpoint:
             name = Path(path).name
             revision = revision_num(name)
             revisions = (
-                set(self.page_snapshot.documents)
+                set(self.page_snapshot.readings)
                 if self.page_snapshot is not None
                 else set(list_revisions(self.page_dir))
             )

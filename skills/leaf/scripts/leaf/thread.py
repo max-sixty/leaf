@@ -3,6 +3,7 @@
 import sys
 from pathlib import Path
 
+from leaf.activity import reply_binding_stands
 from leaf.asks import local_ask_entry
 from leaf.delivery import current_responses, record_pickup
 from leaf.event_contracts import append_admitted
@@ -93,16 +94,19 @@ def _clear_delivery_reply(session_id: str, attempt: str, target: dict) -> None:
 
 
 def delivery_reply_reserved(session_id: str, delivery_id: str, target: dict) -> bool:
-    """Whether an observed provider still owns this delivery's reply address."""
+    """Whether this delivery's binding of its reply address still stands."""
     try:
         with PageTransaction(Path(target["page"])) as page:
             binding = (
                 (page.status.get("stream") or {}).get("reply_bindings") or {}
             ).get(target["responds"])
-            return binding == {
-                "session": session_id,
-                "attempt": delivery_reply_attempt(delivery_id),
-            }
+            claim = page.active_claim
+            return bool(
+                claim
+                and reply_binding_stands(binding, claim["id"], claim["turn"])
+                and binding["session"] == session_id
+                and binding["attempt"] == delivery_reply_attempt(delivery_id)
+            )
     except FileNotFoundError:
         return False
 
@@ -376,8 +380,10 @@ def cmd_reply(
     currently owe no reply for; the event then carries no ``responds``.
 
     ``when_settled`` distinguishes completed delivery answers from failure receipts.
-    ``post`` retains the delivered response address even after settlement; ``skip``
-    omits a receipt when no answer is owed. The default ``refuse`` rejects a stale
+    ``post`` retains the delivered response address even after settlement, but
+    yields to an answer another writer already gave the move (a failure receipt
+    is no answer), so a turn's answer committed after its binding lapsed never
+    answers twice; ``skip`` omits a receipt when no answer is owed. The default ``refuse`` rejects a stale
     response address from an ordinary CLI writer.
 
     ``failure`` records a host-owned failure code alongside its presentation text;
@@ -411,6 +417,17 @@ def cmd_reply(
                 ):
                     sys.exit(f"attempt {attempt!r} already belongs to another event")
                 return existing
+        if (
+            when_settled == "post"
+            and for_event is not None
+            and any(
+                event["kind"] == "reply"
+                and event.get("responds") == for_event
+                and "failure" not in event
+                for event in events
+            )
+        ):
+            return None
         responses = current_responses(page_dir, events)
         if for_event is None and to is None:
             claim = page.active_claim

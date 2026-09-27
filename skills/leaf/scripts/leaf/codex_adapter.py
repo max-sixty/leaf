@@ -56,8 +56,6 @@ from .codex import (
     delivery_records,
     delivery_stream_reply_target,
     offer_delivery,
-    open_stream_turn,
-    record_path,
     retire_gone_task_records,
     retry_delay,
     set_stream_activity,
@@ -264,38 +262,30 @@ class TaskObserver:
         """Reconcile every turn against a resumed snapshot of the task."""
         # A followed turn the snapshot does not list — a paginated thread's `turns`
         # can leave it out — stays disconnected until it says something.
-        turns = {turn["id"]: turn for turn in thread.get("turns", [])}
-        for turn in turns.values():
+        turns = thread.get("turns", [])
+        for turn in turns:
             self._reconcile(turn)
 
-        active = next(
+        # Only a turn this can name. A resume that reports the task active without
+        # naming its turn leaves nothing a `turn/completed` could ever clear.
+        self.running = next(
             (
-                turn
-                for turn in reversed(list(turns.values()))
+                turn["id"]
+                for turn in reversed(turns)
                 if turn.get("status") == "inProgress"
             ),
             None,
         )
-        # Only a turn this can name. A resume that reports the task active without
-        # naming its turn leaves nothing a `turn/completed` could ever clear.
-        self.running = active["id"] if active is not None else None
-        fold = self.turns.get(self.running) if self.running is not None else None
-        if (
-            fold is None
-            and active is not None
-            and not self._is_carried(_turn_delivery_id(active))
-        ):
-            fold = self.turns[active["id"]] = TurnFold(self.thread_id, active["id"])
-            fold.restore(active)
         status = thread.get("status", {})
-        if status.get("type") == "active" and active is not None:
+        fold = self.turns.get(self.running) if self.running is not None else None
+        if status.get("type") == "active" and self.running is not None:
             if fold is not None:
                 fold.absorb(
                     {
                         "method": "thread/status/changed",
                         "params": {
                             "threadId": self.thread_id,
-                            "turnId": active["id"],
+                            "turnId": self.running,
                             "status": status,
                         },
                     }
@@ -310,40 +300,23 @@ class TaskObserver:
     def _reconcile(self, turn: dict) -> None:
         """Bring one snapshot turn's fold up to what the snapshot says of it.
 
-        The snapshot can name a delivery the fold has not seen: its item was
-        written while this connection was down. A carried one gives its turn to
-        the follower. Any other is accepted and bound as `_read` binds one, so the
-        answer is written whether the turn is still running or ended meanwhile.
-
-        A turn with no fold is taken up only for a delivery that owes a `turn`
-        answer, which is a turn nobody is following: its carrier process died while
-        the turn ran on. The snapshot's other turns are history, save the running
-        one, which `_resume` follows.
+        A running turn is followed, whether or not it was before the connection
+        dropped. An ended one is committed if something here was following it, or
+        if it carries a delivery: its item was written while this connection was
+        down, or its carrier process died while the turn ran on, and its answer
+        is still to write. Its turn is closed, never reopened. The snapshot's other
+        turns are history.
         """
-        turn_id = turn["id"]
-        fold = self.turns.get(turn_id)
-        delivery_id = _turn_delivery_id(turn)
         running = turn.get("status") == "inProgress"
-        if delivery_id is not None and (fold is None or fold.delivery_id is None):
-            if self._is_carried(delivery_id):
-                self.turns.pop(turn_id, None)
-                return
-            accept_offered_delivery(self.thread_id, delivery_id, turn_id)
-            target = delivery_stream_reply_target(self.thread_id, delivery_id)
-            if fold is None:
-                if target is None:
-                    return
-                fold = TurnFold(self.thread_id, turn_id)
-                if running:
-                    open_stream_turn(self.thread_id, turn_id)
-                    self.turns[turn_id] = fold
-            fold.bind(delivery_id, target)
+        fold = self._fold(
+            turn["id"], _turn_delivery_id(turn), follow=running, ended=not running
+        )
         if fold is None:
             return
         if running:
             fold.restore(turn)
         else:
-            self.turns.pop(turn_id, None)
+            self.turns.pop(turn["id"], None)
             fold.commit(turn)
 
     def _read(self, message: dict) -> None:
@@ -364,36 +337,58 @@ class TaskObserver:
         if turn_id is None:
             return
 
-        fold = self.turns.get(turn_id)
         delivery_id = app_server_delivery_id(message)
-        if delivery_id is not None and (fold is None or fold.delivery_id is None):
-            if self._is_carried(delivery_id):
-                # Its follower answers for this turn, so nothing here writes it twice.
-                self.turns.pop(turn_id, None)
-                return
-            if (
-                fold is None
-                and method != "turn/started"
-                and delivery_record_state(self.thread_id, delivery_id) == "offering"
-            ):
-                # The offered delivery names this turn, whose `turn/started` reached
-                # the task before this subscription was open to see it.
-                self.running = turn_id
-                fold = self.turns[turn_id] = TurnFold(self.thread_id, turn_id)
-        if fold is None and method == "turn/started":
-            open_stream_turn(self.thread_id, turn_id)
-            fold = self.turns[turn_id] = TurnFold(self.thread_id, turn_id)
+        # An offered delivery can name a turn whose `turn/started` reached the task
+        # before this subscription was open to see it.
+        adopting = (
+            delivery_id is not None
+            and turn_id not in self.turns
+            and delivery_record_state(self.thread_id, delivery_id) == "offering"
+        )
+        fold = self._fold(
+            turn_id, delivery_id, follow=method == "turn/started" or adopting
+        )
         if fold is None:
             return
-        if delivery_id is not None and fold.delivery_id is None:
-            accept_offered_delivery(self.thread_id, delivery_id, turn_id)
-            fold.bind(
-                delivery_id, delivery_stream_reply_target(self.thread_id, delivery_id)
-            )
+        if adopting:
+            self.running = turn_id
         update = fold.absorb(message)
         if (terminal := fold.finished(message, update)) is not None:
             del self.turns[turn_id]
             fold.commit(terminal)
+
+    def _fold(
+        self,
+        turn_id: str,
+        delivery_id: str | None,
+        *,
+        follow: bool,
+        ended: bool = False,
+    ) -> TurnFold | None:
+        """The fold of one turn, taking the turn up where `follow` says it runs.
+
+        This is the one place the observer opens a turn and binds a delivery to
+        it. A turn carrying a delivery this process's own follower carries is
+        that follower's, so it gets no fold here and any fold it had is dropped.
+        An `ended` turn nothing here followed gets a fold only to commit a
+        delivery it carries, and is never opened for it.
+        """
+        if delivery_id is not None and self._is_carried(delivery_id):
+            # Its follower answers for this turn, so nothing here writes it twice.
+            self.turns.pop(turn_id, None)
+            return None
+        fold = self.turns.get(turn_id)
+        if fold is None and follow:
+            fold = self.turns[turn_id] = TurnFold(self.thread_id, turn_id)
+            fold.open()
+        elif fold is None and ended and delivery_id is not None:
+            fold = TurnFold(self.thread_id, turn_id)
+        if fold is not None and delivery_id is not None and fold.delivery_id is None:
+            accept_offered_delivery(self.thread_id, delivery_id, turn_id)
+            fold.bind(
+                delivery_id, delivery_stream_reply_target(self.thread_id, delivery_id)
+            )
+        return fold
 
     def _disconnect_turns(self) -> None:
         """Take every fold's reading down without breaking the recovery boundary."""
@@ -438,19 +433,10 @@ def _turn_delivery_id(turn: dict) -> str | None:
     return app_server_delivery_id({"method": "turn/started", "params": {"turn": turn}})
 
 
-def accept_offered_delivery(
-    session_id: str,
-    delivery_id: str,
-    turn_id: str,
-    record: dict | None = None,
-) -> None:
+def accept_offered_delivery(session_id: str, delivery_id: str, turn_id: str) -> None:
     """Accept the offered delivery against the provider turn known to carry it."""
-    if record is None:
-        path = record_path(session_id, delivery_id)
-        with flocked(delivery_lock_path(session_id)):
-            record = read_json(path)
-    if record is not None and record["state"] == "offering":
-        accept_codex_delivery(session_id, turn=turn_id)
+    if delivery_record_state(session_id, delivery_id) == "offering":
+        accept_codex_delivery(session_id, turn_id)
 
 
 def start_delivery_turn(
@@ -545,7 +531,7 @@ class DeliveryTurn(CarriedTurn):
 
     def begin(self) -> None:
         """Record the delivery against this turn, and bind the answer it will give."""
-        open_stream_turn(self.session_id, self.turn_id)
+        self.open()
         accept_offered_delivery(self.session_id, self.delivery_id, self.turn_id)
         self.open_reply()
         set_stream_activity(self.session_id, self.turn_id, {"kind": "working"})

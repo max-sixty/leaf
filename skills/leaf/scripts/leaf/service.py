@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from leaf.activity import reply_binding_stands
 from leaf.event_log import (
     _append_event_unlocked,
     _matching_attempt,
@@ -244,10 +245,11 @@ class PageTransaction:
             "harness": harness.name,
             "agent": harness.agent,
             "cwd": os.getcwd(),
-            # Opaque identity of the currently open agent turn on this page.
-            # Delivery transitions name it, so an unresolved pickup from an old
-            # turn cannot become "being handled" merely because a later prompt
-            # opened another turn in the same session.
+            # Identity of the currently open agent turn on this page: its host's
+            # id where the host names one, and an opaque one Leaf mints otherwise
+            # (`open_turn`). Delivery transitions name it, so an unresolved pickup
+            # from an old turn cannot become "being handled" merely because a
+            # later prompt opened another turn in the same session.
             "turn": previous["turn"] if same_open_turn else secrets.token_hex(8),
             # When that turn opened, which is how long an open turn can be taken
             # for one still running when no Stop ever closes it.
@@ -297,6 +299,11 @@ class PageTransaction:
         status.json, the line SessionEnd already draws: what the agent said it
         was doing stays the agent's to write, and whether anything is still
         behind those words stays the page's to judge from evidence.
+
+        `turn_id` narrows the close to that turn, for a carrier whose account may
+        arrive after a later turn opened. The Stop hook passes none: whatever turn
+        of the session is open is the one ending, including one a claim taken
+        mid-turn minted before the host named it.
         """
         claim = self.claim
         if (
@@ -333,6 +340,13 @@ class PageTransaction:
         which runs no hook and so leaves the turn open, would otherwise leave the
         next prompt's work judged by the interrupted turn's opening.
 
+        The turn's identity is its host's, where the host names one: Codex names
+        each turn to its hooks and on its App Server alike, so the prompt hook and
+        a carrier following the same turn open the same id, and whichever arrives
+        second renews what the first opened. That id ended once `close_turn`
+        stamped it, so opening it again changes nothing. A host that names no turn
+        leaves `turn_id` None, and Leaf mints one when the last has closed.
+
         Nothing else about the claim moves. What the agent said it was doing
         stays the agent's to write, and the fifteen-minute grace on that claim's
         own age still catches a turn that ends without a Stop to stamp it.
@@ -340,29 +354,16 @@ class PageTransaction:
         claim = self.claim
         if not claim or claim["released"] is not None or claim["id"] != session_id:
             return None
-        if turn_id is not None and (
-            claim.get("turn") != turn_id or claim.get("turn_closed") is not None
-        ):
-            claim = {
-                **claim,
-                "turn": turn_id,
-                "turn_opened": now_iso(),
-                "turn_closed": None,
-            }
-            write_json(claim_path(self.page_dir), claim)
-        elif turn_id is None:
-            claim = {
-                **claim,
-                "turn": (
-                    secrets.token_hex(8)
-                    if claim.get("turn_closed") is not None
-                    else claim.get("turn")
-                ),
-                "turn_opened": now_iso(),
-                "turn_closed": None,
-            }
-            write_json(claim_path(self.page_dir), claim)
-        return claim.get("turn")
+        ended = claim.get("turn_closed") is not None
+        if turn_id is None:
+            turn_id = secrets.token_hex(8) if ended else claim.get("turn")
+        elif turn_id == claim.get("turn") and ended:
+            return turn_id
+        write_json(
+            claim_path(self.page_dir),
+            {**claim, "turn": turn_id, "turn_opened": now_iso(), "turn_closed": None},
+        )
+        return turn_id
 
     def note_messaged(self, ending: str) -> None:
         """Record that input reaching this page messaged its session after a turn
@@ -542,20 +543,10 @@ class PageTransaction:
             "ts": timestamp or updated_at,
             "updated_at": updated_at,
         }
-        bindings = dict(stream.get("reply_bindings") or {})
-        binding = {"session": session_id, "attempt": attempt}
-        if (
-            (standing_binding := bindings.get(responds))
-            and standing_binding.get("session") == session_id
-            and standing_binding != binding
-        ):
-            raise RuntimeError(
-                f"response {responds!r} is already bound to another delivery"
-            )
-        if standing == reply and bindings.get(responds) == binding:
+        bindings = self._bound(stream, session_id, responds, attempt, turn_id)
+        if standing == reply and bindings == stream.get("reply_bindings"):
             return
         stream["reply"] = reply
-        bindings[responds] = binding
         stream["reply_bindings"] = bindings
         status["stream"] = stream
         write_json(self.page_dir / STATUS_FILE, status)
@@ -566,25 +557,49 @@ class PageTransaction:
         responds: str,
         attempt: str,
     ) -> None:
-        """Reserve one response address before its provider can produce output."""
+        """Reserve one response address before its provider can produce output.
+
+        The reservation names the claim's turn as it stands, since the delivery's
+        own turn does not exist yet; that turn takes the binding over when its
+        reply opens (`set_stream_reply`). Reserving again, as a retried start
+        does, names the claim's turn as it stands then."""
         status = dict(self.status)
         stream = dict(status.get("stream") or {})
+        bindings = self._bound(
+            stream, session_id, responds, attempt, self.claim["turn"]
+        )
+        if bindings == stream.get("reply_bindings"):
+            return
+        stream["reply_bindings"] = bindings
+        status["stream"] = stream
+        write_json(self.page_dir / STATUS_FILE, status)
+
+    def _bound(
+        self,
+        stream: dict,
+        session_id: str,
+        responds: str,
+        attempt: str,
+        turn_id: str,
+    ) -> dict:
+        """The stream's bindings with one response address bound to `attempt`
+        in `turn_id`, refusing an address another delivery's binding holds while
+        it stands (`activity.reply_binding_stands`)."""
         bindings = dict(stream.get("reply_bindings") or {})
-        binding = {"session": session_id, "attempt": attempt}
-        if (
-            (standing := bindings.get(responds))
-            and standing.get("session") == session_id
-            and standing != binding
+        standing = bindings.get(responds)
+        claim = self.claim
+        if reply_binding_stands(standing, claim["id"], claim["turn"]) and not _held_by(
+            standing, session_id, attempt
         ):
             raise RuntimeError(
                 f"response {responds!r} is already bound to another delivery"
             )
-        if bindings.get(responds) == binding:
-            return
-        bindings[responds] = binding
-        stream["reply_bindings"] = bindings
-        status["stream"] = stream
-        write_json(self.page_dir / STATUS_FILE, status)
+        bindings[responds] = {
+            "session": session_id,
+            "attempt": attempt,
+            "turn": turn_id,
+        }
+        return bindings
 
     def set_stream_reply_state(
         self,
@@ -629,7 +644,7 @@ class PageTransaction:
         status = dict(self.status)
         stream = dict(status.get("stream") or {})
         bindings = dict(stream.get("reply_bindings") or {})
-        if bindings.get(responds) != {"session": session_id, "attempt": attempt}:
+        if not _held_by(bindings.get(responds), session_id, attempt):
             return
         bindings.pop(responds)
         if bindings:
@@ -653,8 +668,7 @@ class PageTransaction:
             return
         stream.pop("reply")
         bindings = dict(stream.get("reply_bindings") or {})
-        binding = bindings.get(reply["responds"])
-        if binding == {"session": session_id, "attempt": reply["attempt"]}:
+        if _held_by(bindings.get(reply["responds"]), session_id, reply["attempt"]):
             bindings.pop(reply["responds"])
         if bindings:
             stream["reply_bindings"] = bindings
@@ -701,6 +715,15 @@ class PageTransaction:
         if not self.owned_by(harness):
             return "lost"
         return "ended" if self.status["state"] == "idle" else "watching"
+
+
+def _held_by(binding: dict | None, session_id: str, attempt: str) -> bool:
+    """Whether one reply binding is this delivery attempt's, whatever turn it names."""
+    return bool(
+        binding
+        and binding.get("session") == session_id
+        and binding.get("attempt") == attempt
+    )
 
 
 def take_page_claim(page_dir: Path) -> tuple[dict | None, dict] | None:
@@ -751,8 +774,8 @@ def starting_claim(page_dir: Path, *, standing: bool = False):
         raise
 
 
-def open_session_turn(session_id: str) -> None:
-    """Clear the turn-ended stamp on every page one session holds.
+def open_session_turn(session_id: str, turn_id: str | None = None) -> None:
+    """Open one session turn on every page the session holds (`open_turn`).
 
     A turn belongs to the session, not to the page whose batch opened it. The
     Stop hook stamps the ending across `owned_pages`, so an opening that clears
@@ -761,25 +784,26 @@ def open_session_turn(session_id: str) -> None:
     the next leaf tells its own user the agent left when its turn ended and to
     nudge it in the terminal.
 
-    Each page takes its own transaction, the way the Stop hook takes them, and
-    a page the turn never touches still falls to the fifteen-minute grace on its
-    own claim age.
+    This and `close_session_turn` are the one path by which a turn opens and
+    closes, for the prompt and Stop hooks and for every carrier that follows a
+    turn itself. Each page takes its own transaction, and a page the turn never
+    touches still falls to the fifteen-minute grace on its own claim age.
     """
     for page_dir in owned_pages(session_id):
         try:
             with PageTransaction(page_dir) as page:
-                page.open_turn(session_id)
+                page.open_turn(session_id, turn_id)
         except FileNotFoundError:
             continue
 
 
-def close_session_turn(session_id: str) -> bool:
+def close_session_turn(session_id: str, turn_id: str | None = None) -> bool:
     """Stamp the end of a turn across every page one session still holds."""
     pages = owned_pages(session_id)
     for page_dir in pages:
         try:
             with PageTransaction(page_dir) as page:
-                page.close_turn(session_id)
+                page.close_turn(session_id, turn_id)
         except FileNotFoundError:
             continue
     return bool(pages)

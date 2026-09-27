@@ -425,7 +425,6 @@ class HostedTurn(CarriedTurn):
         )
         self.host = host
         self.page_dir = page_dir
-        self.leaf_turn: str | None = None
         self.event_ids = event_ids
         self.fields = agent_event_fields(event_ids)
         self.fault: dict | None = None
@@ -454,7 +453,8 @@ class HostedTurn(CarriedTurn):
         delivery's without anything having to read it back off the stream.
         """
         self.record("turn_following_started")
-        self.leaf_turn = open_app_server_delivery(
+        self.open()
+        open_app_server_delivery(
             self.page_dir,
             self.session_id,
             self.delivery_id,
@@ -552,10 +552,7 @@ class HostedTurn(CarriedTurn):
         try:
             if reply_error is not None:
                 self.record("turn_reply_commit_failed", **fault_fields(reply_error))
-            if self.leaf_turn is not None:
-                self.host._finish_turn(
-                    self.page_dir, self.session_id, self.leaf_turn, terminal
-                )
+            self.host._finish_turn(self.page_dir, self.session_id, terminal)
         finally:
             clear_stream_activity(self.session_id, self.turn_id)
             self._receipt_unanswered()
@@ -845,7 +842,6 @@ class WebsiteCodexHost:
         self,
         page_dir: Path,
         thread_id: str,
-        leaf_turn: str,
         turn: dict,
     ) -> None:
         """Close one observed provider turn without inventing a Leaf response."""
@@ -867,7 +863,7 @@ class WebsiteCodexHost:
                 claim
                 and claim.get("released") is None
                 and claim.get("id") == thread_id
-                and claim.get("turn") == leaf_turn
+                and claim.get("turn") == turn["id"]
             ):
                 page.set_status("waiting", "")
                 page.close_turn(thread_id)

@@ -47,7 +47,7 @@ from leaf.revision_delivery import compose_document
 from leaf.revisioning import activate_source
 from leaf.schema import ASSETS
 from leaf.served_state import page as served_page
-from leaf.service import delivery_reply_attempt
+from leaf.service import delivery_reply_attempt, open_session_turn
 from leaf.thread import cmd_reply, cmd_resolve
 from playwright.sync_api import expect
 from render_harness import LONG_PAGE, consume_browser_errors, open_page, told, write
@@ -64,6 +64,13 @@ _previews_spec = importlib.util.spec_from_file_location(
 )
 example_previews = importlib.util.module_from_spec(_previews_spec)
 _previews_spec.loader.exec_module(example_previews)
+
+
+def accept_in_turn(thread_id: str, turn: str = "app-server-turn") -> None:
+    """Open the provider turn and accept the offered delivery into it, as
+    `HostedTurn.begin` does."""
+    open_session_turn(thread_id, turn)
+    accept_codex_delivery(thread_id, turn)
 
 
 @pytest.fixture(autouse=True)
@@ -465,7 +472,7 @@ def test_an_active_thread_has_its_unwatched_turn_stopped_before_the_next_starts(
         {"kind": "comment", "author": "user", "text": "first"},
     )
     website_server.prepare_codex_delivery(page_dir, harness)
-    accept_codex_delivery("hosted-thread", turn="active-turn")
+    accept_in_turn("hosted-thread", "active-turn")
     second = append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "second"},
@@ -535,7 +542,7 @@ def test_attach_accepts_its_named_event_after_an_older_reply_slice(
     process = Process()
     deliveries = []
 
-    def accept(phase, turn):
+    def accept(turn):
         prepared = website_server.prepare_codex_delivery(
             page_dir, website_server.website_harness("hosted-thread", process.pid)
         )
@@ -546,14 +553,14 @@ def test_attach_accepts_its_named_event_after_an_older_reply_slice(
                 for event in batch["events"]
             ]
         )
-        accept_codex_delivery("hosted-thread", phase=phase, turn=turn)
+        accept_in_turn("hosted-thread", turn)
 
     def start_thread(*args):
-        accept("opened", "first-turn")
+        accept("first-turn")
         return "hosted-thread"
 
     def resume_and_start(*args):
-        accept("queued", None)
+        accept("second-turn")
         return True
 
     monkeypatch.setattr(host, "_ensure_server", lambda: process)
@@ -2024,7 +2031,6 @@ def test_a_turn_whose_stream_drops_is_stopped_and_its_move_receipted(
     activity = website_server.full_state(page_dir, events)["activity"]
 
     assert interrupts == [("hosted-thread", "app-server-turn")]
-    assert follow.leaf_turn is not None
     [reply] = [event for event in events if event["kind"] == "reply"]
     assert (reply["responds"], reply["failure"]) == (comment["id"], "turn_failed")
     assert reply["text"] == website_server.FAILURE_RECEIPTS["turn_failed"]
@@ -2298,7 +2304,6 @@ def test_notifications_before_start_response_reach_the_turn_follower(
         (
             page_dir,
             "hosted-thread",
-            "leaf-turn",
             {"id": "initial-turn", "status": "completed"},
         )
     ]
@@ -2552,7 +2557,6 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
         (
             page_dir,
             "hosted-thread",
-            website_server.page_claim(page_dir)["turn"],
             {
                 "id": "initial-turn",
                 "status": "completed",
@@ -2746,18 +2750,17 @@ def test_a_native_final_message_never_becomes_a_leaf_reply(page_dir):
         page_dir,
         website_server.website_harness("hosted-thread", os.getpid()),
     )
-    [delivery] = accept_codex_delivery("hosted-thread")
+    accept_in_turn("hosted-thread")
     website_server.WebsiteCodexHost("codex")._finish_turn(
         page_dir,
         "hosted-thread",
-        delivery["turn"],
         {"id": "app-server-turn", "status": "completed", "error": None},
     )
 
     events = read_events(page_dir)
     assert not any(event["kind"] == "reply" for event in events)
     claim = website_server.page_claim(page_dir)
-    assert claim["turn"] == delivery["turn"]
+    assert claim["turn"] == "app-server-turn"
     assert claim["turn_closed"] is not None
     assert [
         obligation["input"]
@@ -2776,19 +2779,18 @@ def test_an_invalid_source_still_releases_a_finished_website_turn(page_dir):
         page_dir,
         website_server.website_harness("hosted-thread", os.getpid()),
     )
-    [delivery] = accept_codex_delivery("hosted-thread")
+    accept_in_turn("hosted-thread")
     (page_dir / "index.html").write_text("<main>unfinished")
 
     with pytest.raises(ValueError):
         website_server.WebsiteCodexHost("codex")._finish_turn(
             page_dir,
             "hosted-thread",
-            delivery["turn"],
             {"id": "app-server-turn", "status": "completed", "error": None},
         )
 
     claim = website_server.page_claim(page_dir)
-    assert claim["turn"] == delivery["turn"]
+    assert claim["turn"] == "app-server-turn"
     assert claim["turn_closed"] is not None
     assert website_server.PageTransaction(page_dir).status["state"] == "waiting"
     assert [
@@ -2997,7 +2999,7 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
         page_dir,
         website_server.website_harness("hosted-thread", os.getpid()),
     )
-    [delivery] = accept_codex_delivery("hosted-thread")
+    accept_in_turn("hosted-thread")
     cmd_reply(
         page_dir,
         comment["id"],
@@ -3013,7 +3015,6 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
     website_server.WebsiteCodexHost("codex")._finish_turn(
         page_dir,
         "hosted-thread",
-        delivery["turn"],
         {"id": "app-server-turn", "status": "completed", "error": None},
     )
 
@@ -3030,7 +3031,7 @@ def test_a_host_receipt_does_not_answer_input_an_agent_turn_already_claimed(
     )
     harness = website_server.website_harness("hosted-thread", os.getpid())
     website_server.prepare_codex_delivery(page_dir, harness)
-    accept_codex_delivery("hosted-thread")
+    accept_in_turn("hosted-thread")
 
     reply = website_server.write_failure_receipt(
         page_dir, comment["id"], "startup_failed"
@@ -3088,7 +3089,7 @@ def test_a_receipt_waits_for_external_turn_acceptance_to_be_recorded(
         )
         turn_started.set()
         record_acceptance.wait(timeout=STATED_TIMEOUT)
-        accept_codex_delivery("hosted-thread")
+        accept_in_turn("hosted-thread")
         return "hosted-thread"
 
     monkeypatch.setattr(host, "_start_thread", start_thread)
@@ -3120,24 +3121,23 @@ def test_an_old_website_completion_does_not_close_the_new_leaf_turn(page_dir):
     )
     harness = website_server.website_harness("hosted-thread", os.getpid())
     website_server.prepare_codex_delivery(page_dir, harness)
-    [old_delivery] = accept_codex_delivery("hosted-thread")
+    accept_in_turn("hosted-thread", "old-app-turn")
     website_server.close_session_turn("hosted-thread")
     second = append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "second"},
     )
     website_server.prepare_codex_delivery(page_dir, harness)
-    [new_delivery] = accept_codex_delivery("hosted-thread")
+    accept_in_turn("hosted-thread", "new-app-turn")
 
     website_server.WebsiteCodexHost("codex")._finish_turn(
         page_dir,
         "hosted-thread",
-        old_delivery["turn"],
         {"id": "old-app-turn", "status": "failed", "error": None},
     )
 
     claim = website_server.page_claim(page_dir)
-    assert claim["turn"] == new_delivery["turn"]
+    assert claim["turn"] == "new-app-turn"
     assert claim["turn_closed"] is None
     replies = {
         event["parent"]: event["text"]
@@ -3654,7 +3654,7 @@ def test_a_retried_agent_start_returns_the_accepted_task(page_dir, tmp_path):
         published,
         website_server.website_harness("already-started-thread", os.getpid()),
     )
-    accept_codex_delivery("already-started-thread")
+    accept_in_turn("already-started-thread")
     agent_host = FakeCodexHost()
     httpd = LeafHTTPServer(
         ("127.0.0.1", 0), website_server.site_endpoint(site, agent_host)
@@ -4000,7 +4000,7 @@ def test_the_deploy_gate_waits_on_the_page_rather_than_its_own_clock(page_dir):
         page_dir,
         website_server.website_harness("hosted-thread", os.getpid()),
     )
-    [delivery] = accept_codex_delivery("hosted-thread")
+    accept_in_turn("hosted-thread")
 
     handling = website_server.full_state(page_dir, read_events(page_dir))
     assert handling["activity"]["kind"] == "working"
@@ -4011,7 +4011,6 @@ def test_the_deploy_gate_waits_on_the_page_rather_than_its_own_clock(page_dir):
     website_server.WebsiteCodexHost("codex")._finish_turn(
         page_dir,
         "hosted-thread",
-        delivery["turn"],
         {"id": "app-server-turn", "status": "completed", "error": None},
     )
 

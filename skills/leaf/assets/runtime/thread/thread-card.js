@@ -107,7 +107,7 @@ export function threadReading(
           : "✓ Resolved",
     settlement: Object.freeze({ kind, word, label, pending: settling }),
     reply: !resolved,
-    summaries: panel ? Object.freeze(thread.summaries ?? []) : Object.freeze([]),
+    summaries: panel ? Object.freeze(thread.summaries) : Object.freeze([]),
     messages: Object.freeze(
       turns(thread).map((message) =>
         messageReading(message, {

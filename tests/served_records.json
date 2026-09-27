@@ -1,0 +1,80 @@
+{
+  "thread": {
+    "id": "e1",
+    "root": {
+      "id": "e1",
+      "seq": 1,
+      "ts": "2026-09-19T12:00:00+00:00",
+      "author": "user",
+      "revision": 1,
+      "kind": "comment",
+      "text": "Is the second step right?"
+    },
+    "title": null,
+    "anchor": null,
+    "detached_from": null,
+    "msgs": [
+      {
+        "id": "e1",
+        "seq": 1,
+        "ts": "2026-09-19T12:00:00+00:00",
+        "author": "user",
+        "revision": 1,
+        "kind": "comment",
+        "text": "Is the second step right?"
+      },
+      {
+        "id": "e2",
+        "seq": 2,
+        "ts": "2026-09-19T12:00:00+00:00",
+        "author": "agent",
+        "revision": 1,
+        "kind": "reply",
+        "agent": "Agent",
+        "parent": "e1",
+        "responds": "e1",
+        "text": "Yes."
+      }
+    ],
+    "resolved": null,
+    "user_prompt": null,
+    "bare_reaction": false,
+    "seat": null,
+    "summaries": [],
+    "unread": [],
+    "attention": null
+  },
+  "workflow": {
+    "id": "e4",
+    "input": "e4",
+    "seq": 4,
+    "revision": 1,
+    "subject": {
+      "kind": "thread",
+      "id": "e4"
+    },
+    "coordinate": [
+      "thread",
+      "e4"
+    ],
+    "answer": {
+      "kind": "reply",
+      "to": "e4",
+      "for": "e4"
+    },
+    "stage": "sent",
+    "ts": "2026-09-19T12:00:00+00:00",
+    "delivery_seq": null,
+    "delivery_session": null,
+    "delivery_turn": null,
+    "detail": null,
+    "agent": null,
+    "session": null,
+    "activity": [],
+    "condition": null,
+    "next_actor": "agent",
+    "response": null,
+    "quiet": false,
+    "dropped": false
+  }
+}

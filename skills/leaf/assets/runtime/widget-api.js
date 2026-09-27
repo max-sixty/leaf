@@ -90,7 +90,7 @@ export {
 } from "./markdown.js";
 export { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 // Where two images differ, gathered into regions (image-difference.js).
-export { compareImages } from "./image-difference.js";
+export { compareImages, describeDifference } from "./image-difference.js";
 export { pageScroller } from "./scrolling.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";

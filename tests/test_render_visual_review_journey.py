@@ -572,21 +572,25 @@ def test_a_visual_review_states_where_its_pair_differs_in_every_view(browser, se
     """The rail that counts lf-shot's changed regions is hidden outside Flip, and the
     default focus crop hides the outlines, since it shows one part of the frame. A
     focus authored on an area that did not change would then show nothing, so the
-    case's position line states the reading, with the regions the focus leaves out,
-    and the full frame outlines every region."""
+    case's position line states the reading, with the visible changes the focus
+    leaves out, and the full frame outlines every region."""
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     widget = page.locator("#visual-review-run")
     case = widget.locator(".lf-vr-case:not([hidden])")
     marks = case.locator(".lf-shotframe").first.locator(".lf-shotdiff > span")
     expect(widget).to_have_attribute("data-inspection-scope", "focus")
     expect(case.locator(".lf-vr-case-position")).to_have_text(
-        "Case 1 of 3 · Changed · 5 changed areas, 2 outside the focus"
+        "Case 1 of 3 · Changed · 3 changed areas, 6 faint"
     )
     expect(marks.first).to_be_hidden()
 
     widget.get_by_role("radio", name="Full frame").click()
     expect(widget).to_have_attribute("data-inspection-scope", "full")
-    expect(marks).to_have_count(5)
+    expect(case.locator(".lf-vr-shot-host")).to_have_attribute(
+        "data-focus-active", "false"
+    )
+    expect(marks).to_have_count(9)
+    expect(marks.first).to_be_visible()
     # Below the compare view's frame label, where the image starts.
     image_top, first_mark_top = case.locator(".lf-shotframe").first.evaluate(
         """frame => [frame.querySelector('img').getBoundingClientRect().top,

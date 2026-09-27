@@ -28,10 +28,10 @@ state here identically, pixel for pixel. What counts as a difference, and how ch
 pixels gather into regions, is `lf-shot`'s rule (`runtime/image-difference.js`), which
 this script loads into its browser. For each changed state the report crops both
 stills to the union of the regions, with a margin, and outlines each region over the
-candidate. Everything lands in `.tmp/stills/`: `index.html` shows the changed states
-first, and each state's directory holds `base.png`, `head.png`, and for a change
-`base-crop.png`, `head-crop.png` and `diff.png`. The crops are ready to hand off as an
-`lf-shot` pair, which outlines the same regions itself.
+candidate, a faint one paler. Everything lands in `.tmp/stills/`: `index.html` shows
+the changed states first, and each state's directory holds `base.png`, `head.png`,
+and for a change `base-crop.png`, `head-crop.png` and `diff.png`. The crops are ready
+to hand off as an `lf-shot` pair, which outlines the same regions itself.
 """
 
 import html
@@ -260,9 +260,13 @@ def compare(
     head.crop(box).save(folder / "head-crop.png")
     faded = Image.blend(head, Image.new("RGB", head.size, "white"), 0.6)
     draw = ImageDraw.Draw(faded)
-    for left, top, right, bottom in regions:
+    # A faint region, one no reader could see change, is outlined in a paler red.
+    for (left, top, right, bottom), region in zip(
+        regions, difference["regions"], strict=True
+    ):
+        colour = (240, 150, 150) if region["faint"] else (220, 0, 0)
         draw.rectangle(
-            (left - 3, top - 3, right + 2, bottom + 2), outline=(220, 0, 0), width=2
+            (left - 3, top - 3, right + 2, bottom + 2), outline=colour, width=2
         )
     faded.crop(box).save(folder / "diff.png")
     return result

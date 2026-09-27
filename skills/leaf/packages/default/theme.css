@@ -1406,8 +1406,8 @@ lf-shot .lf-shotcap[aria-pressed="false"] {
    place, so the region reads on either side of the divider. The marks take the pair's
    own frame (natural width by the taller image's height), stand a little outside what
    changed rather than over it, and stop at the frame's edge, so a region that reaches
-   the edge still shows its outline there. The rail counts them, and says so when the
-   two are one picture. */
+   the edge still shows its outline there. A faint region, one no reader could see
+   change, is dashed. The rail says what the outlines add up to. */
 lf-shot .lf-shotdiff { position: absolute; top: 0; left: 0; width: 100%;
     aspect-ratio: var(--lf-shot-ratio); pointer-events: none; }
 lf-shot .lf-shotdiff > span { position: absolute;
@@ -1416,6 +1416,7 @@ lf-shot .lf-shotdiff > span { position: absolute;
     right: max(0px, calc(100% - var(--lf-shot-x) - var(--lf-shot-w) - 4px));
     bottom: max(0px, calc(100% - var(--lf-shot-y) - var(--lf-shot-h) - 4px));
     border: 2px solid var(--warn); border-radius: 2px; }
+lf-shot .lf-shotdiff > [data-lf-shot-faint] { border-style: dashed; }
 lf-shot .lf-shotdelta { font-size: var(--t-6); color: var(--muted); }
 lf-shot .lf-shotdelta[data-lf-shot-delta="identical"] { color: var(--warn-ink);
     font-weight: 650; }

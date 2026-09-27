@@ -12,13 +12,14 @@
  *
  * Once the page has presented, the widget compares the two images pixel for pixel
  * (`runtime/image-difference.js` owns what counts as a difference) and outlines each
- * region that changed over both frames, with a count between the rail labels. A reader
- * looking at one side of the divider, or at a screenshot of the page, then still sees
- * where the pair differs, and that it differs nowhere when the two are one picture.
- * `difference` is that reading, `{width, height, changed, regions}` in the images' own
- * pixels, or null for a pair the widget refused; a parent that hides the rail states
- * it from there. Pairs compare one per frame, so a page of
- * large captures does not hold input for the whole batch.
+ * region that changed over both frames, dashed where the change is faint, with its
+ * `describeDifference` between the rail labels. A reader looking at one side of the
+ * divider, or at a screenshot of the page, then still sees where the pair differs, that
+ * a difference there is too faint to see, or that it differs nowhere. `difference` is
+ * that reading, `{width, height, changed, regions}` in the images' own pixels, or null
+ * for a pair the widget refused; a parent that hides the rail states it from there.
+ * Pairs compare one per frame, so a page of large captures does not hold input for the
+ * whole batch.
  *
  * One two-ended rail stays fixed above the frames while CSS moves its active rule. Its
  * labels are generated page words, available to selection, and become the order key
@@ -32,6 +33,7 @@ import {
   afterPresentation,
   commandScope,
   compareImages,
+  describeDifference,
   once,
   offer,
   failSoft,
@@ -308,6 +310,7 @@ customElements.define(
           mark.style.setProperty("--lf-shot-y", share(region.y, height));
           mark.style.setProperty("--lf-shot-w", share(region.width, width));
           mark.style.setProperty("--lf-shot-h", share(region.height, height));
+          if (region.faint) mark.dataset.lfShotFaint = "";
           marks.append(mark);
         }
         frame.append(marks);
@@ -315,13 +318,7 @@ customElements.define(
       const count = document.createElement("span");
       count.className = "lf-shotdelta";
       count.dataset.lfShotDelta = regions.length ? "changed" : "identical";
-      relabel(
-        count,
-        regions.length === 0
-          ? "identical"
-          : `${regions.length} changed ${regions.length === 1 ? "area" : "areas"}`,
-        { says: false },
-      );
+      relabel(count, describeDifference(reading), { says: false });
       this.#captions.get("before").after(count);
       return reading;
     }

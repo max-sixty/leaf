@@ -752,14 +752,19 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
     """A reader shown one side of the divider, or a screenshot of the page, can't tell
     where a pair differs, or that it differs nowhere: a handoff once shipped a pair
     whose sides matched in every part its prose described. So the widget outlines each
-    changed region over both frames, at the same place, and counts them on the rail."""
+    changed region over both frames, at the same place, dashed where the change is too
+    faint to see, and says on the rail what they add up to."""
     plain = solid_png(600, 300, (210, 220, 235))
     patched = solid_png(
         600, 300, (210, 220, 235), patch=(420, 200, 60, 40, (30, 30, 30))
     )
+    # Ten levels off in each channel: redrawn, and not a change a reader could see.
+    tinted = solid_png(
+        600, 300, (210, 220, 235), patch=(40, 40, 60, 40, (200, 210, 225))
+    )
     sources = {
         data: f"/media/{hashlib.sha256(data).hexdigest()[:16]}.png"
-        for data in (plain, patched)
+        for data in (plain, patched, tinted)
     }
     url = serve(
         LONG_PAGE.replace(
@@ -768,6 +773,8 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
                  before="{sources[plain]}" after="{sources[patched]}"></lf-shot>
                <lf-shot id="shot-same" alt="nothing"
                  before="{sources[plain]}" after="{sources[plain]}"></lf-shot>
+               <lf-shot id="shot-tint" alt="a faint tint"
+                 before="{sources[plain]}" after="{sources[tinted]}"></lf-shot>
                </main>""",
         ),
         media={source: data for data, source in sources.items()},
@@ -776,6 +783,13 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
     expect(page.locator("#shot-patch .lf-shotdelta")).to_have_text("1 changed area")
     expect(page.locator("#shot-same .lf-shotdelta")).to_have_text("identical")
     assert page.locator("#shot-same .lf-shotdiff > span").count() == 0
+    expect(page.locator("#shot-tint .lf-shotdelta")).to_have_text("1 faint change")
+    styles = [
+        mark.evaluate("mark => getComputedStyle(mark).borderTopStyle")
+        for mark in page.locator(".lf-shotdiff > span").all()
+    ]
+    # Two frames each: the dark square solid, the tint dashed.
+    assert sorted(styles) == ["dashed", "dashed", "solid", "solid"]
 
     # Each frame's mark stands just outside the square, in the frame's own scale.
     readings = page.locator("#shot-patch .lf-shotframe").evaluate_all(

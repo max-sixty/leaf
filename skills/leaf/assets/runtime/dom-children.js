@@ -6,16 +6,29 @@ const detach = (node) => node.remove();
 
 // Make `parent`'s children `nodes`, in order, without moving a node already in place.
 // Removing stale nodes first leaves each following survivor exactly one place forward.
-// A survivor that does move keeps the user standing in it; one removed is its caller's
-// to hand on, since only the caller knows what stands in for it.
+// One removed is its caller's to hand on, since only the caller knows what stands in
+// for it.
 export function setChildren(parent, nodes, remove = detach) {
   const keep = new Set(nodes);
   for (const child of [...parent.childNodes]) if (!keep.has(child)) remove(child);
-  const restoreFocus = holdFocus(parent);
+  order(parent, nodes);
+}
+
+// Put `nodes` in order under `parent`, walking past the children `passed` names, and
+// moving only a node that is not already where it belongs. A node that does move keeps
+// the user standing in it: the hold is read before the first move, while the focus it
+// reads is still intact, and only a pass that moves anything takes one.
+function order(parent, nodes, passed = () => false) {
+  let restoreFocus = null;
   let cursor = parent.firstChild;
   for (const node of nodes) {
-    if (node === cursor) cursor = cursor.nextSibling;
-    else parent.insertBefore(node, cursor);
+    while (cursor && passed(cursor)) cursor = cursor.nextSibling;
+    if (node === cursor) {
+      cursor = cursor.nextSibling;
+      continue;
+    }
+    restoreFocus ??= holdFocus(parent) ?? (() => false);
+    parent.insertBefore(node, cursor);
   }
   restoreFocus?.();
 }
@@ -207,7 +220,11 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
     rules.pairs.set(node, live);
     if (live.parentNode === liveParent) placed.push(live);
   }
-  place(liveParent, placed, rules.generated);
+  // `setChildren`'s ordering pass, walking past what the runtime put here. A node
+  // already standing in its place is left alone, which is the whole point: the common
+  // revision moves nothing at all. A kept node the revision moves keeps the user
+  // standing in it, as nothing else would: the carry restores only replaced nodes.
+  order(liveParent, placed, rules.generated);
 }
 
 // Whether this element's interior is beyond the patch. A widget's is its controller's
@@ -323,15 +340,3 @@ const interchangeable = (held, wanted) =>
   held.nodeType === wanted.nodeType &&
   (held.nodeType !== Node.ELEMENT_NODE ||
     (held.localName === wanted.localName && !(held.id && wanted.id)));
-
-// The ordering pass of `setChildren`, walking past what the runtime put here. A node
-// already standing in its place is left alone, which is the whole point: the common
-// revision moves nothing at all.
-function place(parent, nodes, generated) {
-  let cursor = parent.firstChild;
-  for (const node of nodes) {
-    while (cursor && generated(cursor)) cursor = cursor.nextSibling;
-    if (node === cursor) cursor = cursor.nextSibling;
-    else parent.insertBefore(node, cursor);
-  }
-}

@@ -205,10 +205,10 @@ and its chrome coordinate.
   and `log` stages of the runtime's `pageReadiness` (#1250) answer the same question.
 - **Hold focus in the thread seats with `holdFocus`.** `focus.js` `holdFocus` is the
   one hand-over of the user's place across a DOM move, but `thread/inline.js`
-  (`ThreadSeat.present`/`retain`) and `thread/landing.js` (`retainThreadFocus`) still
-  pair `readCaret` with `focusDestination` by hand, and `auxiliary-surfaces.js` walks
-  `shadowRoot.activeElement` beside `deepFocus`. They were left while another session
-  had uncommitted edits to those functions.
+  `ThreadSeat.present` (across one render) and `retain` (across a refused batch) still
+  pair `readCaret` with `focusDestination` by hand. Cutting `retain` over also lets a
+  user who moved on while the batch waited keep their new place. Left while the
+  `thread-focus-scroll` branch had unmerged edits to `present`.
 - **Say which panes the workspace holds without naming `lf-pane`.** `layouts.css`
   holds an authored pane only as the workspace body or a cell of it (a pane in a
   section flows), and a generated pane at any depth. It tells the two apart by the

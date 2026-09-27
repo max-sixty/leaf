@@ -51,12 +51,17 @@ let presentedFrame = 0;
 
 // Ask the compositor for a rendering turn without handing page.evaluate a Promise
 // whose settlement depends on that turn. The driver polls the synchronous fact below,
-// so its own deadline still runs when a stopped compositor never calls us back.
+// so its own deadline still runs when a stopped compositor never calls us back. The
+// turn counts as presented in a task queued from its animation-frame callback, so it
+// is the whole update: its layout, and the ResizeObserver deliveries and loop notice
+// that follow the callbacks.
 export function requestFrame() {
   const requested = ++requestedFrame;
-  requestAnimationFrame(() => {
-    presentedFrame = Math.max(presentedFrame, requested);
-  });
+  requestAnimationFrame(() =>
+    setTimeout(() => {
+      presentedFrame = Math.max(presentedFrame, requested);
+    }),
+  );
   return requested;
 }
 export const framePresented = (requested) => presentedFrame >= requested;

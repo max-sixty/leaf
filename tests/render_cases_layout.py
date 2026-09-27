@@ -22,6 +22,7 @@ from leaf import http as http_model
 from leaf import machine as machine_model
 from leaf import render_checks as render_checks_model
 from leaf.registry import storage as registry_storage
+from leaf.render_checks import rendered
 from leaf.render_gate import scheme as render_gate_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -34,7 +35,6 @@ from render_harness import (
     TOKEN,
     banner_control,
     leaf_page,
-    rendered,
     stamp_page,
 )
 

@@ -3,12 +3,12 @@
 from leaf import anchor_capture as anchor_capture_model
 from leaf import passages as passages_model
 from leaf.registry import storage as registry_storage
+from leaf.render_checks import rendered
 from leaf.schema import ELEMENT_ID
 from leaf.structure import SourceDocument
 from render_harness import (
     SHELL_BOX,
     leaf_page,
-    rendered,
 )
 
 # ---------- anchors written without a browser ----------

@@ -23,7 +23,7 @@ from leaf import hosting as hosting_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -84,7 +84,6 @@ from render_harness import (
     panel_settled,
     primed,
     refuse,
-    rendered,
     round_trip,
     select,
     sending,

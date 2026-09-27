@@ -9,6 +9,7 @@ from urllib.parse import urljoin
 import pytest
 from leaf import event_log as events_model
 from leaf.media import store_uploaded_media
+from leaf.render_checks import rendered
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -37,7 +38,6 @@ from render_harness import (
     open_page,
     open_versions,
     panel_settled,
-    rendered,
     resized,
     sending,
     told,

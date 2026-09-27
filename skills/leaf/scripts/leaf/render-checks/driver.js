@@ -10,29 +10,36 @@
 
   let loading = null;
 
-  const start = (call) => {
-    if (loading?.route === call.route) return;
-    const current = { route: call.route, probes: null, error: null };
-    loading = current;
-    import(call.route).then(
-      (probes) => {
-        if (loading === current) current.probes = probes;
-      },
-      (error) => {
-        if (loading === current)
-          current.error = {
-            name: error?.name ?? "Error",
-            message: error?.message ?? String(error),
-          };
-      },
-    );
+  // The probe module is served beside the page's Leaf entry, so a page served under a
+  // revision path loads that revision's probes.
+  const resolve = (route) => {
+    const entry = document.querySelector("script[data-lf-entry]")?.dataset.lfEntry;
+    return entry ? new URL(route.slice(1), new URL(entry, location.href)).href : route;
   };
 
-  const loaded = (call) => {
-    if (loading?.route !== call.route) return false;
+  // Start this document's probe load if it has not begun, and say whether the module
+  // has arrived. A load that failed throws its error from here.
+  const load = (route) => {
+    const href = resolve(route);
+    if (loading?.route !== href) {
+      const current = { route: href, probes: null, error: null };
+      loading = current;
+      import(href).then(
+        (probes) => {
+          if (loading === current) current.probes = probes;
+        },
+        (error) => {
+          if (loading === current)
+            current.error = {
+              name: error?.name ?? "Error",
+              message: error?.message ?? String(error),
+            };
+        },
+      );
+    }
     if (loading.error) {
       const error = new Error(
-        `Leaf browser probes failed to load from ${call.route}: ${loading.error.message}`,
+        `Leaf browser probes failed to load from ${href}: ${loading.error.message}`,
       );
       error.name = loading.error.name;
       throw error;
@@ -83,8 +90,7 @@
   };
 
   globalThis.__leafRenderDriver = Object.freeze({
-    start,
-    loaded,
+    load,
     call,
     themeReady,
     preUpgradeFindings,

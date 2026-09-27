@@ -13,7 +13,7 @@ from interact_support import (
 from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf import session as session_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 from leaf.served_state import page as served_page
 from leaf.validation import compatibility as validation_model
 from PIL import Image, ImageChops
@@ -69,7 +69,6 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_settled,
-    rendered,
     resized,
     round_trip,
     scroll_settled,

@@ -1,4 +1,5 @@
-"""Named browser probes used by the render gate."""
+"""Named browser probes, and the waits built on them, shared by the render gate and the
+test suite."""
 
 from pathlib import Path
 
@@ -8,10 +9,11 @@ RENDER_VIEWPORT = {"width": 1200, "height": 900}
 # beside it turns a wedged preview into a useful failure rather than an unbounded evaluate.
 SERVED_TIMEOUT_MS = 30_000
 # How often a probe wait re-reads its fact. The waits poll on a timer rather than on
-# animation frames (see `_load_probes`), and at one frame's interval a wait costs about
-# what it waits for: most waits are a frame or a settle, and a 100 ms interval added
-# about two seconds to each render check.
-PROBE_POLL_MS = 16
+# animation frames (see `_load_probes`), and most waits are a frame or a settle, so the
+# interval is added to what they wait for: at 16 ms, `one_frame` took about 22 ms where
+# a Promise resolved by the frame takes 14, and at 4 ms it took 14 too. A read is one synchronous
+# call, so polling this often costs the page nothing it would notice.
+PROBE_POLL_MS = 4
 
 PROBE_ROOT = Path(__file__).with_name("render-checks")
 PROBE_ROUTE = "/_leaf/render-checks/index.js"
@@ -24,28 +26,15 @@ PROBE_SOURCES = {
 }
 
 _DRIVER_PRESENT = "() => Boolean(globalThis.__leafRenderDriver)"
-_START_PROBES = "call => globalThis.__leafRenderDriver.start(call)"
-_PROBES_LOADED = "call => globalThis.__leafRenderDriver.loaded(call)"
+# Null when this document has no driver yet: one opened before the driver was installed.
+_LOAD_PROBES = "route => globalThis.__leafRenderDriver?.load(route) ?? null"
 _PROBE = "call => globalThis.__leafRenderDriver.call(call)"
 _THEME_READY = "() => globalThis.__leafRenderDriver.themeReady()"
 _PRE_UPGRADE_FINDINGS = "() => globalThis.__leafRenderDriver.preUpgradeFindings()"
 
 
-def _call(page, name: str, args: tuple, timeout_ms: int | None = None) -> dict:
-    route = page.evaluate(
-        """route => {
-      const entry = document.querySelector('script[data-lf-entry]')?.dataset.lfEntry;
-      return entry ? new URL(route.slice(1), new URL(entry, location.href)).href : route;
-    }""",
-        PROBE_ROUTE,
-    )
-    return {
-        "route": route,
-        "name": name,
-        "args": list(args),
-        "timeoutMs": timeout_ms
-        or getattr(page, "_leaf_probe_timeout_ms", SERVED_TIMEOUT_MS),
-    }
+def _timeout(page, timeout_ms: int | None) -> int:
+    return timeout_ms or getattr(page, "_leaf_probe_timeout_ms", SERVED_TIMEOUT_MS)
 
 
 def install_driver(page) -> None:
@@ -66,32 +55,37 @@ def _ensure_driver(page) -> None:
         page.evaluate(DRIVER_SOURCE.read_text(encoding="utf-8"))
 
 
-def _load_probes(page, call: dict) -> None:
-    """Start the module load and observe its result from a bounded driver wait."""
+def _load_probes(page, timeout_ms: int) -> None:
+    """Start the module load and observe its result from a bounded driver wait.
+
+    Once a document's probes have arrived this is one round trip, which every probe
+    call and wait pays."""
     from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-    _ensure_driver(page)
-    page.evaluate(_START_PROBES, call)
+    loaded = page.evaluate(_LOAD_PROBES, PROBE_ROUTE)
+    if loaded is None:
+        _ensure_driver(page)
+        loaded = page.evaluate(_LOAD_PROBES, PROBE_ROUTE)
+    if loaded:
+        return
     try:
         # Probe readiness is independent of animation frames. A complete child
         # document in a closed disclosure or inactive tab still needs inspection,
         # but browsers suspend its requestAnimationFrame callbacks.
         page.wait_for_function(
-            _PROBES_LOADED, arg=call, timeout=call["timeoutMs"], polling=PROBE_POLL_MS
+            _LOAD_PROBES, arg=PROBE_ROUTE, timeout=timeout_ms, polling=PROBE_POLL_MS
         )
     except PlaywrightTimeout as error:
         raise PlaywrightError(
-            f"Leaf browser probes did not load from {call['route']} within "
-            f"{call['timeoutMs']}ms"
+            f"Leaf browser probes did not load from {PROBE_ROUTE} within {timeout_ms}ms"
         ) from error
 
 
 def evaluate_probe(page, name: str, *args):
     """Invoke one named export from the browser probe module."""
-    call = _call(page, name, args)
-    _load_probes(page, call)
-    return page.evaluate(_PROBE, call)
+    _load_probes(page, _timeout(page, None))
+    return page.evaluate(_PROBE, {"name": name, "args": list(args)})
 
 
 def wait_for_probe(page, name: str, *args, timeout_ms: int | None = None) -> None:
@@ -103,16 +97,47 @@ def wait_for_probe(page, name: str, *args, timeout_ms: int | None = None) -> Non
     """
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-    call = _call(page, name, args, timeout_ms)
-    _load_probes(page, call)
+    timeout_ms = _timeout(page, timeout_ms)
+    _load_probes(page, timeout_ms)
     try:
         page.wait_for_function(
-            _PROBE, arg=call, timeout=call["timeoutMs"], polling=PROBE_POLL_MS
+            _PROBE,
+            arg={"name": name, "args": list(args)},
+            timeout=timeout_ms,
+            polling=PROBE_POLL_MS,
         )
     except PlaywrightTimeout as error:
         raise PlaywrightTimeout(
-            f"Leaf wait probe {name} did not become true within {call['timeoutMs']}ms"
+            f"Leaf wait probe {name} did not become true within {timeout_ms}ms"
         ) from error
+
+
+def one_frame(page) -> None:
+    """Wait until one whole rendering update has run since the call, its observer
+    deliveries included (`requestFrame` in render-checks/runtime.js).
+
+    Wait here only where one update is itself the claim: the turn a resize is heard in,
+    or the turn that delivers an observer's notice. A read of what the runtime renders
+    waits for `rendered`."""
+    wait_for_probe(page, "framePresented", evaluate_probe(page, "requestFrame"))
+
+
+def rendered(page) -> None:
+    """Wait until the runtime has rendered what the input so far asked for.
+
+    Its settled reading (runtime/rendering.js) says nothing it queued is waiting and its
+    last rendering update was quiet. A read after a coalesced repaint, however many
+    updates that repaint chains through, waits here instead of guessing a count. One
+    whole update passes first, so a change no Leaf callback took part in — a wheel, a
+    resize — has had its turn to unsettle the reading.
+
+    Work that re-queues itself on every update never settles: a fold held
+    mid-animation keeps its place hold correcting each frame. Wait `one_frame` there.
+
+    Both waits poll a synchronous fact from the driver, so their deadline holds even
+    against a compositor that stops drawing or a page whose main thread is held."""
+    one_frame(page)
+    wait_for_probe(page, "renderingSettled")
 
 
 # The page's own readiness reading (`pageReadiness` in runtime/presentation.js), read

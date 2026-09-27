@@ -17,7 +17,7 @@ from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import thread as thread_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import one_frame, rendered, wait_until_ready
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -54,14 +54,12 @@ from render_harness import (
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
-    ONE_FRAME,
     CutOff,
     holding,
     leaf_page,
     open_page,
     panel_settled,
     primed,
-    rendered,
     resized,
     round_trip,
     scroll_settled,
@@ -4185,7 +4183,7 @@ def test_a_folding_thread_keeps_the_card_under_the_pointer_put(browser, serve):
         "window.__lfHeld[i].effect.getComputedTiming().duration / 2; }",
         before,
     )
-    page.evaluate(ONE_FRAME)
+    one_frame(page)
     halfway = target_card.evaluate("el => el.getBoundingClientRect().top")
     assert halfway == pytest.approx(setup["target"]["top"], abs=1), (
         f"the fold carried the target card from {setup['target']['top']:.1f}px "
@@ -4198,7 +4196,7 @@ def test_a_folding_thread_keeps_the_card_under_the_pointer_put(browser, serve):
     threads = page.locator(".lf-threads")
     scroll_before = threads.evaluate("el => el.scrollTop")
     page.mouse.wheel(0, 40)
-    page.evaluate(ONE_FRAME)
+    one_frame(page)
     scroll_after = threads.evaluate("el => el.scrollTop")
     assert scroll_after > scroll_before, "the fold undid the user's wheel scroll"
     scrolled_top = target_card.evaluate("el => el.getBoundingClientRect().top")
@@ -4206,7 +4204,7 @@ def test_a_folding_thread_keeps_the_card_under_the_pointer_put(browser, serve):
         halfway - (scroll_after - scroll_before), abs=1
     ), "the scroll hold changed the distance the user deliberately travelled"
     threads.evaluate("(el, top) => { el.scrollTop = top; }", scroll_before)
-    page.evaluate(ONE_FRAME)
+    one_frame(page)
     restored = target_card.evaluate("el => el.getBoundingClientRect().top")
     assert restored == pytest.approx(setup["target"]["top"], abs=1)
 
@@ -4280,7 +4278,7 @@ def test_a_folding_reference_hands_its_hold_to_the_next_card(browser, serve):
         "window.__lfHeld[i].effect.getComputedTiming().duration / 2; }",
         before,
     )
-    page.evaluate(ONE_FRAME)
+    one_frame(page)
     halfway = target_card.evaluate("el => el.getBoundingClientRect().top")
     assert halfway == pytest.approx(target_top, abs=1), (
         f"the disappearing reference moved its successor from {target_top:.1f}px "
@@ -4340,7 +4338,7 @@ def test_a_render_arriving_mid_fold_keeps_the_place_the_fold_is_holding(browser,
         "window.__lfHeld[i].effect.getComputedTiming().duration / 2; }",
         before,
     )
-    page.evaluate(ONE_FRAME)
+    one_frame(page)
 
     # Far enough down the list that its own card cannot move the target, so what the
     # arrival costs is the hold and nothing else.
@@ -4354,7 +4352,7 @@ def test_a_render_arriving_mid_fold_keeps_the_place_the_fold_is_holding(browser,
         },
     )
     told(page)
-    page.evaluate(ONE_FRAME)
+    one_frame(page)
     joined = target_card.evaluate("el => el.getBoundingClientRect().top")
     assert joined == pytest.approx(target_top, abs=1), (
         f"the arriving render moved the held card from {target_top:.1f}px "

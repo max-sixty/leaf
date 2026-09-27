@@ -12,6 +12,7 @@ from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf.render_checks import rendered
 from leaf.served_state import page as served_page
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -56,7 +57,6 @@ from render_harness import (
     pane_posture,
     panel_settled,
     regions_side_by_side,
-    rendered,
     resized,
     round_trip,
     scroll_settled,

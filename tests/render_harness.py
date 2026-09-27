@@ -50,7 +50,7 @@ from leaf import render_checks as render_checks_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import structure as structure_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
 from model_folds import leaf_page
 from page_fixtures import package_selection_args, prepare_page, read_fixture
@@ -1098,60 +1098,6 @@ def consume_browser_errors(page, *expected):
     return errors
 
 
-# Frame waits compose into page scripts such as RING_NEW_STOP. Since evaluate
-# supplies no timeout, their page-side timer rejects when frames stop arriving.
-# It cannot bound a blocked renderer main thread: that also stops setTimeout.
-FRAME_DEADLINE_MS = 30_000
-FRAMES = (
-    "(turns) => new Promise((rendered, ranOut) => {\n"
-    "  const deadline = setTimeout(\n"
-    "    () => ranOut(new Error(`only ${turns - left} of ${turns} rendering turns arrived`)),\n"
-    f"    {FRAME_DEADLINE_MS});\n"
-    "  let left = turns;\n"
-    "  const step = () => {\n"
-    "    if (--left > 0) return requestAnimationFrame(step);\n"
-    "    setTimeout(() => {\n"
-    "      clearTimeout(deadline);\n"
-    "      rendered();\n"
-    "    });\n"
-    "  };\n"
-    "  requestAnimationFrame(step);\n"
-    "})"
-)
-# One turn is the frame a write has been through: nested animation-frame callbacks have one
-# complete rendering turn between them, so this states rendered progress rather than
-# elapsed time between two frame polls. Each wait ends in a task queued from its last
-# callback, after that update's ResizeObserver deliveries.
-ONE_FRAME = f"() => ({FRAMES})(1)"
-RENDERING_SETTLED = """() => {
-  const settled = document.querySelector('script[data-lf-entry]')?.lfRenderingSettled;
-  if (!settled) throw new Error('this document has no Leaf rendering reading');
-  return settled();
-}"""
-
-
-def rendered(page):
-    """Wait until the runtime has rendered what the input so far asked for.
-
-    Its settled reading (runtime/rendering.js) says nothing it queued is waiting and its
-    last rendering update was quiet. A read after a coalesced repaint, however many
-    updates that repaint chains through, waits here instead of guessing a count. One
-    whole update passes first, observers included, so a change no Leaf callback took
-    part in — a wheel, a resize — has had its turn to unsettle the reading.
-
-    Work that re-queues itself on every update never settles: a fold the test holds
-    mid-animation keeps its place hold correcting each frame. Wait `ONE_FRAME` there,
-    where one update is the claim."""
-    page.evaluate(ONE_FRAME)
-    try:
-        page.wait_for_function(RENDERING_SETTLED, timeout=FRAME_DEADLINE_MS)
-    except PlaywrightTimeout as error:
-        raise AssertionError(
-            "the page's rendering never settled: counted work was queued again on "
-            "every update"
-        ) from error
-
-
 # What navigate reports when a ResizeObserver loop notice comes back on the confirming
 # navigation, so a one-off notice is dropped and a recurring one fails the test.
 RECURRING_RESIZE_NOTICE = (
@@ -1182,7 +1128,7 @@ def navigate(page, url, *, wait_until="load", upgraded=True):
             )
         # Let the rendering turn that earned the readiness stamp finish. A loop
         # notice is delivered by that turn, rather than by the DOM write alone.
-        page.evaluate(ONE_FRAME)
+        one_frame(page)
         fresh = errors[start:]
         del errors[start:]
         notices = [
@@ -1753,7 +1699,7 @@ def resized(page, width, height):
     """Resize and wait for the page's listeners and rendering update.
 
     `set_viewport_size` alone does not prove that resize listeners ran. The
-    counter is installed after the runtime's listeners; `ONE_FRAME` then lets
+    counter is installed after the runtime's listeners; `one_frame` then lets
     the document's scrolling area catch up before the caller measures it.
     Wait separately for any resulting motion whose geometry is under test.
 
@@ -1769,7 +1715,7 @@ def resized(page, width, height):
     }""")
     page.set_viewport_size({"width": width, "height": height})
     page.wait_for_function("() => window.lfResizes > window.lfResizesWas")
-    page.evaluate(ONE_FRAME)
+    one_frame(page)
 
 
 def root_overflow(page) -> float:

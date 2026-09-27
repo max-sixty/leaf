@@ -5,6 +5,7 @@ import re
 
 import pytest
 from leaf import event_log as events_model
+from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_layout import (
     DRAFT_MARK,
@@ -21,7 +22,6 @@ from render_harness import (
     ROOT,
     leaf_page,
     open_page,
-    rendered,
     resized,
     sending,
     write,

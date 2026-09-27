@@ -165,8 +165,8 @@ pre-runtime measurement.
 
 Elapsed time, matching samples, a fixed count of animation frames, and network quiet
 all describe a page that has not started an effect as well as one that has finished
-it. Wait on a fact the system states instead; count frames (`ONE_FRAME`) only where
-one rendering update is itself the claim. A computed style under a transition
+it. Wait on a fact the system states instead; count frames (`one_frame` in
+`leaf.render_checks`) only where one rendering update is itself the claim. A computed style under a transition
 reports the animated value, so ask `getAnimations()` where the subject may be in
 transit. `page.evaluate` takes no timeout; state readiness synchronously in the page
 and poll it with `wait_for_probe`.
@@ -189,8 +189,8 @@ helpers in `render_harness.py`:
 - `told` waits until the page has applied what the server holds now;
 - `nudge` gives the page a reason to read; `ticked` waits for its next tick;
 - `undo` presses `z` once it is offered and waits for the withdrawal's trip;
-- `rendered` waits for every repaint the input so far queued, and `shortcut_bar_text`
-  reads the bar once after it;
+- `rendered` (`leaf.render_checks`) waits for every repaint the input so far queued,
+  and `shortcut_bar_text` reads the bar once after it;
 - `panel_settled`, `edge_settled`, `resized`, and `scroll_settled` end one kind of
   motion.
 

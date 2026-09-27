@@ -1536,7 +1536,8 @@ def test_an_external_link_says_and_opens_where_it_goes(
     expect(external).to_have_attribute("rel", re.compile(r"(?:^| )noopener(?: |$)"))
     expect(external).to_have_accessible_name("other leaf documentation")
     expect(external).to_have_accessible_description("curated source opens in a new tab")
-    expect(page.locator("#external + .lf-external-note")).to_be_hidden()
+    # The treatment stands inside the link, so the paragraph ends where it was written.
+    expect(page.locator("#external ~ *")).to_have_count(0)
     expect(mark).to_be_visible()
     assert mark.evaluate("node => node.localName") == "svg"
     expect(mark.locator(":scope > path")).to_have_count(1)

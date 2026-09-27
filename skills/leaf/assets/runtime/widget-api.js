@@ -18,6 +18,7 @@ export async function mountSample(frame, options) {
 
 export { USER_VIEW_RESTORE_CASES } from "./restore-state.js";
 export {
+  ADDRESSABLE,
   addressableName,
   addressableSays,
   addressableWord,

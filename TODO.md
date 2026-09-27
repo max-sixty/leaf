@@ -178,17 +178,16 @@ and its chrome coordinate.
 
 ### Shared definitions
 
-- **Keep the rest of the runtime's apparatus out of authored structure.** Two
-  generated elements still stand among the page's own: `anchor-controls.js` puts a
-  `span.lf-visual-actions` after each drawing that takes visual comments, and
-  `presentation.js` puts a hidden `span.lf-external-note` after each external link.
-  Each changes which of its parent's children is last and what follows the drawing
-  or link, so page rules such as `:last-child` or `svg + p` stop matching. The
-  external note can move to the chrome and be named through
-  `ariaDescribedByElements`, as the comment note is named through
-  `ariaDetailsElements`. The visual actions are Tab stops placed after their drawing
-  so Tab reaches them there, so they need a keyboard route that does not depend on
-  where they stand in the document.
+- **Keep the visual-action proxies out of authored structure.** `anchor-controls.js`
+  puts a `span.lf-visual-actions` after each drawing that takes visual comments,
+  holding one hidden "Respond to …" button per drawing and per declared part. It
+  changes which of its parent's children is last and what follows the drawing, so page
+  rules such as `:last-child` or `svg + p` stop matching. The buttons are Tab stops placed
+  after their drawing so Tab reaches them there, and a screen reader meets them beside
+  it. Moving them to the chrome and naming them from the drawing through
+  `ariaDetailsElements`, as the comment note is, keeps the screen-reader route and
+  leaves `s` (the target chooser, which lists every declared part) as the keyboard
+  route, at the cost of those Tab stops.
 
 ## Etc
 

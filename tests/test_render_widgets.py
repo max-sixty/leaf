@@ -1682,9 +1682,9 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
 ):
     """The authored element is only a request for navigation. The module reads the
     page's headings in document order, keeps their relative depth, and gives an
-    id-less heading a generated target without writing state onto the heading itself.
-    A real fragment link lets the browser reveal a heading in a closed disclosure, so
-    it is reachable rather than merely named."""
+    id-less heading an id reserved for the runtime, on the heading itself, so nothing
+    is added among the page's own elements. A real fragment link lets the browser reveal
+    a heading in a closed disclosure, so it is reachable rather than merely named."""
     source = leaf_page(
         "contents",
         """
@@ -1714,30 +1714,21 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     ) == ["0", "1", "0"]
     assert page.locator("h2, h3").evaluate_all(
         "nodes => nodes.map(node => node.getAttribute('id'))"
-    ) == ["prepare", None, None]
+    ) == ["prepare", "lf-contents-section-2", "lf-contents-section-3"]
 
     hrefs = toc.get_by_role("link").evaluate_all(
         "links => links.map(link => link.getAttribute('href'))"
     )
     assert hrefs[0] == "#prepare"
-    assert hrefs[1].startswith("#lf-contents-section-")
-    target = page.locator(hrefs[1])
-    expect(target).to_have_attribute("data-lf-gen", "1")
-    expect(target).to_have_class(re.compile(r"\blf-ui\b"))
+    assert hrefs[1] == "#lf-contents-section-2"
 
-    # A generated fragment target must not trap the heading's collapsed top margin
-    # inside an otherwise transparent section. The section, target, and first visible
-    # heading should begin at the same rendered edge.
+    # The heading stays its section's first child, so its collapsed top margin is not
+    # trapped inside an otherwise transparent section: both begin at the same edge.
     verify_geometry = page.get_by_role("heading", name="Verify").evaluate(
-        """heading => {
-          const section = heading.parentElement;
-          const target = heading.previousElementSibling;
-          return {
-            sectionTop: section.getBoundingClientRect().top,
-            targetTop: target.getBoundingClientRect().top,
-            headingTop: heading.getBoundingClientRect().top,
-          };
-        }"""
+        """heading => ({
+          sectionTop: heading.parentElement.getBoundingClientRect().top,
+          headingTop: heading.getBoundingClientRect().top,
+        })"""
     )
     assert max(verify_geometry.values()) - min(verify_geometry.values()) < 0.5, (
         verify_geometry
@@ -1766,7 +1757,7 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     page.close()
 
     # On first parse this id does not exist yet. The shared arrival pass runs after every
-    # widget settles, so a copied link still reveals and reaches the generated target.
+    # widget settles, so a copied link still reveals and reaches the heading it names.
     direct = open_page(browser, url + hrefs[1])
     expect(direct.locator("details")).to_have_attribute("open", "")
     expect(direct).to_have_url(re.compile(f"{re.escape(hrefs[1])}$"))
@@ -1785,7 +1776,9 @@ def test_a_table_of_contents_can_stop_at_an_authored_heading_level(browser, serv
     """The author decides which semantic levels belong in the page route.
 
     Deeper headings remain ordinary page headings: the contents widget neither links
-    them nor adds generated fragment targets beside them."""
+    them nor gives them a fragment id. A linked heading without an id of its own takes
+    one reserved for the runtime, and nothing stands beside it, so a page rule about
+    which element follows which still finds the page's own."""
     source = leaf_page(
         "bounded contents",
         """
@@ -1810,9 +1803,31 @@ def test_a_table_of_contents_can_stop_at_an_authored_heading_level(browser, serv
         "node.previousElementSibling?.className || null])"
     ) == [
         ["h2", "prepare", None],
-        ["h3", None, "lf-toc-target lf-ui"],
+        ["h3", "lf-contents-section-2", None],
         ["h4", None, None],
     ]
+    # That id is the runtime's, so a passage in the heading is addressed by the
+    # section the page wrote, which the file can resolve too.
+    anchor = page.locator("h3").evaluate(
+        """async heading => {
+          const selection = getSelection();
+          selection.selectAllChildren(heading);
+          const { selectionAnchor } = await window.__lfRuntimeImport(
+            '/runtime/composing/capture.js');
+          return selectionAnchor(selection);
+        }"""
+    )
+    assert anchor["quote"] == "Move one cohort", anchor
+    assert not (anchor.get("section") or "").startswith("lf-"), anchor
+
+    # A revision can give the heading an id of its own, or take it away again; the
+    # row's link follows whichever id the heading carries.
+    link = toc.get_by_role("link", name="Move one cohort")
+    page.locator("h3").evaluate("heading => { heading.id = 'move'; }")
+    expect(link).to_have_attribute("href", "#move")
+    page.locator("h3").evaluate("heading => heading.removeAttribute('id')")
+    expect(link).to_have_attribute("href", "#lf-contents-section-2")
+    expect(page.locator("h3")).to_have_attribute("id", "lf-contents-section-2")
 
 
 def test_generated_page_interface_reconciles_before_semantic_interaction(

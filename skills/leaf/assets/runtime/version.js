@@ -101,7 +101,7 @@ import { pointerAt, restorePointer } from "./pointer.js";
 import { reportPageError } from "./layer-client.js";
 import { projectView, readApplication } from "./semantic-state.js";
 
-import { anchoringIsReady, fragmentTarget } from "./anchor-resolution.js";
+import { ADDRESSABLE, anchoringIsReady, fragmentTarget } from "./anchor-resolution.js";
 import { scrollToFragment } from "./anchor-travel.js";
 import { rowWalk } from "./walk-position.js";
 import {
@@ -818,7 +818,7 @@ export function createVersionController({
     // would keep a whole second document alive for the life of the comparison.
     const opaque = diffOpaqueSel();
     for (const block of diffMarked) {
-      if (!block.id || block.closest(opaque)) continue;
+      if (!block.matches(ADDRESSABLE) || block.closest(opaque)) continue;
       const baseBlock = doc.getElementById(block.id);
       diffBefore.set(block, baseBlock ? wrote(baseBlock) : null);
     }

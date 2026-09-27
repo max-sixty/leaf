@@ -24,7 +24,7 @@ import {
   pageText,
   rangeOf,
 } from "./passages.js";
-import { resolveAnchor } from "./anchor-resolution.js";
+import { ADDRESSABLE, resolveAnchor } from "./anchor-resolution.js";
 import { targetElement, targetSegments } from "./resolved-target.js";
 import {
   effectiveScroller,
@@ -102,7 +102,7 @@ export function capturePlace(region = null, blocks = textBlocks()) {
     block?.matches(HEADING) ? top + Math.max(0, -blockTop) : top;
   const view = { y: box.scrollTop, scroller: scrollerIdentity(box) };
   for (const [block, rect] of blocksOnScreen(region, blocks)) {
-    const section = closestAcross(block, "[id]");
+    const section = closestAcross(block, ADDRESSABLE);
     if (!view.section && section) {
       // The first on-screen block's section, kept only until a quotable block supplies
       // its own: a page with nothing quotable on screen still has somewhere to land.

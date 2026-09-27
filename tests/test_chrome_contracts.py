@@ -1398,8 +1398,8 @@ def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
     panel_settled(page)
 
     prose = page.locator(".lf-msg-text").first
-    # The surviving link carries the chrome's external-link note, so the words are read
-    # as a run inside the prose rather than as the whole of its text.
+    # The prose goes on past these words, so they are read as a run inside it rather
+    # than as the whole of its text.
     expect(prose).to_contain_text("press me blocked image beside the page")
     admitted = prose.evaluate(
         """node => [...node.querySelectorAll('a')].map(link => link.href)"""

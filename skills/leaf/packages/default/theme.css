@@ -1474,11 +1474,7 @@ lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) {
  * weight and ink distinguish it within the same sans voice as the section labels. Their common inset then reads as one route rather than two typographic systems.
  * Depth changes only the labels' inset. Labels stop at two lines, so prose never
  * distorts the document-scale rows.
- * The open and paper forms retain the complete words.
- *
- * The one-pixel sibling target has a negative end margin that gives it no net height,
- * while the real box lets the shared arrival pass align a link precisely rather than
- * stopping as soon as a zero-height point enters the viewport. */
+ * The open and paper forms retain the complete words. */
 lf-toc { display: block; margin: var(--sp-4) 0 30px; }
 lf-toc:empty { display: none; }
 lf-toc .lf-toc-nav { position: relative; border-left: 1px solid var(--border-2);

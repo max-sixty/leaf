@@ -771,11 +771,10 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
     has put its label somewhere the user cannot go. `selectableOffer` is the explicit
     exception for such page words, and this says when a widget needed it.
 
-    Both are about a word the user was shown, so the check asks that first. The
-    runtime's external-link note is the case that made it say so: an aria-describedby
-    target the browser reads out and the page never paints, put inside whatever root
-    its link stands in, a shadow tree included. [hidden] is the silence available in
-    every root, and the same note shown is still reported."""
+    Both are about a word the user was shown, so the check asks that first. A word
+    the browser reads out and the page never paints, such as an aria-describedby
+    target inside a shadow tree, is hidden with [hidden], the silence available in
+    every root, and the same word shown is still reported."""
 
     def stage_reach_cases(page):
         page.add_init_script(

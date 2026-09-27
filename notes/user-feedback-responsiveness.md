@@ -1,8 +1,12 @@
 # Responsive user feedback
 
-Status: target contract. The lifecycle exists in parts, but the complete ordering and
-latency objectives are not yet implemented or measured. Move each stable rule into its
-owning runtime, protocol reference, skill, or test as it lands, then delete this note.
+Status: target contract. The lifecycle exists in parts. Under Claude Code, turn entry
+records **Picked up** without waiting for model output (the prompt and Stop hooks carry
+and confirm the delivery), and the reply answering clause asks for the work claim first.
+`scripts/eval_claude_delivery.py` measures the agent-side objectives with a real agent,
+and `scripts/bench_page_latency.py` the in-tab ones; neither is a gate. Move each stable
+rule into its owning runtime, protocol reference, skill, or test as it lands, then
+delete this note.
 
 ## Goal
 

@@ -2,19 +2,18 @@
 
 ## Read before editing
 
-Run `leaf page state <page>` and read its `content` tree. Each node joins its
-effective words, attributes, standing state, and data inputs with their origin.
-`content_source` names the active file, mutable `edit_file`, and vocabulary file.
-An authored node's `source` gives its line and column; `edit` identifies who can change it.
-The tree is a reading, so effective content may differ from authored HTML. Look up
-the node's `vocabulary` tag in the shared vocabulary file when needed.
+Run `leaf page state <page>`, and read the active revision's HTML, the file
+`active.file` names in the page directory, beside it. The HTML is what you authored;
+`state` lists each user move that stands over it, by widget, with the words, choice or
+position it carries, so where the two differ the page shows the move. Look up a
+widget's tag in the page's `registry.json` when needed.
 
-When `edit.matches_active` is false, the candidate in `index.html` differs from
-the live revision. Its source locations still refer to the active file; reconcile
-the candidate by stable id and content before editing. `inputs` names external
-values and the source file that holds each; change one with `leaf data set` or by
-rewriting that file. Inspect frozen thread content with
-`leaf thread read <page> <id>`; change it through that thread.
+When `source.live` is false, the candidate in `index.html` differs from the live
+revision and `source.error` says why; reconcile the candidate by stable id and content
+before editing. `data_bindings` names each external source and the widgets that read
+it, and `data/<source>.json` holds its value; change one with `leaf data set` or by
+rewriting that file. Inspect frozen thread content with `leaf thread read <page> <id>`;
+change it through that thread.
 
 ## Revisions and user-owned words
 
@@ -44,8 +43,10 @@ state without it being copied into markup.
 
 A moved card, on a board or in a swipe deck's piles, is one exception. A move
 records a place among the cards the user saw, so when you change the cards in
-its column or pile, write the moved card where `leaf page state` shows it; from
-then on your markup places it. Keep it there in later versions too: a version
+its column or pile, write the moved card where its move in `state` left it: in the
+column or pile the move names, ordered among the cards there by rank (`$state` in
+`registry.json` defines ranks). `version check` names the place when a version misses
+it. From then on your markup places it. Keep it there in later versions too: a version
 keeps a user's placement unless it marks the card `restated`, and `version check`
 refuses one that moves it silently.
 

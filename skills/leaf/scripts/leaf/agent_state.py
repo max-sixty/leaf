@@ -101,7 +101,6 @@ def _base_state(
         "event_seq": events[-1]["seq"] if events else 0,
         "server": running_server(page_dir),
         "elements": [],
-        "content": [],
         "state": [],
         "updates": [],
         "requests": requests,
@@ -178,24 +177,6 @@ def _apply_document_state(
         for coordinate, (event, _) in projection.actions.items()
     ]
     state["asks"] = document.asks["user"]
-    page_dir = Path(state["page"])
-    state["content_source"] = {
-        "file": str(page_dir / state["active"]["file"]),
-        "revision": state["active"]["revision"],
-        "edit_file": str(page_dir / "index.html"),
-        "matches_active": state["source"]["live"],
-        "vocabulary": str(page_dir / "registry.json"),
-    }
-    state["content"] = constructed_content(
-        parser,
-        projection,
-        document.spoken,
-        registry,
-        stored_data,
-        page_dir,
-        editable=state["source"]["live"],
-        retired=set(document.passages.retired) | set(document.passages.gone),
-    )
     state["measurement_lag"] = measurement_lag_entries(
         parser.lf_elements, registry, stored_data
     )
@@ -250,20 +231,22 @@ def _write_page_state(
     """Where the page stands, as one JSON object — the agent-facing projection
     beside the browser projection in /api/state. A session picking a page up needs
     the same reading; doing it in-head over `leaf events` is how a standing decision
-    gets missed. So this prints the active revision's elements, the
-    projection of the user's standing state and the reports standing on the agent
-    channel, the effective construction and its mutation owners, authored
-    measurements whose live source has run again (`measurement_lag_entries`), the
-    open Asks on the page and in threads (the banner's own count), each comment
-    thread's current state and the agent messages in it the user has not read,
-    and presence beside what answers for it. It is a selection from the reading
-    /api/state serves (`read_served_page`), computed on demand from the log,
-    revision, registry, and source store — no derived reading is stored, and none is
-    folded a second time here, so there is no second copy of the truth to reconcile.
+    gets missed. So this prints the active revision's elements, the projection of
+    the user's standing state and the reports standing on the agent channel,
+    authored measurements whose live source has run again
+    (`measurement_lag_entries`), the open Asks on the page and in threads (the
+    banner's own count), each comment thread's current state and the agent messages
+    in it the user has not read, and presence beside what answers for it. It is a
+    selection from the reading /api/state serves (`read_served_page`), computed on
+    demand from the log, revision, registry, and source store — no derived reading is
+    stored, and none is folded a second time here, so there is no second copy of the
+    truth to reconcile.
 
     Every markup-derived reading is of the latest valid revision, because that
     is the page the live root shows and the user acts on. An invalid source save
-    appears under `source.error` while that revision remains active."""
+    appears under `source.error` while that revision remains active. The document
+    itself is not repeated here: `active.file` is its HTML, which an agent reads
+    beside `state`."""
     registry = require_registry(page_dir)
     served, reading, stored_data = read_served_page(page_dir, events)
     active = served["active"]
@@ -425,7 +408,6 @@ def _write_page_state(
                 registry,
                 stored_data,
                 page_dir,
-                editable=False,
                 retired=set(passages.retired) | set(passages.gone),
                 thread=thread_id,
             )

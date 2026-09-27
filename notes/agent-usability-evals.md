@@ -89,17 +89,14 @@ Only the first belongs in every page-authoring turn. Loading the whole file may
 be truncated before the agent reaches the entry it needs. Even when it fits,
 unrelated declarations compete with the page's subject for attention.
 
-Existing-page inspection now joins authored content, standing decisions, and
-declared data inputs in `leaf page state`'s `content` tree. Its construction origins
-identify how to change each part. User decisions survive without being copied
-into source. Invalid mutable source remains distinct from the live revision, and
-large fragmented inputs expose a manifest with an exact payload location. The owning
-contract is `skills/leaf/scripts/leaf/page-storage.md`.
-
-These changes have boundary tests, but their effect on agent comprehension and
-editing still needs the paired reading and resume evaluations below. Opaque
-renderers expose authored inputs; inspection does not claim to describe every
-pixel or interpretation a browser supplies.
+An agent inspects an existing page by reading `leaf page state` beside the active
+revision's HTML: `state` lists the user's standing moves over that HTML,
+`data_bindings` and `data/` hold external values, and `source` keeps an invalid
+candidate distinct from the live revision. User decisions survive without being
+copied into source. The owning contract is `skills/leaf/scripts/leaf/page-storage.md`.
+`page state` used to carry a construction tree of the whole document; it went after
+the paired run below, and `leaf thread read` keeps that reading for a thread's frozen
+markup.
 
 A context-blind continuation check changed one sentence in a copied feature
 gallery using the public CLI and authoring references. It correctly reported the
@@ -117,11 +114,12 @@ answering a question that depends on the missing records.
 
 Keep Leaf's agent-facing surface small and semantic:
 
-- `leaf page state PAGE` reads the effective document with construction origins,
-  source and data revisions, standing actions and reports, decisions, requests,
-  reactions, compact thread state, and an event-log watermark;
-- `leaf page state PAGE --thread THREAD` selects one thread's current
-  messages and effective frozen markup; its edits continue that thread;
+- `leaf page state PAGE` reads the active revision, source and data revisions,
+  standing actions and reports, decisions, requests, reactions, compact thread
+  state, and an event-log watermark; the document itself is the HTML `active.file`
+  names;
+- `leaf thread read PAGE THREAD` selects one thread's current messages and effective
+  frozen markup; its edits continue that thread;
 - `leaf page guidance PAGE [AUDIENCE]` composes explicit operating guidance;
 - `leaf events PAGE [--after SEQ] [--thread THREAD]` prints the append-only JSONL
   history admitted at validated write boundaries; `--after` is a sequence cursor
@@ -231,11 +229,11 @@ status, since the headless prompts withhold the server and the wait.
 
 ## Evaluate the integrated inspection path
 
-Compare the former HTML-plus-state path with the current construction-linked
-inspection using the same reading and revision tasks. Score correct mutations as
-well as answers: a user who understands a value but edits a derived display has
-not recovered its construction. Measure context cost with large data manifests and
-long threads, including exact thread selection.
+The first paired run below compared the HTML-plus-state path with the
+construction-linked tree on the same reading and revision tasks, scoring mutations as
+well as answers: a user who understands a value but edits a derived display has not
+recovered its construction. Context cost with large data manifests and long threads,
+including exact thread selection, is still unmeasured.
 
 A browser or accessibility snapshot can check the oracle for rendered semantics.
 It omits some inactive content and includes generated presentation, so keep it as
@@ -245,14 +243,9 @@ should remain explicit.
 
 ### Measured reading gaps
 
-The feature-gallery reading inspected on 2026-09-04 contained 6,703 lines:
-184,247 bytes formatted, 79,290 bytes compact, against 26,732 bytes of source
-HTML. Its 314 content nodes held 13,925 bytes of text. Bound input values were
-only 2,258 bytes; repeated structure and edit metadata dominated this example.
-An in-memory variant inheriting ordinary source-edit defaults, including the id
-already present in attributes, reduced compact output to 60,816 bytes without
-removing content. Apply this inheritance before adding a summary interface, and
-retain exceptional event, data, and thread authorities explicitly.
+The feature-gallery tree inspected on 2026-09-04 was 184,247 bytes formatted
+against 26,732 bytes of source HTML; repeated structure and edit metadata, not the
+page's 13,925 bytes of text, made up most of it.
 
 A separate browser context established a visibility gap:
 
@@ -263,8 +256,8 @@ A separate browser context established a visibility gap:
 
 The tabs keep their selection locally; source and the event log cannot supply
 that observation. Closed disclosures and responsive visibility make the same
-distinction relevant elsewhere. The complete document reading should remain
-available, while questions about the current screen need browser observation.
+distinction relevant elsewhere. The active HTML holds every tab's content, while
+questions about the current screen need browser observation.
 That observation must come from the user's actual browser state or an explicit
 capture of it: opening another preview can select a different tab and cannot
 establish what the user sees.
@@ -275,13 +268,13 @@ widget-summary implementation.
 
 A shared-source discriminator used two `lf-worktree` widgets and an unrelated
 third record, listed first and resembling one widget's record. The browser
-rendered the correct records and stamped their exact paths. The file reading
-repeated all three records under each widget with `path: []`, but its linked
-registry contract explicitly states that records are selected by authored widget
-id. The correct edit target is therefore recoverable without reading widget
-source. This demonstrates an indirect join and duplicated input, not missing
-semantics or a wrong-target ambiguity. Test whether cold agents follow that join
-before adding another abstraction; do not duplicate the renderer in Python.
+rendered the correct records and stamped their exact paths. The former tree
+repeated all three records under each widget with `path: []`; the registry contract
+states that records are selected by authored widget id, and the value file keys each
+record by that id, so the edit target is recoverable without reading widget source.
+This is an indirect join, not missing semantics or a wrong-target ambiguity. Test
+whether cold agents follow it before adding another abstraction; do not duplicate the
+renderer in Python.
 
 ### Next paired check
 
@@ -342,6 +335,11 @@ input tokens per run do not separate the arms; the references a run reads domina
 them.
 
 HTML plus compact state performed as well as the expanded tree at lower context
-cost, so the condition above holds: the page-level tree goes. `leaf thread read`
-keeps its construction reading, since a thread's frozen markup has no HTML file to
-read instead.
+cost, so the condition above held and the page-level tree went: `page state` no
+longer carries `content`, and the references read the active HTML beside `state`.
+`leaf thread read` keeps its construction reading, since a thread's frozen markup has
+no HTML file to read instead.
+
+The change itself then ran against its base, both arms built from their refs and
+started together, three scored runs of `resume`, `constructs` and `board` each
+(`results/change.json`, $12.55). Both passed all 90 checks.

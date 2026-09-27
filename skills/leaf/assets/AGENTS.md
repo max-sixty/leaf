@@ -131,7 +131,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Notices and announcements | `semantic-news.js`, `notifications.js`, `keyboard/shortcut-bar.js` |
 | Reactions and design review | `reactions.js`, `design.js`, `design-readings.js` |
 | Presentation and validation | `presentation.js`, `validation.js`, `projection-watch.js`, `retained-face.js` |
-| Child pages and gallery playback | `specimen.js`, `interaction-gallery*.js` |
+| Child pages and gallery playback | `sample.js`, `interaction-gallery*.js` |
 | Shadow trees and styles | `shadow.js`, `shadow-stage.js`, `stylesheets.js` |
 | Utilities | `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `storage.js`, `interaction-log.js` |
 
@@ -155,7 +155,9 @@ the page, so they are adopted after page and package sheets and win by their
 selectors. `runtime/marks.css` is adopted by the document and shadow stages. A `:has()` whose rightmost compound carries no class, id, attribute, or
 type restyles every element on ordinary runtime writes
 (`test_no_has_rule_restyles_the_whole_document`); key a repeated type by a class
-its owner writes.
+its owner writes. A `:has()` on the chrome root is read again on every write inside the
+chrome and restyles all of it (`test_no_has_rule_stands_on_the_chrome_root`), so the
+owner of such a condition states it as an attribute on the root.
 
 ### One writer for each fact
 

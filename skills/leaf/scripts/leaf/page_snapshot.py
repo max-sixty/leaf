@@ -136,13 +136,7 @@ def capture_page_snapshot(
             )
         ).encode()
     ).hexdigest()[:16]
-    reading = (
-        files_reading
-        + "."
-        + presence_fingerprint(
-            present["listening"], present["session_alive"], list(others)
-        )
-    )
+    reading = files_reading + "." + presence_fingerprint(present, list(others))
     return PageSnapshot(
         document=document,
         active=snapshot_active,

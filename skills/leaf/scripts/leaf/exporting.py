@@ -203,7 +203,7 @@ def export_document(
     """Package one captured revision for Leaf's normal runtime without a host.
 
     `document` is that revision's parsed markup (`read_revision`); a page declaring a
-    live specimen is refused before this, by `cmd_export`.
+    live sample is refused before this, by `cmd_export`.
 
     The import map is an address table, not another runtime: every module is the exact
     captured module with only its parsed local imports rebound to an in-file ``data:``
@@ -293,9 +293,9 @@ def cmd_export(page_dir: Path, out: Path, version) -> int:
     name = version_name(version)
     revision = version_revisions(events)[version]
     document = read_revision(page_dir, revision).document
-    if document.specimens:
+    if document.samples:
         sys.exit(
-            "Live specimens need a server, so a page that declares one "
+            "Live samples need a server, so a page that declares one "
             "cannot be exported."
         )
     artifact = read_artifact(page_dir, revision)

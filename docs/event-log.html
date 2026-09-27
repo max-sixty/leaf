@@ -4,7 +4,7 @@
     <title>leaf event log</title>
     <meta
       name="description"
-      content="How Leaf records every widget move as an event in an append-only log, how a package declares the verbs, and how the fold turns the standing events into the page's state, shown with a real captured log and a specimen you can operate."
+      content="How Leaf records every widget move as an event in an append-only log, how a package declares the verbs, and how the fold turns the standing events into the page's state, shown with a real captured log and a sample you can operate."
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   </head>
@@ -110,17 +110,16 @@ flowchart LR
       <section id="try">
         <h2>Try it: each gesture lands as one event</h2>
         <p id="try-walkthrough">
-          The specimen below is a complete Leaf page with a log of its own, and its feed
-          lists that log newest first. Click into the specimen, type
+          The sample below is a complete Leaf page with a log of its own, and its feed
+          lists that log newest first. Click into the sample, type
           <em>After the canary is healthy</em> into <em>Another option</em>, and press
           <kbd>Enter</kbd>: the feed gains an <code>add</code> and then a pick. Pick
           <em>Later</em>. Then press <kbd>z</kbd> three times. The first press brings
           your own option's pick back, the second leaves nothing picked while your
-          option stays, and the third removes the option. Reset starts the specimen
-          over.
+          option stays, and the third removes the option. Reset starts the sample over.
         </p>
-        <lf-specimen id="try-specimen" label="release question">
-          <template id="try-page" data-specimen>
+        <lf-sample id="try-sample" label="release question">
+          <template id="try-page" data-sample>
             <lf-ask id="ship-ask">
               <h2>When should this ship?</h2>
               <lf-options id="ship" choose>
@@ -132,9 +131,9 @@ flowchart LR
                 >
               </lf-options>
             </lf-ask>
-            <lf-activity id="specimen-feed"></lf-activity>
+            <lf-activity id="sample-feed"></lf-activity>
           </template>
-        </lf-specimen>
+        </lf-sample>
       </section>
 
       <section id="verbs">
@@ -310,8 +309,8 @@ flowchart LR
       <section id="fold">
         <h2>The fold keeps the latest standing action at each coordinate</h2>
         <p id="fold-lede">
-          These are the specimen's gestures above, made in Chrome against a copy of the
-          specimen's page. The group shows the fold of whatever still stands after each
+          These are the sample's gestures above, made in Chrome against a copy of the
+          sample's page. The group shows the fold of whatever still stands after each
           one.
         </p>
         <table id="fold-steps">
@@ -363,7 +362,7 @@ flowchart LR
           version. The browser minted the added option's id and each
           <code>attempt</code>.
         </p>
-        <!-- Captured by driving this page's specimen markup in Chrome on a scratch
+        <!-- Captured by driving this page's sample markup in Chrome on a scratch
              page and printing its log with `leaf events PAGE`. The suite replays
              these commands through the append door and fails, printing the records
              to paste here, when the door would store anything different:

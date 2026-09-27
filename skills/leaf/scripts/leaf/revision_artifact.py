@@ -524,7 +524,7 @@ def _capture_artifact(
     entries = []
     documents = [document]
     for authored in documents:
-        documents.extend(specimen["document"] for specimen in authored.specimens)
+        documents.extend(sample["document"] for sample in authored.samples)
         for script in authored.inline_scripts:
             for _, _, specifier in _javascript_imports(
                 script["body"].encode("utf-8"), "/index.html"

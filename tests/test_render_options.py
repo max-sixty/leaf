@@ -1,4 +1,4 @@
-"""Options, specimens, and decision presentation tests."""
+"""Options, samples, and decision presentation tests."""
 
 import io
 import json
@@ -25,8 +25,8 @@ from render_cases_interaction import (
     INLINE_CASE_PAGE,
     NESTED_ASK_PAGE,
     PAINTED_PAGE,
+    SAMPLE_EXAMPLES,
     SETTLED_ASK_PAGE,
-    SPECIMEN_EXAMPLES,
     STACKED_OPTIONS_PAGE,
     TABLE_REPLY,
     live_url,
@@ -40,10 +40,10 @@ from render_harness import (
     EXAMPLES,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
+    SAMPLE_MARKUP,
+    SAMPLE_PAGE,
+    SAMPLE_TEXT,
     SETTLED_PAGE,
-    SPECIMEN_MARKUP,
-    SPECIMEN_PAGE,
-    SPECIMEN_TEXT,
     _traffic,
     _until,
     ask_actions_hint,
@@ -886,7 +886,7 @@ def test_an_ask_leads_with_one_authored_heading(browser, serve, ask, group, ques
     )
 
 
-def test_a_first_ask_starts_at_the_pages_content_edge_even_in_a_live_specimen(
+def test_a_first_ask_starts_at_the_pages_content_edge_even_in_a_live_sample(
     browser, serve
 ):
     """An Ask's heading begins at the edge of the frame that holds it."""
@@ -907,13 +907,13 @@ def test_a_first_ask_starts_at_the_pages_content_edge_even_in_a_live_specimen(
     <lf-options id="framed-options" choose><lf-option id="framed-route">Route A</lf-option></lf-options>
   </lf-ask>
 </div>
-<lf-specimen id="sample" label="a first Ask">
-  <template id="sample-page" data-specimen>
+<lf-sample id="sample" label="a first Ask">
+  <template id="sample-page" data-sample>
     <lf-ask id="sample-ask"><h2>Choose the route</h2>
       <lf-options id="sample-options" choose><lf-option id="sample-route">Route A</lf-option></lf-options>
     </lf-ask>
   </template>
-</lf-specimen>""",
+</lf-sample>""",
             )
         ),
     )
@@ -1146,16 +1146,16 @@ def test_a_choose_group_on_a_wide_page_draws_its_cells_to_its_own_frame(browser,
 
 
 def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
-    """A specimen is a mention, not a use. The exhibited widgets render at full
+    """A sample is a mention, not a use. The exhibited widgets render at full
     fidelity — that is the whole point of showing one — but wire nothing that
     would carry the user's edits back, so an example decision can't be
     answered and an example board can't be dragged. The unquoted copies on the
     same page are the control: they prove the affordances are missing because
-    the specimen suppressed them, not because the upgrade failed.
+    the sample suppressed them, not because the upgrade failed.
 
     Presentation and view state are not input, so they still run: a quoted
     settled group collapses like any other."""
-    url = serve(SPECIMEN_PAGE)
+    url = serve(SAMPLE_PAGE)
     # The rule stands at the log's own door as well as in the browser's controller, so
     # the state a quoted widget would reconcile cannot be written in the first place.
     # Any sender reaches that door; this one is the CLI's side of it.
@@ -1298,7 +1298,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
             f"{page.locator(quiet).evaluate(css)} against {quiet_rest} at rest"
         )
 
-    # View state still runs inside a specimen: the settled group collapsed.
+    # View state still runs inside a sample: the settled group collapsed.
     assert page.locator("#quoted-settled lf-option:visible").count() == 0
     page.locator("#quoted-settled .lf-settled").click()
     assert page.locator("#quoted-settled lf-option:visible").count() == 3
@@ -1313,7 +1313,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     # opening the quoted group is what the lines above are about.
     #
     # Both card states, because the lift has one rule for an ordinary card and another
-    # for the one the document records as chosen. Both carry the specimen exclusion.
+    # for the one the document records as chosen. Both carry the sample exclusion.
     page.locator("#live-settled .lf-settled").click()
     # Both folds have to be over before a card's box-shadow means anything. Opening a
     # group brings its rings in on the same transition the lift uses, so a rest value
@@ -1376,7 +1376,7 @@ def test_a_pick_keeps_the_group_frame_visually_stable(browser, serve):
     The projection still carries `data-lf-user-override`; the selected row's check and tint
     show the choice while the group's permanent frame stays visually unchanged.
     """
-    page = open_page(browser, serve(SPECIMEN_PAGE))
+    page = open_page(browser, serve(SAMPLE_PAGE))
     group = page.locator("#live-group")
     frame = "el => [getComputedStyle(el).border, getComputedStyle(el).outlineStyle]"
     before = group.evaluate(frame)
@@ -2449,14 +2449,14 @@ def test_the_box_is_offered_only_where_something_can_answer_it(browser, serve):
     )
 
 
-def test_the_specimen_gutter_is_painted_in_both_schemes(browser, serve):
-    """The gutter is the whole marking, and it is the one part of a specimen with
+def test_the_sample_gutter_is_painted_in_both_schemes(browser, serve):
+    """The gutter is the whole marking, and it is the one part of a sample with
     a color of its own: a token with no dark half would leave the bar
     transparent and the quoting silently gone. Nothing else catches that — not even
-    the sweep that now drives a specimen through render_version in both palettes,
+    the sweep that now drives a sample through render_version in both palettes,
     since a transparent border is not an error, resizes no box, and leaves every
     word selectable."""
-    url = serve(SPECIMEN_PAGE)
+    url = serve(SAMPLE_PAGE)
     for scheme in ("light", "dark"):
         page = browser.new_page(color_scheme=scheme)
         page.goto(url, wait_until="load")
@@ -2468,8 +2468,8 @@ def test_the_specimen_gutter_is_painted_in_both_schemes(browser, serve):
 
 @pytest.mark.parametrize(
     "source",
-    [SPECIMEN_PAGE, *SPECIMEN_EXAMPLES],
-    ids=["fixture", *(p.stem for p in SPECIMEN_EXAMPLES)],
+    [SAMPLE_PAGE, *SAMPLE_EXAMPLES],
+    ids=["fixture", *(p.stem for p in SAMPLE_EXAMPLES)],
 )
 def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serve):
     """The gutter marks what is quoted and nothing else, at both ends, and two separate
@@ -2478,7 +2478,7 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
     the marking around a line the page never said. And a table cell is a margin barrier,
     so the room the exhibit's outermost blocks reserve against neighbours they haven't
     got could not collapse out and was painted as bar instead — sixteen pixels of it
-    over the first card and under the last, on every specimen shipped.
+    over the first card and under the last, on every sample shipped.
 
     Geometry can't answer the top. The element's own rect is the table wrapper's and
     takes in the caption, while the bar is painted on the table box inside it, which
@@ -2488,42 +2488,40 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
     middle of the window: a clip is the viewport's, so one strip over the whole bar
     would cap the sweep at the tallest exhibit a window can hold.
 
-    Driven over every specimen in the corpus rather than the fixture alone, because
-    what the theme can reach is the specimen's direct children and what it cannot is
+    Driven over every sample in the corpus rather than the fixture alone, because
+    what the theme can reach is the sample's direct children and what it cannot is
     whichever widget hands its boxes to the flow instead. That gap is invisible in the
     stylesheet and shows only as a bar longer than what it marks, so the corpus is
     where the next one gets caught."""
     from PIL import Image  # a dev dependency already, for the demo recorder
 
-    # Serve each example with its data and history: live specimens can select
+    # Serve each example with its data and history: live samples can select
     # authored threads as part of the exhibit.
     page = open_page(browser, serve(source))
     scale = page.evaluate("() => devicePixelRatio")
-    # Rendered, not merely present. A specimen inside a tab panel the page is not
+    # Rendered, not merely present. A sample inside a tab panel the page is not
     # showing sits in skipped content, which still reports its last laid-out rect — a
     # position the page cannot be scrolled to, since the room it names is not in the
     # document's height. `checkVisibility` is the question `lf-suggestion` already asks
     # for the same reason.
-    specimens = page.locator("lf-specimen").evaluate_all(
-        """elements => elements.map(specimen => {
+    samples = page.locator("lf-sample").evaluate_all(
+        """elements => elements.map(sample => {
             const path = [];
-            for (let tab = specimen.closest('lf-tab'); tab;
+            for (let tab = sample.closest('lf-tab'); tab;
                  tab = tab.parentElement.closest('lf-tab')) {
                 path.push({set: tab.parentElement.id, label: tab.getAttribute('label')});
             }
-            return {id: specimen.id, path: path.reverse()};
+            return {id: sample.id, path: path.reverse()};
         })"""
     )
-    assert specimens, (
-        "this page declares no specimen: the reading below asserts nothing"
-    )
+    assert samples, "this page declares no sample: the reading below asserts nothing"
 
-    for specimen in specimens:
-        for owner in specimen["path"]:
+    for sample in samples:
+        for owner in sample["path"]:
             page.locator(f"#{owner['set']}").get_by_role(
                 "tab", name=owner["label"], exact=True
             ).click()
-        spec = specimen["id"]
+        spec = sample["id"]
         assert page.locator(f"#{spec}").evaluate("el => el.checkVisibility()"), (
             f"{spec} remained hidden after opening its tabs"
         )
@@ -2621,7 +2619,7 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
             f"#{spec}'s marking ends at {found['bottom']} and the exhibit at "
             f"{found['bottom-exhibit']}: the bar outlives what it marks — most likely "
             f"a trailing margin inside a child that generates no box, which the "
-            f"theme's rule for the specimen's last child cannot reach"
+            f"theme's rule for the sample's last child cannot reach"
         )
         if found["note"] is not None:
             assert found["note"] <= found["top"] + 1, (
@@ -2631,17 +2629,17 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
             )
 
 
-def test_a_specimen_holds_a_wide_exhibit_inside_the_column(browser, serve):
+def test_a_sample_holds_a_wide_exhibit_inside_the_column(browser, serve):
     """An exhibit wider than the column scrolls inside its own box, as it does
     anywhere else on the page. What makes that true here is one declaration —
-    a table sizes to its content, so without `table-layout: fixed` the specimen
+    a table sizes to its content, so without `table-layout: fixed` the sample
     grows to the board's width and hands the document a sideways scrollbar, taking
     the comment layer's anchoring off screen with it.
 
     Read at a viewport narrow enough for the board to want more room than the
     column has; at the render sweep's own 1200px the board fits and nothing here
     can fail."""
-    page = open_page(browser, serve(SPECIMEN_PAGE))
+    page = open_page(browser, serve(SAMPLE_PAGE))
     page.evaluate(
         """() => document.addEventListener('lf-margin-layout', () => {
           window.lfMarginLayoutWidth = innerWidth;
@@ -2654,26 +2652,26 @@ def test_a_specimen_holds_a_wide_exhibit_inside_the_column(browser, serve):
         " Math.round(document.getElementById('spec').getBoundingClientRect().width),"
         " document.getElementById('quoted-board').scrollWidth]"
     )
-    column, specimen, board = wide
+    column, sample, board = wide
     assert board > column, (
         f"the board is {board}px in a {column}px column: it has to want more room "
         f"than the column has, or nothing below is being tested"
     )
-    assert specimen <= column, f"the specimen is {specimen}px in a {column}px column"
+    assert sample <= column, f"the sample is {sample}px in a {column}px column"
     assert root_overflow(page) == 0, (
-        "the document scrolls sideways: the exhibit widened the specimen instead of "
+        "the document scrolls sideways: the exhibit widened the sample instead of "
         "scrolling inside it"
     )
 
 
-def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
+def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
     """The panel is where a live question actually gets put — Claude's replies
     carry widget markup — so it is also where a quoted one has to stay quoted.
     One reply holds both: the question wires up and its pick reaches the log,
     the exhibit beside it does neither, and the gutter marking it renders in the
-    panel's narrower column as it does in the document. The theme's specimen
+    panel's narrower column as it does in the document. The theme's sample
     rules and quoted()'s closest() both have to reach outside <main>, and
-    nothing else in the suite renders a specimen there."""
+    nothing else in the suite renders a sample there."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
     events_model.append_event(
@@ -2693,8 +2691,8 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
             "author": "agent",
             "parent": "c-decision",
             "revision": 1,
-            "text": SPECIMEN_TEXT,
-            "markup": SPECIMEN_MARKUP,
+            "text": SAMPLE_TEXT,
+            "markup": SAMPLE_MARKUP,
         },
     )
     page = open_page(browser, url)
@@ -2704,7 +2702,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
         '#rp-live .lf-pick[role="checkbox"]'
     )  # the reply's widgets upgraded
 
-    # The gutter renders in the panel: the specimen rules aren't scoped to the
+    # The gutter renders in the panel: the sample rules aren't scoped to the
     # document's column, and neither is the label — which reaches the panel only
     # because renderSaid runs over a reply's markup too, where no custom element
     # upgrade would have carried it.
@@ -2721,7 +2719,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
     assert gutter[0] != "0px" and gutter[1] not in (
         "rgba(0, 0, 0, 0)",
         "transparent",
-    ), f"the panel's specimen carries no gutter: {gutter}"
+    ), f"the panel's sample carries no gutter: {gutter}"
     assert (
         page.locator("#rp-quoted lf-option").count() == 2
     )  # and the exhibit is all there

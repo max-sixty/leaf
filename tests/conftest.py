@@ -295,6 +295,10 @@ def isolated_session(tmp_path_factory, monkeypatch):
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path_factory.mktemp("state")))
     for name in host_model.IDENTITY_VARIABLES:
         monkeypatch.delenv(name, raising=False)
+    # Claude Code's session registry, where a live turn is read
+    # (`host.claude_code_session_records`): empty, so no session of the developer's
+    # answers for a test's.
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path_factory.mktemp("claude")))
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", f"pytest-{os.getpid()}")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     # A Claude Code session whose host runs Leaf's hooks, as the plugin installs

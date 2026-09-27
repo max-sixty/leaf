@@ -46,7 +46,7 @@ def test_new_reply_and_user_question_share_one_notice_without_moving_focus(
     expect(toggle).to_be_focused()
 
 
-def test_gallery_new_information_specimen_preserves_focus(browser, serve):
+def test_gallery_new_information_sample_preserves_focus(browser, serve):
     page = open_page(browser, serve(FEATURE_GALLERY))
     guide = page.locator("#bg-thread-notices")
     expect(guide).to_contain_text("status-line notice")

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Parser rewrite workers</title>
+  </head>
+  <body>
+    <main class="layout-column">
+      <h1>Parser rewrite workers</h1>
+      <p class="lede" id="lede">
+        Two workers own the parser's open leaves, each in a worktree of its own.
+      </p>
+      <lf-command id="hub" label="Replace the XML parser">
+        <lf-task id="goal-parser" status="active">
+          <strong>Replace the XML parser</strong>
+          <lf-task id="parser-entities" status="active">
+            <strong>Entity boundaries</strong> Three corpus cases remain.
+            <lf-agent id="wren" state="working" on="parser-entities">
+              <strong>wren</strong> Owns entity boundaries.
+              <lf-worktree id="tree-wren" source="project-worktrees"></lf-worktree>
+            </lf-agent>
+          </lf-task>
+          <lf-task id="parser-cdata" status="active">
+            <strong>CDATA edge cases</strong> Eleven legacy exports replay cleanly.
+            <lf-agent id="finch" state="working" on="parser-cdata">
+              <strong>finch</strong> Owns the escaped-markup cases.
+              <lf-worktree id="tree-finch" source="project-worktrees"></lf-worktree>
+            </lf-agent>
+          </lf-task>
+        </lf-task>
+      </lf-command>
+    </main>
+  </body>
+</html>

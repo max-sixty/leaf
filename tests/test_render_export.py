@@ -33,6 +33,7 @@ from leaf import session as session_model
 from leaf.schema import ELEMENT_ID
 from leaf.structure import UTF8_BOM
 from playwright.sync_api import expect
+from render_cases_interaction import ASK_PAGE
 from render_cases_navigation import (
     source_revision,
 )
@@ -44,6 +45,7 @@ from render_harness import (
     restarting,
     round_trip,
     sending,
+    write,
 )
 
 pytestmark = pytest.mark.nightly
@@ -1233,6 +1235,36 @@ def test_interactive_export_with_an_ask_reaches_application_presentation(
     expect(page.locator(".lf-chrome")).to_have_count(0)
 
 
+def test_an_interactive_export_paints_a_widget_owned_text_box(browser, serve, tmp_path):
+    """A text box paints in the standing paint, which an export mounts without chrome.
+
+    A choosable group builds its addition field offline too. Its placeholder, disabled
+    Add and empty-field flag are that paint's, and typing repaints the flag."""
+    serve(ASK_PAGE)
+    interactive = tmp_path / "interactive-addition.html"
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["version", "export", str(serve.page_dir), "--out", str(interactive)],
+        env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
+    )
+    assert result.exit_code == 0, result.output
+
+    page = browser.new_page()
+    page.goto(interactive.as_uri(), wait_until="load")
+    expect(page.locator("body")).to_have_attribute(
+        "data-lf-presented", "1", timeout=10000
+    )
+    form = page.locator("#jobs > .lf-another")
+    field = form.locator("leaf-text")
+    add = form.locator(".lf-compose-submit")
+    expect(field).to_have_attribute("placeholder", "Another option — add to select")
+    expect(add).to_have_attribute("aria-disabled", "true")
+    expect(add).to_have_attribute("data-lf-empty", "")
+    expect(add).to_be_hidden()
+    write(field, "Portrait sketch")
+    expect(add).not_to_have_attribute("data-lf-empty", "")
+
+
 def test_interactive_export_runs_captured_local_behavior_without_a_host(
     browser, serve, tmp_path
 ):
@@ -1517,13 +1549,13 @@ def test_exporting_an_example_leaves_the_live_preview_untouched(
         live_server.wait(timeout=5)
 
 
-def test_export_refuses_server_dependent_specimens(serve, tmp_path):
+def test_export_refuses_server_dependent_samples(serve, tmp_path):
     serve(
         leaf_page(
-            "Live specimen",
-            '<lf-specimen id="practice" label="practice">'
-            '<template id="practice-source" data-specimen><h1>Child</h1></template>'
-            "</lf-specimen>",
+            "Live sample",
+            '<lf-sample id="practice" label="practice">'
+            '<template id="practice-source" data-sample><h1>Child</h1></template>'
+            "</lf-sample>",
         )
     )
     output = tmp_path / "offline.html"
@@ -1538,7 +1570,7 @@ def test_export_refuses_server_dependent_specimens(serve, tmp_path):
         ],
     )
     assert result.exit_code != 0
-    assert "Live specimens need a server" in result.output
+    assert "Live samples need a server" in result.output
     assert not output.exists()
 
 

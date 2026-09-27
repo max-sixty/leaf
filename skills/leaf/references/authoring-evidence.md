@@ -126,5 +126,5 @@ a comment or navigation target still opens the file that owns its line.
 Run `leaf page media <page> <file>…` and use the printed `/media/…` path for
 images. Never inline image bytes. For a real visual change, use `lf-shot` with
 before and after captures from the same viewport. Put invented examples inside
-`lf-specimen` and make them visibly fictional. Render tickets, source locations,
+`lf-sample` and make them visibly fictional. Render tickets, source locations,
 and URLs as real links.

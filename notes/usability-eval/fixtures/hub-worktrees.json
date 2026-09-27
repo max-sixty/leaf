@@ -1,0 +1,38 @@
+{
+  "tree-finch-old": {
+    "branch": "finch/cdata-escapes-v1",
+    "base": "main",
+    "head": "4be01c9",
+    "ahead": 12,
+    "behind": 9,
+    "additions": 640,
+    "deletions": 212,
+    "commits": 12,
+    "tests": "passing",
+    "observedAt": "2026-09-24T16:05:00Z"
+  },
+  "tree-wren": {
+    "branch": "wren/entity-boundaries",
+    "base": "main",
+    "head": "a17c3d2",
+    "ahead": 4,
+    "behind": 0,
+    "additions": 188,
+    "deletions": 41,
+    "commits": 4,
+    "tests": "passing",
+    "observedAt": "2026-09-27T09:12:00Z"
+  },
+  "tree-finch": {
+    "branch": "finch/cdata-escapes",
+    "base": "main",
+    "head": "9d2e871",
+    "ahead": 6,
+    "behind": 0,
+    "additions": 305,
+    "deletions": 77,
+    "commits": 6,
+    "tests": "failing",
+    "observedAt": "2026-09-27T09:14:00Z"
+  }
+}

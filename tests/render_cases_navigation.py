@@ -301,7 +301,7 @@ NOTED_PAGE = leaf_page(
 enough for two separate remarks to land in it.</p>
 <p id="p2">A short second passage.</p>
 <figure id="fig"><svg viewBox="0 0 120 40" width="120" height="40" role="img"
-aria-label="specimen"><rect x="2" y="2" width="116" height="36" fill="none"
+aria-label="sample"><rect x="2" y="2" width="116" height="36" fill="none"
 stroke="currentColor"></rect></svg><figcaption>A figure, for element anchors.</figcaption></figure>
 """,
 )
@@ -418,8 +418,8 @@ TARGETS_PAGE = leaf_page(
 <p id="prose">A paragraph with enough words in it to select by dragging across, which
 is what raises the button the key then presses.</p>
 <figure id="fig"><svg viewBox="0 0 240 60" width="240" height="60" role="img"
-aria-label="specimen"><rect x="2" y="2" width="236" height="56" fill="none"
-stroke="currentColor"></rect></svg><figcaption>A specimen.</figcaption></figure>
+aria-label="sample"><rect x="2" y="2" width="236" height="56" fill="none"
+stroke="currentColor"></rect></svg><figcaption>A sample.</figcaption></figure>
 """,
 )
 UNDO_PAGE = leaf_page(

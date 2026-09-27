@@ -1,5 +1,6 @@
 /* Keyboard reachability and continuation paint for scrollable page and shadow content. */
 
+import { TAB_STOP, TEXT_BOX } from "./focus.js";
 import { sizeObserver } from "./rendering.js";
 import { ANCHOR_NOTE_TAG } from "./anchor-note-view.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
@@ -56,11 +57,6 @@ import { LAYOUT } from "./widget-elements.js";
 // after the mark, whichever of the two lands first. Held when a sweep reaches the box,
 // which is what the callers above owe this: a scroller a module builds outside its
 // own settlement calls this on the subtree, as it would for the stop.
-// What the platform puts in the tab order without being asked. Exported because the skip
-// link needs the same reading of the banner: "the first thing in there a user can
-// stand on" and "does this box already hold a stop" are the one question.
-export const FOCUSABLE =
-  'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])';
 // The declaration picks the candidates and the measurement decides. A rule saying a box
 // may scroll is not the same fact as a box with something out of sight: the theme sets
 // `table { display: block; overflow-x: auto }` on every table there is, so the declaration
@@ -78,7 +74,7 @@ const overflows = (el) =>
   el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight;
 // The box's own controls, which is every focusable inside it but the note above.
 function holdsOwnStop(el) {
-  for (const node of el.querySelectorAll(FOCUSABLE))
+  for (const node of el.querySelectorAll(TAB_STOP))
     if (!node.closest(ANCHOR_NOTE_TAG)) return true;
   return false;
 }
@@ -115,7 +111,7 @@ const mayScroll = new Set();
 // nothing to say so.
 const sideways = new Set();
 // A reading region is the narrower vertical case. Ordinary vertical overflow is often
-// intentional and self-explanatory (a textarea, disclosure, or the document itself),
+// intentional and self-explanatory (a text box, disclosure, or the document itself),
 // so `reachScrollers` must not infer this mark from overflow-y. Reading-region owners
 // opt their bounded body in when they register it. The cue follows remaining content,
 // because the pane's fixed lower edge would otherwise keep promising another part of
@@ -160,20 +156,20 @@ export function reachScrollers(root) {
         !/^(auto|scroll)$/.test(style.overflowY)
       )
         continue;
-      // Not a textarea, which scrolls its own value and can hold nothing laid out inside
+      // Not a text box, which scrolls its own value and can hold nothing laid out inside
       // it: the mark would claim containment of a box that contains nothing. Written once, because the attribute
       // is observed (design.js) and this runs on every panel reconcile.
       if (
         style.position === "static" &&
-        !el.matches("textarea") &&
+        !el.matches(TEXT_BOX) &&
         !el.hasAttribute(PAGE_PAINT_ATTRIBUTE.holds)
       )
         el.setAttribute(PAGE_PAINT_ATTRIBUTE.holds, "1");
-      // A textarea is out of the continuation marks for its own reason: it scrolls a
+      // A text box is out of the continuation marks for its own reason: it scrolls a
       // value its user is writing and already knows continues.
       if (
         /^(auto|scroll)$/.test(style.overflowX) &&
-        !el.matches("textarea") &&
+        !el.matches(TEXT_BOX) &&
         !sideways.has(el)
       ) {
         sideways.add(el);

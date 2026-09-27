@@ -14,7 +14,7 @@ import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
 import { upgradeWidgets } from "./runtime/widget-loader.js";
 import {
   markPagePresented,
-  pageArrived,
+  pageReadiness,
   settlePageInterface,
   PAGE_INTERFACE,
   PAGE_PAINT_ATTRIBUTE,
@@ -24,7 +24,6 @@ import { renderingSettled } from "./runtime/rendering.js";
 import { mountApplication } from "./runtime/application.js";
 import {
   applicationState,
-  applicationPresented,
   whenApplicationPresented,
 } from "./runtime/semantic-state.js";
 import { createEngagement } from "./runtime/composing/engagement.js";
@@ -122,14 +121,13 @@ initializeServedDocument();
 
 // A published shell may bundle the entry without publishing its source modules beside
 // it. Keep the synchronous validation seam on Leaf's own bootstrap element so render
-// checks can inspect either distribution without turning it into a package API. The three
-// readings answer different questions: whether the current epoch is presented, whether
-// the page has also finished the arrivals it deliberately placed after presenting, and
-// whether its chrome and geometry have caught up with everything handled so far.
+// checks can inspect either distribution without turning it into a package API. The two
+// readings answer different questions: which readiness fact the page has yet to state
+// (`pageReadiness`), and whether its chrome and geometry have caught up with the input
+// handled since.
 const validationEntry = document.querySelector("script[data-lf-entry]");
 if (validationEntry) {
-  validationEntry.lfCurrentPresentationReady = applicationPresented;
-  validationEntry.lfPageArrived = pageArrived;
+  validationEntry.lfReadiness = pageReadiness;
   validationEntry.lfRenderingSettled = renderingSettled;
 }
 import { overflowMenu } from "./runtime/banner-shelf.js";
@@ -177,12 +175,12 @@ import {
   declareReading,
   focusDestination,
   releaseFocus,
+  tabStops,
 } from "./runtime/focus.js";
 import { setRuntimeRootAttribute } from "./runtime/root-state.js";
 import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
 import { offer } from "./runtime/widget-elements.js";
-import { FOCUSABLE } from "./runtime/reach.js";
 
 let app;
 const paintVersionApproval = () =>
@@ -209,7 +207,6 @@ let goToSequence;
 
 const auxiliarySurfaces = createAuxiliarySurfaces({
   chromeRoot,
-  focusable: FOCUSABLE,
   syncLayout: () => layout.syncLayout(),
   afterChange: () => {
     app.margin.renderMargin();
@@ -467,8 +464,8 @@ pageMapDialog = createPageMapDialog({
   activeInMargin: app.margin.pageMapActive,
   activateItem: app.margin.activateMapItem,
   faceFor: app.margin.faceForMap,
+  mapControlPlaces: app.margin.mapControlPlaces,
   targetFor: app.margin.targetFor,
-  focusFallback: app.margin.focusMapControl,
 });
 
 // Ask view is constructed below by its owner factory; all accesses above are inert closures.
@@ -698,7 +695,7 @@ const standing = createStanding({
 
 const skipToChrome = offer("button", "lf-skip", "Skip to Leaf controls");
 skipToChrome.onclick = () => {
-  for (const control of banner.querySelectorAll(FOCUSABLE)) {
+  for (const control of tabStops(banner)) {
     control.focus({ preventScroll: true });
     if (control.matches(":focus")) return;
   }

@@ -11,12 +11,13 @@ import { sameAnchor } from "./anchor-coordinate.js";
 import { resolvedElement, resolvedPassage } from "./resolved-target.js";
 import { inUi, under, upFrom } from "./shadow.js";
 import {
+  registeredVisualPart,
+  registeredVisualPartAt,
+  registeredVisualPartLabel,
+  registeredVisualParts,
+  revealRegisteredVisualPart,
   revealsVisualParts,
-  revealVisualPart as revealRegisteredVisualPart,
-  visualPart as registeredVisualPart,
-  visualPartAt as registeredVisualPartAt,
-  visualPartLabel as registeredVisualPartLabel,
-  visualParts as registeredVisualParts,
+  visualPartAdmission,
 } from "./visual-parts.js";
 import {
   authoredScope,
@@ -118,25 +119,14 @@ export function addressedElements(source, key) {
   return datum ? [datum] : [];
 }
 
-// A generated visual part keeps a semantic id the provider declaration bounds: a token
-// authored in its `parts` attribute, or any longer id one of its `prefixes` begins.
-// Element ids never escape into the event log; the declaration bounds the inventory
-// core will trust. The rank is an id's place in that declaration, which orders the
-// visual's targets: its authored token's index, 0 for every prefixed id so they keep
-// registration order, and -1 for an id it does not admit. Null when the visual
-// declares no parts at all.
-const visualPartRank = (visual) => {
-  const declaration = registry[visual?.localName]?.["x-visual"];
-  if (!declaration || typeof declaration !== "object") return null;
-  if (declaration.prefixes)
-    return (id) =>
-      declaration.prefixes.some((prefix) => id !== prefix && id.startsWith(prefix))
-        ? 0
-        : -1;
-  const tokens =
-    visual.getAttribute(declaration.parts)?.trim().split(/\s+/).filter(Boolean) ?? [];
-  return (id) => tokens.indexOf(id);
-};
+// A generated visual part keeps a semantic id its provider's declaration admits
+// (`visualPartAdmission`). Element ids never escape into the event log; the
+// declaration bounds the inventory core will trust. No rank when the visual declares
+// no parts at all.
+const visualPartRank = (visual) =>
+  visual
+    ? visualPartAdmission(visual, registry[visual.localName]?.["x-visual"])?.rank
+    : null;
 
 const wholeVisualSurface = (element) =>
   registry[element?.localName]?.["x-visual"] ? element : null;

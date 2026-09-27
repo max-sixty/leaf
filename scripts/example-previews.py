@@ -29,22 +29,19 @@ from example_assets import LOCK, specification
 from example_assets import example_previews as locked_previews
 from example_data import catalog_sources
 from leaf.hosting import LeafHTTPServer
+from leaf.render_checks import wait_until_ready
 from PIL import Image
 from playwright.sync_api import Page, sync_playwright
 
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
 VIEWPORT = {"width": 1120, "height": 700}
+# docs/index.html and docs/examples.html reserve this 8:5 box before a preview loads.
 OUTPUT_SIZE = (896, 560)
 REQUIRED_FONTS = {
     ".lf-status-text": ".SF NS",
     ".lede": "Charter",
 }
-READY = (
-    "() => document.body.dataset.lfUpgraded === '1'"
-    " && document.body.dataset.lfApplied !== undefined"
-    " && document.body.dataset.lfPresented === '1'"
-)
 
 _spec = importlib.util.spec_from_file_location(
     "leaf_site", ROOT / "scripts" / "site.py"
@@ -222,7 +219,7 @@ def main() -> None:
                 for source in catalog_sources():
                     errors.clear()
                     page.goto(f"{origin}/examples/{source.stem}/", wait_until="load")
-                    page.wait_for_function(READY)
+                    wait_until_ready(page)
                     if not captures:
                         require_capture_fonts(page)
                     png = page.screenshot(animations="disabled", caret="hide")

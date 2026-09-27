@@ -212,7 +212,3 @@ export function splitEdges() {
     }
   return found;
 }
-
-// How long the render gate waits on the server for one of the documents it reads.
-// The same patience playwright gives `wait_for_function` above it, and stated here
-// because it is the number that turns a wedged server into a sentence.

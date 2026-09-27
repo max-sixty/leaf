@@ -107,20 +107,17 @@ export const missingUpgrades = (declarations) =>
         entry["x-upgrade"] && document.querySelector(tag) && !customElements.get(tag),
     )
     .map(([tag]) => tag);
+// visual-parts.js reads each declaration, so a part the gate accepts is one the page
+// can anchor and travel to.
 const visualProviderProblems = (declarations, check) =>
   Object.entries(declarations)
-    .filter(([, entry]) => entry["x-visual"] && typeof entry["x-visual"] === "object")
+    .filter(([, entry]) => entry["x-visual"])
     .flatMap(([tag, entry]) =>
-      [...document.querySelectorAll(tag)].map((el) => {
-        const { parts, prefixes } = entry["x-visual"];
-        const declared = prefixes
-          ? []
-          : (el.getAttribute(parts) ?? "").trim().split(/\s+/).filter(Boolean);
-        const admits = prefixes
-          ? (id) => prefixes.some((p) => id !== p && id.startsWith(p))
-          : undefined;
-        return { tag, id: el.id, problems: check(el, declared, admits) };
-      }),
+      [...document.querySelectorAll(tag)].map((el) => ({
+        tag,
+        id: el.id,
+        problems: check(el, entry["x-visual"]),
+      })),
     )
     .filter((instance) => instance.problems.length);
 export const invalidVisualProviders = (declarations) =>
@@ -228,8 +225,7 @@ export function undeclaredAttrs(declarations) {
 // settled slot still showing one is still showing words. The visibility guards are
 // COVERED_WORDS', for its reasons: [hidden] holds until-found content whose boxes
 // report as last laid out, and visibility and opacity hide with layout intact. One
-// scheme, on the trapped-margin reading's premise — the palettes carry no geometry
-// between them. Replay installs a fold's terminal DOM synchronously: the runtime's
+// scheme, since the palettes carry no geometry between them. Replay installs a fold's terminal DOM synchronously: the runtime's
 // motion() refuses animation while it is projecting state or before presentation.
 // The gate's global `pageSettled` fact separately holds independently authored motion
 // before any reading starts. This reading stays synchronous: waiting on

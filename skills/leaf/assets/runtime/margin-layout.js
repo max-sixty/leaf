@@ -28,6 +28,7 @@
    Visibility reads `shownParts`, not the target's raw client rect: a project may set
    `display: contents` while its rendered descendants remain usable, and a collapsed
    target has no rendered part to offer. */
+import { TAB_STOP } from "./focus.js";
 import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
 import { shellRight, shownBand, shownParts } from "./geometry.js";
 import { under, upFrom } from "./shadow.js";
@@ -47,28 +48,17 @@ let layer = null;
 
 const marginColumn = () => document.querySelector("main") || document.body;
 
-// Whether the margin's rail stands, as the stylesheet decided it: theme.css states the
-// posture on `main` where it claims the rail, and this reads that answer rather than
-// deriving one of its own from a width. It resolves a container query, so a read after a
-// write forces layout, and the layout pass reads it once. So the answer is read once per
-// task and reused: nothing a pass writes can change the reading, since the claim comes out
-// of `main`'s room inside the shell while the container answers on the shell itself. The
-// microtask that clears it runs before anything outside the pass can ask.
-const readRailPosture = () => {
-  const main = document.querySelector("main");
-  return (
-    Boolean(main) &&
-    getComputedStyle(main).getPropertyValue("--lf-rail-posture").trim() === "margin"
-  );
-};
-let railReading = null;
-const railStands = () => {
-  if (railReading === null) {
-    railReading = readRailPosture();
-    queueMicrotask(() => (railReading = null));
-  }
-  return railReading;
-};
+// Whether the margin's rail stands: where the room between `main` and the shell's right
+// edge holds a rail, measured, so a centred column in a wide window keeps its markers in
+// the margin and a page laid out to the edge pins them. Nothing claims the room. A page
+// declares otherwise on `main`: `data-rail="right"` makes the shell give up the rail's
+// width on its right (theme.css), which this reads as room like any other, and
+// `data-rail="none"` keeps its margin for its own residents, so its markers are pins.
+function railStands(main, mainRect, shell) {
+  if (main.getAttribute("data-rail") === "none") return false;
+  const rail = parseFloat(getComputedStyle(main).getPropertyValue("--rail")) || 0;
+  return shell - mainRect.right >= rail;
+}
 
 const labelRect = (name, left, top, label) => ({
   name,
@@ -210,8 +200,8 @@ function nameAnchor({ el, name, write }) {
 // The box a row anchors to. An anchor name reaches only its own tree, so a target inside
 // a shadow tree anchors through its host; a shape inside an SVG drawing has no CSS box of
 // its own, so it anchors through the drawing; a `display: contents` target through its
-// first shown part. Where the anchor is not the target, the row still stands level with
-// the target's top, through `--lf-inset`.
+// first shown part. Wherever it anchors, the row stands at the top-right corner of the
+// target's own extent (`shownExtent`), written as insets from the anchor's box.
 function anchorElement(target) {
   let el = target;
   for (let root = el.getRootNode(); root instanceof ShadowRoot; root = el.getRootNode())
@@ -269,10 +259,8 @@ function reach(anchor, box, main, reaches) {
 // The page's own controls in a pin's block, which the pin may not stand on: a pin at a
 // card's top-right would otherwise take the presses meant for the card's grip. Anything
 // the keyboard can reach is a control, so a package need declare nothing.
-const CONTROLS =
-  'button, a[href], input, select, textarea, summary, [contenteditable], [tabindex]:not([tabindex="-1"])';
 function controlsIn(anchor) {
-  return [...anchor.querySelectorAll(CONTROLS)]
+  return [...anchor.querySelectorAll(TAB_STOP)]
     .filter((control) => control.checkVisibility())
     .map((control) => control.getBoundingClientRect())
     .filter((box) => box.width && box.height);
@@ -310,7 +298,13 @@ export function unregisterMarginRow(row) {
     row.classList.remove("lf-withheld");
     row.removeAttribute("data-lf-place");
     row.removeAttribute("data-lf-parked");
-    for (const property of ["--lf-inset", "--lf-push", "--lf-step", "position-anchor"])
+    for (const property of [
+      "--lf-inset-top",
+      "--lf-inset-right",
+      "--lf-push",
+      "--lf-step",
+      "position-anchor",
+    ])
       row.style.removeProperty(property);
     pushes.delete(row);
     steps.delete(row);
@@ -337,28 +331,36 @@ function setStyle(row, property, value) {
     row.style.setProperty(property, value);
 }
 
-const shownTop = (target) =>
-  Math.min(...shownParts(target).map((part) => part.getBoundingClientRect().top));
+// The box the target's shown parts cover together: its row stands at this box's
+// top-right corner whatever box it anchors through, so a comment on one shape of a
+// drawing stands on that shape rather than at the drawing's edge. A target with no shown
+// part has none.
+function shownExtent(target) {
+  const parts = shownParts(target).map((part) => part.getBoundingClientRect());
+  if (!parts.length) return null;
+  return {
+    left: Math.min(...parts.map((part) => part.left)),
+    top: Math.min(...parts.map((part) => part.top)),
+    right: Math.max(...parts.map((part) => part.right)),
+    bottom: Math.max(...parts.map((part) => part.bottom)),
+  };
+}
 
 // Whether a row has somewhere to stand: its target renders, its scrollers leave some of
-// its own box in view — the pane that scrolls it, a table or board it has been scrolled
-// sideways out of, or a scroller inside the shadow tree it anchors through, which can
-// take the target away while the host it anchors through still shows — and the point the row
-// stands at is inside that view. That is the target's top line, since a row standing
-// above a pane's top would be clipped by its lane and still take the keyboard, and for a
-// pin the anchor's right edge too: a card half past a board's edge would stand its pin
-// outside the board, beside nothing and past the page.
-function targetShown(target, anchor, inset, pin, bands) {
+// it in view — the pane that scrolls it, a table or board it has been scrolled sideways
+// out of, or a scroller inside the shadow tree it anchors through, which can take the
+// target away while the host it anchors through still shows — and the corner the row
+// stands at is inside that view. Its top line counts, since a row standing above a
+// pane's top would be clipped by its lane and still take the keyboard, and for a pin its
+// right edge too: a card half past a board's edge would stand its pin outside the board,
+// beside nothing and past the page.
+function targetShown(target, extent, pin, bands) {
   const shown = (part) =>
     part.checkVisibility() && clippedBand(part, part.getBoundingClientRect(), bands);
   if (!shownParts(target).some(shown)) return false;
-  const box = anchor.getBoundingClientRect();
-  const view = clippedBand(target, box, bands);
-  const line = box.top + inset;
-  if (!view || line < view.top - 1 || line >= view.bottom) return false;
-  if (!pin) return true;
-  const across = anchor === target ? view : clippedBand(anchor, box, bands);
-  return Boolean(across) && box.right <= across.right + 1;
+  const view = clippedBand(target, extent, bands);
+  if (!view || extent.top < view.top - 1) return false;
+  return !pin || extent.right <= view.right + 1;
 }
 
 const pushes = new Map();
@@ -395,11 +397,13 @@ function scheduleScrollReading() {
         scheduleMarginLayout();
         return;
       }
-      const inset =
-        anchor === target ? 0 : shownTop(target) - anchor.getBoundingClientRect().top;
       if (
-        targetShown(target, anchor, inset, row.dataset.lfPlace === "pin", bands) ===
-        row.classList.contains("lf-withheld")
+        targetShown(
+          target,
+          shownExtent(target),
+          row.dataset.lfPlace === "pin",
+          bands,
+        ) === row.classList.contains("lf-withheld")
       ) {
         scheduleMarginLayout();
         return;
@@ -416,7 +420,10 @@ export function layoutMarginRows() {
   const page = anchorReading(main, PAGE_ANCHOR);
   const columnRect = main.getBoundingClientRect();
   const shell = shellRight();
-  const stands = railStands();
+  const stands = railStands(main, columnRect, shell);
+  // Said once, for the chrome: where the markers are pins, the banner offers the Page
+  // Map in their place (chrome.css).
+  layer.root.toggleAttribute("data-lf-pins", !stands);
   const rootStyle = getComputedStyle(document.documentElement);
   const hang = parseFloat(rootStyle.getPropertyValue("--rail-hang")) || 0;
   const pinInset = parseFloat(rootStyle.getPropertyValue("--pin-inset")) || 0;
@@ -426,6 +433,11 @@ export function layoutMarginRows() {
     '.lf-margin-cluster:not([data-lf-place="pin"]) .lf-margin-entry:not([hidden])',
   );
   const size = entry?.offsetWidth || 32;
+  // The notes hanging in the margin the rail stands in (theme.css, aside.sidenote): a
+  // marker level with one would be drawn over it.
+  const notes = [...main.querySelectorAll("aside.sidenote")]
+    .map((note) => note.getBoundingClientRect())
+    .filter((note) => note.width && note.left >= columnRect.right - 1);
 
   // Every read before any write: a write between two reads forces a layout per row.
   const bands = new Map();
@@ -448,16 +460,17 @@ export function layoutMarginRows() {
     const scroller = scrollerFor(target);
     const rootLane = scroller === pageScroller;
     const box = anchor.getBoundingClientRect();
-    const inset = anchor === target ? 0 : shownTop(target) - box.top;
+    const extent = shownExtent(target);
     const place = rowPosture({
       railStands: stands,
       rootLane,
       blockRight: reach(anchor, box, main, reaches),
       railInner,
       half: size / 2,
+      noted: notes.some((note) => note.top < box.top + size && note.bottom > box.top),
     });
     const shown =
-      !parked.has(row) && targetShown(target, anchor, inset, place === "pin", bands);
+      !parked.has(row) && targetShown(target, extent, place === "pin", bands);
     reads.push({
       row,
       options,
@@ -467,8 +480,8 @@ export function layoutMarginRows() {
       lane: rootLane ? layer.root : null,
       shown,
       place,
-      inset,
-      edge: box.right,
+      box,
+      extent,
       controls: place === "pin" && shown ? controlsIn(anchor) : [],
     });
   }
@@ -521,16 +534,18 @@ export function layoutMarginRows() {
 
   // A withheld row is anchored too, so that when its target comes into view it has only
   // to show.
-  for (const { row, naming, shown, place, inset } of reads) {
+  const px = (length) => (length ? `${length}px` : null);
+  for (const { row, naming, shown, place, box, extent } of reads) {
     mark(row, "lf-withheld", !shown);
     if (!naming) continue;
     setStyle(row, "position-anchor", nameAnchor(naming));
-    setStyle(row, "--lf-inset", inset ? `${inset}px` : null);
+    setStyle(row, "--lf-inset-top", px(extent && extent.top - box.top));
+    setStyle(row, "--lf-inset-right", px(extent && box.right - extent.right));
     if (row.dataset.lfPlace !== place) row.dataset.lfPlace = place;
   }
 
   // Packing reads where each row stands with no push, then writes every push together. A
-  // pin stands `--pin-inset` inside its block's right edge, which is read here, so where
+  // pin stands `--pin-inset` inside its target's right edge, which is read here, so where
   // it will stand across is worked out rather than read back.
   const placed = reads
     .filter((read) => read.shown)
@@ -544,8 +559,10 @@ export function layoutMarginRows() {
         stranded: box.bottom + scrollY < -1000,
         rect: {
           left:
-            read.place === "pin" ? read.edge - pinInset - box.width : box.left - step,
-          right: read.place === "pin" ? read.edge - pinInset : box.right - step,
+            read.place === "pin"
+              ? read.extent.right - pinInset - box.width
+              : box.left - step,
+          right: read.place === "pin" ? read.extent.right - pinInset : box.right - step,
           top: box.top - push,
           bottom: box.bottom - push,
         },

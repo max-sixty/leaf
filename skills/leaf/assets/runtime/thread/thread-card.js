@@ -5,6 +5,7 @@
    those values.
    The owner alone renders its native card root and all generated descendants; a
    failed candidate is restored by presenting its committed descriptor again. */
+import { TEXT_FIELD } from "../focus.js";
 import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
@@ -23,6 +24,7 @@ import { renderMarkdown } from "../markdown.js";
 import { summaryRanges, unreadBoundaries } from "./summary-ranges.js";
 import { threadAttention } from "./workflow.js";
 import { shownRect } from "../geometry.js";
+import { ago, shortAgo } from "../presence.js";
 
 function quoteReading(thread, anchors, outline) {
   const group = groupFor(thread, outline, anchors.placedAt);
@@ -119,8 +121,10 @@ function navigationSummary(navigation, model) {
   if (!navigation) return nothing;
   const pendingTitle = model.titlePending;
   const title = model.summary.topic;
+  const latest = model.summary.latest;
   const status = model.resolved ? "Resolved" : model.attention?.label || "";
   const draft = Boolean(loadDraft("reply:" + model.key)?.trim());
+  const hasMeta = draft || status || model.unreadCount;
   return html`<summary
     class="lf-thread-summary"
     title=${pendingTitle ? "Title pending" : title}
@@ -137,7 +141,7 @@ function navigationSummary(navigation, model) {
           : title
       }</span
     >
-    <span class="lf-thread-meta">
+    <span class=${`lf-thread-meta${hasMeta ? "" : " lf-empty"}`}>
       ${draft ? html`<span class="lf-thread-draft">Draft</span>` : nothing}
       ${
         status
@@ -159,6 +163,19 @@ function navigationSummary(navigation, model) {
               class="lf-thread-unread"
               aria-label=${`${model.unreadCount} unread`}
               >${model.unreadCount} unread</span
+            >`
+          : nothing
+      }
+    </span>
+    <span class="lf-thread-trailing">
+      ${
+        latest
+          ? html`<time
+              class="lf-thread-recency"
+              datetime=${latest}
+              title=${`Last message activity ${new Date(latest).toLocaleString()}`}
+              aria-label=${`Last message activity ${ago(latest)}`}
+              >${shortAgo(latest)}</time
             >`
           : nothing
       }
@@ -612,7 +629,7 @@ export class ThreadView {
     const disclosure = compact
       ? offer("button", "lf-btn lf-reply-disclosure", "Reply")
       : null;
-    const input = offer("textarea");
+    const input = offer(TEXT_FIELD);
     input.name = "reply";
     const send = offer("button", panel ? "lf-btn lf-thread-send" : "lf-btn", "Send");
     if (disclosure) row.append(disclosure);

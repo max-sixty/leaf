@@ -77,7 +77,6 @@ from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import structure as structure_model
-from leaf import styles as styles_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import contract as registry_contract
@@ -4378,34 +4377,21 @@ def test_check_requires_the_vendored_layer(tmp_path):
     assert "run `leaf page init` to vendor the layer" in result.output
 
 
-def test_check_takes_column_width_from_vendored_theme(page_dir):
-    # theme.css sets a 720px main column; a wider fixed-width element must fail.
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>", '<h2>Plan</h2><svg width="900" height="10"></svg>'
-        )
-    )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "exceeds column (720px)" in result.output
-
-
-def test_check_advises_page_css_that_scrolls_a_box_or_places_a_layout_element(
+def test_check_advises_page_css_that_scrolls_a_box_and_leaves_arrangement_alone(
     page_dir,
 ):
-    """Page CSS stays free, so both are advice: a scroller Leaf did not make is one its
-    reading features cannot reach, and a grid the page places is geometry the layout
-    no longer owns. Styling a cell, or text inside one, is neither."""
+    """Page CSS stays free, so a scroller is advice: one Leaf did not make is one its
+    reading features cannot reach. Arranging is the page's own business, panes included,
+    so a rule that places a pane, or scrolls only sideways, says nothing."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<title>t</title>",
             "<title>t</title><style>.feed { overflow-y: auto; max-height: 20rem }"
-            " main lf-grid { display: flex } lf-grid > p { color: red }"
-            " .wide { overflow-x: auto } lf-grid::before { display: block }"
-            " #cells { grid-template-columns: 1fr }</style>",
+            " main lf-pane { display: flex; grid-column: 1 / -1 }"
+            " .wide { overflow-x: auto } #cells { grid-template-columns: 1fr }</style>",
         ).replace(
             "<h2>Plan</h2>",
-            '<h2>Plan</h2><lf-grid id="cells"><p>One</p><p>Two</p></lf-grid>'
+            '<h2>Plan</h2><div id="cells"><lf-pane id="queue" label="Queue"><p>One</p></lf-pane></div>'
             '<div class="feed" style="overflow: scroll"><p>Log</p></div>',
         )
     )
@@ -4413,11 +4399,8 @@ def test_check_advises_page_css_that_scrolls_a_box_or_places_a_layout_element(
     assert result.exit_code == 0, result.output
     assert "rule `.feed` sets overflow-y to scroll" in result.output
     assert "sets overflow to scroll" in result.output
-    assert "rule `main lf-grid` sets display on <lf-grid>" in result.output
-    assert "rule `#cells` sets grid-template-columns on <lf-grid>" in result.output
-    assert "lf-grid > p" not in result.output
-    assert ".wide" not in result.output
-    assert "lf-grid::before" not in result.output
+    for quiet in ("main lf-pane", ".wide", "#cells"):
+        assert quiet not in result.output, result.output
 
 
 def test_check_advises_the_same_css_in_a_stylesheet_the_page_links(page_dir):
@@ -4425,31 +4408,30 @@ def test_check_advises_the_same_css_in_a_stylesheet_the_page_links(page_dir):
     as much as its <style>, so the advice reads them and names the file."""
     (page_dir / "page").mkdir(exist_ok=True)
     (page_dir / "page" / "app.css").write_text(
-        '@import "grid.css";\n.feed { overflow-y: auto }\n'
+        '@import "log.css";\n.feed { overflow-y: auto }\n'
     )
-    (page_dir / "page" / "grid.css").write_text("#cells { display: flex }\n")
+    (page_dir / "page" / "log.css").write_text("#log { overflow: scroll }\n")
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<title>t</title>",
             '<title>t</title><link rel="stylesheet" href="/page/app.css">',
         ).replace(
             "<h2>Plan</h2>",
-            '<h2>Plan</h2><lf-grid id="cells"><p>One</p><p>Two</p></lf-grid>'
-            '<div class="feed"><p>Log</p></div>',
+            '<h2>Plan</h2><pre id="log">x</pre><div class="feed"><p>Log</p></div>',
         )
     )
     result = check(page_dir)
     assert result.exit_code == 0, result.output
     assert "/page/app.css rule `.feed` sets overflow-y to scroll" in result.output
-    assert "/page/grid.css rule `#cells` sets display on <lf-grid>" in result.output
+    assert "/page/log.css rule `#log` sets overflow to scroll" in result.output
 
 
-def test_check_rejects_an_invalid_bound_and_loose_grid_text(page_dir):
+def test_check_rejects_an_invalid_bound_and_loose_pane_text(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2><pre data-bound="bottom">log</pre>'
-            '<lf-grid id="cells">loose<p>Two</p></lf-grid>',
+            '<lf-pane id="queue" label="Queue">loose<p>Two</p></lf-pane>',
         )
     )
     result = check(page_dir)
@@ -4458,7 +4440,7 @@ def test_check_rejects_an_invalid_bound_and_loose_grid_text(page_dir):
         "data-bound='bottom'> (line 9) has an invalid value; expected one of start, "
         in (result.output)
     )
-    assert "x-reading-role grid holds its cells as elements" in result.output
+    assert "x-reading-role pane must contain exactly one direct body" in result.output
 
 
 def test_check_rejects_an_unknown_authored_width(page_dir):
@@ -4474,6 +4456,30 @@ def test_check_rejects_an_unknown_authored_width(page_dir):
         "<table data-width='full'> (line 9) has an invalid value; expected one of "
         "column, wide, available" in result.output
     )
+
+
+def test_check_takes_a_page_s_width_from_a_layout_and_not_from_data_width(page_dir):
+    """A page's width is a Layout class on `main`. `data-width` sizes a block in the
+    page's flow, so on `main` it would widen nothing and is refused; a `main` with no
+    Layout at all is advice, since nothing arranges it unless the page's own CSS does."""
+    unarranged = "<main> has no Layout class"
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<main>", '<main class="layout-column">')
+    )
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+    assert unarranged not in result.output
+    (page_dir / "index.html").write_text(PAGE)
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+    assert unarranged in result.output
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<main>", '<main data-width="available">')
+    )
+    result = check(page_dir)
+    assert result.exit_code == 1
+    assert "data-width> (line" in result.output
+    assert "its width is a Layout class on it" in result.output
 
 
 def test_check_takes_a_rail_only_on_main_and_only_by_name(page_dir):
@@ -4497,169 +4503,59 @@ def test_check_takes_a_rail_only_on_main_and_only_by_name(page_dir):
     assert "belongs on <main>" in result.output
 
 
-def test_activation_rechecks_changed_css_while_the_document_stays_identical(page_dir):
-    """Reused CSS readings must follow theme bytes, including tokens and diagnostics."""
-    theme = page_dir / "theme.css"
-    original = theme.read_text()
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>",
-            '<h2>Plan</h2><p style="width: var(--pin)">Measured.</p>',
-        )
+def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
+    page_dir, monkeypatch
+):
+    """A revision's vocabulary was validated when it activated, so a process reading
+    the page anew does not validate it again while it stands unchanged, and no check
+    parses the vendored sheets: together they were most of a cold first read."""
+    from leaf.validation import source as source_model
+
+    assert revisioning_model.activate_source(page_dir).error is None
+    # What a newly started server holds: none of this process's readings.
+    registry_storage._registries.clear()
+    registry_storage._read_page_registry_stamped.cache_clear()
+    revisioning_model._held.clear()
+    validated, linted = [], []
+    real_validate = registry_page.validate_registry
+    real_lint = source_model.css_syntax_errors
+    monkeypatch.setattr(
+        registry_page,
+        "validate_registry",
+        lambda registry, source: (
+            validated.append(source) or real_validate(registry, source)
+        ),
+    )
+    monkeypatch.setattr(
+        source_model,
+        "css_syntax_errors",
+        lambda css, where, **kw: linted.append(where) or real_lint(css, where, **kw),
     )
 
-    def activate(css):
-        theme.write_text(original + css)
-        return revisioning_model.activate_source(page_dir)
-
-    css = ":root { --pin: 700px; --col: 720px } main { --lf-reading-column: 1; max-width: var(--col) }"
-    initial = activate(css)
-    assert initial.error is None
-    assert activate(css).error is None
-
-    overwide = activate(css.replace("700px", "900px"))
-    assert "style> (line " in overwide.error
-    assert "sets width: 900px (column is 720px)" in overwide.error
-    assert overwide.revision == initial.revision
-
-    wider_column = css.replace("700px", "900px").replace("720px", "960px")
-    widened = activate(wider_column)
-    assert widened.error is None
-    from leaf.validation.source import check_source
-
-    assert check_source(page_dir, []).column == 960
-    assert widened.created
-    assert widened.revision == initial.revision + 1
-
-    broken = activate(wider_column + " .broken { color red }")
-    assert "theme.css syntax error" in broken.error
-    assert activate(wider_column).error is None
+    assert revisioning_model.activate_source(page_dir).error is None
+    assert validated == []
+    assert linted == ["page <style>"]
 
 
-def test_check_reads_a_column_the_theme_states_as_a_token():
-    """A width naming a root token is a width the stylesheet stated, so the column reads
-    it. The theme keeps its own constants in `:root` and more than one rule now wants the
-    measure; a reading that stopped at the name would fall back to a default column and
-    go on printing a number, which is a check that stops measuring exactly when the file
-    it measures gets tidier.
-
-    Only the root, and only what is stated outright. A token declared inside a query is
-    that condition's, the same reason the column will not read a media query's width, and
-    a token nothing declares leaves the `var()`'s own fallback — the browser's answer."""
-    column = "--lf-reading-column: 1;"
-    stated = ":root { --col: 640px }\nmain { " + column + " max-width: var(--col) }"
-    assert styles_model._column_width("", stated) == 640
-
-    conditional = (
-        "@media screen { :root { --col: 640px } }\nmain { "
-        + column
-        + " max-width: var(--col) }"
-    )
-    assert styles_model._column_width("", conditional) == styles_model.COLUMN_FALLBACK
-
-    fallback = "main { " + column + " max-width: var(--col, 512px) }"
-    assert styles_model._column_width("", fallback) == 512
-
-    # The shipped theme is the case that motivated this: it must still read as itself.
-    assert (
-        styles_model._column_width("", (schema_model.ASSETS / "theme.css").read_text())
-        == 720
-    )
-
-
-def test_the_column_is_the_rule_that_claims_it_and_not_a_rule_that_looks_like_one():
-    """Which rule is the readable column is the stylesheet's to say, and it says it in
-    the block that sets the width — `--lf-reading-column: 1` beside the max-width, so the cascade
-    wins the claim and the width together.
-
-    Seven container names stood in for that answer before, and a name list is wrong in
-    both directions. Too wide: the column is the baseline every other width on the page
-    is measured against, so an unrelated rule spelled `.content` moved it, and moving it
-    up takes the overflow check quiet — which reads not as a broken check but as a page
-    with nothing wrong in it. Too narrow: a page whose column is `.prose` was measured
-    against the fallback and failed for widths that fit inside it.
-
-    The last case is the one that keeps this honest. A rule that claims the column with
-    no width to give states nothing, so the reading must fall through to the next
-    stylesheet rather than settle on a claim it cannot measure."""
-    assert (
-        styles_model._column_width("", "main { max-width: 1400px }")
-        == styles_model.COLUMN_FALLBACK
-    ), "an unclaimed rule still set the column, so the name is still doing the deciding"
-
-    assert (
-        styles_model._column_width("", ".content { max-width: 1400px }")
-        == styles_model.COLUMN_FALLBACK
-    ), "a rule that merely looks like a container still doubled the page's baseline"
-
-    assert (
-        styles_model._column_width(
-            "", ".prose { --lf-reading-column: 1; max-width: 560px }"
-        )
-        == 560
-    ), "a column named anything at all is still not readable, so the claim is ignored"
-
-    assert (
-        styles_model._column_width(
-            "main { --lf-reading-column: 1; max-width: 500px }", ""
-        )
-        == 500
-    ), "a page's own <style> no longer states the column it is measured against"
-
-    theme = (schema_model.ASSETS / "theme.css").read_text()
-    assert (
-        styles_model._column_width("main { --lf-reading-column: 1 }", theme) == 720
-    ), (
-        "a claim with no width of its own stopped the reading where it stood, so a "
-        "page could take the measure off itself by claiming and then saying nothing"
-    )
-
-
-def test_check_measures_a_width_named_from_the_layer_s_own_tokens(page_dir):
-    """A page pinning `var(--wide)` is stating the vocabulary's own breakout width, which
-    is wider than the column by design. The page's `<style>` declares no such token, so
-    the reading resolves it against the layer the page vendored — the order the cascade
-    reads the two roots in. Without the layer behind it, a page could take any width the
-    theme names and never be measured for it."""
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>",
-            '<h2>Plan</h2><p id="w" style="width: var(--wide)">Wide by name.</p>',
-        )
-    )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "<p style> (line " in result.output
-    assert "sets width: 1080px (column is 720px)" in result.output
-
-
-def test_the_strip_floor_is_one_number():
-    """Margin posture is a query of the CSS-owned shell, with no mirrored runtime veto."""
+def test_a_margin_resident_s_floor_is_the_column_box_and_its_width_each_side():
+    """A sidebar or sidenote stands in the room free beside the centred column and claims
+    none of it, so it stands where that room holds it on each side: the column box plus
+    twice its width. Container queries cannot read custom properties, so each floor is a
+    pixel copy of tokens; hold the copy to them rather than let a width change strand a
+    resident over the prose or keep it in flow with room to spare."""
     css = (schema_model.ASSETS / "theme.css").read_text()
-    assert "container: lf-shell / inline-size" in css
-    assert re.search(r"@container\s+lf-shell\s*\(min-width:\s*1152px\)", css)
-    assert "data-lf-cramped" not in css
-
-
-def test_the_sidebar_and_note_floor_is_their_sum():
-    """Two opposite margin residents need the largest sidebar claim and ordinary floor.
-
-    Media queries cannot read custom properties, so the combined breakpoint is written
-    as a pixel value beside the sidebar rule. Hold that necessary copy to the two tokens
-    it represents instead of letting a later width change silently squeeze the prose."""
-    css = (schema_model.ASSETS / "theme.css").read_text()
-    floor = 1152
-    sidebar = re.search(r"--sidebar-max:\s*(\d+)px", css)
-    assert sidebar
-    combined = floor + int(sidebar[1])
-    default_theme = (
-        schema_model.ASSETS.parent / "packages" / "default" / "theme.css"
-    ).read_text()
-    assert "--lf-sidebar-claim: var(--sidebar-max)" in default_theme
-    assert re.search(rf"@container\s+lf-shell\s*\(min-width:\s*{combined}px\)", css), (
-        f"a sidebar and sidenote need {combined}px together, but no shell query grants "
-        "their composed posture at that floor"
-    )
+    token = lambda name: int(re.search(rf"{name}:\s*(\d+)px", css)[1])
+    box = token("--col") + 2 * token("--col-pad")
+    for resident, width in (
+        ("aside.sidebar", "--sidebar"),
+        ("aside.sidenote", "--note"),
+    ):
+        floor = box + 2 * token(width)
+        query = rf"@container lf-shell \(min-width: {floor}px\) \{{"
+        # The resident's rules, up to the next query.
+        assert re.search(rf"{query}(?:(?!@container)[\s\S])*?{resident}", css), (
+            f"{resident} does not stand from the {floor}px its {width} leaves each side"
+        )
 
 
 def test_media_names_a_file_by_its_bytes_and_serves_it(page_dir, tmp_path, server):
@@ -4943,33 +4839,9 @@ def test_check_reads_only_the_page_stylesheet_and_stays_near_free(page_dir):
     assert time.monotonic() - started < 10
 
 
-def test_check_reads_a_page_stylesheet_as_css(page_dir):
-    """Grammar, not brace-counting. A `}` inside a string is a character, and counting it
-    as the end of a block drops every declaration after it in that rule. A comment's
-    braces are not braces either. And an @media wraps rules of its own, which a walk that
-    read the sheet as one flat run of blocks would attribute to the query."""
-
-    def checked(css):
-        (page_dir / "index.html").write_text(styled(css))
-        return check(page_dir)
-
-    assert (
-        "sets width: 900px" in checked("@media print { .wide { width: 900px } }").output
-    )
-    assert (
-        "sets width: 900px"
-        in checked('.wide::before { content: "}"; width: 900px }').output
-    )
-    assert checked("/* .wide { width: 900px } */").exit_code == 0
-
-
-def test_check_reports_css_syntax_errors_in_every_source_the_page_carries(page_dir):
-    """The page's own <style>, each inline style, and every sheet it vendors.
-    shadow.css is the sheet each widget's shadow root adopts, so a malformed rule
-    there reaches the user as an unstyled widget with nothing said about it."""
-    for name in ("theme.css", "shadow.css"):
-        sheet = page_dir / name
-        sheet.write_text(f"{sheet.read_text()}\n.vendored {{ color red; }}\n")
+def test_check_reports_css_syntax_errors_in_every_source_the_page_writes(page_dir):
+    """The page's own <style> and each inline style. Chrome drops a malformed
+    declaration without a word, so the author hears of it here or not at all."""
     (page_dir / "index.html").write_text(
         styled(
             '.page { color: "unterminated\n; }',
@@ -4982,52 +4854,7 @@ def test_check_reports_css_syntax_errors_in_every_source_the_page_carries(page_d
     assert result.exit_code == 1
     assert "page <style> syntax error" in result.output
     assert re.search(r"<p style> \(line \d+\) syntax error", result.output)
-    assert "theme.css syntax error" in result.output
-    assert "shadow.css syntax error" in result.output
-    assert result.output.count("syntax error") == 4
-
-
-def test_check_takes_its_column_from_what_a_page_states_outright(page_dir):
-    """A rule inside an at-rule applies only when a condition this check never evaluates
-    holds, which cuts both ways. It cannot set the column, because the column is the
-    baseline everything else is measured against — reading it there let one line of print
-    CSS measure every screen element against 2000px and pass the page. It can overflow
-    one, because a pin is a risk rather than a baseline: it is too wide whenever its
-    condition holds."""
-    (page_dir / "index.html").write_text(
-        styled(
-            "main { --lf-reading-column: 1; max-width: 760px }"
-            " @media print { main { --lf-reading-column: 1; max-width: 2000px } }",
-            '<svg width="900" height="10"></svg>',
-        )
-    )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert re.search(
-        r'<svg width="900"> \(line \d+\) exceeds column \(760px\)', result.output
-    )
-
-    # And nesting is not a condition: a column stated on a rule that also wraps one stands.
-    (page_dir / "index.html").write_text(
-        styled(
-            "main { --lf-reading-column: 1; max-width: 1000px; & p { color: red } }",
-            '<svg width="900" height="10"></svg>',
-        )
-    )
-    assert check(page_dir).exit_code == 0
-
-
-def test_check_counts_only_a_width_fixed_in_pixels(page_dir):
-    """A length is a typed value, not a string ending in `px`. A percentage or a vw
-    scales to whatever contains it, and a calc() with a px term inside it is arithmetic
-    rather than a pin — only a lone pixel length can overflow the column."""
-    (page_dir / "index.html").write_text(
-        styled(".a { width: 200% } .b { width: 90vw } .c { width: calc(100% - 900px) }")
-    )
-    assert check(page_dir).exit_code == 0
-
-    (page_dir / "index.html").write_text(styled(".d { width: 900px !important }"))
-    assert "sets width: 900px" in check(page_dir).output
+    assert result.output.count("syntax error") == 2
 
 
 def test_check_measures_against_the_column_the_page_sets_for_itself(page_dir):
@@ -5042,33 +4869,6 @@ def test_check_measures_against_the_column_the_page_sets_for_itself(page_dir):
         styled(
             "main { --lf-reading-column: 1; max-width: 1000px }",
             '<svg width="900" height="10"></svg>',
-        )
-    )
-    assert check(page_dir).exit_code == 0
-
-
-def test_check_reads_widths_where_the_document_states_them(page_dir):
-    """A width is what an attribute or a <style> block states. Scanning the file's text
-    for one instead read a rule quoted in the page's prose as a rule the page applies,
-    and never saw a style="" written with the other quote character."""
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>", "<h2>Plan</h2><div style='width:900px'>wide</div>"
-        )
-    )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    # The finding names the element and its line, so an author with forty
-    # style attributes knows which one it means.
-    assert re.search(
-        r"<div style> \(line \d+\) sets width: 900px \(column is 720px\)",
-        result.output,
-    )
-
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>",
-            "<h2>Plan</h2><p>Write it as <code>.wide { width: 900px }</code>.</p>",
         )
     )
     assert check(page_dir).exit_code == 0

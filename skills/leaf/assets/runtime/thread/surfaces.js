@@ -11,6 +11,7 @@ import { registry } from "../registry.js";
 import { renderThreadSurface, clearThreadSurface } from "./inline.js";
 import { readThreads } from "./state.js";
 import { focusThread } from "./focus.js";
+import { SAY_BOX } from "./selectors.js";
 import { under } from "../shadow.js";
 
 const registrations = new Map();
@@ -296,7 +297,7 @@ export function focusSurface(id, { focus = "reply" } = {}) {
     const target =
       (focus === "thread" ? thread : null) ??
       (summary && !thread.hasAttribute("open") ? summary : null) ??
-      thread.querySelector("textarea:not([disabled])") ??
+      thread.querySelector(SAY_BOX) ??
       summary ??
       thread;
     if (target === thread) focusThread(thread, { preventScroll: true });

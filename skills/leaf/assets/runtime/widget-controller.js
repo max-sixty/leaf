@@ -11,7 +11,7 @@ import { decidingVerb } from "./registry.js";
 import { renderRetired, settlementSlots } from "./passages.js";
 import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.js";
 import { failSoft } from "./widget-upgrade.js";
-import { DRAGGING_CHANGED } from "./widget-elements.js";
+import { dragHeld, watchDragRelease } from "./widget-elements.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 
 const controllers = new WeakMap();
@@ -21,8 +21,7 @@ const ancestorRefreshes = new Set();
 let ancestorRefreshQueued = false;
 const gestureDeferred = new Set();
 
-document.addEventListener(DRAGGING_CHANGED, () => {
-  if (document.querySelector(".lf-dragging")) return;
+watchDragRelease(() => {
   const pending = [...gestureDeferred];
   gestureDeferred.clear();
   for (const resume of pending) resume();
@@ -249,10 +248,9 @@ function createWidgetController(owner) {
 
   const publish = () => {
     const reading = read();
-    if (deferred || document.querySelector(".lf-dragging")) {
+    if (deferred || dragHeld()) {
       holdRender(reading);
-      if (document.querySelector(".lf-dragging"))
-        gestureDeferred.add(resumeGestureRender);
+      if (dragHeld()) gestureDeferred.add(resumeGestureRender);
       return;
     }
     presentRender(reading, [...subscriptions]);

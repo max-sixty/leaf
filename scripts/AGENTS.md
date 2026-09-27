@@ -24,11 +24,10 @@ Evidence, previews, staged sites, and probe results leave the tracked tree uncha
 ## Website and demo
 
 - `site.py` builds <https://leaf.page/> into `.tmp/site`.
-- `verify-site-local.sh` checks the built site through the local Worker and
-  container and prints the startup profile. CI runs it on pull requests.
-- `verify_site.py` verifies a deployed release, or with `--agent` or `local` runs the
-  hosted-agent journey.
-- `benchmark-site.py local|ORIGIN` measures that journey as one JSON sample.
+- `verify_site.py` verifies a release at an origin, or with `wrangler` the built
+  site through the local Worker and container, and prints the startup profile;
+  CI runs `wrangler` on pull requests. With `--agent`, or `local` for the Python
+  adapter alone, it runs the hosted-agent journey and emits one JSON sample.
 - `deploy-site-dev.sh` deploys the checkout to the standing `leaf-website-dev`
   environment. Production deploys only through `.github/workflows/publish-site.yaml`.
 - `worker/README.md` owns hosted-agent diagnostics and the failure contract.

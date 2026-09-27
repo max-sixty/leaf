@@ -1480,9 +1480,9 @@ def resolve(a, b):
 
 > which one wins?
 
-<lf-grid columns="3">
+<lf-callout>
   <div>a tile</div>
-</lf-grid>
+</lf-callout>
 
 Unsafe destinations stay words: [script](javascript:alert(1)), [inline data](data:text/html,boom), [local file](file:///tmp/secret), and [custom handler](editor://open/project).
 """

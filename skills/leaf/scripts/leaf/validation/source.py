@@ -16,13 +16,10 @@ from leaf.revision_artifact import ArtifactError, RevisionArtifact, capture_arti
 from leaf.schema import VENDORED_FILES
 from leaf.structure import LF_META, SourceDocument, links_with_rel
 from leaf.styles import (
-    _column_width,
-    _overwide_elements,
     css_syntax_errors,
     inline_presentation_override_errors,
     inline_style_at,
-    layout_css_advice,
-    root_tokens,
+    scroller_css_advice,
 )
 from leaf.thread_context import comment_ids, specimen_events, thread_structure
 from leaf.validation.compatibility import candidate_vocabulary_gaps
@@ -30,7 +27,6 @@ from leaf.validation.instances import (
     addressable_instance_errors,
     ask_surface_errors,
     declared_word_errors,
-    language_class_errors,
     layout_errors,
     line_ref_errors,
     reference_errors,
@@ -43,9 +39,9 @@ from leaf.validation.markup import (
     authored_allocation_errors,
     id_errors,
     media_errors,
-    missing_outline,
     page_boundary_errors,
     structure_errors,
+    unarranged_main,
     unpointable_blocks,
 )
 from leaf.validation.source_history import (
@@ -64,7 +60,6 @@ class SourceCheck(NamedTuple):
     registry: dict | None
     errors: list[str]
     advice: list[str]
-    column: int
     artifact: RevisionArtifact | None = None
 
 
@@ -186,7 +181,6 @@ def _instance_errors(
     errors.extend(
         reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
     )
-    errors.extend(language_class_errors(parser.language_blocks, registry))
     errors.extend(declared_word_errors(parser.lf_elements, registry))
     errors.extend(line_ref_errors(parser.lf_elements, registry))
     errors.extend(suggestion_errors(parser.lf_elements, registry, comment_ids))
@@ -205,38 +199,18 @@ def _authored_document_checks(
     if registry is not None:
         errors.extend(data_document_errors(readings, contracts))
     errors.extend(media_errors(document, page_dir))
-    column, presentation_errors = _presentation_errors(page_dir, document)
-    errors.extend(presentation_errors)
-    return column, errors
+    errors.extend(_presentation_errors(document))
+    return errors
 
 
-def _presentation_errors(page_dir: Path, parser) -> tuple[int, list[str]]:
-    """Validate authored and vendored CSS and return the readable column width.
-
-    Every sheet the page vendors is checked, not theme.css alone: shadow.css is the
-    one each widget's shadow root adopts, so a malformed rule there reaches a user
-    as an unstyled widget with nothing said about it. The column and its tokens are
-    the theme's, which is the sheet the document itself is laid out by.
-    """
-    vendored = {
-        name: (page_dir / name).read_text(encoding="utf-8")
-        if (page_dir / name).exists()
-        else ""
-        for name in VENDORED_FILES
-        if name.endswith(".css")
-    }
-    theme_css = vendored["theme.css"]
+def _presentation_errors(parser) -> list[str]:
+    """Validate the page's own CSS: its <style> and each inline style."""
     errors = list(css_syntax_errors(parser.css, "page <style>"))
     for inline in parser.inline_styles:
         errors.extend(
             css_syntax_errors(inline["style"], inline_style_at(inline), block=True)
         )
-    for name, css in vendored.items():
-        errors.extend(css_syntax_errors(css, name))
-    errors.extend(inline_presentation_override_errors(parser))
-    column = _column_width(parser.css, theme_css)
-    errors.extend(_overwide_elements(parser, column, root_tokens(theme_css)))
-    return column, errors
+    return errors + inline_presentation_override_errors(parser)
 
 
 def _source_advice(
@@ -264,11 +238,9 @@ def _source_advice(
         ),
         *(f"data source unreadable: {error}" for error in data_errors(stored_data)),
         *unpointable_blocks(parser),
-        *missing_outline(parser, registry or {}),
-        *layout_css_advice(
-            parser,
-            registry or {},
-            artifact.page_stylesheets if artifact is not None else {},
+        *unarranged_main(parser),
+        *scroller_css_advice(
+            parser, artifact.page_stylesheets if artifact is not None else {}
         ),
     ]
 
@@ -282,7 +254,7 @@ def check_source(
     """Check ``index.html`` against the last activated revision."""
     data, source_error = _source_bytes(page_dir)
     if source_error:
-        return SourceCheck(SourceDocument(""), None, [source_error], [], 0)
+        return SourceCheck(SourceDocument(""), None, [source_error], [])
     html = data.decode("utf-8")
     document = SourceDocument(html)
     errors = []
@@ -302,7 +274,7 @@ def check_source(
         if registry is not None
         else []
     )
-    column, document_errors = _authored_document_checks(
+    document_errors = _authored_document_checks(
         page_dir,
         document,
         events,
@@ -333,7 +305,7 @@ def check_source(
             child_readings = initial_data_document_readings(
                 child.lf_elements, child_events, registry
             )
-            _, child_errors = _authored_document_checks(
+            child_errors = _authored_document_checks(
                 page_dir,
                 child,
                 child_events,
@@ -397,4 +369,4 @@ def check_source(
         dropped_advice,
         artifact,
     )
-    return SourceCheck(document, registry, errors, advice, column, artifact)
+    return SourceCheck(document, registry, errors, advice, artifact)

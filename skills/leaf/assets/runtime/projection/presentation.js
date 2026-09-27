@@ -17,7 +17,7 @@ import {
   PRESENTATION_ORDER,
 } from "../semantic-state.js";
 import { runtime } from "../context.js";
-import { DRAGGING_CHANGED } from "../widget-elements.js";
+import { dragHeld, watchDragRelease } from "../widget-elements.js";
 import { authored, elementById, inChrome, pageQueryAll } from "../passages.js";
 import {
   PAGE_PAINT_ATTRIBUTE,
@@ -60,7 +60,7 @@ function paintStateOrigins(projection) {
 export function createProjectionPresentation({ onDeferredReady }) {
   const committedProjection = new Map();
 
-  let dragEnded = null;
+  let stopWatchingDrag = null;
 
   const presenter = applicationPresenter({
     region: "projection:chrome",
@@ -148,21 +148,17 @@ export function createProjectionPresentation({ onDeferredReady }) {
   const retireProjectionCoverage = () =>
     document.body.removeAttribute(PAGE_PAINT_ATTRIBUTE.applied);
 
-  // A drag holds the projection until the last one ends. `dragging` is the one writer of
-  // the class and announces each change (widget-elements.js).
+  // A drag holds the projection until the last one ends (widget-elements.js).
   function watchProjectionDrag() {
-    if (dragEnded) return;
-    dragEnded = () => {
-      if (document.querySelector(".lf-dragging")) return;
-      stopWatchingDrag();
+    stopWatchingDrag ??= watchDragRelease(() => {
+      unwatchProjectionDrag();
       onDeferredReady();
-    };
-    document.addEventListener(DRAGGING_CHANGED, dragEnded);
+    });
   }
 
-  function stopWatchingDrag() {
-    document.removeEventListener(DRAGGING_CHANGED, dragEnded);
-    dragEnded = null;
+  function unwatchProjectionDrag() {
+    stopWatchingDrag?.();
+    stopWatchingDrag = null;
   }
 
   function presentCurrent(snapshot) {
@@ -179,12 +175,12 @@ export function createProjectionPresentation({ onDeferredReady }) {
       setProjectionDeferred(false);
       return projection;
     }
-    if (document.querySelector(".lf-dragging")) {
+    if (dragHeld()) {
       setProjectionDeferred(true);
       watchProjectionDrag();
       return projection;
     }
-    stopWatchingDrag();
+    unwatchProjectionDrag();
     setProjectionDeferred(false);
     for (const entry of projection.classified.values())
       for (const id of entry.restated ?? [])

@@ -77,6 +77,13 @@
         overflow-wrap: anywhere;
       }
 
+      /* Layout-prototype workaround: the board caps its minimum at the shell's column,
+         not at the specimen holding it, so on a phone it ran 27px past the specimen's
+         gutter and scrolled the page sideways. Here it scrolls its columns inside. */
+      #spec-board {
+        min-inline-size: 0;
+      }
+
       @media (max-width: 760px) {
         .panels {
           grid-template-columns: minmax(0, 1fr);
@@ -89,7 +96,7 @@
     </style>
   </head>
   <body class="site-page">
-    <main>
+    <main class="layout-column">
       <header id="top">
         <nav class="sitenav" aria-label="Site">
           <a class="brand" href="/">leaf</a>
@@ -161,7 +168,7 @@ initialized /home/you/review
 # the agent writes ./review/index.html — an ordinary file write
 
 $ leaf version check ./review
-✓ index.html: parses, widgets, authored modules, and theme validate, protected ids and decisions carried over, nothing overflows the 720px column
+✓ index.html: parses, widgets, authored modules, and styles validate, protected ids and decisions carried over
 
 $ leaf version stamp ./review --text "Two ways to shed load — which?"
 stamped v1 — Two ways to shed load — which?
@@ -961,10 +968,9 @@ flowchart LR
             <h2>Every page is a stack of blocks</h2>
             <p id="one-kind-lede">
               A Leaf page has one kind: blocks read top to bottom in the reading column.
-              A block changes the layout by declaring what it needs. A wide block grows
-              past the column, <code>data-width</code> on <code>main</code> widens the
-              whole page, and a workspace that is the page's only block holds the
-              window.
+              A wide block grows past the column by declaring the width it needs, and a
+              Layout class on <code>main</code> arranges the whole page: a wide page's
+              body beside its status, or a workspace that holds the window.
             </p>
 
             <div class="panels" id="kind-figure">
@@ -1070,7 +1076,7 @@ flowchart LR
                   <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
                   <g id="kind-wide-main">
                     <rect class="attr" x="8" y="18" width="224" height="136" rx="3" />
-                    <text class="mono" x="14" y="30">main data-width</text>
+                    <text class="mono" x="14" y="30">main.layout-sidebar</text>
                   </g>
                   <rect class="line" x="14" y="37" width="80" height="8" rx="2" />
                   <g id="kind-wide-body">
@@ -1086,16 +1092,15 @@ flowchart LR
                   </g>
                 </svg>
                 <figcaption id="cap-kind-wide">
-                  <strong>A wide page</strong><code>data-width</code> on
-                  <code>main</code> widens the whole page. Every block starts at one
-                  left edge, and text keeps its measure.
+                  <strong>A wide page</strong><code>layout-sidebar</code> on
+                  <code>main</code> widens the page and sets its body beside its status.
+                  Every block starts at one left edge, and text keeps its measure.
                 </figcaption>
               </figure>
               <figure id="kind-workspace">
                 <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>
-                    A workspace alone in main holds the window, and each pane scrolls on
-                    its own
+                    A workspace page holds the window, and each pane scrolls on its own
                   </title>
                   <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
                   <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
@@ -1247,22 +1252,21 @@ flowchart LR
                   </g>
                 </svg>
                 <figcaption id="cap-kind-workspace">
-                  <strong>A workspace alone</strong>An <code>lf-workspace</code> that is
-                  <code>main</code>'s only block holds the window, and each pane scrolls
-                  on its own.
+                  <strong>A workspace</strong><code>layout-workspace</code> on
+                  <code>main</code> holds the window, and each pane scrolls on its own.
                 </figcaption>
               </figure>
             </div>
 
             <p id="one-kind-grows">
               A page grows without changing kind: a report that gains live status gains
-              a grid, and its comments and anchors stay where they were.
+              a row of tiles, and its comments and anchors stay where they were.
             </p>
             <p id="one-kind-tabs">
               Page tabs don't make another kind. They are navigation over sections of
               one page: the strip sticks under the banner, one panel shows at a time,
-              and each panel takes the page's width like any other block, so
-              <code>data-width</code> on <code>main</code> widens every tab.
+              and each panel takes the page's width like any other block, so a Layout on
+              <code>main</code> shapes every tab.
             </p>
           </section>
 
@@ -1505,40 +1509,29 @@ flowchart LR
           </section>
 
           <section id="vocabulary">
-            <h2>Elements name a role, attributes size a block, classes only style</h2>
+            <h2>
+              Elements name a role, attributes size a block, classes arrange and style
+            </h2>
             <p id="vocabulary-what">
               Leaf reads a page's markup to lay it out and to act on it. What it has to
-              recognise is an element, what sizes a block is an attribute, and
-              everything else is a class for the theme.
+              recognise is an element and what sizes a block is an attribute. Everything
+              else is a class: a Layout arranges the box it is on, the theme's other
+              classes style it, and the page's own CSS can take the place of either.
             </p>
 
             <div class="panels" id="vocabulary-figure">
               <figure id="vocabulary-element">
                 <svg class="drawing" viewBox="0 0 240 160" role="img">
-                  <title>Elements: a workspace holding a grid of two panes</title>
+                  <title>Elements: two panes in a workspace page</title>
                   <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
                   <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
                   <g id="vocab-workspace">
-                    <rect
-                      class="box hot"
-                      x="8"
-                      y="18"
-                      width="224"
-                      height="136"
-                      rx="3"
-                    />
-                    <text class="mono" x="14" y="30">lf-workspace</text>
+                    <rect class="ghost" x="8" y="18" width="224" height="136" rx="3" />
+                    <text class="mono" x="14" y="30">main.layout-workspace</text>
                   </g>
                   <g id="vocab-grid">
-                    <rect
-                      class="box hot"
-                      x="14"
-                      y="36"
-                      width="212"
-                      height="112"
-                      rx="3"
-                    />
-                    <text class="mono" x="20" y="48">lf-grid</text>
+                    <rect class="ghost" x="14" y="36" width="212" height="112" rx="3" />
+                    <text class="mono" x="20" y="48">div</text>
                   </g>
                   <g id="vocab-pane-queue">
                     <rect class="box hot" x="20" y="54" width="76" height="88" rx="3" />
@@ -1557,19 +1550,19 @@ flowchart LR
                   </g>
                 </svg>
                 <figcaption id="cap-vocabulary-element">
-                  <strong>An element when Leaf needs the role</strong>A workspace holds
-                  the window, reading keys and scroll restore find each pane, and the
-                  render check compares a page's grid tracks.
+                  <strong>An element when Leaf needs the role</strong>Reading keys and
+                  scroll restore find each pane, and a held workspace scrolls each
+                  pane's body on its own.
                 </figcaption>
               </figure>
               <figure id="vocabulary-attribute">
                 <svg class="drawing" viewBox="0 0 240 160" role="img">
-                  <title>Attributes: data-width on main and on one block</title>
+                  <title>Attributes: data-width on one block</title>
                   <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
                   <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
                   <g id="vocab-main-width">
-                    <rect class="attr" x="8" y="18" width="224" height="136" rx="3" />
-                    <text class="mono" x="14" y="30">main data-width</text>
+                    <rect class="ghost" x="8" y="18" width="224" height="136" rx="3" />
+                    <text class="mono" x="14" y="30">main</text>
                   </g>
                   <rect class="line" x="14" y="38" width="70" height="7" rx="2" />
                   <rect class="line soft" x="14" y="52" width="120" height="4" rx="2" />
@@ -1607,13 +1600,13 @@ flowchart LR
                 </svg>
                 <figcaption id="cap-vocabulary-attribute">
                   <strong>An attribute to size a block</strong
-                  ><code>data-width</code> on any block, or on <code>main</code> for the
-                  whole page. A widget declares its own default width the same way.
+                  ><code>data-width</code> on any block. A widget declares the width it
+                  prefers the same way, and the attribute overrides it.
                 </figcaption>
               </figure>
               <figure id="vocabulary-class">
                 <svg class="drawing" viewBox="0 0 240 160" role="img">
-                  <title>Classes: a sidebar and two panels the theme styles</title>
+                  <title>Classes: a sidebar and two panels</title>
                   <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
                   <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
                   <g id="vocab-sidebar">
@@ -1670,29 +1663,32 @@ flowchart LR
                   </g>
                 </svg>
                 <figcaption id="cap-vocabulary-class">
-                  <strong>A class only to style</strong><code>section.panel</code>,
-                  <code>aside.sidebar</code>, <code>.callout</code>. The theme styles
-                  these, and a page can write its own CSS in their place.
+                  <strong>A class to arrange or style</strong>A Layout such as
+                  <code>layout-tiles</code> arranges a box's children;
+                  <code>section.panel</code>, <code>aside.sidebar</code> and
+                  <code>.callout</code> style a box. A page can write its own CSS in
+                  their place.
                 </figcaption>
               </figure>
             </div>
           </section>
 
           <section id="wide-page">
-            <h2>A wide page lays its regions on one set of tracks</h2>
+            <h2>A wide page lays its regions on two tracks</h2>
             <p id="wide-page-what">
               When the regions are the page, such as a release in progress, a board and
               its status, or a review whose verdict stays beside the diff,
-              <code>&lt;main data-width="available"&gt;</code> widens the whole page.
+              <code>&lt;main class="layout-sidebar"&gt;</code> widens the whole page.
               Every block, the title included, starts at one left edge, one gutter in
               from the window, and text inside a region keeps the reading measure.
             </p>
             <p id="wide-page-tracks">
               A wide page reads as one structure when its regions stand on the same
-              vertical lines. Give it one set of tracks, usually a wide body beside a
-              narrow column of status, and stack each track's regions as panels. A new
-              grid per row puts each row's split somewhere new, and
-              <code>leaf version check --render</code> advises when it finds that.
+              vertical lines. The sidebar Layout gives it two: the page's header runs
+              across, the first block beneath is a wide body and the last a narrow
+              column of status, and each stacks its regions as panels. Where the window
+              can't hold both side by side, the status column wraps below the body. A
+              new grid per row puts each row's split somewhere new.
             </p>
 
             <div class="panels two" id="tracks-figure">
@@ -1755,12 +1751,10 @@ flowchart LR
                 </figcaption>
               </figure>
             </div>
-            <pre id="wide-page-markup"><code>&lt;main data-width="available"&gt;
-  &lt;h1&gt;Release 4.2 rollout&lt;/h1&gt;
-  &lt;lf-grid columns="2fr 1fr"&gt;
-    &lt;lf-grid columns="1"&gt;…&lt;/lf-grid&gt;  &lt;!-- body: panels you work through --&gt;
-    &lt;lf-grid columns="1"&gt;…&lt;/lf-grid&gt;  &lt;!-- status, counts, contents --&gt;
-  &lt;/lf-grid&gt;
+            <pre id="wide-page-markup"><code>&lt;main class="layout-sidebar"&gt;
+  &lt;header&gt;&lt;h1&gt;Release 4.2 rollout&lt;/h1&gt;&lt;/header&gt;
+  &lt;div&gt;…&lt;/div&gt;  &lt;!-- body: panels you work through --&gt;
+  &lt;div&gt;…&lt;/div&gt;  &lt;!-- status, counts, contents --&gt;
 &lt;/main&gt;</code></pre>
             <p id="wide-page-examples">
               Examples: <a href="/examples/live-progress/">Live progress</a>,
@@ -1772,21 +1766,20 @@ flowchart LR
           <section id="workspace">
             <h2>A workspace holds the window</h2>
             <p id="workspace-what">
-              An <code>lf-workspace</code> keeps regions in view together while each
-              scrolls on its own: a queue beside the item it opens, a playground's
-              controls beside its preview. A page whose only block is a workspace is a
-              wide page without declaring one, and the workspace holds the window's
-              height as well as its width: each <code>lf-pane</code>'s body scrolls
-              under the pane's header, and actions in a pane's footer stay in reach. The
-              title goes in the workspace's header.
+              <code>&lt;main class="layout-workspace"&gt;</code> keeps regions in view
+              together while each scrolls on its own: a queue beside the item it opens,
+              a playground's controls beside its preview. It is a wide page that holds
+              the window's height as well as its width: the page's header takes its
+              content's height, the one body under it takes the rest, each
+              <code>lf-pane</code>'s body scrolls under the pane's header, and actions
+              in a pane's footer stay in reach. The page places its panes with its own
+              few lines of grid.
             </p>
 
             <div class="panels two" id="workspace-figure">
               <figure id="workspace-held">
                 <svg class="drawing" viewBox="0 0 240 160" role="img">
-                  <title>
-                    Alone in main, a workspace holds the window and its panes scroll
-                  </title>
+                  <title>A workspace holds the window and its panes scroll</title>
                   <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
                   <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
                   <rect class="line" x="12" y="20" width="70" height="7" rx="2" />
@@ -1918,15 +1911,15 @@ flowchart LR
                   </g>
                 </svg>
                 <figcaption id="cap-workspace-held">
-                  <strong>Alone in main</strong>The workspace holds the window. Each
+                  <strong>A desktop window</strong>The workspace holds the window. Each
                   pane scrolls under its header, and a footer's actions stay in reach.
                 </figcaption>
               </figure>
               <figure id="workspace-flows">
                 <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>
-                    Among other blocks, a workspace's panes take their natural height
-                    and the page scrolls
+                    In a small window, a workspace's panes take their natural height and
+                    the page scrolls
                   </title>
                   <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
                   <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
@@ -2023,20 +2016,24 @@ flowchart LR
                   </g>
                 </svg>
                 <figcaption id="cap-workspace-flows">
-                  <strong>Among other blocks</strong>The panes take their natural height
-                  and flow with the text, and the page scrolls them.
+                  <strong>A small window</strong>Where the window can't hold the
+                  regions, the panes take their natural height and the page scrolls
+                  them.
                 </figcaption>
               </figure>
             </div>
-            <pre id="workspace-markup"><code>&lt;main&gt;
-  &lt;lf-workspace&gt;
-    &lt;header&gt;&lt;h1&gt;Payments alerts&lt;/h1&gt;&lt;/header&gt;
-    &lt;lf-grid columns="1fr 2fr"&gt;
-      &lt;lf-pane label="Queue"&gt;…&lt;/lf-pane&gt;
-      &lt;lf-pane label="Alert"&gt;…&lt;/lf-pane&gt;
-    &lt;/lf-grid&gt;
-  &lt;/lf-workspace&gt;
-&lt;/main&gt;</code></pre>
+            <pre id="workspace-markup"><code>&lt;main class="layout-workspace"&gt;
+  &lt;header&gt;&lt;h1&gt;Payments alerts&lt;/h1&gt;&lt;/header&gt;
+  &lt;div id="regions"&gt;
+    &lt;lf-pane label="Queue"&gt;…&lt;/lf-pane&gt;
+    &lt;lf-pane label="Alert"&gt;…&lt;/lf-pane&gt;
+  &lt;/div&gt;
+&lt;/main&gt;
+
+&lt;style&gt;
+  #regions { display: grid; grid-template-columns: 1fr 2fr; gap: var(--sp-4); }
+  @media (width &lt; 900px) { #regions { grid-template-columns: 1fr; } }
+&lt;/style&gt;</code></pre>
             <p id="workspace-examples">
               Examples:
               <a href="/examples/notification-playground/">Notification playground</a>,
@@ -2047,10 +2044,10 @@ flowchart LR
           <section id="narrow">
             <h2>On a phone, every page is one column</h2>
             <p id="narrow-what">
-              A grid's tracks stack where its narrowest would fall below 14rem, and a
-              workspace's panes flow once the window cannot hold them, so on a phone
-              every page becomes one scrolling column in source order. Write regions in
-              an order that reads top to bottom.
+              A sidebar's status column wraps below its body, tiles fit fewer to a row,
+              and a workspace's panes flow once the window cannot hold them, so on a
+              phone every page becomes one scrolling column in source order. Write
+              regions in an order that reads top to bottom.
             </p>
             <figure class="fig" id="narrow-figure">
               <svg class="drawing" viewBox="0 0 360 190" role="img">

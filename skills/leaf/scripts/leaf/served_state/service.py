@@ -151,7 +151,8 @@ class PageStateService:
         )
         if projected is None:
             raise ValueError("page registry cannot be projected")
+        view, _reading = projected
         # Activity belongs to the complete state reading, not a historical
         # document-view fetch. Keep one public route for the canonical answer.
-        projected.pop("activity", None)
-        return projected
+        view.pop("activity", None)
+        return view

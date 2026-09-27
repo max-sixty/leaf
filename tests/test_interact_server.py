@@ -38,6 +38,7 @@ from interact_support import (
     fetch,
     live_versions,
     neighbour_page,
+    page_state,
     publish,
     read_page_data,
     record_claim,
@@ -1027,7 +1028,7 @@ def test_a_bad_source_save_keeps_the_last_revision_live_and_reports_the_error(
 def test_state_validation_follows_css_edits_and_recovers_cached_readings(
     server, page_dir, monkeypatch
 ):
-    """State reads reuse CSS work, while edits still change syntax and width checks."""
+    """State reads reuse CSS work, while edits still change the syntax check."""
     parsed = []
     parse_stylesheet = tinycss2.parse_stylesheet
 
@@ -1057,15 +1058,6 @@ def test_state_validation_follows_css_edits_and_recovers_cached_readings(
     assert status == 200, body
     assert json.loads(body)["state"]["events"][-1]["text"] == comment["text"]
     assert len(parsed) == parsed_count, "a new event reparsed unchanged CSS"
-
-    theme_path = page_dir / "theme.css"
-    theme = theme_path.read_text()
-    theme_path.write_text(theme.replace("--col: 720px", "--col: 600px"))
-    assert (
-        "column is 600px" in json.loads(fetch(f"{server}/api/state")[1])["source_error"]
-    )
-    theme_path.write_text(theme)
-    assert json.loads(fetch(f"{server}/api/state")[1])["source_error"] is None
 
     path.write_text(source.replace("--probe-width: 700px", "--probe-width  700px"))
     assert (
@@ -2207,7 +2199,7 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
     registry = registry_storage.require_registry(page_dir)
 
     def reading(active_revision):
-        return served_browser.browser_state(
+        state, _reading = served_browser.browser_state(
             documents,
             events,
             registry,
@@ -2217,6 +2209,7 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
             {1, 2},
             event_model.now_iso(),
         )
+        return state
 
     # The same log really does admit the reaction if read against the old page.
     # This control makes the containment difference observable rather than nominal.
@@ -2345,7 +2338,7 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
         {},
         {1, 2},
         event_model.now_iso(),
-    )["views"]
+    )[0]["views"]
 
     def offered(revision):
         return [item["event"]["id"] for item in views[str(revision)]["undo"]]
@@ -5707,6 +5700,11 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
         "orphan-choice",
         "orphan-retry",
     ]
+    # The browser reads the same thread under the same id, so its open Ask makes the
+    # thread the user's turn.
+    [served_thread] = page_state(page_dir)["browser"]["thread"]["threads"]
+    assert served_thread["id"] == "c-lost"
+    assert served_thread["attention"]["kind"] == "needs_user"
 
     closed = event_model.append_event(
         page_dir,

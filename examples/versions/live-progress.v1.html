@@ -45,21 +45,28 @@
       #lp-code-changes {
         margin-top: var(--sp-3);
       }
+
+      /* The checks beside the log wherever each keeps 14rem. */
+      #lp-evidence {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+        gap: var(--sp-4);
+      }
     </style>
   </head>
   <body>
-    <main>
+    <main class="layout-column">
       <h1>Checkout v2 release</h1>
       <p class="lede" id="lp-lede">
         The production canary has reached 10%. Customer checkout is healthy while
         release checks collect enough evidence for the next traffic increase.
       </p>
 
-      <lf-grid id="lp-status" columns="3">
+      <div class="layout-tiles" id="lp-status">
         <lf-metric id="lp-k-traffic" value="10%">candidate traffic</lf-metric>
         <lf-metric id="lp-k-checks" value="2 of 5">checks passing</lf-metric>
         <lf-metric id="lp-k-observed" value="14:22:24">last observation</lf-metric>
-      </lf-grid>
+      </div>
 
       <aside class="callout" id="lp-current-state">
         <strong>Canary running at 10%</strong>
@@ -71,7 +78,7 @@
         rollout immediately if a customer guardrail fails.
       </p>
 
-      <lf-grid id="lp-evidence" columns="1fr 1fr">
+      <div id="lp-evidence">
         <section id="lp-checks">
           <h2>Checks</h2>
           <p id="lp-checks-note">Two checks pass. Three are still collecting.</p>
@@ -143,7 +150,7 @@
           14:22:18 observer  p95=184ms threshold=300ms
           14:22:24 router    checkout-v2 traffic=10%</code></pre>
         </section>
-      </lf-grid>
+      </div>
 
       <section id="lp-release">
         <h2>Release</h2>

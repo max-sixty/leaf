@@ -110,11 +110,14 @@ function themeCss(base = "") {
       : hostContext.theme === "light"
         ? "light"
         : "light dark";
-  return `${base.replaceAll(":root", ":host")}\n:host { color-scheme: ${scheme}; }`;
+  // The containment layer is named before the theme's own layers, so its important
+  // declarations outrank every important one the theme or the page states (pageCss).
+  return `@layer lf-snapshot-host;\n${base.replaceAll(":root", ":host")}\n:host { color-scheme: ${scheme}; }`;
 }
 
 function pageCss() {
   return `
+    @layer lf-snapshot-host {
     :host {
       display: block !important;
       position: relative !important;
@@ -130,11 +133,12 @@ function pageCss() {
       isolation: isolate !important;
       transform: none !important;
     }
-    main { box-sizing: border-box; min-height: 160px; padding-block: 24px 70px; }
     [data-lf-gen], .lf-ui { display: none !important; }
     a, area, form, button, input, select, textarea {
       pointer-events: none !important;
     }
+    }
+    main { box-sizing: border-box; min-height: 160px; padding-block: 24px 70px; }
   `;
 }
 

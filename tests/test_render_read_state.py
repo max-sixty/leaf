@@ -25,6 +25,7 @@ from render_harness import (
     sending,
     take_browser_errors,
     told,
+    write,
 )
 
 
@@ -40,8 +41,8 @@ def _agent_metric_reply(page_dir, root, number, for_event=None):
         root,
         f"Update {number}.",
         (
-            f'<lf-grid id="read-row-{number}"><lf-metric id="read-update-{number}" value="{number}">'
-            "Completed steps</lf-metric></lf-grid>"
+            f'<lf-metric id="read-update-{number}" value="{number}">'
+            "Completed steps</lf-metric>"
         ),
         for_event=for_event,
         when_settled="post",
@@ -695,7 +696,7 @@ def test_shadow_package_thread_registers_its_real_message_body(browser, serve):
       document.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
     }""")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.locator(".lf-composer textarea").fill("Can this route stay?")
+    write(page.locator(".lf-composer leaf-text"), "Can this route stay?")
     with sending(page, "diff comment"):
         page.keyboard.press("ControlOrMeta+Enter")
     root = next(
@@ -761,7 +762,7 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
       document.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
     }""")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.locator(".lf-composer textarea").fill("Can this route stay?")
+    write(page.locator(".lf-composer leaf-text"), "Can this route stay?")
     with sending(page, "diff comment"):
         page.keyboard.press("ControlOrMeta+Enter")
     root = next(

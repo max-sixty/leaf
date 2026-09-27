@@ -1,14 +1,11 @@
 /* A visual run is one active-case review: a heading, then one evidence pane whose
  * header is the case navigation. Disposition stays above the evidence and supporting
  * capture facts follow it. The pane is the layer's own grammar (data-lf-reading-role,
- * in the default theme), so in a bounded workspace its body fills the review's row and
+ * in the default theme), so in a workspace Layout its body fills the review's row and
  * the stage takes what the case leaves; everywhere else the same order flows with the
  * document and the stage takes a height from the review's width. */
 lf-visual-review {
   --lf-block-frame: 1;
-  /* Passes a held workspace's height to its evidence pane (default theme). */
-  --lf-passes-hold: 1;
-  min-height: var(--lf-track-min);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   box-sizing: border-box;
@@ -19,6 +16,18 @@ lf-visual-review {
   background: var(--paper);
   font: var(--t-5) / 1.4 var(--sans);
   container-type: inline-size;
+}
+
+/* Held (a workspace Layout gives it a definite height to fill, `--lf-held`), the review
+ * takes that height rather than its content's, so its evidence row takes what the heading
+ * leaves and the pane's body scrolls. */
+@media screen {
+  @container style(--lf-held: 1) {
+    lf-visual-review {
+      min-block-size: 0;
+      margin-block: 0;
+    }
+  }
 }
 
 .lf-vr-title,

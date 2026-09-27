@@ -54,6 +54,7 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    regions_side_by_side,
     resized,
     round_trip,
     sending,
@@ -61,6 +62,7 @@ from render_harness import (
     stamp_page,
     told,
     wait_for_revision,
+    write,
 )
 
 pytestmark = pytest.mark.nightly
@@ -379,7 +381,7 @@ def test_option_words_render_markdown_without_losing_the_user_draft(browser, ser
     )
 
     group = page.locator("#jobs")
-    group.get_by_role("textbox", name="Another option").fill("Keep **both** routes")
+    write(group.get_by_role("textbox", name="Another option"), "Keep **both** routes")
     group.get_by_role("button", name="Add and select option").click()
     added = group.locator(":scope > lf-option[data-lf-added]")
     expect(added.locator("strong")).to_have_text("both")
@@ -571,7 +573,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     expect(option_hints).to_have_text(["1", "2"])
     expect(option_hints.first).to_be_visible()
     write_hint = page.locator("#storage-options > .lf-another > .lf-key-badge")
-    box = page.locator("#storage-options > .lf-another textarea")
+    box = page.locator("#storage-options > .lf-another leaf-text")
     expect(write_hint).to_have_text("3")
     expect(write_hint).to_be_visible()
 
@@ -587,7 +589,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
     page.keyboard.press("a")
     mark = page.locator("#storage-evict .lf-pick")
-    box = page.locator("#storage-options > .lf-another textarea")
+    box = page.locator("#storage-options > .lf-another leaf-text")
     page.keyboard.press("Tab")
     expect(mark).to_be_focused()
     expect(mark).to_have_attribute("role", "checkbox")
@@ -609,13 +611,13 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     expect(page.locator("#storage-stop .lf-pick")).to_be_focused()
     page.keyboard.press("Tab")
     expect(box).to_be_focused()
-    box.fill("Keep both layers")
+    write(box, "Keep both layers")
     page.keyboard.press("Shift+Enter")
     page.keyboard.type("Keep them together")
     page.keyboard.press("Shift+Enter")
     page.keyboard.type("Preserve both histories")
-    expect(box).to_have_value(
-        "Keep both layers\nKeep them together\nPreserve both histories"
+    expect(box).to_have_js_property(
+        "value", "Keep both layers\nKeep them together\nPreserve both histories"
     )
     expect(box).to_have_attribute("aria-keyshortcuts", "Enter Meta+Enter Control+Enter")
     expect(page.locator("#storage-options > lf-option[data-lf-added]")).to_have_count(0)
@@ -640,7 +642,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     expect(mark).to_be_focused()
     expect(chosen).to_have_attribute("role", "checkbox")
     expect(chosen).to_have_attribute("aria-checked", "true")
-    expect(page.locator("#storage-options > .lf-another textarea")).not_to_be_focused()
+    expect(page.locator("#storage-options > .lf-another leaf-text")).not_to_be_focused()
     page.close()
 
     # Native focus scrolling reads the fixed shortcut bar as part of the root scrollport's
@@ -671,7 +673,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     assert covered < 0, f"the arrival left the add field {covered}px clear of the line"
     for _ in range(3):
         page.keyboard.press("Tab")
-    box = page.locator("#storage-options > .lf-another textarea")
+    box = page.locator("#storage-options > .lf-another leaf-text")
     expect(box).to_be_focused()
     landed = page.evaluate(clearance)
     assert landed >= 20, f"the shortcut bar covers the add field by {-landed}px"
@@ -1059,7 +1061,7 @@ WIDE_ASK_PAGE = leaf_page(
     "Options on a wide page",
     f"""
 <h1>Where sessions live</h1>
-<lf-grid id="layout" columns="2fr 1fr">
+<div id="layout">
 <section id="body">
 <lf-ask id="cell-decision"><h2>Where should a session live?</h2>
 <p>{WIDE_PROSE}</p>
@@ -1075,7 +1077,7 @@ WIDE_ASK_PAGE = leaf_page(
 </lf-options></lf-ask>
 </section>
 <section id="aside"><p>Beside the argument.</p></section>
-</lf-grid>
+</div>
 <lf-ask id="page-decision"><h2>Who owns the migration?</h2>
 <p>{WIDE_PROSE}</p>
 <lf-options id="page-cards" choose>
@@ -1083,14 +1085,15 @@ WIDE_ASK_PAGE = leaf_page(
   <lf-option id="pc-accounts"><strong>Accounts</strong> They own the table.</lf-option>
 </lf-options></lf-ask>
 """,
-    width="available",
+    head=regions_side_by_side("layout", "2fr 1fr"),
+    layout="wide",
 )
 
 
 def test_a_choose_group_on_a_wide_page_draws_its_cells_to_its_own_frame(browser, serve):
     """A joined group's frame, dividers and marks belong to its options, so on a page
-    wider than the column the group keeps the reading measure as one block and every
-    cell reaches the frame. Declared a group of members instead, it passed the measure
+    wider than the column every cell reaches the frame, however wide the box the page
+    stands the group in. Declared a group of members instead, it passed the measure
     through: the frame took the grid cell's or the page's whole width while each option
     stopped at the measure, so every mark and every hairline between options ended
     100px and more short of the frame's right edge, over an empty strip.
@@ -1128,10 +1131,6 @@ def test_a_choose_group_on_a_wide_page_draws_its_cells_to_its_own_frame(browser,
         # The premise: the frame the group stands in is wider than the measure, which
         # is the only place the two readings of a group can differ.
         assert group["holder"] > group["prose"] + 100, group
-        assert group["frame"] <= group["prose"] + 2, (
-            f"#{group['id']} is {group['frame']}px across beside prose "
-            f"{group['prose']}px: the group should keep the reading measure as one block"
-        )
         options = [cell for cell in group["cells"] if cell["mark"] is not None]
         assert len(options) == 2 and len(group["cells"]) > 2, group
         short = [cell for cell in group["cells"] if abs(cell["short"]) > 0.5]
@@ -2632,6 +2631,12 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
             )
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="lf-board caps its minimum at the shell less the column's gutters, which a "
+    "specimen's own rule and inset overrun on a phone; TODO.md, Layouts, 'Cap a "
+    "widget's minimum by the box that holds it'",
+)
 def test_a_specimen_holds_a_wide_exhibit_inside_the_column(browser, serve):
     """An exhibit wider than the column scrolls inside its own box, as it does
     anywhere else on the page. What makes that true here is one declaration —

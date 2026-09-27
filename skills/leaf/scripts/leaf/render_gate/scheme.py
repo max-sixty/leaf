@@ -6,15 +6,16 @@ from urllib.parse import urljoin, urlsplit
 from leaf.files import version_num
 from leaf.render_checks import (
     SERVED_TIMEOUT_MS,
+    PageNotReady,
     evaluate_probe,
     install_window_errors,
     pre_upgrade_findings,
-    wait_for_presentation,
     wait_for_probe,
     wait_for_theme,
+    wait_until_ready,
 )
 
-from .readings import _scheme_findings, _SchemeContext
+from .readings import DevtoolsIssues, _scheme_findings, _SchemeContext
 
 
 def served(page, url: str, path: str, timeout_ms: int | None = None):
@@ -52,7 +53,7 @@ def rendered_revision(url: str, state: dict) -> int:
 
 def _projection_was_applied(failed_stage: str | None) -> bool:
     """Whether the readiness failure happened after authoritative presentation."""
-    return failed_stage in (None, "pageSettled")
+    return failed_stage in (None, "arrived", "rendering", "pageSettled")
 
 
 RESIZE_OBSERVER_ERROR = "window error: ResizeObserver loop"
@@ -229,6 +230,7 @@ def _render_scheme(
         "response",
         lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,
     )
+    devtools = DevtoolsIssues(page)
     install_window_errors(page)
     try:
         # Hold the entry in this navigation: this is the only point at which
@@ -338,43 +340,32 @@ def _render_scheme(
             [],
             False,
         )
-    # The caught-up stamp counts reports beside actions, so the readiness wait counts
-    # that same set. Nothing else treats an event's owner as a special case.
-    applied = sum(e["kind"] in ("action", "report") for e in state["events"])
     # Every reading below is of a page at rest, and the upgrade stamp above is
     # one part of that. The first read runs beside upgrade, but its answer may still
     # be pending when the stamp lands; a gate reading there sees the authored board,
     # the unanswered question and the body the user has since rewritten — a page
-    # nobody is shown. The caught-up stamp is the log's answer to that, and the frame
-    # it lands in is the first frame of whatever the replay set moving, a replay past
-    # the presentation boundary moving rather than teleporting. Both waits are taken in
-    # both schemes, because every reading below has boxes or words in it. The
-    # windows open under load alone, which is how one page passed at a desk and
-    # reported words drawn over words under a full suite.
-    failed_stage = wait_for_presentation(page, state, applied, settled=True)
-    replayed = _projection_was_applied(failed_stage)
-    if failed_stage == "dataApplied":
-        unsettled = [
-            (
-                "the runtime never presented external data as current as version "
-                f"{state['data']['version']}"
-            )
-        ]
-    elif failed_stage == "logApplied":
-        unsettled = [
-            f"the runtime never finished replaying the log ({applied} action(s))"
-        ]
-    elif failed_stage == "currentPresented":
-        unsettled = [
-            "the runtime never presented the page after applying its current state"
-        ]
-    elif failed_stage == "pageSettled":
-        unsettled = [
-            "the page never stopped moving: "
-            + ", ".join(evaluate_probe(page, "moving"))
-        ]
+    # nobody is shown. The page's readiness against the reading taken above is the
+    # answer to that, and the frame the log lands in is the first frame of whatever
+    # the replay set moving, a replay past the presentation boundary moving rather than
+    # teleporting, which `pageSettled` then waits out. Both waits are taken in both
+    # schemes, because every reading below has boxes or words in it. The windows open
+    # under load alone, which is how one page passed at a desk and reported words
+    # drawn over words under a full suite.
+    try:
+        wait_until_ready(page, state)
+    except PageNotReady as error:
+        failed_stage, unsettled = error.stage, [str(error)]
     else:
-        unsettled = []
+        try:
+            wait_for_probe(page, "pageSettled")
+            failed_stage, unsettled = None, []
+        except PlaywrightTimeout:
+            failed_stage = "pageSettled"
+            unsettled = [
+                "the page never stopped moving: "
+                + ", ".join(evaluate_probe(page, "moving"))
+            ]
+    replayed = _projection_was_applied(failed_stage)
     context = _SchemeContext(
         page=page,
         scheme=scheme,
@@ -388,6 +379,7 @@ def _render_scheme(
         earlier=earlier,
         replayed=replayed,
         unsettled=unsettled,
+        devtools=devtools,
     )
     found, notices = _scheme_findings(context)
     if then is not None:

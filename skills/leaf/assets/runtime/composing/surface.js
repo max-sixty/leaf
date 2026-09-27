@@ -99,7 +99,13 @@ import {
   snapSelection,
 } from "./capture.js";
 import { repaint } from "../repaint.js";
-import { focusDestination, letGo, readCaret, takesLetters } from "../focus.js";
+import {
+  focusDestination,
+  handBack,
+  letGo,
+  readCaret,
+  takesLetters,
+} from "../focus.js";
 import { focused } from "../keyboard/scopes.js";
 import { under } from "../shadow.js";
 import { heldAsk } from "../standing-target.js";
@@ -320,7 +326,7 @@ export function createResponseSurface({
 
   // Reparenting the canonical response bar is presentation, not a composer transition.
   // Preserve the exact typing position across light/shadow DOM moves; Chromium may put
-  // focus on the shadow host while a focused textarea is adopted into its tree.
+  // focus on the shadow host while a focused field is adopted into its tree.
   function moveFab(parent) {
     if (fabBar.parentElement === parent) return;
     const held = captureFabFocus();
@@ -429,7 +435,7 @@ export function createResponseSurface({
       // The reactions palette temporarily owns focus and may itself be re-seated during
       // a responsive layout change. The open composer is the durable proof that this
       // captured passage still belongs to the response transaction; native selection is
-      // no longer available once the textarea took focus.
+      // no longer available once the field took focus.
       if (!composerOpen && !fabHoldsCapturedPassage()) return null;
     }
     const found = anchor ? resolveAnchor(anchor, pageText()) : null;
@@ -757,7 +763,7 @@ export function createResponseSurface({
   // by identity so a repaint cannot strand it. A bar no gesture stood them on has nowhere
   // of its own and the user lands on the page — the element the bar is about is not a
   // landing merely for being named, an ⌥-aimed press having never stood them on it.
-  const handBackTo = (anchor, origin) =>
+  const returnDestination = (anchor, origin) =>
     anchor && !anchor.quote && origin
       ? origin.isConnected
         ? origin
@@ -773,7 +779,9 @@ export function createResponseSurface({
     const previousFloating = fabFloating;
     const leavingBar = !anchor && fabBar.contains(fabFocused());
     const returnToPanel = leavingBar && panelIsOpen() && !fabFits();
-    const returnTarget = leavingBar ? handBackTo(previous, previousOrigin) : null;
+    const returnTarget = leavingBar
+      ? returnDestination(previous, previousOrigin)
+      : null;
     const keptInline = Boolean(
       fabInlineOutlet?.isConnected &&
       anchor &&
@@ -840,14 +848,11 @@ export function createResponseSurface({
     repaint(); // the c row names this anchor, so the line is one more rendering of it
     if (!fabAnchor && returnFocus !== "none") {
       if (returnToPanel) threadsBox.focus({ preventScroll: true });
-      else if (leavingBar && returnFocus === "target" && returnTarget?.isConnected) {
-        returnTarget.focus({ preventScroll: true });
-        // The proxy may have gone hidden since the gesture opened the box — a fold that
-        // closed under it, a row that re-rendered — and focus on a hidden control does
-        // nothing and reports nothing. The page is the landing then, as it is for a box
-        // that had no proxy to begin with.
-        if (!returnTarget.matches(":focus")) letGo();
-      } else if (
+      // The proxy may have gone hidden since the gesture opened the box — a fold that
+      // closed under it, a row that re-rendered — and the page is the landing then, as it
+      // is for a box that had no proxy to begin with.
+      else if (leavingBar && returnFocus === "target") handBack(returnTarget);
+      else if (
         leavingBar ||
         (returnFocus === "page" && document.activeElement === previousOrigin)
       )
@@ -891,7 +896,7 @@ export function createResponseSurface({
     return root instanceof ShadowRoot ? root.host : place;
   };
   const fabTargetAt = () => anchorTargetAt(fabAnchor);
-  const fabReturnTo = () => handBackTo(fabAnchor, fabOrigin);
+  const fabReturnTo = () => returnDestination(fabAnchor, fabOrigin);
 
   // Where a comment about this item is written: the composer, on the item, which is what a
   // click through the ⌥ aim already opens. It reached for the widget's own thread seat
@@ -934,7 +939,7 @@ export function createResponseSurface({
   // the user who was looking at it.
   //
   // Instant, and before the box is measured. Placing reads the addressable's box, so that has
-  // to be the box the addressable keeps; and opening focuses the textarea, whose
+  // to be the box the addressable keeps; and opening focuses the field, whose
   // scroll-into-view cancels a glide already under way — which is what left the addressable flush against an edge
   // rather than framed, and is not `openComposer`'s to give up, three other presses opening
   // that box against a passage they have not moved.
@@ -1208,7 +1213,7 @@ export function createResponseSurface({
     if (drawModeActive()) return;
     // A mouse pointer is followed by the compatibility mouseup below, which performs the
     // sentence snap before opening the field. Opening from pointerup first would focus the
-    // textarea and collapse the still-unsnapped Selection before mouseup can finish it.
+    // field and collapse the still-unsnapped Selection before mouseup can finish it.
     // Touch/pen and cancellation owe us no compatibility mouse event, so they keep this
     // direct route.
     // Released on the next task either way, which keeps selectionchange in the

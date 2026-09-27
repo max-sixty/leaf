@@ -108,10 +108,17 @@ import {
 import { compareMarginContributions } from "./margin-entry-model.js";
 import { mapButton } from "./page-map-dialog.js";
 import { watchProjection } from "./projection-watch.js";
-import { declareRelease, focusDestination, letGo } from "./focus.js";
+import {
+  TEXT_BOX,
+  TEXT_FIELD,
+  declareRelease,
+  focusDestination,
+  handBack,
+  letGo,
+} from "./focus.js";
 import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
-import { clampedRow, PRESS } from "./keyboard/bindings.js";
-import { beginWalk, listWalkPosition } from "./walk-position.js";
+import { PRESS } from "./keyboard/bindings.js";
+import { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
 import { ago, clocked } from "./presence.js";
 import { runtime } from "./context.js";
 import {
@@ -165,6 +172,9 @@ import {
 } from "./thread/workflow.js";
 import { renderedParent, under } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
+
+// A margin card's reply box.
+const REPLY_BOX = `.lf-say ${TEXT_FIELD}`;
 
 export function createMarginProjection({
   panelIsOpen,
@@ -642,7 +652,7 @@ export function createMarginProjection({
     const maxListHeight =
       parseFloat(preview.style.getPropertyValue("--lf-thread-max-height")) -
       (preview.offsetHeight - previewList.clientHeight);
-    for (const input of previewList.querySelectorAll(".lf-say textarea")) {
+    for (const input of previewList.querySelectorAll(REPLY_BOX)) {
       const row = input.closest(".lf-say");
       const thread = row.closest(".lf-page-thread");
       const style = getComputedStyle(thread);
@@ -670,7 +680,7 @@ export function createMarginProjection({
   }
   function placeThreadPreview({ dismissDetached = false } = {}) {
     if (!previewOpen() || !previewMarginEntry?.isConnected) return false;
-    const replyEditor = previewList.querySelector(".lf-say textarea");
+    const replyEditor = previewList.querySelector(REPLY_BOX);
     const drafting =
       replyEditor?.checkVisibility() &&
       (replyEditor === document.activeElement || replyEditor.value !== "");
@@ -1158,8 +1168,7 @@ export function createMarginProjection({
     try {
       renderMargin.refresh();
       if (returnFocus && previousKey) {
-        const more = moreMarginEntries.get(previousKey);
-        if (more?.isConnected && !more.hidden) more.focus({ preventScroll: true });
+        handBack(moreMarginEntries.get(previousKey));
       } else if (focusOption && nextKey) {
         const choices = clusterMarginEntries(hosts.get(nextKey)?.options);
         const fallback = clusterMarginEntries(hosts.get(nextKey));
@@ -1255,25 +1264,18 @@ export function createMarginProjection({
     return true;
   }
 
-  function focusMapControl(entry = null) {
-    const marker = entry ? rows.get(entry.key) : null;
-    if (marker?.isConnected && marker.checkVisibility()) {
-      marker.focus({ preventScroll: true });
-      return;
-    }
-    // The Map is a shelf control, so at a width that folds it the button itself is
-    // behind a shut door and cannot take focus. Ask the shelf for the way in.
-    const door = bannerControlDoor(mapButton);
-    if (door) {
-      door.focus({ preventScroll: true });
-      return;
-    }
+  // Where the Map hands the user back, for `handBack`: the entry's own marker, then the
+  // way into the Map, then a row in view, then the version control. The Map is a shelf
+  // control, so at a width that folds it the button itself is behind a shut door and
+  // cannot take focus; the shelf is asked for the way in.
+  function mapControlPlaces(entry = null) {
     const visible = visibleRows();
-    const last =
-      visible.find((row) => row.tabIndex === 0) ??
-      visible[0] ??
-      bannerControlDoor(versionBtn);
-    last?.focus({ preventScroll: true });
+    return [
+      entry ? rows.get(entry.key) : null,
+      bannerControlDoor(mapButton),
+      visible.find((row) => row.tabIndex === 0) ?? visible[0],
+      bannerControlDoor(versionBtn),
+    ];
   }
 
   // The rail holds one tab stop: the way in from the page, not the reading position,
@@ -1329,22 +1331,6 @@ export function createMarginProjection({
       rovingFrame = 0;
       syncRoving();
     });
-  }
-
-  function walkMarkers(direction, edge = null) {
-    const visible = visibleRows();
-    if (!visible.length) return;
-    const next =
-      edge === "first"
-        ? visible[0]
-        : edge === "last"
-          ? visible.at(-1)
-          : clampedRow(visible, document.activeElement, direction);
-    holdTabStop(next);
-    next.focus({ preventScroll: true });
-    beginWalk("page-map", "Marker", () =>
-      listWalkPosition(visibleRows(), document.activeElement),
-    );
   }
 
   // `o`: the annotation layer (annotation-layer.js). Hiding it takes off what it hides
@@ -1434,31 +1420,19 @@ export function createMarginProjection({
       },
       run: stepClusterMarginEntries,
     },
-    {
-      id: "margin.walk",
-      keys: ["ArrowUp", "ArrowDown"],
-      does: "Walk the visible page-map markers",
-      line: "walk the Page Map",
-      repeat: true,
+    // The walk answers from a marker, not from the entries beside it, which Left and
+    // Right move between.
+    ...rowWalk({
+      id: "margin",
+      noun: "Marker",
+      plural: "visible markers",
+      rows: visibleRows,
+      landed: holdTabStop,
+      scroll: false,
+    }).map((row) => ({
+      ...row,
       when: () => focused()?.matches?.(".lf-margin-marker") && visibleRows().length > 0,
-      run: (binding) => walkMarkers(binding === "ArrowDown" ? 1 : -1),
-    },
-    {
-      id: "margin.first",
-      keys: ["Home"],
-      does: "First visible page-map marker",
-      line: "first marker",
-      when: () => focused()?.matches?.(".lf-margin-marker") && visibleRows().length > 0,
-      run: () => walkMarkers(0, "first"),
-    },
-    {
-      id: "margin.last",
-      keys: ["End"],
-      does: "Last visible page-map marker",
-      line: "last marker",
-      when: () => focused()?.matches?.(".lf-margin-marker") && visibleRows().length > 0,
-      run: () => walkMarkers(0, "last"),
-    },
+    })),
   ];
 
   function pressMarker(event) {
@@ -2083,7 +2057,9 @@ export function createMarginProjection({
       const replacement = [
         ...previewList.querySelectorAll("[data-lf-margin-entry]"),
       ].find((candidate) => candidate.lfMarginItem === focusedItem);
-      const destination = replacement?.matches("button, textarea:not([disabled])")
+      const destination = replacement?.matches(
+        `button, :is(${TEXT_BOX}):not([disabled])`,
+      )
         ? replacement
         : (replacement?.querySelector(".lf-page-thread") ??
           previewList.querySelector(".lf-page-thread") ??
@@ -2244,7 +2220,7 @@ export function createMarginProjection({
     answerThreadPreviewPosition(false);
     resetThreadPreviewPosition();
     if (previewOpen()) {
-      for (const reply of previewList.querySelectorAll("textarea"))
+      for (const reply of previewList.querySelectorAll(TEXT_FIELD))
         reply.lfCollapseReply?.();
       preview.hidden = true;
     }
@@ -2255,11 +2231,9 @@ export function createMarginProjection({
       syncReadingRelation(row, primaryReading(row.lfEntry));
     for (const reading of readingMarginEntries.values())
       syncReadingRelation(reading, reading.lfChoice);
-    if (returnFocus) {
-      if (button?.isConnected && button.checkVisibility())
-        button.focus({ preventScroll: true });
-      else if (button?.lfEntry) focusMapControl(button.lfEntry);
-    } else if (heldInside) letGo();
+    if (returnFocus)
+      handBack(button, ...(button?.lfEntry ? mapControlPlaces(button.lfEntry) : []));
+    else if (heldInside) letGo();
     paintKeys();
   }
 
@@ -2403,7 +2377,7 @@ export function createMarginProjection({
     closePreview();
     leavePageMap();
     const landsOnTarget = focusMap && !entryHasMarginHost(entry);
-    if (focusMap && !landsOnTarget) focusMapControl(entry);
+    if (focusMap && !landsOnTarget) handBack(...mapControlPlaces(entry));
     sourceItem(item).activate();
     // A Page Map-only location has no margin entry to receive the handoff. Reveal its
     // target first, then lend that authored element a programmatic tab stop so keyboard
@@ -2769,13 +2743,13 @@ export function createMarginProjection({
     });
     previewClose.onclick = () => closePreview(true);
     preview.addEventListener("focusin", (event) => {
-      if (!event.target.matches(".lf-say textarea") || rightFootOffset !== null) return;
+      if (!event.target.matches(REPLY_BOX) || rightFootOffset !== null) return;
       if (previewMarginEntry && preview.dataset.lfThreadPlacement === "right")
         rightFootOffset =
           preview.getBoundingClientRect().bottom - threadCardCluster().top;
     });
     preview.addEventListener("focusout", (event) => {
-      if (event.target.matches(".lf-say textarea") && !event.target.value)
+      if (event.target.matches(REPLY_BOX) && !event.target.value)
         scheduleThreadPreviewPosition();
     });
     sizeObserver(() => scheduleThreadPreviewPosition()).observe(preview);
@@ -2840,7 +2814,7 @@ export function createMarginProjection({
     activateMapItem: activate,
     faceForMap: (item) => KINDS[item.kind],
     targetFor,
-    focusMapControl,
+    mapControlPlaces,
     renderMargin,
     threadTransitionOrigin,
     scheduleThreadPreviewPosition,

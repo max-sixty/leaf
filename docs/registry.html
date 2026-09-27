@@ -86,7 +86,7 @@
     </style>
   </head>
   <body class="site-page">
-    <main>
+    <main class="layout-column">
       <nav class="sitenav" aria-label="Site">
         <a class="brand" href="/">leaf</a>
         <a href="/examples/">Examples</a>
@@ -139,13 +139,10 @@
           <a href="#x-inline"><code>x-inline</code></a>
           <a href="#x-language"><code>x-language</code></a>
           <a href="#x-lines"><code>x-lines</code></a>
-          <a href="#x-measure"><code>x-measure</code></a>
           <a href="#x-measured"><code>x-measured</code></a>
           <a href="#x-name"><code>x-name</code></a>
           <a href="#x-numbering"><code>x-numbering</code></a>
-          <a href="#x-outline"><code>x-outline</code></a>
           <a href="#x-owners"><code>x-owners</code></a>
-          <a href="#x-page-navigation"><code>x-page-navigation</code></a>
           <a href="#x-paints"><code>x-paints</code></a>
           <a href="#x-reading-role"><code>x-reading-role</code></a>
           <a href="#x-refers"><code>x-refers</code></a>
@@ -374,35 +371,6 @@
               </details>
             </div>
           </section>
-          <section class="reference-entry" id="x-measure">
-            <h3><code>x-measure</code></h3>
-            <div class="reference-copy">
-              <p>How the element uses the width of the frame holding it.</p>
-              <details class="reference-more">
-                <summary aria-label="Full x-measure contract">Full contract</summary>
-                <p>
-                  <code>text</code> keeps the reading measure inside a frame wider than
-                  the column, and is what an undeclared element is unless it is made of
-                  members (<code>x-content: members</code>), which groups them by
-                  default. A members element declares <code>text</code> when its members
-                  are the cells of one block it draws: a choose group's frame, dividers
-                  and marks belong to its options, so the group keeps the measure as a
-                  whole and each option fills it, where grouping left every option at
-                  the measure inside a frame drawn across the whole cell.
-                  <code>surface</code> (a chart, table, log or listing) fills the frame;
-                  x-space wide or available implies it. <code>group</code> holds other
-                  blocks (tabs, a comparison, a grid, a pane), so it passes the measure
-                  through to them instead of holding everything it contains to the width
-                  of a paragraph. A row of a listing whose rows can nest blocks groups
-                  too, as a command tree's goals and workers do: every row then reaches
-                  the frame the listing fills, where a row held to the measure would end
-                  its hairline short of the rows beside it. The runtime paints the
-                  declaration as data-lf-measure; the theme declares the plain HTML
-                  elements the same way.
-                </p>
-              </details>
-            </div>
-          </section>
           <section class="reference-entry" id="x-measured">
             <h3><code>x-measured</code></h3>
             <div class="reference-copy">
@@ -463,22 +431,6 @@
               </details>
             </div>
           </section>
-          <section class="reference-entry" id="x-outline">
-            <h3><code>x-outline</code></h3>
-            <div class="reference-copy">
-              <p>The element that lists the page's own headings.</p>
-              <details class="reference-more">
-                <summary aria-label="Full x-outline contract">Full contract</summary>
-                <p>
-                  <code>version check</code> advises a page with two or more headings
-                  below its title and no such element to place one near its opening, and
-                  names the tag declared here. A layer that ships no outline widget
-                  draws no such advice. What the outline shows and how it sits is the
-                  widget's own.
-                </p>
-              </details>
-            </div>
-          </section>
           <section class="reference-entry" id="x-owners">
             <h3><code>x-owners</code></h3>
             <div class="reference-copy">
@@ -491,18 +443,6 @@
                   the owner takes on its whole box stops at those members.
                 </p>
               </details>
-            </div>
-          </section>
-          <section class="reference-entry" id="x-page-navigation">
-            <h3><code>x-page-navigation</code></h3>
-            <div class="reference-copy">
-              <p>
-                The first such element placed directly in main becomes the page's view
-                navigation, whatever else main holds beside it.
-                <code>version check</code> then treats it as the page's outline and does
-                not advise an aside.sidebar of contents. Other placements retain the
-                element's embedded presentation.
-              </p>
             </div>
           </section>
           <section class="reference-entry" id="x-paints">
@@ -526,26 +466,23 @@
             <h3><code>x-reading-role</code></h3>
             <div class="reference-copy">
               <p>
-                The structural role an element supplies: workspace keeps task regions
-                together between optional header/footer slots around exactly one body
-                element, pane is one labeled reading region with exactly one body
-                element between its optional header and footer, and grid places its
-                direct children as cells in two dimensions.
+                The structural role an element supplies: <code>pane</code>, the one
+                role, is a labeled reading region whose body scrolls on its own while a
+                workspace Layout holds the window.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-reading-role contract">
                   Full contract
                 </summary>
                 <p>
-                  Role-derived validation reads this declaration rather than tag names,
-                  and <code>version check</code> advises against page CSS that places an
-                  element declaring a role. Every role keeps markup content so packages
-                  may contribute differently named structural elements without joining a
-                  closed parent-child vocabulary. Every role requires a string
-                  <code>id</code>; a pane also requires a string <code>label</code>,
+                  A pane holds exactly one body element between an optional direct
+                  native <code>header</code> first and <code>footer</code> last.
+                  Role-derived validation reads this declaration rather than tag names.
+                  The role keeps markup content so packages may contribute differently
+                  named panes without joining a closed parent-child vocabulary. A pane
+                  requires a string <code>id</code> and a string <code>label</code>,
                   which names its accessible region while a visible heading belongs in
-                  its authored header. A workspace or pane may hold one direct native
-                  <code>header</code> first and one <code>footer</code> last.
+                  its authored header.
                 </p>
               </details>
             </div>

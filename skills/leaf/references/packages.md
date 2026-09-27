@@ -87,7 +87,7 @@ Every package has the same partial layout:
 ```text
 package/
 ├── registry.json       element declarations and shared $ declarations
-├── theme.css           rules appended to the cascade
+├── theme.css           rules in the layer's shared cascade layer
 ├── shadow.css          rules that also reach declared shadow trees
 ├── guidance/           Markdown guides named for their audiences
 ├── runtime/            browser modules and replacements by vendored path
@@ -99,9 +99,13 @@ package/
 ```
 
 No individual file is required. The kernel supplies the files every complete layer
-needs. Theme files concatenate, and so do shadow files: a declared `x-shadow` root built
-with `shadowStage` receives every package's `shadow.css` in layer order, and the document
-reads each package's `shadow.css` just ahead of its `theme.css`. Runtime, icon, widget,
+needs. Theme files concatenate into one cascade layer, `lf-base`, so a package's rule
+beats the kernel's by specificity and order as it would unlayered, while the Layouts
+and the page's own stylesheet rank above every package rule whatever its specificity.
+A widget module's adopted sheet joins the same layer. Shadow files concatenate too: a
+declared `x-shadow` root built with `shadowStage` receives every package's `shadow.css`
+in layer order, and the document reads each package's `shadow.css` just ahead of its
+`theme.css`. Runtime, icon, widget,
 and vendor files replace by path. A later package replaces a tag's complete element
 declaration and one member inside a shared `$` declaration. A tag can be added or
 replaced whole, but it has no deletion marker.
@@ -152,29 +156,25 @@ under `$idioms` in the package's
 
 A rule that draws a box's inset — padding, border, or tinted field — declares
 `--lf-block-frame: 1` in the same rule. The shared layout uses that declaration to trim child
-margins and bound wide content, and the render gate reports a frame that omits it. The
-trim follows the frame's edge down through each first or last child, so a wrapper
-between the frame and the margin it trims declares nothing. A box that lays its children
+margins and bound wide content. The trim follows the frame's edge down through each
+first or last child, so a wrapper between the frame and the margin it trims declares
+nothing. A box that lays its children
 out side by side (a flex row, a grid) declares `--lf-holds-edge: 1`, so the trim stops at
-it rather than taking one item's margin and leaving the others'; the render gate names
-one that splits a row at a frame's edge.
+it rather than taking one item's margin and leaving the others'.
 
 The runtime exposes declared layout facts as `[data-lf-inline]`, `[data-lf-space]`,
-`[data-lf-measure]`, `[data-lf-bound]`, and `[data-lf-exhibit]`; shared selectors read
-those attributes instead of naming widget tags. The registry's `$keys` entries for
-`x-space`, `x-measure`, and `x-bound` say what each declaration requests; none of them
+`[data-lf-bound]`, and `[data-lf-exhibit]`; shared selectors read those attributes
+instead of naming widget tags. The registry's `$keys` entries for `x-space` and
+`x-bound` say what each declaration requests; none of them
 chooses the widget's internal layout, which the package arranges inside the allocation.
-A page is a wide page when `body` states `--lf-page-width: wide` or `available`, which
-`main[data-width]` does; a package whose element makes the page it stands in wide sets
-the same property on `body` with a selector on its authored markup, as the default
-package does for a page whose only block is a workspace, and the kernel draws the frame.
+How wide the page is, and how its blocks are arranged, is the page's choice, made with a
+Layout class or its own CSS (`page-authoring.md`, "Layouts"); a package's element fills
+the box it is given, and its `x-space` states the width it prefers, which a page may
+override.
 When a bounded widget's scroller should be a box inside it, such as a listing under a
 caption that stays in view, the package theme moves the bound there under
 `[data-lf-bound]` and declares `--lf-bound-box: 1` on that box, which is the one Leaf
-keeps on its newest entry. A package whose available surface preserves a drawing's natural
-inline size sets `--lf-natural-inline-size: 1` on that surface so the render gate can
-distinguish honest source overflow from room withheld by the page; Leaf resets the fact
-on every declared surface, so it applies only to the element that states it. A box a
+keeps on its newest entry. A box a
 package scrolls sideways needs no declaration of its own: the runtime
 measures every scroller on each layout and marks each edge with content beyond it.
 Leaf fades the content at those edges, so a widget that has to scroll says so without
@@ -217,9 +217,8 @@ widget's role on the page:
 
 | Key                  | Shipped example                                                |
 | -------------------- | -------------------------------------------------------------- |
-| `x-reading-role`     | `lf-workspace`, `lf-pane`, `lf-grid`                           |
+| `x-reading-role`     | `lf-pane`                                                      |
 | `x-required-members` | `lf-swipe-deck` in `swipe`                                     |
-| `x-page-navigation`  | `lf-tabs`                                                      |
 | `x-visual`           | `lf-chart` declares `whole`, `lf-diagram` in `diagram` `parts`  |
 | `x-bound`            | `lf-activity`                                                  |
 | `x-history`          | `lf-activity`                                                  |
@@ -326,34 +325,30 @@ optimistic result; delivery later yields the admitted event or null, and a refus
 restores authoritative state. Undo targets only a stable `id` or `attempt` from the
 current entry's candidates. The server remains final admission for every command.
 
-### Reading layouts
+### Reading regions
 
-A structural element declares `x-reading-role` as `workspace`, `pane`, or `grid` and
-keeps `x-content: markup`. A workspace or pane has exactly one direct body element
-between an optional native `header` first and an optional native `footer` last; a grid
-holds its cells as elements. The validator reads roles rather than tag names, and the
-runtime paints each declared role as `data-lf-reading-role`, which the default theme
-lays out, so a package's differently named pane or grid takes the same rules as
-`lf-pane` and `lf-grid`; its module registers the pane's body as described below. The
-page's root workspace is `lf-workspace` itself.
+A pane declares `x-reading-role: pane` and keeps `x-content: markup`: exactly one direct
+body element between an optional native `header` first and an optional native `footer`
+last. The validator reads the role rather than the tag name, and the runtime paints it
+as `data-lf-reading-role`, which the default theme lays out as a pane, so a package's
+differently named pane takes the same rules as `lf-pane`; its module registers the
+pane's body as described below.
 
-The default package's theme owns the layout of those roles, bounded posture included:
-whether a workspace holds the window, and so whether each pane's body scrolls or the
-page does, is one container query there, and nothing in a module measures a minimum or
-chooses a posture. The height reaches a pane only through a chain of boxes that pass it
-on, each declaring `--lf-passes-hold: 1` in its theme rule: grids, panes, an Ask of a
-heading and one answer, and a package's own region compound such as a playground. Each
-also declares `min-height: var(--lf-track-min)`, which is `0px` while it is held and
-`auto` otherwise, so it takes its track's height in a bounded workspace and its
-content's everywhere else. A behavior module that composes regions out of boxes it
-generates, such as a playground's controls beside its preview, takes the same rules by
-marking those boxes `data-lf-reading-role="grid"` or `"pane"`, with the pane grammar of
-one header, one body, and one footer. The attribute is the module's to write and never
-an author's, since `version check` refuses `data-lf-` markup. Keep the package theme to
-placement inside that grammar, such as track sizes and chrome; a package copy of a
-bounded rule is a second posture decision that drifts from the first. Generate boxes
-rather than the `lf-pane` or `lf-grid` elements themselves: those are authored words the
-render gate pairs with the file.
+Whether a pane's body scrolls is the workspace Layout's (`layouts.css`): where the
+window holds the workspace, the Layout gives its body a definite height, each pane in it
+may shrink below its content, and each pane's body scrolls; elsewhere every pane takes its
+content's height. Nothing in a module measures a minimum or chooses a posture. While it
+holds the window, the Layout sets `--lf-held: 1` on `main`, and a widget that should grow
+to fill the height it is given, such as a playground's stage, keys its rules on
+`@container style(--lf-held: 1)`. A behavior module that composes regions out of boxes it
+generates, such as a playground's controls beside its preview, takes the pane rules by
+marking those boxes `data-lf-reading-role="pane"`, with the pane grammar of one header,
+one body, and one footer. The attribute is the module's to write and never an author's,
+since `version check` refuses `data-lf-` markup. Keep the package theme to placement
+inside that grammar, such as track sizes and chrome; a package copy of the held rules is
+a second posture decision that drifts from the Layout's. Generate boxes rather than
+`lf-pane` elements themselves: those are authored words the render gate pairs with the
+file.
 
 `registerReadingRegion({id, host, body})` binds a region's identity to its host and to
 the body that scrolls it whenever the theme makes it scroll. The host makes focus in a
@@ -486,8 +481,8 @@ widget. Publish only action and status records to the margin, with explicit `ele
 `entries` relations when a disclosure owns another surface or entry.
 
 A contribution stands in its target's cluster wherever that cluster stands: in the rail
-beside a column page, or as a pin over the page inside the top-right corner of the
-target's block, where an unfolding cluster grows leftward over the block. Leaf inserts nothing into the
+beside a column page, or as a pin over the page inside the target's top-right
+corner, where an unfolding cluster grows leftward over the target. Leaf inserts nothing into the
 page's content for it, so its controls come after the page's content in the tab order;
 the margin's own keyboard routes, `t`, and the Page Map reach them from the target.
 Nothing about the contribution changes with the posture, and a package never places or
@@ -615,16 +610,22 @@ choice the command reference does not have, such as a generated hint tied to the
 optional `reach` on a row or scope supplies the short place phrase shown when a command
 is not available (for example, `in an open draft editor`).
 
-A widget-owned composition box uses `wireInput()`. It registers Enter for the
-contextual action on physical keyboards and leaves Shift+Enter as a newline. On touch
-keyboards, Enter stays a newline and the visible control submits; Mod+Enter is also
-available where a modifier key exists. The helper also owns shared draft persistence,
-busy state, and shortcut projections. A direct editor that needs more commands, such as
-Save and Cancel, registers those rows on its textarea with the same text-entry meanings.
+A widget-owned composition box is the runtime's text field, `offer(TEXT_FIELD)` from the
+widget API: a Markdown editor that shows the draft the way the sent message will read
+and answers the textarea members a box needs (`value`, the selection, `placeholder`,
+`readOnly`, `name`, `aria-label`), firing `input` for the user's edits only. Wire it
+with `wireInput()`, which registers Enter for the contextual action on physical
+keyboards and leaves Shift+Enter as a newline. On touch keyboards, Enter stays a newline
+and the visible control submits; Mod+Enter is also available where a modifier key
+exists. The helper also owns shared draft persistence, busy state, and shortcut
+projections. A direct editor that needs more commands, such as Save and Cancel,
+registers those rows on its box with the same text-entry meanings. `TEXT_BOX` matches
+the text field and any native textarea, for code asking whether an element takes typed
+paragraphs.
 
 The call returns the box's one seam onto its draft, and a box holds more than its
 `.value`: an image pasted into one is kept as Markdown and shown as a thumbnail beside
-the words, never in the textarea. So `sync.value()` reads the whole draft, `sync.load()`
+the words, never in the field. So `sync.value()` reads the whole draft, `sync.load()`
 replaces it — a stored record, a draft arriving from another tab, the emptiness a send
 leaves — and `sync()` repaints the send button and placeholder around whatever stands.
 Write `.value` only to seed the box before wiring it.
@@ -1037,8 +1038,10 @@ Return the cleanup function from the element's disconnect path. The callback mus
 state the whole rendering and remain idempotent.
 
 Time readings made synchronously in controller, `watchData`, `watchUpdates`, and
-`watchHistory` callbacks subscribe that paint to Leaf's shared clock. Calls to `ago`
-and `quietSince` refresh the callback only when their result changes. `quietSince(ts)`
+`watchHistory` callbacks subscribe that paint to Leaf's shared clock. Calls to `ago`,
+`shortAgo` and `quietSince` refresh the callback only when their result changes. `ago(ts)`
+says how long ago `ts` was as the page words it everywhere ("2h ago"), and `shortAgo(ts)`
+is the same reading for a tight seat ("2h"). `quietSince(ts)`
 says whether working last heard at `ts` has gone unheard past the server's working
 grace, the same bound the page's own activity reads. For another
 rounded time reading, use `clockValue((now) => reading)`, whose `now` argument is the

@@ -10,6 +10,7 @@ const escapeHtml = (text) =>
 const escapedSource = (text) => escapeHtml(text);
 let render = escapedSource;
 let renderInline = escapedSource;
+let tokenize = null;
 let ready;
 
 export const renderMarkdown = (text) => render(text);
@@ -83,6 +84,13 @@ function renderedElement(markup, tag) {
   return element?.localName === tag ? element : null;
 }
 
+// The renderer's own reading of Markdown source: its tokens, each carrying its exact
+// `raw` source, after a render has run over them, so that a link token says through
+// `linked` whether the renderer kept it. Null until the parser has loaded
+// (`loadMarkdown`). The composer's preview is drawn from this
+// (`composing/text-field.js`), so what it styles is what the message renders.
+export const markdownTokens = (text) => tokenize?.(text) ?? null;
+
 export function loadMarkdown(onError = null) {
   const attempt = (ready ??= import("/vendor/marked.esm.js").then((module) => {
     const markdown = new module.Marked({
@@ -101,7 +109,8 @@ export function loadMarkdown(onError = null) {
           const link = renderedElement(markup, "a");
           if (!link) return markup;
           const href = link.getAttribute("href");
-          if (!safeUrl(href)) return this.parser.parseInline(token.tokens);
+          token.linked = safeUrl(href);
+          if (!token.linked) return this.parser.parseInline(token.tokens);
           if (isCanonicalMediaUrl(href))
             link.setAttribute("href", scopedMediaUrl(href));
           return link.outerHTML;
@@ -129,6 +138,11 @@ export function loadMarkdown(onError = null) {
     });
     render = (text) => markdown.parse(text);
     renderInline = (text, breaks) => markdown.parseInline(text, { breaks });
+    tokenize = (text) => {
+      const tokens = markdown.lexer(text);
+      markdown.parser(tokens);
+      return tokens;
+    };
   }));
   return attempt
     .then(() => true)

@@ -1,11 +1,12 @@
-Build a release page as a document with grids. Lead with the release's current state in
-the lede and a callout: what is live, what stopped it or what comes next, and the hold
-or escalation policy with its deadline. Put the headline numbers in an `lf-grid` of
-`lf-metric` tiles, and the evidence the state rests on in a second grid: the named
-checks with their observed and required values in one cell, and the run log
-in the other, bound with `data-bound="end"` so it stays on its newest line. Keep the
-release identity, steps, notes, owners and rollback procedure below in ordinary flow,
-with the reference material in `details`. Keep release identity and summary in
+Build a release page as a body beside a side track, `<main class="layout-sidebar">`.
+Lead with the release's current state in the lede and a callout: what is live, what
+stopped it or what comes next, and the hold or escalation policy with its deadline.
+Open the body with the headline numbers as `lf-metric` tiles in a `layout-tiles` block,
+and put the evidence the state rests on under them: the run log, bound with
+`data-bound="end"` so it stays on its newest line, beside the named checks with their
+observed and required values in the side track. Keep the release identity, steps,
+notes, owners and rollback procedure in the side track or below in ordinary flow, with
+the reference material in `details`. Keep release identity and summary in
 authored markup so a feed update cannot silently change the page's conclusion.
 
 When rollback is genuinely available, put one `lf-release-actions` holder around an

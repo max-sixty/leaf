@@ -178,9 +178,12 @@ the user:
 
 ## Author or revise a page
 
-Read `<root>/skills/leaf/SKILL.md` completely and follow its authoring,
-validation, handoff, and conversation-loop routes, using the checkout launcher
-for every `leaf` command and resolving its references from `<root>/skills/leaf/`.
+Every authored Leaf source is a page: a site page under `docs/`, a shipped
+example or fixture, a playground, or a page made for this conversation. Before
+writing its content, read `<root>/skills/leaf/SKILL.md` completely and follow
+its authoring, validation, handoff, and conversation-loop routes, using the
+checkout launcher for every `leaf` command and resolving its references from
+`<root>/skills/leaf/`.
 To make an existing page exercise the current checkout, re-vendor it with the
 checkout launcher (`<root>/skills/leaf/references/serving-pages.md`); fix or
 report a compatibility refusal rather than falling back to the installed plugin.

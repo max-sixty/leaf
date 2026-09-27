@@ -1,20 +1,23 @@
 """Arms, served pages, and agent-host children for evals and probes that run a
 version of Leaf.
 
-    uv run leaf-dev arm REF DEST
+The `leaf-dev` commands, `verify_codex_task.py`, `verify_site.py`,
+`notes/arrangement-eval/harness.py` and `notes/usability-eval/harness.py` import it.
 
-builds one arm at DEST from git REF; `evals/README.md`'s A/B recipe builds its other
-arm with it. `leaf-dev stills` and `leaf-dev probe`, `eval_claude_delivery.py`, the
-two `bench_*.py` scripts, `verify_codex_task.py`, `verify_site.py`,
-`notes/arrangement-eval/harness.py` and `notes/usability-eval/harness.py` import the
-rest.
+An arm is the plugin payload (`PAYLOAD`: both hosts' manifests, hooks, launcher, skills
+and uv project) at one ref, or as the working tree has it, and nothing else. It has no
+`.git`, examples, docs or notes, so a child cannot read its way to another arm's
+version through history or the worked corpus. Building runs the launcher once, so uv
+builds the arm's environment before a timed run starts. `extract_payload` alone
+writes the payload without building it, which a Codex home (`codex_home`) installs as
+its plugin.
 
-An arm is the plugin payload at one ref (`PAYLOAD`: both hosts' manifests, hooks,
-launcher, skills and uv project) and nothing else. It has no `.git`, examples, docs or
-notes, so a child cannot read its way to another arm's version through history or the
-worked corpus. Building runs the launcher once, so uv builds the arm's environment
-before a timed run starts. `extract_payload` alone also copies the working tree's
-payload, which a Codex home (`codex_home`) installs as its plugin.
+An A/B command compares two arms, `base` and `head` (`build_pair`), or, as
+`leaf-dev guidance-ab` does, a base and the working tree's arm. Its base is the
+merge base with `main` unless the caller names another ref (`base_ref`), so a branch
+behind `main` is compared with where it started rather than with changes it has not
+merged. A timed one prints the machine's load average before and after
+(`load_average`), since other processes' load moves every timing.
 
 A child is `claude -p` from a scratch cwd outside any repository, with project-only
 settings, no MCP servers, auto-memory off, and none of the variables that identify an
@@ -153,7 +156,7 @@ def serving_source(arm: Path, source: Path, scratch: Path):
 
 
 def merge_base(ref: str = "HEAD") -> str:
-    """The commit `ref` branched from `main`: the base an A/B script compares HEAD
+    """The commit `ref` branched from `main`: the base an A/B command compares HEAD
     against unless it is handed another, and the control `leaf-dev ci-failures`
     reads a branch's CI against."""
     return subprocess.run(
@@ -164,10 +167,28 @@ def merge_base(ref: str = "HEAD") -> str:
     ).stdout.strip()
 
 
+def copy_working(paths: Iterable[str], dest: Path) -> None:
+    """Copy the files under `paths` into `dest` as the working tree has them: tracked
+    and unignored untracked files, the ones an install copies, with edits included
+    and links kept as links."""
+    listed = subprocess.run(
+        ["git", "-C", ROOT, "ls-files", "-z", "--cached", "--others"]
+        + ["--exclude-standard", "--", *paths],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split("\0")
+    # A conflicted file is listed once per stage; a deleted one is still in the index.
+    for name in dict.fromkeys(filter(None, listed)):
+        source, target = ROOT / name, dest / name
+        if source.is_symlink() or source.is_file():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target, follow_symlinks=False)
+
+
 def extract_payload(dest: Path, ref: str | None = None) -> None:
-    """Write PAYLOAD at git `ref`, or as the working tree has it when `ref` is None,
-    into `dest`, replacing whatever was there. The working tree's payload is its
-    tracked and unignored files, the ones an install copies."""
+    """Write PAYLOAD at git `ref`, or as the working tree has it when `ref` is None
+    (`copy_working`), into `dest`, replacing whatever was there."""
     if dest.exists():
         # A caller may have made an arm read-only.
         subprocess.run(["chmod", "-R", "u+w", dest], check=True)
@@ -187,33 +208,42 @@ def extract_payload(dest: Path, ref: str | None = None) -> None:
             check=True,
         ).stdout
         subprocess.run(["tar", "-x", "-C", dest], input=archive, check=True)
-        return
-    listed = subprocess.run(
-        ["git", "-C", ROOT, "ls-files", "-z", "--cached", "--others"]
-        + ["--exclude-standard", "--", *PAYLOAD],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout
-    for name in filter(None, listed.split("\0")):
-        # A tracked file deleted from the working tree is still listed.
-        if (ROOT / name).exists():
-            (dest / name).parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(ROOT / name, dest / name)
+    else:
+        copy_working(PAYLOAD, dest)
 
 
-def build_arm(ref: str, dest: Path) -> str:
-    """Extract PAYLOAD at `ref` into `dest`, replacing any earlier arm there, and
-    build its environment; return the commit."""
+def build_arm(ref: str | None, dest: Path) -> str:
+    """Extract PAYLOAD at `ref`, or as the working tree has it when `ref` is None,
+    into `dest`, replacing any earlier arm there, and build its environment; return
+    the commit, HEAD's for the working tree."""
     extract_payload(dest, ref)
     with tempfile.TemporaryDirectory() as state:
         run_leaf(dest, Path(state), "--root", check=True)
     return subprocess.run(
-        ["git", "-C", ROOT, "rev-parse", f"{ref}^{{commit}}"],
+        ["git", "-C", ROOT, "rev-parse", f"{ref or 'HEAD'}^{{commit}}"],
         capture_output=True,
         text=True,
         check=True,
     ).stdout.strip()
+
+
+def base_ref(ref: str | None) -> str:
+    """The ref an A/B command compares HEAD against: the one it was handed, else
+    `merge_base()`."""
+    return ref or merge_base()
+
+
+def build_pair(base: str | None, dest: Path) -> tuple[dict[str, Path], dict[str, str]]:
+    """Build an A/B's arms under `dest`: `base` at `base_ref(base)` and `head` at
+    HEAD. Return each arm's directory and its commit, both keyed `base` and `head`."""
+    refs = {"base": base_ref(base), "head": "HEAD"}
+    arms = {arm: dest / arm for arm in refs}
+    return arms, {arm: build_arm(ref, arms[arm]) for arm, ref in refs.items()}
+
+
+def load_average() -> str:
+    """The machine's 1, 5 and 15 minute load averages."""
+    return " ".join(f"{value:.1f}" for value in os.getloadavg())
 
 
 def codex_home(path: Path, config: str = "") -> Path:

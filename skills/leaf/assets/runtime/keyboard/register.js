@@ -14,7 +14,13 @@
  * presentation describe the same available step. The standing scope handles letting go
  * of a page destination before the fallback ladder.
  */
-import { bindings, checked, word } from "./bindings.js";
+import {
+  answersTouch,
+  bindings,
+  checked,
+  touchPresses as pressesOf,
+  word,
+} from "./bindings.js";
 import { focused } from "./scopes.js";
 import { under } from "../shadow.js";
 
@@ -208,6 +214,13 @@ function assemble() {
   if (absent.length)
     throw new Error(`leaf: the page's keyboard has no owner for ${absent.join(", ")}`);
   const rows = PAGE_COMMANDS.map((id) => commands.get(id));
+  // Every page command answers whether a finger needs a stand-in for its keys (AGENTS.md,
+  // "Touch routes"), so a new one meets the question where it is declared.
+  const unanswered = rows.filter((row) => !answersTouch(row)).map((row) => row.id);
+  if (unanswered.length)
+    throw new Error(
+      `leaf: ${unanswered.join(", ")} must declare \`touch\`: its words under a finger, or false where a finger reaches it directly`,
+    );
   const covering = rows.filter((row) => row.covering);
   return STACK.flatMap((name) => {
     if (name === PAGE) return { rows };
@@ -242,6 +255,24 @@ export function pageScopes() {
         checked(scope.rows, scope.title ?? "the page's own keys");
   }
   return resolved;
+}
+// The presses a finger reaches through a banner control rather than a key (AGENTS.md,
+// "Touch routes"): each a page command declares, in line order, and each a page scope's
+// rows declare, scope by scope in STACK order, so the first that stands is the one the
+// user is innermost in. Read from the live register, since a scope may join or leave it.
+export function touchPresses() {
+  pageScopes();
+  return {
+    commands: PAGE_COMMANDS.flatMap((id) => pressesOf(commands.get(id))),
+    steps: STACK.flatMap((name) =>
+      typeof name === "string"
+        ? (scopes.get(name) ?? []).map((scope) => ({
+            scope,
+            presses: scope.rows.flatMap(pressesOf),
+          }))
+        : [],
+    ).filter(({ presses }) => presses.length),
+  };
 }
 export const universalCommandReference = () => commands.get(COMMAND_REFERENCE);
 export const textEntryScope = () => scopes.get("text entry")?.[0];

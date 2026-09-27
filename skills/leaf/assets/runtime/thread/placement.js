@@ -5,7 +5,7 @@ import { pageParts } from "../passages.js";
 import { inChrome } from "../passages.js";
 import { serverNow } from "../presence.js";
 import { readingRegionFor } from "../reading-regions.js";
-import { hostIn } from "../shadow.js";
+import { hostIn, upFrom } from "../shadow.js";
 import { threadSummary } from "./model.js";
 // ---------- where the panel puts a thread ----------
 // The list reads in the page's order, not the log's. A page is a document with a
@@ -94,10 +94,21 @@ export function outlineSubjectFor(target, peers = [target], outline = pageOutlin
         outline.includes(candidate) &&
         subjectLabel(candidate) === label,
     );
-  const context = repeated
-    ? String(readingRegionFor(target)?.host.getAttribute("aria-label") ?? "").trim()
-    : "";
-  return { label, context };
+  return { label, context: repeated ? regionLabel(target) : "" };
+}
+
+// The name of the nearest region around a node that has one: a bounded block inside a
+// labelled pane is read as part of that pane.
+function regionLabel(node) {
+  for (
+    let region = readingRegionFor(node);
+    region;
+    region = readingRegionFor(upFrom(region.host))
+  ) {
+    const label = region.host.getAttribute("aria-label")?.trim();
+    if (label) return label;
+  }
+  return "";
 }
 
 // Which part of the page an element is in: the heading that names everything from itself

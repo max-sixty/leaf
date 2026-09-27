@@ -401,9 +401,13 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                     )
                 ).to_have_count(0)
         for reaction in reacted:
-            item = page.locator(
-                f'.lf-margin-cluster[data-lf-margin-for="{reaction["anchor"]["section"]}"]'
+            section = reaction["anchor"]["section"]
+            tab = page.locator(f"#{section}").evaluate(
+                "el => el.closest('lf-tab')?.getAttribute('label')"
             )
+            if tab:
+                page.get_by_role("tab", name=tab, exact=True).click()
+            item = page.locator(f'.lf-margin-cluster[data-lf-margin-for="{section}"]')
             expect(item).to_have_count(1)
             # A crowded target may expose this exact reaction through overflow. Follow
             # its visible route rather than requiring every margin entry to stand at rest.

@@ -20,6 +20,7 @@ import {
   holdFocus,
   authoredScope,
   commands,
+  keepsText,
   matchesWhen,
   offer,
   once,
@@ -418,7 +419,7 @@ function renderStopped(snapshot) {
       const shown = box?.querySelector(
         `li[data-lf-goal="${goal.element.id}"] .lf-stopped-age`,
       );
-      if (shown) shown.textContent = age(goal);
+      keepsText(shown, age(goal));
     }
     return false;
   }

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from ..files import STAGED, entry_stamps, file_stamp
 from ..interaction_log import INTERACTIONS_FILE
-from ..schema import DATA_DIR, EVENTS_FILE, VIEWED_FILE
+from ..schema import DATA_DIR, EVENTS_FILE, SESSION_FILES, VIEWED_FILE
 from ..service import claim_path
 
 # Diagnostic writes cannot move application state. The server writes `viewed.json`
@@ -55,12 +55,16 @@ HISTORY = frozenset({EVENTS_FILE, "revisions"})
 def source_readings(page_dir: Path) -> tuple[str, str]:
     """The page's reading split in two: its source, and its history.
 
-    The same stamps `page_reading` takes, less the claim, which says who is
-    listening rather than what the page is. History is `HISTORY`; source is every
-    other stamp, so a file nothing names here counts as source and moves the
-    activation it could change.
+    The same stamps `page_reading` takes, less the claim and the session files
+    (`SESSION_FILES`), which say who is working on the page rather than what it is.
+    History is `HISTORY`; source is every other stamp, so a file nothing names here
+    counts as source and moves the activation it could change. Leaving the session
+    out is what lets an agent declare its status, acknowledge a delivery, or take a
+    wait without the next state read validating the whole page again.
     """
-    stamps = _page_stamps(page_dir)
+    stamps = [
+        stamp for stamp in _page_stamps(page_dir) if stamp[0] not in SESSION_FILES
+    ]
     return (
         _token([stamp for stamp in stamps if stamp[0] not in HISTORY]),
         _token([stamp for stamp in stamps if stamp[0] in HISTORY]),

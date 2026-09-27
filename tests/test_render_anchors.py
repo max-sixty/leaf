@@ -5145,11 +5145,17 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
-    note = page.locator("lf-diff .lf-mark-note")
+    note = page.locator(".lf-mark-note")
     expect(note).to_have_count(1)
+    # The commented line stands inside the diff's shadow tree and the note in the
+    # document's chrome, which an id reference cannot join; the reflected relation can.
+    assert note.evaluate(
+        """n => [...document.querySelector('lf-diff').shadowRoot.querySelectorAll('*')]
+            .some(el => el.ariaDetailsElements?.includes(n))"""
+    ), "no line inside the diff names the comment note as its details"
     assert note.evaluate(
         "el => { const r = el.getBoundingClientRect(); return r.width <= 1 && r.height <= 1; }"
-    ), "the shared comment note escaped the shadow theme and painted inside the diff"
+    ), "the resting comment note painted on screen"
     assert note.evaluate("el => getComputedStyle(el).opacity") == "0"
     note.focus()
     expect(note).to_be_focused()
@@ -5927,16 +5933,21 @@ def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
     )
     told(page)
     expect(row).to_have_class(marked)
-    expect(row).to_contain_text("1 comment")
+    notes = """(count) => {
+        const row = document.getElementById('patch').shadowRoot.getElementById('row');
+        return (row.ariaDetailsElements ?? []).length === count;
+    }"""
+    page.wait_for_function(notes, arg=1)
+    assert row.evaluate("el => el.ariaDetailsElements[0].textContent") == "1 comment"
 
-    # Resolved, so the next repaint has nothing to say here: the count line has to go,
-    # and it can only go if the sweep that clears it enters the tree that holds it.
+    # Resolved, so the next repaint has nothing to say here: the count has to go, and
+    # it can only go if the sweep that clears it reaches the tree that holds the row.
     events_model.append_event(
         d, {"kind": "resolve", "author": "user", "parent": "c-staged"}
     )
     told(page)
     expect(row).not_to_have_class(marked)
-    expect(row).not_to_contain_text("comment")
+    page.wait_for_function(notes, arg=0)
 
 
 # The runtime's whole visible vocabulary for "somebody has said something about these

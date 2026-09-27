@@ -100,6 +100,7 @@ from render_harness import (
     open_page,
     pane_posture,
     panel_settled,
+    plant_quiet_word,
     primed,
     resized,
     root_overflow,
@@ -3051,41 +3052,32 @@ def test_a_line_the_author_drew_is_not_a_wrap(browser, serve):
 
 
 def test_a_comment_on_a_cell_is_not_a_wrap_in_it(browser, serve):
-    """The mark pass puts a comment badge in the cell it marks, and the badge is
-    two words in `.lf-ui` that wrap in a 33px cell. Read as the cell's words it
-    turned this table — single tokens, the theme's honest third case — red the
-    moment a user commented on it. The runtime's words are not the page's.
-
-    The whole gate, rather than this one reading of it: the badge also stood the
-    page three hundred pixels wide of itself until the scroller was made to
-    contain what it scrolls, and a commented page has nothing left to report."""
+    """A comment on a cell of this table — single tokens, the theme's honest third
+    case — leaves the whole gate with nothing to report: the mark paints the cell's
+    words and the runtime's count stands in the chrome, so nothing the runtime writes
+    is read as the cell's words or widens the page."""
     url = serve(WIDE_TABLE_PAGE, anchored=[("sessions", "value_number_7")])
 
     assert render_gate_model.render_version(browser, url).failures == []
 
 
-def test_a_comment_inside_a_scrolling_table_leaves_the_page_its_own_width(
+def test_a_quiet_word_inside_a_scrolling_table_leaves_the_page_its_own_width(
     browser, serve
 ):
-    """The runtime hangs a word clipped to nothing inside the block a comment lands
-    on, out of flow so it holds no room. Out of flow with no positioned ancestor is
+    """A widget hangs a word clipped to nothing among the page's own words (.lf-quiet),
+    out of flow so it holds no room. Out of flow with no positioned ancestor is
     positioned against the page, though, and a table scrolling inside itself holds
-    its far column three hundred pixels past the window: the cell was there, the
-    word was laid out there with it, and the page grew a sideways scrollbar
+    its far column three hundred pixels past the window: the cell is there, the
+    word is laid out there with it, and the page would grow a sideways scrollbar
     carrying the user to a box nobody can see. The scroller answers for it — a
     box that scrolls contains what it scrolls — so the word keeps the place on its
     own cell that every reading of it expects and the table carries it.
 
     Asked at both of the table's scroll positions, since the word travels with the
-    cell now rather than standing still while the cell moves; and the cell has to
-    be off the table's own edge at the first of them, or nothing here could have
-    escaped. Then the two things the place is for: the user who takes the skip
-    link, and the gate."""
-    url = serve(WIDE_TABLE_PAGE, anchored=[("sessions", "value_number_7")])
-    page = open_page(browser, url)
-    note = page.locator(".lf-mark-note")
-    expect(note).to_have_count(1)
-    expect(note).to_have_text("1 comment")
+    cell rather than standing still while the cell moves; and the cell has to be off
+    the table's own edge at the first of them, or nothing here could have escaped."""
+    page = open_page(browser, serve(WIDE_TABLE_PAGE))
+    note = plant_quiet_word(page, "#sessions td", "value_number_7")
 
     # At rest, then with the table scrolled to its far end; the page's own width is
     # the gate's reading, taken at each.
@@ -3129,25 +3121,6 @@ def test_a_comment_inside_a_scrolling_table_leaves_the_page_its_own_width(
         measured["rest"]["sideways"] == 0 and measured["scrolled"]["sideways"] == 0
     ), f"the page grew sideways reaching for the word: {measured}"
 
-    # Reached the way a user reaches it. `focus()` alone sets :focus and leaves
-    # :focus-visible to Chrome's focus modality, which one earlier mouse press flips
-    # — the skip link would then be asked for its resting form and the failure would
-    # talk about `position` (tests/AGENTS.md).
-    note.evaluate("(n) => n.focus()")
-    page.keyboard.press("Tab")
-    page.keyboard.press("Shift+Tab")
-    reached = note.evaluate(
-        """(n) => {
-        const r = n.getBoundingClientRect();
-        return { held: document.activeElement === n, said: n.textContent,
-                 inTheWindow: r.width > 1 && r.left >= 0 && r.right <= innerWidth
-                              && r.top >= 0 && r.bottom <= innerHeight };
-    }"""
-    )
-    assert reached == {"held": True, "said": "1 comment", "inTheWindow": True}
-    page.close()
-    assert render_gate_model.render_version(browser, url).failures == []
-
 
 def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
     """The table above is the theme's box. A page writes `overflow-x: auto` on a box
@@ -3165,10 +3138,8 @@ def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
     mark must leave and must reach: a scroller the page positioned itself, which
     holds its own and takes no mark, and a diff's lines, which scroll in a declared
     shadow tree where a document rule does not go."""
-    url = serve(LOOSE_SCROLLER_PAGE, anchored=[("far", "wider than the box")])
-    page = open_page(browser, url)
-    note = page.locator("#far > leaf-anchor-note > .lf-mark-note")
-    expect(note).to_have_count(1)
+    page = open_page(browser, serve(LOOSE_SCROLLER_PAGE))
+    note = plant_quiet_word(page, "#far", "wider than the box")
     measured = note.evaluate(
         """(n) => {
         const box = document.querySelector('#loose');
@@ -3215,23 +3186,6 @@ def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
     assert measured["scrolled"]["offset"] == measured["rest"]["offset"], (
         f"the word stood still while its row scrolled: {measured}"
     )
-    note.focus()
-    note.evaluate("n => n.classList.add('lf-focus-visible')")
-    focused = note.evaluate(
-        """(n) => {
-        const box = document.querySelector('#loose');
-        const r = n.getBoundingClientRect();
-        const hit = document.elementFromPoint(
-            r.left + r.width / 2,
-            r.top + r.height / 2,
-        );
-        return {
-            mask: getComputedStyle(box).maskImage,
-            painted: n.contains(hit),
-        };
-    }"""
-    )
-    assert focused == {"mask": "none", "painted": True}, focused
     page.close()
 
     example = next(e for e in EXAMPLES if e.stem == "pr-walkthrough")

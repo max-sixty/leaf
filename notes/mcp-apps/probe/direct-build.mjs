@@ -43,7 +43,7 @@ const result = await build({
     sourcefile: "leaf-direct-entry.js",
   },
   bundle: true,
-  format: "iife",
+  format: "esm",
   platform: "browser",
   target: "chrome120",
   minify: true,

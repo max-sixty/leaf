@@ -66,6 +66,7 @@ from render_harness import (
     LONG_PAGE,
     REPLAYED_PAGE,
     SAMPLE_PAGE,
+    expect_comment_notes,
     leaf_page,
     open_page,
     panel_settled,
@@ -2719,9 +2720,7 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
     expect(page.locator(".lf-thread .lf-quote")).to_have_text(
         "§ diagram · Start request"
     )
-    expect(diagram.locator(":scope > leaf-anchor-note > .lf-mark-note")).to_have_count(
-        1
-    )
+    expect_comment_notes(page, "#flow", 1)
     expect(start).to_have_class(re.compile(r"\blf-mark-el\b"))
 
     stamp_page(serve.page_dir, PART_DIAGRAM_V2, "reordered")
@@ -2731,9 +2730,7 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
         re.compile(r"\blf-mark-el\b")
     )
     expect(diagram).not_to_have_class(re.compile(r"\blf-mark-el\b"))
-    expect(diagram.locator(":scope > leaf-anchor-note > .lf-mark-note")).to_have_count(
-        1
-    )
+    expect_comment_notes(page, "#flow", 1)
 
 
 def test_design_mode_treats_a_renderer_node_as_part_of_its_widget(browser, serve):
@@ -2817,7 +2814,7 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     # its note on the element, and that repaint takes an open response surface down with
     # it — so an aim placed in the gap opens a composer the arriving comment then closes.
     # The note is the projection landing, and every later aim is on a settled page.
-    expect(page.locator("#life > leaf-anchor-note > .lf-mark-note")).to_have_count(1)
+    expect_comment_notes(page, "#life", 1)
 
     # A box inside the composite state, declared in its own right.
     aim(page.locator('#life g[data-id="Build"]'))
@@ -2857,7 +2854,7 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     # the heels of the press can end before this comment is in the wire at all — and the
     # log read below then answers with the log as it stood before the gesture. This note is
     # the second comment applied, which it cannot be before the log holds it.
-    expect(page.locator("#shape > leaf-anchor-note > .lf-mark-note")).to_have_count(1)
+    expect_comment_notes(page, "#shape", 1)
 
     posted = [
         event

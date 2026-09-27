@@ -141,7 +141,7 @@ import { repaint } from "./repaint.js";
 import { chromeRoot } from "./chrome.js";
 import { versionBtn } from "./version-chooser.js";
 import { motion, scrollBehavior } from "./motion.js";
-import { declareSide } from "./standing-target.js";
+import { declareSide, placeOf } from "./standing-target.js";
 import { closestAcross, elementById, inChrome } from "./passages.js";
 import { addressableSays, addressableWord, visualAt } from "./anchor-resolution.js";
 import { paintTrace } from "./target-paint.js";
@@ -2584,11 +2584,14 @@ export function createMarginProjection({
   // heading. Treating an Ask as one target for its threads is a possible refinement. It
   // belongs where a thread's target is decided (anchor-paint's placement), so every
   // reader keeps one definition, not in this or any other single reader.
+  // Read from where the node stands (standing-target.js), so chrome that shows a page
+  // target, such as a comment note, arrives at that target as its own content does.
   const threadEntryAt = (node) => {
+    const place = placeOf(node);
     let standing = null;
     for (const entry of pageInventory) {
       const target = targetFor(entry);
-      if (!target || !threadReading(entry) || !under(node, target)) continue;
+      if (!target || !threadReading(entry) || !under(place, target)) continue;
       if (seatedOnPage(threadIdOf(entry))) continue;
       if (!standing || under(target, targetFor(standing))) standing = entry;
     }

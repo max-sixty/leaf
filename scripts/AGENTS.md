@@ -33,9 +33,15 @@ Evidence, previews, staged sites, and probe results leave the tracked tree uncha
 - `worker/README.md` owns hosted-agent diagnostics and the failure contract.
 - `eval_harness.py` builds the arms and isolated `claude -p` children every Claude
   Code eval runs, holds a live child's session open while a driver posts moves through
-  the served page, and reads their traces; `eval_claude_delivery.py`, the two
-  `bench_*.py` scripts, `stills.py`, `notes/arrangement-eval/harness.py`,
+  the served page, and reads their traces, and makes the throwaway Codex homes;
+  `eval_claude_delivery.py`, the two `bench_*.py` scripts, `stills.py`,
+  `verify_codex_task.py`, `verify_site.py`, `notes/arrangement-eval/harness.py`,
   `notes/usability-eval/harness.py`, and the A/B recipe in `evals/README.md` use it.
+- `verify_codex_task.py` runs one real Codex task with this working tree's plugin
+  through `leaf codex start`'s App Server adapter. It posts comments while the task
+  is idle, mid-turn, and after the adapter is killed, and fails when a comment is
+  not answered exactly once or the page's claim does not name the task's last turn,
+  closed. It spends the host's Codex login, so CI does not run it.
 - `eval_claude_delivery.py [BASE_REF]` compares how an agent handles a comment
   through `leaf wait`, and what the page shows meanwhile, between a base plugin
   and HEAD's.
@@ -53,10 +59,3 @@ Evidence, previews, staged sites, and probe results leave the tracked tree uncha
   before/after pair under `.tmp/stills/`.
 - `record-demo.py` regenerates `docs/demo.gif`, the README stills, and
   `docs/session-card.png`.
-
-## MCP Apps probe
-
-`mcp-app/run-direct-probe.sh` runs the bundled runtime in the official reference
-host; `mcp-app/README.md` owns it. Its evidence under `.tmp/mcp-app/experiments/`
-is scratch. Copy into `notes/mcp-apps/experiments/<number>/results/` only what a
-written-up result cites.

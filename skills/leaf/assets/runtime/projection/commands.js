@@ -6,7 +6,7 @@
    reaction strip each name an exact entry. All of them withdraw through `withdraw`. */
 import { runtime } from "../context.js";
 import { notice } from "../notifications.js";
-import { readApplication } from "../semantic-state.js";
+import { applicationState, readApplication } from "../semantic-state.js";
 import { paintKeys } from "../keyboard/scopes.js";
 import { pageCommand } from "../keyboard/register.js";
 import { undoSentence } from "../reactions.js";
@@ -33,20 +33,15 @@ export function createProjectionCommands({ post, stateApplying, unaccountedGestu
   // Whether taking back this exact gesture now takes back what the user sees. The
   // ordered ledger sends the undo behind everything already queued, the target's own
   // unanswered send included, and the server remains final admission. Two things it
-  // cannot order: an accepted action whose presentation is still outstanding may yet
-  // change which gestures the page can honestly offer, and only an action has a
-  // withdrawal the page draws before the log answers, so a message the log has not
-  // taken waits for its answer.
+  // cannot order: another action the log holds but the page has not yet presented may
+  // change which gestures the page can honestly offer, whether or not its own POST
+  // has answered, and only an action has a withdrawal the page draws before the log
+  // answers, so a message the log has not taken waits for its answer.
   function withdrawable(event) {
     if (event.kind !== "action" && String(event.id).startsWith(PENDING)) return false;
-    return !readApplication().unresolved.some(
-      (entry) =>
-        entry.event.kind === "action" &&
-        entry.answered &&
-        entry.readEvent &&
-        entry.readEvent.id !== event.id &&
-        !entry.presented,
-    );
+    return !applicationState
+      .unpresented()
+      .some((entry) => entry.event.kind === "action" && entry.admitted.id !== event.id);
   }
 
   // The one withdrawal door. Returns null when the page refuses the withdrawal now,

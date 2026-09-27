@@ -75,7 +75,7 @@
    renders nothing to gate. So the shared vocabulary's faces are stated page-side, where
    a component that names the same property wins by coming later: the whole margin-entry
    family in theme.css, and .lf-key-badge, .lf-ui, .lf-btn and its focus ring,
-   .lf-outline-chip, a thread mark's note and the aim floor in shadow.css, which also
+   .lf-outline-chip and the aim floor in shadow.css, which also
    reaches the widget trees this sheet never does. What stays here is the paint the
    runtime lays over the page, which has to beat page and widget alike. `box-sizing` stays for the
    same reason — the layer's reset, not its face — and it travels with its own `*`
@@ -111,18 +111,16 @@
    opacity property. Clipped instead, it read as a one-pixel control at the top of the
    document that the floating comment bar could be standing on.
 
-   It takes no pointer while it rests, which is the whole difference between it and a
-   thread mark's note: that one is a real hit target on purpose, so a press reaches the
-   handler Enter reaches, while this is a keyboard affordance and nothing else. A
-   transparent pixel under the banner that could still receive a click is a control the
-   layer is standing on — which is what the page's own reading of that question said,
-   correctly. */
+   It takes no pointer while it rests, because it is a keyboard affordance and nothing
+   else. A transparent pixel under the banner that could still receive a click is a
+   control the layer is standing on — which is what the page's own reading of that
+   question said, correctly. */
 .lf-skip { opacity: 0; pointer-events: none; }
-/* The skip link (leaf.js says why it stands where it does). It rests transparent, the
-   way the comment note above does and for the same reason, and on focus takes the face
-   the two controls below take, in the same place — a user who has just pressed Tab
-   from the top of the document is the only one who ever sees it. Outside the scope
-   block because it stands outside the container, which is the whole point of it.
+/* The skip link (leaf.js says why it stands where it does), and a comment note, which
+   wears its face (anchor-note-view.js). On focus either takes this chip's face under the
+   banner — a user who has just reached one is the only one who ever sees it. Outside the
+   scope block because the skip link stands outside the container, which is the whole
+   point of it.
 
    Its ring insets, which is the rule for a box whose own edge touches something that
    paints: this one is dropped over whatever the page has under the banner, and an
@@ -384,6 +382,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      itself, which is why this can't be written at document level without widening
      the shared vocabulary by a class only the runtime ever wears. */
   @media print { :scope { display: none; } }
+  /* A comment note rests where its focused face stands. It lives here after the whole
+     page, so a note focused while it rested in flow would scroll the page to the
+     chrome's end; fixed, focus moves nothing. */
+  .lf-mark-note { position: fixed; top: calc(var(--lf-banner-h) + 6px); left: 8px; }
   /* The hand only where the press lands. An element anchor wears its outline
      wherever its element stands, the layer's own parts included — that is what lets
      a design comment about the banner point at the banner, and a thread about a

@@ -217,9 +217,6 @@ and its chrome coordinate.
   regexes, `media.js` spells a constant in pieces to get past that pass, and a page's
   head is composed in three places. One `rebase_document(source, address)`, with an
   import map for layer JavaScript, would delete the regex scopers.
-- **Ask once whether the page has caught up with a reading.** `tests/render_harness.py`
-  `told()` waits for `data-lf-reading` to match the server's reading, and the `data`
-  and `log` stages of the runtime's `pageReadiness` (#1250) answer the same question.
 - **Call a thread's identity its id in Python.** The runtime keys threads on the
   served `id` (#1260), but Python still names that identity a root (`thread_roots`,
   `FrozenThreadReading.roots`), though a thread that lost its opening message has a

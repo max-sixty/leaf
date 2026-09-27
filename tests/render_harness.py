@@ -754,59 +754,26 @@ def holding(page, held, count, what):
 # on whatever budget expect() happens to carry. Timed, that wait takes 1.8 to 2.3 of the
 # default five seconds, and it takes them every time.
 #
-# So ask the page what it holds. The server names each state it serves with a reading
-# and the runtime paints the one it has completely applied, so "has this page taken in
-# what I just wrote" is one comparison and names no transport. Counting answered
-# requests said the same thing only while a fixed interval made them the same thing:
-# the page now asks when its news stream says the page has moved, so a count of asks
-# started here reaches the answer that carries the news only by luck of the ordering.
-#
-# The wanted reading is re-read each round rather than fixed at entry, because the page
-# is allowed to move past it — a work claim ages, a neighbour writes — and a wait pinned
-# to a reading the page has already overtaken would sit out its whole deadline.
-def _server_reading(page):
-    """What the server would answer with now, asked without disturbing the page.
-
-    Through the context's request API rather than the page: it carries the same cookie,
-    and it is not seen by page routes or by the traffic watcher, so a test that stubs or
-    counts /api/state sees exactly what it did before this call existed.
-    """
-    origin = urlsplit(page.url)
-    answer = page.request.get(f"{origin.scheme}://{origin.netloc}/api/state")
-    assert answer.ok, f"the server would not say what it holds: {answer.status}"
-    return answer.json()["reading"]
-
-
+# So ask the page whether it has caught up with what the server holds: its readiness
+# reading answers that against an `/api/state` answer, and names no transport.
+# Counting answered requests said the same thing only while a fixed interval made them
+# the same thing: the page now asks when its news stream says the page has moved, so a
+# count of asks started here reaches the answer that carries the news only by luck of
+# the ordering.
 def told(page):
     """Wait until the page has taken in everything the server now holds.
 
     Call it after the test writes a version, event, status, or lease behind a live
-    page, before reading that page."""
-    deadline = time.monotonic() + 30
-    began = None
-    while True:
-        want = _server_reading(page)
-        if began is None:
-            began = want
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise AssertionError(
-                f"the page never took in what the server holds: waiting for {began}, "
-                f"the page last applied "
-                f"{page.evaluate('() => document.body?.dataset.lfReading')}"
-            )
-        try:
-            page.wait_for_function(
-                "want => document.body?.dataset.lfReading === want",
-                arg=want,
-                timeout=min(500, remaining * 1000),
-                polling=50,
-            )
-            return
-        except PlaywrightTimeout:
-            # Either the page has not caught up yet or the revision moved under this
-            # wait. Both are answered by asking again with what the server holds now.
-            continue
+    page, before reading that page. It asks only through the `state` stage: a test may
+    write behind a page it is holding mid-gesture, where the rest of readiness waits on
+    the gesture rather than the write. The server's answer is asked through the
+    context's request API rather than the page: it carries the same cookie, and it is
+    not seen by page routes or by the traffic watcher, so a test that stubs or counts
+    /api/state sees exactly what it did before this call existed."""
+    origin = urlsplit(page.url)
+    answer = page.request.get(f"{origin.scheme}://{origin.netloc}/api/state")
+    assert answer.ok, f"the server would not say what it holds: {answer.status}"
+    wait_until_ready(page, answer.json(), through="state")
 
 
 def nudge(page_dir):

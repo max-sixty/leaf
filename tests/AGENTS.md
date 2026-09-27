@@ -145,8 +145,9 @@ the collector is not an assertion.
 
 Open pages through `open_page`, and call `wait_until_ready` (`leaf.render_checks`)
 after any manual navigation. It waits on the runtime's one readiness reading
-(`pageReadiness`): upgrade, replay, current presentation, deferred arrivals, and
-settled rendering, in that order. They are independent facts, network quiet implies
+(`pageReadiness`): upgrade, replay, an `/api/state` answer the caller holds
+presented whole, current presentation, deferred arrivals, and settled rendering, in
+that order; `told` passes the answer the server gives now. They are independent facts, network quiet implies
 none of them, and a key pressed before replay can be lost silently. Never combine the
 stamps yourself, and never wait for a fixture's deferred widget by name; the arrived
 stage covers work an owner declares after presentation. Call `displayed` before a

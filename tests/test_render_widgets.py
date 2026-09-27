@@ -8318,12 +8318,6 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
     label = thread.locator(".lf-quote").inner_text()
     assert "Which store should I write up?" in label, label
     assert "ps-decision-region" not in label, label
-    # The heading over it, and the layer's own name kept for the layer's own parts.
-    groups = page.evaluate(
-        "() => [...document.querySelectorAll('.lf-group')].map((g) => g.textContent)"
-    )
-    assert "Sent in the thread" in groups, groups
-    assert "The page's own layer" not in groups, groups
 
 
 def test_a_change_says_which_of_the_three_it_is(browser, serve):
@@ -9921,8 +9915,8 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     nothing on screen saying whose lines these were, because the file's header stood in
     flow and scrolled away with its own first rows.
 
-    Pinned, the header stands exactly where the banner ends, which is the slot the thread
-    panel's run headings take over their own list. A press then has to land past it:
+    Pinned, the header stands exactly where the banner ends. A press then has to land
+    past it:
     `scrollIntoView` reads the document's scroll-padding, which reserves the banner, and
     the header's own height is added to that as the rows' scroll-margin — measured,
     because a long path wraps and no stylesheet can work that number out.

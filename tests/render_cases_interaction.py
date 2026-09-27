@@ -47,11 +47,9 @@ diff --git a/gateway/limits.py b/gateway/limits.py
 """,
 )
 
-# The panel's list, in the order it stands, with the headings among the threads: a
-# heading is its own words, a thread its id. One query, because what is asserted about
-# the order is always about both — a run is a heading and the threads it names.
-LIST_RUNS = """() => [...document.querySelector(".lf-threads").children]
-  .map((n) => (n.dataset.group ? "§ " + n.textContent : n.dataset.id))
+# The panel's list, in the order it stands: each thread by its id.
+LIST_ORDER = """() => [...document.querySelector(".lf-threads").children]
+  .map((n) => n.dataset.id)
   .filter(Boolean)"""
 
 

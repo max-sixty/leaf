@@ -90,9 +90,9 @@ function visibleInterval(body, clips, band) {
   const modal = document.querySelector("dialog:modal");
   if (modal && !under(body, modal)) return null;
   const box = body.getBoundingClientRect();
-  // Sticky run headings, and the open thread panel standing over the right of the page,
-  // are left out of what is shown (geometry.js), so a message any part of which is
-  // under one has not been shown whole, and the full-width rule below withholds it.
+  // Sticky covers, and the open thread panel standing over the right of the page, are
+  // left out of what is shown (geometry.js), so a message any part of which is under
+  // one has not been shown whole, and the full-width rule below withholds it.
   const clipped = shownRect(body, clips);
   if (!clipped || box.width <= 0 || box.height <= 0) return null;
   const shown = {

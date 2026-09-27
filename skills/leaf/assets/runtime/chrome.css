@@ -1040,8 +1040,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-pinned + .lf-thread { padding-top: 4px; }
   .lf-threads > .lf-thread:nth-last-child(1 of :not([hidden])) {
     border-block-end-color: transparent; margin-bottom: 0; }
-  /* A single title row remains when the retained thread is closed. Optional
-     status and recency occupy only the space they use. */
+  /* The summary is the thread's title and focus stop in both disclosure states. */
   .lf-thread-compact { --lf-thread-pad: 0px; margin: 0; padding: 0;
     background: transparent; border-radius: 0; }
   .lf-pinned + .lf-thread-compact { padding-top: 0; }
@@ -1122,7 +1121,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-summary-originals:not(:has(> .lf-summary-refold)) > .lf-summary-messages
     > .lf-msg { margin-inline-end: 8px; }
   .lf-summary-refold { min-width: var(--aim-floor); border: 0; border-inline-start: 1px solid var(--rule);
-    padding: 0; background: transparent; color: var(--muted); font: 20px/1 var(--sans); cursor: pointer; }
+    padding: 0; background: transparent; color: var(--muted); font: 600 11px/1.4 var(--sans); cursor: pointer; }
   .lf-summary-refold > span { position: sticky; top: 8px; display: block; padding-block: 10px; }
   .lf-summary-refold:hover { color: var(--accent); background: var(--chip); }
   :is(.lf-summary-expand, .lf-summary-refold):is(:focus-visible, .lf-focus-visible) {
@@ -1241,8 +1240,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-msg-body :is(th, td) { overflow-wrap: normal; }
   .lf-msg-body :is(h1, h2, h3, h4, h5, h6) { margin: 8px 0 4px; font-size: var(--t-5); }
   .lf-msg-body li { margin: 2px 0; }
-  .lf-msg-body pre { padding: 8px 10px; }
-  .lf-msg-body blockquote { padding: 2px 10px; }
+  .lf-msg-body pre { padding-block: 8px; }
+  /* The panel's column insets a quote and a code block less, in a message and in the
+     draft a composer here draws of one, so the insets are the theme's tokens set once
+     for the whole panel. */
+  .lf-thread-panel { --quote-inset: 10px; --pre-inset: 10px; }
   /* A reference to an element this version hasn't got keeps its underline but
      changes it to dashed, while muted ink reinforces that its press is disabled.
      The whole text-decoration shorthand, because a widget's § reference (lf-ref)

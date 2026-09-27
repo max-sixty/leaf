@@ -9,6 +9,7 @@ import textwrap
 import threading
 import time
 from copy import deepcopy
+from pathlib import Path
 
 import model_folds as model
 import pytest
@@ -1598,6 +1599,41 @@ def test_page_registry_composes_declarations_and_implementations_independently(
         "leaf": "javascript",
     }
     assert layer == layer_before and declarations == page_before
+
+
+def test_a_composed_vocabulary_carries_its_decisions(page_dir):
+    """`$decisions` is what the browser reads to know which verb decides a widget and
+    which members each outcome takes off the page. Every composition stamps it, so a
+    page declaring a member of its own is served a relation that holds it."""
+    layer = registry_storage.load_registry(page_dir)
+    assert layer["$decisions"] == {
+        "lf-suggestion": {
+            "verb": "decide",
+            "retires": {"accept": ["lf-old"], "reject": ["lf-new"]},
+        }
+    }
+    member = {**deepcopy(layer["lf-old"]), "x-retired-when": "reject"}
+    widget_paths = {f"widgets/{path.name}" for path in (page_dir / "widgets").glob("*")}
+
+    composed = registry_page.compose_page_registry(
+        layer, {"lf-gone": member}, widget_paths
+    )
+
+    assert composed.registry["$decisions"]["lf-suggestion"]["retires"] == {
+        "accept": ["lf-old"],
+        "reject": ["lf-new", "lf-gone"],
+    }
+
+
+def test_a_verb_is_written_by_the_side_it_declares():
+    """`verb_writer` states the default the browser's `adoptRegistry` applies, and
+    both are held to `tests/verb_writer_cases.json`."""
+    cases = json.loads((Path(__file__).parent / "verb_writer_cases.json").read_text())
+    assert [
+        [tag, verb, registry_contract.verb_writer(spec)]
+        for tag, entry in cases["declarations"].items()
+        for verb, spec in entry["x-state"].items()
+    ] == cases["writers"]
 
 
 @pytest.mark.parametrize(
@@ -4783,7 +4819,7 @@ def test_specimen_references_see_only_selected_threads(
     result = check(page_dir)
     assert (result.exit_code == 0) == seeded, result.output
     if not seeded:
-        assert "names no comment in this document" in result.output
+        assert "names no thread in this document" in result.output
 
 
 def test_specimen_checks_available_history_beside_forward_thread_references(

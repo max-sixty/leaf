@@ -3674,9 +3674,9 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(browser, serve):
     told(page)
     expect(marker).to_have_attribute("data-lf-turn", "user")
     expect(marker).to_have_attribute("data-identity-probe", "retained")
-    expect(marker.locator(".lf-margin-entry-context")).to_have_text("On you")
+    expect(marker.locator(".lf-margin-entry-context")).to_have_text("On you to answer")
     expect(marker).to_have_attribute(
-        "aria-label", re.compile(r"^Threads \(2\), On you,")
+        "aria-label", re.compile(r"^Threads \(2\), On you to answer,")
     )
     on_user = _margin_entry_paint(marker)
     assert on_user == {
@@ -3698,7 +3698,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(browser, serve):
           node.dataset.lfTurn ?? null,
           node.querySelector('.lf-page-map-action-context')?.textContent ?? null,
         ])"""
-    ) == [[None, None], ["user", "On you"]]
+    ) == [[None, None], ["user", "On you to answer"]]
     page.keyboard.press("Escape")
     expect(dialog).to_be_hidden()
 

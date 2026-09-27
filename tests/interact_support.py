@@ -40,6 +40,7 @@ from leaf import files as files_model
 from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
+from leaf import packages as packages_model
 from leaf import passages as passages_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
@@ -446,7 +447,7 @@ def declare_data_input(
         "description": "A test widget with one external-data input.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "id": {"type": "string", "pattern": f"^{schema_model.ELEMENT_ID}$"},
             "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
         },
         "required": ["id", "source"],
@@ -860,13 +861,13 @@ def _body_record_with_nested_widget(registry):
     registry["lf-option"]["x-owners"].append("lf-draft")
 
 
-# A holder/slot family core has never heard of. <lf-trial> is decided by `adopt`
-# or `shelve`: `adopt` retires the <lf-current> it would replace, `shelve` the
-# <lf-proposed> it offers, and taking an undecided one back leaves the page where
-# a `shelve` would. <lf-pilot> holds the same <lf-proposed> under the same verb and
-# declares no withdrawal at all — the pair, not the slot, is what the licensing is
-# keyed on. Three instances, because a page needs one to decide, one to withdraw
-# and one that can't be, and a decision is in the log for good once it is made.
+# A holder/slot family core has never heard of. <lf-trial> is decided by `adopt`,
+# `shelve` or `pause`: `adopt` retires the <lf-current> it would replace, `shelve` the
+# <lf-proposed> it offers, `pause` nothing, and taking an undecided one back leaves the
+# page where a `shelve` would. <lf-pilot> holds the same <lf-proposed> under the same
+# verb and declares no withdrawal at all — the pair, not the slot, is what the
+# licensing is keyed on. Three instances, because a page needs one to decide, one to
+# withdraw and one that can't be, and a decision is in the log for good once it is made.
 TRIAL_CACHE = """<lf-trial id="trial-cache">
   <lf-current id="cache-now"><p id="cache-daily">The cache is rebuilt nightly.</p></lf-current>
   <lf-proposed><p id="cache-hourly">Rebuild the cache each hour.</p></lf-proposed>
@@ -899,29 +900,25 @@ def trial_version(*markup):
     return PAGE.replace("<lf-options>", "\n".join([*markup, "<lf-options>"]))
 
 
-@pytest.fixture
-def trial_page(tmp_path, monkeypatch):
-    """A page whose vocabulary a project layer widened with holder/slot families
-    of its own. Declared in `.leaf/` and vendored by `page init` — the door the
-    shipped suggestion comes through too, so what the licensing does here is what
-    a project gets rather than what a fixture arranged."""
-    monkeypatch.chdir(tmp_path)
-    runner = CliRunner()
-    created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
-    assert created.exit_code == 0, created.output
-    widgets = (
+def trial_family(root: Path) -> None:
+    """Declare the trial family in the project package at `root / ".leaf"`.
+
+    Registry declarations relate its owners and slots, and each owner's module is the
+    product's starter, which renders nothing of its own: anything a test sees settle is
+    the layer's doing, and the holders' bodies are the authored words (`x-verbatim`).
+    Only <lf-proposed> names two owners, for the selector case that needs one."""
+    package = root / ".leaf"
+    for tag, upgrade in (
         ("lf-trial", True),
         ("lf-pilot", True),
         ("lf-current", False),
         ("lf-proposed", False),
-    )
-    for tag, upgrade in widgets:
-        add_test_widget(tmp_path / ".leaf", tag, upgrade)
-
-    source = tmp_path / ".leaf" / "registry.json"
+    ):
+        add_test_widget(package, tag, upgrade=upgrade)
+    source = package / "registry.json"
     declarations = json.loads(source.read_text())
     for tag, outcomes, example in (
-        ("lf-trial", ["adopt", "shelve"], TRIAL_CACHE),
+        ("lf-trial", ["adopt", "shelve", "pause"], TRIAL_CACHE),
         ("lf-pilot", ["run", "shelve"], PILOT_PURGE),
     ):
         declarations[tag] |= {
@@ -930,7 +927,6 @@ def trial_page(tmp_path, monkeypatch):
             "x-example": example,
         }
         declarations[tag]["properties"]["restated"] = {"type": "boolean"}
-        del declarations[tag]["x-verbatim"]  # a module renders the slots
     # Only the trial says what taking it back would mean.
     declarations["lf-trial"]["x-withdrawn-as"] = "shelve"
     for tag, owners, outcome in (
@@ -941,11 +937,30 @@ def trial_page(tmp_path, monkeypatch):
         del declarations[tag]["x-example"]  # a slot has no standing of its own
         del declarations[tag]["required"]  # nor an id it must carry
     source.write_text(json.dumps(declarations))
+    # add_test_widget frames every tag as a card. The slots draw no box of their own;
+    # clearing their paragraph margins keeps a retired sibling from leaving a margin
+    # trapped against the holder's frame. Geometry is not this family's subject.
+    with (package / "theme.css").open("a") as theme:
+        theme.write(
+            "\nlf-current, lf-proposed "
+            "{ display: block; margin: 0; padding: 0; border: none; "
+            "--lf-block-frame: initial; }\n"
+            "lf-current p, lf-proposed p { margin-block: 0; }\n"
+        )
 
+
+@pytest.fixture
+def trial_page(tmp_path, monkeypatch):
+    """A published page whose vocabulary a project layer widened with the trial
+    family. Declared in `.leaf/` and vendored by `page init` — the door the shipped
+    suggestion comes through too, so what the licensing does here is what a project
+    gets rather than what a fixture arranged."""
+    monkeypatch.chdir(tmp_path)
+    trial_family(tmp_path)
     page = tmp_path / "page"
     # The version is built out of PAGE, which holds an lf-diagram; the project package
     # under test is explicitly selected beside it.
-    initialized = runner.invoke(
+    initialized = CliRunner().invoke(
         cli_model.cli,
         ["page", "init", "--package", "diagram", "--package", "./.leaf", str(page)],
     )
@@ -1425,36 +1440,46 @@ def suggested(page_dir):
     return published(page_dir)
 
 
-def add_test_widget(package: Path, tag: str, upgrade: bool = False) -> dict:
-    """Author one widget in an initialized package fixture."""
+def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
+    """Author one widget in a package, creating the package first if it is missing.
+
+    What a package author gets from `package init --widget`: the product's starter
+    declaration and, for an upgraded widget, its starter module, plus a framed block in
+    the theme. A test specializes the declaration in `registry.json` and rewrites the
+    module where its subject needs behavior of its own."""
+    created = CliRunner().invoke(cli_model.cli, ["package", "init", str(package)])
+    assert created.exit_code == 0, created.output
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())
-    declaration = element_declaration(tag, upgrade)
+    declaration = element_declaration(tag, upgrade=upgrade)
     registry[tag] = declaration
-    registry_path.write_text(json.dumps(registry))
+    registry_path.write_text(json.dumps(registry, indent=2))
     with (package / "theme.css").open("a") as theme:
-        theme.write(f"\n{tag} {{ display: block; }}\n")
+        theme.write(
+            f"\n{tag} {{\n"
+            "  display: block;\n"
+            "  margin: var(--sp-3) 0;\n"
+            "  padding: var(--sp-3);\n"
+            "  border: 1px solid var(--rule);\n"
+            "  border-radius: var(--r);\n"
+            "  background: var(--card);\n"
+            "  --lf-block-frame: 1;\n"
+            "}\n"
+        )
     if upgrade:
-        (package / "widgets" / f"{tag}.js").write_text(
-            f'customElements.define("{tag}", class extends HTMLElement {{}});\n'
+        (package / "widgets" / f"{tag}.js").write_bytes(
+            packages_model.starter_widget_module(tag)
         )
     return declaration
 
 
-def element_declaration(tag: str, upgrade: bool = False) -> dict:
-    """A minimal package widget declaration for composition fixtures."""
-    declaration = {
-        "description": f"A <{tag}> test block.",
-        "type": "object",
-        "properties": {"id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "markup",
-        "x-upgrade": upgrade,
-        "x-example": f'<{tag} id="example">Example</{tag}>',
-    }
-    if upgrade:
-        declaration["x-verbatim"] = True
+def element_declaration(tag: str, *, upgrade: bool = False) -> dict:
+    """The product's starter declaration for `tag`, or, without `upgrade`, the same
+    markup block with no module behind it."""
+    declaration = packages_model.starter_element_declaration(tag)
+    if not upgrade:
+        declaration["x-upgrade"] = False
+        del declaration["x-verbatim"]
     return declaration
 
 

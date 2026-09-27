@@ -144,14 +144,27 @@ def starter_element_declaration(tag: str) -> dict:
 
 
 def starter_widget_module(tag: str) -> bytes:
-    """The registration and one-shot upgrade shared by behavioral widgets."""
+    """The registration, one-shot upgrade, and controller subscription shared by
+    behavioral widgets.
+
+    The subscription is what makes the layer render the widget's declared state,
+    settlement included, so a declaration that grows a verb needs no change here. It
+    runs on every connection: `once` gates only the first, and a reconnected widget
+    subscribes again."""
     return (
-        'import { once } from "/runtime/widget-api.js";\n\n'
+        'import { once, widgetController } from "/runtime/widget-api.js";\n\n'
         "customElements.define(\n"
         f'  "{tag}",\n'
         "  class extends HTMLElement {\n"
+        "    #controller = widgetController(this);\n"
+        "    #stop = null;\n"
         "    connectedCallback() {\n"
-        "      if (!once(this)) return;\n"
+        "      once(this);\n"
+        "      this.#stop ??= this.#controller.subscribe(() => {});\n"
+        "    }\n"
+        "    disconnectedCallback() {\n"
+        "      this.#stop?.();\n"
+        "      this.#stop = null;\n"
         "    }\n"
         "  },\n"
         ");\n"

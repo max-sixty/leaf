@@ -82,28 +82,26 @@ def _report(event: dict, words: GestureWords) -> dict:
 
 
 def history(
-    events: list, threads: dict, words: GestureWords, roots: dict, widgets: dict
+    events: list, threads: dict, words: GestureWords, names: dict, widgets: dict
 ) -> list[dict]:
     """The newest `LIMIT` rows, newest first.
 
-    `roots` and `widgets` are `thread_context.thread_roots` and `thread_widgets`
-    over the same log. A message, edit, resolve or reopen row names the thread it
-    was made in (`event_threads`); a widget row names its widget, whichever thread
-    the move also answers."""
+    `threads` is the `build_threads` fold, and `names` and `widgets` are
+    `thread_context.thread_names` and `thread_widgets` over the same log. A message,
+    edit, resolve or reopen row names the thread it was made in (`event_threads`),
+    with the words of the first message that thread still holds; a widget row names
+    its widget, whichever thread the move also answers."""
     by_id = {event["id"]: event for event in events}
     withdrawn = taken_back(events)
 
     def thread_of(event: dict) -> dict | None:
-        root_id = next(iter(event_threads(event, roots, widgets)), None)
-        root = by_id.get(root_id)
-        if root is None or root["kind"] != "comment":
+        thread_id = next(iter(event_threads(event, names, widgets)), None)
+        if (thread := threads.get(thread_id)) is None:
             return None
-        thread = threads.get(root_id)
-        opening = thread["root"] if thread else root
         return {
-            "id": root_id,
-            "title": thread["title"] if thread else None,
-            "opening": opening.get("text") or "",
+            "id": thread_id,
+            "title": thread["title"],
+            "opening": thread["root"].get("text") or "",
         }
 
     rows = []

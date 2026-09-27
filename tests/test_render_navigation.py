@@ -1049,8 +1049,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     banner_control(page, ".lf-asks").click()
 
     page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
+    banner_control(page, ".lf-threads-toggle").click()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     pending_title = page.locator(
         '.lf-thread[data-id="72e031c5bf0d485ba9054628e09869d4"] .lf-thread-topic'
@@ -1175,6 +1174,7 @@ def test_the_feature_gallery_keeps_a_choice_when_its_proposal_is_undone(browser,
     [
         ("#bg-core-surfaces", "Decisions"),
         ("#bg-thread-states", "Threads"),
+        ("#bg-panel-views", "Threads"),
         ("#bg-quoted-and-visual", "Page & layout"),
         ("#bg-external-data", "Data & work"),
         ("#bg-interactions", "Interactions"),
@@ -2002,7 +2002,8 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
 def test_keys_answer_a_question_from_its_marks(browser, serve):
     """The Ask's digits stay live while a mark adds only its control-local keys.
 
-    One Tab enters the marks, where ↑/↓ walk the options and clamp at the ends.
+    One Tab enters the marks, where ↑/↓ walk the options and clamp at the ends, and
+    Home and End reach them.
     Moving focus does not replace the Ask's numeric action context with a widget copy.
     """
     page = open_page(browser, serve(ASKS_PAGE))
@@ -2051,10 +2052,10 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     expect(nums.first).to_be_visible()
     expect(nums.nth(1)).to_have_text("2")
     assert marks.first.get_attribute("aria-keyshortcuts") == (
-        "ArrowUp ArrowDown Space 1"
+        "ArrowUp ArrowDown Home End Space 1"
     )
     assert marks.nth(1).get_attribute("aria-keyshortcuts") == (
-        "ArrowUp ArrowDown Space 2"
+        "ArrowUp ArrowDown Home End Space 2"
     )
 
     page.keyboard.press("ArrowUp")
@@ -2063,11 +2064,28 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     expect(marks.nth(1)).to_be_focused()
     page.keyboard.press("ArrowDown")
     expect(marks.nth(1)).to_be_focused()
+    # Home and End reach the ends, as in every other list of rows.
+    page.keyboard.press("Home")
+    expect(marks.first).to_be_focused()
+    expect(position).to_have_text("Option 1 of 2")
+    page.keyboard.press("End")
+    expect(marks.nth(1)).to_be_focused()
+    expect(position).to_have_text("Option 2 of 2")
 
     with sending(page, "the numbered pick"):
         page.keyboard.press("1")
     expect(page.locator("#lq-keep")).to_have_attribute("chosen", "")
+    # The pick's notice takes the readout's seat, and focus never left the second
+    # option, so the walk's reading stands behind it rather than retiring.
+    expect(page.locator(".lf-notice")).to_be_visible()
     expect(position).to_be_hidden()
+    assert (
+        page.evaluate(
+            """async () => (await window.__lfRuntimeImport('/runtime/walk-position.js'))
+                .walkPosition()?.text"""
+        )
+        == "Option 2 of 2"
+    )
     acts = [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
     ]
@@ -5960,10 +5978,12 @@ def test_inflight_native_paging_hides_hints_until_the_scene_settles(browser, ser
     )
 
     # Hold the browser's paging animation and the hint settle timer at the first
-    # rendering frame. Driver-side polling can otherwise begin after the 80 ms
-    # settle window and mistake the settled map for an in-flight one.
+    # rendering frame. The installed clock starts advancing immediately, so
+    # pause at a future instant rather than its elapsed origin. Driver-side
+    # polling can otherwise begin after the 80 ms settle window and mistake
+    # the settled map for an in-flight one.
     page.clock.install(time=0)
-    page.clock.pause_at(0)
+    page.clock.pause_at(page.evaluate("() => (Date.now() + 1000) / 1000"))
     page.keyboard.press("PageDown")
     page.keyboard.press("g")
     page.clock.run_for(20)
@@ -5993,13 +6013,8 @@ def test_armed_hints_settle_after_resize(browser, serve):
             )
         ),
     )
-    page.clock.install(time=0)
-    page.clock.pause_at(0)
     page.keyboard.press("g")
     page.set_viewport_size({"width": 800, "height": 700})
-    page.clock.run_for(100)
-    # Let the settle callback's requested paint run before reading its chips.
-    page.clock.resume()
     expect(page.locator(CHIPS).first).to_be_visible()
 
 
@@ -6595,11 +6610,15 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
 
     page.keyboard.press("a")
     mark = page.locator("#live-question .lf-pick").first
-    expect(mark).to_have_attribute("aria-keyshortcuts", "ArrowUp ArrowDown Space 1")
+    expect(mark).to_have_attribute(
+        "aria-keyshortcuts", "ArrowUp ArrowDown Home End Space 1"
+    )
 
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(mark).to_have_attribute("aria-keyshortcuts", "ArrowUp ArrowDown Space")
+    expect(mark).to_have_attribute(
+        "aria-keyshortcuts", "ArrowUp ArrowDown Home End Space"
+    )
     expect(
         page.locator(
             ".lf-command-reference tr",

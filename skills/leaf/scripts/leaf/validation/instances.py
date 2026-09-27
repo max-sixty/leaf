@@ -3,6 +3,7 @@
 import re
 
 from leaf.asks import asking, local_ask_entry, quoted_in
+from leaf.passages import COLLAPSE_CHARS
 from leaf.projection import enclosing_widgets
 from leaf.registry.contract import json_validator, registry_path, visual_parts
 from leaf.registry.state import retirement_slots
@@ -405,11 +406,21 @@ def _spans(value: str):
         yield part, int(lo), int(hi) if hi else int(lo)
 
 
+# The whitespace a data body's trim removes: the browser's (JS trimEnd), spelled out
+# because Python's own \s and isspace() disagree with it at U+FEFF, U+0085 and
+# U+001C–001F, and a body ending in one would count a line more or fewer here than
+# lf-code numbers.
+_TRAILING = "".join(COLLAPSE_CHARS)
+
+
+def _body_text(owner: dict) -> str:
+    """A data body as its module reads it (`bodyText`, widget-upgrade.js): leading
+    blank lines and trailing whitespace are the <pre>'s layout, not lines."""
+    return owner.get("body", "").lstrip("\n").rstrip(_TRAILING)
+
+
 def _body_lines(owner: dict) -> int:
-    # The modules' own trim: leading blank lines and trailing whitespace are the
-    # source's furniture, not lines.
-    body = re.sub(r"\s+$", "", re.sub(r"^\n+", "", owner.get("body", "")))
-    return len(body.split("\n"))
+    return _body_text(owner).count("\n") + 1
 
 
 def _numbering(
@@ -466,7 +477,7 @@ def line_ref_errors(lf_elements: list, registry: dict) -> list:
             ref = rec["attrs"].get(attr)
             if ref is None or not LINE_RANGES.fullmatch(ref):
                 continue
-            body_owner = rec if rec["body"].strip() else rec.get("holder") or {}
+            body_owner = rec if _body_text(rec) else rec.get("holder") or {}
             value, ranges = _numbering(body_owner, registry)
             if ranges is None:
                 continue
@@ -488,10 +499,10 @@ def line_ref_errors(lf_elements: list, registry: dict) -> list:
     return errors
 
 
-def suggestion_errors(lf_elements: list, registry: dict, comment_ids: set) -> list:
+def suggestion_errors(lf_elements: list, registry: dict, thread_ids: set) -> list:
     """What the registry's schema can't say about a suggestion: it holds at most
     one of each slot and at least one of them, it doesn't nest, and `resolves`
-    names a comment in the document's reference namespace. A family lint, named
+    names a thread in the document's thread namespace. A family lint, named
     for its family — and it reads even its own slots out of the merged registry,
     so a layer that adds one to the family is linted for it rather than around it."""
     tags = {
@@ -518,9 +529,9 @@ def suggestion_errors(lf_elements: list, registry: dict, comment_ids: set) -> li
                     f"{where}: carries {carried.count(tag)} <{tag}> children, one at most"
                 )
         resolves = rec["attrs"].get("resolves")
-        if resolves and resolves not in comment_ids:
+        if resolves and resolves not in thread_ids:
             errors.append(
-                f"{where}: resolves={resolves!r} names no comment in this document"
+                f"{where}: resolves={resolves!r} names no thread in this document"
             )
     return errors
 

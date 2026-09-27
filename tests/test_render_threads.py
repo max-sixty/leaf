@@ -542,9 +542,9 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     expect(expand).to_have_attribute("aria-expanded", "true")
     for message in (first, middle, last):
         expect(card.locator(f'.lf-msg[data-mid="{message["id"]}"]')).to_be_visible()
-    refold = checkpoint.get_by_role(
-        "button", name="Collapse summarized messages", exact=True
-    )
+    refold = checkpoint.locator(".lf-summary-refold")
+    expect(refold).to_have_accessible_name("Hide 3 messages")
+    expect(refold).to_have_text("Hide")
     refold.focus()
     page.keyboard.press("Enter")
     expect(expand).to_have_attribute("aria-expanded", "false")
@@ -2803,6 +2803,22 @@ def test_a_page_with_no_headings_gets_the_order_and_no_landmarks(browser, serve)
         second,
     ], "a page with no outline did not get the page's order, or was given a landmark"
     expect(page.locator(".lf-group")).to_have_count(0)
+
+
+def test_a_single_section_heading_stays_when_a_thread_has_no_passage_link(
+    browser, serve
+):
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "About the heading itself.", {"section": "h-how"}
+    )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    expect(page.locator(f'.lf-thread[data-id="{root}"] .lf-quote')).to_have_count(0)
+    expect(page.locator('.lf-threads > button.lf-group[data-group="h1"]')).to_have_text(
+        "How it works"
+    )
 
 
 def test_a_thread_on_words_a_widget_renders_stands_where_the_widget_does(
@@ -5434,6 +5450,7 @@ def test_the_thread_list_ring_paints_above_its_scrolling_contents(
             f"The list needs somewhere to land, item {i}.",
             {"section": "lede"},
         )
+    panel_comment(serve.page_dir, "The next section.", {"section": "how-store"})
     context = browser.new_context(
         viewport={"width": 459, "height": 856},
         color_scheme=color_scheme,

@@ -3567,12 +3567,19 @@ def test_package_init_starts_one_checked_upgraded_widget(
     assert (package_root / "theme.css").read_bytes() == b""
     module = (package_root / "widgets" / "lf-risk-note.js").read_text()
     assert module == (
-        'import { once } from "/runtime/widget-api.js";\n\n'
+        'import { once, widgetController } from "/runtime/widget-api.js";\n\n'
         "customElements.define(\n"
         '  "lf-risk-note",\n'
         "  class extends HTMLElement {\n"
+        "    #controller = widgetController(this);\n"
+        "    #stop = null;\n"
         "    connectedCallback() {\n"
-        "      if (!once(this)) return;\n"
+        "      once(this);\n"
+        "      this.#stop ??= this.#controller.subscribe(() => {});\n"
+        "    }\n"
+        "    disconnectedCallback() {\n"
+        "      this.#stop?.();\n"
+        "      this.#stop = null;\n"
         "    }\n"
         "  },\n"
         ");\n"
@@ -4125,7 +4132,7 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     (widget_package / "widgets").mkdir(parents=True)
     (widget_package / "vendor").mkdir()
     (widget_package / "registry.json").write_text(
-        json.dumps({"lf-solo": element_declaration("lf-solo", True)})
+        json.dumps({"lf-solo": element_declaration("lf-solo", upgrade=True)})
     )
     (widget_package / "theme.css").write_text("lf-solo { --lf-block-frame: 1; }\n")
     (widget_package / "widgets" / "lf-solo.js").write_text(

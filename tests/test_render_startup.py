@@ -24,6 +24,7 @@ from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf.render_checks import wait_until_ready
+from leaf.schema import ELEMENT_ID
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -867,7 +868,7 @@ def test_settled_and_shadow_links_get_the_pages_link_treatment(browser, serve):
         "description": "A project-supplied link.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
         },
         "required": ["id"],
         "additionalProperties": False,
@@ -3978,7 +3979,7 @@ def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacement
         "description": "A live deployment feed.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
             "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
         },
         "required": ["id", "source"],
@@ -4141,7 +4142,7 @@ def test_a_failed_thread_surface_returns_its_threads_to_core_fallback(
     entry = {
         "description": "A project-supplied thread surface.",
         "type": "object",
-        "properties": {"id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}},
+        "properties": {"id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"}},
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
@@ -4400,7 +4401,7 @@ def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(
     entry = {
         "description": "A project-supplied derived feed.",
         "type": "object",
-        "properties": {"id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}},
+        "properties": {"id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"}},
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",

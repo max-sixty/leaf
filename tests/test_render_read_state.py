@@ -459,12 +459,11 @@ def test_automatic_read_refusal_keeps_message_unread(browser, serve):
         "</lf-options></lf-ask>",
     )["id"]
     page = open_page(browser, url)
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     card = page.locator(f'.lf-thread[data-id="{root}"]')
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    card.locator(":scope > .lf-thread-summary").click()
     holding(page, held, 1, "automatic read")
     request = held.pop()
     request.fulfill(

@@ -3,6 +3,7 @@
 from leaf import anchor_capture as anchor_capture_model
 from leaf import passages as passages_model
 from leaf.registry import storage as registry_storage
+from leaf.schema import ELEMENT_ID
 from leaf.structure import SourceDocument
 from render_harness import (
     SHELL_BOX,
@@ -100,7 +101,7 @@ GENERIC_VISUAL_LAYER = {
         "description": "A generic rendered visual used to exercise Leaf's package contract.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
             "parts": {"type": "string", "minLength": 1},
         },
         "required": ["id", "parts"],
@@ -206,7 +207,7 @@ SHADOW_VISUAL_LAYER = {
         "description": "A clipped shadow-root visual used to exercise Leaf's package contract.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
             "parts": {"type": "string", "minLength": 1},
         },
         "required": ["id", "parts"],

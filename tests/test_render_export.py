@@ -30,6 +30,7 @@ from leaf import media as media_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf.schema import ELEMENT_ID
 from leaf.structure import UTF8_BOM
 from playwright.sync_api import expect
 from render_cases_navigation import (
@@ -1149,7 +1150,7 @@ OFFLINE_REGISTRY = {
         "description": "A page-owned offline export test widget.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
             "choice": {"type": "string"},
             "restated": {"type": "boolean"},
         },

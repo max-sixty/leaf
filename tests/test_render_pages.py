@@ -2779,6 +2779,35 @@ def test_a_note_hangs_in_the_margin_where_the_room_holds_it(browser, serve):
         assert root_overflow(page) == 0
 
 
+def test_a_note_the_page_does_not_show_takes_no_room(browser, serve):
+    """A note inside a closed disclosure is not on screen, so it needs no room beside
+    the column and the column stays centred; opening the disclosure brings it into the
+    margin, and closing it gives the room back."""
+    source = leaf_page(
+        "a note in a disclosure",
+        """
+<h1>Migration plan</h1>
+<details id="more"><summary>Why twice a month</summary>
+<aside class="sidenote" id="frequency">Support runs this twice a month.</aside>
+<p>The cadence follows the support rota.</p>
+</details>
+<p>Shift one cohort at a time while keeping the old readers available.</p>
+""",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1200, 800)
+    main = page.locator("main")
+    expect(main).to_have_attribute("data-lf-margin", "rail")
+    centred = main.evaluate("node => node.getBoundingClientRect().left")
+    page.locator("#more > summary").click()
+    expect(main).to_have_attribute("data-lf-margin", "rail note")
+    expect(page.locator("#frequency")).to_have_css("float", "right")
+    page.locator("#more > summary").click()
+    expect(main).to_have_attribute("data-lf-margin", "rail")
+    expect(main).not_to_have_attribute("style", re.compile("--lf-shift"))
+    assert main.evaluate("node => node.getBoundingClientRect().left") == centred
+
+
 def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, serve):
     """The sidebar is a page-level margin resident rather than a narrower prose column.
 

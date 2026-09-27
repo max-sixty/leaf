@@ -124,12 +124,15 @@ function settleResidency() {
     taken.right = need("--rail");
   }
   const declared = new Map();
-  // A resident inside a box the page does not show (a closed disclosure, a tab not
-  // chosen) needs no room; one the page hides itself stays a resident, since a page may
-  // hide it until it stands in the margin.
+  // A resident a box around it hides (a closed disclosure, a tab not chosen) needs no
+  // room. One the page hides itself stays a resident, since a page may hide it until it
+  // stands in the margin.
   for (const aside of main.querySelectorAll("aside")) {
-    if (!aside.parentElement.checkVisibility()) continue;
-    const postures = getComputedStyle(aside)
+    const own = getComputedStyle(aside);
+    const hiddenItself =
+      own.display === "none" && aside.parentElement.checkVisibility();
+    if (!aside.checkVisibility() && !hiddenItself) continue;
+    const postures = own
       .getPropertyValue("--lf-resident")
       .split(" ")
       .filter((posture) => posture in POSTURES);
@@ -243,6 +246,9 @@ export function scheduleMarginEntryLabels() {
 export function mountMarginLayer(root) {
   layer = { root, lanes: new Map(), sizes: sizeObserver(scheduleMarginLayout) };
   hearScrolls(document);
+  // Opening or closing a disclosure shows or hides the residents inside it. `toggle`
+  // does not bubble, so it is heard on the way down.
+  document.addEventListener("toggle", scheduleResidency, { capture: true });
 }
 
 // A scroll event does not leave its shadow tree, so a target inside one is heard on each

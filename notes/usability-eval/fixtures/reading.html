@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Orders database cutover</title>
+  </head>
+  <body>
+    <main class="layout-column">
+      <h1>Orders database cutover</h1>
+      <p class="lede" id="lede">
+        The orders database moves from the shared cluster to its own cluster this
+        quarter. This page holds the plan, the rehearsal results, and the choice of
+        cutover mode.
+      </p>
+
+      <section id="schedule">
+        <h2>Schedule</h2>
+        <p id="window">
+          The migration window opens on 14 October at 02:00 UTC and lasts four hours.
+        </p>
+      </section>
+
+      <section id="rollback">
+        <h2>Rollback</h2>
+        <details id="rollback-details">
+          <summary>Rollback plan</summary>
+          <p id="rollback-owner">
+            If replication lag exceeds five minutes, Priya Raman owns the rollback and
+            restores traffic to the shared cluster.
+          </p>
+        </details>
+      </section>
+
+      <section id="attempts">
+        <h2>Attempts</h2>
+        <lf-tabs id="attempt-tabs">
+          <lf-tab id="tab-current" label="Current attempt">
+            <p id="current-attempt">
+              The current attempt copies shards in parallel and verifies each checksum
+              before switching reads.
+            </p>
+          </lf-tab>
+          <lf-tab id="tab-earlier" label="Earlier attempt">
+            <p id="earlier-attempt">
+              The earlier attempt copied shards one at a time and stopped at shard 37
+              when the disk filled.
+            </p>
+          </lf-tab>
+        </lf-tabs>
+      </section>
+
+      <section id="rehearsal">
+        <h2>Rehearsal errors</h2>
+        <p id="rehearsal-note">
+          The rehearsal replayed one day of production writes against the new cluster.
+        </p>
+        <lf-chart id="rehearsal-errors" kind="bars" y="write errors">
+          <pre>
+region, errors
+us-east, 212
+eu-west, 96
+ap-south, 1284
+sa-east, 58
+</pre>
+        </lf-chart>
+      </section>
+
+      <section id="copier">
+        <h2>Copier configuration</h2>
+        <p id="copier-note">The copier reads this file at start-up.</p>
+        <lf-text-document
+          id="copier-config"
+          source="copier-config"
+          language="toml"
+          label="copier.toml"
+        ></lf-text-document>
+      </section>
+
+      <section id="mode">
+        <lf-ask id="mode-decision">
+          <h2>Which cutover mode should we use?</h2>
+          <p id="mode-premise">
+            All three modes finish inside the window; they differ in what a failure
+            costs.
+          </p>
+          <lf-options id="cutover-mode" choose>
+            <lf-option id="mode-big-bang"
+              ><strong>Big bang</strong> Stop writes, copy everything, switch once.
+              <em>My take: the simplest to run.</em></lf-option
+            >
+            <lf-option id="mode-shard"
+              ><strong>Shard by shard</strong> Move and switch one shard at a
+              time.</lf-option
+            >
+            <lf-option id="mode-dual"
+              ><strong>Dual write</strong> Write to both clusters, then switch
+              reads.</lf-option
+            >
+          </lf-options>
+        </lf-ask>
+      </section>
+    </main>
+  </body>
+</html>

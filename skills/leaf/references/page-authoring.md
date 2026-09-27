@@ -173,13 +173,15 @@ glance.
 
 `<main class="layout-workspace">` fills the window's height below the banner: its
 `header` and `footer` take what they hold, and its one body between them takes the
-rest. The body is one `lf-pane`, a widget that composes its own regions, or the page's
-own grid of panes, such as a queue beside its detail, which the page's `<style>`
-places:
+rest. The header is one row, the title with the page's state beside it as `.tag`
+chips, so the panes keep the window: write no lede, eyebrow or legend there, and put
+what a lede would say at the top of the pane it is about. The body is one `lf-pane`, a
+widget that composes its own regions, or the page's own grid of panes, such as a queue
+beside its detail, which the page's `<style>` places:
 
 ```html
 <main class="layout-workspace">
-  <header><h1>…</h1></header>
+  <header><h1>…</h1><p><span class="tag warn">…</span></p></header>
   <div id="regions">
     <lf-pane id="queue" label="Queue">…</lf-pane>
     <lf-pane id="detail" label="Detail">…</lf-pane>
@@ -238,6 +240,14 @@ geometry without them:
   room beside the column holds it: from a window of about 960px with a mouse and about
   1010px with a finger. Its markers stand in it, 22px past the column. A marker level
   with a note hanging in the margin stands as a pin instead.
+- A column page's first `aside.sidebar` and its `aside.sidenote`s join the rail in the
+  margin where the window holds all of them beside the column: a sidebar from about
+  1130px, a note from about 1150px, both from about 1420px, the column moving off
+  centre to make the room. With a mouse, a sidebar holding the contents map needs only
+  the map's spine. Below that each stays where it was written. Leaf writes what stands
+  in the margin on `main` as `data-lf-margin` (`rail`, `map`, `sidebar`, `note`), so page
+  CSS that should follow the margin keys on it, such as
+  `main:not([data-lf-margin~="sidebar"]) #route { display: none }`.
 - A wide page fills the window up to its cap and keeps no rail there. Its
   markers stand as pins over the page inside the top-right corner of their blocks, as
   every marker does where the rail does not stand: in a narrower window, and in a pane
@@ -496,7 +506,7 @@ available actions, and the next press of `a` reaches the next open Ask while the
 complete page remains visible.
 
 Without a way to inspect the rendered page, read `leaf page state <page>`'s
-`content` and `asks` alongside the source to review the words, evidence, and
+`state` and `asks` alongside the active HTML to review the words, evidence, and
 available choices. Report the render command's result separately from the visual
 and keyboard review you could not perform. If the command cannot launch a browser,
 run `leaf version check <page>` for the markup and report the render check as

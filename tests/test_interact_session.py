@@ -39,6 +39,7 @@ from interact_support import (
     check,
     fetch,
     fifo_writer,
+    hold_status_read,
     let_a_pick_settle_a_thread,
     owed,
     page_state,
@@ -895,13 +896,72 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
     for workflows, expected in cases:
         threads = [{"id": "root", "resolved": None, "user_prompt": None}]
         browser_served_model._apply_thread_attention(
-            threads, {"user": []}, workflows, frozen
+            threads,
+            {"user": []},
+            browser_served_model.served_workflows(workflows, frozen),
         )
         assert threads[0]["attention"] == {
             "kind": "waiting",
             "reason": "workflow",
             "workflow": expected,
         }
+
+
+def test_served_workflows_list_the_strongest_first():
+    """Every surface that shows one workflow of several shows the first, so the served
+    order is the one comparator: a move handed back to the user, then work under way,
+    then an uncertain one, then plain delivery by stage, then the newer input. A
+    failed response is the furthest stage a move reaches."""
+
+    def workflow(id, seq, stage, condition=None, next_actor="agent"):
+        return {
+            "id": id,
+            "seq": seq,
+            "subject": {"kind": "thread", "id": "root"},
+            "stage": stage,
+            "answer": None,
+            "condition": condition,
+            "next_actor": next_actor,
+        }
+
+    stale = {"kind": "stale", "operation": "work"}
+    failed = {"kind": "failed", "operation": "response"}
+    cases = [
+        (
+            [workflow("stale", 1, "picked_up", stale), workflow("work", 2, "working")],
+            ["work", "stale"],
+        ),
+        (
+            [workflow("older", 1, "working"), workflow("newer", 2, "working")],
+            ["newer", "older"],
+        ),
+        (
+            [workflow("fresh", 1, "working"), workflow("stale", 2, "working", stale)],
+            ["fresh", "stale"],
+        ),
+        (
+            [
+                workflow("work", 1, "working"),
+                workflow("back", 2, "answered", failed, "user"),
+            ],
+            ["back", "work"],
+        ),
+        (
+            [workflow("queued", 1, "queued"), workflow("sent", 2, "sent")],
+            ["queued", "sent"],
+        ),
+        (
+            [
+                workflow("working", 1, "working", stale),
+                workflow("back", 2, "answered", failed),
+            ],
+            ["back", "working"],
+        ),
+    ]
+    frozen = projection_model.FrozenThreadReading(None, {}, {}, {}, None)
+    for workflows, expected in cases:
+        served = browser_served_model.served_workflows(workflows, frozen)
+        assert [item["id"] for item in served] == expected
 
 
 def test_a_widget_claim_holds_the_moves_delivered_before_it(page_dir):
@@ -1513,6 +1573,15 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
         "target": {"kind": "thread", "id": "c1"},
         "disposition": "effective",
     }
+
+    # A claim an older leaf stored without the poster's voice is absent from the
+    # reading: it is neither served without a name nor fails the state read.
+    older = {key: work[key] for key in ("subject", "detail", "ts", "after")}
+    files_model.write_json(
+        page_dir / "status.json", {**status, "work": [older, *status["work"]]}
+    )
+    assert page_state(page_dir)["claims"] == live["claims"]
+    files_model.write_json(page_dir / "status.json", status)
 
     # A later claim about the page as a whole answers nothing on the thread.
     assert _status(page_dir, "waiting", "look at v2").exit_code == 0
@@ -4806,10 +4875,10 @@ def test_unheld_activity_drops_interaction_claims_from_the_same_reading(
     state = page_state(page_dir)
     activity = state["activity"]
     assert (activity["kind"], activity["held"]) == ("unheld", False)
-    assert [(item["input"], item["stage"]) for item in state["workflows"]] == [
-        (comment["id"], "sent"),
-        (followup["id"], "sent"),
-    ]
+    assert {item["input"]: item["stage"] for item in state["workflows"]} == {
+        comment["id"]: "sent",
+        followup["id"]: "sent",
+    }
     assert all(
         (workflow["agent"], workflow["detail"]) == (None, None)
         for workflow in state["workflows"]
@@ -7089,8 +7158,7 @@ def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
     delivery_id = delivery_through(page_dir, 1)
     status_path = page_dir / "status.json"
     status = status_path.read_bytes()
-    status_path.unlink()
-    os.mkfifo(status_path)
+    hold_status_read(status_path)
     acknowledging = spawn(
         [*LEAF_COMMAND, "wait", "--ack", delivery_id],
         env=os.environ,
@@ -7143,8 +7211,7 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
     delivery_id = delivery_through(page_dir, 1)
     status_path = page_dir / "status.json"
     status = status_path.read_bytes()
-    status_path.unlink()
-    os.mkfifo(status_path)
+    hold_status_read(status_path)
     acknowledging = spawn(
         [*LEAF_COMMAND, "wait", "--ack", delivery_id],
         env=os.environ,
@@ -7748,8 +7815,7 @@ def test_wait_revival_cannot_take_a_page_back_after_claim_transfer(
     hosting_model.cmd_stop(page)
     session_model.cmd_status(page, "waiting", "comment on the prototype")
     status_path = page / "status.json"
-    status_path.unlink()
-    os.mkfifo(status_path)
+    hold_status_read(status_path)
     first = under_codex(
         shlex.join([*LEAF_COMMAND, "wait", str(page)]),
         codex_env | {"CODEX_THREAD_ID": "leaf-watcher-1"},
@@ -7805,8 +7871,7 @@ def test_session_end_cannot_be_overtaken_by_wait_revival(claimed, spawn):
     )
     session_model.cmd_status(page, "waiting", "comment on the prototype")
     status_path = page / "status.json"
-    status_path.unlink()
-    os.mkfifo(status_path)
+    hold_status_read(status_path)
     waiter = spawn(
         [*LEAF_COMMAND, "wait", str(page)],
         env=os.environ
@@ -10176,8 +10241,7 @@ def test_a_claim_transfer_stops_a_waiter_already_inside_a_poll(
     )
 
     status_path = page / "status.json"
-    status_path.unlink()
-    os.mkfifo(status_path)
+    hold_status_read(status_path)
     writer = fifo_writer(
         status_path, "the first watcher never reached its held status read"
     )
@@ -10984,8 +11048,7 @@ def test_hook_drops_a_page_transferred_after_ownership_discovery(claimed, monkey
     session_model.cmd_status(claimed, "waiting", "")
     status = files_model.read_json(claimed / "status.json")
     status_path = claimed / "status.json"
-    status_path.unlink()
-    os.mkfifo(status_path)
+    hold_status_read(status_path)
     answers = []
     hook = threading.Thread(
         target=lambda: answers.append(hooks_model.unattended_pages("s1")), daemon=True

@@ -57,13 +57,6 @@ export const runtime = {
   get activity() {
     return readApplication().effective.activity;
   },
-  get agent() {
-    // The claimant's own name where a claim answers for the page. Nothing has
-    // claimed an exported or never-served page, and "Agent" is what the
-    // thread already calls a message whose author left no name
-    // (`UNNAMED_AGENT`, `thread/messages.js`).
-    return readApplication().authoritative?.agent || "Agent";
-  },
   get browser() {
     return readApplication().authoritative?.browser ?? null;
   },
@@ -127,8 +120,6 @@ export const runtime = {
 // replays stay inert and take one state reading; operable specimens run the ordinary
 // live feed.
 export const passiveSpecimen = document.body.hasAttribute("data-lf-specimen-passive");
-
-export const agentName = () => runtime.agent;
 
 export const revisionLabel = (revision) => {
   const stamped = runtime.versions.find((candidate) => candidate.revision === revision);

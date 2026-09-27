@@ -2,7 +2,7 @@
  * that has changed. */
 import { JUST_NOW, ago, clocked } from "./presence.js";
 import { el, offer, reserve } from "./widget-elements.js";
-import { agentName, runtime, runtimeResource } from "./context.js";
+import { runtime, runtimeResource } from "./context.js";
 import {
   BANNER_CONTROL_RANK,
   bannerActions,
@@ -562,7 +562,7 @@ function renderStatusNow(state) {
   const { activity } = state;
   const { kind, detail } = activity;
   const facts = activityFacts(state);
-  const agent = agentName();
+  const { agent } = state;
   // What the user's words do meanwhile. The log takes them with nobody on the other
   // end; the only thing attendance changes is when they are read.
   const saved = activity.counts.total

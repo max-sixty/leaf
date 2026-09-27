@@ -15,7 +15,7 @@ from leaf import files as files_model
 from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf import session as session_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -78,6 +78,9 @@ from render_harness import (
     Traffic,
     _traffic,
     _until,
+    any_draft_control,
+    any_owner_entry,
+    any_suggestion_control,
     consume_browser_errors,
     holding,
     leaf_page,
@@ -86,7 +89,6 @@ from render_harness import (
     open_versions,
     opened_tab,
     panel_settled,
-    rendered,
     resized,
     root_overflow,
     round_trip,
@@ -4788,10 +4790,7 @@ def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
     example = next(e for e in EXAMPLES if e.stem == "release-notes")
     url = serve(example, comments=2, seed_log=False)
     page = open_page(browser, url)
-    page.locator(
-        '[data-lf-margin-entry-owner^="suggestion:"]'
-        '[data-lf-margin-entry-key="accept"]:visible'
-    ).first.focus()
+    any_suggestion_control(page, "accept").first.focus()
     # The probe's control must begin clear of the viewport edge. Its subject is each
     # ancestor's clipping behavior, not where the corpus happened to place this button.
     page.evaluate("document.activeElement.scrollIntoView({block: 'center'})")
@@ -4838,10 +4837,7 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
     example = next(e for e in EXAMPLES if e.stem == "release-notes")
     url = serve(example, comments=2, seed_log=False)
     page = open_page(browser, url)
-    page.locator(
-        '[data-lf-margin-entry-owner^="suggestion:"]'
-        '[data-lf-margin-entry-key="accept"]:visible'
-    ).first.focus()
+    any_suggestion_control(page, "accept").first.focus()
 
     plant = """(how) => {
       const box = document.querySelector('main p');
@@ -5383,10 +5379,7 @@ RING_CASES = (
             "feature-gallery": (
                 ("lf-option > .lf-pick", "options-row"),
                 (
-                    (
-                        '[data-lf-margin-entry-owner^="suggestion:"]'
-                        '[data-lf-margin-entry-key="accept"]:visible'
-                    ),
+                    any_owner_entry("suggestion", "accept") + ":visible",
                     ("ask", "margin-entry"),
                 ),
                 (".lf-draft-edit", "draft-editor"),
@@ -5921,10 +5914,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 if settled.get_attribute("aria-expanded") != "true":
                     settled.click()
             if scope == "the page":
-                pencil = page.locator(
-                    '[data-lf-margin-entry-owner^="draft:"]'
-                    '[data-lf-margin-entry-key="edit"]:visible'
-                ).first
+                pencil = any_draft_control(page, "edit").first
                 if pencil.count() and pencil.is_visible():
                     pencil.click()
                 # A source can sit behind nested disclosures. Open each visible ancestor
@@ -6034,13 +6024,11 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                     carrier_selector = RING_REMOTE_CARRIER[ring_name]
                     if ring_name == "ask":
                         ask_id = target.evaluate(
-                            """node => {
-                              const owner = node.getAttribute(
-                                'data-lf-margin-entry-owner'
+                            """async node => {
+                              const { marginEntrySource } = await window.__lfRuntimeImport(
+                                '/runtime/margin-entries.js'
                               );
-                              return owner?.startsWith('suggestion:')
-                                ? owner.slice('suggestion:'.length)
-                                : null;
+                              return marginEntrySource(node)?.id ?? null;
                             }"""
                         )
                         assert ask_id, f"{selector} {where} names no ask carrier"

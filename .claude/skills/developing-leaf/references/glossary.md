@@ -122,7 +122,8 @@ The margin projection has a separate registration and layout hierarchy:
 
 | Term | Identity criterion |
 |---|---|
-| **Rail** | The right-hand strip beside `main` where margin rows stand beside their targets. It claims nothing: it stands wherever the room the page leaves right of `main` holds it (`railStands`), and only `data-rail="right"` on `main` makes the shell give it up |
+| **Rail** | The right-hand strip beside `main` where margin rows stand beside their targets. It claims nothing: it stands wherever the room the page leaves right of the centred `main` holds it, and only `data-rail="right"` on `main` makes the shell give it up |
+| **Margin resident** | Something the page's margin holds: the rail, the contents map, a column's first sidebar, its sidenotes. One measurement (`settleResidency`) admits them in that order where the room beside `main` holds them, moving the column over by `--lf-shift`, and writes `data-lf-margin` on `main` |
 | **Pin** | A margin row standing over the page inside its target's top-right corner, where no rail stands: the page declared none, the room beside `main` does not hold one, the target sits in a pane that scrolls on its own, the target reaches past the rail's inner edge, or a hanging note stands level with it |
 | **Margin row** | One target-anchored geometry participant whose placement is `rail`, `pin`, or `withheld` |
 | **Margin lane** | The layer holding the margin rows of one scroller: the root lane for the document, one lane per bounded reading region, clipped to what that region shows |
@@ -159,7 +160,7 @@ spine instead.
 | **Target chooser** | The `s` interaction that presents addressable elements and ends when the user chooses one or closes it |
 | **Page search** | The `/` interaction that filters or walks text matches for a query |
 | **Walk** | Ordered semantic movement among same-kind destinations |
-| **Trip** | One travel to a destination, a thread's passage, an Ask, or a datum: it clears the auxiliary surface hiding the destination, then stays when the user already has it or departs, leaving a history entry |
+| **Trip** | One travel to a destination, a thread's passage, an Ask, a datum, or the element a followed fragment link names: it clears the auxiliary surface hiding the destination, then stays when the user already has it or departs, leaving a history entry. A fragment link always departs, by the entry the browser's navigation adds |
 | **Journey** | Consecutive trips each leaving from the last one's landing, which share one history entry so Back returns to where the first began; it may mix threads and Asks, and is not a walk |
 | **Standing** | Holding a destination or a control inside it: a thread on the page or in the panel, an Ask, or authored page content. A panel thread's title and its messages are one destination. Chrome controls, margin markers, mark notes, and contents-outline links are apparatus rather than destinations |
 | **Standing target** | The addressable element a user stands at, from whichever side they hold it: the element or anything inside it, its margin cluster, or the thread card showing its threads. The element is a thread's parent, so the card shows while the user stands at its target and goes when they stand elsewhere on the page or let go. With Threads open, the list's expanded thread plays the card's part. Every side answers alike: an open Ask stood at from its card still wears its ring and takes its digits, `c` at an element whose own thread is shown continues it, and `a` and `t` step from the target |

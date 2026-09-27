@@ -18,6 +18,7 @@ from leaf.events import (
 from leaf.passages import EMPTY, collapse, enclosing_of, spoken
 from leaf.registry.contract import WRITERS, decides, event_spec, state_specs
 from leaf.registry.state import retirement_slots
+from leaf.schema import agent_name
 from leaf.structure import SourceDocument
 from leaf.thread_context import (
     ThreadStructure,
@@ -56,7 +57,7 @@ def _report_updates(projection) -> list[dict]:
                 "ts": event["ts"],
                 "revision": event["revision"],
                 "seq": event["seq"],
-                "agent": event.get("agent"),
+                "agent": agent_name(event),
                 "session": event.get("session"),
                 "disposition": (
                     "effective"
@@ -328,7 +329,12 @@ class StateProjection(NamedTuple):
     from the revision the move was made on (`move_absorbed`). Every revision that
     does passed `version check` against the fold that held the move, so its markup
     wrote the unit where the move put it. An absorbed move still stands, as a
-    written-back pick does, but no longer places its unit: the markup does."""
+    written-back pick does, but no longer places its unit: the markup does.
+
+    `standing` holds every action that survives, neither taken back nor retracted;
+    `actions` is the newest of them at each coordinate. A browser withdrawing the one
+    on top locally falls back to the next of these rather than judging survival
+    again."""
 
     actions: dict
     reports: dict
@@ -336,6 +342,7 @@ class StateProjection(NamedTuple):
     report_settlements: dict
     classified: dict
     absorbed: frozenset
+    standing: frozenset
 
 
 class PageReading(NamedTuple):
@@ -415,6 +422,7 @@ def state_projection(
     withdrawn = taken_back(events)
     settled = report_settlements(events, upto)
     actions = {}
+    standing = set()
     reports = {}
     settlement_versions = {}
     classified = {}
@@ -439,6 +447,7 @@ def state_projection(
             if event["id"] in withdrawn or action_retracted(event, floors, within):
                 continue
             actions[coordinate] = entry
+            standing.add(event["id"])
         elif settled_at := settled.get(event["id"]):
             settlement_versions[coordinate] = max(
                 settlement_versions.get(coordinate, 0), settled_at
@@ -462,6 +471,7 @@ def state_projection(
         settlement_versions,
         classified,
         absorbed,
+        frozenset(standing),
     )
 
 
@@ -478,6 +488,7 @@ def with_action(
     return projection._replace(
         actions={**projection.actions, coordinate: entry},
         desired={**projection.desired, coordinate: entry},
+        standing=projection.standing | {event["id"]},
     )
 
 

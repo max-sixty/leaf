@@ -7,6 +7,7 @@ import { matchesWhen, registry } from "../registry.js";
 import { offer, quoted } from "../widget-elements.js";
 import { notice } from "../notifications.js";
 import { mountFirstMessage } from "./inline.js";
+import { sendLanding } from "./reply-landing.js";
 
 export const threadBox = (el, hint, { createComment, onDraftChanged, wireInput }) => {
   if (inChrome(el) || quoted(el)) return null;
@@ -27,8 +28,11 @@ export const threadBox = (el, hint, { createComment, onDraftChanged, wireInput }
   ta.value = loadDraft(ctx) ?? "";
   ta.setAttribute("aria-label", hint);
   row.append(ta, send, ...(hold ? [hold] : []));
-  const sendComment = (text, owns, holds = false) =>
-    sendMessage(ctx, owns, (attempt) =>
+  // A seat that keeps its box after the send shows the new thread above it; one that
+  // gives its box up hands the user to the thread it started (inline.js).
+  const sendComment = (text, owns, holds = false) => {
+    const land = sendLanding(ta, holds ? hold : send);
+    const sent = sendMessage(ctx, owns, (attempt) =>
       createComment({
         anchor: { section: el.id },
         text,
@@ -36,6 +40,9 @@ export const threadBox = (el, hint, { createComment, onDraftChanged, wireInput }
         ...(holds && { holds: el.id }),
       }),
     );
+    if (sent) land();
+    return sent;
+  };
   const sync = wireInput(ta, {
     hint,
     sends: "send",

@@ -53,7 +53,10 @@ other page files and the external state listed below.
 
 - `media/` — content-addressed page images, shared across revisions. `media.py` owns
   ingestion through `page media` and `/api/media`. Browser drafts and messages refer to
-  them with Markdown; a public filename always identifies the same bytes. A revision
+  them with Markdown; a public filename always identifies the same bytes. That name is
+  `schema.MEDIA_DIGEST`'s, the one `media.media_name` mints and the server serves;
+  `version check` and the agent's message doors refuse any other name under `/media/`,
+  and the browser and the Worker read a reference by its directory alone. A revision
   captures the media its document names, but every host serves media at the page root,
   and documents, messages, and the runtime all address it there.
 
@@ -144,32 +147,24 @@ digest is available; `../../assets/runtime/version.js` owns the resulting instal
 `event_seq` is the last event folded into the snapshot and can be passed to
 `leaf events --after`; it is distinct from the acknowledgement cursor.
 
-`content` joins the authored tree with standing state and declared data inputs.
-It includes ordinary HTML and content in disclosures or inactive tabs. An authored node
-keeps its `tag`, effective `attrs` and `content`, and `source` line and column.
-`content_source` supplies their shared immutable `file`, `revision`, mutable
-`edit_file`, `matches_active`, and vocabulary-file path. A node's `vocabulary`
-is its tag key in that file. A standing event supplies its exact `state` and origin;
-`authored` preserves the input it replaced. An opaque widget exposes its authored
-source and vocabulary entry rather than claiming to reproduce its rendered text.
+The page's document is not repeated in the reading: an agent reads the HTML at
+`active.file` beside `state`, which lists each standing user move by widget, unit and
+verb with the detail it carries, so where the two differ the page shows the move.
+`data_bindings` names each bound source and the widgets that read it, and
+`data/<source>.json` holds its value.
 
-Each node's `edit` identifies its mutation owner. A source edit carries its stable
-id when present and `matches_active`; the target file is inherited from
-`content_source.edit_file`. Source locations apply to that mutable file only when
-it matches the active revision. Generated children name their originating event and
-the widget in which their markup can be authored. `leaf thread read <page> <id>`
-reads one thread's current messages and frozen markup under `content`, with
-bounded history selected by `--after` and `--limit`. Its `content_source` names the
-thread and vocabulary file; message identities locate the frozen source. Default
-`page state` thread entries stay compact.
-
-Widget `inputs` join each binding to its source's current value, contract, source
-id, and revision, or to the `error` a failing value reads as. Each input's `edit`
-names the value file to rewrite. Contracts with a deferred record field expose the
-manifest plus that file and its revision for their payload. The compact
-`elements`, `state`, and lifecycle indexes remain available for machine queries.
-Raw diagnostic history belongs to `leaf events --thread`, and the page's
-`registry.json` owns the vocabulary.
+`leaf thread read <page> <id>` reads one thread's current messages, with bounded
+history selected by `--after` and `--limit`, and each message's frozen markup under
+`content` (`construction.py`), since that markup has no file of its own. An authored
+node keeps its `tag`, effective `attrs` and `content`, and `source` line and column; a
+standing event supplies its exact `state` and origin, and `authored` preserves the
+input it replaced. Widget `inputs` join each binding to its source's current value,
+contract, source id and revision, or to the `error` a failing value reads as;
+contracts with a deferred record field expose the manifest plus the value file and
+its revision for their payload. The reading's `content_source` names the thread and
+vocabulary file. Default `page state` thread entries stay compact. Raw diagnostic
+history belongs to `leaf events --thread`, and the page's `registry.json` owns the
+vocabulary.
 
 Immutable deliveries live outside page directories at
 `<state-home>/deliveries/<id>.json`, because one envelope can contain complete

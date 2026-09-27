@@ -1075,6 +1075,17 @@ def fifo_writer(path: Path, failure: str) -> int:
     pytest.fail(failure)
 
 
+def hold_status_read(path: Path) -> None:
+    """Replace a live status file with a FIFO without exposing a missing path.
+
+    Watchers may read the status between test setup steps. A gap between unlink
+    and mkfifo lets one exit before it reaches the read this fixture holds.
+    """
+    staged = path.with_name(f".{path.name}.fifo")
+    os.mkfifo(staged)
+    os.replace(staged, path)
+
+
 @pytest.fixture(autouse=True)
 def _no_page_outlives_its_test(tmp_path, isolated_session):
     """Nothing the suite put up is still up when the test that put it there ends.

@@ -3,12 +3,12 @@
 from leaf import anchor_capture as anchor_capture_model
 from leaf import passages as passages_model
 from leaf.registry import storage as registry_storage
+from leaf.render_checks import rendered
 from leaf.schema import ELEMENT_ID
 from leaf.structure import SourceDocument
 from render_harness import (
     SHELL_BOX,
     leaf_page,
-    rendered,
 )
 
 # ---------- anchors written without a browser ----------
@@ -1273,8 +1273,8 @@ it reaches this part of the page.</p>
 """,
 )
 
-# Wide enough for a note to hang in the margin, which it does where the room beside the
-# column holds its 384px (1536px of shell), with an exhibit growing past prose into
+# Wide enough for a note to hang in the margin with the column centred, the room
+# either side of it holding the note's 384px, with an exhibit growing past prose into
 # that same margin.
 NOTE_BAND = 1600
 

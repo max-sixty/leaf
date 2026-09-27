@@ -294,17 +294,8 @@
         line-height: 1.55;
       }
 
-      /* The board demonstrates scrolling its columns inside itself. Its declared minimum
-         (every column at its floor) is capped at the shell rather than at the wide room
-         the column gives it, so held at that minimum it ran past the window. */
-      #bg-work-board {
-        min-inline-size: 0;
-      }
-
-      @container lf-shell (max-width: 1151px) {
-        #bg-sidebar {
-          display: none;
-        }
+      main:not([data-lf-margin~="map"], [data-lf-margin~="sidebar"]) #bg-sidebar {
+        display: none;
       }
 
       @media print {
@@ -1418,7 +1409,8 @@ gallery/
                   <text class="mono" x="500" y="106">96px</text>
                 </svg>
                 <figcaption>
-                  The margin exists only above 1152px; the drawing shows the wide case.
+                  The sidebar stands in the margin only in a wide window; the drawing
+                  shows that case.
                 </figcaption>
               </figure>
             </section>

@@ -2,8 +2,8 @@
  *
  * The server's history reading is the only input and this list stores nothing: every
  * reading of `watchHistory` restates the whole feed. A row says who moved (You for the
- * user, the agent's own voice for an agent, Page for what the page did by itself), what
- * they did, the thing they did it to, and how long ago.
+ * user, Page for what the page did by itself, and otherwise the name the server serves
+ * the row under), what they did, the thing they did it to, and how long ago.
  *
  * What a move was is the server's: the thread it belongs to and that thread's title,
  * whether a later undo took it back, and for a widget gesture the words its ids had in
@@ -30,7 +30,6 @@
 import {
   addressableName,
   addressableSays,
-  agentName,
   ago,
   anchorLabel,
   layerFact,
@@ -84,7 +83,7 @@ const actorOf = (row) =>
     ? "You"
     : row.author === "page"
       ? "Page"
-      : row.agent || (row.author === "agent" ? agentName() : row.author);
+      : (row.agent ?? row.author);
 
 const quoted = (words) => `“${words}”`;
 const named = (words) => quoted(clip(words, NAME));

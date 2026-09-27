@@ -297,3 +297,11 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
         assert root + "/page/widgets/lf-options.js" in loaded
         assert root + "/page/nested/value.js" in loaded
         assert root + "/page/nested/theme.css" in loaded
+        # A layer module named by its rooted path, from a document a directory below
+        # the page root, is the revision's: the instance the runtime itself imported.
+        assert page.evaluate(
+            """async root =>
+              (await import('/runtime/widget-api.js')) ===
+              (await import(`${root}/runtime/widget-api.js`))""",
+            root,
+        )

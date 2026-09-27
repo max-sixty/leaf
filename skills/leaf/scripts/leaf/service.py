@@ -816,19 +816,31 @@ def requires_agent_attention(event: dict) -> bool:
     ) or event["kind"] in {"report", "error"}
 
 
+# The fields every stored work claim carries (`PageService.set_status`).
+CLAIM_FIELDS = frozenset({"id", "subject", "after", "detail", "ts", "agent", "session"})
+
+
 def claim_update_sources(status: dict) -> list[dict]:
     """The status store's work claims at their public boundary.
 
     `status.json` remains the small replace-in-place store its transient claims
     need. The browser and `page state` receive typed source envelopes instead, so
     every downstream consumer reads the same target and lifecycle vocabulary.
+
+    A claim lacking a field `PageService.set_status` writes today, such as the
+    poster's voice, was written by an older leaf and is absent here, so every
+    envelope carries the name its work is shown under.
     """
     sources = []
     for claim in status.get("work", []):
-        target = claim["subject"]
+        target = claim.get("subject", {})
+        required = CLAIM_FIELDS | (
+            {"revision"} if target.get("kind") == "widget" else set()
+        )
+        if not required <= claim.keys():
+            continue
         source = {
-            "id": claim.get("id")
-            or f"claim:{target['kind']}:{target['id']}:{claim['after']}",
+            "id": claim["id"],
             "target": target,
             "source": "claim",
             "action": "working",
@@ -836,8 +848,8 @@ def claim_update_sources(status: dict) -> list[dict]:
             "text": claim["detail"],
             "ts": claim["ts"],
             "log_floor": claim["after"],
-            "agent": claim.get("agent"),
-            "session": claim.get("session"),
+            "agent": claim["agent"],
+            "session": claim["session"],
         }
         if event := claim.get("event"):
             source["event"] = event

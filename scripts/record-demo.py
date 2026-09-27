@@ -25,9 +25,12 @@ from pathlib import Path
 from leaf.delivery import DELIVERY_FORMAT
 from leaf.event_log import read_events
 from leaf.host import session_harness
+from leaf.projection import folded_positions
+from leaf.registry.storage import require_registry
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.browser import launch_browser
 from leaf.render_gate.scheme import served
+from leaf.served_state.page import read_served_page
 from leaf.session import take_input
 from PIL import Image
 from playwright.sync_api import Page, sync_playwright
@@ -85,25 +88,22 @@ def board_markup(board: dict[str, list[str]]) -> str:
 
 
 def folded_board(page_dir: Path) -> dict[str, list[str]]:
-    """The board as `leaf page state` reads it, the user's move folded in: the order
-    an agent writes into its next version."""
-
-    def nodes(content):
-        for node in content:
-            if isinstance(node, dict):
-                yield node
-                yield from nodes(node["content"])
-
-    content = json.loads(run_leaf("page", "state", str(page_dir)))["content"]
-    by_id = {node["attrs"].get("id"): node for node in nodes(content)}
-    return {
-        column: [
-            card["attrs"]["id"]
-            for card in by_id[column]["content"]
-            if isinstance(card, dict)
-        ]
-        for column, _label in COLUMNS
-    }
+    """The board with the user's move folded in, as the page draws it: the order an
+    agent writes into its next version."""
+    state = json.loads(run_leaf("page", "state", str(page_dir)))
+    _, reading, _ = read_served_page(page_dir, read_events(page_dir))
+    document = reading.documents[state["active"]["revision"]]
+    registry = require_registry(page_dir)
+    order = folded_positions(
+        "punch-list",
+        "move",
+        registry["lf-board"]["x-state"]["move"]["record"],
+        document.document.by_id,
+        document.spoken,
+        registry,
+        document.projection,
+    )
+    return {column: order[column] for column, _label in COLUMNS}
 
 
 def demo_page(version: int, board: dict[str, list[str]] | None = None) -> str:
@@ -472,8 +472,8 @@ def shoot_stills(
     run_leaf("status", str(page_dir), "waiting")
 
     # The user's board move has to have landed in each shot, or it shows a page
-    # mid-replay, so each page is ready against the server's own reading, whose log
-    # coverage is the count the page stamps as applied.
+    # mid-replay, so each page is ready against the server's own answer, presented
+    # whole.
     for name, size, scheme in STILLS:
         context = browser.new_context(
             viewport={"width": size[0], "height": size[1]},

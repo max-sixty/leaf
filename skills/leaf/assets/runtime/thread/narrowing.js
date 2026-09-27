@@ -89,7 +89,7 @@ const threadWords = (thread, threadGroup) =>
     threadGroup.label,
     thread.title,
     ...thread.msgs.map(messageWords),
-    ...(thread.summaries ?? []).map((summary) => summary.text),
+    ...thread.summaries.map((summary) => summary.text),
   ]
     .join("\n")
     .toLowerCase();

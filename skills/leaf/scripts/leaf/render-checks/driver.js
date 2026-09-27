@@ -4,35 +4,44 @@
  * module without awaiting it, exposes bounded polling facts to Playwright, and keeps
  * every probe invocation synchronous so a stopped page cannot strand Python inside
  * `evaluate`. The pre-upgrade readings live here as well: they must run while the
- * Leaf entry is held, before the probe module and runtime exist. */
+ * Leaf entry is held, before the probe module and runtime exist. So do the rendering
+ * waits, which hold on any page the driver runs in, a published capture that serves no
+ * probes among them, and cost no module load. */
 (() => {
   if (globalThis.__leafRenderDriver) return;
 
   let loading = null;
 
-  const start = (call) => {
-    if (loading?.route === call.route) return;
-    const current = { route: call.route, probes: null, error: null };
-    loading = current;
-    import(call.route).then(
-      (probes) => {
-        if (loading === current) current.probes = probes;
-      },
-      (error) => {
-        if (loading === current)
-          current.error = {
-            name: error?.name ?? "Error",
-            message: error?.message ?? String(error),
-          };
-      },
-    );
+  // The probe module is served beside the page's Leaf entry, so a page served under a
+  // revision path loads that revision's probes.
+  const resolve = (route) => {
+    const entry = document.querySelector("script[data-lf-entry]")?.dataset.lfEntry;
+    return entry ? new URL(route.slice(1), new URL(entry, location.href)).href : route;
   };
 
-  const loaded = (call) => {
-    if (loading?.route !== call.route) return false;
+  // Start this document's probe load if it has not begun, and say whether the module
+  // has arrived. A load that failed throws its error from here.
+  const load = (route) => {
+    const href = resolve(route);
+    if (loading?.route !== href) {
+      const current = { route: href, probes: null, error: null };
+      loading = current;
+      import(href).then(
+        (probes) => {
+          if (loading === current) current.probes = probes;
+        },
+        (error) => {
+          if (loading === current)
+            current.error = {
+              name: error?.name ?? "Error",
+              message: error?.message ?? String(error),
+            };
+        },
+      );
+    }
     if (loading.error) {
       const error = new Error(
-        `Leaf browser probes failed to load from ${call.route}: ${loading.error.message}`,
+        `Leaf browser probes failed to load from ${href}: ${loading.error.message}`,
       );
       error.name = loading.error.name;
       throw error;
@@ -51,6 +60,34 @@
           "publish a synchronous reading or readiness fact instead",
       );
     return result;
+  };
+
+  let requestedFrame = 0;
+  let presentedFrame = 0;
+
+  // Ask the compositor for a rendering turn without handing page.evaluate a Promise
+  // whose settlement depends on that turn. Playwright polls the synchronous fact
+  // below, so its own deadline still runs when a stopped compositor never calls us
+  // back. The turn counts as presented in a task queued from its animation-frame
+  // callback, so it is the whole update: its layout, and the ResizeObserver deliveries
+  // and loop notice that follow the callbacks.
+  const requestFrame = () => {
+    const requested = ++requestedFrame;
+    requestAnimationFrame(() =>
+      setTimeout(() => {
+        presentedFrame = Math.max(presentedFrame, requested);
+      }),
+    );
+    return requested;
+  };
+  const framePresented = (requested) => presentedFrame >= requested;
+
+  // The runtime's settled reading for chrome and geometry (runtime/rendering.js):
+  // nothing it queued for a rendering update is waiting and its last update was quiet.
+  const renderingSettled = () => {
+    const settled = document.querySelector("script[data-lf-entry]")?.lfRenderingSettled;
+    if (!settled) throw new Error("this document has no Leaf rendering reading");
+    return settled();
   };
 
   const themeReady = () =>
@@ -83,9 +120,11 @@
   };
 
   globalThis.__leafRenderDriver = Object.freeze({
-    start,
-    loaded,
+    load,
     call,
+    requestFrame,
+    framePresented,
+    renderingSettled,
     themeReady,
     preUpgradeFindings,
   });

@@ -20,7 +20,7 @@ import { importWidgets } from "./widget-loader.js";
 import { observeServerNow, observeWorkingGrace } from "./presence.js";
 import { settleAcceptedDrafts } from "./drafts.js";
 import { notice } from "./notifications.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
+import { markStateApplied } from "./presentation.js";
 import { loadMarked, prepareAuthoredMessage, messageText } from "./thread/messages.js";
 import { commitWidgetDescriptors } from "./widget-descriptors.js";
 import {
@@ -180,8 +180,7 @@ export function createStateApplication({
         // that proof is what replaces naming the renderers and the order they run in.
         await whenDocumentPresented();
         await notifyDataSubscribers();
-        if (runtime.reading !== null)
-          document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, runtime.reading);
+        markStateApplied(state);
         accountPending(state.browser.receipts);
         // Only the accepted candidate that this full document just presented can
         // establish news. A queued notice formats against the latest such reading,

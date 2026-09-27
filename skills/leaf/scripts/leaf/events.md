@@ -75,7 +75,11 @@ and `version stamp` stamp `author=agent` plus the posting session's own voice: `
 name, and `session`, its host session id. Several agent sessions can write to one
 page, so the voice is read from the poster's environment rather than from the
 watcher's claim record, and identity is the session id, because a display name is
-anyone's to choose.
+anyone's to choose. A command run outside a host session has no voice, so its
+event carries neither field. Every reading that shows an agent's event names it
+through `schema.agent_name`, which gives such an event the name `Agent`. Every
+agent-authored thread message, closing event, margin update, and activity row the
+browser receives carries that name as `agent`, and the browser shows it as served.
 
 Everything downstream turns on `author`: `leaf wait` prints user events and the
 banner counts only input that requires agent attention, so a `read` neither wakes

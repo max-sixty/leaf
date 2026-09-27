@@ -56,7 +56,11 @@ delivery counts separately.
 work. Each entry names its `input` event when it has one, its `thread` or `widget`
 `subject`, its strongest proven `stage` (`sent`, `queued`, `picked_up`, `working`,
 `replying`, or the retained terminal `answered` outcome), and any separately proven
-`condition`. A Sent input that remains
+`condition`. The served list also names the `thread` each workflow stands in (null for
+a page widget) and whether it `holds_thread` the agent's turn, and lists the strongest
+first (`served_state.browser.served_workflows`): a surface that shows one workflow of
+several shows the first, and the browser places only its own unresolved sends
+against that order. A Sent input that remains
 unpicked after the short grace has a stale delivery condition. A pickup whose
 exact turn was seen to end, by its close or by the host's record, has an ended
 condition without claiming interruption. A Working claim quiet beyond its lease,

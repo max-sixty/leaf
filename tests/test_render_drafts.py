@@ -1604,7 +1604,7 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     )
     reply = thread.locator("leaf-text")
     expect(thread).to_be_focused()
-    thread.get_by_role("button", name="Reply").click()
+    thread.get_by_role("textbox", name="Reply", exact=True).click()
     expect(reply).to_be_focused()
 
     d = serve.page_dir

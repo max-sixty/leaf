@@ -11,7 +11,7 @@ import { packRows, rowPosture } from "/runtime/margin-placement.js";
 const posture = (blockRight, over = {}) =>
   rowPosture({
     railStands: true,
-    rootLane: true,
+    besideRail: true,
     blockRight,
     railInner: 1079,
     half: 16,
@@ -28,9 +28,9 @@ test("a row whose block grows past the rail stands on the block as a pin", () =>
   assert.equal(posture(1300), "pin");
 });
 
-test("without a rail, or inside a pane that scrolls, every row is a pin", () => {
+test("without a rail, or in a region the rail is not beside, every row is a pin", () => {
   assert.equal(posture(700, { railStands: false }), "pin");
-  assert.equal(posture(700, { rootLane: false }), "pin");
+  assert.equal(posture(700, { besideRail: false }), "pin");
 });
 
 test("a row level with a note hanging in the margin stands on its block as a pin", () => {

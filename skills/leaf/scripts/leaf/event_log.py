@@ -101,7 +101,7 @@ def jsonl_line(event: dict) -> str:
     JSON strings and line breaks to any splitlines()-shaped reader, so they are
     written as escapes — a pasted comment carrying one must not decide where an
     event ends. The log's own reader splits on the "\\n" the writer puts between
-    events either way; the escape is for what `wait` and `events` print, which
+    events either way; the escape is for what `wait` and `page events` print, which
     stays one event per line for every consumer. json.dumps escapes every other
     line-breaking character on its own."""
     line = json.dumps(event, ensure_ascii=False)

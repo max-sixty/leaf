@@ -9,7 +9,6 @@ from urllib.parse import urljoin, urlparse
 
 import pytest
 from click.testing import CliRunner
-from example_data import patch_manifest
 from interact_support import (
     append_command,
     record_claim,
@@ -25,6 +24,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
+from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -71,6 +71,7 @@ from render_harness import (
     LONG_PAGE,
     TOKEN,
     _traffic,
+    comment_note,
     compare_with,
     consume_browser_errors,
     displayed,
@@ -2332,8 +2333,6 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
             "thread",
             "reply",
             str(d),
-            "--to",
-            "c-store",
             "--for",
             "c-store",
             "--text",
@@ -4344,7 +4343,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
             re.compile(r"\bopen\b")
         )
         page.keyboard.press("Escape")
-        broken.locator(".lf-mark-note").first.click()
+        comment_note(page, "#broken").press("Enter")
         fallback = page.locator(
             f'.lf-margin-preview .lf-page-thread[data-thread="{roots[0]}"]'
         )

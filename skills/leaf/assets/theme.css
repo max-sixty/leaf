@@ -23,7 +23,7 @@
  * was invisible while document and chrome were the one system face.
  *
  * The serif is stacked, not shipped. theme.css is inlined whole into every
- * `version export` and parsed by `page check` on every version, so a webfont
+ * `page export` and parsed by `page check` on every version, so a webfont
  * would have to arrive as a base64 blob in both — and referenced by URL instead
  * it silently falls back in exactly the medium (an exported file, mailed on) that
  * has no server to ask. Charter and Iowan Old Style ship on macOS, Georgia everywhere
@@ -594,7 +594,7 @@ html { background: var(--paper); }
     height: 100%;
     overflow-x: hidden;
     overflow-y: scroll;
-    /* A root tab strip sticks under the banner and declares the room it covers on the
+    /* A page tab strip sticks under the banner and declares the room it covers on the
      * root (lf-tabs.js, `declareCoverRoom`). */
     scroll-padding-top: calc(var(--lf-banner-h) + var(--lf-root-tab-clear, 0px) + 12px);
     scroll-padding-bottom: calc(var(--lf-band-h) + max(12px, var(--here-ring-room)));
@@ -882,7 +882,7 @@ main {
    * the whole difference between the page and a box on it, and the gate says it the same
    * way, by walking up no further than `main`.
    *
-   * A transparent wrapper declares nothing: a section and a tab's panel are the page's
+   * A transparent wrapper declares nothing: a section and a page tab's panel are the page's
    * own flow, and an exhibit breaking out through one is the point. What says so when a
    * box that draws has not declared is `page check --render`, which measures every
    * wide element against the nearest ancestor that draws one. It could not see through a
@@ -1920,8 +1920,12 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
  * framed box withholds the page's room from what it holds (`--lf-room`, below), so being
  * a container changes only what a widget measures against itself. The default package
  * makes its card a container for the same reason; its sample is a table, which
- * containment skips, so it states `--lf-box-cap` for what it holds instead. A tab's panel
- * is the page's own flow, which an exhibit breaks out through, so it is not one. */
+ * containment skips, so it states `--lf-box-cap` for what it holds instead. The package
+ * also makes a boxed tab set's panel a container; a page tab's panel is the page's own
+ * flow, which an exhibit breaks out through, so it is not one. A container takes no
+ * width from what it holds, so a framed box placed where its width would come from its
+ * content (an auto flex basis, a `fit-content` track) is only as wide as its other
+ * parts there; the page gives it a width. */
 [data-lf-reading-role="pane"] > :not(header, footer) {
   padding: 14px;
   container-type: inline-size;

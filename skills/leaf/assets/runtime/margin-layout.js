@@ -14,8 +14,9 @@
    so every target outside it would be an invalid anchor. Rows whose targets scroll with
    the document stand in the root lane; each
    bounded reading region (one whose body scrolls on its own) gets a lane of its own,
-   clipped with `clip-path` to what that region shows, which clips a pin's paint and
-   presses without making the lane a containing block.
+   clipped with `clip-path` to what that region shows, and across to the rail for a
+   bounded block in the column's flow, which clips a row's paint and presses without
+   making the lane a containing block.
 
    An anchor name reaches only its own tree, so a target inside a shadow tree anchors
    through its host, and a `display: contents` target through its first shown part.
@@ -30,9 +31,10 @@
    target has no rendered part to offer. */
 import { TAB_STOP } from "./focus.js";
 import { cancelRender, nextFrame, nextRender, sizeObserver } from "./rendering.js";
-import { shellRight, shownBand, shownExtent, shownParts } from "./geometry.js";
+import { shellRight, shownBand, shownExtent, shownParts, skipped } from "./geometry.js";
 import { under, upFrom } from "./shadow.js";
 import { scrollerFor } from "./reading-regions.js";
+import { boundedBlockOf } from "./bounds.js";
 import { pageScroller } from "./scrolling.js";
 import { packRows, rowPosture } from "./margin-placement.js";
 import { overlaps } from "./rect.js";
@@ -126,8 +128,9 @@ function settleResidency() {
   const declared = new Map();
   // A resident a box around it hides (a closed disclosure, a tab not chosen) needs no
   // room. One the page hides itself stays a resident, since a page may hide it until it
-  // stands in the margin.
+  // stands in the margin. One in skipped content is asked nothing (`skipped`).
   for (const aside of main.querySelectorAll("aside")) {
+    if (skipped(aside)) continue;
     const own = getComputedStyle(aside);
     const hiddenItself =
       own.display === "none" && aside.parentElement.checkVisibility();
@@ -524,6 +527,14 @@ export function layoutMarginRows() {
   const hang = parseFloat(rootStyle.getPropertyValue("--rail-hang")) || 0;
   const pinInset = parseFloat(rootStyle.getPropertyValue("--pin-inset")) || 0;
   const railInner = columnRect.right + hang;
+  // The rail lies beside the column, so it stands beside the rows of what flows in the
+  // column: the document's own, and a bounded block's, which scrolls inside the document
+  // as a paragraph does. A pane is not in that flow, so its rows pin wherever it stands.
+  const railBeside = (scroller) => {
+    if (scroller === pageScroller) return true;
+    const block = boundedBlockOf(scroller);
+    return Boolean(block) && scrollerFor(upFrom(block)) === pageScroller;
+  };
   // The half that decides rail or pin is a rail marker's: a pin's entries are smaller.
   const entry = layer.root.parentElement.querySelector(
     '.lf-margin-cluster:not([data-lf-place="pin"]) .lf-margin-entry:not([hidden])',
@@ -532,6 +543,7 @@ export function layoutMarginRows() {
   // The notes hanging in the margin the rail stands in (theme.css, aside.sidenote): a
   // marker level with one would be drawn over it.
   const notes = [...main.querySelectorAll("aside.sidenote")]
+    .filter((note) => !skipped(note))
     .map((note) => note.getBoundingClientRect())
     .filter((note) => note.width && note.left >= columnRect.right - 1);
 
@@ -543,6 +555,16 @@ export function layoutMarginRows() {
     const target = options.anchor();
     if (!target?.isConnected) {
       reads.push({ row, options, lane: layer.root, shown: false });
+      continue;
+    }
+    // A target in skipped content — a tab not chosen, a closed disclosure — has nowhere
+    // to stand, and every reading below would force that content's style and layout to
+    // say so (`skipped`). Withheld like a target that has gone, it is anchored by the
+    // pass that runs once it is drawn, and keeps the lane it stands in meanwhile, so a
+    // tab switch does not move the rows of a reading region's hidden panels between
+    // lanes.
+    if (skipped(target)) {
+      reads.push({ row, options, lane: row.parentElement ?? layer.root, shown: false });
       continue;
     }
     const anchor = anchorElement(target);
@@ -559,7 +581,7 @@ export function layoutMarginRows() {
     const extent = shownExtent(target);
     const place = rowPosture({
       railStands: stands,
-      rootLane,
+      besideRail: railBeside(scroller),
       blockRight: reach(anchor, box, main, reaches),
       railInner,
       half: size / 2,
@@ -691,17 +713,19 @@ export function layoutMarginRows() {
   }
 
   // Each lane shows its region's rows only inside what that region shows, with room for a
-  // focus ring. The clip is in the lane's own coordinates, so it is taken again whenever
-  // the pass runs, which a resize of the region's box also brings.
+  // focus ring, and across to the rail where the rail stands beside the region. The clip
+  // is in the lane's own coordinates, so it is taken again whenever the pass runs, which
+  // a resize of the region's box also brings.
   for (const [scroller, lane] of layer.lanes) {
     const region = regions.get(scroller);
     const at = lane.getBoundingClientRect();
     const ring = 6;
+    const right = (stands && railBeside(scroller) ? shell : region?.right) + ring;
     const clip = region
       ? `polygon(${[
           [region.left - ring, region.top],
-          [region.right + ring, region.top],
-          [region.right + ring, region.bottom],
+          [right, region.top],
+          [right, region.bottom],
           [region.left - ring, region.bottom],
         ]
           .map(([x, y]) => `${x - at.left}px ${y - at.top}px`)

@@ -50,6 +50,7 @@ from render_harness import (
     FEATURE_GALLERY,
     _traffic,
     _until,
+    comment_note,
     compare_with,
     consume_browser_errors,
     leaf_page,
@@ -3354,7 +3355,7 @@ def test_page_map_only_origins_do_not_count_as_margin_entries(browser, serve):
     sent = CliRunner().invoke(
         cli_model.cli,
         [
-            "experimental",
+            "page",
             "report",
             str(serve.page_dir),
             "t-mounts",
@@ -6382,7 +6383,7 @@ def test_a_note_walked_on_inside_the_panel_is_left_by_the_list_holding_it(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
 
-    note = page.locator("#mounts-p .lf-mark-note")
+    note = comment_note(page, "#mounts-p")
     note.focus()
     page.keyboard.press("Enter")
     expect(
@@ -6450,7 +6451,7 @@ def test_a_card_stays_its_press_to_take_off_when_it_moves_on(browser, serve, ent
     preview = page.locator(".lf-margin-preview")
     card = preview.locator(".lf-page-thread")
     if entry == "note":
-        stood = page.locator("#mounts-p .lf-mark-note")
+        stood = comment_note(page, "#mounts-p")
         stood.focus()
         page.keyboard.press("Enter")
         expect(card).to_be_focused()
@@ -6551,14 +6552,14 @@ def test_a_second_press_into_a_standing_card_leaves_one_level_to_take_off(
     seeded_thread(page, serve.page_dir, "#heater-p")
     preview = page.locator(".lf-margin-preview")
     card = preview.locator(".lf-page-thread")
-    first = page.locator("#mounts-p .lf-mark-note")
+    first = comment_note(page, "#mounts-p")
     first.focus()
     page.keyboard.press("Enter")
     expect(card).to_be_focused()
     shown = card.get_attribute("data-thread")
 
     stood = (
-        page.locator("#heater-p .lf-mark-note")
+        comment_note(page, "#heater-p")
         if second == "note"
         else page.locator('[data-lf-margin-for="heater-p"] .lf-margin-marker')
     )
@@ -6818,14 +6819,15 @@ def test_margin_card_anchors_reading_by_top_and_drafting_by_foot(browser, serve)
     pressed = send.evaluate("button => button.getBoundingClientRect().top")
     send.click()
     expect(preview).to_contain_text("Sent")
-    # The pressed Send keeps the focus, and the card holds under it; leaving the reply
-    # row ends the drafting, and the card returns to where reading put it.
+    # The user stays in the box they sent from, and the card holds under the pressed
+    # Send; leaving the reply row ends the drafting, and the card returns to where
+    # reading put it.
     rendered(page)
-    expect(send).to_be_focused()
+    expect(editor).to_be_focused()
     assert send.evaluate(
         "button => button.getBoundingClientRect().top"
     ) == pytest.approx(pressed, abs=0.5)
-    send.evaluate("button => button.blur()")
+    editor.evaluate("box => box.blur()")
     page.wait_for_function(
         """top => Math.abs(document.querySelector('.lf-margin-preview')
           .getBoundingClientRect().top - top) < 0.5""",
@@ -6946,9 +6948,9 @@ def test_an_agent_reply_leaves_the_reply_being_typed_where_it_stands(
 @pytest.mark.parametrize("how", ["key", "press"])
 @pytest.mark.parametrize("size", [(1200, 900), (800, 520)])
 def test_a_sent_reply_leaves_the_reply_box_where_it_stands(browser, serve, size, how):
-    """The sent turn joins the transcript above the box the user sent it from. A pressed
-    Send keeps the focus while the send empties the box, and the card read that as the
-    drafting over: it chose its spot again, flipping sides under the pointer."""
+    """The sent turn joins the transcript above the box the user sent it from. The send
+    empties the box, and the card read that as the drafting over: it chose its spot
+    again, flipping sides under the pointer."""
     page, preview, editor = drafting_in_a_short_card(browser, serve, *size)
     before = preview.evaluate(DRAFTING_CARD)
     send = preview.locator(".lf-say .lf-compose-submit")
@@ -6959,7 +6961,7 @@ def test_a_sent_reply_leaves_the_reply_box_where_it_stands(browser, serve, size,
             send.click()
     expect(preview.locator(".lf-page-thread-msg").last).to_contain_text("words")
     rendered(page)
-    expect(editor if how == "key" else send).to_be_focused()
+    expect(editor).to_be_focused()
     assert preview.evaluate(DRAFTING_CARD) == before
 
 
@@ -8013,6 +8015,47 @@ PANE_PIN_PAGE = leaf_page(
 )
 
 
+SPLIT_PANES_PAGE = leaf_page(
+    "comments in two panes",
+    """
+  <div id="two-split">
+    <lf-pane id="left-pane" label="Findings">
+      <div><p id="left-finding">The first finding, commented on.</p>
+        <div style="height: 1600px"></div></div>
+    </lf-pane>
+    <lf-pane id="right-pane" label="Notes">
+      <div><p id="right-note">A note, commented on.</p>
+        <div style="height: 1600px"></div></div>
+    </lf-pane>
+  </div>
+""",
+    head=regions_side_by_side("two-split"),
+    layout="workspace",
+)
+
+
+def test_rows_in_side_by_side_panes_pin_though_the_rail_stands(browser, serve):
+    """The rail lies beside the column, and a pane is not in the column's flow, so the
+    pane beside the rail pins its rows as the other pane does: the rail is for what
+    flows in the column, which a bounded block does and a pane does not."""
+    page = open_page(
+        browser,
+        serve(
+            SPLIT_PANES_PAGE,
+            events=[_comment_on("left-finding"), _comment_on("right-note")],
+        ),
+    )
+    resized(page, 1920, 900)
+    pane_posture(page, page.locator("#right-pane"), "bounded")
+    margins_laid_out(page)
+    expect(page.locator("main")).to_have_attribute(
+        "data-lf-margin", re.compile(r"\brail\b")
+    )
+    for target in ("left-finding", "right-note"):
+        row = page.locator(f'.lf-margin-cluster[data-lf-margin-for="{target}"]')
+        expect(row).to_have_attribute("data-lf-place", "pin")
+
+
 def test_a_pin_in_a_pane_scrolls_with_it_and_leaves_with_its_target(browser, serve):
     """A pane that scrolls on its own gets a lane of its own in the margin layer. Its
     pin follows the pane's scroll by anchor positioning, with no layout pass to wait
@@ -8111,6 +8154,80 @@ def test_a_row_follows_its_target_through_a_scroller_inside_a_shadow_tree(
     page.evaluate("() => { window.__deep.wide.scrollLeft = 200; }")
     rendered(page)
     assert page.evaluate(side), "a target scrolled sideways out of view keeps its row"
+
+
+LOG_ROW_FILLER = "".join(
+    f"<p>Filler paragraph {n}, long enough to occupy a line of reading.</p>"
+    for n in range(20)
+)
+LOG_ROW_PAGE = leaf_page(
+    "a comment in a bounded log",
+    f'<h1 id="t">Deploy</h1>{LOG_ROW_FILLER}<div id="log" data-bound="end">'
+    + "".join(
+        f'<p id="entry-{n}">Entry {n}: the deploy copied shard {n} to the new key.</p>'
+        for n in range(60)
+    )
+    + f"</div>{LOG_ROW_FILLER}",
+)
+
+
+def test_a_row_in_a_bounded_log_stands_in_the_rail_inside_what_the_log_shows(
+    browser, serve
+):
+    """A block that bounds its height scrolls what it holds, so its rows stand in a lane
+    clipped to what the block shows. The rail beside the column is beside the block
+    too, so the rows stay there rather than turning to pins over the entries; one whose
+    entry the log has scrolled away is withheld, and one whose entry stands at the
+    log's foot draws nothing past it."""
+    page = open_page(
+        browser,
+        serve(LOG_ROW_PAGE, events=[_comment_on("entry-3"), _comment_on("entry-55")]),
+    )
+    resized(page, 1440, 900)
+    log = page.locator("#log")
+    page.evaluate(
+        """log => { const at = log.getBoundingClientRect();
+          document.scrollingElement.scrollBy({
+            top: at.top + at.height / 2 - innerHeight / 2, behavior: 'instant'}); }""",
+        log.element_handle(),
+    )
+    scroll_settled(page)
+    margins_laid_out(page)
+    early = page.locator('.lf-margin-cluster[data-lf-margin-for="entry-3"]')
+    late = page.locator('.lf-margin-cluster[data-lf-margin-for="entry-55"]')
+    expect(late).to_have_attribute("data-lf-place", "rail")
+    expect(late).not_to_have_class(re.compile(r"\blf-withheld\b"))
+    expect(early).to_have_class(re.compile(r"\blf-withheld\b"))
+
+    # The late entry's top a few pixels inside the log's foot: its row, level with it,
+    # reaches past the foot, and nothing of it is there to see or press.
+    log.evaluate(
+        """log => { const entry = document.getElementById('entry-55');
+          log.scrollTop += entry.getBoundingClientRect().top
+            - (log.getBoundingClientRect().bottom - 12); }"""
+    )
+    scroll_settled(page, "#log")
+    margins_laid_out(page)
+    expect(late).not_to_have_class(re.compile(r"\blf-withheld\b"))
+    below = page.evaluate(
+        """([row, log]) => {
+          const at = row.getBoundingClientRect();
+          const foot = log.getBoundingClientRect().bottom;
+          const hit = document.elementFromPoint(
+            (at.left + at.right) / 2, Math.min(at.bottom, foot + 12) - 2);
+          return {reaches: at.bottom > foot + 4, hit: row.contains(hit)};
+        }""",
+        [late.element_handle(), log.element_handle()],
+    )
+    assert below["reaches"], below
+    assert not below["hit"], "the row drew past the log's foot"
+
+    log.evaluate("log => log.scrollTop = 0")
+    scroll_settled(page, "#log")
+    margins_laid_out(page)
+    expect(early).not_to_have_class(re.compile(r"\blf-withheld\b"))
+    expect(early).to_have_attribute("data-lf-place", "rail")
+    expect(late).to_have_class(re.compile(r"\blf-withheld\b"))
 
 
 TAB_PIN_PAGE = leaf_page(

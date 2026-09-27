@@ -246,7 +246,9 @@ export function createProjectionPresentation({ onDeferredReady }) {
   // the next claim supersedes the hold and tries the current semantic root again.
   function paintReading(snapshot) {
     const prior = runtime.restoringState;
-    if (snapshot.unresolved.some((entry) => entry.rejected && entry.projection))
+    if (
+      snapshot.unresolved.some((entry) => entry.state === "refused" && entry.projection)
+    )
       runtime.restoringState = true;
     try {
       const projection = presentCurrent(snapshot);

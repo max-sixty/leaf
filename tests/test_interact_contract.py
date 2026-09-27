@@ -86,7 +86,7 @@ from leaf.registry import page as registry_page
 from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
 from leaf.render_gate import preview as render_gate_model
-from page_fixtures import package_selection_args
+from leaf_dev.page_fixtures import package_selection_args
 
 
 def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
@@ -923,7 +923,7 @@ def test_init_revendors_over_a_record_the_running_contract_would_not_admit(
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
     assert result.exit_code == 0, result.output
-    after = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+    after = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
     assert after.exit_code == 0, after.output
     assert "Does this still mean anything?" in after.output
 
@@ -1104,7 +1104,7 @@ def test_init_refuses_a_logged_report_the_incoming_layer_no_longer_speaks(page_d
         CliRunner()
         .invoke(
             cli_model.cli,
-            ["experimental", "report", str(page_dir), "t1", "status", "status=done"],
+            ["page", "report", str(page_dir), "t1", "status", "status=done"],
         )
         .exit_code
         == 0
@@ -4819,7 +4819,6 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
             "thread",
             "reply",
             str(page_dir),
-            "--to",
             json.loads(opened.output)["id"],
             "--text",
             "here:",

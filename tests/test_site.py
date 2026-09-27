@@ -16,7 +16,6 @@ server.
 
 import functools
 import html as html_module
-import importlib.util
 import json
 import os
 import re
@@ -26,9 +25,9 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import urlsplit
 
+import leaf_website as website_server
 import pytest
 from conftest import LENT_LINKED_DIRS
-from example_data import catalog_sources, data_operations, example_versions
 from interact_support import running_http_server
 from leaf import data as data_model
 from leaf import files as files_model
@@ -41,6 +40,8 @@ from leaf.passages import enclosing_ids
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.structure import SourceDocument
+from leaf_dev import site as site_build
+from leaf_dev.example_data import catalog_sources, data_operations, example_versions
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_layout import banner_control
@@ -66,14 +67,6 @@ EXAMPLES = ROOT / "examples"
 FEATURE_GALLERY = EXAMPLES / "developer" / "feature-gallery.html"
 DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
 
-_spec = importlib.util.spec_from_file_location("site", ROOT / "scripts" / "site.py")
-site_build = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(site_build)
-_server_spec = importlib.util.spec_from_file_location(
-    "website_server", ROOT / "worker" / "server.py"
-)
-website_server = importlib.util.module_from_spec(_server_spec)
-_server_spec.loader.exec_module(website_server)
 
 # The theme's paper, light and dark, as the browser reports a background.
 PAPER = {"light": "rgb(250, 249, 245)", "dark": "rgb(25, 24, 21)"}

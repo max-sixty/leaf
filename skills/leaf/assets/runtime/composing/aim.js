@@ -37,6 +37,7 @@ export function createAim({
   // twice in two platforms' glyphs.
   const AIM = {
     id: "aim.comment",
+    touch: false,
     modifier: "Alt",
     keys: [],
     label: `${spell("Alt")} click`,

@@ -145,6 +145,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Presentation and validation | `presentation.js`, `validation.js`, `projection-watch.js`, `retained-face.js` |
 | Child pages and gallery playback | `sample.js`, `interaction-gallery*.js` |
 | Shadow trees and styles | `shadow.js`, `shadow-stage.js`, `stylesheets.js` |
+| Elements a paint belongs to while they stand, and the stages they stand in | `arrivals.js` |
 | Utilities | `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `storage.js`, `interaction-log.js` |
 
 `runtime/rendering.js` runs every rendering callback in one pass per frame; schedule
@@ -189,7 +190,7 @@ selects from:
 | what the DOM represents | controller presentation tickets and projection commits |
 | when a document-wide renderer paints | the publication that opened the epoch, in the order `runtime/semantic-state.js` declares |
 | where each thread's passage lands | anchor paint's resolution of its anchor in this version |
-| geometry readings: what a scroller shows, what a surface hides, cover room, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareOccluder`, `declareCoverRoom`, `shownWindow`), so being on screen has one answer |
+| geometry readings: what a scroller shows, what a surface hides, cover room, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareOccluder`, `declareCoverRoom`, `shownWindow`, `seenRect`), so being on screen has one answer |
 
 Do not add a second cache, pending map, widget-specific replay list, or DOM
 attribute as another source for one of these facts; a rendering may expose state,
@@ -310,13 +311,13 @@ interpretation of it.
 
 The gates judge contracts, not how the page looks. A change to what the page
 draws, including one made for geometry, is proved with before/after screenshots
-of each state it touches. `uv run scripts/stills.py` takes them for a catalogue of
+of each state it touches. `uv run leaf-dev stills` takes them for a catalogue of
 states and crops the ones that changed (`/developing-leaf`, "Prove and hand off a
 visible change").
 
 ## Working on the runtime
 
-`scripts/browser/build.mjs` compiles the TypeScript foundation into
+`build/browser/build.mjs` compiles the TypeScript foundation into
 `vendor/browser-runtime.js` and writes `vendor/lit.js`, the page's one copy of Lit
 (`scripts/AGENTS.md` owns the commands). What a module decides on its own is
 tested under `tests/runtime/` (`npm run test:runtime`; `tests/AGENTS.md` says

@@ -53,6 +53,23 @@ has tried; settle that before building it.
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
 
+### Repository tooling
+
+- **Import every module as a package; never edit an import path.** Nothing should
+  reach code through `sys.path`, `PYTHONPATH`, `pythonpath`, or loading a file by path:
+  such an import breaks when the file moves, and it works only from one working
+  directory. The Worker's server is now the `leaf_website` package. What remains:
+  - `pyproject.toml`'s pytest `pythonpath = ["scripts"]`, so that tests can import
+    `preview`, `verify_site`, `corpus`, and `keydocs`. Move those four into `leaf_dev`
+    as commands, as `site.py` moved, then delete the setting.
+  - `leaf-dev bench-check` puts `leaf_dev/tracer/` on a child's `PYTHONPATH` so its
+    `sitecustomize.py` runs inside another arm's environment. Replace it with
+    something that doesn't change the child's import path, such as running the child
+    under `python -c` with a launcher that installs the tracer first.
+  - `test_interact_layer.py` and `test_interact_session.py` set `PYTHONPATH` to put an
+    older copy of `leaf` first, to stand in for a stale plugin install. Build that
+    install as an environment of its own instead.
+
 ## Next
 
 ### User continuity and mobile access
@@ -63,8 +80,7 @@ has tried; settle that before building it.
   show the native selection menu or software keyboard.
 - **Finish what a phone user still cannot reach.** Give touch users visible passage
   threads, and remove keyboard-only hints, hover-only reasons, clipped diagram content,
-  and remaining undersized touch targets. Undo (`z`) and Draw mode (`w`) have no route
-  under a finger; `o` and `s` have one in the banner's More.
+  and remaining undersized touch targets.
 - **Take the layout readings across widths.** The render check renders each page at
   1200px and 540px and sweeps sideways overflow from 360px to 1200px, but it reads a
   drawing's label size on the settled 1200px page only, and nothing yet reads an Ask
@@ -157,10 +173,9 @@ and its chrome coordinate.
 - **Consider loading a page once per render check.** `page check --render` loads
   the page afresh for each of its four passes, including dark mode and the narrow
   viewport. Switching those in place would save at most about 1.4 s on
-  `triage-board` and 12.6 s on the corpus, measured with
-  `scripts/bench_render_check.py`. The price is that dark mode and the narrow width
-  would no longer be checked from a fresh start. Decide whether that coverage is
-  worth the time before building it.
+  `triage-board` and 12.6 s on the corpus, measured with `leaf-dev bench-check`.
+  The price is that dark mode and the narrow width would no longer be checked from
+  a fresh start. Decide whether that coverage is worth the time before building it.
 - **Scale a drawing by the box it was drawn in.** On replay, scale the strokes by
   the anchored element's size over the recorded `box`, so a mark stays on its
   element in a narrower window; reflowed text still moves under it. Verify replay
@@ -178,18 +193,17 @@ and its chrome coordinate.
 
 ### Shared definitions
 
-- **Keep the comment note out of the page's structure.** `anchor-note-view.js`
-  appends a `leaf-anchor-note` inside each commented block, so the block's authored
-  `:last-child`, `:only-child` and `:nth-last-child` rules stop matching while a comment
-  stands: with `.list > :last-child { margin-bottom: 80px }`, one comment on `.list`
-  moves the next paragraph up 67px. The block frame and a few widget rules skip the
-  note with `of :not(.lf-ui, [data-lf-gen])`. Page CSS does not, and neither, by
-  reading, do the default package's `:last-child` rules for milestones, chronology
-  entries, cards and a held Ask's answer, or `theme.css`'s map-only sidebar rules,
-  where a comment would change which residents the margin admits. Patching selectors
-  cannot reach page CSS. The note sits there to follow the block in tab and reading
-  order, so the fix is a route to the block's comments from that position that adds
-  no element to authored content.
+- **Keep the rest of the runtime's apparatus out of authored structure.** Two
+  generated elements still stand among the page's own: `anchor-controls.js` puts a
+  `span.lf-visual-actions` after each drawing that takes visual comments, and
+  `presentation.js` puts a hidden `span.lf-external-note` after each external link.
+  Each changes which of its parent's children is last and what follows the drawing
+  or link, so page rules such as `:last-child` or `svg + p` stop matching. The
+  external note can move to the chrome and be named through
+  `ariaDescribedByElements`, as the comment note is named through
+  `ariaDetailsElements`. The visual actions are Tab stops placed after their drawing
+  so Tab reaches them there, so they need a keyboard route that does not depend on
+  where they stand in the document.
 
 ## Etc
 
@@ -220,7 +234,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **#22 — MCP workspace hosting:** compare an iframe, a constrained host, and
   browser handoff when an inline-hosting task calls for it. See the
   [research brief](notes/workspace-followups.md#item-22).
-- **Decide whether an exported page carries its threads.** `leaf version
+- **Decide whether an exported page carries its threads.** `leaf page
   export` writes a file that boots the page's own runtime offline, and that file
   embeds the page's threads in its state reading. The runtime turns the
   thread surface off offline (`threadAvailable: !offlineInteractive`
@@ -241,12 +255,6 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Implementation candidates
 
-- **Write the unresolved-gesture ledger as one state machine.** `application.ts`
-  (`accept`, `accountPresented`), `application.js` (`releasableEntries`) and
-  `pending/model.js` track a gesture through five flags, and each writes its own rule
-  for when an action leaves the ledger. Nothing
-  has drifted and this is the hottest race path, so take it when a change has to touch
-  the ledger anyway.
 - **Set interaction-trace privacy before sharing pages.** Define who can inspect
   traces, consent or opt-out, sensitive-field redaction (including passwords,
   pasted text, and selection), and retention/deletion for page-local files and

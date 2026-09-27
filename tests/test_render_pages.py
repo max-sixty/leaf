@@ -152,7 +152,7 @@ def test_sort_film_comment_restores_its_input_and_step(browser, serve):
     page.locator('#sort-film input[value="nearly"]').check()
     expect(moment).to_have_attribute("data-part", "moment:nearly:7:0")
     expect(page.locator(".lf-thread")).to_contain_text("Random, shuffle 7, step 1")
-    page.get_by_role("button", name="1 comment").click()
+    page.get_by_role("button", name="1 comment").press("Enter")
     expect(moment).to_have_attribute("data-part", "moment:random:7:0")
 
 
@@ -283,7 +283,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
     """An example that ships a companion log opens with its event state.
 
     Threads and user decisions are log state: markup alone cannot describe what
-    happened, and `version export` drops the layer that draws it. What an example
+    happened, and `page export` drops the layer that draws it. What an example
     *can* ship is the log itself, beside it, exactly as one that wants a screenshot
     ships the bytes beside it. `scripts/preview.py <example>` then opens with those
     events replayed. A thread-bearing log opens mid-thread; an action-only log
@@ -1994,6 +1994,59 @@ def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
     assert root_overflow(page) == 0
 
 
+def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):
+    """The breakout rule widens a block by negative margins, which an auto-width box
+    fills and a box with a width of its own does not. A sample is a table box with a
+    stated width, so `data-width="available"` moved it left by the margin and left it
+    at the column's width. Each wide sample is measured against a plain block given the
+    same width, which is where the room ends. A sample with no width of its own is the
+    control for the inherited surplus: in a list item inside a wide section it takes the
+    item's width, not the item's width plus the section's surplus."""
+    source = leaf_page(
+        "Sample widths",
+        """
+<h1 id="title">Sample widths</h1>
+<p id="prose">Standard prose.</p>
+<div id="block-wide" data-width="wide">A wide block.</div>
+<lf-sample id="sample-wide" data-width="wide"><p>A wide sample.</p></lf-sample>
+<div id="block-available" data-width="available">An available block.</div>
+<lf-sample id="sample-available" data-width="available"><p>An available sample.</p></lf-sample>
+<lf-sample id="sample-column" data-width="column"><p>A column sample.</p></lf-sample>
+<lf-sample id="sample-plain"><p>A plain sample.</p></lf-sample>
+<section data-width="wide"><ul><li id="item">
+  <p>A list item inside wide evidence.</p>
+  <lf-sample id="sample-nested"><p>A sample in that item.</p></lf-sample>
+</li></ul></section>
+""",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    at = page.evaluate("""() => Object.fromEntries(
+      [...document.querySelectorAll('main [id]')].map(el => {
+        const box = el.getBoundingClientRect();
+        return [el.id, {left: box.left, right: box.right, width: box.width}];
+      }))""")
+    assert (
+        at["block-available"]["width"]
+        > at["block-wide"]["width"]
+        > (at["prose"]["width"] + 100)
+    ), at
+    for width in ("wide", "available"):
+        sample, block = at[f"sample-{width}"], at[f"block-{width}"]
+        for edge in ("left", "right"):
+            assert sample[edge] == pytest.approx(block[edge], abs=1), (
+                f'a data-width="{width}" sample\'s {edge} edge is at '
+                f"{sample[edge]:.0f}px, the room's at {block[edge]:.0f}px"
+            )
+    for control in ("sample-column", "sample-plain"):
+        assert at[control]["width"] == pytest.approx(at["prose"]["width"], abs=1), (
+            control,
+            at,
+        )
+    assert at["sample-nested"]["width"] == pytest.approx(at["item"]["width"], abs=1), at
+    assert root_overflow(page) == 0
+
+
 def test_paper_keeps_the_column(browser, serve):
     """Paper has no window to take room from: a printed page is the column's width,
     whatever the screen it was sent from was showing. The rule that grants the room is
@@ -2863,6 +2916,32 @@ def test_a_note_the_page_does_not_show_takes_no_room(browser, serve):
     expect(main).to_have_attribute("data-lf-margin", "rail")
     expect(main).not_to_have_attribute("style", re.compile("--lf-shift"))
     assert main.evaluate("node => node.getBoundingClientRect().left") == centred
+
+
+def test_a_sidebar_pages_track_is_its_aside_in_the_order_it_is_written(browser, serve):
+    """A sidebar page's track is its `aside`, wherever it is written. One written before
+    the body stands on the left and, stacked on a phone, comes first; one written after
+    it stands on the right and comes last. Source order is the reading order at every
+    width, so a summary a reader needs first never lands below the whole body."""
+    body = "<div id='body'>" + "<p>Body paragraph. " * 40 + "</p></div>"
+    track = "<aside id='track'><p>Summary and contents.</p></aside>"
+    for first in (True, False):
+        source = leaf_page(
+            "a sidebar page",
+            "<header><h1>Review</h1></header>"
+            + (track + body if first else body + track),
+            layout="sidebar",
+        )
+        page = open_page(browser, serve(source))
+        box = """(id) => document.getElementById(id).getBoundingClientRect()"""
+        resized(page, 1440, 900)
+        body_box, track_box = page.evaluate(box, "body"), page.evaluate(box, "track")
+        assert track_box["top"] == pytest.approx(body_box["top"], abs=1)
+        assert (track_box["x"] < body_box["x"]) is first
+        assert track_box["width"] < body_box["width"]
+        resized(page, 390, 844)
+        body_box, track_box = page.evaluate(box, "body"), page.evaluate(box, "track")
+        assert (track_box["top"] < body_box["top"]) is first
 
 
 def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, serve):

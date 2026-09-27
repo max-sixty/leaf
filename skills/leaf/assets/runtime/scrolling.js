@@ -9,3 +9,11 @@ export const pageScroller = document.scrollingElement;
 // owning the other's default destination.
 export const moveScrollerBy = (box, top, behavior = "instant") =>
   box.scrollBy({ top, behavior });
+
+// How much of a move a box can make from where it stands: a box at its end moves no
+// further, whatever it is asked.
+export const reachable = (box, top) =>
+  Math.max(
+    -box.scrollTop,
+    Math.min(box.scrollHeight - box.clientHeight - box.scrollTop, top),
+  );

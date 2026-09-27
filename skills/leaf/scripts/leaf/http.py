@@ -458,8 +458,7 @@ class PageEndpoint:
                 now = time.monotonic()
                 if self.page_snapshot is not None:
                     reading = self.page_snapshot.reading
-                    files = reading
-                    presence = ""
+                    files = served_reading.reading_files(reading)
                 else:
                     files = served_reading.page_reading(self.page_dir)
                     # Presence is re-read on its own clock, and again whenever the files
@@ -467,7 +466,7 @@ class PageEndpoint:
                     if files != files_said or now - looked >= PRESENCE_S:
                         presence = presence_model.presence_reading(self.page_dir)
                         looked = now
-                    reading = f"{files}.{presence}"
+                    reading = served_reading.join_reading(files, presence)
                 # Before the word goes out, so a listener that has heard the first
                 # one is a browser the page already counts as holding it open.
                 if (
@@ -858,7 +857,7 @@ class PageEndpoint:
             )
             if version not in published:
                 return self._json(
-                    {"error": "not stamped yet; run `leaf version stamp` first"},
+                    {"error": "not stamped yet; run `leaf page stamp` first"},
                     404,
                 )
             artifact = self._artifact(mapping[version])

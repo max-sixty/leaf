@@ -1,0 +1,179 @@
+"""Read and prepare one complete authored page fixture."""
+
+import json
+import shutil
+from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
+
+from leaf_dev import ROOT
+from leaf_dev.example_data import data_operations, example_versions
+
+DEFAULT_PACKAGES = ROOT / "examples" / "layer.json"
+
+
+@dataclass(frozen=True, slots=True)
+class PageFixture:
+    source: Path
+    page_files: Path | None
+    packages: tuple[str, ...]
+    media: Path
+    data: tuple[dict, ...]
+    versions: tuple[Path, ...]
+    seed: Path | None
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedPage:
+    data_sources: int
+    versions: int
+
+
+def source_manifest_candidates(source: Path) -> list[Path]:
+    candidates = [source.parent / "layer.json"]
+    examples = source.parent.parent
+    checkout = examples.parent
+    if (
+        source.parent.name == "developer"
+        and examples.name == "examples"
+        and (checkout / "bin" / "leaf").is_file()
+    ):
+        candidates.append(examples / "layer.json")
+    return candidates
+
+
+def source_manifest(source: Path) -> Path | None:
+    return next(
+        (path for path in source_manifest_candidates(source) if path.is_file()), None
+    )
+
+
+def source_packages(source: Path) -> list[str]:
+    manifest = source_manifest(source) or DEFAULT_PACKAGES
+    return json.loads(manifest.read_text(encoding="utf-8"))
+
+
+def media_source(source: Path) -> Path:
+    media = source.parent / "media"
+    manifest = source_manifest(source)
+    if not media.is_dir() and manifest is not None:
+        layer_media = manifest.parent / "media"
+        if layer_media.is_dir():
+            return layer_media
+    return media
+
+
+def read_fixture(source: Path) -> PageFixture:
+    seed = source.with_suffix(".jsonl")
+    page_files = source.with_suffix(".page")
+    return PageFixture(
+        source=source,
+        page_files=page_files if page_files.is_dir() else None,
+        packages=tuple(source_packages(source)),
+        media=media_source(source),
+        data=tuple(data_operations(source)),
+        versions=tuple(example_versions(source)),
+        seed=seed if seed.is_file() else None,
+    )
+
+
+def package_selection_args(packages) -> list[str]:
+    """Render one package selection, including the explicit empty layer."""
+    return [arg for package in packages for arg in ("--package", package)] or [
+        "--no-packages"
+    ]
+
+
+def _seed_data(fixture: PageFixture, page: Path, run_leaf: Callable) -> None:
+    for operation in fixture.data:
+        run_leaf(
+            "data",
+            "set",
+            str(page),
+            operation["source"],
+            input_text=json.dumps(operation["value"]),
+        )
+
+
+def _seed_log(fixture: PageFixture, page: Path) -> None:
+    if fixture.seed is None:
+        return
+    with (page / "events.jsonl").open("a", encoding="utf-8") as log:
+        log.write(fixture.seed.read_text(encoding="utf-8"))
+
+
+def _acknowledge_seed(fixture: PageFixture, page: Path) -> None:
+    if fixture.seed is None:
+        return
+    lines = [
+        line
+        for line in (page / "events.jsonl").read_text(encoding="utf-8").split("\n")
+        if line.strip()
+    ]
+    (page / "cursor.json").write_text(
+        json.dumps({"seq": len(lines)}) + "\n", encoding="utf-8"
+    )
+
+
+def prepare_page(
+    page: Path,
+    fixture: PageFixture,
+    run_leaf: Callable,
+    *,
+    initialize: bool = True,
+    seed_log: bool = True,
+    final_status: str | None = "waiting",
+    current_note: str = "Draft as authored",
+    earlier_note: str = "Earlier draft",
+    each_version: Callable[[Path], None] | None = None,
+) -> PreparedPage:
+    """Build one page directory from an authored fixture.
+
+    `scripts/preview.py`, `leaf-dev site`, and the render harness's `serve` all build through
+    here. The current source is written before the data operations, because
+    `leaf data set` validates a source against the page's markup and the current
+    version is the one that has to bind it. Versions are then stamped oldest first,
+    and the seed log goes in after the first stamp and before any later one, so a
+    revised example reads in the order it happened: a version, what the user said
+    about it, then the version that answered. The cursor ends past the seed, since a
+    seed is history: a cursor at zero would hand the next agent session questions
+    the log already answers.
+
+    `each_version` is called with each version's source once it is stamped, and once
+    the seed is in the log after the first, so it reads the page as a builder
+    leaves it at that version.
+    """
+    selection = package_selection_args(fixture.packages)
+    if initialize:
+        run_leaf("page", "init", *selection, str(page))
+    if fixture.page_files is not None:
+        shutil.copytree(fixture.page_files, page / "page", dirs_exist_ok=True)
+    (page / "index.html").write_text(
+        fixture.source.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    if fixture.media.is_dir():
+        shutil.copytree(fixture.media, page / "media", dirs_exist_ok=True)
+    _seed_data(fixture, page, run_leaf)
+    for order, version in enumerate(fixture.versions):
+        (page / "index.html").write_text(
+            version.read_text(encoding="utf-8"), encoding="utf-8"
+        )
+        run_leaf(
+            "page",
+            "stamp",
+            str(page),
+            "--text",
+            current_note if order == len(fixture.versions) - 1 else earlier_note,
+        )
+        if order == 0 and seed_log:
+            _seed_log(fixture, page)
+        if each_version is not None:
+            each_version(version)
+    if seed_log:
+        _acknowledge_seed(fixture, page)
+    if final_status is not None:
+        run_leaf("status", str(page), final_status)
+    return PreparedPage(
+        data_sources=len({operation["source"] for operation in fixture.data}),
+        versions=len(fixture.versions),
+    )

@@ -74,7 +74,7 @@ jobs:
       # tracked bytes exactly and any difference is a lock nobody rebuilt from.
       - name: Check vendored bundles
         run: |
-          uv run scripts/vendor.py > /dev/null
+          uv run build/vendor.py > /dev/null
           git status --porcelain
           test -z "$(git status --porcelain)"
 
@@ -88,7 +88,7 @@ jobs:
 
       - name: Build website
         if: github.event_name == 'pull_request'
-        run: uv run scripts/site.py
+        run: uv run leaf-dev site
 
       - name: 🧪 Website worker tests
         if: github.event_name == 'pull_request'

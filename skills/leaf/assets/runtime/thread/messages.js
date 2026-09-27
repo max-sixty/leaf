@@ -148,7 +148,7 @@ export function messageReading(
     unread: message.unread,
     attempt: message.attempt ?? null,
     author: message.author,
-    by: message.author === "agent" ? message.agent || "Agent" : "You",
+    by: message.author === "agent" ? message.agent : "You",
     timestamp: message.ts,
     age: ago(message.ts),
     edited: message.edited ? `Edited ${ago(message.edited.ts)}` : null,

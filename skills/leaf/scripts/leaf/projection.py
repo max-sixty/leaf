@@ -18,6 +18,7 @@ from leaf.events import (
 from leaf.passages import EMPTY, collapse, enclosing_of, spoken
 from leaf.registry.contract import WRITERS, decides, event_spec, state_specs
 from leaf.registry.state import retirement_slots
+from leaf.schema import agent_name
 from leaf.structure import SourceDocument
 from leaf.thread_context import (
     ThreadStructure,
@@ -56,7 +57,7 @@ def _report_updates(projection) -> list[dict]:
                 "ts": event["ts"],
                 "revision": event["revision"],
                 "seq": event["seq"],
-                "agent": event.get("agent"),
+                "agent": agent_name(event),
                 "session": event.get("session"),
                 "disposition": (
                     "effective"

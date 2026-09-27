@@ -807,8 +807,9 @@ verb, detail})` sends it.
 
 A widget that renders the page's history declares `x-history` and reads it through
 `watchHistory(owner, callback)`: the server's rows, newest first, each already
-carrying its thread, whether it was undone, and a gesture's words as the document it
-was made in had them. The widget words those facts; it does not fold the log.
+carrying its thread, whether it was undone, the name an agent's row is shown under
+as `agent`, and a gesture's words as the document it was made in had them. The
+widget words those facts; it does not fold the log.
 
 ```js
 defineRequestElement("lf-operations", {
@@ -1118,7 +1119,8 @@ widget with that collection initially and after relevant application updates; it
 function for `disconnectedCallback`. Each widget keeps its own search, filter, and
 order state and derives its displayed rows from the collection. `threadTurns(thread)`
 selects a Thread's displayed turns, and `threadSummary(thread)` gives its topic and
-latest activity. `openThread(thread.id)` takes the user to Leaf's canonical
+latest activity. An agent-authored message or closing event carries `agent`, the
+name it is shown under. `openThread(thread.id)` takes the user to Leaf's canonical
 conversation surface for that Thread. The widget does not need to render or own the
 conversation to provide that route.
 

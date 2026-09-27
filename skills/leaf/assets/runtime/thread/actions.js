@@ -59,7 +59,7 @@ export function createThreadActions({ post, withdraw, sendReaction, currentRevis
         token,
       },
       null,
-      `${message.agent || "the agent"}'s reply`,
+      `${message.agent}'s reply`,
       post,
     );
   };

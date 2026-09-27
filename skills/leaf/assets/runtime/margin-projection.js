@@ -973,7 +973,7 @@ export function createMarginProjection({
           false;
         const age = ago(update.ts);
         const account = [
-          update.agent || "Agent",
+          update.agent,
           update.text || humanized(update.action),
           quiet ? `Was working ${age}` : null,
         ]

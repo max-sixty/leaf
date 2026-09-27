@@ -272,8 +272,10 @@ geometry without them:
   such as a card's grip, and goes below one instead.
 - A marker on a figure grown past the rail stands on the figure as a pin, at the
   corner of the part it names when it names one.
-- The user hides every pin and passage mark with `o` to see what lies under them; the
-  rail stays, since it covers nothing.
+- The user hides every pin and passage mark with `o`, or with Hide annotations in the
+  banner's More under a finger, to see what lies under them; the rail stays, since it
+  covers nothing. So leave no room for a pin in the page's CSS, such as padding at the
+  end of a heading: wherever the rail stands, the room is left empty.
 
 `data-rail="right"` on `main` keeps the rail on a wide page, and `data-rail="none"`
 gives a column page's right margin to something of the page's own. A marker level

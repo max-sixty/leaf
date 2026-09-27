@@ -7,7 +7,6 @@ from leaf.render_checks import RENDER_VIEWPORT, SERVED_TIMEOUT_MS
 from .readings import (
     arrangement_changes,
     margin_changes,
-    margin_cover_advice,
     shrunk_label_advice,
     sweep,
     swept_overflow,
@@ -116,7 +115,6 @@ def _render_version_attempt(
 
     def once(page):
         # Advice first, at the viewport it is about; the sweep then resizes the page.
-        advice.extend(margin_cover_advice(page))
         advice.extend(shrunk_label_advice(page))
         widths = sweep(page, RENDER_VIEWPORTS)
         swept.extend(swept_overflow(widths, RENDER_VIEWPORTS))

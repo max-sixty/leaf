@@ -2542,7 +2542,13 @@ export function createMarginProjection({
     [
       ...document.querySelectorAll(`.lf-page-thread[data-thread="${CSS.escape(id)}"]`),
     ].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
-  // The innermost target holding the node whose threads the card would show.
+  // The innermost target holding the node whose threads the card would show. A thread is
+  // about exactly its anchor's target (glossary, Standing target), reached from anywhere
+  // inside it and never from outside: after `a` the user stands on the Ask element, so
+  // the card shows a thread on the Ask but not one on its options or a phrase in its
+  // heading. Treating an Ask as one target for its threads is a possible refinement. It
+  // belongs where a thread's target is decided (anchor-paint's placement), so every
+  // reader keeps one definition, not in this or any other single reader.
   const threadEntryAt = (node) => {
     let standing = null;
     for (const entry of pageInventory) {

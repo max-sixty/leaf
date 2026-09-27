@@ -394,13 +394,6 @@ app = mountApplication({
   landInThread: (...args) => landing.landInThread(...args),
   showThread: (...args) => landing.showThread(...args),
   panelIsOpen,
-  revealReplyEditor: (input, { behavior, block } = {}) =>
-    scrollThreadIntoView(
-      input.closest(".lf-thread, .lf-page-thread, .lf-thread-seat"),
-      input,
-      behavior,
-      block,
-    ),
   registerReactSurface: (...args) => reactions.registerReactSurface(...args),
   sendReaction,
   updateFab: (...args) => responseSurface.updateFab(...args),

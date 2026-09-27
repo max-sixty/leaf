@@ -60,28 +60,59 @@ test("room exactly the card's minimum is still room beside it", () => {
   assert.deepEqual([exact.placement, exact.x, exact.width], ["right", 1112, 320]);
 });
 
-test("an editing card keeps its foot as its reply grows", () => {
-  const at = cluster(934, 160);
-  const oneLine = threadCardGeometry({
+// A card of `natural` height, rendered as the browser renders it under the cap.
+const drafted = (width, at, natural, held) =>
+  threadCardGeometry({
     cluster: at,
-    boundary: boundary(1920),
+    boundary: boundary(width),
     gap: 8,
     minWidth: 320,
     preferredWidth: 460,
-    heightAt: () => 160,
-    rightFootOffset: 160,
+    heightAt: (_width, cap) => Math.min(natural, cap),
+    held,
   });
-  const twoLines = threadCardGeometry({
-    cluster: at,
-    boundary: boundary(1920),
-    gap: 8,
-    minWidth: 320,
-    preferredWidth: 460,
-    heightAt: () => 180,
-    rightFootOffset: 160,
-  });
-  assert.equal(oneLine.y + oneLine.height, twoLines.y + twoLines.height);
-  assert.equal(twoLines.y, 140);
+
+test("a drafting card keeps its side and its foot as its reply grows", () => {
+  // Beside the cluster, the foot holds and the top rises.
+  const rail = ask(1920, cluster(934, 160), 160);
+  assert.deepEqual(rail.hold, { placement: "right", foot: 160, height: 160 });
+  const grown = drafted(1920, cluster(934, 160), 180, rail.hold);
+  assert.deepEqual(
+    [grown.placement, grown.y, grown.y + grown.height],
+    ["right", 140, 320],
+  );
+
+  // Grown past the room over its cluster, a card choosing again would stand under it.
+  // Held, it stays over, and its height stops at the boundary's head.
+  const over = ask(1024, cluster(871, 700), 300);
+  assert.deepEqual([over.placement, over.y + over.height], ["above", 692]);
+  assert.equal(ask(1024, cluster(871, 700), 700).placement, "below");
+  const tall = drafted(1024, cluster(871, 700), 700, over.hold);
+  assert.deepEqual([tall.placement, tall.y, tall.height], ["above", 50, 642]);
+
+  // Under its cluster, the card grows upward across it rather than down.
+  const under = ask(1024, cluster(871, 100), 300);
+  const longer = drafted(1024, cluster(871, 100), 340, under.hold);
+  assert.deepEqual(
+    [longer.placement, longer.y, longer.y + longer.height],
+    ["below", 100, under.y + under.height],
+  );
+});
+
+test("a held foot rides its cluster inside the boundary", () => {
+  const over = ask(1024, cluster(871, 700), 300);
+  // Scrolled up, the foot stops where the room above it is still the held height.
+  const up = drafted(1024, cluster(871, 200), 300, over.hold);
+  assert.deepEqual([up.y, up.height], [50, 300]);
+  // Scrolled down, it stops at the boundary's foot.
+  const down = drafted(1024, cluster(871, 900), 300, over.hold);
+  assert.equal(down.y + down.height, 847);
+});
+
+test("a held side the room no longer allows gives way to a fresh choice", () => {
+  const rail = ask(1920, cluster(934, 160), 160);
+  const narrowed = drafted(1024, cluster(871, 160), 160, rail.hold);
+  assert.deepEqual([narrowed.placement, narrowed.hold.placement], ["below", "below"]);
 });
 
 test("a boundary narrower than the card's minimum still bounds its width", () => {

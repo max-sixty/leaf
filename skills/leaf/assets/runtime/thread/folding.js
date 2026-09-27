@@ -84,4 +84,11 @@ export function finishFold(node) {
 }
 export const hasFolding = (root) =>
   [...folding.keys()].some((node) => node.isConnected && root.contains(node));
+// Settles once every fold now running under `root` has ended, finished or cancelled.
+export const whenFolded = (root) =>
+  Promise.allSettled(
+    [...folding]
+      .filter(([node]) => root.contains(node))
+      .map(([, { played }]) => played.finished),
+  );
 export const isFolding = (node) => folding.has(node);

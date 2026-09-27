@@ -101,6 +101,7 @@ from render_harness import (
     sending,
     shortcut_bar_text,
     stamp_page,
+    suggestion_control,
     take_browser_errors,
     told,
     undo,
@@ -8805,10 +8806,7 @@ def test_an_answered_boxless_ask_reopens_on_its_visible_revision_control(
     expect(row.locator(".lf-asks-answer")).to_have_text("Accepted")
     row.click()
     expect(page.locator(".lf-asks-panel")).to_be_hidden()
-    undo = page.locator(
-        '[data-lf-margin-entry-owner="suggestion:sug-delete"]'
-        '[data-lf-margin-entry-key="undo"]'
-    )
+    undo = suggestion_control(page, "sug-delete", "undo", visible=False)
     expect(undo).to_be_focused()
     assert ask_actions_hint("1") in shortcut_bar_text(page)
 

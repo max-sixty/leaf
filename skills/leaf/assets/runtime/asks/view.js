@@ -525,6 +525,7 @@ export function createAskView({
     );
   const actionRow = {
     id: "ask.activate-nth",
+    touch: false,
     keys: () => actionRoutes().map(({ binding }) => binding),
     routes: actionRoutes,
     label: () => {
@@ -1118,6 +1119,7 @@ export function createAskView({
   pageCommand(actionRow);
   pageCommand({
     id: "ask.walk",
+    touch: false,
     keys: ["a", "Shift+a"],
     routes: [
       {

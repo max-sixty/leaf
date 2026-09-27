@@ -81,6 +81,32 @@ reuse a page key for the same intent with a nearer destination. While the user
 stands in an Ask, core projects its widget's Decision commands onto `1`–`9`; a
 widget's own binding wins while focus is inside it.
 
+## Touch routes
+
+A finger has no keys, so every page capability that a key reaches and no direct gesture
+does has a banner control under a coarse pointer. A row declares `touch`, the control's
+words, or a routed row declares it on each route whose result needs its own control;
+`touch-controls.js` derives the control from that declaration, so its words, enabled
+state, and press come from the one row the key uses.
+
+- A page command's control is an entry in the banner's More.
+- A page-scope row's control is a gesture step on the banner's row while its scope is
+  the innermost standing one with steps, since a phone's row has room for one
+  interaction's. A mode or bounded interaction a finger can enter declares its way out, since
+  Escape and the mode's letter are keys, and whatever else inside it a finger has no
+  other way to do, such as walking search matches.
+
+Every page command declares `touch`, and the register refuses one that does not; `false`
+says a finger reaches the result directly. Walks, paging, scrolling, and Go-to move the
+reader, which a finger does by scrolling and by tapping the Threads list, the Asks tray,
+or the Page Map. `n` walks a search that has closed, which a finger searches again from
+More. Choosing a match is the soft keyboard's Enter, or selecting the marked words.
+The ⌥ aim names a target, which a finger does by selecting words or through Select
+element. `c` and `e` act on a selection, the item the user stands on, or the page: a
+selection's Comment on selection step and response options, a thread's own controls,
+and the Threads box all take a tap. Ask digits duplicate the Decision's own control. The
+command reference and caret browsing describe or extend the keyboard itself.
+
 ## Modules
 
 `bindings.js` (spelling, parsing, declaration checks), `scopes.js` (element
@@ -89,7 +115,8 @@ scopes), `register.js` (scope order, page commands, the Escape ladder),
 (native editing claims), `layer-stack.js` (popovers and dialogs over the page),
 `page.js` (the page's own parts and the foot of the ladder), `control-keys.js`,
 `presentation.js`, `shortcut-bar.js`, `command-reference.js`, `hints.js`,
-`key-badge-placement.js`, and `disclosure.js`.
+`key-badge-placement.js`, `disclosure.js`, and `touch-controls.js` (a finger's stand-ins
+for the keys).
 
 Test a changed binding inside and outside its scope and inside any native editor
 the scope contains, and check entry and exit symmetry against the whole register.

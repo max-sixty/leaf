@@ -1,7 +1,7 @@
 /* One reply draft and send lifecycle shared by every view of a thread.
 
    A reply send returns in the gesture that makes it. The send preserves the panel's
-   narrowing and keeps the user's focus where their gesture left it. */
+   narrowing and leaves the user in the reply box, whichever control sent it. */
 import {
   loadDraft,
   mirrorDraft,
@@ -45,10 +45,10 @@ export function wireReply(
       saveDraft(draftCtx, v);
       tellDraft(draftCtx, v);
     },
-    // The new turn is drawn above the box; the landing shows it with the control the
-    // user sent from.
+    // The new turn is drawn above the box; the landing shows it with the box the user
+    // sent from.
     send: (_text, raw, owns) => {
-      const land = sendLanding(input, send);
+      const land = sendLanding(input);
       if (sendReply(draftCtx, key, raw, owns, actions)) land();
     },
   });

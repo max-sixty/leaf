@@ -240,6 +240,7 @@ export function createNavigation({
   // reading, and t/T follows whichever surface is presenting the threads.
   pageCommand({
     id: "thread.walk",
+    touch: false,
     // A walk's letter names its category; Shift reverses it. The page's walks therefore
     // share one compact, repeatable grammar.
     keys: ["t", "Shift+t"],
@@ -267,6 +268,7 @@ export function createNavigation({
   });
   pageCommand({
     id: "page.move",
+    touch: false,
     keys: ["d", "u"],
     routes: [
       {
@@ -285,6 +287,7 @@ export function createNavigation({
   });
   pageCommand({
     id: "scroll.move",
+    touch: false,
     keys: ["j", "k"],
     routes: [
       {

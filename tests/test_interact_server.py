@@ -5254,6 +5254,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
         id="s9",
         agent="Codex",
         cwd="/work/api",
+        turn_opened="2026-01-01T00:00:00-08:00",
     )
     # A server that died leaves its record behind and its lock with the kernel:
     # the file says served and nothing holds it, which is what reads as stale.
@@ -5284,7 +5285,11 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     # list. Untitled, so the title falls back to the directory's name.
     scratch = tmp_path / "scratch"
     claimed_url = neighbour_page(scratch)
-    record_claim(scratch, released="2026-01-01T00:00:00-08:00")
+    record_claim(
+        scratch,
+        released="2026-01-01T00:00:00-08:00",
+        turn_opened="2026-01-01T00:00:00-08:00",
+    )
 
     state = json.loads(fetch(f"{server}/api/state")[1])
     # A directory holding no claims at all is still a complete answer: every
@@ -5293,10 +5298,11 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
         "status": {"state": "idle", "detail": "", "ts": None, "after": 0},
         "claims": [],
         "listening": False,
+        "session_alive": None,
+        "live_turn": None,
         "cursor": 0,
         "pending": 0,
         "agent": "Agent",
-        "session_alive": None,
         "claim_session": None,
         "claim_turn": None,
         "turn_closed": None,
@@ -5308,7 +5314,6 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
         "activity": {
             "kind": "closed",
             "held": True,
-            "quiet": False,
             "dropped": False,
             "detail": "",
             "observed": "",
@@ -5319,6 +5324,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
                 "queued": 0,
                 "picked_up": 0,
                 "pending": 0,
+                "overdue": 0,
                 "total": 0,
             },
             "ts": None,
@@ -5350,6 +5356,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
             "session_alive": False,
             "claim_session": "s1",
             "claim_turn": "turn-1",
+            "turn_opened": "2026-01-01T00:00:00-08:00",
             "session_cwd": str(Path.cwd()),
             "activity": {**unclaimed["activity"], "held": False},
         },
@@ -5367,11 +5374,11 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
             "session_alive": True,
             "claim_session": "s9",
             "claim_turn": "turn-1",
+            "turn_opened": "2026-01-01T00:00:00-08:00",
             "session_cwd": "/work/api",
             "activity": {
                 "kind": "away",
                 "held": True,
-                "quiet": True,
                 "dropped": False,
                 "detail": "measuring",
                 "observed": "",
@@ -5382,6 +5389,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
                     "queued": 0,
                     "picked_up": 0,
                     "pending": 0,
+                    "overdue": 0,
                     "total": 0,
                 },
                 "ts": "2026-01-01T00:00:00-08:00",

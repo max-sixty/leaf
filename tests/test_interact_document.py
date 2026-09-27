@@ -342,6 +342,7 @@ def test_a_page_whose_history_predates_the_digest_still_serves_it(page_dir):
         executable=artifact.executable,
         widgets=artifact.widgets,
         resources=artifact.resources,
+        registry=artifact.registry,
         delivery=revision_delivery_model.Delivery(address=lambda path: path),
     )
     assert "lf-executable" not in document and "lf-widgets" not in document

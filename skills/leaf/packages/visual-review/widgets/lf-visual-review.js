@@ -197,6 +197,7 @@ customElements.define(
 
       this.#evidenceHost = make("section", "lf-vr-evidence-region");
       this.#evidenceHost.dataset.lfReadingRole = "pane";
+      this.#evidenceHost.dataset.lfGenerated = "";
       this.#evidenceHost.setAttribute("aria-label", "Selected visual evidence");
       this.#inspector = this.#buildInspector();
       this.#casesBody = make("div", "lf-vr-cases");

@@ -46,8 +46,9 @@
 
    - `renderSaid` turns `x-says` values into real selectable text.
    - `renderQuiet` gives `x-paints` facts and state provenance a clipped spoken reading.
-   - `markDeclared` exposes the declared width model, inline run, and quoting to the
-     theme.
+   - Declared marks expose the width model, inline run, quoting, own height, and
+     reading role to the theme: delivery paints a page's document, and `markDeclared`
+     a message.
    - `paintSettlements` (projection/presentation.js) paints every holder's
      authoritative settlement, whether or not its module renders anything.
    - `renderRetired` marks slots retired by the declared holder relation.
@@ -102,9 +103,11 @@ import { renderingSettled } from "./rendering.js";
 import { highlightBlocks } from "./syntax.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 
-// Attributes the runtime itself may paint onto elements the page owns. This is the
-// replay signature's one exclusion vocabulary as well as the source each writer uses:
-// a new kind of paint therefore has one place to join. The rest of data-lf-* is not
+// Attributes the runtime may paint onto elements the page owns, and the declared marks
+// delivery paints into the served document under the same names (revision_delivery.py,
+// `mark_declared`). This is the replay signature's one exclusion vocabulary as well as
+// the source each runtime writer uses: a new kind of paint therefore has one place to
+// join. The rest of data-lf-* is not
 // implicitly ours — a widget can carry real state there, and replay must see it.
 export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   class: "class",
@@ -500,9 +503,9 @@ export function dress(root) {
   return highlightBlocks(root);
 }
 
-// The declarations a stylesheet has to read and cannot. Three of them today: one about
-// the space a widget is given and two about how it participates in content, and none of the
-// three is something a selector can derive from the element in hand or look up.
+// The declarations a stylesheet has to read and cannot. Three of them first: one about
+// the space a widget is given and two about how it participates in content, and none of
+// them is something a selector can derive from the element in hand or look up.
 //
 // Which widgets may stand wider than the column is the first. Prose is set to a measure
 // and stays at it; a board's columns and a diagram's graph are as wide as what they hold,
@@ -536,17 +539,15 @@ export function dress(root) {
 // read a registry, asks it the same thing.
 //
 // An attribute, because the theme cannot read the registry — the same arrangement x-says
-// already has with data-lf-said. It is the
-// runtime's paint on the page's own element, so it joins PAGE_PAINT_ATTRIBUTES: the
-// version diff reads the live DOM against a file nothing has painted, and an attribute
-// missing from that exclusion list is a change the author never made. Written before the
-// modules import, because the first two decide the box each module renders into and the
-// third decides what may be drawn as pressable while they do. It lands a registry fetch
-// after the first authored paint: the document is already useful, and these declarations
-// progressively specialize its widget layout before those widgets upgrade. A message
-// body cannot render before the registry is read. The root is marked alongside its
-// descendants: a rebuild is handed a clone of the widget itself, and the fact is that
-// widget's own.
+// already has with data-lf-said. A page's document arrives painted: delivery writes
+// its table into the served source (revision_delivery.py, `mark_declared`), so the
+// first paint already gives a board its room and a workspace its panes, before any
+// module or the registry loads, and a revision the page patches in arrives painted the
+// same way. A message is the runtime's to render, so `markDeclared` paints it with
+// this module's table as it renders. Either way the paint is on the page's own element,
+// so it joins PAGE_PAINT_ATTRIBUTES: the version diff reads the live DOM against a file
+// nothing has painted, and an attribute missing from that exclusion list is a change
+// the author never made.
 //
 // What separates the two tables is where each fact holds. x-inline is true of the element
 // wherever it renders, a thread's message included, or a chip-led comparison quoted into
@@ -559,18 +560,14 @@ export function dress(root) {
 //
 // Two more are facts of the element wherever it renders. x-bound says it holds its
 // own height and scrolls inside it; `bounds.js` keeps an `end` bound on its newest
-// entry. A page occurrence overrides x-bound with data-bound, as data-width overrides
-// x-space. x-reading-role is the structural role the theme lays out, so a package's
-// differently named pane takes the same rules as lf-pane.
-export const MARKED_ANYWHERE = Object.freeze({
+// entry. An occurrence overrides x-bound with data-bound, as a page's data-width
+// overrides x-space. x-reading-role is the structural role the theme and the workspace
+// Layout lay out, so every package's pane takes the same rules.
+const MARKED_IN_MESSAGE = Object.freeze({
   "x-inline": PAGE_PAINT_ATTRIBUTE.inline,
   "x-exhibit": PAGE_PAINT_ATTRIBUTE.exhibit,
   "x-bound": PAGE_PAINT_ATTRIBUTE.bound,
   "x-reading-role": PAGE_PAINT_ATTRIBUTE.readingRole,
-});
-export const MARKED_IN_PAGE = Object.freeze({
-  ...MARKED_ANYWHERE,
-  "x-space": PAGE_PAINT_ATTRIBUTE.space,
 });
 
 function* elementsIn(root, selector) {
@@ -578,29 +575,16 @@ function* elementsIn(root, selector) {
   yield* root.querySelectorAll(selector);
 }
 
-// `markDeclared` exposes a declaration such as x-space as paint, and CSS computes the
-// room after claimed margins.
-// A declaration an authored occurrence may override, and the attribute it is written as.
-const AUTHORED = Object.freeze({ "x-space": "data-width", "x-bound": "data-bound" });
-
-// What an entry declares for a painted key.
-const declaration = (entry, key) => entry[key];
-
-export function markDeclared(root, painted) {
-  for (const key of Object.keys(AUTHORED))
-    if (painted[key])
-      for (const el of elementsIn(root, `[${painted[key]}]`))
-        el.removeAttribute(painted[key]);
-  for (const [key, attr] of Object.entries(painted))
-    for (const tag of tagsDeclaring((entry) => declaration(entry, key))) {
-      const declared = declaration(registry[tag], key);
+// Paint a message's declared marks, the root alongside its descendants.
+export function markDeclared(root) {
+  for (const [key, attr] of Object.entries(MARKED_IN_MESSAGE))
+    for (const tag of tagsDeclaring((entry) => entry[key])) {
+      const declared = registry[tag][key];
       for (const el of elementsIn(root, tag))
         el.setAttribute(attr, declared === true ? "" : declared);
     }
-  for (const [key, authored] of Object.entries(AUTHORED))
-    if (painted[key])
-      for (const el of elementsIn(root, `[${authored}]`))
-        el.setAttribute(painted[key], el.getAttribute(authored));
+  for (const el of elementsIn(root, "[data-bound]"))
+    el.setAttribute(PAGE_PAINT_ATTRIBUTE.bound, el.getAttribute("data-bound"));
 }
 
 // Words a widget says through an attribute — a metric's number, a chronology entry's time, an

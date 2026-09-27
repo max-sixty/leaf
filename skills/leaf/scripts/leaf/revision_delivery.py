@@ -21,7 +21,9 @@ served as captured.
 A document is delivered once, by `compose_document`, whoever delivers it: the HTTP
 server and the static live shell, a standalone export, and the MCP app's snapshot. A
 host states what it adds as a `Delivery` value, and the composer writes every document
-the same way.
+the same way. It also paints what each element's registry entry declares for the
+stylesheet to read (`mark_declared`), so the first paint lays out what a script would
+otherwise only mark once the registry loads.
 """
 
 import html
@@ -228,6 +230,49 @@ def rebase_document(
     return source
 
 
+# The element declarations a stylesheet reads, painted on each element of the declared
+# tag as `data-lf-<name>`: the room it takes (x-space), whether it sets inline among
+# words (x-inline), quotes what it holds (x-exhibit), holds its own height (x-bound),
+# and the reading structure it supplies (x-reading-role). A stylesheet cannot read the
+# registry, and a declaration painted by the runtime lands a registry fetch after the
+# document first draws, so a workspace would draw its panes before knowing they are
+# panes. The paint is PAGE_PAINT_ATTRIBUTE's (runtime/presentation.js), so a reading of
+# the page's own words looks past it.
+DECLARED_MARKS = ("x-space", "x-inline", "x-exhibit", "x-bound", "x-reading-role")
+# The two an authored occurrence overrides, by the attribute it writes on any element.
+AUTHORED_MARKS = {"x-space": "data-width", "x-bound": "data-bound"}
+
+
+def mark_declared(source: str, registry: Mapping) -> str:
+    """Paint each element's declared marks onto its start tag, the rest byte-for-byte.
+
+    What a template holds is inert until a module clones it, and a declarative shadow
+    tree's content is its host's to style, so neither is marked.
+    """
+    tree = turbohtml.parse(source, scripting=True, source_locations=True)
+    index = source_index(source)
+    edits = []
+    for element in tree.find_all(True):
+        location = element.source_location
+        if location is None or element.closest("template") is not None:
+            continue
+        declaration = registry.get(element.tag, {})
+        attrs = element_attrs(element)
+        marks = {}
+        for key in DECLARED_MARKS:
+            name = f"data-lf-{key.removeprefix('x-')}"
+            if (authored := AUTHORED_MARKS.get(key)) in attrs:
+                marks[name] = attrs[authored]
+            elif declared := declaration.get(key):
+                marks[name] = "" if declared is True else str(declared)
+        if marks:
+            start = index(location.start_tag.start_line, location.start_tag.start_col)
+            edits.append((start + 1 + len(element.tag), _attributes(marks)))
+    for offset, text in sorted(edits, reverse=True):
+        source = source[:offset] + text + source[offset:]
+    return source
+
+
 @dataclass(frozen=True)
 class DeliveryAddress:
     """Where an HTTP host serves each logical path of one revision's document.
@@ -418,11 +463,13 @@ def compose_document(
     executable: str | None,
     widgets: dict,
     resources: Mapping[str, Resource],
+    registry: Mapping,
     delivery: Delivery,
 ) -> str:
     """Deliver one authored document under a host's `delivery`.
 
-    The source is re-addressed (`rebase_document`) and then receives delivery's head
+    The source is marked with what its `registry` declares (`mark_declared`) and
+    re-addressed (`rebase_document`), and then receives delivery's head
     right after the head's start tag, ahead of any authored executable content: the
     prelude, the policy, the import map, the runtime script, the theme, the adopted
     sheets, the host's metadata, the runtime entry, and the canonical address, each
@@ -434,7 +481,9 @@ def compose_document(
     every reader, so it keeps out only markup that cannot read the page.
     """
     source = rebase_document(
-        source, delivery.address, inline_stylesheet=delivery.inline_stylesheet
+        mark_declared(source, registry),
+        delivery.address,
+        inline_stylesheet=delivery.inline_stylesheet,
     )
     document = SourceDocument(source)
     if "head" not in document.wrapper_tags:

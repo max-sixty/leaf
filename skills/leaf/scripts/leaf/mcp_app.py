@@ -60,6 +60,7 @@ def app_snapshot(page: str) -> tuple[dict, dict]:
         executable=artifact.executable,
         widgets=artifact.widgets,
         resources=artifact.resources,
+        registry=artifact.registry,
         delivery=embedding(read_resource=read_resource),
     )
     title = parse_revision(page_dir, revision).title.strip() or page_dir.name

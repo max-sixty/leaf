@@ -187,14 +187,6 @@ and its chrome coordinate.
   pair `readCaret` with `focusDestination` by hand. Cutting `retain` over also lets a
   user who moved on while the batch waited keep their new place. Left while the
   `thread-focus-scroll` branch had unmerged edits to `present`.
-- **Say which panes the workspace holds without naming `lf-pane`.** `layouts.css`
-  holds an authored pane only as the workspace body or a cell of it (a pane in a
-  section flows), and a generated pane at any depth. It tells the two apart by the
-  `lf-pane` tag, so a package's authored pane takes the generated rule, and it names
-  the tag for first paint too: the runtime paints `data-lf-reading-role` about half a
-  second after the panes first draw. Both need a mark the stylesheet can read before
-  the script: an authored/generated distinction in the paint, and the role in the
-  first paint.
 
 ## Etc
 

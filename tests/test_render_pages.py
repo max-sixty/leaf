@@ -2862,6 +2862,32 @@ def test_a_note_the_page_does_not_show_takes_no_room(browser, serve):
     assert main.evaluate("node => node.getBoundingClientRect().left") == centred
 
 
+def test_a_sidebar_pages_track_is_its_aside_in_the_order_it_is_written(browser, serve):
+    """A sidebar page's track is its `aside`, wherever it is written. One written before
+    the body stands on the left and, stacked on a phone, comes first; one written after
+    it stands on the right and comes last. Source order is the reading order at every
+    width, so a summary a reader needs first never lands below the whole body."""
+    body = "<div id='body'>" + "<p>Body paragraph. " * 40 + "</p></div>"
+    track = "<aside id='track'><p>Summary and contents.</p></aside>"
+    for first in (True, False):
+        source = leaf_page(
+            "a sidebar page",
+            "<header><h1>Review</h1></header>"
+            + (track + body if first else body + track),
+            layout="sidebar",
+        )
+        page = open_page(browser, serve(source))
+        box = """(id) => document.getElementById(id).getBoundingClientRect()"""
+        resized(page, 1440, 900)
+        body_box, track_box = page.evaluate(box, "body"), page.evaluate(box, "track")
+        assert track_box["top"] == pytest.approx(body_box["top"], abs=1)
+        assert (track_box["x"] < body_box["x"]) is first
+        assert track_box["width"] < body_box["width"]
+        resized(page, 390, 844)
+        body_box, track_box = page.evaluate(box, "body"), page.evaluate(box, "track")
+        assert (track_box["top"] < body_box["top"]) is first
+
+
 def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, serve):
     """The sidebar is a page-level margin resident rather than a narrower prose column.
 

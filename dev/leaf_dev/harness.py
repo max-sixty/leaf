@@ -276,8 +276,10 @@ def claude_child(
     `args` follow `-p`, so a prompt goes first. `dirs` are what the child may read
     beyond `cwd`, and `env` adds to `environment()`. Output is verbose stream-json."""
     (cwd / "tmp").mkdir(exist_ok=True)
+    # The home may hold a copy of the user's login, so no one else may enter it.
     home = cwd.with_name(f"{cwd.name}-home")
-    home.mkdir(exist_ok=True)
+    home.mkdir(mode=0o700, exist_ok=True)
+    home.chmod(0o700)
     keychains = Path.home() / "Library/Keychains"
     if keychains.is_dir() and not (home / "Library/Keychains").is_symlink():
         (home / "Library").mkdir(parents=True, exist_ok=True)
@@ -285,7 +287,7 @@ def claude_child(
     credentials = Path.home() / ".claude/.credentials.json"
     if credentials.is_file():
         (home / ".claude").mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(credentials, home / ".claude/.credentials.json")
+        shutil.copy(credentials, home / ".claude/.credentials.json")
     command = [
         "claude", "-p", *args, "--strict-mcp-config",
         "--permission-mode", "bypassPermissions", "--output-format", "stream-json",

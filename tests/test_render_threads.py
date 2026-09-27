@@ -7427,18 +7427,17 @@ def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
     thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
     topic = thread.locator(".lf-thread-topic")
     expect(topic).to_have_text("Generating title")
-    assert topic.evaluate("element => getComputedStyle(element).fontStyle") == "italic"
-    dots = topic.locator(".lf-thread-pending-dots > span")
-    expect(dots).to_have_count(3)
-    assert (
-        dots.first.evaluate("element => getComputedStyle(element).animationName")
-        != "none"
-    )
+    paint = """element => {
+      const style = getComputedStyle(element);
+      return [style.animationName, style.backgroundClip, style.color];
+    }"""
+    sweep, clip, _ = topic.evaluate(paint)
+    assert sweep != "none" and clip == "text"
+    # Without motion the words keep a fill of their own rather than the still gradient.
     page.emulate_media(reduced_motion="reduce")
-    assert (
-        dots.first.evaluate("element => getComputedStyle(element).animationName")
-        == "none"
-    )
+    sweep, clip, fill = topic.evaluate(paint)
+    assert sweep == "none" and clip != "text"
+    assert fill != "rgba(0, 0, 0, 0)"
     page.emulate_media(reduced_motion="no-preference")
     focus_panel_thread(thread)
     editor = thread.locator("leaf-text")

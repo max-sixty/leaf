@@ -810,26 +810,6 @@ done:
         The user approved the page's sign-off. The page stays open: keep it watched,
         and its status working, while you do what the approval unblocks.
 
-request:
-  event:
-    kind: request
-    answer:
-      kind: receipt
-  told:
-    - text: >-
-        The user asked you to run an operation the page's package defines; the package's
-        guidance says what the operation means and what to check before running
-        it: `leaf page guidance <page>` lists its audiences, and the one that runs
-        requests, such as `coordinator`, is the guide to read. The request id, with
-        the page, identifies it: after an interruption, check whether it already
-        ran before acting.
-    - text: >-
-        Say what it will do with `leaf status <page> working "<what it does, in
-        a line>"`, run it at most once, then record its outcome with exactly one
-        `leaf experimental receipt <page> <request-id> succeeded|failed --text "…"`.
-        The receipt does not change the page: refresh any data the page shows, update
-        `index.html` to reflect the result, and stamp it if it is worth a note.
-
 undo:
   event:
     kind: undo
@@ -848,7 +828,7 @@ report:
         until a stamped version answers it. Answer it in a stamped version before
         the page ends: write the reported state into the markup, or mark the element
         `overruled` and say why in the version note. A version that leaves the widget
-        as it was leaves the report standing, and `version check` refuses one whose
+        as it was leaves the report standing, and `page check` refuses one whose
         markup contradicts the report without answering it.
 
 error:

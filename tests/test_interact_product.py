@@ -134,7 +134,7 @@ def test_the_log_reopens_a_refused_save_but_never_the_active_revision(page_dir):
 
     # A tab still showing r1 may anchor a thread on the id r2 dropped. r2 is live
     # and its transition was judged when it activated, so neither activation nor
-    # `version check` re-judges it against the later event; the thread detaches.
+    # `page check` re-judges it against the later event; the thread detaches.
     events_model.append_event(
         page_dir,
         {
@@ -259,35 +259,17 @@ def test_an_ask_surface_frames_exactly_one_source(page_dir):
         )
         == []
     )
-    request = (
-        '<lf-operations id="host-request" target="goal" worker="worker" '
-        'worktree="tree">'
-        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations>"
-    )
-    assert (
-        fragment_errors(
-            f'<lf-ask id="decision-request"><h2>Recover it</h2>{request}</lf-ask>',
-            registry,
-        )
-        == []
-    )
-
     outside = fragment_errors(first, registry)
     assert "this declared Ask source must be inside an Ask with a heading" in " ".join(
         outside
     )
-    outside_request = fragment_errors(request, registry)
-    assert "this declared Ask source must be inside an Ask with a heading" in " ".join(
-        outside_request
-    )
 
-    # Evidence can quote another request-shaped widget without giving this Ask a
+    # Evidence can quote another Ask source without giving this Ask a
     # second live source. The runtime already excludes x-exhibit descendants from the
     # Ask list, so the authored boundary must read the same relation.
     with_evidence = (
         '<lf-ask id="decision-with-evidence"><h2>Choose</h2>'
-        f'{first}<lf-sample id="request-example" label="another request">'
+        f'{first}<lf-sample id="quoted-example" label="another question">'
         f"{second}</lf-sample></lf-ask>"
     )
     assert fragment_errors(with_evidence, registry) == []
@@ -339,50 +321,23 @@ def test_an_ask_surface_frames_exactly_one_source(page_dir):
     assert "<lf-options#g-one>" in message and "<lf-options#g-two>" in message
 
 
-def test_a_request_holder_offers_at_least_one_command(page_dir):
-    """A ready request seat cannot be an Ask the user has no way to answer."""
-    registry = registry_storage.load_registry(page_dir)
-    empty = (
-        '<lf-operations id="host-request" target="goal" worker="worker" '
-        'worktree="tree" label="Restart?"></lf-operations>'
-    )
-
-    assert "an x-request holder must offer at least one declared verb" in " ".join(
-        fragment_errors(empty, registry)
-    )
-    duplicate = (
-        '<lf-operations id="host-request" target="goal" worker="worker" '
-        'worktree="tree" label="Restart?">'
-        '<lf-operation verb="restart"><strong>Restart cleanly</strong></lf-operation>'
-        '<lf-operation verb="restart"><strong>Restart in place</strong></lf-operation>'
-        "</lf-operations>"
-    )
-    assert "must offer each verb once; repeated ['restart']" in " ".join(
-        fragment_errors(duplicate, registry)
-    )
-
-
 def test_command_references_preserve_the_package_owned_subject_roles(page_dir):
-    """Existing ids are insufficient when a typed host command swaps its subjects."""
+    """An existing id is insufficient when a typed reference names the wrong role."""
     registry = registry_storage.load_registry(page_dir)
     parser = SourceDocument(
         '<lf-command id="hub">'
         '<lf-task id="goal" status="active"><strong>Goal</strong>'
-        '<lf-agent id="worker" state="waiting" on="goal"><strong>Worker</strong>'
+        '<lf-agent id="worker" state="waiting" on="tree"><strong>Worker</strong>'
         '<lf-worktree id="tree" source="project-worktrees"></lf-worktree>'
-        "</lf-agent>"
-        '<lf-operations id="commands" target="worker" worker="tree" '
-        'worktree="goal" label="Do it">'
-        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-task></lf-command>"
+        "</lf-agent></lf-task></lf-command>"
+        '<lf-command-readings for="goal"></lf-command-readings>'
     )
 
     errors = reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
 
-    assert len(errors) == 3
+    assert len(errors) == 2
     assert "$command.widgets widget where role='goal'" in errors[0]
-    assert "$command.widgets widget where role='worker'" in errors[1]
-    assert "$command.widgets widget where role='evidence'" in errors[2]
+    assert "$command.widgets widget where role='command'" in errors[1]
 
 
 def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
@@ -765,7 +720,7 @@ def test_reply_validates_widget_markup(page_dir):
 
 
 def test_reply_validates_typed_references_against_the_page(page_dir):
-    """A frozen request must not enter the log already unable to pass POST."""
+    """Reply markup naming a page element of the wrong role never freezes."""
     subjects = (
         '<lf-command id="hub"><lf-task id="goal" status="active">'
         "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
@@ -796,21 +751,11 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
             ],
         )
 
-    swapped = reply(
-        '<lf-ask id="commands-decision"><h3>Next</h3>'
-        '<lf-operations id="commands" target="worker" worker="tree" worktree="goal">'
-        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask>"
-    )
+    swapped = reply('<lf-command-readings for="goal"></lf-command-readings>')
     assert swapped.exit_code != 0
-    assert "where role='goal'" in swapped.output
+    assert "where role='command'" in swapped.output
 
-    valid = reply(
-        '<lf-ask id="commands-decision"><h3>Next</h3>'
-        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
-        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask>"
-    )
+    valid = reply('<lf-command-readings for="hub"></lf-command-readings>')
     assert valid.exit_code == 0, valid.output
 
 
@@ -1082,16 +1027,6 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
 
 
 def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir):
-    source = page_dir / "index.html"
-    source.write_text(
-        source.read_text().replace(
-            "</section>",
-            '<lf-command id="reply-command" label="Reply subjects">'
-            '<lf-task id="goal" status="active"><strong>Goal</strong>'
-            + COMMAND_SUBJECTS
-            + "</lf-task></lf-command></section>",
-        )
-    )
     published(page_dir)
     root = events_model.append_event(
         page_dir,
@@ -1163,35 +1098,11 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
             "--awaits",
         ],
     )
-    request_duplicate = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            str(page_dir),
-            "--to",
-            root["id"],
-            "--text",
-            "Restart it?",
-            "--markup",
-            (
-                '<lf-ask id="reply-operations-decision"><h2>Restart it?</h2>'
-                '<lf-operations id="reply-operations" target="goal" '
-                'worker="worker" worktree="tree">'
-                '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-                "</lf-operations></lf-ask>"
-            ),
-            "--awaits",
-        ],
-    )
-
     assert answered.exit_code == 0, answered.output
     assert asking.exit_code == 0, asking.output
     assert duplicate.exit_code == 1
     assert "reply markup already declares" in duplicate.output
     assert aggregate.exit_code == 0, aggregate.output
-    assert request_duplicate.exit_code == 1
-    assert "reply markup already declares a local Ask" in request_duplicate.output
     replies = [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
     assert "awaits" not in replies[0]
     assert replies[1]["awaits"] is True
@@ -1652,13 +1563,13 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
 ):
     """A hand-written seed is the one markup in the product no gate has read.
 
-    Markup reaches a page two ways. A version goes through `version check`. An
+    Markup reaches a page two ways. A version goes through `page check`. An
     event's `markup` goes through `leaf thread reply`, which validates it and then freezes
     it in an append-only log, so that door is the last moment anything about it can
     be fixed. An example's companion log is neither: it is written into the
     repository by hand, and from there `scripts/site.py` publishes it to
     leaf.page, `serve` lays it into every browser sweep, and `scripts/preview.py`
-    serves it live. `version check` reads such a log only for ids colliding
+    serves it live. `page check` reads such a log only for ids colliding
     with the version's.
 
     So the seed is put through the real door rather than through a list of checks

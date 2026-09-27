@@ -3,7 +3,7 @@
  * upgrade or render it. Those values are inputs to the complete widget projection; no
  * cloned DOM, inverse action, or restoration statement is retained. */
 import { recordedWidgetSelector, stateSpecs } from "../registry.js";
-import { quoteFrom, textNodesUnder } from "../passages.js";
+import { elementReading } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
 import { bodyText } from "../widget-upgrade.js";
 import { authoredRank } from "./model.js";
@@ -55,7 +55,7 @@ export function domValue(el, record) {
       .join(" ");
   if (record.kind === "value") return el.getAttribute(record.attr);
   if (record.kind === "position") return el.closest(record.within)?.id ?? null;
-  return quoteFrom(textNodesUnder(el));
+  return elementReading(el);
 }
 
 // `parent` states where a root that is not yet in the document will stand, so the

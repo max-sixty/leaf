@@ -123,7 +123,6 @@ def read_served_page(
         now,
         readings_override=readings_override,
         live_stream=live_stream,
-        data=stored_data,
     )
     browser, reading = projected if projected is not None else (None, None)
     activity = project_activity(

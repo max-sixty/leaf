@@ -168,7 +168,7 @@ def ask_surface_errors(lf_elements: list, registry: dict) -> list:
     """An x-ask-surface region frames exactly one nested local Ask source.
 
     One leading direct heading is the question's visible title and the region owns its
-    reading and arrival, while the x-awaits or request widget owns the answer. Requiring
+    reading and arrival, while the x-awaits widget owns the answer. Requiring
     both a title and one structural source makes that split unambiguous for the browser
     walk and for `page state`.
     Liveness still comes from the source's canonical Ask projection.
@@ -193,10 +193,9 @@ def ask_surface_errors(lf_elements: list, registry: dict) -> list:
     for rec in lf_elements:
         entry = registry.get(rec["tag"], {})
         awaits = entry.get("x-awaits") or {}
-        request = entry.get("x-request") or {}
-        requires_region = (
-            awaits.get("region") and asking(rec["attrs"], awaits.get("when"))
-        ) or (request.get("region") and request.get("ask") is True)
+        requires_region = awaits.get("region") and asking(
+            rec["attrs"], awaits.get("when")
+        )
         if not requires_region or quoted_in(rec, registry):
             continue
         holder = rec.get("holder")
@@ -234,41 +233,6 @@ def ask_surface_errors(lf_elements: list, registry: dict) -> list:
             errors.append(
                 f"{at(region)}: an Ask must frame exactly one declared Ask source, "
                 f"found {found or 'none'}"
-            )
-    return errors
-
-
-def request_offer_errors(lf_elements: list, registry: dict) -> list:
-    """Every authored request seat presents at least one command it can send.
-
-    The registry declares a holder's complete verb vocabulary, while its direct
-    children choose which verbs this particular seat offers. An empty holder would
-    otherwise enter the Ask projection with no possible answer.
-    """
-    errors = []
-    for holder in lf_elements:
-        request = registry.get(holder["tag"], {}).get("x-request")
-        if request is None or request.get("records") or quoted_in(holder, registry):
-            continue
-        offered = [
-            rec["attrs"][request["offers"][rec["tag"]]]
-            for rec in lf_elements
-            if rec.get("holder") is holder
-            and rec.get("parent") == holder["tag"]
-            and rec["tag"] in request["offers"]
-            and request["offers"][rec["tag"]] in rec["attrs"]
-        ]
-        if not offered:
-            errors.append(
-                f"{at(holder)}: an x-request holder must offer at least one "
-                "declared verb"
-            )
-            continue
-        duplicates = sorted({verb for verb in offered if offered.count(verb) > 1})
-        if duplicates:
-            errors.append(
-                f"{at(holder)}: an x-request holder must offer each verb once; "
-                f"repeated {duplicates}"
             )
     return errors
 
@@ -538,7 +502,7 @@ def suggestion_errors(lf_elements: list, registry: dict, thread_ids: set) -> lis
 
 def fragment_errors(parser: SourceDocument, registry: dict) -> list:
     """Structural + registry validation of a markup fragment (an agent reply
-    carrying widgets): the discussion-side analog of `version check`. The declared-word
+    carrying widgets): the discussion-side analog of `page check`. The declared-word
     checks come along because the schema stopped carrying the lists: a reply's
     <lf-code language=…> is colored by the same tokenizer a version's is, and its chips
     are tinted by the same theme, and nothing else would now refuse either a word its
@@ -550,7 +514,6 @@ def fragment_errors(parser: SourceDocument, registry: dict) -> list:
         + visual_part_errors(parser.lf_elements, registry)
         + addressable_instance_errors(parser.lf_elements, registry)
         + ask_surface_errors(parser.lf_elements, registry)
-        + request_offer_errors(parser.lf_elements, registry)
         + declared_word_errors(parser.lf_elements, registry)
         + line_ref_errors(parser.lf_elements, registry)
     )

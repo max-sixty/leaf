@@ -1,6 +1,5 @@
 import {
   inChrome,
-  inUi,
   matchesWhen,
   quoted,
   textNodesUnder,
@@ -176,7 +175,7 @@ export const missingThreads = (declarations) =>
 // one reader that did see them read them wrong: shallowSigs excludes exactly the
 // attributes no version can assert, and its exclusion list is the runtime's own paint —
 // so a widget writing beside it is counted as state the author wrote, in the reading
-// `version check --render` uses to decide whether a version overrules the user.
+// `page check --render` uses to decide whether a version overrules the user.
 //
 // Deduped and reported per tag and attribute, because one mistake is on every instance.
 export function undeclaredAttrs(declarations) {
@@ -216,12 +215,12 @@ export function undeclaredAttrs(declarations) {
 // comes from the file's reading (`decisions`, folded over this version's log), never
 // from the page, and the page answers only for what it shows.
 //
-// The words walk is textNodesUnder with an accepts of its own, on purpose: the anchor
-// pass's default accepts already skips a marked holder's slots, so asking it whether
+// The words walk is textNodesUnder's `unsilenced` reading, on purpose: the anchor
+// pass's `says` already skips a marked holder's slots, so asking it whether
 // the retired words are gone would let the mark answer for the screen. What it keeps
 // of that reading is the boundary — declared shadow roots, the same trees replay's
 // elementById marks across, which is why the holders are found through OPEN_ROOTS
-// too — and the chrome test (inUi): a declared label is the page's words, so a
+// too — and the chrome test: a declared label is the page's words, so a
 // settled slot still showing one is still showing words. The visibility guards are
 // COVERED_WORDS', for its reasons: [hidden] holds until-found content whose boxes
 // report as last laid out, and visibility and opacity hide with layout intact. One
@@ -242,7 +241,7 @@ export function retiredSlots(holders) {
   };
   const found = [];
   const showing = (slot) => {
-    for (const seg of textNodesUnder(slot, (n) => !inUi(n))) {
+    for (const seg of textNodesUnder(slot, "unsilenced")) {
       const n = seg.node,
         el = n.parentElement;
       if (!n.data.trim()) continue;

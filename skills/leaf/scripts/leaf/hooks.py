@@ -295,7 +295,9 @@ def cmd_hook(payload: dict) -> None:
         return
     batches = []
     if event == "UserPromptSubmit":
-        open_session_turn(sid)
+        # Codex names the turn (`turn_id`), and its App Server names the same one,
+        # so this and a carrier following the turn open one identity.
+        open_session_turn(sid, payload.get("turn_id"))
         batches = pending_batches(sid)
         reasons = unattended_pages(sid, prompt_open=True, handing=batches)
     elif event == "Stop":

@@ -337,9 +337,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         previous = set()
         for event in logged:
             references = [
-                event[key]
-                for key in ("parent", "undoes", "message", "request")
-                if key in event
+                event[key] for key in ("parent", "undoes", "message") if key in event
             ] + event.get("events", [])
             assert set(references) <= previous, (
                 f"{example.stem}: {event['id']} refers to missing earlier events: "
@@ -533,7 +531,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                     expect(shown.locator("[data-lf-offer]")).not_to_have_count(0)
 
         # Each carried thread must be disclosed for the gate's geometry readings:
-        # hidden bodies have no boxes. The public version check never opens Threads,
+        # hidden bodies have no boxes. The public page check never opens Threads,
         # so exercise its own probes here against every frozen message's widgets.
         # Assert the control population first so a clean reading cannot be vacuous.
         if carried_ids:

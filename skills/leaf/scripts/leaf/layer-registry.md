@@ -14,7 +14,7 @@ process's contract.
 
 A candidate layer must retain every page action or report whose sender it retains,
 including superseded predecessors that a later undo can expose. It must also retain
-all frozen thread markup and the actions and requests sent from it, because that
+all frozen thread markup and the actions sent from it, because that
 document has no revision boundary. Page events whose senders the candidate removes are
 historical-only and remain interpretable through the registry captured with their
 immutable revisions. Re-vendoring composes page-owned declarations over the

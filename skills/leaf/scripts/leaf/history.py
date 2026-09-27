@@ -32,8 +32,6 @@ SHOWN = THREAD_KINDS | {
     "comment",
     "action",
     "report",
-    "request",
-    "receipt",
     "note",
     "done",
 }
@@ -92,7 +90,6 @@ def history(
     edit, resolve or reopen row names the thread it was made in (`event_threads`),
     with the words of the first message that thread still holds; a widget row names
     its widget, whichever thread the move also answers."""
-    by_id = {event["id"]: event for event in events}
     withdrawn = taken_back(events)
 
     def thread_of(event: dict) -> dict | None:
@@ -143,15 +140,6 @@ def history(
             row["gesture"] = _gesture(event, words)
         elif kind == "report":
             row.update(_report(event, words))
-        elif kind == "request":
-            row["widget"] = event["widget"]
-            row["operation"] = words.operation(event)
-        elif kind == "receipt":
-            request = by_id.get(event["request"])
-            row["widget"] = request["widget"] if request else None
-            row["operation"] = words.operation(request) if request else "request"
-            row["status"] = event["status"]
-            row["excerpt"] = event.get("text")
         elif kind == "note":
             row["version"] = event["version"]
             row["excerpt"] = event["text"]

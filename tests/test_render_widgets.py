@@ -1102,30 +1102,25 @@ def test_a_bound_at_its_end_follows_a_rebuilt_feed_until_the_user_scrolls_back(
     assert page.locator("#feed").evaluate("feed => feed.scrollTop") == 200
 
 
-def test_release_rollback_is_a_bound_host_request_not_local_page_state(browser, serve):
-    """The release escape path names exact releases and waits for a host receipt."""
+def test_release_rollback_is_the_operators_answer_to_an_ask(browser, serve):
+    """The release escape path is a question the operator answers: the page lists it
+    among its Asks, and the pick reaches the agent as an action naming the option."""
     example = Path(__file__).parent.parent / "examples" / "live-progress.html"
     page = open_page(browser, live_url(serve(example)))
-    holder = page.locator("#lp-release-actions")
-    button = holder.get_by_role("button", name="Request rollback to checkout-v1")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
+    rollback = page.locator("#lp-rollback-now")
 
-    expect(button).to_be_enabled()
-    with sending(page, "the rollback request"):
-        button.click()
+    with sending(page, "the rollback pick"):
+        rollback.click()
 
-    request = events_model.read_events(serve.page_dir)[-1]
-    assert (request["kind"], request["widget"], request["action"]) == (
-        "request",
-        "lp-release-actions",
-        "rollback",
+    pick = events_model.read_events(serve.page_dir)[-1]
+    assert (pick["kind"], pick["widget"], pick["action"]) == (
+        "action",
+        "lp-rollback",
+        "choose",
     )
-    assert request["detail"] == {
-        "candidate": "checkout-v2",
-        "stable": "checkout-v1",
-    }
-    expect(holder).to_contain_text("Rollback requested · waiting for the host")
-    expect(button).to_have_attribute("aria-disabled", "true")
-    expect(page.locator(".lf-asks-row")).to_have_count(0)
+    assert pick["detail"] == {"options": ["lp-rollback-now"]}
+    expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
 
 
 def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(

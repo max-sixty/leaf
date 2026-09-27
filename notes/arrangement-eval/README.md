@@ -38,7 +38,7 @@ how a page is arranged.
   `aside.sidebar`, `aside.sidenote`), and the authoring guide's "Composing a page".
 - **plain**: `plain_arm.py` removes those three elements from the registry, the three
   idioms from `$idioms`, `data-width` and every sentence naming any of them from the
-  references, registry descriptions and `version check` advice, and replaces
+  references, registry descriptions and `page check` advice, and replaces
   "Composing a page" and "The rail and the margin" with guidance to lay the page out in page CSS using the theme's
   published sizes (`--col`, `--wide`, `--wide-page-max`, `--rail`, `--lf-banner-h`,
   spacing and colour tokens). The theme's CSS for the vocabulary is still present;
@@ -65,7 +65,7 @@ bypass permissions) from a scratch cwd with project-only settings, so neither th
 `CLAUDE.md` nor the installed Leaf plugin loads. The prompt points it at the arm's
 `SKILL.md` and sets `$LEAF` to the arm's launcher; the run's own `XDG_STATE_HOME`
 keeps its pages and claims off this machine's. It asks for a finished record: write
-the page, pass `version check --render`, stamp it, no server.
+the page, pass `page check --render`, stamp it, no server.
 
 Then, resuming the same session, it delivers a standing preference: the user reads
 pages in a window about 900px wide and wants the summary, status, contents or queue
@@ -74,9 +74,9 @@ kept beside the main content at that width. The agent revises and re-checks.
 ## Scoring
 
 - `score`: per run and phase, the agent's turns, cost and time; how many times it
-  ran `version check` and `--render`, and how many reported a failure; page writes; CSS
+  ran `page check` and `--render`, and how many reported a failure; page writes; CSS
   and JavaScript lines; which arrangement terms the page used; and an independent
-  `version check --render` of the phase's page with the arm's launcher.
+  `page check --render` of the phase's page with the arm's launcher.
 - `shoot`: screenshots at 1440×900, 900×900 and 390×844, screen by screen down
   the page, for each phase.
 - `review`: a fresh `claude -p` that sees only the request and both pages'

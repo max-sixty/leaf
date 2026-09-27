@@ -70,8 +70,8 @@ configuration action; `targeting` lets users select preview elements and submit
 structured, reversible change proposals; `command-hub` adds multi-agent
 orchestration widgets; `pr-review` adds a typed pull-request brief with a safe Markdown
 description and compact checks table, plus a data-backed unified call diff; `monitoring`
-adds a release workspace with current state, checks, a run log, and a bound rollback
-request; `visual-review` adds an ordered website run, aligned before-and-after evidence,
+adds guidance for a release workspace with current state, checks, a run log, and a
+rollback Ask; `visual-review` adds an ordered website run, aligned before-and-after evidence,
 automatic compare orientation, authored focus with full-frame context, local flip and
 overlay, fit and captured-size inspection, exact preview links, and case dispositions. `gallery`
 adds the static gallery of page-edge action controls, disclosure controls, and status
@@ -320,13 +320,13 @@ value and must be removed when that value returns.
 `widgetController(owner)` is the one semantic interface; callers supply no options.
 Leaf captures the owner's identity and revision-bound declaration before upgrade, so an
 author change to those facts fails closed. Its methods are `read`, `subscribe`,
-`dispatch`, `request`, `defer`, and `present`.
+`dispatch`, `defer`, and `present`.
 
 `read()` returns an immutable `{authored, state, thread, provenance, actions,
-requests, request, delivery}` snapshot. `authored` is the typed baseline decoded from
+delivery}` snapshot. `authored` is the typed baseline decoded from
 validated source markup; `state` is that baseline with admitted and unresolved records
 folded over it; `thread.heldBy` is the `id` of the open, admitted Thread whose root
-holds this widget, or `null`. Each `actions` or `requests` entry carries its availability and
+holds this widget, or `null`. Each `actions` entry carries its availability and
 exact history or Undo candidates. Guard every optimistic mutation with its entry's
 availability; `dispatch()` repeats the same check.
 
@@ -337,7 +337,7 @@ semantic widgets subscribe too, even with no interactive controls. What the decl
 alone determines, such as a holder's settlement (`x-retired-when`), Leaf paints whether
 or not the module subscribes.
 
-`dispatch({kind: "action" | "request", verb, detail, attempt?})` and
+`dispatch({kind: "action", verb, detail, attempt?})` and
 `dispatch({kind: "undo", target})` return `null` when the newest reading refuses the
 command, otherwise `{reading, delivery}`. The returned reading already holds the
 optimistic result; delivery later yields the admitted event or null, and a refusal
@@ -366,7 +366,7 @@ beside its preview, takes the pane rules by marking those boxes
 `data-lf-reading-role="pane"` and `data-lf-generated`, with the pane grammar of one
 header, one body, and one footer. A generated pane scrolls its body wherever it stands in
 a held workspace, since its widget sizes it. The attributes are the module's to write and
-never an author's, since `version check` refuses `data-lf-` markup. Keep the package theme to placement
+never an author's, since `page check` refuses `data-lf-` markup. Keep the package theme to placement
 inside that grammar, such as track sizes and chrome; a package copy of the held rules is
 a second posture decision that drifts from the Layout's. Generate boxes rather than
 `lf-pane` elements themselves: those are authored words the render gate pairs with the
@@ -525,7 +525,7 @@ sizes its controls itself.
 ### Following a reference
 
 A module reaches another widget through an attribute its entry declares in `x-refers`
-(External requests and receipts, below) rather than looking the id up itself. Leaf
+(References between widgets, below) rather than looking the id up itself. Leaf
 resolves the attribute in the owner's own authored document first, so a widget in a
 reply finds its message's element before a page element with the same id, as the server
 does, and then in the page, which a reply's widget may name. Both verbs below
@@ -717,7 +717,7 @@ coordinates stand side by side. Swiping a card again therefore replaces that car
 earlier verdict, while verdicts on different cards coexist. `unit` is `"widget"` for a
 verb that states the whole widget's value at once, or the detail field naming the
 element it is per. `record` says how the standing state reads in markup: here, the
-card's position inside a pile. `version check` refuses a version that contradicts
+card's position inside a pile. `page check` refuses a version that contradicts
 it without `restated`, and `authoring-revisions.md`, "Honor user state", says which
 record forms the agent's next version writes back. The `$keys`
 entries in `assets/registry.json` define each key exactly.
@@ -745,7 +745,7 @@ two required fields with no record form. Each added child therefore stands on it
 coordinate: a later action of another verb leaves it in place, and undoing the `add`
 removes it. The child tag admits the sender through `x-owners`, requires only its
 canonical `id`, and has `x-content: markup`. The append door refuses an id the sending
-document already holds, and version checks enforce the declared tag and
+document already holds, and `page check` enforces the declared tag and
 direct-ownership relation once an author writes the child into the markup.
 
 A verb whose state the agent writes rather than the user declares `"writer": "agent"`
@@ -759,27 +759,9 @@ verb also declares the boolean `overruled` attribute a version keeps its own sta
 with. A worker that reacts to the user's actions follows them as they land with
 `leaf events PAGE --follow`.
 
-## External requests and receipts
+## References between widgets
 
-Use `x-request` when a user asks the host to perform a consequential one-shot
-operation. Leaf records and validates the instruction; it never interprets the verb or
-calls a provider. The package owns the verbs, controls, presentation, and guidance that
-tells the host how to execute and recover them.
-
-`offers` maps each direct child widget to the string-enum attribute that names its verb.
-Every live request holder must contain at least one matching direct child and may offer
-each verb only once; two differently worded controls that send the same instruction
-cannot produce distinguishable requests. When a later revision has carried out the
-instruction, remove the holder rather than leaving an empty Ask with no possible answer.
-`verbs` gives each operation a closed detail schema. Optional `bind` entries require a
-detail field to equal an authored string attribute on the holder, so a crafted event
-cannot retarget the operation. Every bound detail field and holder attribute is required,
-string-valued, and immutable through `x-state`; every offer attribute is a
-required string enum on its child. These constraints make the same declaration usable at
-authoring, browser, and server boundaries rather than leaving a partial bind to runtime
-guesswork.
-
-Use `x-refers` when those authored attributes point at other page objects. Its value is
+Use `x-refers` when authored attributes point at other page objects. Its value is
 a map from attribute names to target contracts. `{}` accepts any existing element id.
 A typed contract uses `via` to name a package-owned shared registry map and `where` to
 match a declaration there:
@@ -797,113 +779,13 @@ Leaf validates the generic relation; the package owns the map, roles, and partic
 widget tags. A later package can therefore add another goal or worker widget by merging
 its entry into `$command.widgets`, without changing core.
 
-Set `ask: true` when the ready operation is a question the user must answer; the
-`$keys` entry for `x-request` gives the lifecycle that Ask follows.
-
-```json
-{
-  "x-request": {
-    "ask": true,
-    "offers": { "lf-operation": "verb" },
-    "verbs": {
-      "restart": {
-        "detail": {
-          "type": "object",
-          "properties": { "target": { "type": "string" } },
-          "required": ["target"],
-          "additionalProperties": false
-        },
-        "bind": { "target": "target" }
-      }
-    }
-  }
-}
-```
-
-The module imports `defineRequestElement` from `/runtime/widget-api.js` for the
-ordinary request-row shape. The package supplies its control, command, and status
-words while the shared element wires each offered child into the server-projected
-request seat, registers its answer, and paints its lifecycle. A package that needs
-another control shape uses the same widget controller: request entries carry
-availability, `request` carries the seat lifecycle, and `dispatch({kind: "request",
-verb, detail})` sends it.
+## Page history
 
 A widget that renders the page's history declares `x-history` and reads it through
 `watchHistory(owner, callback)`: the server's rows, newest first, each already
 carrying its thread, whether it was undone, the name an agent's row is shown under
 as `agent`, and a gesture's words as the document it was made in had them. The
 widget words those facts; it does not fold the log.
-
-```js
-defineRequestElement("lf-operations", {
-  itemTag: "lf-operation",
-  controlText: "Do this",
-  commandContext: "On a host operation",
-  commandPrefix: "operation",
-  commandText: (label) => ({
-    decision: label,
-    does: `Request ${label.toLowerCase()}`,
-    line: `request ${label.toLowerCase()}`,
-  }),
-  detail: (holder) => ({ target: holder.getAttribute("target") }),
-  statusText: (request, receipt) => {
-    const operation = request.action.replaceAll("-", " ");
-    return receipt
-      ? `${operation} ${receipt.status} · ${receipt.text}`
-      : `${operation} requested · waiting for the host`;
-  },
-});
-```
-
-The host runs a request as the handling delivered with it says. Its id is unique
-within its page rather than across pages, so a host keying an external operation on it
-pairs it with the page.
-External evidence produced by the operation belongs in typed page data; the authored
-page changes only when the author saves the resulting plan revision.
-
-For controls projected from data rows, declare `records` on the data contract as its
-top-level array and each row's stable string key. Set `x-request.records` to the
-widget's `x-data` input name. Each verb then declares `unit`, a required detail field
-bound to that record key; `bind` maps other required string detail fields to required
-string fields on the record. The module renders its controls with `projectData`, reads
-`widgetController(holder).request(key)` for that row's reading and dispatch. It sends
-the row detail; Leaf stamps the request with the seat's source revision.
-The verbs are offered once by the projected holder; it has no authored offer children.
-The module gives each generated control a keyboard route.
-
-The append door checks the record and every bound field in the source's current value
-at that revision. A press made before the source was replaced is refused as stale.
-Pending, failed, and completed attempts
-belong to the document, owner widget, and record key, so one row cannot lock another.
-For `ask: true`, the holder contributes one Ask while any displayed row is ready. It
-does not add an Ask for every row; the page's heading names the set of choices.
-
-```json
-{
-  "$data": { "contracts": { "jobs": {
-    "description": "Jobs the host may restart.",
-    "records": { "items": "rows", "key": "id" },
-    "schema": { "type": "object", "properties": { "rows": {
-      "type": "array", "items": { "type": "object", "properties": {
-        "id": { "type": "string" }, "state": { "type": "string" }
-      }, "required": ["id", "state"] }
-    } }, "required": ["rows"] }
-  } } },
-  "lf-jobs": {
-    "x-data": { "jobs": { "contract": "jobs", "source": "source" } },
-    "x-request": {
-      "records": "jobs",
-      "verbs": { "restart": {
-        "unit": "target",
-        "detail": { "type": "object", "properties": {
-          "target": { "type": "string" }, "state": { "type": "string" }
-        }, "required": ["target", "state"], "additionalProperties": false },
-        "bind": { "target": "id", "state": "state" }
-      } }
-    }
-  }
-}
-```
 
 ## External or derived data
 
@@ -989,7 +871,7 @@ directory, and `data.json` records the contract each source id was first set und
 atomically; a rejected value leaves the file untouched. Once a source has been set,
 any process may rewrite its file with plain JSON. Every reading validates the file
 against the contract, so a value that fails it reaches users as that source's error
-rather than as data, and `version check` and `page state` report it. Tabs hear a
+rather than as data, and `page check` and `page state` report it. Tabs hear a
 rewritten file as they hear any other page change.
 
 A source's revision is a digest of its file's bytes, and its `updated` instant is the
@@ -1074,7 +956,7 @@ The callback receives `null` while the source has no readable value, otherwise a
 of `{source, contract, revision, updated, value, origin}`. `revision` identifies the
 value itself, so a renderer can distinguish two writes even when their wall clock
 timestamps coincide. It runs immediately and again when that source revision changes.
-A value that fails its contract is delivered as `null`; `page state` and `version check`
+A value that fails its contract is delivered as `null`; `page state` and `page check`
 report why.
 Return the cleanup function from the element's disconnect path. The callback must
 state the whole rendering and remain idempotent.
@@ -1263,7 +1145,7 @@ Escape may return focus. Widgets do not receive draft, submission, or event APIs
 ## Seeing it
 
 After `leaf page init` re-vendors the page (`serving-pages.md`, "Re-vendoring and
-layer epochs"), run `leaf version check <page> --render` on the version that uses
+layer epochs"), run `leaf page check <page> --render` on the version that uses
 the replacement layer. Note the re-vendor in the next stamped version's changelog.
 
 The render gate is where a module's mistakes surface — an upgrade that defines no element, a widget of no

@@ -9,7 +9,10 @@
    `pageText` is the whole of that reading. Every caller shares one answer for as long as
    the page holds still, and something the reading is built out of moving is what makes the
    next caller pay for a walk. The document reports most of that movement itself; the two
-   inputs it reports nothing about have a door apiece, and the last cases here are why. */
+   inputs it reports nothing about have a door apiece, and the cases after those are why.
+   The walk carries each layer down the tree rather than climbing to it from every word,
+   and the last cases hold it to where a climb would have answered: at a shadow root, at
+   a slot, and on the way back from a position in the reading to its node. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -17,11 +20,14 @@ import test from "node:test";
 import { registry } from "/runtime/registry.js";
 import {
   closestAcross,
+  elementReading,
   fencePassageParts,
   inChrome,
   neighbourhood,
   pageText,
   pageWords,
+  pointAt,
+  says,
   watchPassageRoot,
 } from "/runtime/passages.js";
 
@@ -137,8 +143,7 @@ test("a label declared inside the chrome is the page's, arriving and leaving", (
 test("a widget fenced after a reading was taken is in the next one", () => {
   document.body.innerHTML =
     "<main><p>Alpha</p><lf-fenced><p>Beta</p></lf-fenced></main>";
-  const past = (reading) =>
-    neighbourhood(reading.origin, reading.fences, "Alpha".length, 8, false);
+  const past = (reading) => neighbourhood(reading, "Alpha".length, 8, false);
   assert.match(past(pageText()), /Beta/, "unfenced, the widget's words are page prose");
   // Marking the parts changes no node, so a reading taken before the marking would let a
   // quote from the paragraph above run straight into the widget's lines.
@@ -160,4 +165,72 @@ test("a declared shadow tree's words are read, and its changes are seen", () => 
   // And the door leaves the tree watched, rather than forgetting the reading once.
   root.firstElementChild.textContent = "Gamma";
   assert.match(pageText().raw, /Alpha.*Gamma/s);
+});
+
+// The walk carries what it knows down the tree rather than climbing from each word, so
+// the places where a climb would have stopped are where a carried context has to start
+// over: `closest` stops at a shadow root, and a slotted node reads where its host
+// stands, not where its slot does.
+test("chrome over a declared tree stops at its root, and not for what it slots", () => {
+  Object.assign(registry, {
+    "lf-staged": { "x-shadow": true },
+    $layer: { generation: "passage-contexts" },
+  });
+  document.body.innerHTML =
+    '<main><p>Page</p></main><div class="lf-ui"><lf-staged><b>Slotted</b> loose</lf-staged></div>';
+  const root = document.querySelector("lf-staged").attachShadow({ mode: "open" });
+  root.innerHTML = "<p>Staged</p><p><slot></slot></p>";
+  watchPassageRoot(root);
+  const raw = pageText().raw;
+  assert.match(raw, /Staged/, "the chrome above the host is not the tree's");
+  assert.doesNotMatch(
+    raw,
+    /Slotted|loose/,
+    "a slotted word stands in its host's chrome",
+  );
+});
+
+test("a declared label inside chrome is read down to its last word", () => {
+  document.body.innerHTML =
+    '<main><p>Page</p></main><div class="lf-ui"><span data-lf-said="tab"><b>Tab</b> label</span></div>';
+  assert.match(pageText().raw, /Tab.*label/s);
+});
+
+// A reading rooted at a shadow tree starts where its host stands: the tree renders at
+// the host's place, inside the host's block, so two spans in it are one run of words.
+test("a reading rooted at a shadow tree reads in its host's block", () => {
+  document.body.innerHTML =
+    '<main><p>Rate <lf-rated id="rate"></lf-rated> today</p></main>';
+  const root = document.querySelector("#rate").attachShadow({ mode: "open" });
+  root.innerHTML = "<span>12</span><span>%</span>";
+  assert.equal(says(root), "12%");
+});
+
+// Every position in the reading leads back to the character it came from, and the edges
+// between text nodes, which hold none, lead nowhere.
+test("a reading's positions lead back to their nodes", () => {
+  document.body.innerHTML = "<main><p>Al<em></em><b>pha</b></p><p>beta</p></main>";
+  document.querySelector("em").append(document.createTextNode(""));
+  const reading = pageText();
+  assert.equal(reading.raw, "Al\u0000\u0000pha\u0000beta");
+  for (let i = 0; i < reading.raw.length; i++) {
+    const at = pointAt(reading, i);
+    const edge = reading.raw[i] === "\u0000";
+    assert.equal(at === null, edge, `${edge ? "edge" : "character"} at ${i}`);
+    if (!edge)
+      assert.equal(at.node.data[at.offset], reading.raw[i], `character at ${i}`);
+  }
+  assert.equal(pointAt(reading, -1) === null, true);
+  assert.equal(pointAt(reading, reading.raw.length) === null, true);
+});
+
+// `says` and `wrote` are two answers for one element, and a kept reading must not hand
+// back the other one's.
+test("one element's two readings are kept apart", () => {
+  document.body.innerHTML =
+    '<main><p id="line">Words <span data-lf-gen="">generated</span></p></main>';
+  const line = document.querySelector("#line");
+  assert.equal(elementReading(line, "says"), "Words generated");
+  assert.equal(elementReading(line, "wrote"), "Words");
+  assert.equal(elementReading(line), "Words generated");
 });

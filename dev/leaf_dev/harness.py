@@ -6,9 +6,9 @@ version of Leaf.
 `notes/arrangement-eval/harness.py` and `notes/usability-eval/harness.py` import it.
 
 An arm is the plugin payload (`PAYLOAD`: the manifest, hooks, launcher, skills and uv
-project) at one ref, or as the working tree has it, and nothing else. It has no `.git`, examples, docs or notes, so a
-child cannot read its way to another arm's version through history or the worked
-corpus. Building runs the launcher once, so uv builds the arm's environment before a
+project) at one ref, or as the working tree has it, and nothing else. It has no
+`.git`, examples, docs or notes, so a child cannot read its way to another arm's
+version through history or the worked corpus. Building runs the launcher once, so uv builds the arm's environment before a
 timed run starts.
 
 A child is `claude -p` from a scratch cwd outside any repository, with project-only
@@ -153,7 +153,7 @@ def merge_base() -> str:
 
 def copy_working(paths: Iterable[str], dest: Path) -> None:
     """Copy the files under `paths` into `dest` as the working tree has them: tracked
-    or untracked, edits included, and nothing git ignores."""
+    or untracked, edits included, links kept as links, and nothing git ignores."""
     listed = subprocess.run(
         ["git", "-C", ROOT, "ls-files", "-z", "--cached", "--others"]
         + ["--exclude-standard", "--", *paths],
@@ -163,9 +163,10 @@ def copy_working(paths: Iterable[str], dest: Path) -> None:
     ).stdout.split("\0")
     # A conflicted file is listed once per stage; a deleted one is still in the index.
     for name in dict.fromkeys(filter(None, listed)):
-        if (ROOT / name).is_file():
-            (dest / name).parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(ROOT / name, dest / name)
+        source, target = ROOT / name, dest / name
+        if source.is_symlink() or source.is_file():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target, follow_symlinks=False)
 
 
 def build_arm(ref: str | None, dest: Path) -> str:

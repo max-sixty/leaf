@@ -111,7 +111,7 @@ class LeafHTTPServer:
             access_log=False,
             lifespan="off",
             # A page speaks HTTP. Left on, an upgrade would arrive as a scope the
-            # page's own gate never sees, ahead of the key and the route scoping.
+            # page's own gate never sees, ahead of the key and the page's routes.
             ws="none",
         )
 

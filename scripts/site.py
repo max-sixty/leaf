@@ -45,10 +45,10 @@ from urllib.parse import unquote, urljoin, urlsplit
 from example_assets import example_previews
 from example_data import catalog_sources
 from leaf.files import latest_revision, list_revisions
-from leaf.host import SESSION_VARIABLES
-from leaf.http import scope_document_routes
+from leaf.host import IDENTITY_VARIABLES
 from leaf.live_shell import write_live_shell
 from leaf.media import media_name
+from leaf.revision_delivery import DeliveryAddress, rebase_document
 from leaf.schema import (
     BROWSER_DIRS,
     MEDIA_DIR,
@@ -181,9 +181,12 @@ def check_links(out: Path) -> None:
     for page_dir, page_root in pages:
         for page in sorted(page_dir.rglob("*.html")):
             relative = page.relative_to(page_dir)
-            html = scope_document_routes(page.read_bytes(), page_root)
+            html = rebase_document(
+                page.read_text(encoding="utf-8"),
+                DeliveryAddress(page_root, page_root),
+            )
             public_page = f"{page_root}/{relative}" if page_root else f"/{relative}"
-            for target in local_targets(html.decode()):
+            for target in local_targets(html):
                 public_target = urljoin(public_page, target)
                 if not resolves(out, pages, public_target):
                     dead.append(f"{public_page} → {target}")
@@ -527,10 +530,10 @@ def publish_live_shells(
 def build_environment() -> dict[str, str]:
     """Keep the builder's host session identity out of published version notes.
 
-    The set comes from `host.SESSION_VARIABLES`, so a harness that arrives with
+    The set comes from `host.IDENTITY_VARIABLES`, so a harness that arrives with
     a variable of its own is scrubbed here without a second list to remember."""
     env = dict(os.environ)
-    for variable in SESSION_VARIABLES:
+    for variable in IDENTITY_VARIABLES:
         env.pop(variable, None)
     return env
 

@@ -1369,8 +1369,7 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
     click on a page mark does: the panel scrolls the new thread into its scrollport.
     On a list long enough to scroll, the old rebuild appended the comment below the
     fold and put the scroll back where it was — the user's own words landed out of
-    sight, silently. Focus follows the input route: a button press stays on the
-    button, while the send key stays in the text box."""
+    sight, silently. Both routes leave the user in the box they sent from."""
     page = open_page(browser, serve(LONG_PAGE, comments=30))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -1390,7 +1389,7 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
     assert page.evaluate("() => document.querySelector('.lf-threads').scrollTop") > 0, (
         "the new thread was in view without scrolling, so the reveal proved nothing"
     )
-    expect(send).to_be_focused()
+    expect(box).to_be_focused()
     expect(box).to_have_js_property("value", "")
 
     write(box, "And the second thought lands the same way.")
@@ -3862,9 +3861,7 @@ def test_a_thread_completion_keeps_the_users_later_destination(
             "value",
             "The user is working here now." if destination == "other-thread" else "",
         )
-    elif kind == "reply":
-        expect(thread.get_by_role("button", name="Send", exact=True)).to_be_focused()
-    elif kind == "unresolve":
+    elif kind in {"reply", "unresolve"}:
         expect(thread.locator("leaf-text")).to_be_focused()
     else:
         expect(
@@ -7045,6 +7042,87 @@ def focus_clear_of_the_bar(page):
           return box.height > 0 && box.bottom > 0 && box.top < foot;
         }"""
     )
+
+
+def pressed_send_surface(browser, serve, surface):
+    """A page with words typed into `surface`'s box, and that box, the control that
+    submits it, and the box the user continues in once it has sent."""
+    if surface in {"pause", "handoff"}:
+        url, host = seated_page(serve, "task" if surface == "pause" else "verdict")
+        page = open_page(browser, url)
+        seat = page.locator(f"{host} > .lf-thread-seat")
+        box = seat.locator(":scope > .lf-say leaf-text")
+        box.scroll_into_view_if_needed()
+        name = "Send & pause" if surface == "pause" else "Send"
+        send = seat.get_by_role("button", name=name, exact=True)
+        after = (
+            box
+            if surface == "pause"
+            else seat.locator(":scope > .lf-page-thread > .lf-say leaf-text")
+        )
+    else:
+        url = serve(PANEL_PAGE)
+        root = panel_comment(
+            serve.page_dir,
+            "Where should this explanation go?",
+            {"section": "how-store"},
+        )
+        page = open_page(browser, url)
+        if surface == "card":
+            page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
+            holder = page.locator(".lf-margin-preview")
+            box = holder.locator(".lf-say leaf-text")
+        else:
+            page.locator(".lf-threads-toggle").click()
+            panel_settled(page)
+            if surface == "panel":
+                holder = page.locator(f'.lf-thread[data-id="{root}"]')
+                holder.locator(".lf-thread-summary").click()
+                box = holder.locator(":scope > .lf-compose leaf-text")
+            else:
+                holder = page.locator(".lf-general")
+                box = holder.locator("leaf-text")
+        send = holder.locator(".lf-compose-submit")
+        after = box
+    write(box, "Sent from the box.")
+    rendered(page)
+    return page, box, send, after
+
+
+@pytest.mark.parametrize("how", ["pointer", "keyboard"])
+@pytest.mark.parametrize("surface", ["card", "panel", "general", "pause", "handoff"])
+def test_a_pressed_send_leaves_the_user_in_the_box(browser, serve, surface, how):
+    """Pressing a box's submit control is its send key pressed from the box: the user
+    goes on typing where Enter would leave them. A pointer press left the focus on the
+    button, so the `o` and `k` of an "ok" typed next hid every mark and closed the
+    margin card, and neither letter reached the box. A keyboard press on the button
+    ends in the box too, so after any send the user is in it — or, where the seat gives
+    its box up, in the reply of the thread it started, as after Enter."""
+    page, box, send, after = pressed_send_surface(browser, serve, surface)
+    if how == "keyboard":
+        # Tab reaches the control from the box; `Send & pause` stands one past `Send`.
+        for _ in range(2 if surface == "pause" else 1):
+            page.keyboard.press("Tab")
+        expect(send).to_be_focused()
+        with sending(page, "the keyboard-pressed send"):
+            page.keyboard.press("Space")
+    else:
+        send.scroll_into_view_if_needed()
+        at = send.bounding_box()
+        page.mouse.move(at["x"] + at["width"] / 2, at["y"] + at["height"] / 2)
+        with sending(page, "the pointer-pressed send"):
+            page.mouse.down()
+            # The press never takes the focus, so the box never hears it leave.
+            expect(box).to_be_focused()
+            page.mouse.up()
+    rendered(page)
+    expect(after).to_be_focused()
+    page.keyboard.type("ok")
+    expect(after).to_have_js_property("value", "ok")
+    expect(after).to_be_visible()
+    expect(page.locator("html")).not_to_have_attribute("data-lf-annotations", "hidden")
+    sent = events_model.read_events(serve.page_dir)
+    assert any(event.get("text") == "Sent from the box." for event in sent), sent
 
 
 def test_a_seat_send_puts_the_user_in_the_thread_it_started(browser, serve):

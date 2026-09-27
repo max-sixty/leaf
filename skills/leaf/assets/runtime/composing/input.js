@@ -10,7 +10,8 @@ import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
 // reply, the compact anchored composer, and composition boxes contributed by widgets.
 // `wireInput` gives every such text field one input contract: persist each edit, keep the
 // action button and placeholder current, prevent parallel submissions of one local
-// surface (an impatient second click), and submit with Enter on a physical keyboard.
+// surface (an impatient second click), and submit with Enter on a physical keyboard. A
+// press on a submit control is that Enter: it leaves the user in the box.
 // Shift+Enter inserts a line, the field's own binding; on touch keyboards Enter does too.
 // Mod+Enter remains another route to submit. The field grows with its words, within the
 // room supplied by floating placement; script does not derive its height from its text. When the surface
@@ -344,8 +345,25 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         run: () => sendBtn.click(),
       },
     ]);
-    sendBtn.addEventListener("click", () => submit(send));
-    altBtn?.addEventListener("click", () => submit(altSend));
+    // A press on a submit control is the send key pressed from the box, so it leaves the
+    // user where Enter does: in the box, where the next letters are words rather than page
+    // keys. A pointer press never takes the focus (moving it is mousedown's default), so the
+    // box keeps it throughout and nothing hears it leave. A keyboard press on the control,
+    // or a pointer press while the user stood elsewhere, puts the user in the box before
+    // the submission, so what the send does next starts from the state Enter starts it
+    // from — a composer that gives way to its thread hands the user on the same way.
+    const pressed = (sender) => {
+      if (focused() !== ta) ta.focus({ preventScroll: true });
+      submit(sender);
+    };
+    for (const [button, sender] of [
+      [sendBtn, send],
+      [altBtn, altSend],
+    ]) {
+      if (!button) continue;
+      button.addEventListener("mousedown", (event) => event.preventDefault());
+      button.addEventListener("click", () => pressed(sender));
+    }
     return sync;
   }
 

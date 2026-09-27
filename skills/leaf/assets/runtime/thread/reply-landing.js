@@ -83,18 +83,18 @@ export function scrollThreadIntoView(
 }
 
 // Taken as the user sends, before the send's own render: once the page has drawn the new
-// turn above the box, land the thread around the control the user sent from, so the
-// turn's end shows with that control, unless a newer gesture has taken the user
-// elsewhere. A control the send removed has handed the user on already.
-export function sendLanding(input, send) {
+// turn above the box, land the thread around the box the user sent from — every press
+// of its submit controls leaves them in it (`wireInput`) — so the turn's end shows with
+// the box, unless a newer gesture has taken the user elsewhere. A box the send removed
+// has handed the user on already.
+export function sendLanding(input) {
   const held = input.closest(SAYS_IN);
-  const control = focused();
-  if (!held || (control !== input && control !== send)) return () => {};
+  if (!held) return () => {};
   const mayLand = retainUserIntent({ source: held, available: () => held.isConnected });
   return () =>
     void whenDocumentPresented()
       .then(() => {
-        if (mayLand() && control.isConnected) scrollThreadIntoView(held, control);
+        if (mayLand() && input.isConnected) scrollThreadIntoView(held, input);
       })
       .catch(() => {});
 }

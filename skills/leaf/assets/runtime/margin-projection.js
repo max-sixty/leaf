@@ -686,8 +686,8 @@ export function createMarginProjection({
   function placeThreadPreview({ dismissDetached = false } = {}) {
     if (!previewOpen() || !previewMarginEntry?.isConnected) return false;
     const replyEditor = previewList.querySelector(REPLY_BOX);
-    // Drafting is standing anywhere in the reply's row, Send included: a pressed Send
-    // keeps its focus while the send empties the box, and the card must not move then.
+    // Drafting is standing anywhere in the reply's row, Send included. A send leaves the
+    // user in the box it empties, and the card must not move then.
     const drafting =
       replyEditor?.checkVisibility() &&
       (replyEditor.closest(".lf-say").contains(document.activeElement) ||

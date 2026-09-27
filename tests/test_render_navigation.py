@@ -4282,10 +4282,13 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     # Two threads on one block count up, and leave one note rather than two.
     expect_comment_notes(page, "#p1", 1)
-    assert accessible_details(page, "#p1") == [
+    named = (
         "2 comments on § paragraph · The first passage under discussion, with words "
         "enough for two separate remarks to land in it."
-    ], "a screen reader reading the block is told nothing about the comments on it"
+    )
+    assert accessible_details(page, "#p1") == [named], (
+        "a screen reader reading the block is told nothing about the comments on it"
+    )
     note = comment_note(page, "#p1")
     # Hidden means hidden from the eye, not the tree.
     assert note.evaluate(

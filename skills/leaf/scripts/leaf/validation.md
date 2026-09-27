@@ -179,7 +179,7 @@ the question asked.
 
 Immutable inputs are read once per process. A stored revision's document, captured
 vocabulary, and passage readings live on its one `RevisionReading`
-(`revision_artifact.read_revision`); a candidate's live on a `SourceReading` for as
-long as its check. Each logged markup fragment is parsed once
-(`thread_context.logged_fragment`), while markup a writer hands in is parsed afresh
-at its gate.
+(`revision_artifact.read_revision`); a candidate's live on the one `SourceReading`
+its check takes, which the revision activation writes from it adopts. Each logged
+markup fragment is parsed once (`thread_context.logged_fragment`), while markup a
+writer hands in is parsed afresh at its gate.

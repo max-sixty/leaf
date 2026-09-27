@@ -1042,8 +1042,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-pinned + .lf-thread { padding-top: 4px; }
   .lf-threads > .lf-thread:nth-last-child(1 of :not([hidden])) {
     border-block-end-color: transparent; margin-bottom: 0; }
-  /* A single title row remains when the retained thread is closed. Optional
-     status and recency occupy only the space they use. */
+  /* Closed rows need a subject for navigation. Open cards show their conversation,
+     so the summary keeps its focus stop and state without repeating that subject. */
   .lf-thread-compact { --lf-thread-pad: 0px; margin: 0; padding: 0;
     background: transparent; border-radius: 0; }
   .lf-pinned + .lf-thread-compact { padding-top: 0; }
@@ -1056,6 +1056,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-summary:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
     outline-offset: calc(-1 * var(--here-ring-w)); --lf-here-ring: thread-summary; }
   .lf-thread-topic { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lf-thread-compact[open] > .lf-thread-summary { display: flex; }
+  .lf-thread-compact[open] > .lf-thread-summary .lf-thread-topic {
+    position: absolute; width: 1px; height: 1px; clip-path: inset(50%);
+  }
+  .lf-thread-compact[open] > .lf-thread-summary .lf-thread-trailing { margin-left: auto; }
   .lf-thread-topic[data-lf-pending-title] { display: inline-flex; align-items: center;
     gap: 3px; color: var(--ink-2); }
   .lf-thread-pending-dot { display: inline-block; width: 5px; height: 5px;

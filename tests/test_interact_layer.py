@@ -1572,9 +1572,7 @@ def test_the_browser_gate_refuses_a_page_another_leaf_vendored(tmp_path, monkeyp
     del vendored["$layer"]["runtime"]
     stamp.write_text(json.dumps(vendored), encoding="utf-8")
 
-    unstamped = runner.invoke(
-        cli_model.cli, ["page", "check", "--render", str(page)]
-    )
+    unstamped = runner.invoke(cli_model.cli, ["page", "check", "--render", str(page)])
 
     assert unstamped.exit_code != 0, unstamped.output
     assert f"leaf page init {page}" in unstamped.output

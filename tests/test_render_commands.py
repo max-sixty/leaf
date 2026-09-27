@@ -975,9 +975,7 @@ def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):
     the error box, which is why the gate is worth its couple of seconds."""
     serve(UNPARSABLE_DIAGRAM)
     d = serve.page_dir
-    assert (
-        CliRunner().invoke(cli_model.cli, ["page", "check", str(d)]).exit_code == 0
-    )
+    assert CliRunner().invoke(cli_model.cli, ["page", "check", str(d)]).exit_code == 0
 
     shim = Path(__file__).parent.parent / "bin" / "leaf"
     for executable in ("", headless_shell):

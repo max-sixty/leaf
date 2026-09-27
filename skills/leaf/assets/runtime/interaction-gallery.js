@@ -524,19 +524,19 @@ export function installInteractionGallery() {
   gallery.dataset.interactionInstalled = "1";
   const tabs = gallery.querySelector("lf-tabs");
   const panels = [...tabs.querySelectorAll(":scope > lf-tab")];
-  const controls = offer("div", "interaction-controls");
+  const controls = offer("div", "lf-interaction-controls");
   controls.setAttribute("aria-label", "Animation controls");
-  const toggle = offer("button", "lf-btn interaction-control", "Loading…");
+  const toggle = offer("button", "lf-btn lf-interaction-control", "Loading…");
   toggle.dataset.interactionToggle = "";
-  const loopLabel = offer("label", "interaction-setting");
-  const loop = offer("input", "interaction-loop", undefined, "checkbox");
-  loop.name = "interaction-loop";
+  const loopLabel = offer("label", "lf-interaction-setting");
+  const loop = offer("input", "lf-interaction-loop", undefined, "checkbox");
+  loop.name = "lf-interaction-loop";
   loop.dataset.interactionLoop = "";
   loopLabel.append(loop, " Loop");
-  const viewportLabel = offer("label", "interaction-setting");
+  const viewportLabel = offer("label", "lf-interaction-setting");
   viewportLabel.append("Viewport ");
-  const viewport = offer("select", "interaction-viewport");
-  viewport.name = "interaction-viewport";
+  const viewport = offer("select", "lf-interaction-viewport");
+  viewport.name = "lf-interaction-viewport";
   viewport.dataset.interactionViewportSelect = "";
   for (const size of VIEWPORT_SIZES) {
     const option = document.createElement("option");
@@ -548,7 +548,7 @@ export function installInteractionGallery() {
     throw new Error("interaction gallery has an invalid viewport size");
   viewport.value = gallery.dataset.interactionViewport;
   viewportLabel.append(viewport);
-  const status = offer("span", "interaction-status", "Loading…");
+  const status = offer("span", "lf-interaction-status", "Loading…");
   status.dataset.interactionStatus = "";
   status.setAttribute("aria-live", "polite");
   controls.append(toggle, loopLabel, viewportLabel, status);

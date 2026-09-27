@@ -1,7 +1,7 @@
 /* A playground is an instrument laid out as a wide page's body beside its rail: the real
  * preview is the stage and owns the larger field, and the controls stand above the
  * instruction they write, with its actions, in a rail beside it. Its regions are three
- * generated panes (data-lf-reading-role="pane", packages/default/theme.css), whose bodies
+ * generated panes (data-lf-reading-role="pane", the kernel's theme.css), whose bodies
  * scroll where a workspace Layout holds the window (layouts.css); here the playground
  * only places the panes and draws them.
  *

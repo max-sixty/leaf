@@ -4426,17 +4426,14 @@ def test_a_thread_reopened_mid_fold_folds_again_when_it_settles(browser, serve):
     expect(going.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="page CSS is unlayered above the lf-reset and lf-base layers where the "
-    "controls' shared face is stated, so a page's `button` rule reaches it at any "
-    "specificity; TODO.md, Layout, 'Keep page CSS off Leaf's controls (decision E)'",
-)
 def test_a_pages_own_element_rules_leave_the_layers_controls_alone(browser, serve):
     """A page dressing its own `button` and `a` is dressing its prose. The controls a
     widget builds and the chrome's own buttons keep Leaf's face instead: a page's
     element rule once took the family and ink of half corpus.html's widget controls,
-    and the family, ink, border and padding of the banner's and thread panel's."""
+    and the family, ink, border and padding of the banner's and thread panel's. A rule
+    that names the widget is the page restyling its controls on purpose, and reaches
+    them; and a face the page sets on its body reaches its prose by inheritance and
+    stops at the controls and the chrome, which state their own."""
     board = (
         '<h1>t</h1><lf-board id="b"><lf-column id="c1" label="To do">'
         '<lf-card id="k1">One</lf-card><lf-card id="k2">Two</lf-card></lf-column>'
@@ -4449,30 +4446,87 @@ def test_a_pages_own_element_rules_leave_the_layers_controls_alone(browser, serv
             leaf_page(
                 "t",
                 board,
-                head="<style>button, a { font-family: cursive; color: rgb(255, 0, 0); }"
-                "</style>",
+                # Grouped with a member that names the board, the bare `button` is
+                # still the page's own, member by member.
+                head="<style>button, a, lf-board .lf-absent { font-family: cursive;"
+                " color: rgb(255, 0, 0); }"
+                "body { font-style: italic; letter-spacing: 3px; }"
+                "lf-board button { outline: 3px solid rgb(0, 128, 0); }</style>",
             )
         ),
     )
     faces = page.evaluate("""() => {
-        const face = el => [el.className, getComputedStyle(el).fontFamily,
-                            getComputedStyle(el).color];
+        const face = el => { const cs = getComputedStyle(el);
+            return [el.className, cs.fontFamily, cs.color, cs.fontStyle, cs.letterSpacing,
+                    cs.outlineColor]; };
         return {
             controls: [...document.querySelectorAll('main button.lf-ui')].map(face),
             chrome: [...document.querySelectorAll('.lf-chrome button')].map(face),
             prose: face(document.querySelector('main p > a')),
         };
     }""")
-    # The control: the page's rule reaches the page's own link.
-    assert faces["prose"][1:] == ["cursive", "rgb(255, 0, 0)"], faces["prose"]
+    # The control: the page's rules reach the page's own link, by selector and by
+    # inheritance.
+    assert faces["prose"][1:5] == ["cursive", "rgb(255, 0, 0)", "italic", "3px"], faces[
+        "prose"
+    ]
     assert faces["controls"], "the board built no control to read"
     assert faces["chrome"], "the chrome built no button to read"
     reached = [
         face
         for face in faces["controls"] + faces["chrome"]
-        if "cursive" in face[1] or face[2] == "rgb(255, 0, 0)"
+        if "cursive" in face[1]
+        or face[2] == "rgb(255, 0, 0)"
+        or face[3] == "italic"
+        or face[4] == "3px"
     ]
     assert not reached, reached
+    # The deliberate route: every control the board builds takes the rule naming it.
+    assert {face[5] for face in faces["controls"]} == {"rgb(0, 128, 0)"}, faces[
+        "controls"
+    ]
+
+
+def test_a_packages_rules_reach_only_inside_its_widgets(browser, serve, tmp_path):
+    """A package that declares widgets styles those widgets and nothing else, whatever
+    its sheet says: its rule for `p` dresses the paragraph inside its widget and leaves
+    the page's own paragraphs alone, and its rule for the widget's host still reaches
+    the host. The confinement is the composition's (layer.py, `widget_confinement`),
+    so it holds for any package, not only the ones this repository ships."""
+    package = tmp_path / ".leaf"
+    package.mkdir()
+    (package / "theme.css").write_text(
+        "p { color: rgb(0, 128, 0); }\n"
+        "em { @media screen { color: rgb(0, 128, 0); } }\n"
+        "lf-shelf { display: block; border: 3px solid rgb(0, 128, 0); }\n"
+    )
+    url = serve(
+        leaf_page(
+            "t",
+            '<h1>t</h1><p id="out">Outside <em id="out-em">here</em>.</p>'
+            '<lf-shelf id="shelf"><p id="in">Inside <em id="in-em">here</em>.</p>'
+            "</lf-shelf>",
+        ),
+        layer_registry={
+            "lf-shelf": {
+                "description": "A project-supplied box.",
+                "type": "object",
+                "properties": {"id": {"type": "string"}},
+                "required": ["id"],
+                "additionalProperties": False,
+                "x-content": "markup",
+                "x-upgrade": False,
+            }
+        },
+    )
+    page = open_page(browser, url)
+    faces = page.evaluate("""() => Object.fromEntries(
+        ['out', 'in', 'out-em', 'in-em', 'shelf'].map(id => {
+        const cs = getComputedStyle(document.getElementById(id));
+        return [id, [cs.color, cs.borderTopWidth]]; }))""")
+    assert faces["in"][0] == faces["in-em"][0] == "rgb(0, 128, 0)", faces
+    assert "rgb(0, 128, 0)" not in (faces["out"][0], faces["out-em"][0]), faces
+    assert faces["shelf"][1] == "3px", faces
 
 
 def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):

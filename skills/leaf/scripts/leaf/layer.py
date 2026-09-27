@@ -24,7 +24,7 @@ from .schema import (
     PLUGIN_ROOT,
     VENDORED_FILES,
 )
-from .styles import css_syntax_errors
+from .styles import confined, css_syntax_errors
 from .validation.compatibility import incoming_registry
 
 
@@ -179,8 +179,9 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
 # share one layer, so they rank against each other by specificity and order as they
 # always have. The kernel's Layouts sit above it, and the page's own stylesheet,
 # unlayered, above both: a Layout resets what a widget sets on the boxes it arranges,
-# and a page overrides either. The chrome and marks sheets stay unlayered, since their
-# paint must beat page and widget alike (chrome.css).
+# and a page overrides either. The page's rules reach Leaf's own controls only where
+# they name them (runtime/page-sheets.js). The chrome and marks sheets stay unlayered,
+# since their paint must beat page and widget alike (chrome.css).
 CASCADE_LAYERS = ("lf-reset", "lf-base", "lf-layouts")
 
 
@@ -194,6 +195,23 @@ def _sheet(source: Path) -> str:
     return css if css.endswith("\n") else css + "\n"
 
 
+def widget_confinement(root: Path) -> str | None:
+    """The condition a package's rules meet in the document: the element is one of the
+    package's widgets or stands inside one. None for a package that declares none."""
+    registry = root / "registry.json"
+    tags = (
+        sorted(
+            tag for tag in json.loads(registry.read_text()) if not tag.startswith("$")
+        )
+        if registry.is_file()
+        else []
+    )
+    if not tags:
+        return None
+    listed = ", ".join(tags)
+    return f":where({listed}, :is({listed}) *)"
+
+
 def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     """The layer's two stylesheets, each in layer precedence order.
 
@@ -205,18 +223,29 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     kernel's layouts.css, which names `lf-layouts` itself, comes last. A shadow tree's
     sheet stays unlayered: a renderer that brings its own layered CSS into the tree
     (the diff's) keeps ranking below it.
+
+    A package that declares widgets styles those widgets and nothing else: in the
+    document each of its rules matches only an element that is one of them or stands
+    inside one (`widget_confinement`). A package that declares none is a theme, and
+    reaches the page the way the kernel's own theme does. A declared tree needs no
+    such line, since nothing outside it reaches in.
     """
     if not any((root / "theme.css").is_file() for root in inputs):
         sys.exit("the incoming layer has no theme.css")
     theme = [f"@layer {', '.join(CASCADE_LAYERS)};\n"]
     shadow = []
-    for root in inputs:
+    for position, root in enumerate(inputs):
+        where = widget_confinement(root) if position else None
         for name in ("shadow.css", "theme.css"):
             source = root / name
             if not source.is_file():
                 continue
             css = _sheet(source)
-            theme.append(f"@layer lf-base {{\n{css}}}\n")
+            try:
+                placed = confined(css, where) if where else css
+            except ValueError as error:
+                sys.exit(f"{source}: {error}; state a widget's rules on the widget")
+            theme.append(f"@layer lf-base {{\n{placed}}}\n")
             if name == "shadow.css":
                 shadow.append(css)
     if (layouts := inputs[0] / "layouts.css").is_file():

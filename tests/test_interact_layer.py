@@ -2592,7 +2592,7 @@ def test_init_does_not_partially_revendor_on_a_destination_conflict(
     conflict.mkdir()
     layer = tmp_path / ".leaf"
     layer.mkdir(parents=True)
-    (layer / "theme.css").write_text(":root { --accent: rebeccapurple; }\n")
+    (layer / "theme.css").write_text("lf-new-shape { --accent: rebeccapurple; }\n")
     (layer / "registry.json").write_text(
         json.dumps({"lf-new-shape": element_declaration("lf-new-shape")})
     )
@@ -3207,6 +3207,27 @@ def test_package_check_and_page_init_refuse_an_upgraded_widget_without_its_modul
         result = runner.invoke(cli_model.cli, args)
         assert result.exit_code != 0
         assert "widgets/lf-unfinished.js" in result.output
+
+
+def test_package_check_refuses_a_widget_packages_rule_on_the_root(
+    tmp_path, monkeypatch
+):
+    """A package that declares widgets reaches only inside them, so a rule of its own on
+    `:root`, `html` or `body` could never apply: composition says so rather than
+    vendoring a rule that matches nothing."""
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
+    assert created.exit_code == 0, created.output
+    add_test_widget(tmp_path / ".leaf", "lf-toned-note")
+    (tmp_path / ".leaf" / "theme.css").write_text(
+        "lf-toned-note { color: teal; }\n:root { --toned: teal; }\n"
+    )
+
+    result = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
+
+    assert result.exit_code != 0
+    assert "`:root` styles `:root`, which no widget contains" in result.output
 
 
 def test_package_check_requires_a_non_empty_widget_description(tmp_path, monkeypatch):
@@ -3840,7 +3861,11 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
         ["page", "init", "--package", "diagram", "--package", "./.leaf", str(page)],
     )
     assert initialized.exit_code == 0, initialized.output
-    assert "lf-callout {" in (page / "theme.css").read_text()
+    # The package's rule reaches the page confined to the package's own widget.
+    assert (
+        "lf-callout:where(lf-callout, :is(lf-callout) *) {"
+        in (page / "theme.css").read_text()
+    )
     assert json.loads((page / "registry.json").read_text())["lf-callout"] == entry
     assert (
         "Use them for short notices." in (page / "guidance" / "author.md").read_text()
@@ -4170,9 +4195,11 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     assert (page / "widgets" / "ready.js").is_file()
     assert (page / "vendor" / "solo.json").is_file()
     theme = (page / "theme.css").read_text()
-    assert theme.index("lf-solo { --lf-block-frame: 1; }") < theme.index(
-        "--solo-night: 1"
-    )
+    # A package with a widget reaches only inside it; a package without one is a
+    # theme, and its rules reach the page as written.
+    assert theme.index(
+        "lf-solo:where(lf-solo, :is(lf-solo) *) { --lf-block-frame: 1; }"
+    ) < theme.index(":root { --solo-night: 1; }")
     guidance = (page / "guidance" / "author.md").read_text()
     assert guidance == (
         "# Package `solo`\n\nUse one solo.\n\n# Package `night`\n\nUse after dusk.\n"

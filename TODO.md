@@ -80,31 +80,12 @@ The page arranges itself in CSS, starting from the Layout classes
 (`skills/leaf/assets/layouts.css`), and Leaf keeps the contracts where pages, widgets
 and its chrome coordinate.
 
-- **Keep page CSS off Leaf's controls (decision E).** Page CSS is unlayered, above
-  `lf-reset` (the runtime's clearing of a control's UA face) and `lf-base` (the theme,
-  `shadow.css` and package sheets, where `.lf-btn` and the other shared control faces
-  are stated). A page's bare `button {}` therefore restyles every button in the banner
-  and thread panel and the controls a widget draws in the page, such as lf-board's
-  grip: family, ink, border, background and padding. Before the Layouts only the
-  family leaked, through `lf-reset`'s `font: inherit`, and so did the whole face of a
-  control dressed by `.lf-ui` alone; a class's specificity kept the rest.
-  `test_a_pages_own_element_rules_leave_the_layers_controls_alone` is xfail on both.
-  The chosen route is to exclude Leaf's controls from the page's selectors.
-  `@scope (:root) to (.lf-ui, .lf-chrome)` can't carry it: Chrome prefixes every scoped
-  selector with `:scope`, so `:root` token rules stop matching. Appending
-  `:not(:where(.lf-ui, .lf-ui *, .lf-chrome, .lf-chrome *))` to each page selector
-  through the CSSOM at boot kept every page rule off the chrome and widget controls
-  and on the page's own content, but it also took the page's rules off the page-local
-  widgets whose controls the page styles (rust-sort's `lf-sort-film button`, and
-  wt-merge's film). The ownership that settles it: a widget's controls take their face
-  from the sheet of the package that ships the widget, so those two films move their
-  control rules into their own package's `theme.css`, and the exclusion then holds for
-  every `.lf-ui` control.
-- **Let a page, not a widget, change more of Leaf's formatting.** A page should be
-  able to restyle Leaf's own surfaces deliberately, such as the thread panel's format,
-  and hide one entirely where the page needs to. The exclusion above stops accidents;
-  this is the deliberate route through it, whether tokens, named parts, or a page
-  sheet Leaf doesn't exclude. Widgets keep to their own boxes.
+- **Let a page restyle Leaf's chrome on purpose.** A page's rules reach a widget's
+  controls when they name the widget (`runtime/page-sheets.js`), but `chrome.css` is
+  unlayered and adopted after the page's sheets, so a page rule naming a chrome class
+  wins only by out-weighing the chrome's own selector. Choose the deliberate route for
+  the chrome — tokens it reads, named parts, or a layer the page ranks above — so a page
+  can change the thread panel's format or hide one surface where it needs to.
 - **Cap a widget's minimum by the box that holds it.** lf-board's `min-inline-size` is
   capped by the shell (`100cqi`), so inside a framed specimen or a column on a phone it
   runs past its holder: the feature gallery and how-it-works each zero it by hand.
@@ -275,12 +256,6 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Implementation candidates
 
-- **Hide screen-reader words in an exported page.** `leaf version export` files show
-  `.lf-quiet` words on screen ("highlighted" on lf-code lines, "done" and "active" on
-  lf-task and lf-milestone rows). The rule that clips them is in `runtime/chrome.css`,
-  which `leaf.js` adopts only when the page is not offline, though content widgets use
-  the class. Moving the base rule into the page's own sheet fixes it, but reorders it
-  against page CSS and the suggestion overrides in `theme.css`.
 - **Write the unresolved-gesture ledger as one state machine.** `application.ts`
   (`accept`, `accountPresented`), `application.js` (`releasableEntries`) and
   `pending/model.js` track a gesture through five flags, and each writes its own rule

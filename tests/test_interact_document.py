@@ -5319,10 +5319,10 @@ def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch
     for cache in (
         artifact_model._read_stamped,
         artifact_model._read_artifact_stamped,
-        artifact_model._capture_artifact_stamped,
         artifact_model._shared_registry,
     ):
         cache.cache_clear()
+    artifact_model._captures.clear()
     artifact_model._readings.clear()
     revisioning_model._held.clear()
 
@@ -5389,6 +5389,35 @@ def test_a_crlf_source_rechecked_unchanged_is_the_active_revision(page_dir):
         artifact_model.read_revision(page_dir, activated.revision).document.data == data
     )
     assert predecessor_reading(page_dir, data, events, checked.artifact).unchanged
+
+
+def test_an_activated_revision_adopts_the_reading_its_check_took(page_dir, monkeypatch):
+    """The revision activation writes is the candidate the check just read, so it
+    holds that reading — the captured bytes, CRLF included, and the words the
+    transition check walked — rather than parsing and walking the file it wrote."""
+    source = PAGE.replace("</main>", "<p>A next version.</p></main>")
+    (page_dir / "index.html").write_bytes(source.replace("\n", "\r\n").encode())
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None and activated.created, activated.error
+
+    def no_parse(_source):
+        raise AssertionError("the activated revision was parsed again")
+
+    walks = []
+    native = passages_model.page_passages
+
+    def counted(*args, **kwargs):
+        walks.append(args)
+        return native(*args, **kwargs)
+
+    monkeypatch.setattr(artifact_model, "SourceDocument", no_parse)
+    monkeypatch.setattr(passages_model, "page_passages", counted)
+    reading = artifact_model.read_revision(page_dir, activated.revision)
+    marker = files_model.revision_path(page_dir, activated.revision)
+    assert reading.document.data == marker.read_bytes()
+    assert b"\r\n" in reading.document.data
+    assert reading.spoken
+    assert walks == []
 
 
 def test_held_revision_readings_stay_within_their_source_budget(page_dir, monkeypatch):

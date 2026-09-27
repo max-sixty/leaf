@@ -162,7 +162,7 @@ import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
 import { bannerControlDoor } from "./banner-shelf.js";
 import { coarsePointer } from "./pointer.js";
 import { threadCardGeometry } from "./thread-card-geometry.js";
-import { shownWindow } from "./geometry.js";
+import { shownWindow, skipped } from "./geometry.js";
 import { placeKeeper } from "./user-place.js";
 import {
   isLiveWorkflow,
@@ -1934,9 +1934,15 @@ export function createMarginProjection({
     // between two marker writes forced one full document layout per Page Map entry —
     // including on the two-second heartbeat. The spoken positions use the main rect
     // already read above and one final scroll height, then write every name together.
+    // A target in skipped content (a tab not chosen) stands nowhere down the page, and
+    // asking would force that content's style and layout (`skipped`).
     const mainHeight = main?.scrollHeight ?? 0;
     const positions = pageInventory.map((entry) =>
-      targetFor(entry) && !readingRegionFor(targetFor(entry)) && mainRect && mainHeight
+      targetFor(entry) &&
+      !skipped(targetFor(entry)) &&
+      !readingRegionFor(targetFor(entry)) &&
+      mainRect &&
+      mainHeight
         ? Math.round(
             ((targetFor(entry).getBoundingClientRect().top - mainRect.top) /
               mainHeight) *

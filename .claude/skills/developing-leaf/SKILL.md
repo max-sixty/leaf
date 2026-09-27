@@ -204,7 +204,8 @@ exact merge-base SHA under the same CI job and selection; until it reproduces
 there, it is the branch's. Use the base SHA's
 GitHub Actions run as the control, not a local container or a green run a few
 commits back. `uv run leaf-dev ci-failures` makes that comparison for the pushed
-HEAD. Its exit 0 proves that every branch job has a result and that each failure
+HEAD, or `HEAD^2` in a pull request's CI checkout, which sits on GitHub's merge
+commit. Its exit 0 proves that every branch job has a result and that each failure
 also fails on the base: a test by node id, but any other step only by name, so
 read both logs for each step it lists as matched by name. Main holds one nightly
 slot, so a base commit may carry no nightly result; the command then prints the

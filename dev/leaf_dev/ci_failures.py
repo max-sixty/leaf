@@ -242,6 +242,17 @@ def rev_parse(ref: str) -> str:
     return proc.stdout.strip()
 
 
+def is_merge(sha: str) -> bool:
+    return (
+        subprocess.run(
+            ["git", "-C", ROOT, "rev-parse", "--verify", "--quiet", f"{sha}^2"],
+            capture_output=True,
+            check=False,
+        ).returncode
+        == 0
+    )
+
+
 def table(header: tuple[str, ...], rows: list[tuple[str, ...]]) -> str:
     return "\n".join(
         f"| {' | '.join(row)} |" for row in [header, ("---",) * len(header), *rows]
@@ -365,7 +376,14 @@ def ci_failures(ref: str, run_id: int | None) -> None:
     sha, base = rev_parse(ref), merge_base(ref)
     branch = reading(sha, pull_requests=True)
     if not branch:
-        raise click.ClickException(f"no ci run for {sha[:9]}; CI runs pushed commits")
+        # A pull request's CI checkout sits on GitHub's merge of the head into main,
+        # while its runs are filed under the head, the merge's second parent.
+        hint = (
+            f"; if this is a pull request's merge checkout, read {ref}^2"
+            if is_merge(sha)
+            else ""
+        )
+        raise click.ClickException(f"no ci run for {sha[:9]}{hint}")
     if base == sha:
         report_alone(f"{sha[:9]} is on main", branch)
         return

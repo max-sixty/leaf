@@ -33,6 +33,7 @@ from interact_support import running_http_server
 from leaf import data as data_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
+from leaf import layer as layer_model
 from leaf import schema as schema_model
 from leaf.event_log import _parse_events, read_events
 from leaf.events import bare_reaction, build_threads
@@ -251,29 +252,16 @@ def opened(page, url):
 
 def test_product_pages_vendor_the_composed_theme(site):
     """Every authored product source becomes an independent complete page."""
-    theme_halves = [
-        ROOT / "skills" / "leaf" / "assets" / "theme.css",
-        ROOT / "skills" / "leaf" / "packages" / "default" / "theme.css",
-        *(
-            theme
-            for name in json.loads((EXAMPLES / "layer.json").read_text())
-            for theme in (ROOT / "skills" / "leaf" / "packages" / name).glob(
-                "theme.css"
-            )
-        ),
-        DOCS / "package" / "theme.css",
-    ]
-    assert all(source.is_file() for source in theme_halves)
+    packages = tuple(json.loads((EXAMPLES / "layer.json").read_text()))
+    inputs = [*layer_model.layer_inputs(packages), DOCS / "package"]
+    expected_theme = layer_model.composed_sheets(inputs)["theme.css"]
     for page in pages_under(DOCS):
         target = site_build.product_page(site, page.name)
         published = (target / "index.html").read_text()
         source_markup = page.read_text()
         assert 'href="/theme.css"' not in source_markup, page.name
         assert published == source_markup, page.name
-        for theme in theme_halves:
-            assert theme.read_text().rstrip() in (target / "theme.css").read_text(), (
-                f"{page.name} is missing {theme.parent.name}'s theme"
-            )
+        assert (target / "theme.css").read_bytes() == expected_theme, page.name
 
 
 @pytest.mark.parametrize("source", pages_under(DOCS), ids=lambda p: p.stem)

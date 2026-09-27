@@ -297,9 +297,9 @@ def guidance(dir: str, audience: str | None) -> None:
 @click.argument("dir", metavar="PAGE")
 def state(dir: str) -> None:
     """Fold the log onto the active revision and print the result as one JSON
-    object: effective content with source and edit addresses, standing state,
-    reports, open Asks, thread summaries, versions, presence, and bound data.
-    Content follows the same document projection as the browser."""
+    object: the active revision's file, standing state, reports, open Asks,
+    thread summaries, versions, presence, and bound data. Read the active
+    revision's HTML beside it for the document."""
     from leaf.agent_state import cmd_page_state
 
     cmd_page_state(resolve_dir(dir))

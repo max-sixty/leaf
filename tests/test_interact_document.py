@@ -64,8 +64,9 @@ from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
-from leaf.registry.storage import read_page_registry
+from leaf.registry.storage import read_page_registry, require_registry
 from leaf.render_gate import readings as render_gate_readings
+from leaf.served_state.page import read_served_page
 from leaf.validation import compatibility as validation_model
 from leaf.validation.source_history import PROTECTED_REMEDIES
 
@@ -682,7 +683,7 @@ def test_structural_errors_distinguish_recovery_from_ambiguous_source():
 
 
 def construction_nodes(content):
-    """Index the emitted construction without reading its source files again."""
+    """Index a thread message's emitted construction by id."""
     nodes = {}
     for node in content:
         if isinstance(node, dict):
@@ -690,6 +691,24 @@ def construction_nodes(content):
                 nodes[identity] = node
             nodes.update(construction_nodes(node["content"]))
     return nodes
+
+
+def folded(page_dir, board="b1"):
+    """Each column of `board` in the order the page draws it: the position fold over
+    the revision `page state` activates."""
+    revision = state_json(page_dir)["active"]["revision"]
+    _, reading, _ = read_served_page(page_dir, events_model.read_events(page_dir))
+    document = reading.documents[revision]
+    registry = require_registry(page_dir)
+    return projection_model.folded_positions(
+        board,
+        "move",
+        registry["lf-board"]["x-state"]["move"]["record"],
+        document.document.by_id,
+        document.spoken,
+        registry,
+        document.projection,
+    )
 
 
 def test_undoing_one_cards_move_leaves_the_other_cards_order(page_dir):
@@ -717,15 +736,11 @@ def test_undoing_one_cards_move_leaves_the_other_cards_order(page_dir):
         for card, rank in (("d", "0i"), ("c", "0r"))
     ]
 
-    def order():
-        todo = construction_nodes(state_json(page_dir)["content"])["c-todo"]
-        return [n["attrs"]["id"] for n in todo["content"] if isinstance(n, dict)]
-
-    assert order() == ["d", "c", "a", "b"]
+    assert folded(page_dir)["c-todo"] == ["d", "c", "a", "b"]
     append_command(
         page_dir, {"kind": "undo", "author": "user", "undoes": moved[0]["id"]}
     )
-    assert order() == ["c", "a", "b", "d"]
+    assert folded(page_dir)["c-todo"] == ["c", "a", "b", "d"]
 
 
 RANK_CASES = json.loads((Path(__file__).parent / "rank_cases.json").read_text())
@@ -805,8 +820,7 @@ def test_a_position_is_never_read_as_one_actions_markup_value():
 
 
 def _todo_order(page_dir):
-    todo = construction_nodes(state_json(page_dir)["content"])["c-todo"]
-    return [n["attrs"]["id"] for n in todo["content"] if isinstance(n, dict)]
+    return folded(page_dir)["c-todo"]
 
 
 def _write_board(page_dir, todo, done=()):
@@ -1002,7 +1016,10 @@ def test_page_init_says_when_the_source_will_not_activate(page_dir):
     assert "id='x'" in result.output
 
 
-def test_page_inspection_preserves_exact_user_state_and_its_edit_routes(page_dir):
+def test_page_state_lists_each_user_move_over_the_active_html(page_dir):
+    """`page state` names the active revision's HTML and lists every standing move
+    over it with the words, choice or place it carries, so a successor reads the page
+    as the user sees it without a second copy of the document."""
     markup = PAGE.replace(
         "</main>",
         OPTIONS.format(
@@ -1034,66 +1051,46 @@ def test_page_inspection_preserves_exact_user_state_and_its_edit_routes(page_dir
             },
         )
     state = state_json(page_dir)
-    nodes = construction_nodes(state["content"])
-    draft = nodes["summary"]
-    assert draft["content"] == [actions[2][2]["text"]]
-    assert draft["authored"]["content"][0]["content"] == ["Ship on Friday."]
-    assert draft["edit"]["override_requires"] == "restate"
-    assert state["content_source"]["file"] == str(page_dir / state["active"]["file"])
-    assert state["content_source"]["edit_file"] == str(page_dir / "index.html")
-    assert nodes["o-user"]["content"] == ["Try a canary."]
-    assert "chosen" in nodes["o-user"]["attrs"]
-    assert nodes["o-user"]["source"]["kind"] == "action"
-    assert nodes["o-user"]["edit"]["owner"] == "g1"
-    assert "line" not in nodes["o-user"]["source"]
-    assert "authored" not in nodes["o-user"]
-    assert "chosen" in nodes["o-shim"]["authored"]["attrs"]
-    assert "chosen" not in nodes["o-shim"]["attrs"]
-    assert nodes["o-shim"]["authority"] == nodes["o-user"]["authority"]
-    for identity in ("g1", "o-stage"):
-        assert "authored" not in nodes[identity]
-        assert "authority" not in nodes[identity]
-    assert [n["attrs"]["id"] for n in nodes["c-done"]["content"]] == [
-        "card-x",
-        "card-y",
-    ]
-    assert nodes["card-x"]["authored"]["placement"] == {"parent": "c-todo"}
-    assert nodes["explanation"]["content"][1] == " "
+    assert "content" not in state
+    active = page_dir / state["active"]["file"]
+    assert active.read_text() == markup
+    assert sorted(
+        (e["widget"], e["action"], json.dumps(e["detail"])) for e in state["state"]
+    ) == sorted((w, a, json.dumps(d)) for w, a, d in actions)
+    assert folded(page_dir)["c-done"] == ["card-x", "card-y"]
 
-    # A successor uses the emitted source address to change unrelated wording. User
-    # state remains effective without transcribing it into HTML, except the moves,
-    # which a version writes in the order the reading shows.
-    target = nodes["explanation"]["edit"]
-    assert target["matches_active"]
-    path = Path(state["content_source"]["edit_file"])
+    # A successor edits unrelated wording in index.html and writes the moves where
+    # the fold puts them; the other moves stay effective without transcription.
+    path = page_dir / state["source"]["file"]
     path.write_text(
         path.read_text()
         .replace("<strong>Keep</strong>", "<strong>Preserve</strong>")
         .replace(_board([X, Y], []), _board([], [X, Y]))
     )
     revised = state_json(page_dir)
-    again = construction_nodes(revised["content"])
     assert revised["source"]["live"], revised["source"]["error"]
-    assert again["summary"]["content"] == draft["content"]
-    assert "chosen" in again["o-user"]["attrs"]
-    assert again["explanation"]["content"][0]["content"] == ["Preserve"]
+    assert (
+        "<strong>Preserve</strong>"
+        in (page_dir / revised["active"]["file"]).read_text()
+    )
+    assert {(e["widget"], e["action"]) for e in revised["state"]} >= {
+        ("g1", "choose"),
+        ("summary", "edit"),
+    }
 
-    # Rejected source must not lend its lines to the still-live construction.
+    # A rejected candidate leaves the active revision, and its HTML, as they were.
     path.write_text(
         "\n\n" + path.read_text().replace('id="explanation"', 'id="summary"')
     )
     rejected = state_json(page_dir)
-    current = construction_nodes(rejected["content"])
-    assert not rejected["source"]["live"]
+    assert not rejected["source"]["live"] and rejected["source"]["error"]
     assert rejected["active"] == revised["active"]
-    assert current["summary"]["content"] == draft["content"]
-    assert "line" not in current["summary"]["edit"]
-    assert current["summary"]["source"]["line"] == again["summary"]["source"]["line"]
 
 
-def test_page_inspection_binds_each_input_to_its_source_file(page_dir):
-    """An input names the file that holds its value and the digest of that value, and
-    a file another process rewrote past its contract reads as that error."""
+def test_page_state_names_each_bound_source_and_its_failures(page_dir):
+    """`data_bindings` names each bound source and the widgets that read it, whose
+    value is `data/<source>.json`, and a file another process rewrote past its
+    contract reads as that source's error."""
     declare_data_input(
         page_dir, "builds", {"type": "array", "items": {"type": "string"}}
     )
@@ -1103,44 +1100,21 @@ def test_page_inspection_binds_each_input_to_its_source_file(page_dir):
     )
     assert updated.exit_code == 0, updated.output
     stored = data_model.source_file(page_dir, "builds")
-    reading = construction_nodes(state_json(page_dir)["content"])["test-data"][
-        "inputs"
-    ]["data"]
-    assert reading["value"] == json.loads(stored.read_text()) == ["passing"]
-    assert (
-        reading["origin"]["revision"]
-        == (hashlib.sha256(stored.read_bytes()).hexdigest()[:16])
-    )
-    assert reading["edit"] == {
-        "kind": "data",
-        "page": str(page_dir),
-        "source": "builds",
-        "file": str(stored),
-        "binding_attribute": "source",
-    }
+    state = state_json(page_dir)
+    assert stored == page_dir / state["data"]["dir"] / "builds.json"
+    assert json.loads(stored.read_text()) == ["passing"]
+    [consumer] = state["data_bindings"]["builds"]["consumers"]
+    assert consumer["widget"] == "test-data"
+    assert state["data"]["errors"] == []
 
     stored.write_text('["passing", 3]')
-    broken = construction_nodes(state_json(page_dir)["content"])["test-data"]["inputs"][
-        "data"
-    ]
-    assert "value" not in broken and not broken["available"]
-    assert "builds" in broken["error"]
-    assert broken["origin"]["revision"] != reading["origin"]["revision"]
+    [error] = state_json(page_dir)["data"]["errors"]
+    assert "builds" in error
 
 
-@pytest.mark.parametrize(
-    "outcome,words",
-    [("accept", "Use the new wording."), ("reject", "Keep the old wording.")],
-)
-def test_page_inspection_retires_idless_slots_and_reads_frozen_construction(
-    page_dir, outcome, words
-):
-    markup = '<lf-suggestion id="wording"><lf-old>Keep the old wording.</lf-old><lf-new>Use the new wording.</lf-new></lf-suggestion>'
-    (page_dir / "index.html").write_text(PAGE.replace("</main>", markup + "</main>"))
+def test_thread_read_reads_frozen_construction(page_dir):
+    (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
-    decide(page_dir, outcome, widget="wording")
-    nodes = construction_nodes(state_json(page_dir)["content"])
-    assert [child["content"] for child in nodes["wording"]["content"]] == [[words]]
     root = events_model.append_event(
         page_dir,
         {
@@ -5522,11 +5496,10 @@ def test_page_inspection_places_cards_among_identified_siblings(page_dir):
             "detail": {"card": "reading-a", "to": "reading-done", "rank": "0i"},
         },
     )
-    nodes = construction_nodes(state_json(page_dir)["content"])
-    assert [
-        (child["tag"], child["attrs"].get("id"))
-        for child in nodes["reading-done"]["content"]
-    ] == [("lf-chip", None), ("lf-card", "reading-a"), ("lf-card", "reading-b")]
+    assert folded(page_dir, "reading-board")["reading-done"] == [
+        "reading-a",
+        "reading-b",
+    ]
 
 
 def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
@@ -5558,20 +5531,16 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
             input=json.dumps(value),
         )
         assert written.exit_code == 0, written.output
-        node = construction_nodes(state_json(page_dir)["content"])["reading-diff"]
-        reading = node["inputs"]["document"]
+        stored = read_page_data(page_dir)
+        delivered = data_model.browser_data_from(stored, require_registry(page_dir))
+        reading = delivered["sources"]["reading-patch"]
         if isinstance(value, str):
             assert reading["value"] == patch
-            assert "deferred" not in reading
         else:
             assert reading["value"] == {
                 "files": [{key: field for key, field in file.items() if key != "patch"}]
             }
-            assert reading["deferred"]["file"] == str(
-                data_model.source_file(page_dir, "reading-patch")
-            )
-            assert reading["deferred"]["revision"] == reading["origin"]["revision"]
-        assert read_page_data(page_dir)["sources"]["reading-patch"]["value"] == value
+        assert stored["sources"]["reading-patch"]["value"] == value
 
 
 def test_a_state_read_never_materializes_a_historical_revision_bundle(

@@ -136,13 +136,12 @@ VISUAL_REVIEW_GALLERY = next(
 )
 
 
-def test_inspection_and_browser_share_retirement_and_bound_input_origins(
-    browser, serve
-):
-    """The two clients read the same accepted content and the same source revisions.
+def test_page_state_and_browser_share_the_decision_and_bound_sources(browser, serve):
+    """The two clients read the same accepted decision and the same source revisions.
 
     A pin is a source id nothing rewrites: the reviewed copy keeps its revision while
-    the current source moves on, and each widget's origin names its own file's digest.
+    the current source moves on, and each widget's origin names its own file's digest,
+    the file `page state` names for that source.
     """
     authored = leaf_page(
         "construction parity",
@@ -168,35 +167,25 @@ def test_inspection_and_browser_share_retirement_and_bound_input_origins(
     result = CliRunner().invoke(cli_model.cli, ["page", "state", str(serve.page_dir)])
     assert result.exit_code == 0, result.output
     inspection = json.loads(result.output)
-
-    def walk(content):
-        for node in content:
-            if isinstance(node, dict):
-                yield node
-                yield from walk(node["content"])
-
-    nodes = {
-        node["attrs"]["id"]: node
-        for node in walk(inspection["content"])
-        if "id" in node["attrs"]
-    }
-    assert [node["tag"] for node in nodes["change"]["content"]] == ["lf-new"]
-    assert nodes["change"]["content"][0]["content"] == ["Retry three times."]
+    [decision] = [entry for entry in inspection["state"] if entry["widget"] == "change"]
+    assert (decision["action"], decision["detail"]) == ("decide", {"outcome": "accept"})
     for identity, source, value in (
         ("current", "instructions", "Current instructions.\n"),
         ("reviewed", "reviewed-instructions", "Reviewed instructions.\n"),
     ):
-        binding = nodes[identity]["inputs"]["document"]
-        assert binding["value"] == value
+        [consumer] = inspection["data_bindings"][source]["consumers"]
+        assert consumer["widget"] == identity
+        stored = data_model.source_file(serve.page_dir, source)
+        assert stored == serve.page_dir / inspection["data"]["dir"] / f"{source}.json"
+        assert json.loads(stored.read_text()) == value
         widget = page.locator(f"#{identity}")
         expect(widget.locator("code")).to_have_text(value)
         rendered = widget.locator("[data-lf-origin]").evaluate(
             "node => JSON.parse(node.dataset.lfOrigin)"
         )
-        assert {**rendered, "path": []} == binding["origin"]
-        assert rendered["revision"] == source_revision(serve.page_dir, source)
-        assert binding["edit"]["file"] == str(
-            data_model.source_file(serve.page_dir, source)
+        assert (rendered["source"], rendered["revision"]) == (
+            source,
+            source_revision(serve.page_dir, source),
         )
     expect(page.locator("#reviewed figcaption")).to_have_text("Reviewed")
     expect(page.locator("#current figcaption")).to_have_text("instructions")

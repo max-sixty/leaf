@@ -506,7 +506,7 @@ available actions, and the next press of `a` reaches the next open Ask while the
 complete page remains visible.
 
 Without a way to inspect the rendered page, read `leaf page state <page>`'s
-`content` and `asks` alongside the source to review the words, evidence, and
+`state` and `asks` alongside the active HTML to review the words, evidence, and
 available choices. Report the render command's result separately from the visual
 and keyboard review you could not perform. If the command cannot launch a browser,
 run `leaf version check <page>` for the markup and report the render check as

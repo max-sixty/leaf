@@ -1,6 +1,6 @@
 """The agent-usability baseline: author cold, read a page back, resume a foreign page.
 
-    uv run notes/usability-eval/harness.py arm <ref> <name> [--without-tree]
+    uv run notes/usability-eval/harness.py arm <ref> <name>
     uv run notes/usability-eval/harness.py run <arm>[,<arm>] <batch> <rounds> [case ...]
     uv run notes/usability-eval/harness.py score <batch>
     uv run notes/usability-eval/harness.py summarize <batch>
@@ -35,9 +35,11 @@ Cases (`CASES`):
   authored cards, with one move undone. Phase 1 asks for the column's order; phase 2
   asks for a change that obliges the version to write the moved cards in place.
 
-`arm --without-tree` builds the paired check's other condition: `WITHOUT_TREE` drops
-`content` from `page state` and has the references read the active HTML beside the
-compact state.
+The paired check's arms were the payload at 387dfed45, whose `page state` carried a
+construction tree of the document, and the same payload with the tree dropped and the
+references reading the active HTML beside the compact state (`results/*.json` name
+them `main` and `notree`). The tree has since gone, so an A/B builds its arms from two
+refs.
 
 Choices the note asks for before automating:
 
@@ -221,59 +223,6 @@ CASES = {
 }
 BASELINE = ("cold-report", "cold-decision", "near-miss", "reading", "resume")
 
-# The arm without `page state`'s construction tree: `content` goes from the page
-# reading, and the references read the active HTML with the compact state instead.
-# Each pair is (file, text in it, replacement); `arm --without-tree` stops when a text
-# no longer matches the ref's guidance.
-WITHOUT_TREE = [
-    (
-        "skills/leaf/scripts/leaf/agent_state.py",
-        "    print(json.dumps(state, indent=2, ensure_ascii=False))",
-        (
-            '    if thread_id is None:\n        state.pop("content", None)\n'
-            "    print(json.dumps(state, indent=2, ensure_ascii=False))"
-        ),
-    ),
-    (
-        "skills/leaf/references/authoring-revisions.md",
-        """Run `leaf page state <page>` and read its `content` tree. Each node joins its
-effective words, attributes, standing state, and data inputs with their origin.
-`content_source` names the active file, mutable `edit_file`, and vocabulary file.
-An authored node's `source` gives its line and column; `edit` identifies who can change it.
-The tree is a reading, so effective content may differ from authored HTML. Look up
-the node's `vocabulary` tag in the shared vocabulary file when needed.
-
-When `edit.matches_active` is false, the candidate in `index.html` differs from
-the live revision. Its source locations still refer to the active file; reconcile
-the candidate by stable id and content before editing. `inputs` names external
-values and the source file that holds each; change one with `leaf data set` or by
-rewriting that file.""",
-        """Run `leaf page state <page>`, and read the active revision's HTML, the file
-`content_source.file` names, beside it. The HTML is what you authored; `state` lists
-each user move that stands over it, by widget, with the words or choice it carries,
-so where the two differ the page shows the move. `content_source` names the active
-file, mutable `edit_file`, and vocabulary file; look up a widget's tag in the
-vocabulary file when needed.
-
-When `content_source.matches_active` is false, the candidate in `index.html` differs
-from the live revision; reconcile the candidate by stable id and content before
-editing. `data_bindings` names each external source and the widgets that read it,
-and `data/<source>.json` holds its value; change one with `leaf data set` or by
-rewriting that file.""",
-    ),
-    (
-        "skills/leaf/references/serving-pages.md",
-        "Read `content` for the current document and its construction origins, then the active\nrevision,",
-        "Read the active revision's HTML and the standing `state` over it, then the active\nrevision,",
-    ),
-    (
-        "skills/leaf/references/page-authoring.md",
-        "read `leaf page state <page>`'s\n`content` and `asks` alongside the source",
-        "read `leaf page state <page>`'s\n`state` and `asks` alongside the active HTML",
-    ),
-]
-
-
 # Arms, runs and batches
 
 
@@ -333,19 +282,12 @@ def cli():
 @cli.command()
 @click.argument("ref")
 @click.argument("name")
-@click.option("--without-tree", is_flag=True, help="drop page state's `content` tree")
-def arm(ref: str, name: str, without_tree: bool):
+def arm(ref: str, name: str):
     """Build arm NAME from git REF."""
     if not re.fullmatch(r"[a-z0-9]+", name):
         raise click.BadParameter("an arm name is lowercase letters and numbers")
     out = arm_dir(name)
     sha = build_arm(ref, out)
-    for relative, old, new in WITHOUT_TREE if without_tree else ():
-        path = out / relative
-        text = path.read_text()
-        if old not in text:
-            raise click.ClickException(f"{relative} no longer holds {old[:60]!r}")
-        path.write_text(text.replace(old, new))
     subprocess.run(["chmod", "-R", "a-w", out / "skills"], check=True)
     (out.parent / f"{name}.REF").write_text(f"{sha}\n")
     click.echo(f"{out}: {sha}")

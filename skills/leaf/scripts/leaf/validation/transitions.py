@@ -147,8 +147,7 @@ def restatement_errors(
             errors.append(
                 f"{where}: {_misplaced(f_cur, f_fold, made)}. This "
                 f"version changes the cards around it, so it writes the card where "
-                f"`leaf page state` shows it, or marks it `restated` to place it "
-                f"itself."
+                f"their move left it, or marks it `restated` to place it itself."
             )
             continue
         errors.append(

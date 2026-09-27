@@ -158,16 +158,20 @@ both:
 </main>
 ```
 
-Where the two no longer fit side by side, as on a phone, they stack in the order they are
-written. So write the `aside` where a reader of the stacked page needs it: before the
-body when it is what they read first, such as a review's summary and contents, where it
-also stands on the left; after it when it follows the work, such as a dashboard's checks
-and log, where it stands on the right. The body takes two parts of the row and the track
-one, and the track wraps where the body could not keep the width its content declares
-too: a board whose columns need the room gets the page's whole width rather than
-clipping. Stack each track's regions inside it, so every region stands
-on the same two vertical lines, rather than a new split per row whose edges land
-somewhere new each time.
+The body takes two parts of the row and the track one. They stand side by side in a
+window down to about 870px, and below that, as on a phone, they stack in the order they
+are written. They stack in a wider window too where the body could not keep the width its
+content declares: a board whose columns need the room gets the page's whole width rather
+than clipping. So write the `aside` where a reader of the stacked page needs it: before
+the body when it is what they read first, such as a review's summary and contents, where
+it also stands on the left; after it when it follows the work, such as a dashboard's
+checks and log, where it stands on the right. Stack each track's regions inside it, so
+every region stands on the same two vertical lines, rather than a new split per row whose
+edges land somewhere new each time.
+
+A track shorter than the window can stay in view while the body scrolls:
+`position: sticky; top: var(--lf-top)` holds it just below Leaf's banner. Leave a taller
+track in flow, since sticking it would hide its end until the page ends.
 
 Draw each region the same way, as a `section.panel` with a short heading, and keep a
 `.callout` with a status tone (`warn`, `danger`, `ok`) for the one thing the reader must

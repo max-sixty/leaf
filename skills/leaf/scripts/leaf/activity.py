@@ -13,11 +13,6 @@ from typing import NamedTuple
 WORKING_GRACE = timedelta(minutes=15)
 PICKUP_GRACE = timedelta(minutes=2)
 TURN_RENEWAL_GRACE = timedelta(minutes=2)
-# How far a host's word may precede the stamp of the turn it belongs to. Claude Code
-# marks a session busy as it takes the prompt, before its prompt hook starts and
-# stamps the opening in whole seconds; a background job's busy kept across turn
-# endings precedes the opening by the length of a turn, far more than this.
-HOST_LEAD = timedelta(seconds=10)
 WORK_KINDS = {
     "working",
     "thinking",
@@ -227,17 +222,14 @@ def claimant_turn(
     streamed activity. Past that nothing says whether it runs, which reads as not
     running without calling it ended.
 
-    The host's own record (`Harness.live_turn`) adds what no hook sees, each
-    state counting only when it is newer than the stamps, give or take the
-    `HOST_LEAD` by which the host marks a turn before its hook stamps it: `busy`
-    that began in the open turn holds it for as long as the host says so, a long
-    foreground step included; `idle` newer than every renewal ends the open turn
-    at that moment (an interrupt); `waiting` is a dialog open now, a step shown
-    whether or not the stamps say a turn is open. A `busy` older than the turn's
-    opening says nothing, since the host keeps it across turn endings while
-    background work runs. `awaiting` says the claimant's observer reports a wait on the
-    user right now, which holds the turn open for as long as that observer
-    lives."""
+    The host's own record (`Harness.live_turn`) adds the two things no hook
+    sees, each only when newer than what it contradicts: an `idle` newer than
+    every renewal ends the open turn at that moment (an interrupt), and a
+    `waiting` newer than the stamps is a dialog open now, a step shown whether or
+    not the stamps say a turn is open. Its `busy` is never read, since the host
+    keeps it across turn endings while background work runs. `awaiting` says the
+    claimant's observer reports a wait on the user right now, which holds the
+    turn open for as long as that observer lives."""
     opened = _moment(present.get("turn_opened"))
     closed = _moment(present.get("turn_closed"))
     if present["session_alive"] is not True:
@@ -245,15 +237,11 @@ def claimant_turn(
     host = present.get("live_turn") or {}
     since = _moment(host.get("since"))
     stamped = max((moment for moment in (opened, closed) if moment), default=None)
-    current = (
-        host.get("state")
-        if since and (not stamped or since >= stamped - HOST_LEAD)
-        else None
-    )
-    step = "awaiting_input" if current == "waiting" else None
+    dialog = host.get("state") == "waiting" and since and since >= (stamped or since)
+    step = "awaiting_input" if dialog else None
     if closed is not None or opened is None or present.get("claim_turn") is None:
         return Turn(False, ended=closed, step=step)
-    if awaiting or current in {"busy", "waiting"}:
+    if awaiting or dialog:
         return Turn(True, step=step)
     renewals = [opened, _moment(status.get("ts"))]
     if stream and stream.get("session") == present.get("claim_session"):

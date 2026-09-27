@@ -1994,11 +1994,10 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
     dated by its last change: `idle` (or `shell`, with a background command) once no
     turn runs, `waiting` while a turn holds a dialog open, `busy` otherwise. An
     interrupt runs no Stop hook, so an `idle` newer than everything that renewed the
-    turn ends it at that moment, a `waiting` newer than the turn's stamps is a
-    dialog open now, and a `busy` that began in the open turn holds it through a
-    long foreground step. A `busy` older than the turn's opening adds nothing: a
-    background job's record keeps it across turn endings. Without a word from the
-    record the hook stamps answer, believed
+    turn ends it at that moment, and a `waiting` newer than the turn's stamps is
+    a dialog open now. `busy` adds nothing: a background job's record keeps it
+    across turn endings. Without a word from the record the hook stamps answer,
+    believed
     only while something renewed the turn within the working grace, so a delivered
     move no Stop closed cannot read working forever."""
     serving(claimed, 1)
@@ -2025,10 +2024,9 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
     hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
     capsys.readouterr()
 
-    # The stamps answer, and nothing renews this turn past the grace; a `busy`
-    # from before the turn opened, and a record whose process is gone, change
-    # nothing.
-    host_says("busy", ago=60)
+    # The stamps answer, and nothing renews this turn past the grace; `busy`, and
+    # a record whose process is gone, change nothing.
+    host_says("busy")
     host_says("waiting", pid=dead_pid)
     assert _activity_at(claimed)["kind"] == "working"
     unrenewed = _activity_at(claimed, 16)
@@ -2037,11 +2035,6 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
         "kind": "stale",
         "operation": "work",
     }
-
-    # A `busy` that began with this turn holds it through a long step, though the
-    # host marks it a moment before the prompt hook stamps the opening.
-    host_says("busy", ago=3)
-    assert _activity_at(claimed, 16)["counts"]["handling"] == 1
 
     # A dialog in the terminal is observed work the page announces.
     host_says("waiting")
@@ -11411,15 +11404,20 @@ def test_a_user_move_no_carrier_will_pick_up_messages_its_claude_code_session(
         assert messages("s1") is not None
 
         # An interrupted turn runs no Stop hook, so only the session's own record
-        # says it ended: while it reads busy the open turn takes the input, and once
-        # it reads idle the input is messaged, once for that ending and again for
-        # the next interrupt under the same turn id.
+        # says it ended. A turn nothing has renewed for longer than the working
+        # grace may still be running a long step, so it is not messaged; once the
+        # record reads idle the input is, once for that ending and again for the
+        # next interrupt under the same turn id.
         live = os.getpid()
         files_model.write_json(
             config / "sessions" / f"{live}.k{live}.key", {"peerToken": "token-s1"}
         )
-        opened = datetime.now().astimezone() - timedelta(minutes=5)
+        opened = datetime.now().astimezone() - timedelta(minutes=20)
         record_claim(page_dir, turn="turn-4", turn_opened=opened.isoformat())
+        files_model.write_json(
+            page_dir / "status.json",
+            {"state": "waiting", "detail": "", "ts": opened.isoformat(), "after": 0},
+        )
         # `None` leaves the record as it stands: more input after the same ending.
         for status, messaged in (
             ("busy", False),

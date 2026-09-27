@@ -32,13 +32,14 @@ rule in the fold that asks whether the claimant's turn is running reads one
 answer, `activity.claimant_turn`, which dates each piece of evidence and lets
 the newest decide. The claim's turn stamps are believed open only while the
 opening, a status written during the turn, or the claimant's streamed activity
-renewed them within the working grace. The host's record adds what no hook sees,
-each state only when newer than the stamps: a `busy` that began in the open turn
-holds it through a long step, an `idle` newer than every renewal ends it (an
-interrupt), and a `waiting` is a dialog open now. A `busy` older than the turn's
-opening adds nothing, since a background job's record keeps it across turn
-endings. Browser-event admission asks the same question before it nudges a
-session (`presence.claimant_reading`). The claimant takes input
+renewed them within the working grace. The host's record adds the two things no
+hook sees, each only when newer than what it contradicts: an `idle` newer than
+every renewal ends the open turn (an interrupt), and a `waiting` newer than the
+stamps is a dialog open now. Its `busy` is never read, since a background job's
+record keeps it across turn endings. Browser-event admission reads the same turn
+before it nudges a session (`presence.claimant_reading`), and nudges only after
+an ending something saw: a turn Leaf merely stopped believing in may still be
+running a long step. The claimant takes input
 while its wait lease is held or, for a harness whose hooks carry input, while its
 turn runs. Fresh declared or observed work makes the page working independently
 of how far newer input has progressed; a host-observed wait on the user in its
@@ -231,8 +232,7 @@ it back. A session that bypasses permissions holds the message behind an approva
 dialog unless its user set `crossSessionInbound` to `accept`. A background job whose
 worker has retired has no socket to reach. Stop does not fire on an interrupted
 turn (measured), so an interrupted turn is messaged once the session's registry
-record reads `idle`, or, with no record, once nothing has renewed the turn within
-the working grace. An `adapter` or `embedded` carrier declares no nudge and
+record reads `idle`; with no record, not until a Stop closes a later turn. An `adapter` or `embedded` carrier declares no nudge and
 needs none: its process queues or starts turns itself, and if that process is gone
 so is the session it served.
 

@@ -8,18 +8,22 @@ from urllib.parse import urlsplit
 
 import pytest
 import tinycss2
+from click.testing import CliRunner
 from interact_support import (
     COMMAND_HUB_PACKAGE,
     add_test_widget,
     append_command,
     running_http_server,
 )
+from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
+from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
+from leaf import service as service_model
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
@@ -120,7 +124,9 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
 )
 
 
-def test_the_render_gate_exercises_both_schemes_at_both_viewports(browser, serve):
+def _rendered(browser, url):
+    """The gate's reading of a page, with each viewport and scheme it rendered in, in
+    order."""
     seen = []
 
     def record_page(page):
@@ -130,18 +136,42 @@ def test_the_render_gate_exercises_both_schemes_at_both_viewports(browser, serve
             (viewport["width"], viewport["height"], "dark" if dark else "light")
         )
 
-    assert (
-        render_gate_model.render_version(
-            primed(browser, record_page), serve(BOUNDED_WORKSPACE_PAGE, packages=())
-        ).failures
-        == []
-    )
+    return render_gate_model.render_version(primed(browser, record_page), url), seen
+
+
+def test_the_render_gate_exercises_both_schemes_at_both_viewports(browser, serve):
+    reading, seen = _rendered(browser, serve(BOUNDED_WORKSPACE_PAGE, packages=()))
+    assert reading.failures == []
     assert seen == [
         (1200, 900, "light"),
         (1200, 900, "dark"),
         (540, 720, "light"),
         (540, 720, "dark"),
+        *((width, 900, "light") for width in reading.margin_widths),
     ]
+
+
+def test_the_render_gate_renders_where_the_margin_content_changes(browser, serve):
+    """A sidebar and a sidenote stand in the margin only where the room beside the column
+    holds them, which is above the desktop viewport for a sidebar beside a note. So the
+    gate finds each width where the page's own residents change, the sidebar's and the
+    note's, and renders the page there too, where each has the least room it will ever
+    have. The rail holds only Leaf's markers, so its width is not one of them."""
+    source = leaf_page(
+        "margin residents in the gate",
+        """
+<h1>Migration plan</h1>
+<aside class="sidebar" id="route"><nav aria-label="Route"><a href="#move">Move</a></nav></aside>
+<aside class="sidenote" id="frequency">Support runs this twice a month.</aside>
+<h2 id="move">Move</h2>
+<p>Shift one cohort at a time while keeping the old readers available.</p>
+""",
+    )
+    reading, seen = _rendered(browser, serve(source, packages=()))
+    assert reading.failures == []
+    assert len(reading.margin_widths) == 2, reading.margin_widths
+    assert reading.margin_widths == sorted(reading.margin_widths)
+    assert seen[4:] == [(width, 900, "light") for width in reading.margin_widths]
 
 
 def test_the_render_gate_reports_a_defect_specific_to_the_compact_viewport(
@@ -1712,7 +1742,7 @@ def _author_lying_callout(tmp_path):
         ("arrived", True),
         ("presented", False),
         ("log", False),
-        ("data", False),
+        ("state", False),
     ],
 )
 def test_only_a_final_settling_failure_keeps_projection_findings(
@@ -1752,10 +1782,10 @@ def test_only_a_final_settling_failure_keeps_projection_findings(
     )
 
 
-def test_the_data_wait_follows_a_source_rewritten_under_it(browser, serve):
-    """Any process may rewrite a source, so the reading the gate took can hold a
-    version the page has already moved past. A data version is a digest with no
-    order; the page presenting a reading the server took later has caught up."""
+def test_the_state_wait_follows_a_source_rewritten_under_it(browser, serve):
+    """Any process may rewrite a source, so the answer the gate took can name a
+    reading the page has already moved past. A reading is a digest with no order;
+    the page presenting an answer the server took later has caught up."""
     url = serve(
         leaf_page(
             "moving source",
@@ -1769,14 +1799,14 @@ def test_the_data_wait_follows_a_source_rewritten_under_it(browser, serve):
     data_model.cmd_data_set(serve.page_dir, "notes", "Second.\n")
     expect(page.locator("#notes code")).to_have_text("Second.\n")
     expect(page.locator("body")).not_to_have_attribute(
-        "data-lf-data-version", held["data"]["version"]
+        "data-lf-reading", held["reading"]
     )
     page._leaf_probe_timeout_ms = 1_000
 
     wait_until_ready(page, held)
 
 
-def test_the_data_wait_follows_a_source_back_to_the_version_the_page_shows(
+def test_the_state_wait_follows_a_source_back_to_the_version_the_page_shows(
     browser, serve
 ):
     """A source can move away and back between the gate's read and the page's. The page
@@ -1803,6 +1833,29 @@ def test_the_data_wait_follows_a_source_back_to_the_version_the_page_shows(
 
     wait_until_ready(page, held)
     expect(page.locator("#notes code")).to_have_text("First.\n")
+
+
+def test_the_state_wait_covers_a_status_that_moves_neither_log_nor_data(browser, serve):
+    """A declared status and a live watcher are part of what the server holds and of
+    what the page shows, though neither appends to the log or rewrites a source. A page
+    caught up with the answer that carries them already shows them, with no retry left
+    to the reader."""
+    url = serve(LONG_PAGE)
+    page = open_page(browser, url)
+    declared = CliRunner().invoke(
+        cli_model.cli, ["status", str(serve.page_dir), "waiting", "Pick a shard."]
+    )
+    assert declared.exit_code == 0, declared.output
+    claim = service_model.page_claim(serve.page_dir)
+    lease = leases_model.take_lease(
+        leases_model.waiter_lease_path(serve.page_dir, claim["id"] if claim else None)
+    )
+    try:
+        held = render_gate_scheme.served(page, url, "/api/state").json()
+        wait_until_ready(page, held, through="state")
+        assert "Pick a shard." in page.locator(".lf-status-text").text_content()
+    finally:
+        lease.close()
 
 
 def test_the_readiness_wait_names_the_stage_a_page_still_owes(browser, serve):
@@ -3470,12 +3523,6 @@ def test_the_covered_words_gate_still_reads_a_control_in_the_flow(browser, serve
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a sidenote stands in the margin only from 1536px since the Layouts, and the "
-    "gate reads at 1200px, so it never sees the note leave its box; TODO.md, Layouts, "
-    "'Finish contract 8's margins'",
-)
 def test_the_render_gate_reports_a_sidenote_a_box_clips_away(browser, serve):
     """A choose group clips its own box, so a note pulled into the page's margin from
     inside one is painted nowhere. Every other reading calls that well — the column
@@ -3607,9 +3654,9 @@ def test_the_render_gate_reads_a_scrolled_container_from_its_content(browser, se
 
 
 def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser, serve):
-    """The margin form is granted by a container query over the page's box, and the
-    thread panel stands over the page rather than taking room from it, so the panel
-    decides nothing about where a note stands: the window does.
+    """The margin form is granted by the room beside the page's column, and the thread
+    panel stands over the page rather than taking room from it, so the panel decides
+    nothing about where a note stands: the window does.
 
     `version check --render` and the render sweep normally open with no panel, so this
     test exercises the panel's state they do not otherwise visit.
@@ -3617,10 +3664,13 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
     Three readings distinguish a real container response from either never floating the
     note or releasing it whenever the panel opens: the note begins in the margin, returns
     to flow in a window too narrow for it, and stays in the margin with the panel open
-    in one wide enough."""
+    in one wide enough. The gallery's note is in its page view, which is where the
+    user reads it: a note in a view not shown needs no room."""
     example = FEATURE_GALLERY
     url = serve(example)
     page = open_page(browser, url)
+    page.evaluate("location.hash = 'bg-compare-note'")
+    expect(page.locator("#bg-compare-note")).to_be_visible()
     resized(page, 1600, 900)
     reading = """() => {
         const note = document.querySelector('aside.sidenote');

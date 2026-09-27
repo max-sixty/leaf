@@ -18,10 +18,10 @@
 
 import { nextRender } from "./rendering.js";
 import { blockAt, says } from "./passages.js";
-import { handBack, letGo } from "./focus.js";
+import { handBack, holdFocus, letGo } from "./focus.js";
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import { iconTemplate } from "./icons.js";
-import { focused, paintKeys } from "./keyboard/scopes.js";
+import { paintKeys } from "./keyboard/scopes.js";
 import { el, keepsText, offer } from "./widget-elements.js";
 import { placeKeeper } from "./user-place.js";
 import {
@@ -247,8 +247,7 @@ export function createPageMapDialog({
   `;
 
   function renderSheet() {
-    const standing = focused();
-    const active = dialog.contains(standing) ? standing : null;
+    const restoreFocus = holdFocus(dialog);
     const hold = place.take();
     const query = dialogSearch.value.trim().toLocaleLowerCase();
     const searchTextByKey = new Map(
@@ -301,11 +300,8 @@ export function createPageMapDialog({
       : "No margin controls, status indicators, or locations yet";
     dialogEmpty.hidden = shown !== 0;
     place.finish(hold);
-    if (active) {
-      if (!active.isConnected || !active.checkVisibility())
-        dialogSearch.focus({ preventScroll: true });
-      else if (focused() !== active) active.focus({ preventScroll: true });
-    }
+    // A control the filter hid or the render removed hands the user to the search.
+    restoreFocus?.(dialogSearch);
   }
 
   function pageMapInvoker() {

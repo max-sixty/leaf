@@ -1,4 +1,4 @@
-"""Address a revision's documents and resources for the host delivering them.
+"""Deliver a revision's documents and resources for the host serving them.
 
 A document and the captured resources it names use logical page paths: `/page/…` for
 the author's files, `/media/…` for the page's images, and the layer's own files at the
@@ -17,14 +17,20 @@ or a widget names against that same root (`runtime/media.js`). The layer's own m
 graph imports rooted paths (`/runtime/…`, `/vendor/…`, `/widgets/…`), which the
 document's import map sends to its revision (`layer_import_map`), so layer modules are
 served as captured.
+
+A document is delivered once, by `compose_document`, whoever delivers it: the HTTP
+server and the static live shell, a standalone export, and the MCP app's snapshot. A
+host states what it adds as a `Delivery` value, and the composer writes every document
+the same way.
 """
 
 import html
 import json
 import posixpath
 import re
+import secrets
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 from urllib.parse import quote, unquote, urlsplit
 
@@ -34,6 +40,7 @@ from .revision_artifact import Resource, authored_imports, bind_imports, rewrite
 from .schema import BROWSER_DIRS, MEDIA_DIR, VENDORED_FILES
 from .structure import (
     DELIVERY_ENCODING_META,
+    UTF8_BOM,
     SourceDocument,
     element_attrs,
     rel_tokens,
@@ -82,6 +89,18 @@ def page_path(reference: str, base: str) -> tuple[str, str] | None:
         "#" + parsed.fragment if parsed.fragment else ""
     )
     return resolved, suffix
+
+
+def _attributes(attributes: Mapping[str, str]) -> str:
+    return "".join(
+        f' {name}="{html.escape(value, quote=True)}"'
+        for name, value in attributes.items()
+    )
+
+
+def _inline_css(css: str) -> str:
+    """CSS to write inside a style element, which `</style` would otherwise end."""
+    return re.sub(r"</style", r"<\\/style", css, flags=re.IGNORECASE)
 
 
 def _rebase(reference: str, base: str, address: Address) -> str:
@@ -160,17 +179,14 @@ def rebase_document(
                 and inline_stylesheet is not None
                 and (located := page_path(attrs.get("href", ""), "/index.html"))
             ):
-                kept = "".join(
-                    f' {name}="{html.escape(value, quote=True)}"'
-                    for name, value in attrs.items()
-                    if name in {"media", "title", "data-lf-runtime", "disabled"}
+                kept = _attributes(
+                    {
+                        name: value
+                        for name, value in attrs.items()
+                        if name in {"media", "title", "data-lf-runtime", "disabled"}
+                    }
                 )
-                css = re.sub(
-                    r"</style",
-                    r"<\\/style",
-                    inline_stylesheet(located[0]),
-                    flags=re.IGNORECASE,
-                )
+                css = _inline_css(inline_stylesheet(located[0]))
                 start, end = span(location.start_tag)
                 edits.append((start, end, f"<style{kept}>{css}</style>"))
                 continue
@@ -229,7 +245,7 @@ class DeliveryAddress:
         return root.rstrip("/") + quote(path, safe="/")
 
 
-def layer_import_map(asset_root: str) -> str:
+def layer_import_map(asset_root: str) -> dict:
     """Send the layer's rooted module imports to the revision serving them.
 
     Every layer module names its dependencies by rooted path, as the page directory
@@ -238,9 +254,7 @@ def layer_import_map(asset_root: str) -> str:
     render probe importing `/runtime/widget-api.js` reaches the runtime's own instance.
     """
     root = asset_root.rstrip("/")
-    return json_script(
-        {"imports": {f"/{name}/": f"{root}/{name}/" for name in BROWSER_DIRS}}
-    )
+    return {"imports": {f"/{name}/": f"{root}/{name}/" for name in BROWSER_DIRS}}
 
 
 def deliver_resource(resource: Resource, logical_path: str, address: Address) -> bytes:
@@ -275,8 +289,7 @@ def delivery_identity(
     answer without asking, and where the revision document a patch already fetches
     carries the other one for free.
 
-    Every delivery writes this, whoever is delivering: the HTTP boundary, the static
-    live shell, the MCP app's document, and a standalone export. A document that says
+    Every delivered document carries this (`compose_document`). A document that says
     part of it is a document the next reader of the contract has to guess about.
     """
     # A revision captured before these were recorded says neither, rather than saying it
@@ -317,9 +330,10 @@ def delivery_sheets(resources: Mapping[str, Resource], address: Address) -> str:
     `runtime/stylesheets.js` constructs the chrome's and the marks' sheets while it
     evaluates, so their text must be in hand without a request. WebKit has no CSS module
     scripts to import them with, and a fetch awaited at module scope would make every
-    page module that imports the widget API evaluate after `DOMContentLoaded`. Like the
-    identity above, every delivery writes this, with the sheets' own URLs at the
-    delivery's `address`: a constructed sheet resolves them against the document.
+    page module that imports the widget API evaluate after `DOMContentLoaded`. Every
+    document that runs the layer carries this (`compose_document`), with the sheets'
+    own URLs at the delivery's `address`: a constructed sheet resolves them against the
+    document.
 
     The sheets go out as they are written, comments included. They used to be stripped
     here, which is the one thing that made the text a user receives differ from the
@@ -363,3 +377,129 @@ def delivery_prelude(
         + delivery_identity(revision, version, executable, widgets)
         + viewport
     )
+
+
+@dataclass(frozen=True)
+class Delivery:
+    """What one host writes into the documents it delivers.
+
+    Every host delivers a document the same way (`compose_document`), and these fields
+    are the whole of what hosts differ in: where the document's references go, whether
+    its stylesheets are embedded, the policy and runtime script a served or exported
+    page starts under, and the marks a host puts on the document around its source.
+    """
+
+    address: Address
+    # Embeds stylesheets in place of linking them: a stylesheet's CSS by its path.
+    inline_stylesheet: Callable[[str], str] | None = None
+    # The content security policy naming one delivery's script nonce. A document with
+    # none carries no nonce, and its host supplies the policy.
+    policy: Callable[[str], str] | None = None
+    import_map: dict | None = None
+    # The runtime's own inline script, given the nonce. A document with one runs the
+    # layer, so it also carries the layer's adopted sheets (`delivery_sheets`).
+    runtime: Callable[[str | None], str] | None = None
+    # The host's own head metadata, such as a published page's link card.
+    head: str = ""
+    # The page root the document names as canonical: the live root, each stamped
+    # version, and each immutable revision all serve it, and the page root stands for
+    # them. Relative to the delivery, which has no origin to know.
+    page_root: str | None = None
+    html_attributes: Mapping[str, str] = field(default_factory=dict)
+    body_attributes: Mapping[str, str] = field(default_factory=dict)
+    body_end: str = ""
+
+
+def compose_document(
+    source: str,
+    revision: int,
+    version: int | None,
+    *,
+    executable: str | None,
+    widgets: dict,
+    resources: Mapping[str, Resource],
+    delivery: Delivery,
+) -> str:
+    """Deliver one authored document under a host's `delivery`.
+
+    The source is re-addressed (`rebase_document`) and then receives delivery's head
+    right after the head's start tag, ahead of any authored executable content: the
+    prelude, the policy, the import map, the runtime script, the theme, the adopted
+    sheets, the host's metadata, the runtime entry, and the canonical address, each
+    where the host has one. The import map precedes every script, since a browser
+    reads no map once a module has begun to load. With a policy, one nonce per
+    document marks delivery's scripts and every inline script the source arrived
+    with, placed after addressing so its offsets are the ones the browser reads. A
+    document written once and served many times (`live_shell`) shares its nonce with
+    every reader, so it keeps out only markup that cannot read the page.
+    """
+    source = rebase_document(
+        source, delivery.address, inline_stylesheet=delivery.inline_stylesheet
+    )
+    document = SourceDocument(source)
+    if "head" not in document.wrapper_tags:
+        raise ValueError("document has no explicit <head>")
+    nonce = secrets.token_urlsafe(16) if delivery.policy is not None else None
+    marked = f' nonce="{nonce}"' if nonce else ""
+    theme = (
+        f"<style data-lf-runtime>{_inline_css(delivery.inline_stylesheet('/theme.css'))}</style>"
+        if delivery.inline_stylesheet is not None
+        else f'<link rel="stylesheet" href="{html.escape(delivery.address("/theme.css"), quote=True)}" data-lf-runtime>'
+    )
+    head = (
+        delivery_prelude(document, revision, version, executable, widgets)
+        + (
+            '<meta http-equiv="Content-Security-Policy" '
+            f'content="{html.escape(delivery.policy(nonce), quote=True)}">'
+            if nonce
+            else ""
+        )
+        + (
+            f'<script type="importmap"{marked} data-lf-runtime>'
+            f"{json_script(delivery.import_map)}</script>"
+            if delivery.import_map is not None
+            else ""
+        )
+        + (delivery.runtime(nonce) if delivery.runtime is not None else "")
+        + theme
+        + (
+            delivery_sheets(resources, delivery.address)
+            if delivery.runtime is not None
+            else ""
+        )
+        + delivery.head
+        + f'<script type="module" src="{html.escape(delivery.address("/leaf.js"), quote=True)}" data-lf-runtime></script>'
+        + (
+            f'<link rel="canonical" href="{html.escape(delivery.page_root, quote=True)}/" data-lf-runtime>'
+            if delivery.page_root is not None
+            else ""
+        )
+    )
+    head_start, head_end = document.wrapper_tags["head"]
+    insertions = [(head_end, head)]
+    if nonce:
+        insertions += [
+            (script["start_tag_end"] - 1, marked) for script in document.inline_scripts
+        ]
+    if delivery.html_attributes:
+        attributes = _attributes(delivery.html_attributes)
+        insertions.append(
+            (document.wrapper_tags["html"][1] - 1, attributes)
+            if "html" in document.wrapper_tags
+            # A source may leave <html> implicit; the tag is then written where the
+            # parser would have implied it, before the head.
+            else (head_start, f"<html{attributes}>")
+        )
+    if delivery.body_attributes:
+        insertions.append(
+            (
+                document.wrapper_tags["body"][1] - 1,
+                _attributes(delivery.body_attributes),
+            )
+        )
+    if delivery.body_end:
+        close = document.body_close if document.body_close is not None else len(source)
+        insertions.append((close, delivery.body_end))
+    for offset, text in sorted(insertions, key=lambda item: item[0], reverse=True):
+        source = source[:offset] + text + source[offset:]
+    return UTF8_BOM + source

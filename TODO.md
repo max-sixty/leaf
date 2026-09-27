@@ -104,23 +104,16 @@ and its chrome coordinate.
   section cell flows, overflows `main`, and its end scrolls under the bottom band with no
   end room after it (`test_a_held_workspace_that_overflows_scrolls_its_end_clear_of_the_band`
   is xfail on it). The body could scroll as a whole where a cell does not bound itself.
-- **Finish contract 8's margins.** A declared rail (`data-rail`) has no floor, so on a
-  phone it leaves a 295px column. The contents map and other sidebars switch into the
-  margin at different widths (848px against 1296px), which leaves an empty in-flow
-  sidebar and a gap under the header between them (the docs package carries a
-  workaround). Without the default rail, markers pin between 880px and 959px where they
-  used to stand in the rail. The render gate reads the wide page at 1200px, below the
-  1296px and 1536px a sidebar and a sidenote now need, so it never sees either in the
-  margin (`test_the_render_viewport_is_wide_enough_to_have_margins` is xfail on it).
-  With nothing claiming the rail's room, a centred column at 1200px leaves 216px on its
-  right, too little for the comment bar, so it drops below the passage on every column
-  page; there its width depends on what the field held when the room was measured
-  (`composing/surface.js`, `setWidth`), so one draft is laid out differently in two tabs.
+- **Give a declared rail a floor.** `data-rail="right"` makes the shell give up the
+  rail's width at every width, so on a phone it leaves a 295px column. The margin pass
+  admits residents by measuring the room they leave (`settleResidency`), which a rail
+  the shell has already reserved never fails.
 - **Make the outcome checks the gate.** `version check` passed a page that scrolled
   sideways at 520px. Check sideways scroll and leaking minimums (a box whose content,
   not its declared minimum, sets its holder's floor) across swept widths. The corpus
-  (`scripts/corpus.py`) sets every example's body in one column page, so its sweeps
-  never read a sidebar, workspace or wide example in its own Layout.
+  (`scripts/corpus.py`) sets every example's body in one column page, so only the
+  nightly `test_page_fixture_renders` reads a sidebar, workspace or wide example in its
+  own Layout.
 - **Offer the Page Map with the first paint.** The margin pass marks where markers are
   pins (`data-lf-pins`), and the banner's Map toggle follows it, so on a phone the
   toggle appears one pass after the banner rather than with it.
@@ -200,14 +193,12 @@ and its chrome coordinate.
 
 ### Shared definitions
 
-- **Compose a delivered page's head once.** `http.py` `runtime_document` and
-  `supervised_document` and `exporting.py` `export_document` each prepend the prelude,
-  policy, runtime script, sheets, theme and entry at the head's open, and the MCP ready
-  signal and a specimen's `<html>`/`<body>` marks are spliced in by regex after. One
-  composer taking each host's differences as data would replace all five.
-- **Ask once whether the page has caught up with a reading.** `tests/render_harness.py`
-  `told()` waits for `data-lf-reading` to match the server's reading, and the `data`
-  and `log` stages of the runtime's `pageReadiness` (#1250) answer the same question.
+- **Hold focus in the thread seats with `holdFocus`.** `focus.js` `holdFocus` is the
+  one hand-over of the user's place across a DOM move, but `thread/inline.js`
+  `ThreadSeat.present` (across one render) and `retain` (across a refused batch) still
+  pair `readCaret` with `focusDestination` by hand. Cutting `retain` over also lets a
+  user who moved on while the batch waited keep their new place. Left while the
+  `thread-focus-scroll` branch had unmerged edits to `present`.
 - **Say which panes the workspace holds without naming `lf-pane`.** `layouts.css`
   holds an authored pane only as the workspace body or a cell of it (a pane in a
   section flows), and a generated pane at any depth. It tells the two apart by the

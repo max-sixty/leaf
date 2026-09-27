@@ -1,8 +1,10 @@
-// `syncLayout` derives only floating chrome placement and reservations from current
-// chrome boxes. CSS owns the document shell: `body` is the named `lf-shell` inline-size
-// container, and queries grant or withdraw margin postures. JavaScript may hear the
-// shell's content-box size without deriving a posture or mirroring cramped state. `layoutSizes` schedules `syncLayout` and page
-// repaint after a width change. No auxiliary surface changes the shell: each stands over
+// `syncLayout` derives floating chrome placement and reservations from current chrome
+// boxes, and asks which residents stand in the page's margin (`scheduleResidency`,
+// margin-layout.js), the one posture JavaScript decides for the document: it reads the
+// room beside `main`, which the page's own CSS sets. CSS owns the rest of the shell:
+// `body` is the named `lf-shell` inline-size container, and a query on it may answer a
+// narrow column's facts. `layoutSizes` schedules `syncLayout` and page repaint after a
+// width change. No auxiliary surface changes the shell: each stands over
 // the page. A height-only change sends `pageShifted` directly so a content reflow
 // re-places document-attached paint without re-running chrome reservation.
 //
@@ -37,6 +39,7 @@ import { sizeObserver } from "./rendering.js";
 import { drawnEdge } from "./drawn-edge.js";
 import { overlaps, overlapsAcross } from "./rect.js";
 import { standsBeside } from "./auxiliary-surfaces.js";
+import { scheduleResidency } from "./margin-layout.js";
 
 // The width the panel stands at for a user who has not moved its edge. 420 since
 // threads carry questions — option rows are the one thread content that can't scroll or
@@ -81,6 +84,7 @@ export function createChromeLayout({
   // Every writer here is a writer of the chrome, so nothing this function does resizes the
   // box it reads.
   function syncLayout() {
+    scheduleResidency();
     scheduleThreadPreviewPosition();
     const panelLive = panelIsOpen() && !panelCovers();
     const foot = panelFoot.getBoundingClientRect();

@@ -1613,7 +1613,8 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
        * document beneath it. */
       lf-toc[data-lf-outline] .lf-toc-nav {
         --lf-toc-label-opacity: 1;
-        width: max(40px, min(320px, calc(var(--lf-beside) - 2 * var(--sp-4))));
+        width: max(40px, min(320px,
+          calc(var(--lf-beside) + var(--lf-shift, 0px) - 2 * var(--sp-4))));
         background: var(--paper);
         overflow-y: auto; pointer-events: auto;
       }

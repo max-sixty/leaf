@@ -489,6 +489,11 @@ MEDIA_TYPES = {
     ".webp": "image/webp",
     ".svg": "image/svg+xml",
 }
+# A media file's name is the first MEDIA_DIGEST hex characters of its bytes' SHA-256
+# and a lowercase MEDIA_TYPES suffix: `media.media_name` mints it, `DIR_FILES` serves
+# it, and the agent's reference doors refuse any other name under `/media/`. The
+# browser and the Worker know the directory and never the name.
+MEDIA_DIGEST = 16
 NO_KEY = "open the link leaf printed; it carries the key"
 DATA_FILE = "data.json"
 DATA_DIR = "data"
@@ -539,7 +544,9 @@ DIR_FILES = {
     "runtime": r"(?:[a-z0-9-]+/)*[a-z0-9-]+\.(?:js|css)",
     "widgets": r"(?:[a-z0-9-]+/)*[a-z0-9-]+\.js",
     "vendor": (r"(?:(?!\.{1,2}/)[A-Za-z0-9._-]+/)*" r"(?!\.{1,2}$)[A-Za-z0-9._-]+"),
-    MEDIA_DIR: r"[a-f0-9]{16}(?:" + "|".join(re.escape(e) for e in MEDIA_TYPES) + ")",
+    MEDIA_DIR: rf"[a-f0-9]{{{MEDIA_DIGEST}}}(?:"
+    + "|".join(re.escape(e) for e in MEDIA_TYPES)
+    + ")",
 }
 SERVED_PATH = re.compile(
     "/(?:"

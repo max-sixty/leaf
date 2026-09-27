@@ -329,7 +329,12 @@ class StateProjection(NamedTuple):
     from the revision the move was made on (`move_absorbed`). Every revision that
     does passed `version check` against the fold that held the move, so its markup
     wrote the unit where the move put it. An absorbed move still stands, as a
-    written-back pick does, but no longer places its unit: the markup does."""
+    written-back pick does, but no longer places its unit: the markup does.
+
+    `standing` holds every action that survives, neither taken back nor retracted;
+    `actions` is the newest of them at each coordinate. A browser withdrawing the one
+    on top locally falls back to the next of these rather than judging survival
+    again."""
 
     actions: dict
     reports: dict
@@ -337,6 +342,7 @@ class StateProjection(NamedTuple):
     report_settlements: dict
     classified: dict
     absorbed: frozenset
+    standing: frozenset
 
 
 class PageReading(NamedTuple):
@@ -416,6 +422,7 @@ def state_projection(
     withdrawn = taken_back(events)
     settled = report_settlements(events, upto)
     actions = {}
+    standing = set()
     reports = {}
     settlement_versions = {}
     classified = {}
@@ -440,6 +447,7 @@ def state_projection(
             if event["id"] in withdrawn or action_retracted(event, floors, within):
                 continue
             actions[coordinate] = entry
+            standing.add(event["id"])
         elif settled_at := settled.get(event["id"]):
             settlement_versions[coordinate] = max(
                 settlement_versions.get(coordinate, 0), settled_at
@@ -463,6 +471,7 @@ def state_projection(
         settlement_versions,
         classified,
         absorbed,
+        frozenset(standing),
     )
 
 
@@ -479,6 +488,7 @@ def with_action(
     return projection._replace(
         actions={**projection.actions, coordinate: entry},
         desired={**projection.desired, coordinate: entry},
+        standing=projection.standing | {event["id"]},
     )
 
 

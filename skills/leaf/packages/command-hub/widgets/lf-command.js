@@ -17,6 +17,7 @@ import {
   threadBox,
   declarationFor,
   addressableWord,
+  holdFocus,
   authoredScope,
   commands,
   matchesWhen,
@@ -197,13 +198,10 @@ function projectionFocus(plan) {
   const title = active.parentElement === root && active.localName === "h2";
   const viewName = active.dataset.lfView;
   const offerClass = [...active.classList].find((cls) => cls.startsWith("lf-task-"));
+  const restoreFocus = holdFocus(root);
+  // A panel moved to a new seat keeps its nodes, so the hold lands on the same one; a
+  // repainted panel stands in the control keyed the same way.
   return () => {
-    if (document.activeElement === active) return;
-    // A panel moved to a new seat keeps its nodes; the move alone dropped focus.
-    if (active.isConnected) {
-      active.focus({ preventScroll: true });
-      return;
-    }
     const replacementRoot = kind
       ? view(plan, kind)
       : goal?.querySelector(":scope > .lf-task-meta");
@@ -218,7 +216,7 @@ function projectionFocus(plan) {
           : title
             ? replacementRoot?.querySelector(":scope > h2")
             : null;
-    replacement?.focus({ preventScroll: true });
+    restoreFocus(replacement);
   };
 }
 

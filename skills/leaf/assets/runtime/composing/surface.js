@@ -105,13 +105,7 @@ import {
   snapSelection,
 } from "./capture.js";
 import { repaint } from "../repaint.js";
-import {
-  focusDestination,
-  handBack,
-  letGo,
-  readCaret,
-  takesLetters,
-} from "../focus.js";
+import { handBack, holdFocus, letGo, takesLetters } from "../focus.js";
 import { focused } from "../keyboard/scopes.js";
 import { under } from "../shadow.js";
 import { heldAsk } from "../standing-target.js";
@@ -283,25 +277,13 @@ export function createResponseSurface({
       ? Promise.resolve(true)
       : new Promise((resolve) => fabPositionWaiters.push(resolve));
 
-  const captureFabFocus = () => {
-    const element = focused();
-    if (!(element instanceof HTMLElement) || !fabBar.contains(element)) return null;
-    return { element, caret: readCaret(element) };
-  };
-
-  const restoreFabFocus = (held) => {
-    if (!held || focused() === held.element || !held.element.isConnected) return;
-    focusDestination(held.element, held.caret);
-  };
-
-  // Reparenting the canonical response bar is presentation, not a composer transition.
-  // Preserve the exact typing position across light/shadow DOM moves; Chromium may put
-  // focus on the shadow host while a focused field is adopted into its tree.
+  // Reparenting the canonical response bar is presentation, not a composer transition,
+  // so the user's place in it, caret included, crosses light and shadow DOM moves with it.
   function moveFab(parent) {
     if (fabBar.parentElement === parent) return;
-    const held = captureFabFocus();
+    const restoreFocus = holdFocus(fabBar);
     parent.append(fabBar);
-    restoreFabFocus(held);
+    restoreFocus?.();
   }
 
   function seatFab(outlet) {
@@ -322,21 +304,19 @@ export function createResponseSurface({
   function restoreFab({ place = true } = {}) {
     if (!fabInlineOutlet && fabBar.parentElement === responseHome) return false;
     // Resetting the inline presentation hides the response before moving it back to the
-    // viewport plane. Capture the exact focused control first; hiding a focused subtree
-    // makes Chromium move focus to body before moveFab can observe what was held.
-    const held = captureFabFocus();
+    // viewport plane. Hold the user's place first: hiding a focused subtree makes Chromium
+    // move focus to body before moveFab can observe what was held, and the bar takes
+    // focus again only once it is placed.
+    const restoreFocus = holdFocus(fabBar);
     stopFabPositioning({ reset: true, repositioning: place });
     fabInlineOutlet = null;
     fabFloating = true;
     delete fabBar.dataset.lfPresentation;
     moveFab(responseHome);
     if (place && fabAnchor) {
-      const displacedFocus = focused();
       if (!placeFab()) showFab(null);
-      else if (held)
-        void fabPositioned().then((positioned) => {
-          if (positioned && focused() === displacedFocus) restoreFabFocus(held);
-        });
+      else if (restoreFocus)
+        void fabPositioned().then((positioned) => positioned && restoreFocus());
     }
     return true;
   }
@@ -603,6 +583,11 @@ export function createResponseSurface({
       fabSideFootOffset === null
         ? target.top - 6
         : target.top + fabSideFootOffset - height;
+    // Above or below, the field starts where the compact control would, ended on the
+    // passage's right edge, and grows rightward from there. The start is the minimum's,
+    // not the bar's first measured width, which a restored draft's words widen: one draft
+    // then gets the same lane wherever it is opened.
+    const inlineConnection = () => fabInlineConnection ?? -minimumFabWidth();
     void floatingUi()
       .then(
         ({ autoUpdate, computePosition, flip, limitShift, offset, shift, size }) => {
@@ -621,9 +606,7 @@ export function createResponseSurface({
                   // above or below, preserve the initial inline start.
                   crossAxis: beside
                     ? sideTop(rects.floating.height) - keepClear.top
-                    : fabInlineConnection === null
-                      ? 0
-                      : fabInlineConnection + rects.floating.width,
+                    : inlineConnection() + rects.floating.width,
                 };
               }),
               // Size precedes the one initial flip so the decision sees the width into
@@ -640,9 +623,7 @@ export function createResponseSurface({
                       ? boundary.right - keepClear.right - 6
                       : side === "left"
                         ? keepClear.left - boundary.left - 6
-                        : fabInlineConnection === null
-                          ? availableWidth
-                          : boundary.right - (keepClear.right + fabInlineConnection);
+                        : boundary.right - (keepClear.right + inlineConnection());
                   // A side placement consumes its current rail. Above or below, the
                   // relative connection preserves the field's inline start as its content
                   // grows while allowing target reflow to carry that start with it.

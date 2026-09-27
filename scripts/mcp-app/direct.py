@@ -8,12 +8,11 @@ from functools import partial
 from pathlib import Path
 
 from leaf.event_endpoint import accept_event, event_rejection
-from leaf.exporting import inline_assets
+from leaf.exporting import embedding
 from leaf.files import revision_path
-from leaf.http import runtime_document
 from leaf.registry.storage import layer_generation
 from leaf.revision_artifact import read_artifact
-from leaf.revision_delivery import delivery_sheets
+from leaf.revision_delivery import compose_document, delivery_sheets
 from leaf.served_state.service import PageStateService
 
 
@@ -21,17 +20,15 @@ def document_for(page: Path, bundle: Path, service: PageStateService) -> str:
     active = service.page_state()["active"]
     source = revision_path(page, active["revision"]).read_text()
     artifact = read_artifact(page, active["revision"])
-    document = runtime_document(
+    # The host supplies the resource CSP, so the document carries none.
+    document = compose_document(
         source,
         active["revision"],
-        active["executable"],
+        active["version"],
+        executable=active["executable"],
         widgets=artifact.widgets,
-        version=active["version"],
-    ).decode()
-    document = inline_assets(document, page)
-    # The host supplies the resource CSP; the HTTP fixture policy blocks inline JS.
-    document = re.sub(
-        r'<meta\b[^>]*http-equiv="Content-Security-Policy"[^>]*>', "", document
+        resources=artifact.resources,
+        delivery=embedding(page),
     )
     script = bundle.read_text().replace("</script", "<\\/script")
     icon = b64encode((page / "icon.svg").read_bytes()).decode()

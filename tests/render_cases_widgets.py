@@ -1273,8 +1273,8 @@ it reaches this part of the page.</p>
 """,
 )
 
-# Wide enough for a note to hang in the margin, which it does where the room beside the
-# column holds its 384px (1536px of shell), with an exhibit growing past prose into
+# Wide enough for a note to hang in the margin with the column centred, the room
+# either side of it holding the note's 384px, with an exhibit growing past prose into
 # that same margin.
 NOTE_BAND = 1600
 

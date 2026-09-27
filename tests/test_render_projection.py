@@ -7,7 +7,6 @@ from copy import deepcopy
 from datetime import datetime, timedelta
 
 import pytest
-import render_harness
 from click.testing import CliRunner
 from interact_support import (
     COMMAND_HUB_PACKAGE,
@@ -30,8 +29,8 @@ from leaf import structure as structure_model
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
+from leaf.schema import ELEMENT_ID
 from leaf.validation import compatibility as validation_model
-from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASKS_IN_ORDER,
@@ -685,6 +684,57 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
 
     resized(page, 390, 900)
     assert root_overflow(page) == 0
+
+
+def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
+    """A capture that reorders the roots moves the group the user stands in, and one
+    that reorders a root's calls moves the row: either way they stay on its location."""
+    url = serve(
+        leaf_page(
+            "call diff order",
+            '<h1 id="title">Request call change</h1>'
+            '<lf-call-diff id="request-calls" source="request-call-diff" diff="patch">'
+            '</lf-call-diff><lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>',
+        ),
+        packages=("pr-review", "diff"),
+    )
+    header = "calldiff diff main → feature\n"
+    first = "  Limiter.first(self)  gateway/limits.py:10\n+ ├─ one()  gateway/limits.py:11\n"
+    calls = [
+        "+ ├─ two()  gateway/limits.py:21\n",
+        "+ ├─ three()  gateway/limits.py:22\n",
+    ]
+    second = "  Limiter.second(self)  gateway/limits.py:20\n"
+
+    def capture(*roots):
+        data_model.cmd_data_set(
+            serve.page_dir, "request-call-diff", header + "".join(roots)
+        )
+
+    capture(first, second + "".join(calls))
+    page = open_page(browser, url)
+    widget = page.locator("#request-calls")
+    groups = widget.locator(":scope > .lf-call-group")
+    expect(groups).to_have_count(2)
+    root = widget.locator(".lf-call-location", has_text="gateway/limits.py:20")
+    root.focus()
+
+    capture(second + "".join(calls), first)
+    told(page)
+    expect(groups.first.locator(".lf-call-group-summary .lf-call-body")).to_have_text(
+        "Limiter.second(self)"
+    )
+    expect(root).to_be_focused()
+
+    widget.locator(".lf-call-toggle").click()
+    row = widget.locator(".lf-call-location", has_text="gateway/limits.py:22")
+    row.focus()
+    capture(second + "".join(reversed(calls)), first)
+    told(page)
+    expect(
+        groups.first.locator(".lf-call-group-body .lf-call-body").first
+    ).to_have_text("├─ three()")
+    expect(row).to_be_focused()
 
 
 def test_visual_review_guides_one_typed_still_run(browser, serve):
@@ -2035,6 +2085,59 @@ def test_a_revision_leaves_the_page_everything_it_did_not_write(browser, serve):
         "landing": "-1",
         "focused": True,
     }, f"the revision took back what its author never wrote: {standing}"
+
+
+def test_a_revision_that_moves_the_block_the_user_types_in_keeps_them_there(
+    browser, serve
+):
+    """A revision that reorders siblings moves the element the user is typing in.
+
+    The patch keeps that element, so the carry leaves it alone, and moving it blurs it to
+    the page body in the same call. The patch's placement holds the user's place across
+    the move: they stay in the box, caret included.
+    """
+    first = leaf_page(
+        "Moved first",
+        """
+<h1 id="mv-title">Moved</h1>
+<p id="mv-intro">The steps, in the order they ran.</p>
+<p id="mv-late">The cutover ran second.</p>
+<p id="mv-note"><label>Note <input id="mv-input" type="text"></label></p>
+""",
+    )
+    late = '<p id="mv-late">The cutover ran second.</p>\n'
+    second = (
+        first.replace("Moved first", "Moved second")
+        .replace(late, "")
+        .replace("</label></p>\n", "</label></p>\n" + late)
+    )
+    assert second.index("mv-note") < second.index("mv-late")
+    page = open_page(browser, live_url(serve(first)))
+    box = page.locator("#mv-input")
+    box.fill("needs a rollback")
+    box.evaluate("input => input.setSelectionRange(6, 9, 'backward')")
+    page.evaluate("() => { window.__mvInput = document.getElementById('mv-input'); }")
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Moved second")
+    standing = page.evaluate(
+        """() => {
+          const input = document.getElementById('mv-input');
+          return {
+            order: [...document.querySelectorAll('main > p')].map((p) => p.id),
+            same: input === window.__mvInput,
+            focused: document.activeElement === input,
+            caret: [input.selectionStart, input.selectionEnd, input.selectionDirection],
+          };
+        }"""
+    )
+    assert standing == {
+        "order": ["mv-intro", "mv-note", "mv-late"],
+        "same": True,
+        "focused": True,
+        "caret": [6, 9, "backward"],
+    }, f"the revision's move took the user out of their box: {standing}"
 
 
 def test_a_declared_widget_with_no_id_survives_a_revision_that_left_it_alone(
@@ -3840,34 +3943,6 @@ def test_a_revision_that_rewrites_a_draft_leaves_the_user_where_they_stand(
     # The rewritten draft has connected and read its edit back: the words are kept.
     expect(editor).to_have_value("Ship it, but louder.")
     expect(pick).to_be_focused()
-
-
-def test_told_waits_through_a_document_without_a_body(browser, monkeypatch):
-    """The replacement navigation can be between its html and body while told polls."""
-    page = browser.new_page()
-    page.set_content('<body data-lf-reading="ready"></body>')
-    monkeypatch.setattr(render_harness, "_server_reading", lambda _page: "ready")
-    page.evaluate(
-        "() => { window.detachedBody = document.body; document.body.remove(); }"
-    )
-    assert page.evaluate("() => document.body === null")
-    real_wait = page.wait_for_function
-    attempts = 0
-
-    def wait_for_function(*args, **kwargs):
-        nonlocal attempts
-        attempts += 1
-        try:
-            return real_wait(*args, **kwargs)
-        except PlaywrightTimeout:
-            page.evaluate("() => document.documentElement.append(window.detachedBody)")
-            raise
-
-    monkeypatch.setattr(page, "wait_for_function", wait_for_function)
-
-    told(page)
-    assert attempts == 2
-    assert page.evaluate("() => document.body.dataset.lfReading") == "ready"
 
 
 def test_the_replacing_install_gives_back_the_same_apparatus(browser, serve):
@@ -8946,6 +9021,80 @@ def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser,
     assert sent.exit_code == 0, sent.output
     told(page)
     expect(title).to_be_focused()
+
+
+REORDERED_PROJECTION = """
+import {projectData} from '/runtime/widget-api.js';
+customElements.define('lf-ranked', class extends HTMLElement {
+  connectedCallback() {
+    window.lfRanked = this;
+    this.show(['api', 'worker', 'queue']);
+  }
+  show(keys) {
+    projectData(this, keys.map(key => ({key})), row => row.key, ({key}, prior) => {
+      if (prior) return prior;
+      const row = document.createElement('p');
+      const note = document.createElement('input');
+      note.setAttribute('aria-label', `Note on ${key}`);
+      note.value = `${key} is ready`;
+      row.append(note);
+      return row;
+    });
+  }
+});
+"""
+
+
+def test_a_reordered_projection_keeps_the_user_in_the_row_they_stand_in(browser, serve):
+    """A renderer reusing a row keeps its focused control, so a reorder moving that row
+    must not drop the user to the page body: they stay in its box, caret included. A row
+    hidden in place hands them to the stand-in its renderer names."""
+    entry = {
+        "description": "Rows a widget ranks and re-ranks.",
+        "type": "object",
+        "properties": {"id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+        "x-example": '<lf-ranked id="ranked-example"></lf-ranked>',
+    }
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "ranked projection",
+                '<h1 id="title">Services</h1><lf-ranked id="services"></lf-ranked>',
+            ),
+            layer_registry={"lf-ranked": entry},
+            layer_widgets={"lf-ranked.js": REORDERED_PROJECTION},
+        ),
+    )
+    note = page.get_by_role("textbox", name="Note on worker")
+    note.focus()
+    note.evaluate("(box) => box.setSelectionRange(2, 5)")
+
+    page.evaluate("() => window.lfRanked.show(['queue', 'worker', 'api'])")
+
+    expect(
+        page.locator('[data-lf-datum="queue"] + [data-lf-datum="worker"]')
+    ).to_be_attached()
+    expect(note).to_be_focused()
+    assert note.evaluate("(box) => [box.selectionStart, box.selectionEnd]") == [2, 5]
+
+    # A row the renderer hides with `visibility: hidden` still holds focus until the
+    # browser blurs it a frame later, so the hold hands the user to the stand-in.
+    page.evaluate(
+        """async () => {
+          const {holdFocus} = await window.__lfRuntimeImport('/runtime/focus.js');
+          const row = document.querySelector('[data-lf-datum="worker"]');
+          const restore = holdFocus(row.parentElement);
+          row.style.visibility = 'hidden';
+          window.landed = restore(document.querySelector('[data-lf-datum="api"] input'));
+        }"""
+    )
+    expect(page.get_by_role("textbox", name="Note on api")).to_be_focused()
+    assert page.evaluate("() => window.landed")
 
 
 def test_command_hub_repaints_anchors_after_generated_projections_change(

@@ -221,3 +221,83 @@ def test_every_served_agent_record_carries_the_name_it_is_shown_under():
         ("e2", "Agent"),
         ("e1", None),
     ]
+
+
+def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it():
+    """A card moved on a board the agent sent in a reply is served in that reply's
+    thread, so every surface of the thread shows its receipt; but the move owes
+    nothing, so it leaves the thread the user's to answer, and no card reads it as
+    work the agent is holding. The thread's own unanswered input is the contrast:
+    it stands in its thread and holds it."""
+    board = model.model_layer()["lf-board"]["x-example"]
+    state = model.reading(
+        HUB,
+        (
+            {"kind": "comment", "text": "Lay the feeder work out on a board."},
+            {
+                "kind": "reply",
+                "author": "agent",
+                "parent": "e1",
+                "responds": "e1",
+                "text": "Here is the board. Which card goes first?",
+                "awaits": True,
+                "markup": board,
+            },
+            {
+                "kind": "action",
+                "widget": "feeder-board",
+                "action": "move",
+                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
+            },
+            {"kind": "comment", "text": "And the heater?"},
+        ),
+    )
+
+    assert [
+        (workflow["id"], workflow["thread"], workflow["holds_thread"])
+        for workflow in state["workflows"]
+    ] == [("e4", "e4", True), ("e3", "e1", False)]
+    threads = model.threads(state)
+    assert threads["e1"]["attention"] == {
+        "kind": "needs_user",
+        "reason": "ask",
+        "workflow": None,
+    }
+    assert threads["e4"]["attention"] == {
+        "kind": "waiting",
+        "reason": "workflow",
+        "workflow": "e4",
+    }
+
+
+def test_the_runtime_tests_build_on_the_records_the_server_serves():
+    """`served_records.json` is this fold's output, so a Node test built on it carries
+    every field the server sends; a change to the served shape fails here until the
+    file is rewritten."""
+    import served_records
+
+    assert served_records.RECORDS.read_text() == served_records.serialized(), (
+        "the served thread or workflow changed — rerun `uv run tests/served_records.py`"
+    )
+
+
+def test_each_served_action_says_whether_it_still_stands():
+    """The browser withdraws the action on top of a coordinate before the log does,
+    and shows the next one that stands. Whether an older action stands is this fold's
+    reading, so the wire carries it: an undo ends one, and the one beneath survives."""
+    page = model.leaf_page("draft", DRAFT.format(text=AUTHORED, attrs=""))
+    edit = {"kind": "action", "widget": "draft-ops", "action": "edit"}
+    state = model.reading(
+        page,
+        (
+            {**edit, "detail": {"text": USER_EDIT}},
+            {**edit, "detail": {"text": CORRECTED}},
+            {**edit, "detail": {"text": AUTHORED}},
+            {"kind": "undo", "undoes": "e3"},
+        ),
+    )
+    projection = model.projected(state, 1)
+    assert {
+        entry["event"]["id"]: entry["stands"] for entry in projection["entries"]
+    } == {"e1": True, "e2": True, "e3": False}
+    assert projection["actions"] == ["e2"]

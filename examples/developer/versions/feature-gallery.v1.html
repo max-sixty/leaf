@@ -4,10 +4,8 @@
     <title>Leaf feature gallery</title>
     <meta name="lf-review" content="sign-off" />
     <style>
-      @container lf-shell (max-width: 1151px) {
-        #bg-sidebar {
-          display: none;
-        }
+      main:not([data-lf-margin~="map"], [data-lf-margin~="sidebar"]) #bg-sidebar {
+        display: none;
       }
     </style>
   </head>

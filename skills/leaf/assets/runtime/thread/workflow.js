@@ -1,11 +1,14 @@
 /* Canonical browser reading of one exact message workflow.
 
    Python binds accepted delivery, turn, response, activity and condition evidence to
-   an input, and derives each thread's attention from them. The application publisher
-   adds the unresolved local send and the attention it implies. Every message, compact
-   thread row and margin entry reads these values; none reclassifies receipts, streams,
-   turn ownership, or whose turn a thread is. `strongestWorkflow` only chooses which of
-   one surface's workflows it shows. */
+   an input, and derives each thread's attention from them. It also serves which thread
+   each workflow stands in (`thread`), whether it holds that thread the agent's turn
+   (`holds_thread`), and the workflows strongest first (`served_workflows`). The
+   application publisher adds the unresolved local send, with the attention it implies,
+   after the served ones. Every message, compact thread row and margin entry reads
+   these values; none reclassifies receipts, streams, turn ownership, whose turn a
+   thread is, or which workflow is stronger. `strongestWorkflow` only places this tab's
+   own sends against the served order. */
 
 const STAGE_LABELS = Object.freeze({
   sending: "Sending",
@@ -44,16 +47,6 @@ export const workflowTitle = (workflow) => {
   return [label, workflow.detail].filter(Boolean).join(" · ");
 };
 
-const stageRank = Object.freeze({
-  answered: -1,
-  sending: 0,
-  sent: 1,
-  queued: 2,
-  picked_up: 3,
-  working: 5,
-  replying: 6,
-});
-
 export const isLiveWorkflow = (workflow) =>
   !workflow.condition && ["working", "replying"].includes(workflow.stage);
 
@@ -62,32 +55,22 @@ export const isWorkflowProgress = (workflow) =>
 
 export const isPageWidgetWorkflow = (workflow, revision) =>
   workflow.subject.kind === "widget" &&
-  Boolean(workflow.coordinate) &&
+  workflow.thread === null &&
   workflow.revision <= revision;
 
-function compareWorkflows(left, right) {
-  const nextActor =
-    Number(right.next_actor === "user") - Number(left.next_actor === "user");
-  if (nextActor) return nextActor;
-  const liveDifference = Number(isLiveWorkflow(right)) - Number(isLiveWorkflow(left));
-  if (liveDifference) return liveDifference;
-  const condition = Number(Boolean(right.condition)) - Number(Boolean(left.condition));
-  if (condition) return condition;
-  const stage = (stageRank[right.stage] ?? -2) - (stageRank[left.stage] ?? -2);
-  if (stage) return stage;
-  const sequence = (right.seq ?? -1) - (left.seq ?? -1);
-  if (sequence) return sequence;
-  return String(right.id).localeCompare(String(left.id));
-}
+// A send this tab has not delivered is the only workflow at `sending`. It ranks below
+// every served workflow with the same next actor, and a move that is the user's to
+// make still ranks above every one that is the agent's.
+const tier = (workflow) =>
+  (workflow.next_actor === "user" ? 0 : 2) + Number(workflow.stage === "sending");
 
+// The first of the strongest tier. `workflows` keeps the published order, served
+// strongest first and this tab's sends after, so a caller selects by filtering it.
 export function strongestWorkflow(workflows) {
-  return workflows.reduce(
-    (strongest, candidate) =>
-      strongest === null || compareWorkflows(candidate, strongest) < 0
-        ? candidate
-        : strongest,
-    null,
-  );
+  let strongest = null;
+  for (const candidate of workflows)
+    if (strongest === null || tier(candidate) < tier(strongest)) strongest = candidate;
+  return strongest;
 }
 
 export function threadAttention(thread) {
@@ -107,7 +90,9 @@ export function threadAttention(thread) {
     const secondary = strongestWorkflow(
       thread.workflows.filter(
         (candidate) =>
-          candidate.next_actor === "agent" && candidate.id !== workflow?.id,
+          candidate.next_actor === "agent" &&
+          candidate.holds_thread &&
+          candidate.id !== workflow?.id,
       ),
     );
     return Object.freeze({

@@ -158,12 +158,13 @@ function paintReadingReach(el) {
 // `hidden` on the other, so a rule hiding a single axis is a candidate; so is a value
 // only substitution decides (`var()`, in a longhand or in the shorthand, whose
 // longhands then read empty). A nested rule's `&` stands for its parent's selector, as
-// nesting defines it. The list is wrapped in `:is()`, which forgives, so a selector no
-// query can take (a pseudo-element, a vendor prefix) drops out alone. The user agent's
-// sheet is not in the CSSOM, and of what it scrolls a text box and a list box are stops
-// already, which leaves popovers and modal dialogs; an inline style is named too. A
-// shadow host is always asked, since its `:host` rule sits in a tree whose query cannot
-// return the host.
+// nesting defines it, and `:scope` inside `@scope` for the scope's root selector with
+// its limit left out: a superset, which the computed style then narrows. The list is
+// wrapped in `:is()`, which forgives, so a selector no query can take (a pseudo-element,
+// a vendor prefix) drops out alone. The user agent's sheet is not in the CSSOM, and of
+// what it scrolls a text box and a list box are stops already, which leaves popovers
+// and modal dialogs; an inline style is named too. A shadow host is always asked, since
+// its `:host` rule sits in a tree whose query cannot return the host.
 const UNSCROLLED = /^(|visible|clip|hidden|initial|unset)$/;
 const axis = (style, physical, logical) =>
   style.getPropertyValue(physical).trim() || style.getPropertyValue(logical).trim();
@@ -174,28 +175,36 @@ function declaresScroll(style) {
   if (!UNSCROLLED.test(x) || !UNSCROLLED.test(y)) return true;
   return (x === "hidden") !== (y === "hidden") && x !== "clip" && y !== "clip";
 }
-function scrollingSelectors(rules, parent, into) {
+function scrollingSelectors(rules, parent, scope, into) {
   for (const rule of rules) {
     if (rule instanceof CSSImportRule) {
-      if (rule.styleSheet) scrollingSelectors(rule.styleSheet.cssRules, null, into);
+      if (rule.styleSheet)
+        scrollingSelectors(rule.styleSheet.cssRules, null, null, into);
+      continue;
+    }
+    if (rule instanceof CSSScopeRule) {
+      const root = rule.start ?? "*";
+      scrollingSelectors(rule.cssRules, root, root, into);
       continue;
     }
     const selector =
       rule instanceof CSSStyleRule
-        ? rule.selectorText.replaceAll("&", `:is(${parent ?? "*"})`)
+        ? rule.selectorText
+            .replaceAll(":scope", `:is(${scope ?? "*"})`)
+            .replaceAll("&", `:is(${parent ?? "*"})`)
         : parent;
     // A nested declaration block reads its parent's selector; a top-level at-rule's
     // own descriptors (@page, @font-face) select no element.
     if (selector !== null && rule.style && declaresScroll(rule.style))
       into.push(selector);
-    if (rule.cssRules) scrollingSelectors(rule.cssRules, selector, into);
+    if (rule.cssRules) scrollingSelectors(rule.cssRules, selector, scope, into);
   }
   return into;
 }
 const scrollerQuery = (tree) =>
   `:is(${[...tree.styleSheets, ...tree.adoptedStyleSheets]
     .reduce(
-      (into, sheet) => scrollingSelectors(sheet.cssRules, null, into),
+      (into, sheet) => scrollingSelectors(sheet.cssRules, null, null, into),
       ['[style*="overflow" i]', "[popover]", "dialog"],
     )
     .join(",")})`;

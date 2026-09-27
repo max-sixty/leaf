@@ -2677,6 +2677,61 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
     expect(page.locator("#wd-never")).to_have_attribute("chosen", "")
 
 
+def test_a_revision_inside_one_tab_keeps_the_tab_set_and_every_other_tab(
+    browser, serve
+):
+    """A tab set's module builds its strip beside the panels and reads only their labels
+    (`x-patch: members`), so a revision that rewrites a sentence in one tab edits that
+    sentence: the tab set, the tab the user has open and the question in the other tab
+    are the elements they were. A revision that adds a tab changes what the strip was
+    built from, and the set is rebuilt with a tab for it."""
+
+    def tabs(lede, extra=""):
+        return f"""<lf-tabs id="tp-views">
+  <lf-tab id="tp-plan" label="Plan"><p id="tp-lede">{lede}</p></lf-tab>
+  <lf-tab id="tp-ask-tab" label="Ask">
+    <lf-ask id="tp-store-ask"><h2>Which store?</h2>
+    <lf-options id="tp-store" choose>
+      <lf-option id="tp-keep">Keep the store</lf-option>
+      <lf-option id="tp-drop">Drop the store</lf-option>
+    </lf-options></lf-ask>
+  </lf-tab>{extra}
+</lf-tabs>"""
+
+    first = leaf_page("Tabs first", tabs("Ship on Monday."))
+    second = leaf_page("Tabs second", tabs("Ship on Tuesday."))
+    third = leaf_page(
+        "Tabs third",
+        tabs(
+            "Ship on Tuesday.",
+            '\n  <lf-tab id="tp-notes" label="Notes"><p>Later.</p></lf-tab>',
+        ),
+    )
+    page = open_page(browser, live_url(serve(first)))
+    page.get_by_role("tab", name="Ask").click()
+    expect(page.locator("#tp-ask-tab")).to_be_visible()
+    page.evaluate(
+        "() => { window.__tpTabs = document.getElementById('tp-views');"
+        " window.__tpStore = document.getElementById('tp-store'); }"
+    )
+
+    stamp_page(serve.page_dir, second, "move the ship date")
+    wait_for_revision(page, 2)
+    expect(page.locator("#tp-lede")).to_have_text("Ship on Tuesday.")
+    assert page.evaluate(
+        "window.__tpTabs === document.getElementById('tp-views')"
+        " && window.__tpStore === document.getElementById('tp-store')"
+    ), "a sentence in one tab rebuilt the tab set"
+    expect(page.locator("#tp-ask-tab")).to_be_visible()
+    expect(page.get_by_role("tab")).to_have_count(2)
+
+    stamp_page(serve.page_dir, third, "add a notes tab")
+    wait_for_revision(page, 3)
+    expect(page.get_by_role("tab")).to_have_count(3)
+    page.get_by_role("tab", name="Notes").click()
+    expect(page.locator("#tp-notes")).to_be_visible()
+
+
 def test_a_revision_retires_every_declared_identity_it_removes(browser, serve):
     """Plain declared elements leave the semantic document with their upgraded owner."""
     first = leaf_page(

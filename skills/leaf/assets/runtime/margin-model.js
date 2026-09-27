@@ -47,8 +47,11 @@ export const KINDS = Object.freeze(
         priority: 3,
         indication: true,
       },
+      // Every receipt whose progress stopped short: one past the pickup grace, one
+      // whose turn ended or went quiet, one the host failed. A single receipt reads
+      // under its own label; this names a group of them.
       waiting: {
-        label: "Waiting for pickup",
+        label: "Stalled update",
         icon: "waiting",
         priority: 3,
         indication: true,

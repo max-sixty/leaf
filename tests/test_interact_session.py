@@ -1141,7 +1141,7 @@ def test_embedded_codex_delivery_keeps_steered_input_in_one_claim_turn(page_dir)
     assert claim["turn"] == first_turn
     assert activity["counts"]["handling"] == 2
     assert activity["counts"]["picked_up"] == 0
-    assert all(not item["dropped"] for item in interactions.values())
+    assert all(item["condition"] is None for item in interactions.values())
 
 
 def test_embedded_codex_delivery_retries_the_same_immutable_pointer(page_dir):
@@ -1807,7 +1807,8 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
     only hooks that carry it do, and only while the turn is plausibly running. A
     Codex task's carrier is a process of its own, so its open turn with no adapter
     lease is nobody listening; and a Claude Code turn no Stop closed, as an
-    interrupted one, stops counting once the working grace has passed."""
+    interrupted one, stops counting once nothing in it has renewed it for the
+    working grace: its opening, or a status written during it."""
     now = datetime.now().astimezone()
     for page in (claimed, codex_claimed_page):
         files_model.write_json(
@@ -1856,19 +1857,26 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
         },
     )
     assert page_state(claimed)["activity"]["kind"] == "stalled"
-    files_model.write_json(
-        claimed / "status.json",
-        {"state": "waiting", "detail": "", "ts": now.isoformat(), "after": 0},
-    )
     claim = service_model.page_claim(claimed)
     opened = now - activity_model.WORKING_GRACE - timedelta(minutes=1)
     files_model.write_json(
         service_model.claim_path(claimed),
         {**claim, "turn_opened": opened.isoformat(timespec="seconds")},
     )
+    files_model.write_json(
+        claimed / "status.json",
+        {"state": "waiting", "detail": "", "ts": opened.isoformat(), "after": 0},
+    )
     stale = page_state(claimed)
     assert (stale["turn_takes_input"], stale["turn_closed"]) == (True, None)
     assert stale["activity"]["kind"] == "away"
+
+    # A status the turn writes renews it: the agent is there to have written it.
+    files_model.write_json(
+        claimed / "status.json",
+        {"state": "waiting", "detail": "", "ts": now.isoformat(), "after": 0},
+    )
+    assert page_state(claimed)["activity"]["kind"] == "listening"
 
     # A claim an older Leaf wrote, with no `turn_opened`, owes no belief either.
     files_model.write_json(
@@ -1920,7 +1928,6 @@ def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys)
         transaction.close_turn(claim["id"])
     ended = page_state(claimed)["activity"]
     assert ended["kind"] == "away"
-    assert ended["obligations"][0]["dropped"] is True
     assert ended["obligations"][0]["condition"] == {
         "kind": "ended",
         "operation": "work",
@@ -1971,6 +1978,176 @@ def test_quiet_exact_workflow_has_a_stale_work_condition(claimed):
     [workflow] = page_state(claimed)["workflows"]
     assert workflow["stage"] == "working"
     assert workflow["condition"] == {"kind": "stale", "operation": "work"}
+
+
+def _activity_at(page, minutes=0):
+    """The page's activity as the server would read it `minutes` from now."""
+    now = datetime.now().astimezone() + timedelta(minutes=minutes)
+    events = events_model.read_events(page)
+    return served_page.full_state(page, events, now_override=now.isoformat())[
+        "activity"
+    ]
+
+
+def test_claude_codes_own_record_says_whether_its_turn_runs(
+    claimed, capsys, monkeypatch
+):
+    """Claude Code publishes each session's live status in its session registry:
+    `busy` while a turn runs, `waiting` while that turn holds a dialog open, and
+    `idle` (or `shell`, with a background command) once none does. An interrupt
+    runs no Stop hook, so that record is the one reading that sees it, and every
+    rule that asks whether the claimant's turn runs reads it first. Without a
+    record the hook stamps answer, believed only while something renewed the turn
+    within the working grace, so a delivered move no Stop closed cannot read
+    working forever."""
+    serving(claimed, 1)
+    registry = host_model.claude_code_sessions()
+    registry.mkdir(parents=True, exist_ok=True)
+
+    def host_says(status, *, pid=4242, at=None):
+        files_model.write_json(
+            registry / f"{pid}.json",
+            {
+                "pid": pid,
+                "sessionId": "s1",
+                "status": status,
+                "statusUpdatedAt": at or int(time.time() * 1000),
+            },
+        )
+
+    session_model.cmd_status(claimed, "waiting", "Pick a layout")
+    comment = events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "Tighten the lede."}
+    )
+    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+    capsys.readouterr()
+
+    # No record: the stamps answer, and nothing renews this turn past the grace.
+    assert _activity_at(claimed)["kind"] == "working"
+    unrenewed = _activity_at(claimed, 16)
+    assert unrenewed["counts"]["handling"] == 0
+    assert unrenewed["obligations"][0]["condition"] == {
+        "kind": "stale",
+        "operation": "work",
+    }
+
+    # A running turn is believed for as long as the host says it runs. A dead
+    # worker's leftover record is older and loses to the live one.
+    host_says("idle", pid=1, at=1)
+    host_says("busy")
+    assert host_model.ClaudeCodeHarness("s1", "Claude").live_turn()["running"]
+    assert _activity_at(claimed, 16)["counts"]["handling"] == 1
+
+    # A dialog in the terminal is observed work the page announces.
+    host_says("waiting")
+    waiting = _activity_at(claimed)
+    assert (waiting["kind"], waiting["observed_kind"]) == ("working", "awaiting_input")
+
+    # Escape: the turn ended with no Stop hook, and the move it held reads Turn
+    # ended at once.
+    host_says("idle")
+    assert service_model.page_claim(claimed)["turn_closed"] is None
+    assert _activity_at(claimed)["obligations"][0]["condition"] == {
+        "kind": "ended",
+        "operation": "work",
+    }
+
+    # Work claimed in a turn stops being believed once the renewal grace has
+    # passed since an interrupt ended it.
+    host_says("busy")
+    session_model.cmd_status(claimed, "working", "Cutting the lede", on=comment["id"])
+    host_says("idle")
+    assert _activity_at(claimed)["kind"] == "working"
+    ended = _activity_at(claimed, 3)
+    assert (ended["kind"], ended["dropped"]) == ("away", True)
+    assert ended["obligations"][0]["condition"] == {
+        "kind": "stale",
+        "operation": "work",
+    }
+
+    # A status the host has no word on is no reading at all.
+    host_says("compacting")
+    assert host_model.ClaudeCodeHarness("s1", "Claude").live_turn() is None
+
+
+def test_away_asks_for_a_nudge_only_once_input_is_overdue(claimed, capsys):
+    """With nothing taking input, a comment that has only just arrived is the
+    session's next turn to take, and Leaf messages a Claude Code session as it
+    arrives. The page asks the user to nudge the agent only once a move has stayed
+    Sent past the pickup grace, which `counts.overdue` names."""
+    serving(claimed, 1)
+    session_model.cmd_status(claimed, "waiting", "Pick a layout")
+    # The first Stop refuses to leave the page unwatched; the repeated one lets
+    # the turn end.
+    for repeated in (False, True):
+        hooks_model.cmd_hook(
+            {
+                "hook_event_name": "Stop",
+                "session_id": "s1",
+                "stop_hook_active": repeated,
+            }
+        )
+    capsys.readouterr()
+    assert _activity_at(claimed, 3)["kind"] == "away"
+    assert _activity_at(claimed, 3)["counts"]["overdue"] == 0
+
+    events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "Still there?"}
+    )
+    fresh, late = _activity_at(claimed), _activity_at(claimed, 3)
+    assert (fresh["kind"], fresh["counts"]["overdue"]) == ("away", 0)
+    assert (late["kind"], late["counts"]["overdue"]) == ("away", 1)
+
+
+def test_a_host_step_waiting_on_the_user_outlasts_the_working_grace():
+    """An App Server observer renews its step on every event, and a wait on the
+    user sends none until the user answers, so that step stands for as long as
+    its observer holds the lease. A turn that completed with no final answer
+    leaves the move it owed reading ended."""
+    now = datetime.now().astimezone()
+    old = (now - timedelta(minutes=30)).isoformat()
+    present = {
+        "status": {"state": "working", "ts": old, "detail": "Revising"},
+        "claims": [],
+        "listening": True,
+        "session_alive": True,
+        "live_turn": None,
+        "claim_session": "session-1",
+        "claim_turn": "turn-1",
+        "turn_opened": old,
+        "turn_closed": None,
+        "turn_takes_input": False,
+    }
+    stream = {"session": "session-1", "turn": "turn-1", "ts": old}
+    waiting = activity_model.canonical_activity(
+        present, [], now.isoformat(), {**stream, "kind": "awaiting_approval"}
+    )
+    assert (waiting["kind"], waiting["observed_kind"]) == (
+        "working",
+        "awaiting_approval",
+    )
+    thinking = activity_model.canonical_activity(
+        present, [], now.isoformat(), {**stream, "kind": "thinking"}
+    )
+    assert (thinking["kind"], thinking["observed_kind"]) == ("stalled", None)
+
+    workflow = {
+        "id": "input-1",
+        "input": "input-1",
+        "seq": 1,
+        "subject": {"kind": "thread", "id": "input-1"},
+        "answer": {"kind": "reply", "to": "input-1", "for": "input-1"},
+        "stage": "picked_up",
+        "ts": now.isoformat(),
+        "condition": None,
+        "next_actor": "agent",
+        "response": None,
+    }
+    reply = {"state": "partial", "session": "session-1", "responds": "input-1"}
+    [ended] = activity_model.canonical_activity(
+        present, [workflow], now.isoformat(), reply=reply
+    )["workflows"]
+    assert ended["condition"] == {"kind": "ended", "operation": "response"}
 
 
 def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
@@ -12419,7 +12596,7 @@ def test_a_prompt_reopens_the_acknowledged_move_it_carries_into_the_new_turn(
     assert activity["kind"] == "working"
     assert activity["obligations"][0]["stage"] == "picked_up"
     assert activity["obligations"][0]["delivery_turn"] == claim["turn"]
-    assert activity["obligations"][0]["dropped"] is False
+    assert activity["obligations"][0]["condition"] is None
 
 
 def test_wait_prints_a_reaction_token_and_ack_covers_it(page_dir, sessionless, capsys):

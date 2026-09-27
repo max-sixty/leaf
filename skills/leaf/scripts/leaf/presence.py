@@ -127,12 +127,10 @@ def other_leaves(page_dir: Path) -> list:
                 continue
             claim = page_claim(candidate)
             active = claim if claim_is_active(claim) else None
-            listening = wait_is_live(candidate, active["id"] if active else None)
             key = (
                 _page_stamp(candidate, claim),
                 info["url"],
-                active is not None if claim else None,
-                listening,
+                live_facts(candidate, claim),
             )
             with _presence_cache_lock:
                 held = _neighbor_cache.get(candidate)
@@ -213,6 +211,21 @@ def other_leaves(page_dir: Path) -> list:
     return sorted(others, key=lambda entry: entry["title"].lower())
 
 
+def live_facts(page_dir: Path, claim: dict | None) -> dict:
+    """The presence facts no page file records, read from processes and the host
+    at this moment: whether the claimant's wait lease is held, whether its
+    lifetime stands, and what its host says of its turn (`Harness.live_turn`).
+    File stamps cannot say when these move, so every cache of a presence reading
+    keys on them, and the news stream's token carries them."""
+    active = claim if claim_is_active(claim) else None
+    return {
+        "listening": wait_is_live(page_dir, active["id"] if active else None),
+        # None when nothing claimed the page — leaf run outside an agent host.
+        "session_alive": active is not None if claim else None,
+        "live_turn": claim_harness(active).live_turn() if active else None,
+    }
+
+
 def presence_with_activity(
     page_dir: Path,
     events: list,
@@ -248,7 +261,7 @@ def presence_with_activity(
     reading = {
         "status": status,
         "claims": claim_update_sources(stored_status),
-        "listening": wait_is_live(page_dir, active["id"] if active else None),
+        **live_facts(page_dir, claim),
         "cursor": cursor,
         # The user's number, not the watcher's: their own messages the agent
         # hasn't taken in. Reports ride the same cursor but are the agent's debt,
@@ -260,8 +273,6 @@ def presence_with_activity(
         # this reading: it is what a browser seat may know, and the browser has
         # never had a use for which program is running the agent.
         "agent": claim["agent"] if claim else UNNAMED_AGENT,
-        # None when nothing claimed the page — leaf run outside an agent host.
-        "session_alive": active is not None if claim else None,
         # Which session the turn-closed evidence belongs to. Thread updates carry
         # their posting session too, so a claim another session wrote — the page
         # task's, while a Codex watcher task holds the page — is not declared
@@ -307,14 +318,13 @@ def presence(page_dir: Path, events: list) -> dict:
     return reading
 
 
-def presence_fingerprint(listening: bool, session_alive, others: list) -> str:
+def presence_fingerprint(present: dict, others: list) -> str:
     """The half of a reading that file stamps cannot supply, from the facts a state
-    already carries: the lease, the claimant's life, and the neighbours as the tray
-    shows them. A neighbour's `viewed` is left out, since it moves every half minute
-    that tab stays open and changes nothing this page shows."""
+    already carries: its `live_facts`, and the neighbours as the tray shows them. A
+    neighbour's `viewed` is left out, since it moves every half minute that tab
+    stays open and changes nothing this page shows."""
     facts = (
-        listening,
-        session_alive,
+        [present[key] for key in ("listening", "session_alive", "live_turn")],
         [{k: v for k, v in other.items() if k != "viewed"} for other in others],
     )
     return hashlib.sha256(
@@ -341,11 +351,8 @@ def presence_reading(page_dir: Path) -> str:
         # Keep the lock while observing the neighbours. Concurrent news streams
         # then share one complete reading instead of racing into one parse per
         # stream; the lock and pid checks remain part of this fresh observation.
-        active = claim if claim_is_active(claim) else None
         reading = presence_fingerprint(
-            wait_is_live(page_dir, active["id"] if active else None),
-            active is not None if claim else None,
-            other_leaves(page_dir),
+            live_facts(page_dir, claim), other_leaves(page_dir)
         )
         _presence_cache[page_dir] = (stamp, now + PRESENCE_CACHE_S, reading)
         while len(_presence_cache) > _CACHE_LIMIT:

@@ -292,6 +292,10 @@ def isolated_session(tmp_path_factory, monkeypatch):
     it would read before this fixture sets it and after `monkeypatch` unsets it
     (tests/AGENTS.md, "A process the suite starts ends with the run")."""
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path_factory.mktemp("state")))
+    # Claude Code's session registry, where a live turn is read
+    # (`host.claude_code_session_records`): empty, so no session of the developer's
+    # answers for a test's.
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path_factory.mktemp("claude")))
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", f"pytest-{os.getpid()}")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     monkeypatch.delenv("CLAUDE_JOB_DIR", raising=False)

@@ -48,7 +48,7 @@ export function declareLeavesKeys() {
 // same judgment the banner's sentences come from — the judgment is shared, the
 // wording is the seat's.
 function rowPresence(entry) {
-  const { kind, quiet, detail } = entry.activity;
+  const { kind, counts, detail } = entry.activity;
   const facts = activityFacts(entry);
   // The same join for both kinds that have words of their own. The user opens this
   // panel to find which page needs them, so a bare `Awaits` beside a neighbour's
@@ -69,14 +69,12 @@ function rowPresence(entry) {
         : kind === "stalled"
           ? stated(silence)
           : kind === "away"
-            ? quiet
+            ? counts.overdue
               ? silence
               : "Away"
             : kind === "unheld"
               ? "Unheld"
-              : kind === "unattended"
-                ? "Unattended"
-                : "Closed";
+              : "Closed";
   const line = facts.waiting.length
     ? `${primary} · ${facts.waiting.join(" · ")}`
     : primary;

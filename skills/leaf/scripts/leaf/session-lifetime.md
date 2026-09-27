@@ -13,6 +13,7 @@ and requests another reading at its next deadline; it does not run a second fold
 | live App Server activity: session, turn, typed kind, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's observer-only client | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
 | live App Server reply: one displayed draft plus delivery attempt bindings by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's plain reply | the displayed draft remains on failure or disconnect and is retired by a logged event naming its delivery attempt or its response address; each binding clears after durable commit or terminal failure, and survives connection and turn transitions until then |
 | turn identity, when it opened, and open or closed state | the page's claim record | a prompt or direct delivery opens an opaque `turn` and stamps `turn_opened`; the Stop hook stamps `turn_closed` | the next opening mints a turn; the next closing stamps it |
+| whether the claimant's turn runs now, and whether it waits on a dialog | the host's own record, read at each state read (`Harness.live_turn`): for Claude Code, the session's `status` in its session registry | the host | read live, so it moves with the host; absent where the host publishes nothing, as for a background job whose worker has retired |
 | the closed turn this page nudged its session in | `messaged_turn` in the page's claim record | browser-event admission, once the harness's nudge lands | a later closed turn carries a different `turn` |
 | wait lease | `waiter.lock`, or `sessions/<session>.wait` for a host session | the live `leaf wait` process, held open for its life and removed when it lets go, SIGTERM and SIGHUP included | process exit |
 | a host wait's start that no tool hook has named | a lock on `sessions/<session>.started` | the `leaf wait` process, taken with the session's wait lease under `sessions/<session>.started.lock` and held for its life | the `PostToolUse` hook removes the file under that same lock when it names the start, or the wait does when it ends unnamed; process exit |
@@ -26,24 +27,37 @@ and requests another reading at its next deadline; it does not run a second fold
 | Leaf delivery | `<state-home>/deliveries/<id>.json` | any carrier freezes the host-neutral envelope before presenting it | once every page it names is gone, removed when the next delivery is frozen; until then every transport resolves the same immutable id |
 
 Page activity describes ownership, carrier availability, and current work. Its
-`kind` is `unattended`, `closed`, `unheld`, `away`, `listening`, `working`, or
-`stalled`. Fresh declared or observed work makes the page working independently
-of how far newer input has progressed. Delivery opened into the claimant's
-current turn also proves generic activity before its first work declaration;
-the receipt itself remains Picked up. The banner and Leaves tray consume this
-same reading and present delivery counts separately.
+`kind` is `closed`, `unheld`, `away`, `listening`, `working`, or `stalled`. Every
+rule in the fold that asks whether the claimant's turn is running reads one
+answer, `activity.claimant_turn`: the host's live record where it has one, which
+sees an interrupted turn end, and otherwise the claim's turn stamps, believed
+open only while the opening, a status written during the turn, or the claimant's
+streamed activity renewed it within the working grace. The claimant takes input
+while its wait lease is held or, for a harness whose hooks carry input, while its
+turn runs. Fresh declared or observed work makes the page working independently
+of how far newer input has progressed; a host-observed wait on the user in its
+own window (an approval, a question) is observed work that stands for as long as
+its observer does. Delivery opened into the claimant's running turn also proves
+generic activity before its first work declaration; the receipt itself remains
+Picked up. `away` counts, in `counts.overdue`, the owed moves that stayed Sent
+past the pickup grace, which is when the banner asks the user to nudge the
+session. The banner and Leaves tray consume this same reading and present
+delivery counts separately.
 
 `workflows` is the shared projection for exact user inputs and proactive subject
 work. Each entry names its `input` event when it has one, its `thread` or `widget`
 `subject`, its strongest proven `stage` (`sent`, `queued`, `picked_up`, `working`,
 `replying`, or the retained terminal `answered` outcome), and any separately proven
 `condition`. A Sent input that remains
-unpicked after the short grace has a stale delivery condition. Ending the exact
-turn that picked input up adds an ended condition without claiming interruption.
-A Working claim quiet beyond its lease, or a pickup belonging to a different or
-unknown old turn, has a stale work condition while retaining its durable stage.
+unpicked after the short grace has a stale delivery condition. A pickup whose
+exact turn was seen to end, by its close or by the host's record, has an ended
+condition without claiming interruption. A Working claim quiet beyond its lease,
+or a pickup belonging to a different or older turn or to one nothing has renewed
+within the working grace, has a stale work condition while retaining its durable
+stage.
 A provisional response is Replying only on the input named by its `responds`
-address. Disconnect, interruption, and failure require the response's own state.
+address. Disconnect, interruption, and failure require the response's own state,
+and a turn that completed without a final answer (`partial`) reads ended.
 Successful settlement removes the workflow; the logged answer remains its evidence.
 For an interrupted or failed response, the workflow's `response` names the exact
 delivery attempt when one exists. A durable failure receipt also names its reply

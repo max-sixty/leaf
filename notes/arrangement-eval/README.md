@@ -29,7 +29,7 @@ this section. What the runs left:
 - The second run's phase-2 children ran with the user's home, read the user's
   `~/.claude/CLAUDE.md` (and earlier runs' copies of the preference in it), and six appended
   the preference there. Its phase-2 numbers were made under the user's instructions, not
-  the arm's alone. Children now run under a home of their own (`scripts/eval_harness.py`).
+  the arm's alone. Children now run under a home of their own (`dev/leaf_dev/harness.py`).
 - The judge reads static screenshots. It cannot see a pane scroll, a rail stick, or
   any interaction, and it reads a pane's first screen as the whole pane.
 - One judge model and three pairs per cell. A batch's authoring costs about $37 and
@@ -82,7 +82,7 @@ Three requests in `subjects/`, each with the same content in both arms:
 `harness.py run` starts a fresh `claude -p` (Opus 5.5, Bash/Read/Write/Edit/Glob/Grep,
 bypass permissions) from a scratch cwd under a home of its own, so neither the user's
 `CLAUDE.md` nor the installed Leaf plugin loads, and what the child saves as a standing
-preference stays in that home (`scripts/eval_harness.py`). The prompt points it at the arm's
+preference stays in that home (`dev/leaf_dev/harness.py`). The prompt points it at the arm's
 `SKILL.md` and sets `$LEAF` to the arm's launcher; the run's own `XDG_STATE_HOME`
 keeps its pages and claims off this machine's. It asks for a finished record: write
 the page, pass `page check --render`, stamp it, no server.

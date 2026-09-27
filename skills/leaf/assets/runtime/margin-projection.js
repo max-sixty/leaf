@@ -1768,9 +1768,9 @@ export function createMarginProjection({
   // empty: every cluster folds to nothing, and what has been written down is the medium
   // rather than the page. Nobody sees it on the dialog, where the margin does not print
   // at all, but the fold outlives the print preview and stands on screen until the next
-  // render repairs it. It is the panel's head-room rule on the other surface that
-  // measures: a reading taken where the box is `display: none` is not a measurement. So
-  // a render asked for on paper is refused whole and taken once the screen is back.
+  // render repairs it. A reading taken where the box is `display: none` is not a
+  // measurement, so a render asked for on paper is refused whole and taken once the
+  // screen is back.
   const onPaper = matchMedia("print");
 
   function renderNow() {

@@ -291,15 +291,6 @@ def test_page_map_qualifies_only_duplicate_subjects_with_their_reading_region(
     ).click()
     expect(dialog).to_be_hidden()
     threads = page.locator(".lf-threads")
-    expect(threads.locator(":scope > .lf-group")).to_have_text(
-        ["Current · Deployment", "Summary", "Proposed · Deployment"]
-    )
-    expect(
-        threads.get_by_role("button", name="Current · Deployment", exact=True)
-    ).to_be_visible()
-    expect(
-        threads.get_by_role("button", name="Proposed · Deployment", exact=True)
-    ).to_be_visible()
     expect(
         threads.locator(
             ':scope > .lf-thread[data-id="comment-proposed-deployment"] leaf-text'

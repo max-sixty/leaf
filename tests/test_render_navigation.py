@@ -1049,8 +1049,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     banner_control(page, ".lf-asks").click()
 
     page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
+    banner_control(page, ".lf-threads-toggle").click()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     pending_title = page.locator(
         '.lf-thread[data-id="72e031c5bf0d485ba9054628e09869d4"] .lf-thread-topic'
@@ -1175,6 +1174,7 @@ def test_the_feature_gallery_keeps_a_choice_when_its_proposal_is_undone(browser,
     [
         ("#bg-core-surfaces", "Decisions"),
         ("#bg-thread-states", "Threads"),
+        ("#bg-panel-views", "Threads"),
         ("#bg-quoted-and-visual", "Page & layout"),
         ("#bg-external-data", "Data & work"),
         ("#bg-interactions", "Interactions"),

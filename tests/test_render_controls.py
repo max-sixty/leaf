@@ -108,6 +108,7 @@ def test_projected_request_rows_have_independent_buttons(browser, serve):
     url = serve(FEATURE_GALLERY)
     data_model.cmd_data_set(serve.page_dir, "gallery-latency", 184)
     page = open_page(browser, url)
+    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Data & work").click()
     jobs_revision = source_revision(serve.page_dir, "gallery-jobs")
     assert (
         page.evaluate("() => document.querySelector('#bg-jobs').snapshot.revision")
@@ -223,6 +224,42 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     ).click()
     expect(views["overview"].locator(".lf-thread-panel")).to_be_visible()
     expect(views["overview"].locator(".lf-thread:not([hidden])")).to_have_count(3)
+
+
+def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve):
+    """The catalog tab's presets operate a real panel and survive specimen Reset."""
+    page = open_page(browser, serve(FEATURE_GALLERY))
+    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
+    frame = page.frame_locator("#bg-panel-specimen iframe")
+    panel = frame.locator(".lf-thread-panel")
+    expect(panel).to_be_hidden()
+    page.locator('#bg-panel-presets [data-view="overview"]').click()
+    expect(panel).to_be_visible()
+    expect(frame.locator(".lf-thread")).to_have_count(4)
+    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(3)
+
+    for view, thread, visible in (
+        ("you", "2be2443f0bb6cc49fc86b52f340e6073", 2),
+        ("resolved", "bab3cdfcfb8c02aacbb27da731de947a", 1),
+        ("summary", "9ee465bb3f9c1fa309ea9cb1767fa365", 3),
+        ("overview", "72e031c5bf0d485ba9054628e09869d4", 3),
+    ):
+        button = page.locator(f'#bg-panel-presets [data-view="{view}"]')
+        button.click()
+        expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(visible)
+        expect(frame.locator(f'.lf-thread[data-id="{thread}"]')).to_have_attribute(
+            "open", ""
+        )
+
+    page.locator('#bg-panel-presets [data-view="resolved"]').click()
+    page.locator("#bg-panel-specimen").get_by_role(
+        "button", name="Reset", exact=True
+    ).click()
+    expect(panel).to_be_visible()
+    expect(frame.locator(".lf-thread")).to_have_count(4)
+    expect(
+        frame.locator('.lf-thread[data-id="bab3cdfcfb8c02aacbb27da731de947a"]')
+    ).to_have_attribute("open", "")
 
 
 def test_live_specimens_keep_real_gestures_and_drafts_inside_the_child(browser, serve):
@@ -2437,6 +2474,8 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
             ],
         ),
     )
+    if source == FEATURE_GALLERY:
+        page.locator("#bg-gallery-tabs").get_by_role("tab", name="Interactions").click()
     page_at_rest(page)
     page.evaluate(DEFINE_BOXES)
     control = page.locator(archetype["target"])
@@ -5413,7 +5452,11 @@ RING_CASES = (
         {"corpus": (("#comparison-policy > lf-option > .lf-pick", "options-pick"),)},
     ),
     ("a swipe card", (), {"swipe-gallery": (("#swipe-keyboard-card", "swipe-card"),)}),
-    ("a contents link", (), {"feature-gallery": (("#bg-contents li a", "toc-link"),)}),
+    (
+        "a contents link",
+        (),
+        {"feature-gallery": (("#bg-contents li a:visible", "toc-link"),)},
+    ),
     (
         "the comments",
         ("c",),
@@ -6271,11 +6314,14 @@ def _each_aim_surface(page, page_dir):
     comment = next(
         e["id"] for e in events_model.read_events(page_dir) if e["kind"] == "comment"
     )
+    resolved_before = page.locator('.lf-thread[data-resolved="true"]').count()
     # A resolved thread, which is the only state that has a Reopen to aim at.
     page.locator(f'.lf-thread[data-id="{comment}"] .lf-thread-summary').click()
     page.locator(f'.lf-thread[data-id="{comment}"] .lf-resolve').click()
     round_trip(page)
-    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text(
+        f"Resolved ({resolved_before + 1})"
+    )
     page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
     # Narrowing retains the card's disclosure, so the resolved thread comes back open
@@ -6283,7 +6329,7 @@ def _each_aim_surface(page, page_dir):
     expect(page.locator(f'.lf-thread[data-id="{comment}"]')).to_have_js_property(
         "open", True
     )
-    expect(page.locator(".lf-reopen")).to_be_visible()
+    expect(page.locator(f'.lf-thread[data-id="{comment}"] .lf-reopen')).to_be_visible()
     yield
 
     banner_control(page, ".lf-version").click()

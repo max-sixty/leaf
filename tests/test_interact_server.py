@@ -25,7 +25,6 @@ import pytest
 import tinycss2
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
-from example_data import patch_manifest
 from interact_support import (
     PAGE,
     PAGE_PACKAGES,
@@ -80,7 +79,8 @@ from leaf.served_state import page as served_page
 from leaf.served_state import reading as served_reading
 from leaf.served_state import service as served_service
 from leaf.structure import EXTERNAL_ORIGINS
-from page_fixtures import package_selection_args
+from leaf_dev.example_data import patch_manifest
+from leaf_dev.page_fixtures import package_selection_args
 
 
 def test_interaction_trace_records_browser_entries_and_every_request_outcome(

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Compare how long `leaf page check --render` takes, base vs HEAD, and where.
 
-Each arm is the plugin payload at a ref, built by `eval_harness.build_arm`: BASE_REF
-(default `main`) and HEAD, so commit what you want measured. For each page in PAGES
-the script builds a page directory from this checkout's example with the arm's own
-launcher (`page_fixtures.prepare_page`, as `preview.py` does), then runs that arm's
-`bin/leaf page check <page> --render` RUNS times, alternating arms within each
+Each arm is the plugin payload at a ref, built by `leaf_dev.harness.build_arm`:
+BASE_REF (default `main`) and HEAD, so commit what you want measured. For each page in
+PAGES the script builds a page directory from this checkout's example with the arm's
+own launcher (`leaf_dev.harness.build_source`, as `preview.py` does), then runs
+that arm's `bin/leaf page check <page> --render` RUNS times, alternating arms within each
 round so drift in machine load falls on both. One untimed run per arm warms the
 environment, Chrome and the OS file cache first.
 
@@ -50,12 +50,10 @@ import shutil
 import statistics
 import subprocess
 import time
-from functools import partial
 from pathlib import Path
 
 import click
-from eval_harness import build_arm, environment, run_leaf
-from page_fixtures import prepare_page, read_fixture
+from leaf_dev.harness import build_arm, build_source, environment
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / ".tmp" / "bench-render-check"
@@ -260,10 +258,8 @@ def main(base_ref: str) -> None:
             if page.exists():
                 shutil.rmtree(page)
             page.parent.mkdir(parents=True, exist_ok=True)
-            prepare_page(
-                page,
-                read_fixture(ROOT / "examples" / f"{name}.html"),
-                partial(run_leaf, arms[arm], states[arm], check=True),
+            build_source(
+                arms[arm], states[arm], ROOT / "examples" / f"{name}.html", page
             )
     traces = OUT / "traces"
     traces.mkdir(exist_ok=True)

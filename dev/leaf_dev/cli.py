@@ -8,6 +8,8 @@ from pathlib import Path
 
 import click
 
+from leaf_dev.bugback import bugback
+from leaf_dev.flake import flake
 from leaf_dev.harness import build_arm
 from leaf_dev.probe import probe
 from leaf_dev.stills import stills
@@ -26,5 +28,7 @@ def arm(ref: str, dest: Path) -> None:
     click.echo(f"{dest}: {build_arm(ref, dest.resolve())}")
 
 
+cli.add_command(bugback)
+cli.add_command(flake)
 cli.add_command(probe)
 cli.add_command(stills)

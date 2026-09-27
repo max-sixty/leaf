@@ -31,3 +31,11 @@ and the others import it; a script under `scripts/` imports it too.
   reached by input, on a base runtime and HEAD's, and crops each state that changed
   into a before/after pair under `.tmp/stills/`.
 - `leaf-dev arm REF DEST` builds one arm, for an eval's A/B (`evals/README.md`).
+- `suite.py` runs a selection of the suite in a checkout and reads each test's
+  outcome, by phase, from pytest's report log, refusing a selection pytest would not
+  run; its runs time out and stop with their command.
+- `leaf-dev flake NODEID...` runs tests from the working tree as 18 copies, six at a
+  time, and prints every failure's message, since a load flake never shows serially.
+- `leaf-dev bugback [NODEID...]` runs the branch's new or changed tests on HEAD and
+  with the branch's change reverted, or with each `--flip` patch, in a scratch
+  worktree, and reports which went red.

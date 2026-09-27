@@ -80,6 +80,8 @@ module-name = "leaf"
 dev = [
   "pytest>=9.1",
   "pytest-xdist>=3",
+  # The report log `leaf-dev flake` and `leaf-dev bugback` read each test's outcome from.
+  "pytest-reportlog>=1",
   "axe-playwright-python>=0.1.4",
   "pre-commit>=4.6.2",
   # Browser screenshot assertions and scripts/record-demo.py's frames.

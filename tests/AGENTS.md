@@ -32,7 +32,11 @@ Mark a test `nightly` when a pull request can land without it, including any tes
 needs the network; expense alone does not make a test nightly. Broad discovery skips
 nightly tests, and an explicit file, node id, `-k`, `-m`, or `--lf` runs what it
 names. Before handing over a browser-facing change, run its whole browser file, the
-everyday gate, and the smallest nightly selection covering it.
+everyday gate, and the smallest nightly selection covering it. Run a new or changed
+browser test through `uv run leaf-dev flake NODEID`, which runs it as concurrent
+copies: a serial rerun samples only the idle machine that already passes it. The
+copies share every fixed path a test writes in the checkout, such as an export under
+`.tmp/`, so a failure naming one is the copies racing there, not load.
 
 CLI output and agent-facing text are regtest recordings in
 `tests/_regtest_outputs/`, normalized for temporary paths and generated identities but
@@ -209,7 +213,9 @@ changes the outcome, run the gesture both ways and assert they agree. Before
 ## State races are arrangements, not probabilities
 
 If a race appears only under load, order it with `page.route` rather than repeating
-the test. Register the route before the gesture it catches, or through `primed` or
+the test. `leaf-dev flake` reproduces it and prints every failing copy's message,
+which differs run to run and names the mechanism; the same run then confirms the
+route holds. Register the route before the gesture it catches, or through `primed` or
 `held_events` for the first navigation; raw and `browser.unwatched` pages are not
 armed for later routes. Where the driver loses a fact, such as the Page for a tab
 Chromium opened, observe the browser's record (`opened_tab`).
@@ -259,8 +265,10 @@ borders, outlines, and shadows.
 Name the single product change that would make each assertion fail, and arrange the
 fixture so that change reaches the measured surface. Reintroduce the defect and run
 the gate before accepting a test, and again when a refactor changes how an existing
-failure shows. An assertion that nothing moved straddles a transition that would move
-without the rule. Check what a lower layer already guarantees: a send queue that drops
+failure shows. `uv run leaf-dev bugback` does it on a committed branch: it runs the
+tests the branch added or changed with the branch's change reverted, or with each
+`--flip` patch, one guard at a time, and says which went red. An assertion that
+nothing moved straddles a transition that would move without the rule. Check what a lower layer already guarantees: a send queue that drops
 a second POST hides whether the widget refused it.
 
 The corpus has two matrices. Return state is anchored on a first visit

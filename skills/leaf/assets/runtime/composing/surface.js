@@ -71,7 +71,14 @@ import {
   registerBannerControl,
   showBannerControl,
 } from "../banner-shelf.js";
-import { shellRight, shownBox, shownParts, shownRect } from "../geometry.js";
+import {
+  bannerFoot,
+  shellRight,
+  shownBox,
+  shownParts,
+  shownRect,
+  shownWindow,
+} from "../geometry.js";
 import {
   targetElement,
   targetParts,
@@ -127,7 +134,6 @@ import { moveScrollerBy } from "../scrolling.js";
 // one. The destination box's placeholder names whichever of them dispatch would answer.
 const COMMENT_COMMANDS = ["comment.create", "comment.write"];
 
-const BANNER_CLEAR = 48;
 // Whether the user's primary pointer is a finger, as the theme's --aim-floor asks it.
 const coarsePointer = matchMedia("(pointer: coarse)");
 let floatingUiModule = null;
@@ -159,8 +165,6 @@ export function createResponseSurface({
   reactionContextContains,
   reactionTokens,
   setReact,
-  banner,
-  bottomChromeBoxes,
   closeShortcutShelf,
   closeVersionMenu,
   versionMenuIsOpen,
@@ -174,53 +178,20 @@ export function createResponseSurface({
     reactionTokens().length > 0 || Boolean(anchor?.quote && !designModeActive());
 
   // ---------- selection → comment ----------
-  // Floating UI stays inside the document page shell, whose right edge stops short of the
-  // root scrollport's gutter. The panel stands over the page, so an open panel's own left
-  // edge bounds it too: where it stands, which offsetLeft reads through its slide.
-  const rightEdge = (bounds = null) =>
-    (bounds?.right ??
-      Math.min(shellRight(), panel.open ? panel.offsetLeft : Infinity)) - 8;
   // The response surface lives in the viewport plane and Floating UI follows the passage
-  // through every scroll ancestor. Every caller therefore reasons in the same coordinates:
-  // rects, the pointer, and the banner's own band. The fixed floor covers the ordinary
-  // one-line banner; its live box takes over when compact chrome wraps to a second line.
-  const topEdge = (bounds = null) =>
-    bounds?.top ?? Math.max(BANNER_CLEAR, banner.getBoundingClientRect().bottom + 6);
-  const bottomEdge = (left, width, bounds = null) => {
-    if (bounds) return bounds.bottom - 8;
-    const tops = bottomChromeBoxes()
-      .filter((box) => left < box.right && left + width > box.left)
-      .map((box) => box.top - 8);
-    return tops.length ? Math.min(...tops) : innerHeight - 8;
-  };
-  const floatBoundary = (bounds = null) => {
-    // Pinch zoom and a software keyboard change the visible viewport without resizing
-    // the document's layout viewport. Intersect the reading room with that visible band
-    // before choosing a side or sizing the field; autoUpdate follows its resize/scroll.
-    const viewport = window.visualViewport;
-    const visibleLeft = viewport?.offsetLeft ?? 0;
-    const visibleTop = viewport?.offsetTop ?? 0;
-    const left = Math.max(bounds?.left ?? 0, visibleLeft) + 8;
-    const right = Math.min(
-      rightEdge(bounds),
-      visibleLeft + (viewport?.width ?? innerWidth) - 8,
-    );
-    const top = Math.max(topEdge(bounds), visibleTop + 8);
-    const bottom = Math.min(
-      bottomEdge(left, Math.max(0, right - left), bounds),
-      visibleTop + (viewport?.height ?? innerHeight) - 8,
-    );
-    return {
-      x: left,
-      y: top,
-      left,
-      top,
-      right,
-      bottom,
-      width: Math.max(0, right - left),
-      height: Math.max(0, bottom - top),
-    };
-  };
+  // through every scroll ancestor, so it floats in the part of the window the page shows
+  // (`shownWindow`), whose visible viewport autoUpdate also follows: within a reading
+  // region's shown box when it has one, else within the document page shell, whose right
+  // edge stops short of the root scrollport's gutter. The panel stands over the page, so
+  // an open panel's own left edge bounds the shell too: where it stands, which offsetLeft
+  // reads through its slide.
+  const floatBoundary = (bounds = null) =>
+    shownWindow({
+      within: bounds ?? {
+        right: Math.min(shellRight(), panel.open ? panel.offsetLeft : Infinity),
+      },
+      gap: 8,
+    });
   let fabAnchor = null;
   let fabOrigin = null;
   let fabFloating = true;
@@ -946,7 +917,7 @@ export function createResponseSurface({
   function bringForward(addressable) {
     if (!addressable) return;
     const seen = shownRect(addressable, new Map());
-    if (!seen || seen.bottom <= BANNER_CLEAR) {
+    if (!seen || seen.bottom <= bannerFoot()) {
       scrollToElement(addressable, "instant");
       return;
     }

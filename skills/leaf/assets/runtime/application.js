@@ -360,7 +360,6 @@ export function mountApplication(dependencies) {
 
   const margin = dependencies.createMarginProjection({
     panelIsOpen: dependencies.panelIsOpen,
-    bottomChromeBoxes: dependencies.margin.bottomChromeBoxes,
     designModeActive: dependencies.margin.designModeActive,
     pointerModeActive: dependencies.margin.pointerModeActive,
     comparisonBase: dependencies.margin.comparisonBase,

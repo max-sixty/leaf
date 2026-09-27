@@ -21,7 +21,7 @@ import {
   quoteFrom,
   rangeOf,
 } from "../passages.js";
-import { shownParts } from "../geometry.js";
+import { bannerFoot, shownParts } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
 import { repaint } from "../repaint.js";
 import { handBack } from "../focus.js";
@@ -31,7 +31,7 @@ import {
   hintCodes,
   renderKeys,
 } from "../keyboard/hints.js";
-import { chromeTop, keyBadgePlacement } from "../keyboard/key-badge-placement.js";
+import { keyBadgePlacement } from "../keyboard/key-badge-placement.js";
 import {
   keySequenceModel,
   keySequenceTemplate,
@@ -290,7 +290,7 @@ export function createTargetChooser({
   }
 
   function startingMatch(found) {
-    const top = chromeTop();
+    const top = bannerFoot();
     const next = found.findIndex(
       (segments) => rangeOf(segments).getBoundingClientRect().bottom > top,
     );
@@ -500,7 +500,7 @@ export function createTargetChooser({
         ])
         .filter(([target, rect]) => reading.exposes(target.element, rect));
       const boxes = seated.map(([, rect]) => rect);
-      const top = chromeTop();
+      const top = bannerFoot();
       return seated.map(([target, rect]) => {
         const steps = [...target.code];
         return {

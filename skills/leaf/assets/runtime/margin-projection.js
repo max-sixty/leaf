@@ -161,6 +161,7 @@ import { createMarginClusterViews } from "./margin-cluster-view.js";
 import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
 import { bannerControlDoor } from "./banner-shelf.js";
 import { threadCardGeometry } from "./thread-card-geometry.js";
+import { shownWindow } from "./geometry.js";
 import { placeKeeper } from "./user-place.js";
 import {
   isLiveWorkflow,
@@ -191,7 +192,6 @@ export function createMarginProjection({
   renderPageMapDialog,
   scrollThreadIntoView,
   renderMarginThread,
-  bottomChromeBoxes,
   placedAt,
   showThread,
   goToAsk,
@@ -623,23 +623,15 @@ export function createMarginProjection({
   }
 
   const CARD_GAP = 8;
-  // The room a card may stand in: its target's reading region, else the viewport, less
-  // the banner over it and the bottom chrome under it. The chrome's boxes stand in one
-  // row at the foot, so the tallest of them bounds the whole width.
+  // The room a card may stand in: the part of the window the page shows (`shownWindow`),
+  // within its target's reading region when it has one. That is the visible viewport, so
+  // a reply editor stays above a phone's software keyboard.
   function threadCardBoundary(target) {
     const region = containingReadingRegionFor(target);
-    const bounds = region ? shownRegionBounds(region) : null;
-    const bannerBottom =
-      document.querySelector(".lf-banner")?.getBoundingClientRect().bottom ?? 0;
-    const left = (bounds?.left ?? 0) + CARD_GAP;
-    const right = (bounds?.right ?? document.documentElement.clientWidth) - CARD_GAP;
-    const top = Math.max(bounds?.top ?? 0, bannerBottom) + CARD_GAP;
-    const bottom =
-      Math.min(
-        bounds?.bottom ?? innerHeight,
-        ...bottomChromeBoxes().map((box) => box.top),
-      ) - CARD_GAP;
-    return new DOMRect(left, top, Math.max(0, right - left), Math.max(0, bottom - top));
+    return shownWindow({
+      within: region ? shownRegionBounds(region) : null,
+      gap: CARD_GAP,
+    });
   }
   function measureThreadCard(width) {
     preview.style.setProperty("--lf-thread-width", `${width}px`);
@@ -2798,6 +2790,12 @@ export function createMarginProjection({
       scheduleThreadPreviewPosition();
       scheduleWidthRender();
     });
+    // Pinch zoom and a software keyboard move or shrink the visible viewport the card
+    // stands in without resizing the window.
+    for (const type of ["resize", "scroll"])
+      window.visualViewport.addEventListener(type, () =>
+        scheduleThreadPreviewPosition(),
+      );
     renderMargin();
     chromeRoot.append(nav, preview);
     if (!previewRegionMounted) {

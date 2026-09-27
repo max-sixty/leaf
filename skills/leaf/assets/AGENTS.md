@@ -170,7 +170,7 @@ selects from:
 | what the DOM represents | controller presentation tickets and projection commits |
 | when a document-wide renderer paints | the publication that opened the epoch, in the order `runtime/semantic-state.js` declares |
 | where each thread's passage lands | anchor paint's resolution of its anchor in this version |
-| geometry readings: what a scroller shows, what a surface hides, cover room | `geometry.js` (`visibleBand`, `declareOccluder`, `declareCoverRoom`), so being on screen has one answer |
+| geometry readings: what a scroller shows, what a surface hides, cover room, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareOccluder`, `declareCoverRoom`, `shownWindow`), so being on screen has one answer |
 
 Do not add a second cache, pending map, widget-specific replay list, or DOM
 attribute as another source for one of these facts; a rendering may expose state,

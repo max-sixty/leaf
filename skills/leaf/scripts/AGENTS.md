@@ -34,7 +34,6 @@ subpackage's initializer is only a marker, never a second API.
 - `workflows`, `activity`: unsettled user moves with their evidence, and the
   page-level fold over workflows, status, claim, turn, and watcher;
 - `asks`: the one implementation of page and thread Asks, which every surface reads;
-- `requests`: declared request seats, their lifecycle, and terminal receipts;
 - `work`: transient subject claims and widget work seats;
 - `delivery`, `session`, `hooks`, `host`: the delivery envelope, direct wait
   delivery, host lifecycle, and harness declarations;

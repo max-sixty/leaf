@@ -83,7 +83,6 @@ export function mountApplication(dependencies) {
   const currentReceipts = () => readApplication().authoritative?.browser.receipts ?? [];
   const pendingApprovals = () => readApplication().effective.pendingApprovals;
   const acceptedApprovals = () => readApplication().effective.acceptedApprovals;
-  const pendingRequests = () => readApplication().effective.pendingRequests;
   const openAsks = readOpenAsks;
   const unansweredAsks = readUnansweredAsks;
   const approvalBlockingAsks = readApprovalBlockingAsks;
@@ -238,36 +237,14 @@ export function mountApplication(dependencies) {
         );
       return candidate ? projectionCommands.withdraw(candidate) : null;
     }
-    const entry =
-      command.kind === "action"
-        ? reading.actions[command.verb]
-        : command.kind === "request"
-          ? reading.requests[command.verb]
-          : null;
-    if (!entry?.available) return null;
-    const request = descriptor.declaration["x-request"];
-    let sourceRevision = null;
-    if (command.kind === "request" && request?.records) {
-      const field = request.verbs?.[command.verb]?.unit;
-      const unit = command.detail?.[field];
-      const seat = reading.requestUnits?.[unit];
-      if (
-        typeof unit !== "string" ||
-        !unit ||
-        seat?.phase !== "ready" ||
-        seat.seat.offered === false
-      )
-        return null;
-      sourceRevision = seat.seat.source_revision;
-    }
+    if (!reading.actions[command.verb]?.available) return null;
     return (
       startPost({
-        kind: command.kind,
+        kind: "action",
         revision: runtime.currentRevision,
         widget: descriptor.id,
         action: command.verb,
         detail: structuredClone(command.detail ?? {}),
-        ...(sourceRevision != null && { source_revision: sourceRevision }),
         ...(command.attempt && { attempt: command.attempt }),
       })?.answer ?? null
     );
@@ -512,7 +489,6 @@ export function mountApplication(dependencies) {
     unansweredAsks,
     pendingApprovals,
     acceptedApprovals,
-    pendingRequests,
     post,
     projectData: dataProjection.projectData,
     readAndApply: feed.readAndApply,
@@ -550,7 +526,6 @@ export const openThread = (...args) => app().margin.openPageThread(...args);
 export const unansweredAsks = (...args) => app().unansweredAsks(...args);
 export const pendingApprovals = (...args) => app().pendingApprovals(...args);
 export const acceptedApprovals = (...args) => app().acceptedApprovals(...args);
-export const pendingRequests = (...args) => app().pendingRequests(...args);
 export const post = (...args) => app().post(...args);
 export const projectData = (...args) => app().projectData(...args);
 export const readAndApply = (...args) => app().readAndApply(...args);

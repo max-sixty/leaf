@@ -23,7 +23,6 @@ import pytest
 import verify_site
 from click.testing import CliRunner
 from interact_support import (
-    COMMAND_SUBJECTS,
     PAGE,
     STATED_TIMEOUT,
     Prose,
@@ -34,7 +33,6 @@ from interact_support import (
     yaml_document,
 )
 from leaf import codex as leaf_codex
-from leaf.cli import cli
 from leaf.codex import AppServerRequestRejected, accept_codex_delivery, delivery_records
 from leaf.delivery import current_responses
 from leaf.event_log import append_event, read_events
@@ -42,10 +40,8 @@ from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
 from leaf.http import page_delivery
 from leaf.machine import pid_alive
-from leaf.requests import request_lifecycles
 from leaf.revision_artifact import Resource
 from leaf.revision_delivery import compose_document
-from leaf.revisioning import activate_source
 from leaf.schema import ASSETS
 from leaf.served_state import page as served_page
 from leaf.service import delivery_reply_attempt, open_session_turn
@@ -801,43 +797,17 @@ def test_a_start_that_fails_on_its_connection_is_recorded_like_any_other(
     )
 
 
-@pytest.mark.parametrize("response_kind", ["reply", "receipt"])
 def test_hosted_agent_receives_the_response_instructions_and_delivery(
-    page_dir, monkeypatch, snapshot, response_kind
+    page_dir, monkeypatch, snapshot
 ):
     """Capture real instructions and deliveries at the App Server wire boundary.
 
     Only the external App Server connection is replaced. Event admission, delivery
     preparation, response addressing, and both request builders run normally.
     """
-    command = {"kind": "comment", "author": "user", "text": "Use backfill first."}
-    if response_kind == "receipt":
-        source = page_dir / "index.html"
-        controls = (
-            '<lf-command id="hub"><lf-task id="goal" status="active">'
-            "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
-            '<lf-ask id="recovery"><h3>Restart the worker?</h3>'
-            '<lf-operations id="commands" target="goal" worker="worker" '
-            'worktree="tree">'
-            '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-            "</lf-operations></lf-ask>"
-        )
-        source.write_text(
-            source.read_text().replace("</section>", controls + "</section>")
-        )
-        activated = activate_source(page_dir)
-        assert activated.error is None
-        command = {
-            "kind": "request",
-            "author": "user",
-            "revision": activated.revision,
-            "widget": "commands",
-            "action": "restart",
-            "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
-        }
-        event = append_command(page_dir, command)
-    else:
-        event = append_event(page_dir, command)
+    event = append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "Use backfill first."}
+    )
     host = website_server.WebsiteCodexHost("codex")
     outgoing = {}
 
@@ -860,10 +830,7 @@ def test_hosted_agent_receives_the_response_instructions_and_delivery(
     payload = json.loads(outgoing["turn/start"]["toolOutput"]["output"])
     [delivered] = payload["batches"][0]["events"]
     # Frozen for App Server, a reply is the turn's to write with its messages.
-    assert (
-        delivered["answer"]["kind"]
-        == {"reply": "turn", "receipt": "receipt"}[response_kind]
-    )
+    assert delivered["answer"]["kind"] == "turn"
     replacements = {
         str(page_dir): "/page",
         event["id"]: "user-event",
@@ -888,31 +855,6 @@ def test_hosted_agent_receives_the_response_instructions_and_delivery(
             recorded,
         )
     )
-    if response_kind == "receipt":
-        # The host's scope forbids restarting a worker outside this page. Its
-        # command route must still let it report failure and reopen the request.
-        result = CliRunner().invoke(
-            cli,
-            [
-                "experimental",
-                "receipt",
-                str(page_dir),
-                event["id"],
-                "failed",
-                "--text",
-                "The worker is outside this hosted page's scope.",
-                "--json",
-            ],
-        )
-        assert result.exit_code == 0, result.output
-        receipt = json.loads(result.output)
-        assert (receipt["request"], receipt["status"]) == (event["id"], "failed")
-        assert (
-            website_server.full_state(page_dir, read_events(page_dir))["activity"][
-                "obligations"
-            ]
-            == []
-        )
 
 
 def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
@@ -1776,34 +1718,6 @@ def _page_pick(page_dir: Path) -> dict:
     )
 
 
-def _request(page_dir: Path) -> dict:
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "</section>",
-            '<lf-command id="hub"><lf-task id="goal" status="blocked">'
-            "<strong>Goal</strong>"
-            + COMMAND_SUBJECTS
-            + '<lf-ask id="commands-decision"><h3>What next?</h3>'
-            '<lf-operations id="commands" target="goal" worker="worker" '
-            'worktree="tree">'
-            '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-            "</lf-operations></lf-ask></lf-task></lf-command></section>",
-        )
-    )
-    publish(page_dir)
-    return append_command(
-        page_dir,
-        {
-            "kind": "request",
-            "author": "user",
-            "revision": 1,
-            "widget": "commands",
-            "action": "restart",
-            "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
-        },
-    )
-
-
 def _message(page_dir: Path) -> dict:
     publish(page_dir)
     return append_event(
@@ -1819,18 +1733,17 @@ def _message(page_dir: Path) -> dict:
 
 @pytest.mark.parametrize(
     ("answer", "owed_move"),
-    (("markup", _page_pick), ("receipt", _request), ("reply", _message)),
+    (("markup", _page_pick), ("reply", _message)),
 )
 def test_a_failed_turn_hands_every_kind_of_owed_move_back(
     page_dir, monkeypatch, answer, owed_move
 ):
     """A turn that ends without answering settles what it was given, whatever it was.
 
-    The hosted site starts a turn for every move that owes an answer: a message, a
-    request, an answer to a page Ask. Each takes the failure its own answer takes,
-    and each leaves the next step with the user, so none stays owed with no turn
-    coming for it. A request's failed receipt is its lifecycle's own outcome and
-    reopens its seat. A pick keeps standing on the page, and the workflow says it was
+    The hosted site starts a turn for every move that owes an answer: a message or
+    an answer to a page Ask. Each takes the failure its own answer takes, and each
+    leaves the next step with the user, so none stays owed with no turn coming for
+    it. A pick keeps standing on the page, and the workflow says it was
     not answered until the user answers again. A message is told in its own
     thread.
     """
@@ -1873,18 +1786,6 @@ def test_a_failed_turn_hands_every_kind_of_owed_move_back(
     returned = [
         workflow for workflow in state["workflows"] if workflow["input"] == move["id"]
     ]
-    if answer == "receipt":
-        [receipt] = [event for event in events if event["kind"] == "receipt"]
-        assert (
-            receipt["request"],
-            receipt["status"],
-            receipt["failure"],
-            receipt["agent"],
-        ) == (move["id"], "failed", "turn_failed", website_server.WEBSITE_AGENT)
-        [lifecycle] = request_lifecycles(events)
-        assert lifecycle["phase"] == "ready"
-        assert returned == []
-        return
     if answer == "markup":
         [gave_up] = [
             event

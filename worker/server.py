@@ -290,8 +290,8 @@ def write_failure_receipt(
     This is the only host writer of `failure`, so a user meets every giving-up
     boundary — the Worker's rate limiter, a dispatch that threw, a turn this
     container followed to nothing — in one shape per move: `fail_answer` writes the
-    failure the move's own answer takes, whether the move was a message, a request,
-    or an answer to a page Ask.
+    failure the move's own answer takes, whether the move was a message or an answer
+    to a page Ask.
 
     Only the move is named. A reply's address is not always the move — a gesture on a
     widget frozen into thread markup is answered on the thread holding it — and
@@ -561,11 +561,11 @@ class HostedTurn(CarriedTurn):
     def _receipt_unanswered(self) -> None:
         """Tell the user no answer is coming, for each move still owed one.
 
-        A turn that wrote its answers — a final reply, a stamped version, a request
-        receipt — settled those moves, and this passes over them. What is left is
-        every other way a turn can end — failed, interrupted, or completed without
-        writing an answer — where the page would otherwise show a move picked up by a
-        turn that is gone, with no answer and nothing to redeliver it. The receipt
+        A turn that wrote its answers — a final reply or a stamped version — settled
+        those moves, and this passes over them. What is left is every other way a turn
+        can end — failed, interrupted, or completed without writing an answer — where
+        the page would otherwise show a move picked up by a turn that is gone, with no
+        answer and nothing to redeliver it. The receipt
         claims no more than the absence of an answer, because that is all this
         observed.
         """

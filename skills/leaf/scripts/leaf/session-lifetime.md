@@ -81,17 +81,15 @@ Ordinary durable stale, ended, interrupted, and failed observations prove uncert
 or a stopped operation but no concrete user recovery gesture, so they remain
 agent-owned. A terminal host failure is the exception, whatever the move's answer:
 `workflows.py` names the record each answer takes, and each hands recovery to the
-user. It settles the Stop obligation; a failed request receipt ends the request
-outright, while a failure reply or a failed pickup retains an `answered` workflow with
-a failed response condition until the user moves again. A local
+user. It settles the Stop obligation; a failure reply or a failed pickup retains an
+`answered` workflow with a failed response condition until the user moves again. A local
 send refusal similarly has a browser-owned Retry gesture; that unresolved overlay may
 put the thread in Needs you without persisting another workflow record.
 
 A workflow's `stage` and its `answer` are separate readings. The stage reports
 delivery for every move the user has handed over; the answer, which `workflows.py`
 states, is what the agent owes it: a reply, a version for a thread that asked
-for one, a version whose markup records a user's answer to a page Ask, a request's
-receipt, or null. Only owed answers enter activity counts. The Stop hook and
+for one, a version whose markup records a user's answer to a page Ask, or null. Only owed answers enter activity counts. The Stop hook and
 `leaf status idle` refuse over one set of them, `activity.blocking_obligations`:
 the acknowledged moves nothing else is set to answer. A move still `queued` is
 answered by the later turn that opens it, and a `turn` answer the open turn has

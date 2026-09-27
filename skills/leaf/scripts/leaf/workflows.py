@@ -23,9 +23,7 @@ Answers are one of:
   ahead of the binding; `leaf thread reply` refuses every writer but that attempt;
 - `{"kind": "markup", "action": <action>}` — a page action that is part of its
   widget's answered Ask and the authored markup does not yet record, answered by
-  a stamped version that writes it in;
-- `{"kind": "receipt", "request": <request>}` — a request, answered by its one
-  terminal receipt.
+  a stamped version that writes it in.
 
 Two kinds of move are delivered with no answer of their own. A user input a
 newer input in the same thread covers is answered through the newest, whose one
@@ -45,8 +43,7 @@ answered, every move on that widget is owed (`asks.part_of_ask`).
 
 A host that gives up on a move writes the failure its answer takes
 (`thread.fail_answer`), each carrying `failure`: a reply in the
-thread, a failed receipt, or a failed pickup of a page move. A failed receipt is the
-request's own outcome and settles it; the other two leave the move a workflow
+thread, or a failed pickup of a page move. Either leaves the move a workflow
 answered with a failed response, whose next actor is the user, until the user
 moves again or the markup records the move anyway.
 """
@@ -402,20 +399,6 @@ def canonical_workflows(
             workflows.append(failed(source, target, coordinate, gave_up))
         else:
             workflows.append(workflow(source, target, coordinate, answer=answer))
-
-    # A request is owed its one terminal receipt whatever became of the seat that
-    # offered it, so it reads from the log alone.
-    receipted = {event["request"] for event in events if event["kind"] == "receipt"}
-    for source in events:
-        if source["kind"] == "request" and source["id"] not in receipted:
-            workflows.append(
-                workflow(
-                    source,
-                    {"kind": "widget", "id": source["widget"]},
-                    ["request", source["id"]],
-                    answer={"kind": "receipt", "request": source["id"]},
-                )
-            )
 
     # Keep an explicit claim visible even when there was no preceding user
     # gesture to grow from. This preserves the useful part of `status --on`

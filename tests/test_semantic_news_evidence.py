@@ -1,7 +1,7 @@
 """Response identities exposed by the canonical browser activity readings."""
 
 from interact_support import page_state, publish
-from leaf import activity, event_log, requests, thread
+from leaf import activity, event_log, thread
 from leaf.served_state.thread import _thread_awaits_user
 
 
@@ -130,51 +130,3 @@ def test_structural_ask_owns_attention_without_a_duplicate_plain_prompt():
         None,
         {"thread"},
     ) == (True, None)
-
-
-def test_request_outcomes_keep_receipts_after_the_seat_is_removed():
-    events = [
-        {
-            "kind": "request",
-            "id": "first",
-            "revision": 1,
-            "widget": "old-seat",
-            "action": "submit",
-            "meaning": {
-                "scope": "page",
-                "unit": "old-seat",
-            },
-        },
-        {
-            "kind": "receipt",
-            "id": "first-failed",
-            "request": "first",
-            "status": "failed",
-            "seq": 2,
-        },
-        {
-            "kind": "request",
-            "id": "second",
-            "revision": 1,
-            "widget": "old-seat",
-            "action": "submit",
-            "meaning": {
-                "scope": "page",
-                "unit": "old-seat",
-            },
-        },
-        {
-            "kind": "receipt",
-            "id": "second-succeeded",
-            "request": "second",
-            "status": "succeeded",
-            "seq": 4,
-        },
-    ]
-    assert [
-        (item["request"], item["receipt"]["id"], item["document"])
-        for item in requests.request_outcomes(events)
-    ] == [
-        ("first", "first-failed", {"kind": "page", "revision": 1}),
-        ("second", "second-succeeded", {"kind": "page", "revision": 1}),
-    ]

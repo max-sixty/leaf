@@ -259,7 +259,7 @@ def run_session(arm: Path, case: str, run: Path) -> None:
     leaf("page", "init", str(page), check=True)
     shutil.copy(ROOT / "examples" / "triage-board.html", page / "index.html")
     leaf(
-        "version",
+        "page",
         "stamp",
         str(page),
         "--text",
@@ -325,7 +325,9 @@ def run_session(arm: Path, case: str, run: Path) -> None:
         if sampler:
             sampled.set()
             sampler.result()
-        (run / "events.jsonl").write_text(leaf("events", str(page), check=True).stdout)
+        (run / "events.jsonl").write_text(
+            leaf("page", "events", str(page), check=True).stdout
+        )
     finally:
         sampled.set()
         sampling.shutdown()

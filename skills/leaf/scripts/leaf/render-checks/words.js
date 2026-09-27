@@ -91,17 +91,13 @@ export const shownVerbatim = (declarations) =>
 // them is one word of the page's, and this asks about two.
 //
 // The layer is in two places and the float rule reaches both, which is why only one of
-// them is named. The line counting a passage's comments lives inside the page's own
-// elements by design — it is what a screen reader hears where a painted mark says
-// nothing — and it is clipped to nothing on screen. checkVisibility answers for display,
-// visibility and opacity and knows nothing of clip-path, so that line read as drawn, and
-// its text lays out past the 1px box holding it: an anchor on a container put "1 comment"
-// across the paragraph below the widget and failed the gate on a page with nothing wrong
-// with it. It wore a name in this selector for a while, next to the container's, and the
-// name went the day the rule below could answer for it — the line is a control the
-// runtime hangs absolutely, which is the whole of what `floating` asks. Two skips over
-// one element is a guarantee kept twice, and the weaker of them is the one that has to be
-// remembered when the next float is written.
+// them is named. Beside the chrome, a widget hangs some of its own controls out of flow
+// over the page, clipped or transparent at rest. checkVisibility answers for display,
+// visibility and opacity and knows nothing of clip-path, so such a control reads as
+// drawn, and its text lays out past the box holding it. A control the runtime hangs
+// absolutely is the whole of what `floating` asks, so no float needs a name here: two
+// skips over one element is a guarantee kept twice, and the weaker of them is the one
+// that has to be remembered when the next float is written.
 //
 // checkVisibility knows nothing of content-visibility either, which is what a collapse
 // wears: an inactive tab's panel and a settled group's cards are hidden="until-found" so

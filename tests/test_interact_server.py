@@ -127,7 +127,7 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
     }
     assert all("?" not in row["path"] and row["durationMs"] >= 0 for row in server_rows)
     assert fetch(f"{server}/interactions.jsonl")[0] == 404
-    result = CliRunner().invoke(cli_model.cli, ["interactions", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "interactions", str(page_dir)])
     assert result.exit_code == 0, result.output
     assert result.output.splitlines() == list(interaction_model.lines(page_dir))
 
@@ -1025,7 +1025,7 @@ def test_a_bad_source_save_keeps_the_last_revision_live_and_reports_the_error(
 
     stamp = CliRunner().invoke(
         cli_model.cli,
-        ["version", "stamp", str(page_dir), "--text", "must not fall back"],
+        ["page", "stamp", str(page_dir), "--text", "must not fall back"],
     )
     assert stamp.exit_code != 0
     assert files_model.list_revisions(page_dir) == [1]
@@ -1092,7 +1092,7 @@ def test_a_stamped_restatement_remains_the_valid_live_source(server, page_dir):
     (page_dir / "index.html").write_text(baseline)
     first = CliRunner().invoke(
         cli_model.cli,
-        ["version", "stamp", "--json", str(page_dir), "--text", "baseline"],
+        ["page", "stamp", "--json", str(page_dir), "--text", "baseline"],
     )
     assert first.exit_code == 0, first.output
     first_revision = json.loads(first.output)["revision"]
@@ -1116,7 +1116,7 @@ def test_a_stamped_restatement_remains_the_valid_live_source(server, page_dir):
     )
     second = CliRunner().invoke(
         cli_model.cli,
-        ["version", "stamp", "--json", str(page_dir), "--text", "corrected"],
+        ["page", "stamp", "--json", str(page_dir), "--text", "corrected"],
     )
     assert second.exit_code == 0, second.output
     stamped = json.loads(second.output)
@@ -1188,7 +1188,7 @@ def test_server_round_trip(server, page_dir):
     assert status == 404
     stamped = CliRunner().invoke(
         cli_model.cli,
-        ["version", "stamp", str(page_dir), "--text", "cut"],
+        ["page", "stamp", str(page_dir), "--text", "cut"],
     )
     assert stamped.exit_code == 0, stamped.output
     # The handover address is the live page, not a pinned revision address.
@@ -1325,7 +1325,9 @@ def test_server_round_trip(server, page_dir):
     assert status == 200
     design = event_model.read_events(page_dir)[-1]
     assert design["about"] == "design" and design["anchor"]["part"] == "Threads"
-    transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+    transcript = CliRunner().invoke(
+        cli_model.cli, ["page", "transcript", str(page_dir)]
+    )
     assert "> § lf-banner · Threads  — about the design" in transcript.output
     drawing = {
         "format": "leaf-drawing/2",
@@ -1357,7 +1359,9 @@ def test_server_round_trip(server, page_dir):
     assert status == 200
     page_drawing = event_model.read_events(page_dir)[-1]
     assert "anchor" not in page_drawing and page_drawing["drawing"] == drawing
-    transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+    transcript = CliRunner().invoke(
+        cli_model.cli, ["page", "transcript", str(page_dir)]
+    )
     assert (
         "_(drawing attached over “to reap every process … before exporting”)_"
         in transcript.output
@@ -1539,7 +1543,7 @@ def test_server_round_trip(server, page_dir):
         },
         {"kind": "reply", "parent": "nope", "revision": 2, "text": "hi"},
         {"kind": "resolve", "parent": "nope"},
-        # A report is agent-authored: its one door is `leaf experimental report`,
+        # A report is agent-authored: its one door is `leaf page report`,
         # so the browser door refuses the kind outright rather than minting user
         # events that outrank nothing.
         {
@@ -1583,7 +1587,7 @@ def test_a_page_serves_one_document_at_each_of_its_three_addresses(server, page_
     them, and a crawler that finds all three, arrive at one page.
     """
     stamped = CliRunner().invoke(
-        cli_model.cli, ["version", "stamp", str(page_dir), "--text", "cut"]
+        cli_model.cli, ["page", "stamp", str(page_dir), "--text", "cut"]
     )
     assert stamped.exit_code == 0, stamped.output
     revision = files_model.latest_revision(page_dir)
@@ -1777,8 +1781,6 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
             "thread",
             "reply",
             str(page_dir),
-            "--to",
-            "approval-question",
             "--for",
             "approval-question",
             "--text",
@@ -1838,7 +1840,9 @@ def test_the_transcript_reports_only_an_approval_that_stands(page_dir):
     )
 
     def transcript():
-        result = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+        result = CliRunner().invoke(
+            cli_model.cli, ["page", "transcript", str(page_dir)]
+        )
         assert result.exit_code == 0, result.output
         return result.output
 
@@ -2754,8 +2758,6 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
             "thread",
             "reply",
             str(page_dir),
-            "--to",
-            "c1",
             "--for",
             "c1",
             "--text",
@@ -2854,7 +2856,7 @@ def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring
     noted = CliRunner().invoke(
         cli_model.cli,
         [
-            "version",
+            "page",
             "stamp",
             str(page_dir),
             "--text",
@@ -3451,7 +3453,7 @@ def test_a_comment_carrying_line_separators_survives_the_log(server, page_dir):
     events = [e for e in event_model.read_events(page_dir) if e["kind"] == "comment"]
     assert [e["text"] for e in events] == [text]
     # One physical line per event under any line-splitting reader, so what
-    # `wait` and `events` print stays one event per line for every consumer.
+    # `wait` and `page events` print stays one event per line for every consumer.
     raw = (page_dir / "events.jsonl").read_text()
     assert raw.splitlines() == raw.rstrip("\n").split("\n")
 
@@ -5124,7 +5126,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
         if element["thread"] == "c-lost"
     ] == [element["id"] for element in orphan_elements]
     history = CliRunner().invoke(
-        cli_model.cli, ["events", str(page_dir), "--thread", "c-lost"]
+        cli_model.cli, ["page", "events", str(page_dir), "--thread", "c-lost"]
     )
     assert history.exit_code == 0, history.output
     records = [json.loads(line) for line in history.output.splitlines()]
@@ -5142,15 +5144,17 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     assert rows["r-kept"]["thread"] == lost_thread
     assert rows[closed["id"]]["thread"] == lost_thread
 
-    # An agent holding the thread's id names it as the message to answer, as it may
-    # for any thread whose opening comment survives; the refusal sends it to the
-    # message the thread is answered through.
-    refused = CliRunner().invoke(
+    # The thread's id still names the thread to the writers, as it does for any
+    # thread whose opening comment survives; the reply is addressed through the
+    # first message the thread still holds, since the id names no event.
+    replied = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", str(page_dir), "--to", "c-lost", "--text", "Retrying."],
+        ["thread", "reply", "--json", str(page_dir), "c-lost", "--text", "Retrying."],
     )
-    assert refused.exit_code != 0
-    assert (
-        "c-lost is a thread whose opening message this page's log lost — "
-        "`leaf thread reply <page> --to r-kept` replies in it"
-    ) in refused.output
+    assert replied.exit_code == 0, replied.output
+    assert json.loads(replied.output)["parent"] == "r-kept"
+    resolved = CliRunner().invoke(
+        cli_model.cli, ["thread", "resolve", str(page_dir), "c-lost"]
+    )
+    assert resolved.exit_code == 0, resolved.output
+    assert resolved.output == "resolved c-lost\n"

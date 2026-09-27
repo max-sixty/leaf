@@ -5864,7 +5864,6 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
                 "thread",
                 "summarize",
                 str(page_dir),
-                root["id"],
                 "--from",
                 start,
                 "--through",
@@ -5881,7 +5880,7 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
 
     cross_thread = summarize(root["id"], neighbor["id"])
     assert cross_thread.exit_code != 0
-    assert "endpoints must name spoken turns in the named thread" in cross_thread.output
+    assert "endpoints must name spoken turns in one thread" in cross_thread.output
 
     reaction = events_model.append_event(
         page_dir,
@@ -5895,7 +5894,7 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
     standing_reaction_range = summarize(third["id"], reaction["id"])
     assert standing_reaction_range.exit_code != 0
     assert (
-        "endpoints must name spoken turns in the named thread"
+        "endpoints must name spoken turns in one thread"
         in standing_reaction_range.output
     )
 
@@ -5905,9 +5904,7 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
     )
     withdrawn_range = summarize(third["id"], reaction["id"])
     assert withdrawn_range.exit_code != 0
-    assert (
-        "endpoints must name spoken turns in the named thread" in withdrawn_range.output
-    )
+    assert "endpoints must name spoken turns in one thread" in withdrawn_range.output
 
     described = summarize(second["id"], third["id"], as_json=False)
     assert described.exit_code == 0, described.output
@@ -6029,8 +6026,6 @@ def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
             "thread",
             "reply",
             str(page_dir),
-            "--to",
-            first["id"],
             "--for",
             first["id"],
             "--text",
@@ -6046,8 +6041,6 @@ def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
             "thread",
             "reply",
             str(page_dir),
-            "--to",
-            second["id"],
             "--for",
             second["id"],
             "--text",
@@ -6522,7 +6515,7 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
         (target["id"], [target["id"], accepted["id"]]),
     ):
         selected = CliRunner().invoke(
-            cli_model.cli, ["events", str(page_dir), "--thread", thread]
+            cli_model.cli, ["page", "events", str(page_dir), "--thread", thread]
         )
         assert selected.exit_code == 0, selected.output
         assert [
@@ -6743,7 +6736,7 @@ def test_exact_thread_history_and_wait_share_indirect_resolution_events(
         },
     )
     selected = CliRunner().invoke(
-        cli_model.cli, ["events", str(page_dir), "--thread", "c1"]
+        cli_model.cli, ["page", "events", str(page_dir), "--thread", "c1"]
     )
     assert selected.exit_code == 0, selected.output
     assert [json.loads(line)["id"] for line in selected.output.splitlines()] == [
@@ -9520,7 +9513,7 @@ def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
     (live / "index.html").write_text(source, encoding="utf-8")
     stamped = CliRunner().invoke(
         cli_model.cli,
-        ["version", "stamp", str(live), "--text", "published"],
+        ["page", "stamp", str(live), "--text", "published"],
     )
     assert stamped.exit_code == 0, stamped.output
     offline = tmp_path / "a-offline-page"
@@ -12152,8 +12145,6 @@ def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
             "thread",
             "reply",
             str(claimed),
-            "--to",
-            comment,
             "--for",
             comment,
             "--text",
@@ -12215,8 +12206,6 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
                 "thread",
                 "reply",
                 str(claimed),
-                "--to",
-                comment,
                 "--for",
                 comment,
                 "--text",

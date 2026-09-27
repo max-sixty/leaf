@@ -21,7 +21,7 @@ from leaf.styles import (
     inline_style_at,
     scroller_css_advice,
 )
-from leaf.thread_context import comment_ids, specimen_events, thread_structure
+from leaf.thread_context import specimen_events, thread_ids, thread_structure
 from leaf.validation.compatibility import candidate_vocabulary_gaps
 from leaf.validation.instances import (
     addressable_instance_errors,
@@ -166,7 +166,7 @@ def _instance_errors(
     events: list,
     parser,
     registry: dict | None,
-    comment_ids: set[str],
+    thread_ids: set[str],
 ) -> list[str]:
     """Validate authored instances against their document's event and id namespace."""
     errors = []
@@ -183,7 +183,7 @@ def _instance_errors(
     )
     errors.extend(declared_word_errors(parser.lf_elements, registry))
     errors.extend(line_ref_errors(parser.lf_elements, registry))
-    errors.extend(suggestion_errors(parser.lf_elements, registry, comment_ids))
+    errors.extend(suggestion_errors(parser.lf_elements, registry, thread_ids))
     taken = sorted(parser.ids & thread_structure(events).ids)
     if taken:
         errors.append(f"ids already taken by widget markup in a reply: {taken}")
@@ -191,11 +191,11 @@ def _instance_errors(
 
 
 def _authored_document_checks(
-    page_dir, document, events, registry, contracts, readings, comment_ids
+    page_dir, document, events, registry, contracts, readings, thread_ids
 ):
     """The same authored-page gate for the root and each isolated child document."""
     errors = _document_errors(page_dir, document)
-    errors.extend(_instance_errors(events, document, registry, comment_ids))
+    errors.extend(_instance_errors(events, document, registry, thread_ids))
     if registry is not None:
         errors.extend(data_document_errors(readings, contracts))
     errors.extend(media_errors(document, page_dir))
@@ -281,7 +281,7 @@ def check_source(
         registry,
         contracts,
         readings,
-        comment_ids(events),
+        thread_ids(events),
     )
     errors.extend(document_errors)
     documents = [(document, events, "")]

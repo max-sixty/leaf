@@ -120,13 +120,13 @@ def _base_state(
         # stands under `reactions` below.
         "threads": [
             {
-                "id": root,
+                "id": thread_id,
                 "title": thread["title"],
                 "anchor": thread["anchor"],
                 "detached_from": thread["detached_from"],
                 "resolved": thread["resolved"] and thread["resolved"]["author"],
             }
-            for root, thread in threads.items()
+            for thread_id, thread in threads.items()
             if not bare_reaction(thread)
         ],
         # Every reaction still standing — the agent-side reading of the marks
@@ -141,13 +141,13 @@ def _base_state(
                     "anchor": message.get("anchor"),
                     "about": message.get("about"),
                     "parent": message.get("parent"),
-                    "thread": root,
+                    "thread": thread_id,
                     "revision": message.get("revision"),
                     "seq": message["seq"],
                 },
                 registry,
             )
-            for root, thread in threads.items()
+            for thread_id, thread in threads.items()
             if not thread["resolved"]
             for message in thread["msgs"]
             if is_reaction(message)

@@ -5960,10 +5960,12 @@ def test_inflight_native_paging_hides_hints_until_the_scene_settles(browser, ser
     )
 
     # Hold the browser's paging animation and the hint settle timer at the first
-    # rendering frame. Driver-side polling can otherwise begin after the 80 ms
-    # settle window and mistake the settled map for an in-flight one.
+    # rendering frame. The installed clock starts advancing immediately, so
+    # pause at a future instant rather than its elapsed origin. Driver-side
+    # polling can otherwise begin after the 80 ms settle window and mistake
+    # the settled map for an in-flight one.
     page.clock.install(time=0)
-    page.clock.pause_at(0)
+    page.clock.pause_at(page.evaluate("() => (Date.now() + 1000) / 1000"))
     page.keyboard.press("PageDown")
     page.keyboard.press("g")
     page.clock.run_for(20)
@@ -5993,13 +5995,8 @@ def test_armed_hints_settle_after_resize(browser, serve):
             )
         ),
     )
-    page.clock.install(time=0)
-    page.clock.pause_at(0)
     page.keyboard.press("g")
     page.set_viewport_size({"width": 800, "height": 700})
-    page.clock.run_for(100)
-    # Let the settle callback's requested paint run before reading its chips.
-    page.clock.resume()
     expect(page.locator(CHIPS).first).to_be_visible()
 
 

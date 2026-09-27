@@ -387,7 +387,7 @@ def test_specimens_seed_only_the_declared_threads_and_reset_by_recreation(
     status, raw = fetch(f"{server}/api/specimens", data=b'{"template":"practice"}')
     assert (
         status == 400
-        and "resolves='aabb0011' names no comment" in json.loads(raw)["error"]
+        and "resolves='aabb0011' names no thread" in json.loads(raw)["error"]
     )
     for identity, text in (
         ("aabb0011", "Selected thread"),
@@ -5622,7 +5622,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     `read_events` skips a torn line and keeps reading, so a reply can outlive the
     message it answers — the one way the log tears from inside the product's own
     grammar rather than from someone editing the file. Two readings walk that
-    relation: `thread_roots`, which resolves a reply to the thread it is in,
+    relation: `thread_names`, which resolves a reply to the thread it is in,
     and `build_threads`, which builds the thread itself. The first was made to
     degrade and the second went on raising, so a page that had lost one line answered
     `page state` with a KeyError and handed the session picking it up nothing at all —
@@ -5630,7 +5630,15 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
 
     Both now put the surviving reply under the id the lost message was known by, so an
     action naming that id in `resolves` still finds its thread and the two readings
-    cannot disagree about which thread a message is in."""
+    cannot disagree about which thread a message is in. Every reading that names the
+    thread names it by that id, and one that looked the thread up through its opening
+    message found nothing there."""
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace(
+            "</main>", '<lf-activity id="feed"></lf-activity></main>'
+        )
+    )
     publish(page_dir)
     event_model.append_event(
         page_dir,
@@ -5669,7 +5677,8 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     assert [e["id"] for e in events if e["kind"] == "reply"] == ["r-kept"], (
         "the tear took the reply with it, so nothing below is being read"
     )
-    assert thread_context_model.thread_roots(events)["r-kept"] == "c-lost"
+    names = thread_context_model.thread_names(events)
+    assert (names["r-kept"], names["c-lost"]) == ("c-lost", "c-lost")
     threads = event_folds_model.build_threads(events, {})  # nothing published to sit on
     assert list(threads) == ["c-lost"], (
         f"the two readings put the reply in different threads: {list(threads)}"
@@ -5743,3 +5752,27 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     records = [json.loads(line) for line in history.output.splitlines()]
     assert [record["id"] for record in records] == ["r-kept", closed["id"]]
     assert records[0]["text"] == "the answer that survived it"
+
+    # The history feed names the thread each row was made in, with the words of the
+    # first message it still holds.
+    rows = {row["id"]: row for row in page_state(page_dir)["browser"]["history"]}
+    lost_thread = {
+        "id": "c-lost",
+        "title": None,
+        "opening": "the answer that survived it",
+    }
+    assert rows["r-kept"]["thread"] == lost_thread
+    assert rows[closed["id"]]["thread"] == lost_thread
+
+    # An agent holding the thread's id names it as the message to answer, as it may
+    # for any thread whose opening comment survives; the refusal sends it to the
+    # message the thread is answered through.
+    refused = CliRunner().invoke(
+        cli_model.cli,
+        ["thread", "reply", str(page_dir), "--to", "c-lost", "--text", "Retrying."],
+    )
+    assert refused.exit_code != 0
+    assert (
+        "c-lost is a thread whose opening message this page's log lost — "
+        "`leaf thread reply <page> --to r-kept` replies in it"
+    ) in refused.output

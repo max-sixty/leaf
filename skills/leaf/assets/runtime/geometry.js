@@ -13,8 +13,10 @@ import { overlaps, overlapsAcross, union } from "./rect.js";
    which an outline can be drawn, and `shownExtent` the box they cover together.
    `shownRect` clips an element's `shownBox` through scrolling ancestors' visible bands (less the stuck covers over their edges) and the viewport,
    stopping ancestor clipping at a fixed-position box, then takes away what a declared
-   occluder stands over (`declareOccluder`); it is the one reading of whether something
-   is on screen.
+   occluder stands over (`declareOccluder`). It is what a box may be drawn over, which
+   chrome can be: the banner and the shortcut bar are drawn above the page, not cut out
+   of it. `seenRect` holds that to the room the chrome leaves (`shownWindow`), and it is
+   the one reading of whether the user can see something.
    `clippedRect` applies that same clipping walk to a box measured some other way for an
    element, and `clippedContents` to a box measured from a Range, starting at the element
    that holds the Range and counting that element's own clip. Use:
@@ -24,6 +26,7 @@ import { overlaps, overlapsAcross, union } from "./rect.js";
    - `shownExtent` for what stands beside a target's parts: a margin row, the
      response field's room;
    - `shownRect` for visible placement of floating chrome and key badges;
+   - `seenRect` for whether, and how much of, something is in front of the user;
    - `clippedRect` for an element's box the caller has adjusted;
    - `clippedContents` when the subject has no element box of its own.
 
@@ -435,6 +438,15 @@ export const shownExtent = (el) =>
 // on the walk is two style reads per ancestor rather than two per item per ancestor.
 export function shownRect(item, clips) {
   return clippedRect(shownBox(item), item, clips);
+}
+// What of an item the user sees: what every box over it lets through, within the room the
+// chrome leaves. `within` keeps a bottom-band box from cutting the item unless it stands
+// across it. Null when none of it shows.
+export function seenRect(item, clips) {
+  const shown = shownRect(item, clips);
+  if (!shown) return null;
+  const seen = shownWindow({ within: shown });
+  return seen.width > 0 && seen.height > 0 ? seen : null;
 }
 // Where a member begins, as the user sees it: the first of the boxes it paints that
 // survives the clips, rather than the bounds of all of them. They are the same box for

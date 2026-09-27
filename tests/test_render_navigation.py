@@ -1435,6 +1435,77 @@ def test_the_feature_gallery_exercises_core_user_workflows(browser, serve):
     consume_browser_errors(page, "400")
 
 
+def test_a_render_that_keeps_an_external_link_gives_back_the_note_it_dropped(
+    browser, serve
+):
+    """A render that keeps a link and rebuilds the children around it (`setChildren`)
+    drops the link's note, which stands beside it. The link must get the note back, or
+    it keeps describing itself by an id nothing carries."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "kept link",
+                '<h1 id="t">Links</h1><p id="holder">Read <a id="ext" '
+                'href="https://example.com/source">the source</a> first.</p>',
+            )
+        ),
+    )
+    link = page.locator("#ext")
+    expect(link).to_have_accessible_description("opens in a new tab")
+    page.evaluate(
+        """async () => {
+          const { setChildren } = await window.__lfRuntimeImport(
+            '/runtime/widget-api.js');
+          const holder = document.getElementById('holder');
+          setChildren(holder, [...holder.childNodes].filter(
+            (node) => !node.classList?.contains('lf-external-note')));
+        }"""
+    )
+    rendered(page)
+    expect(page.locator("#ext + .lf-external-note")).to_have_count(1)
+    expect(link).to_have_accessible_description("opens in a new tab")
+
+
+def test_a_stage_built_before_its_host_arrives_holds_its_links_and_bounds(
+    browser, serve
+):
+    """A widget may fill its shadow stage while its host is still detached. What stands
+    in the stage arrives with the host: its external link is marked, and its bounded
+    block is the reading region scrolling its lines and opens at its end."""
+    page = open_page(
+        browser, serve(leaf_page("staged", '<h1 id="t">Staged</h1><p>Before.</p>'))
+    )
+    held = page.evaluate(
+        """async () => {
+          const { shadowStage } = await window.__lfRuntimeImport(
+            '/runtime/shadow-stage.js');
+          const { scrollerFor } = await window.__lfRuntimeImport(
+            '/runtime/reading-regions.js');
+          const host = document.createElement('div');
+          const link = Object.assign(document.createElement('a'), {
+            href: 'https://example.com/staged', textContent: 'staged source'});
+          const log = document.createElement('div');
+          log.setAttribute('data-lf-bound', 'end');
+          log.style.cssText = 'max-block-size: 120px; overflow: auto';
+          for (let n = 0; n < 40; n++)
+            log.append(Object.assign(document.createElement('p'),
+              {textContent: `Line ${n}`}));
+          shadowStage(host, [link, log]);
+          document.querySelector('main').append(host);
+          await new Promise(requestAnimationFrame);
+          await new Promise(requestAnimationFrame);
+          return {
+            target: link.getAttribute('target'),
+            marked: Boolean(link.querySelector(':scope > .lf-external-mark')),
+            scroller: scrollerFor(log.querySelector('p')) === log,
+            atEnd: log.scrollHeight - log.scrollTop - log.clientHeight <= 2,
+          };
+        }"""
+    )
+    assert held == {"target": "_blank", "marked": True, "scroller": True, "atEnd": True}
+
+
 def test_the_feature_gallery_exercises_live_external_data(browser, serve):
     """One captured source supplies a following view under its authored label."""
     page = open_page(browser, live_url(serve(FEATURE_GALLERY)))

@@ -106,7 +106,14 @@ export const followingItsEnd = (box) => {
 export const boundedBlockOf = (box) => heldBy(box)?.bounded ?? null;
 
 function holdBlock(bounded) {
-  const hold = { bounded, id: regionId(bounded), box: null, pinned: null, left: false };
+  const hold = {
+    bounded,
+    id: regionId(bounded),
+    bound: null,
+    box: null,
+    pinned: null,
+    left: false,
+  };
   let stopRegion = null;
   const onScroll = () => {
     hold.left = !atEnd(hold.box);
@@ -121,7 +128,8 @@ function holdBlock(bounded) {
     registered.delete(hold);
   };
   hold.sync = () => {
-    if (!bounded.isConnected || !bounded.matches(BOUNDED)) return letGo();
+    hold.bound = bounded.getAttribute(PAGE_PAINT_ATTRIBUTE.bound);
+    if (!bounded.isConnected || hold.bound === null) return letGo();
     const box = scrollerOf(bounded);
     if (box !== hold.box) {
       letGo();
@@ -154,12 +162,18 @@ function holdBlock(bounded) {
 
 // Hold every bounded block while it stands in the page (arrivals.js); `sync` answers
 // both ways, registering a block that stands and letting go of one that has left or lost
-// its bound.
+// its bound. What a registered block holds is its own observer's to follow, so a block
+// offered again with its bound unchanged (its children or siblings moved) costs nothing.
 export function holdArrivingBounds() {
   watchArrivals(BOUNDED, [PAGE_PAINT_ATTRIBUTE.bound], {
     arrive: (el) => {
       if (!holds.has(el)) holds.set(el, holdBlock(el));
-      holds.get(el).sync();
+      const hold = holds.get(el);
+      if (
+        !registered.has(hold) ||
+        hold.bound !== el.getAttribute(PAGE_PAINT_ATTRIBUTE.bound)
+      )
+        hold.sync();
     },
     leave: (el) => holds.get(el)?.sync(),
   });

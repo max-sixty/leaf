@@ -372,13 +372,6 @@ function clearExternalLink(link, state) {
   state.note?.remove();
   externalLinkState.delete(link);
 }
-function renderExternalLinks(root) {
-  for (const link of [
-    ...(root.matches?.("a") ? [root] : []),
-    ...root.querySelectorAll("a"),
-  ])
-    renderExternalLink(link);
-}
 function leaveExternalLink(link) {
   const state = externalLinkState.get(link);
   if (state) clearExternalLink(link, state);
@@ -456,11 +449,11 @@ export function watchExternalLinks() {
 // reason: the tokenizer is vendored, so a page has it exactly when it has a widget
 // layer at all. Written once because it happens twice, over the page at the upgrade and
 // over each root a live revision brings into it, and a near-copy of it would go stale
-// the day the vocabulary grows a fourth pass.
+// the day the vocabulary grows a fourth pass. A link's treatment is not among them: it
+// is the link's for as long as it stands, whoever rendered it (`watchExternalLinks`).
 export function dress(root) {
   renderSaid(root);
   renderQuiet(root);
-  renderExternalLinks(root);
   return highlightBlocks(root);
 }
 

@@ -12,7 +12,7 @@
    the application sends outside the gesture queue (delivery.js). A refused receipt
    leaves the message unread and is retried only on a new visit. */
 import { nextRender, sizeObserver } from "../rendering.js";
-import { shownBand, shownRect } from "../geometry.js";
+import { seenRect, shownBand } from "../geometry.js";
 import { SLIDE_END } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { moved } from "./model.js";
@@ -90,10 +90,11 @@ function visibleInterval(body, clips, band) {
   const modal = document.querySelector("dialog:modal");
   if (modal && !under(body, modal)) return null;
   const box = body.getBoundingClientRect();
-  // Sticky covers, and the open thread panel standing over the right of the page, are
-  // left out of what is shown (geometry.js), so a message any part of which is under
-  // one has not been shown whole, and the full-width rule below withholds it.
-  const clipped = shownRect(body, clips);
+  // Sticky covers, the open thread panel standing over the right of the page, and the
+  // banner and shortcut bar are left out of what is seen (geometry.js), so a message any
+  // part of which is under one has not been shown whole, and the full-width rule below
+  // withholds it.
+  const clipped = seenRect(body, clips);
   if (!clipped || box.width <= 0 || box.height <= 0) return null;
   const shown = {
     left: Math.max(clipped.left, band.left),

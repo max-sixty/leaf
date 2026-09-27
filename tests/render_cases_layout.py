@@ -74,8 +74,7 @@ def resize_notice_after_last_probe(page):
     evaluate = page.evaluate
 
     def with_notice(expression, *args, **kwargs):
-        call = args[0] if args else kwargs.get("arg")
-        if isinstance(call, dict) and call.get("name") == "requestFrame":
+        if "requestFrame()" in expression:
             evaluate(
                 "() => requestAnimationFrame(() => {"
                 "if (matchMedia('(prefers-color-scheme: light)').matches) {"

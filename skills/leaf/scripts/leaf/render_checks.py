@@ -11,8 +11,8 @@ SERVED_TIMEOUT_MS = 30_000
 # How often a probe wait re-reads its fact. The waits poll on a timer rather than on
 # animation frames (see `_load_probes`), and most waits are a frame or a settle, so the
 # interval is added to what they wait for: at 16 ms, `one_frame` took about 22 ms where
-# a Promise resolved by the frame takes 14, and at 4 ms it took 14 too. A read is one synchronous
-# call, so polling this often costs the page nothing it would notice.
+# a Promise resolved by the frame takes 14, and at 4 ms it took 14 too. A read is one
+# synchronous call, so polling this often costs the page nothing it would notice.
 PROBE_POLL_MS = 4
 
 PROBE_ROOT = Path(__file__).with_name("render-checks")
@@ -29,6 +29,9 @@ _DRIVER_PRESENT = "() => Boolean(globalThis.__leafRenderDriver)"
 # Null when this document has no driver yet: one opened before the driver was installed.
 _LOAD_PROBES = "route => globalThis.__leafRenderDriver?.load(route) ?? null"
 _PROBE = "call => globalThis.__leafRenderDriver.call(call)"
+_REQUEST_FRAME = "() => globalThis.__leafRenderDriver?.requestFrame() ?? null"
+_FRAME_PRESENTED = "asked => globalThis.__leafRenderDriver.framePresented(asked)"
+_RENDERING_SETTLED = "() => globalThis.__leafRenderDriver.renderingSettled()"
 _THEME_READY = "() => globalThis.__leafRenderDriver.themeReady()"
 _PRE_UPGRADE_FINDINGS = "() => globalThis.__leafRenderDriver.preUpgradeFindings()"
 
@@ -112,14 +115,29 @@ def wait_for_probe(page, name: str, *args, timeout_ms: int | None = None) -> Non
         ) from error
 
 
+def _wait_for_driver(page, fact: str, arg, missing: str) -> None:
+    """Poll one synchronous driver fact until it is true, naming `missing` on timeout."""
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
+    timeout_ms = _timeout(page, None)
+    try:
+        page.wait_for_function(fact, arg=arg, timeout=timeout_ms, polling=PROBE_POLL_MS)
+    except PlaywrightTimeout as error:
+        raise PlaywrightTimeout(f"{missing} within {timeout_ms}ms") from error
+
+
 def one_frame(page) -> None:
     """Wait until one whole rendering update has run since the call, its observer
-    deliveries included (`requestFrame` in render-checks/runtime.js).
+    deliveries included (`requestFrame` in render-checks/driver.js).
 
     Wait here only where one update is itself the claim: the turn a resize is heard in,
     or the turn that delivers an observer's notice. A read of what the runtime renders
     waits for `rendered`."""
-    wait_for_probe(page, "framePresented", evaluate_probe(page, "requestFrame"))
+    requested = page.evaluate(_REQUEST_FRAME)
+    if requested is None:
+        _ensure_driver(page)
+        requested = page.evaluate(_REQUEST_FRAME)
+    _wait_for_driver(page, _FRAME_PRESENTED, requested, "no rendering update arrived")
 
 
 def rendered(page) -> None:
@@ -135,9 +153,12 @@ def rendered(page) -> None:
     mid-animation keeps its place hold correcting each frame. Wait `one_frame` there.
 
     Both waits poll a synchronous fact from the driver, so their deadline holds even
-    against a compositor that stops drawing or a page whose main thread is held."""
+    against a compositor that stops drawing or a page whose main thread is held, and
+    they need no probe module, so they hold on a page served without one."""
     one_frame(page)
-    wait_for_probe(page, "renderingSettled")
+    _wait_for_driver(
+        page, _RENDERING_SETTLED, None, "the page's rendering never settled"
+    )
 
 
 # The page's own readiness reading (`pageReadiness` in runtime/presentation.js), read

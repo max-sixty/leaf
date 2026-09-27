@@ -46,31 +46,6 @@ export function applyRestoreCase(restoreCase) {
   store.setItem(restoreCase.key, restoreCase.value);
 }
 
-let requestedFrame = 0;
-let presentedFrame = 0;
-
-// Ask the compositor for a rendering turn without handing page.evaluate a Promise
-// whose settlement depends on that turn. The driver polls the synchronous fact below,
-// so its own deadline still runs when a stopped compositor never calls us back. The
-// turn counts as presented in a task queued from its animation-frame callback, so it
-// is the whole update: its layout, and the ResizeObserver deliveries and loop notice
-// that follow the callbacks.
-export function requestFrame() {
-  const requested = ++requestedFrame;
-  requestAnimationFrame(() =>
-    setTimeout(() => {
-      presentedFrame = Math.max(presentedFrame, requested);
-    }),
-  );
-  return requested;
-}
-export const framePresented = (requested) => presentedFrame >= requested;
-
-// The runtime's settled reading for chrome and geometry (runtime/rendering.js): nothing
-// it queued for a rendering update is waiting and its last update was quiet.
-export const renderingSettled = () =>
-  document.querySelector("script[data-lf-entry]").lfRenderingSettled();
-
 // Every post this tab has made to /api/event has ended, the page's error reports
 // among them (`runtime/traffic.js`). A page that has posted nothing paints no ledger.
 export function sendsAcked() {

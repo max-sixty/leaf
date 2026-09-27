@@ -4,7 +4,9 @@
  * module without awaiting it, exposes bounded polling facts to Playwright, and keeps
  * every probe invocation synchronous so a stopped page cannot strand Python inside
  * `evaluate`. The pre-upgrade readings live here as well: they must run while the
- * Leaf entry is held, before the probe module and runtime exist. */
+ * Leaf entry is held, before the probe module and runtime exist. So do the rendering
+ * waits, which hold on any page the driver runs in, a published capture that serves no
+ * probes among them, and cost no module load. */
 (() => {
   if (globalThis.__leafRenderDriver) return;
 
@@ -60,6 +62,34 @@
     return result;
   };
 
+  let requestedFrame = 0;
+  let presentedFrame = 0;
+
+  // Ask the compositor for a rendering turn without handing page.evaluate a Promise
+  // whose settlement depends on that turn. Playwright polls the synchronous fact
+  // below, so its own deadline still runs when a stopped compositor never calls us
+  // back. The turn counts as presented in a task queued from its animation-frame
+  // callback, so it is the whole update: its layout, and the ResizeObserver deliveries
+  // and loop notice that follow the callbacks.
+  const requestFrame = () => {
+    const requested = ++requestedFrame;
+    requestAnimationFrame(() =>
+      setTimeout(() => {
+        presentedFrame = Math.max(presentedFrame, requested);
+      }),
+    );
+    return requested;
+  };
+  const framePresented = (requested) => presentedFrame >= requested;
+
+  // The runtime's settled reading for chrome and geometry (runtime/rendering.js):
+  // nothing it queued for a rendering update is waiting and its last update was quiet.
+  const renderingSettled = () => {
+    const settled = document.querySelector("script[data-lf-entry]")?.lfRenderingSettled;
+    if (!settled) throw new Error("this document has no Leaf rendering reading");
+    return settled();
+  };
+
   const themeReady = () =>
     [...document.styleSheets].some((sheet) => sheet.href?.endsWith("/theme.css"));
 
@@ -92,6 +122,9 @@
   globalThis.__leafRenderDriver = Object.freeze({
     load,
     call,
+    requestFrame,
+    framePresented,
+    renderingSettled,
     themeReady,
     preUpgradeFindings,
   });

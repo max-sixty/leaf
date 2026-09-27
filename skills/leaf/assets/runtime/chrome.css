@@ -9,8 +9,8 @@
 
    The runtime's private stylesheet is one `@scope` rooted at `.lf-chrome`. Private class
    names do not escape that root. The global vocabulary is deliberately small: shared
-   `.lf-ui`, `.lf-btn`, `.lf-chip`, `.lf-key-badge`, `.lf-skip`, the margin entries, and
-   the markers the runtime paints on page elements. Adding a global selector widens the
+   `.lf-ui`, `.lf-btn`, `.lf-outline-chip`, `.lf-key-badge`, `.lf-skip`, the margin
+   entries, and the markers the runtime paints on page elements. Adding a global selector widens the
    widget contract and must be covered by the render suite. Most of that vocabulary is
    faced in theme.css and shadow.css rather than here, for the reason the block below
    this header gives; what stands globally in this sheet is what has to beat the page.
@@ -75,9 +75,9 @@
    renders nothing to gate. So the shared vocabulary's faces are stated page-side, where
    a component that names the same property wins by coming later: the whole margin-entry
    family in theme.css, and .lf-key-badge, .lf-ui, .lf-btn and its focus ring,
-   .lf-chip, a thread mark's note and the aim floor in shadow.css, which also reaches the
-   widget trees this sheet never does. What stays here is the paint the runtime lays
-   over the page, which has to beat page and widget alike. `box-sizing` stays for the
+   .lf-outline-chip, a thread mark's note and the aim floor in shadow.css, which also
+   reaches the widget trees this sheet never does. What stays here is the paint the
+   runtime lays over the page, which has to beat page and widget alike. `box-sizing` stays for the
    same reason — the layer's reset, not its face — and it travels with its own `*`
    companion below.
 
@@ -571,8 +571,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     cursor: pointer; }
   :is(.lf-preview, .lf-layer-reference):hover { color: var(--ink); }
   .lf-layer-version { font-family: var(--mono); font-size: inherit; }
-  :is(.lf-preview, .lf-layer-reference):focus-visible {
-    outline: 2px solid var(--accent); outline-offset: 2px; }
   /* The quiet summary is a native disclosure; complete activity wording remains
      reachable by keyboard and touch without consuming the reading row. */
   .lf-status-button { display: flex; align-items: center; gap: var(--lf-banner-gap);
@@ -1625,34 +1623,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .lf-page-map-action { width: 100%; min-width: 0;
     display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px;
-    align-items: baseline; border: 0; border-radius: var(--r); background: transparent;
+    align-items: baseline; border: 0; border-radius: var(--r);
+    background: var(--lf-entry-tint, transparent);
     color: inherit; padding: 7px 8px; font: inherit; text-align: left; cursor: default; }
   .lf-page-map-action:is(button, [role="button"]):not([aria-disabled="true"]) {
     cursor: pointer; }
-  .lf-page-map-action:is(
-    [data-lf-agent-workflow="picked_up"],
-    [data-lf-agent-workflow="working"]
-  ) > .lf-margin-kind {
-    color: var(--ok-ink);
-  }
-  .lf-page-map-action[data-lf-agent-workflow="working"] {
-    --lf-entry-tint: var(--ok-wash);
-    background: var(--lf-entry-tint);
-  }
-  .lf-page-map-action[data-lf-turn="user"]:not([data-lf-agent-workflow])
-    > .lf-margin-kind {
-    color: var(--turn-ink);
-  }
-  .lf-page-map-action[data-lf-turn="user"]:not([data-lf-agent-workflow]) {
-    --lf-entry-tint: var(--turn-wash);
-    background: var(--lf-entry-tint);
-  }
-  .lf-page-map-action[data-lf-agent-arrival] {
-    animation: lf-runtime-4f3c2a8d-agent-work-arrival 520ms ease-out var(--lf-agent-arrival-delay, 0ms) 1;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .lf-page-map-action[data-lf-agent-arrival] { animation: none; }
-  }
+  /* Agent work and the user's turn paint this row as they paint its margin entry, in
+     one rule set in theme.css; the row's ground and hover read the wash it sets. */
   .lf-page-map-action:is(button, [role="button"]):is(:hover, :focus-visible):not([aria-disabled="true"]) {
     background: var(--lf-entry-tint, var(--chip)); }
   .lf-page-map-action .lf-margin-kind { width: 16px; height: 16px;

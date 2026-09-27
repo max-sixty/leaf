@@ -141,9 +141,9 @@
    of its own for one of these folds the floor into it with max(), so which of the two
    stands later decides nothing.
 
-   .lf-chip is halved on how it is spelled, because the class dresses a standing chip
-   as well as a press and a chip is not something to aim at. */
-.lf-btn, .lf-chip:is(button, [role="button"]), .lf-react, .lf-margin-entry,
+   .lf-outline-chip is halved on how it is spelled, because the class dresses a standing
+   chip as well as a press and a chip is not something to aim at. */
+.lf-btn, .lf-outline-chip:is(button, [role="button"]), .lf-react, .lf-margin-entry,
 .lf-thread-action, .lf-preview, .lf-layer-reference, .lf-version-diff, .lf-version-row,
 .lf-command-reference-command, .lf-quote {
   min-height: var(--aim-floor); min-width: var(--aim-floor); }
@@ -270,7 +270,7 @@ leaf-anchor-note { display: contents; }
    it kept its resting border under the ring, which is the accented border plus outline
    the text box rule exists to remove. Repeated here on the terms the chrome rule sets,
    so the reply field wears one band wherever the thread is seated, the way .lf-mark-note
-   and .lf-chip repeat their own faces through this boundary. */
+   and .lf-outline-chip repeat their own faces through this boundary. */
 .lf-page-thread leaf-text:is(:focus, .lf-focus) {
           outline: var(--here-ring); outline-offset: 0; border-color: transparent;
           --lf-here-ring: text-box; }
@@ -281,28 +281,33 @@ leaf-anchor-note { display: contents; }
   .lf-page-thread :is(.lf-say, button, .lf-msg-sending), .lf-mark-note {
           display: none !important; }
 }
-/* The compact label shape the chrome and the thread surfaces share, stated here
-   and nowhere else. It stands in this file because a thread seated in a declared
-   widget tree is out of every document selector's reach, and drew the platform's button
-   instead: on the dark scheme its ButtonFace grey put the muted word at 1.86:1.
+/* The outline chip: the kernel's chip geometry (the chip tokens in theme.css's :root)
+   with a hairline edge on the card, the compact label the chrome and the thread
+   surfaces share, stated here and nowhere else. It is not the default package's
+   lf-chip, whose face is the filled .tag, so it is named for the edge it adds. It
+   stands in this file because a thread seated in a declared widget tree is out of
+   every document selector's reach, and drew the platform's button instead: on the
+   dark scheme its ButtonFace grey put the muted word at 1.86:1.
 
    The family is spelled rather than inherited. `font: inherit` clears the UA's button
    face, which is all a chip inside a thread ever needed, but it also hands the chip
    whatever family its holder has — the thread's sans in a widget tree, and the
    document's serif for a chip standing in the page's own prose. */
-.lf-chip { appearance: none; margin: 0; padding: 0 8px; white-space: nowrap;
+.lf-outline-chip { appearance: none; margin: 0; padding: var(--chip-pad);
+          white-space: nowrap;
           border: 1px solid var(--border-2); border-radius: var(--chip-r);
           background: var(--card); color: var(--ink-2);
           font: inherit; font-family: var(--sans);
-          font-size: var(--t-6); line-height: 1.7; }
-.lf-chip:is(button, [role="button"]) { cursor: pointer; }
-.lf-chip:is(button, [role="button"]):hover { background: var(--chip); }
+          font-size: var(--t-6); line-height: var(--chip-lh); }
+.lf-outline-chip:is(button, [role="button"]) { cursor: pointer; }
+.lf-outline-chip:is(button, [role="button"]):hover { background: var(--chip); }
 /* A finger's floor is taller than a chip's line, so a pressed chip centres its words
    in the room the floor gives it. */
 @media (pointer: coarse) {
-  .lf-chip:is(button, [role="button"]) { display: inline-flex; align-items: center; }
+  .lf-outline-chip:is(button, [role="button"]) { display: inline-flex;
+          align-items: center; }
 }
-.lf-chip:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
+.lf-outline-chip:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
           --lf-here-ring: chip; outline-offset: 1px; }
 /* Reaction controls own their resting, selected and interactive appearance together.
    A surface places and reveals them without restating their ink, border or fill.

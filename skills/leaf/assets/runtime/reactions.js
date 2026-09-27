@@ -71,19 +71,17 @@ const reactionVocabulary = () => registry.$reactions?.tokens;
 // row's bindings as the module evaluates, before the vocabulary is known.
 export const reactionTokens = () => Object.entries(reactionVocabulary() ?? {});
 
-// One token as a press, built the same way wherever it stands. The token names the
-// control; a layer may add an explanation without making prose part of the platform's
-// vocabulary. The compact face stays the declared mark. Digits remain keyboard
+// One token as a press in the response bar; a reply's strip builds its own
+// (thread/reaction-strips.js). The token names the control; a layer may add an
+// explanation without making prose part of the platform's vocabulary. The compact face stays the declared mark. Digits remain keyboard
 // accelerators without changing the shape of every chip.
-function reactionChip(name, entry, pressed, { response = false } = {}) {
-  const chip = offer("button", `${response ? "" : "lf-chip "}lf-react`);
+function reactionChip(name, entry, pressed) {
+  const chip = offer("button", "lf-react");
   const meaning = entry.means ? `${name} — ${entry.means}` : name;
   chip.dataset.token = name;
   chip.title = meaning;
   chip.setAttribute("aria-label", meaning);
-  if (response)
-    responseAction(chip, { glyph: entry.glyph, label: name, collapse: true });
-  else chip.append(el("span", "lf-react-glyph", entry.glyph));
+  responseAction(chip, { glyph: entry.glyph, label: name, collapse: true });
   chip.onclick = () => pressed(name, chip);
   return chip;
 }
@@ -132,9 +130,7 @@ export function createReactionController({
     palette.setAttribute("aria-label", "Reactions for this selection or element");
     for (const [name, entry] of reactionTokens())
       palette.append(
-        reactionChip(name, entry, (token, chip) => reactHere(token, chip, commands), {
-          response: true,
-        }),
+        reactionChip(name, entry, (token, chip) => reactHere(token, chip, commands)),
       );
     fabOptions.append(palette);
     syncResponseOptions();

@@ -58,7 +58,7 @@ const rowBody = (row) => html`
   <div class="lf-others-head">
     <span class=${`lf-dot${row.tone ? ` ${row.tone}` : ""}`}></span>
     <span class="lf-others-title">${row.title}</span>
-    ${row.self ? html`<span class="lf-chip">this page</span>` : ""}
+    ${row.self ? html`<span class="lf-outline-chip">this page</span>` : ""}
   </div>
   <div class="lf-others-line">${row.line}</div>
 `;

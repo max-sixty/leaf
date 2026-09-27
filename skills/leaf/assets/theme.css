@@ -175,7 +175,14 @@
      white glyph in the dark scheme. */
   --pin-working: light-dark(#2f7d45, #2d8047);
   --r: 6px;
-  --chip-r: 3px;
+  /* The compact label every layer draws a small fact in: .tag here, lf-chip and the
+     widgets' own badges in packages, and the runtime's outline chip. Its geometry is
+     these tokens and --t-6, so a band of chips from different layers stands at one
+     height and one inset; each wearer states only its ground, ink, and where it sits.
+     A chip that draws a border adds it outside this geometry. A chip left inline in a
+     line of text takes the inset alone: an inline box paints its font's height whatever
+     its line-height, which there would only resize the holder's line. */
+  --chip-r: 3px; --chip-pad: 0 8px; --chip-lh: 1.6;
   --sp-1: 4px; --sp-2: 8px; --sp-3: 16px; --sp-4: 24px;
   /* The smallest box the layer offers a user to aim at, on either axis. One token
      rather than a number in each rule, and one token rather than two floors and a media
@@ -1099,14 +1106,14 @@ dd { margin: 0 0 8px 0; }
 .lf-error {
   font-family: var(--sans); font-variant-numeric: tabular-nums; }
 
-/* The compact face a small label rides in. These numbers are a contract across layers: the
- * default-package widgets' chips (lf-chip, a milestone's attribute row) restate them in
- * packages/default/theme.css so a band of chips and an inline .tag stand the same height —
+/* The compact face a small label rides in, set in the chip tokens (:root) that every
+ * layer's chips read, so a band of chips and an inline .tag stand the same height —
  * they drifted four pixels apart once, when the inline label padded itself and
  * nobody had decided that. A wearer keeps only where it sits, and a tint of its
  * own where the tint is the point. */
 .tag {
-  display: inline-block; font-size: var(--t-6); line-height: 1.6; padding: 0 8px;
+  display: inline-block; font-size: var(--t-6); line-height: var(--chip-lh);
+  padding: var(--chip-pad);
   box-sizing: border-box; max-width: 100%; overflow-wrap: anywhere;
   border-radius: var(--chip-r); background: var(--chip); color: var(--ink-2); }
 
@@ -1506,7 +1513,7 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
   width: var(--margin-entry); min-width: var(--margin-entry);
   height: var(--margin-entry); min-height: var(--margin-entry); padding: 0;
   border: 1px solid var(--border-2); border-radius: 50%;
-  background: var(--paper); color: var(--ink-2); flex: 0 0 auto;
+  background: var(--lf-entry-tint, var(--paper)); color: var(--ink-2); flex: 0 0 auto;
   display: inline-flex; align-items: center; justify-content: center; gap: 0;
   font: 600 var(--t-6)/1 var(--sans); white-space: nowrap;
   scroll-margin-block: var(--here-ring-room);
@@ -1579,15 +1586,51 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
   border-width: 2px; border-color: var(--border-2); color: var(--ink);
   box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
 }
-/* Agent workflow colors the carrier's glyph after pickup; working also colors its interior. The
-   ordinary contour continues to communicate the entry's behavior. */
-.lf-margin-entry:is(
+/* Agent work on a margin carrier. A margin entry and its row in the Page Map
+   (chrome.css) are one carrier drawn twice, so they wear one reading of it, stated here
+   for both. Pickup colors the carrier's glyph; working also washes its interior. A
+   thread whose next word is the user's wears the same two channels in blue. Agent
+   workflow outranks it, because a carrier the agent has picked up or is working on is
+   reporting something happening now, and one interior cannot carry two washes.
+
+   The wash is a token rather than a background: each carrier's resting ground and its
+   hover read --lf-entry-tint, so the Page Map row, whose face the adopted sheet states,
+   takes the wash without a copy of these rules beside it. The entry's own contour still
+   says what the press does. */
+:is(.lf-margin-entry, .lf-page-map-action):is(
   [data-lf-agent-workflow="picked_up"],
   [data-lf-agent-workflow="working"]
 )
-  > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
+  > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
   color: var(--ok-ink);
 }
+:is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-workflow="working"] {
+  --lf-entry-tint: var(--ok-wash);
+}
+:is(.lf-margin-entry, .lf-page-map-action)[data-lf-turn="user"]:not(
+  [data-lf-agent-workflow]
+)
+  > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
+  color: var(--turn-ink);
+}
+:is(.lf-margin-entry, .lf-page-map-action)[data-lf-turn="user"]:not(
+  [data-lf-agent-workflow]
+) {
+  --lf-entry-tint: var(--turn-wash);
+}
+:is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-arrival] {
+  animation: lf-runtime-4f3c2a8d-agent-work-arrival 520ms ease-out var(--lf-agent-arrival-delay, 0ms) 1;
+}
+@keyframes lf-runtime-4f3c2a8d-agent-work-arrival {
+  0% { box-shadow: var(--lf-agent-stage-shadow, 0 0 0 0 transparent), 0 0 0 0 color-mix(in srgb, var(--ok-ink) 42%, transparent); }
+  58% { box-shadow: var(--lf-agent-stage-shadow, 0 0 0 0 transparent), 0 0 0 7px color-mix(in srgb, var(--ok-ink) 16%, transparent); }
+  100% { box-shadow: var(--lf-agent-stage-shadow, 0 0 0 0 transparent), 0 0 0 10px transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-arrival] { animation: none; }
+}
+/* An entry's tone moves from its glyph to its contour once pickup takes the glyph, and
+   an action keeps its lower shadow under the arrival pulse. */
 .lf-margin-entry:is(
   [data-lf-agent-workflow="picked_up"],
   [data-lf-agent-workflow="working"]
@@ -1600,10 +1643,6 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
 )[data-lf-tone="negative"] {
   border-color: var(--danger-ink);
 }
-.lf-margin-entry[data-lf-agent-workflow="working"] {
-  --lf-entry-tint: var(--ok-wash);
-  background: var(--lf-entry-tint);
-}
 .lf-margin-entry[data-lf-agent-workflow="working"][data-lf-behavior="action"] {
   --lf-agent-stage-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
 }
@@ -1612,29 +1651,6 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
 .lf-margin-entry[data-lf-unread]::after {
   content: ""; position: absolute; inset-block-start: 0; inset-inline-end: 0;
   width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
-}
-/* A thread whose next word is the user's wears the same two channels in blue: the
-   glyph and the interior. Agent workflow outranks it, because a carrier the agent has
-   picked up or is working on is reporting something happening now, and one interior
-   cannot carry two washes. The entry's own contour still says what the press does. */
-.lf-margin-entry[data-lf-turn="user"]:not([data-lf-agent-workflow])
-  > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
-  color: var(--turn-ink);
-}
-.lf-margin-entry[data-lf-turn="user"]:not([data-lf-agent-workflow]) {
-  --lf-entry-tint: var(--turn-wash);
-  background: var(--lf-entry-tint);
-}
-.lf-margin-entry[data-lf-agent-arrival] {
-  animation: lf-runtime-4f3c2a8d-agent-work-arrival 520ms ease-out var(--lf-agent-arrival-delay, 0ms) 1;
-}
-@keyframes lf-runtime-4f3c2a8d-agent-work-arrival {
-  0% { box-shadow: var(--lf-agent-stage-shadow, 0 0 0 0 transparent), 0 0 0 0 color-mix(in srgb, var(--ok-ink) 42%, transparent); }
-  58% { box-shadow: var(--lf-agent-stage-shadow, 0 0 0 0 transparent), 0 0 0 7px color-mix(in srgb, var(--ok-ink) 16%, transparent); }
-  100% { box-shadow: var(--lf-agent-stage-shadow, 0 0 0 0 transparent), 0 0 0 10px transparent; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .lf-margin-entry[data-lf-agent-arrival] { animation: none; }
 }
 .lf-margin-entry-glyph { line-height: 1; }
 .lf-margin-entry-icon {

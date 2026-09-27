@@ -5,7 +5,7 @@ This is a basic, imperfect eval: a starting point that needs work before its num
 support more than "no obvious regression". Each round launches one headless Claude
 Code session per arm and case at the same time, with the plugin from BASE_REF or
 from HEAD, so commit what you want measured. Each arm and child is built by
-`eval_harness.py`. Each session serves the same page (this checkout's
+`leaf_dev.harness`. Each session serves the same page (this checkout's
 `examples/triage-board.html`) and starts its background `leaf wait`. The script then
 posts real comments over HTTP, at the moments a case names:
 
@@ -94,7 +94,8 @@ from functools import partial
 from pathlib import Path
 
 import click
-from eval_harness import (
+from leaf.event_log import read_events
+from leaf_dev.harness import (
     URL,
     LiveChild,
     PageClient,
@@ -107,7 +108,6 @@ from eval_harness import (
     tool_calls,
     waits_started,
 )
-from leaf.event_log import read_events
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / ".tmp" / "eval-claude-delivery"
@@ -254,7 +254,7 @@ def run_session(arm: Path, case: str, run: Path) -> None:
     leaf("page", "init", str(page), check=True)
     shutil.copy(ROOT / "examples" / "triage-board.html", page / "index.html")
     leaf(
-        "version",
+        "page",
         "stamp",
         str(page),
         "--text",
@@ -320,7 +320,9 @@ def run_session(arm: Path, case: str, run: Path) -> None:
         if sampler:
             sampled.set()
             sampler.result()
-        (run / "events.jsonl").write_text(leaf("events", str(page), check=True).stdout)
+        (run / "events.jsonl").write_text(
+            leaf("page", "events", str(page), check=True).stdout
+        )
     finally:
         sampled.set()
         sampling.shutdown()

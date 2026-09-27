@@ -94,7 +94,18 @@ dev = [
   # this lock pins what the suite runs those scripts against and a fresh machine
   # needs no network after setup.
   "unidiff>=1",
+  # The developer tooling package in `dev/`.
+  "leaf-dev",
 ]
+
+# An install never syncs the member, but uv reads its `pyproject.toml` to check the
+# lock on every unfrozen run, so a partial copy of the tree that runs `bin/leaf`
+# carries that file (`leaf_dev.harness.PAYLOAD`).
+[tool.uv.workspace]
+members = ["dev"]
+
+[tool.uv.sources]
+leaf-dev = { workspace = true }
 
 # The suite is round trips through a real browser rather than computation, so tests
 # shard independently: every test gets its own tmp_path, XDG homes, and server.
@@ -105,7 +116,7 @@ dev = [
 # `-n0` to debug a single test.
 [tool.pytest.ini_options]
 addopts = "-n 2 --dist loadgroup --regtest-consider-line-endings"
-# `scripts/` is not a package; the suite imports its example-data module directly.
-# The `leaf` package needs no entry here: the project installs itself editable.
+# `scripts/` is not a package; the suite imports a few of its entry points directly.
+# `leaf` and `leaf_dev` need no entry here: the environment installs both editable.
 pythonpath = ["scripts"]
 markers = ["nightly: a pull request can land without it; `--run-nightly` runs it"]

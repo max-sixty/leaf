@@ -6,9 +6,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from example_data import data_operations, example_versions
+from leaf_dev import ROOT
+from leaf_dev.example_data import data_operations, example_versions
 
-ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PACKAGES = ROOT / "examples" / "layer.json"
 
 
@@ -159,7 +159,7 @@ def prepare_page(
             version.read_text(encoding="utf-8"), encoding="utf-8"
         )
         run_leaf(
-            "version",
+            "page",
             "stamp",
             str(page),
             "--text",

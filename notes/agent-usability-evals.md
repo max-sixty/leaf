@@ -91,7 +91,7 @@ What the traces show:
   claimed nothing on the comment's thread, so that comment read Picked up rather than
   Working until its reply landed.
 - **The elision never bound.** Every agent picking up the page read the closed thread
-  (`leaf events`, `leaf thread read` or `events.jsonl`) before serving it, and two
+  (`leaf page events`, `leaf thread read` or `events.jsonl`) before serving it, and two
   rewrote the page body to record what the thread had settled, so the question
   reached an agent that already held the premise. All three answered 22:00 UTC. The
   delivery's `elided` count and `leaf thread read` serve an agent that has lost the
@@ -206,9 +206,9 @@ Keep Leaf's agent-facing surface small and semantic:
 - `leaf thread read PAGE THREAD` selects one thread's current messages and effective
   frozen markup; its edits continue that thread;
 - `leaf page guidance PAGE [AUDIENCE]` composes explicit operating guidance;
-- `leaf events PAGE [--after SEQ] [--thread THREAD]` prints the append-only JSONL
+- `leaf page events PAGE [--after SEQ] [--thread THREAD]` prints the append-only JSONL
   history admitted at validated write boundaries; `--after` is a sequence cursor
-  and `--thread` is one exact semantic identity lookup;
+  and `--thread` selects the thread any message in it names;
 - `active.file` names the readable canonical HTML when a valid revision exists,
   `source.file` names the mutable author target, `data.file` is always readable,
   and `registry.json` remains the canonical vocabulary.

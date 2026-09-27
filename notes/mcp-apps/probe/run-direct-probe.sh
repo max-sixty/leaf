@@ -46,7 +46,7 @@ npm --prefix "$reference" run build --workspace @modelcontextprotocol/ext-apps-b
 
 /bin/sh "$repo/bin/leaf" page init "$run_dir/page"
 cp examples/heat-loss.html "$run_dir/page/index.html"
-/bin/sh "$repo/bin/leaf" version stamp "$run_dir/page" --text "Direct MCP resource probe"
+/bin/sh "$repo/bin/leaf" page stamp "$run_dir/page" --text "Direct MCP resource probe"
 /bin/sh "$repo/bin/leaf" status "$run_dir/page" idle "Transport probe; no agent wake attached"
 shasum -a 256 notes/mcp-apps/probe/direct-build.mjs notes/mcp-apps/probe/direct-entry.js notes/mcp-apps/probe/direct.py notes/mcp-apps/probe/direct-server.mjs notes/mcp-apps/probe/check-direct-http.mjs notes/mcp-apps/probe/observe-direct.mjs notes/mcp-apps/probe/run-direct-probe.sh > "$results/source.sha256"
 node notes/mcp-apps/probe/direct-build.mjs "$run_dir/page" "$modules" "$run_dir/bundle.js"

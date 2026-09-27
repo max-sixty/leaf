@@ -194,7 +194,7 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
 def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell):
     """`page check --render` end to end, as the agent runs it: the static lint
     passes both sources, and only one renders clean. The broken source is deliberately
-    unstamped — refusing it before `version stamp` names it is the gate's whole job,
+    unstamped — refusing it before `page stamp` names it is the gate's whole job,
     so the preview server has to expose the exact candidate without activating it.
 
     Over the clean source once through each browser a host can supply: the installed
@@ -375,7 +375,7 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
     stamp = subprocess.run(
         [
             launcher,
-            "version",
+            "page",
             "stamp",
             page_dir,
             "--text",

@@ -41,9 +41,9 @@ from typing import IO, NamedTuple
 from urllib.parse import urlencode, urljoin, urlsplit
 
 import click
-from eval_harness import codex_home
 from leaf.render_gate.browser import launch_browser
 from leaf.served_state.reading import reading_files
+from leaf_dev.harness import codex_home
 from playwright.sync_api import APIResponse, BrowserContext, Page, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 

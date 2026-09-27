@@ -73,7 +73,7 @@ def test_unread_summary_keeps_hidden_original_unread(browser, serve):
     assert accepted == 200
     thread_model.cmd_edit(serve.page_dir, first, "Revised update 1.")
     thread_model.cmd_summarize(
-        serve.page_dir, root, first, middle, "The first two updates in brief."
+        serve.page_dir, first, middle, "The first two updates in brief."
     )
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
@@ -93,7 +93,7 @@ def test_first_unread_reveals_resolved_summary_original(browser, serve):
     root = panel_comment(serve.page_dir, "Is this metric settled?", author="user")
     answer = _agent_metric_reply(serve.page_dir, root, 4, for_event=root)
     thread_model.cmd_summarize(
-        serve.page_dir, root, root, answer, "The earlier metric discussion."
+        serve.page_dir, root, answer, "The earlier metric discussion."
     )
     events_model.append_event(
         serve.page_dir, {"kind": "resolve", "author": "agent", "parent": root}
@@ -310,7 +310,7 @@ def test_first_unread_reveals_a_resolved_thread_and_covered_original(browser, se
         },
     )
     thread_model.cmd_summarize(
-        serve.page_dir, root, root, first, "Earlier exchange in one line."
+        serve.page_dir, root, first, "Earlier exchange in one line."
     )
     events_model.append_event(
         serve.page_dir, {"kind": "resolve", "author": "agent", "parent": root}

@@ -9,7 +9,7 @@ The user follows your work on the page:
 | Banner | one sentence for the whole page: what you are doing, or what you want back | `leaf status <page> <state> "<detail>"` |
 | Beside a thread or widget | **Working** and your sentence, above the message or on the control the work answers | `leaf status … --on <id>` |
 | Thread | your answer to the user's message | `leaf thread reply` |
-| Page | the revised content in place, and a stamp's changelog | saving `index.html`, `leaf version stamp` |
+| Page | the revised content in place, and a stamp's changelog | saving `index.html`, `leaf page stamp` |
 
 Leaf itself marks each user move **Sent**, **Queued**, and **Picked up**, including
 a move that owes you nothing, such as a moved card. A pick before the Done its Ask
@@ -84,7 +84,7 @@ revisions; when a stamped version completes that work, say so on the stamp, once
 per completed widget:
 
 ```bash
-leaf version stamp <page> --text "…" --completes <widget-id>
+leaf page stamp <page> --text "…" --completes <widget-id>
 ```
 
 Stamping accepts only widget ids with standing work. `status --on` refuses a

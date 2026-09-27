@@ -54,7 +54,7 @@ from leaf.registry import reactions as registry_reactions
 from leaf.registry import storage as registry_storage
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
-from page_fixtures import package_selection_args
+from leaf_dev.page_fixtures import package_selection_args
 
 
 def storage_contract() -> tuple[list[str], list[str]]:
@@ -86,7 +86,6 @@ def test_cli_help_groups_commands_with_complete_summaries(regtest):
         "package": ["package", "--help"],
         "package-init": ["package", "init", "--help"],
         "page": ["page", "--help"],
-        "version": ["version", "--help"],
         "server": ["server", "--help"],
         "thread": ["thread", "--help"],
     }
@@ -142,9 +141,9 @@ def test_agent_interaction_command_help(regtest):
         "thread reply",
         "thread edit",
         "thread resolve",
-        "experimental",
+        "page report",
         "page check",
-        "version stamp",
+        "page stamp",
     ):
         result = CliRunner().invoke(
             cli_model.cli,
@@ -188,10 +187,10 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     [batch] = session_model.take_input("s1")["batches"]
     assert len(batch["events"]) == 2
     record(["thread", "reply", str(page), "--text", "Answer"], 1)
-    record(["thread", "reply", str(page), "--to", ids[0], "--text", "Answer"], 1)
+    record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 1)
     record(["thread", "reply", str(page), "--for", ids[0], "--text", "Answer"], 0)
     record(["thread", "reply", str(page), "--for", ids[0], "--text", "Answer"], 1)
-    record(["thread", "reply", str(page), "--to", ids[0], "--text", "Follow-up"], 0)
+    record(["thread", "reply", str(page), ids[0], "--text", "Follow-up"], 0)
     # A page reaction can close without an answer: it never owed a reply.
     code, response = fetch(
         f"{server}/api/event",
@@ -200,7 +199,7 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     assert code == 200, response
     ids.append(events_model.read_events(page)[-1]["id"])
     record(["thread", "reply", str(page), "--for", ids[-1], "--text", "Answer"], 1)
-    record(["thread", "resolve", str(page), "--to", ids[-1]], 0)
+    record(["thread", "resolve", str(page), ids[-1]], 0)
     regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
 
 
@@ -389,14 +388,14 @@ def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
     assert audiences.output == "no guidance audiences\n"
 
     stamped = runner.invoke(
-        cli_model.cli, ["version", "stamp", str(page_dir), "--text", "first cut"]
+        cli_model.cli, ["page", "stamp", str(page_dir), "--text", "first cut"]
     )
     assert stamped.exit_code == 0, stamped.output
     assert stamped.output == "stamped v1 — first cut\n"
 
     as_json = runner.invoke(
         cli_model.cli,
-        ["version", "stamp", "--json", str(page_dir), "--text", "again"],
+        ["page", "stamp", "--json", str(page_dir), "--text", "again"],
     )
     assert as_json.exit_code != 0  # nothing changed, so there is no second version
     assert "already stamped as v1" in as_json.output
@@ -431,7 +430,7 @@ def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
 
     replied = runner.invoke(
         cli_model.cli,
-        ["thread", "reply", str(page_dir), "--to", root, "--text", "sqlite"],
+        ["thread", "reply", str(page_dir), root, "--text", "sqlite"],
     )
     assert replied.exit_code == 0, replied.output
     assert replied.output == f"replied in {root}\n"
@@ -444,7 +443,6 @@ def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
             "reply",
             "--json",
             str(page_dir),
-            "--to",
             root,
             "--text",
             "and wal mode",
@@ -457,7 +455,6 @@ def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
             "thread",
             "reply",
             str(page_dir),
-            "--to",
             json.loads(followed.output)["id"],
             "--text",
             "with a checkpoint",
@@ -465,6 +462,30 @@ def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
     )
     assert under.exit_code == 0, under.output
     assert under.output == f"replied in {root}\n"
+
+    # Every command naming a thread takes any message in it, as reply does.
+    later = json.loads(followed.output)["id"]
+    titled = runner.invoke(
+        cli_model.cli, ["thread", "title", str(page_dir), later, "--text", "Store"]
+    )
+    assert titled.exit_code == 0, titled.output
+    assert titled.output == f"named thread {root}: Store\n"
+    read = runner.invoke(cli_model.cli, ["thread", "read", str(page_dir), later])
+    assert read.exit_code == 0, read.output
+    assert json.loads(read.output)["thread"]["id"] == root
+    selected = runner.invoke(
+        cli_model.cli, ["page", "events", str(page_dir), "--thread", later]
+    )
+    assert selected.exit_code == 0, selected.output
+    assert {root, later} <= {
+        json.loads(line)["id"] for line in selected.output.splitlines()
+    }
+    both = runner.invoke(
+        cli_model.cli,
+        ["thread", "reply", str(page_dir), root, "--for", root, "--text", "x"],
+    )
+    assert both.exit_code == 2
+    assert "THREAD and --for cannot be used together" in both.output
 
     working = runner.invoke(
         cli_model.cli,
@@ -474,9 +495,7 @@ def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
     assert working.output == f"working on {root} — reading the traces\n"
 
     # Resolve takes any message in the thread and names the thread it closed.
-    closed = runner.invoke(
-        cli_model.cli, ["thread", "resolve", str(page_dir), "--to", cached]
-    )
+    closed = runner.invoke(cli_model.cli, ["thread", "resolve", str(page_dir), cached])
     assert closed.exit_code == 0, closed.output
     assert closed.output == f"resolved {cached}\n"
 
@@ -511,7 +530,7 @@ def test_init_help_names_the_source_revision_and_version_layout():
     "args",
     [
         ["page", "check", "page", "--render"],
-        ["thread", "reply", "page", "--to", "c1", "--for", "c1", "--text", "export"],
+        ["thread", "reply", "page", "--for", "c1", "--text", "export"],
     ],
 )
 def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch, args):
@@ -894,7 +913,7 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
     publish_result = subprocess.run(
         [
             launcher,
-            "version",
+            "page",
             "stamp",
             page,
             "--text",
@@ -2920,7 +2939,7 @@ def test_init_revendors_a_page_an_earlier_leaf_left_behind(page_dir):
     assert vendored["$events"]["kinds"] == kernel["$events"]["kinds"]
     recovered = check(page_dir)
     assert recovered.exit_code == 0, recovered.output
-    replied = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+    replied = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
     assert replied.exit_code == 0, replied.output
     assert "The first one." in replied.output
 

@@ -71,6 +71,7 @@ from render_harness import (
     LONG_PAGE,
     TOKEN,
     _traffic,
+    comment_note,
     compare_with,
     consume_browser_errors,
     displayed,
@@ -4344,7 +4345,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
             re.compile(r"\bopen\b")
         )
         page.keyboard.press("Escape")
-        broken.locator(".lf-mark-note").first.click()
+        comment_note(page, "#broken").press("Enter")
         fallback = page.locator(
             f'.lf-margin-preview .lf-page-thread[data-thread="{roots[0]}"]'
         )

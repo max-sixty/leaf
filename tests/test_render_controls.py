@@ -80,6 +80,7 @@ from render_harness import (
     any_owner_entry,
     any_suggestion_control,
     consume_browser_errors,
+    expect_comment_notes,
     holding,
     leaf_page,
     nudge,
@@ -4186,15 +4187,12 @@ def test_a_scroll_box_inside_a_widgets_shadow_tree_takes_the_keyboard(browser, s
 
 def test_a_comment_on_a_scrolling_box_leaves_its_tab_stop_alone(browser, serve):
     """A box already holding a control of its own needs no stop of the sweep's: the
-    user reaches what is out of sight through the control. The note the runtime hangs
-    in every commented block is not such a control. It is a one-pixel transparent button
-    that leaves the flow for `position: fixed` the moment it takes focus, so standing on
-    it scrolls nothing, and counting it took the stop off any box a user had commented
-    on — one comment on a flowchart wider than the window, and the keyboard lost the half
-    of the graph hanging off the right of it.
+    user reaches what is out of sight through the control. A comment on the box adds
+    no control to it, so one comment on a flowchart wider than the window leaves the
+    keyboard its way to the half of the graph hanging off the right of it.
 
-    Read with the note on and off the same box, because the assertion says nothing unless
-    the box would otherwise have the stop."""
+    Read with the comment on and off the same box, because the assertion says nothing
+    unless the box would otherwise have the stop."""
     url = serve(WIDE_DIAGRAM_PAGE)
     page = open_page(browser, url)
     resized(page, 760, 900)
@@ -4203,7 +4201,7 @@ def test_a_comment_on_a_scrolling_box_leaves_its_tab_stop_alone(browser, serve):
         "this diagram fits its room, so it proves nothing"
     )
     expect(diagram).to_have_attribute("tabindex", "0")
-    expect(page.locator("#flow .lf-mark-note")).to_have_count(0)
+    expect_comment_notes(page, "#flow", 0)
 
     events_model.append_event(
         serve.page_dir,
@@ -4217,7 +4215,7 @@ def test_a_comment_on_a_scrolling_box_leaves_its_tab_stop_alone(browser, serve):
         },
     )
     told(page)
-    expect(page.locator("#flow .lf-mark-note")).to_have_count(1)
+    expect_comment_notes(page, "#flow", 1)
     expect(diagram).to_have_attribute("tabindex", "0")
 
 
@@ -5340,7 +5338,6 @@ RING_CASES = (
                     ("ask", "margin-entry"),
                 ),
                 (".lf-draft-edit", "draft-editor"),
-                (".lf-mark-note", "pressable"),
             ),
             "heat-loss": ((".lf-visual-action", "visual-target"),),
             "pr-walkthrough": (
@@ -5354,6 +5351,7 @@ RING_CASES = (
             "release-notes": (
                 ("main p.lf-mark-el", "passage-focus"),
                 ('lf-shot .lf-shotcomparison [part~="handle"]', "shot"),
+                (".lf-shotcap", "pressable"),
             ),
             "ship-review": ((".lf-reopen", "thread-action"),),
         },

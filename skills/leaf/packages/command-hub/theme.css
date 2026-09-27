@@ -93,6 +93,10 @@ lf-task[status="done"] > strong { color: var(--muted); }
  * at a glance, and a disclosure put its rows one press away from the question it
  * answers. The outcome reads top to bottom — its name, the done fraction as a length,
  * the fraction and horizon in words — over one tile per count. */
+/* The apparatus voice for this package's words (packages/default/theme.css says why
+ * every package states its own). */
+.lf-state, .lf-heard, .lf-cold {
+  font-family: var(--sans); font-variant-numeric: tabular-nums; }
 /* The seat in a rail stacks its panels the way the rail's own grid stacks its cells:
  * the gap is the grid's, so a panel the command drew and one the page authored stand
  * the same distance apart. */

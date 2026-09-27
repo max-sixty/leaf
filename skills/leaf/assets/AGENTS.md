@@ -144,7 +144,12 @@ idioms, and CSS-only widgets, and each package theme follows it; shared shadow
 rules compose into `/shadow.css`, whose shared `.lf-ui` face comes before
 component rules. In the document all of these, and each widget module's adopted
 sheet, share the `lf-base` cascade layer; `layouts.css` is `lf-layouts` above it,
-and the page's own CSS is unlayered above both (`layer.py`, `CASCADE_LAYERS`).
+and the page's own CSS is unlayered above both (`layer.py`, `CASCADE_LAYERS`). Each
+package's rules reach only its own widgets (`layer.py`, `widget_confinement`), so a rule
+several packages' widgets need is the kernel's. The page's rules skip the chrome and
+every `.lf-ui` control unless they name a widget or the layer's vocabulary
+(`runtime/page-sheets.js`), and the chrome's root and `.lf-ui` state the whole face they
+would otherwise inherit from the page.
 `runtime/chrome.css` and `runtime/marks.css` stay unlayered: their paint lies over
 the page, so they are adopted after page and package sheets and win by their
 selectors. `runtime/marks.css` is adopted by the document and shadow stages. A `:has()` whose rightmost compound carries no class, id, attribute, or

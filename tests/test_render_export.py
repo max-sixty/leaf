@@ -29,6 +29,7 @@ from leaf import leases as leases_model
 from leaf import media as media_model
 from leaf import server as server_model
 from leaf import service as service_model
+from leaf import session as session_model
 from leaf.schema import ELEMENT_ID
 from leaf.structure import UTF8_BOM
 from playwright.sync_api import expect
@@ -1044,7 +1045,9 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
         },
     )
     assert waiter.wait(timeout=30) == 0, waited.read_text()
-    assert "still there?" in waited.read_text()
+    assert "has new input" in waited.read_text()
+    [batch] = session_model.take_input(session)["batches"]
+    assert [event["text"] for event in batch["events"]] == ["still there?"]
 
 
 def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(
@@ -1547,6 +1550,32 @@ def test_an_export_keeps_utf8(browser, serve, tmp_path):
     page.goto(out.as_uri(), wait_until="load")
     assert page.evaluate("document.characterSet") == "UTF-8"
     expect(page.get_by_role("heading", name="Café handoff")).to_be_visible()
+
+
+def test_an_export_keeps_its_quiet_words_off_screen(browser, serve, tmp_path):
+    """A status word written for a user listening (`.lf-quiet`) is clipped on screen in
+    an export as in the live page. The rule that clips it once lived only in the
+    chrome's sheet, which an export never adopts, so every milestone in an exported
+    file read "done" or "active" beside the dot that already said it."""
+    serve(
+        leaf_page(
+            "Quiet words",
+            '<h1>Quiet words</h1><lf-milestones><lf-milestone id="m" status="done">'
+            "<strong>Ship</strong></lf-milestone></lf-milestones>",
+        )
+    )
+    out = tmp_path / "quiet.html"
+    exporting_model.cmd_export(serve.page_dir, out, None)
+    page = browser.new_page()
+    page.goto(out.as_uri(), wait_until="load")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    quiet = page.locator("#m .lf-quiet")
+    expect(quiet).to_have_count(1)
+    box = quiet.evaluate(
+        "el => { const r = el.getBoundingClientRect();"
+        " return [r.width, r.height, getComputedStyle(el).clipPath]; }"
+    )
+    assert box[0] <= 1 and box[1] <= 1 and box[2] != "none", box
 
 
 def test_an_export_embeds_only_the_widgets_its_markup_names(browser, serve, tmp_path):

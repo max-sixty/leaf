@@ -1,12 +1,8 @@
 /* This module owns user travel. */
 import { cancelRender, nextFrame } from "./rendering.js";
 import { clampedRow } from "./keyboard/bindings.js";
-import { inPanel as panelFocusIsInside } from "./thread/panel-elements.js";
-import { openThreads } from "./thread/thread-list.js";
-import { listedInPageOrder, narrowed, threadSearchActive } from "./thread/narrowing.js";
 import { coveringAuxiliarySurface, pageCommand } from "./keyboard/register.js";
 import { reducedMotion, scrollBehavior } from "./motion.js";
-import { threadsBox } from "./thread/panel-elements.js";
 import { pageScroller } from "./scrolling.js";
 import { landingBand } from "./geometry.js";
 import { effectiveScroller, readingRegionFor } from "./reading-regions.js";
@@ -17,7 +13,7 @@ import { announce } from "./notifications.js";
 import { focusThread } from "./thread/focus.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 
-const walkableThreads = (panelIsOpen) =>
+const walkableThreads = (panelIsOpen, { threadsBox, openThreads }) =>
   (panelIsOpen() ? threadsBox.navigationThreads() : null) ??
   openThreads({ visibleOnly: panelIsOpen() });
 
@@ -25,15 +21,19 @@ const walkableThreads = (panelIsOpen) =>
 // its target (`threadHere`), in the list or beside the page.
 const currentThread = (threads, threadHere, panelIsOpen) =>
   panelIsOpen()
-    ? (closestAcross(document.activeElement, ".lf-thread[data-id]") ?? threadHere())
+    ? (threads.find(
+        (thread) =>
+          thread.dataset.id ===
+          closestAcross(document.activeElement, ".lf-thread[data-id]")?.dataset.id,
+      ) ?? threads.find((thread) => thread.dataset.id === threadHere()?.dataset.thread))
     : threads.find((thread) => thread.dataset.id === threadHere()?.dataset.thread);
 
-const threadPosition = (threadHere, panelIsOpen) => {
-  const threads = walkableThreads(panelIsOpen);
+const threadPosition = (threadHere, panelIsOpen, narrowing, list) => {
+  const threads = walkableThreads(panelIsOpen, list);
   const current = currentThread(threads, threadHere, panelIsOpen);
   return listWalkPosition(threads, current, {
     identity: (thread) => thread.dataset.id,
-    qualifier: panelIsOpen() && narrowed() ? "shown" : "",
+    qualifier: panelIsOpen() && narrowing.narrowed() ? "shown" : "",
   });
 };
 
@@ -60,15 +60,16 @@ function threadFrom(threads, place, dir, threadTarget) {
 // thread with no page destination is indexed only by Threads, so that destination opens the panel.
 // Once the panel is open, the walk stays in its list, in whichever order the list shows.
 // Both paths are clamped, not wrapped.
-function stepThread(dir, destinations, panelIsOpen) {
+function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
+  const { threadsBox } = list;
   const { openPageThread, scrollToThread, threadHere, threadTarget } = destinations;
-  const threads = walkableThreads(panelIsOpen);
+  const threads = walkableThreads(panelIsOpen, list);
   const current = currentThread(threads, threadHere, panelIsOpen);
   const next = current
     ? clampedRow(threads, current, dir)
     : threadFrom(
         threads,
-        !panelIsOpen() || listedInPageOrder() ? standingPlace() : null,
+        !panelIsOpen() || narrowing.listedInPageOrder() ? standingPlace() : null,
         dir,
         threadTarget,
       );
@@ -76,8 +77,9 @@ function stepThread(dir, destinations, panelIsOpen) {
   if (!panelIsOpen()) {
     openPageThread(next.dataset.id, { focus: "thread" });
     announce(
-      beginWalk("thread", "Thread", () => threadPosition(threadHere, panelIsOpen)) ??
-        walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length),
+      beginWalk("thread", "Thread", () =>
+        threadPosition(threadHere, panelIsOpen, narrowing, list),
+      ) ?? walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length),
     );
     return;
   }
@@ -93,8 +95,9 @@ function stepThread(dir, destinations, panelIsOpen) {
   if (standing) next.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
   scrollToThread(next.dataset.id, { keep: true });
   announce(
-    beginWalk("thread", "Thread", () => threadPosition(threadHere, panelIsOpen)) ??
-      walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length),
+    beginWalk("thread", "Thread", () =>
+      threadPosition(threadHere, panelIsOpen, narrowing, list),
+    ) ?? walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length),
   );
 }
 
@@ -218,13 +221,20 @@ export function stopGlide(box) {
 }
 
 export function createNavigation({
+  panelElements: { threadsBox, inPanel: panelFocusIsInside },
+  openThreads,
   panelIsOpen,
+  narrowing,
   coveringAuxiliaryScroller,
   threadDestinations,
 }) {
   const inPanel = () => panelFocusIsInside(panelIsOpen);
   const move = (amount, unit) => stepReading(amount, unit, coveringAuxiliaryScroller);
-  const walkThreads = (dir) => stepThread(dir, threadDestinations, panelIsOpen);
+  const walkThreads = (dir) =>
+    stepThread(dir, threadDestinations, panelIsOpen, narrowing, {
+      threadsBox,
+      openThreads,
+    });
 
   // Travel's own page keys. All three remain reachable inside a covering auxiliary
   // surface: the surface replaces the page the user is reading rather than ending the
@@ -246,7 +256,7 @@ export function createNavigation({
     when: () =>
       openThreads({ visibleOnly: panelIsOpen() }).length > 0 &&
       (!coveringAuxiliarySurface() || inPanel()) &&
-      !(threadSearchActive() && inPanel()),
+      !(narrowing.threadSearchActive() && inPanel()),
     repeat: true,
     // The walk moves the user laterally: it is the surface it reaches through, rather
     // than the walk, that Escape takes off. In the panel it moves focus from card to

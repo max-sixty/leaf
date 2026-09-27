@@ -16,6 +16,7 @@ from render_cases_navigation import (
 )
 from render_harness import (
     SETTLED_PAGE,
+    command_reference_rows,
     open_page,
     page_registry,
     panel_settled,
@@ -26,13 +27,6 @@ from render_harness import (
 )
 
 pytestmark = pytest.mark.nightly
-
-
-def command_reference_rows(page, heading):
-    heading_id = page.get_by_role("heading", name=heading, exact=True).get_attribute(
-        "id"
-    )
-    return page.locator(f'tbody[aria-labelledby="{heading_id}"]')
 
 
 def test_a_reconnected_settled_ask_restores_its_diff_watcher(browser, serve):

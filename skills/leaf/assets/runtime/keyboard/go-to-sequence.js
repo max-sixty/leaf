@@ -77,7 +77,6 @@ import { pageParts } from "../passages.js";
 import { fragmentId, addressableSays, resolveAnchor } from "../anchor-resolution.js";
 import { announce, notice } from "../notifications.js";
 import { closestAcross, pageQueryAll } from "../passages.js";
-import { threadsBox } from "../thread/panel-elements.js";
 import {
   currentTray,
   askRows,
@@ -101,7 +100,7 @@ goToHintLayer.setAttribute("aria-hidden", "true");
 // the chrome is attached. All travel and auxiliary-surface effects are explicit capabilities.
 export function createGoToSequence({
   panelIsOpen,
-  elements: { banner, toggleBtn },
+  elements: { banner, toggleBtn, threadsBox },
   hintChrome,
   directDestinations,
   setPanel,

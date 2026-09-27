@@ -74,6 +74,7 @@ from render_harness import (
     compare_with,
     consume_browser_errors,
     displayed,
+    draft_control,
     expect_banner_control_offered,
     holding,
     leaf_page,
@@ -1360,7 +1361,7 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     assert held, "the positive control did not hold the first state response"
     gallery = page.locator("#bg-interactions")
     expect(gallery).to_have_attribute("data-interaction-installed", "1")
-    controls = gallery.locator(".interaction-controls")
+    controls = gallery.locator(".lf-interaction-controls")
     expect(controls).to_have_count(1)
     expect(controls).to_be_hidden()
     page.evaluate("releaseHeldPageInterface()")
@@ -1823,10 +1824,7 @@ def test_user_overrides_identify_state_that_differs_from_authored_inputs(
     draft = page.locator("#draft-ops")
     draft.locator(".lf-draft-body").dblclick()
     draft.locator("textarea").fill(DRAFT_EDITED)
-    page.locator(
-        '[data-lf-margin-entry-owner="draft:draft-ops"]'
-        '[data-lf-margin-entry-key="save"]:visible'
-    ).click()
+    draft_control(page, "save", "draft-ops").click()
     expect(page.locator("#draft-ops[data-lf-user-override]")).to_have_count(1)
 
     # Both actions must be in the log before the next version publishes, and the

@@ -16,7 +16,6 @@ import { shownBand, shownRect } from "../geometry.js";
 import { SLIDE_END } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { moved } from "./model.js";
-import { firstUnreadBtn } from "./panel-elements.js";
 import { readThreads } from "./state.js";
 import { under, upFrom } from "../shadow.js";
 
@@ -115,7 +114,7 @@ function visibleInterval(body, clips, band) {
   };
 }
 
-export function createReadTracking({ markRead, showThread }) {
+export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
   let coverage = new WeakMap();
   const renderedBodies = new Map();
   const refusedThisVisit = new Set();

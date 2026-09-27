@@ -93,7 +93,6 @@ import {
 } from "../keyboard/command-reference.js";
 
 import { paintReactionStanding } from "../reaction-standing.js";
-import { generalInput, panel, threadsBox } from "../thread/panel-elements.js";
 import { threadInput, standingThread } from "../thread/landing.js";
 import { activeCommandLabel } from "../keyboard/dispatch.js";
 import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
@@ -139,6 +138,7 @@ let floatingUiModule = null;
 const floatingUi = () => (floatingUiModule ??= import("/vendor/floating-ui.esm.js"));
 
 export function createResponseSurface({
+  panelElements: { generalInput, panel, threadsBox },
   panelIsOpen,
   landIn,
   setPanel,

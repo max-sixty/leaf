@@ -60,6 +60,7 @@ from render_harness import (
     sending,
     shortcut_bar_text,
     stamp_page,
+    suggestion_control,
     told,
     wait_for_revision,
     write,
@@ -1216,24 +1217,14 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     )
     expect(page.locator("#quoted-suggestion lf-old")).to_be_visible()
     expect(page.locator("#quoted-suggestion lf-new")).to_be_visible()
-    assert (
-        page.locator(
-            "[data-lf-margin-entry-owner='suggestion:quoted-suggestion']"
-        ).count()
-        == 0
-    )
+    assert suggestion_control(page, "quoted-suggestion", visible=False).count() == 0
     expect(page.locator(".lf-answer-all")).to_have_text("Accept all (1)")
     expect_banner_control_offered(page.locator(".lf-answer-all"))
 
     # The control: the same markup unquoted wires all of it.
     assert page.locator('#live-group .lf-pick[role="checkbox"]').count() == 2
     assert page.locator("#live-board .lf-grip").count() == 1
-    assert (
-        page.locator(
-            "[data-lf-margin-entry-owner='suggestion:live-suggestion']"
-        ).count()
-        == 2
-    )
+    assert suggestion_control(page, "live-suggestion", visible=False).count() == 2
 
     # Nor the room for one. A quoted card stands at the height of a live titled card:
     # neither carries the old footer strip, and the live card's header state is out of

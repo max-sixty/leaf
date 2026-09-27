@@ -37,7 +37,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit
 
 import pytest
 from click.testing import CliRunner
@@ -1296,7 +1296,14 @@ def opened_tab(page, destination, press, timeout=10_000):
     `page` must belong to an explicitly created context such as `one_user`. Playwright
     refuses `context.new_page()` on the owner context created by `browser.new_page()`,
     which is what `open_page` uses when no context is passed.
+
+    A handover link's target may already stand at the address the runtime leaves once
+    it takes the key out of the address bar, so either spelling is the arrival.
     """
+    parts = urlsplit(destination)
+    keyless = parts._replace(
+        query=urlencode([(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if k != "t"])
+    ).geturl()
     browser_session = page.context.browser.new_browser_cdp_session()
 
     def page_targets():
@@ -1329,7 +1336,7 @@ def opened_tab(page, destination, press, timeout=10_000):
                     f"one press opened {len(opened)} page targets: "
                     f"{sorted(opened.values())}"
                 )
-            if list(opened.values()) == [destination]:
+            if len(opened) == 1 and set(opened.values()) <= {destination, keyless}:
                 break
             remaining = deadline - time.monotonic()
             if remaining <= 0:

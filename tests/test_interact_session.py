@@ -2103,10 +2103,13 @@ def test_away_asks_for_a_nudge_only_once_input_is_overdue(claimed, capsys):
     assert (fresh["kind"], fresh["counts"]["overdue"]) == ("away", 0)
     assert (late["kind"], late["counts"]["overdue"]) == ("away", 1)
 
-    # Picked up by the next turn, which then ended without answering it.
+    # Picked up by the next turn. A long, silent step past the working grace
+    # leaves nothing to say the turn ended, so it asks for no nudge; the turn
+    # ending without answering does.
     hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
     capsys.readouterr()
     assert _activity_at(claimed)["counts"]["overdue"] == 0
+    assert _activity_at(claimed, 16)["counts"]["overdue"] == 0
     turn_ends()
     stranded = _activity_at(claimed)
     assert (stranded["kind"], stranded["counts"]["overdue"]) == ("away", 1)

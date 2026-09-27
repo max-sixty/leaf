@@ -448,13 +448,21 @@ def canonical_activity(
         }
     queued = [item for item in obligations if item["stage"] == "queued"]
     pending = [item for item in obligations if item["stage"] == "sent"]
-    # Owed moves whose progress stalled with the agent to act: unpicked past the
-    # pickup grace, or left by a turn that ended or went quiet before answering.
-    # With nothing taking input, these are what only a nudge will move.
+    # Owed moves that stalled with the agent to act, by an ending something saw:
+    # unpicked past the pickup grace, or left by a turn that ended or was
+    # interrupted before answering. With nothing taking input, these are what only
+    # a nudge will move. Work merely gone quiet is left out, since a turn Leaf
+    # stopped believing in may still be running a long step, which is also why
+    # admission nudges only after a seen ending.
     overdue = [
         item
         for item in obligations
-        if item["condition"] is not None and item["next_actor"] == "agent"
+        if item["next_actor"] == "agent"
+        and item["condition"] is not None
+        and (
+            item["condition"]["kind"] in {"ended", "interrupted"}
+            or item["condition"]["operation"] == "delivery"
+        )
     ]
 
     # The page's `kind` reads this wherever it asks whether anyone is there, in the

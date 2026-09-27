@@ -56,12 +56,15 @@
     letter-spacing: -0.02em;
     line-height: 1.1;
   }
-  /* Body and side track. The body takes two parts of the room and the track one, from
-   * bases of 30rem and 18rem, and the two stack where they no longer fit beside each
-   * other at those bases or where the body could not keep its content's minimum: a board
-   * declaring the width its columns need wraps the track below it rather than clipping.
-   * A header or footer takes the whole row. The items' own block margins go, since flex
-   * margins don't collapse into the gap. */
+  /* Body and side track. The track is the Layout's `aside`, wherever it is written: one
+   * written before the body stands on the left and comes first where the two stack, as on
+   * a phone, and one written after it stands on the right and comes last. So the page's
+   * source order is the reading order at every width. The body takes two parts of the room
+   * and the track one, from bases of 30rem and 18rem, and the two stack where they no
+   * longer fit beside each other at those bases or where the body could not keep its
+   * content's minimum: a board declaring the width its columns need wraps the track below
+   * it rather than clipping. A header or footer takes the whole row. The items' own block
+   * margins go, since flex margins don't collapse into the gap. */
   .layout-sidebar {
     display: flex;
     flex-wrap: wrap;
@@ -70,8 +73,7 @@
   }
   .layout-sidebar > :is(header, footer) { flex: 1 0 100%; margin-block: 0; }
   .layout-sidebar > :not(header, footer) { flex: 2 1 30rem; margin-block: 0; }
-  .layout-sidebar > :nth-last-child(1 of :not(header, footer, script, style, template)) {
-    flex: 1 1 18rem; }
+  .layout-sidebar > aside { flex: 1 1 18rem; }
   .layout-sidebar > :not(header, footer) > :first-child { margin-top: 0; }
   /* Tiles: equal cells, as many to a row as fit at 9rem each. */
   .layout-tiles {

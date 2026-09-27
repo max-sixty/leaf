@@ -15,7 +15,8 @@ would run in the reply.
 None writes a page, runs `leaf`, or continues a long session, and the graders have not
 been checked against pages a person has judged. The child cannot search the plugin, so
 it answers from the references without reading the registry. Until that changes, a pass
-here is weak evidence. Still, keeping each instruction fix's cases here is better than
+here is weak evidence. `notes/usability-eval/harness.py` runs the cases that need a page
+directory and `leaf`: cold authoring, reading a page back, and resuming and revising one. Still, keeping each instruction fix's cases here is better than
 leaving them in a worktree's scratch. Add them as you go, and improve the suite in the
 same change when it gets in the way.
 

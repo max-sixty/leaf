@@ -6,6 +6,52 @@ page succeeds only when both can recover the same meaning.
 
 ## Current observations
 
+### First baseline, 2026-09-27
+
+`usability-eval/harness.py` ran the first executable slice below and three cases of
+the next paired check, at 387dfed45 with Opus 5.5, three scored runs per case and arm
+after one pilot run that fixed each fixture and scorer. Every run's model call
+completed. Per-run scores are in `usability-eval/results/`: `baseline.json`,
+`paired.json` and `board.json`. The scored runs cost $18.12, and $22.84 with the
+pilots.
+
+No run failed a check, so no failure calls for a new reading interface:
+
+| Case | Checks | Result | Cost and input per run |
+| --- | --- | --- | --- |
+| `cold-report` | skill loaded, page valid, checked, unstamped, no Ask, no sign-off | 3/3 each | $0.33, 192k tokens |
+| `cold-decision` | skill loaded, page valid, one Ask with one single-choice group of three options, gesture named, no sign-off | 3/3 each; the Ask held 8, 6 and 8 of the prompt's 8 measurements | $0.48, 349k tokens |
+| `near-miss` | skill not loaded, no page | 3/3 | $0.05, 15k tokens |
+| `reading` | seven questions, one per surface | 21/21 | $0.16, 100k tokens |
+| `resume` | current date, approach and next step; batch size changed where the comment points; pick marked `chosen` and still standing; thread answered; no `restated`; v3 stamped from a valid source | 3/3 each | $0.92, 752k tokens |
+
+Every reply was also read by hand, and agreed with the regex scorer on all 21 reading
+answers and all nine resume answer lines.
+
+What the traces show:
+
+- **Nobody reads `page state` to answer a question about a page.** In all five
+  `reading` runs (pilots included) the skill never loaded, and every agent answered
+  from `index.html`, `events.jsonl` and `data/*.json`, with 11 to 40 KB of tool
+  output. That was enough for the external value and, in the four runs whose fixture
+  had it, for a pick the user made, replaced, then undid. The skill loads once the task is to resume or revise a page.
+- **The missing view state caused no failure.** Asked which tab the user is looking
+  at, 3 of 3 agents said the page files don't record it and named the first tab
+  only as the default. The fact is missing, not misread: only a browser observation
+  could supply it, and no task here needed one.
+- **The invalid candidate was read correctly.** All nine resume runs reported the
+  active revision's date, named the rejected save and its error, and asked before
+  publishing its unexplained date change. Phase 2's "go ahead" answers the question
+  only loosely, and 2 of 9 runs took it as consent and published the rejected save's
+  date, saying so; a later run should ask for the revision without that ambiguity.
+- **Acknowledgement needs the wait.** A resumed page's pending events stay
+  unacknowledged until `leaf wait` delivers them, even after the agent has answered
+  each one. The headless prompts forbade waiting, so agents reported them as
+  pending; in one run the Stop hook made the agent wait and receive them again.
+- **Lifecycle varies on the decision page.** One of three `cold-decision` runs
+  stamped the page twice; the other two left it unstamped. The headless prompt
+  withholds the handoff, so the status and handoff criteria were not measured.
+
 The former `leaf page catalog` output was 92,130 bytes, 13,058 words, or about
 22,500 tokens under both `o200k_base` and `cl100k_base`. Before selective
 registry reading and phase-specific references, an agent also read the roughly
@@ -154,36 +200,34 @@ solved the agent experience.
 
 ## First executable slice
 
-Start with three fixture families:
+`usability-eval/harness.py` runs this slice; its docstring records the runner, model,
+fixture builder, trace format, arm isolation, answer normalization and retention
+choices. The first baseline is under "Current observations".
 
-1. **Cold authoring.** Run the informational and decision prompts against a
-   full-registry arm and a selective-registry arm. This tests discovery,
-   valid output, lifecycle choice, and context cost. Add one near-miss prompt
-   that should receive an ordinary chat answer without creating a page, so the
-   slice measures discovery precision as well as recall.
-2. **Reading parity.** Build one page with six facts, each represented through a
-   different surface: plain HTML, collapsed HTML, an inactive tab, widget data,
-   external data, and standing action state. Ask one direct question per fact and
-   score each answer against a checked answer file. Keep single-surface versions
-   of the fixture so a failure in the combined page can be isolated.
-3. **Resume.** Give the agent only a page directory containing version history,
-   one invalid source candidate, two threads, and a standing choice absent from
-   authored markup. Ask for the current truth and the next action, then one
-   revision. Score the answer, mutation target, and preservation of user state.
+1. **Cold authoring** (`cold-report`, `cold-decision`, `near-miss`). An
+   informational request, a decision request with evidence and three exclusive
+   choices, and a near-miss ("explain the difference between…") that should get an
+   ordinary chat answer. None names Leaf, so the cases measure discovery precision
+   as well as recall. The full-registry arm is gone with `leaf page catalog`, so
+   these run on one arm.
+2. **Reading parity** (`reading`). One page with seven facts: plain HTML, collapsed
+   HTML, an inactive tab, chart data, external data, a standing pick the user
+   replaced and then undid, and which tab the user is looking at, which no page file
+   records. `usability-eval/fixtures/reading-answers.json` is the checked answer
+   file. `reading-<surface>` cuts the page down to one surface, to isolate a failure
+   the combined page shows.
+3. **Resume** (`resume`). A page directory with two stamped versions, an invalid
+   `index.html` candidate that changes a date, a resolved and an open thread, and a
+   pick no markup records. Phase 1 asks for the current truth and the next action;
+   phase 2 asks for the revision.
 
-`arrangement-eval/` is one authoring case already runnable: fresh agents write three
-subjects with and without Leaf's arrangement vocabulary, revise each for a standing
+`arrangement-eval/` is the other authoring case: fresh agents write three subjects
+with and without Leaf's arrangement vocabulary, revise each for a standing
 preference, and a blind reviewer compares screenshots at three widths.
 
-Pair and interleave the authoring arms with the same model and settings. Count a
-run only when the model call completes. The first run of each case is for fixing
-the fixture and scorer; retain a case only after its expected answer is
-unambiguous.
-
-Both authoring arms and the comprehension fixtures can establish a baseline now.
-Before automating the slice, choose the agent runner and host, model settings,
-fixture builder, trace format, arm isolation, answer normalization, and
-result-retention policy.
+Not yet covered: the unfamiliar package, competing authorities beyond the invalid
+candidate, the elided thread, the mixed event batch, and a live handoff with its
+status, since the headless prompts withhold the server and the wait.
 
 ## Evaluate the integrated inspection path
 
@@ -260,3 +304,44 @@ calls for a smaller reading. A concise prose rendering is warranted only when
 the remaining failures show a benefit over these simpler changes. If HTML plus
 compact state performs as well as the expanded tree at lower context cost,
 remove the redundant tree output rather than preserving it as another default.
+
+#### First paired run, 2026-09-27
+
+Two of the three conditions ran, paired and started together, three scored runs each:
+the shipped arm, whose `page state` carries the `content` tree, and an arm built by
+`harness.py arm --without-tree`, whose `page state` drops `content` and whose
+references read the active HTML beside the compact state. No browser-observation
+condition exists to run. The cases were `resume` and `constructs`, a page with a
+draft the user rewrote, a figure stated at one measurement whose source has since
+run again, and a chart. `constructs` asks what each says, then for three changes
+whose owners differ: a date inside the user's draft (their words kept, `restated`),
+the figure (text and `at` from the latest measurement, source untouched) and a chart
+value (its CSV). `board` covers the one join the tree made that the compact state
+leaves to the reader: the user moved two cards into a column at ranks between the
+authored cards and moved a third, then undid that move. It asks for the column's order,
+then for a card added to another column, which obliges the version to write the moved
+cards where the fold puts them. The shared-source record case is not covered.
+
+| Case | Arm | Checks passed | `page state` bytes read per run | Cost per run |
+| --- | --- | --- | --- | --- |
+| `constructs` | tree | 33/33 | 13,151 | $0.63 |
+| `constructs` | without tree | 33/33 | 7,426 | $0.55 |
+| `resume` | tree | 33/33 | 8,006 | $0.81 |
+| `resume` | without tree | 33/33 | 8,385 | $0.97 |
+| `board` | tree | 24/24 | 5,865 | $0.57 |
+| `board` | without tree | 24/24 | 6,368 | $0.55 |
+
+Every failure class is empty, so the arms tie on correctness; without the tree,
+agents ordered the cards from the ranks in `state` themselves. Agents in the tree
+arm often filtered the tree out themselves (`jq 'del(.content)'`), which is why
+their `page state` reads are close on `resume`. Unfiltered, the tree is most of the
+output: without it `page state` shrinks from 24,422 to 4,755 bytes on the reading
+fixture, 11,625 to 4,197 on `constructs`, 58,528 to 4,117 on `review-a-plan` and
+122,280 to 10,360 on `command-hub`, where the page's own HTML is 13,814 bytes. Total
+input tokens per run do not separate the arms; the references a run reads dominate
+them.
+
+HTML plus compact state performed as well as the expanded tree at lower context
+cost, so the condition above holds: the page-level tree goes. `leaf thread read`
+keeps its construction reading, since a thread's frozen markup has no HTML file to
+read instead.

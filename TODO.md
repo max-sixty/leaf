@@ -40,12 +40,12 @@ has tried; settle that before building it.
 
 ### Agent and author experience
 
-- **Run the first agent-usability baseline, including #19.** Execute the
-  [cold-authoring, reading-parity, and resume cases](notes/agent-usability-evals.md#first-executable-slice).
-  Compare authoring and a feedback cycle with plain HTML before improving Leaf's
-  authoring guidance. Include the simplified delivery-receipt loop; the focused
-  receipt tests do not replace this baseline. Use observed failures to choose
-  new reading interfaces;
+- **Extend the agent-usability baseline, including #19.** The
+  [first slice](notes/agent-usability-evals.md#first-baseline-2026-09-27) passed every
+  check, so it calls for no new reading interface. Add the cases it leaves uncovered:
+  a live handoff with its status and the delivery-receipt loop, the elided thread, the
+  mixed event batch, the unfamiliar package and the shared-source record. Compare
+  authoring and a feedback cycle with plain HTML before improving Leaf's authoring guidance;
   **#20** then [teaches the compositions that prove useful](notes/workspace-followups.md#item-20),
   including how authors discover diagram comparison suggestions.
 - **Keep agent activity intelligible throughout a task.** Run the
@@ -157,8 +157,9 @@ and its chrome coordinate.
   at different widths and keep that limitation explicit.
 - **Record the user's view beside `viewed`.** Add the window size, colour scheme
   and revision a visible tab reports to the presence reading, and document them.
-  **Unconfirmed:** establish whether the missing view causes an agent failure in
-  the agent-usability baseline above before adding fields to the interface.
+  **Unconfirmed:** in the first agent-usability baseline the missing view caused no
+  failure: asked which tab the user had open, every agent said the page files don't
+  record it. Build this when a task needs the user's view.
 - **Derive the waiting banner from the page's open Ask.** Consider using the Ask's
   words when no explicit waiting detail is needed. **Unconfirmed:** try pages with
   several open Asks and an informational page before choosing how the banner

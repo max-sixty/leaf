@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Key rotation work</title>
+  </head>
+  <body>
+    <main class="layout-column">
+      <h1>Key rotation work</h1>
+      <p class="lede" id="lede">
+        The signing keys rotate before the old ones expire. Move a card when its state
+        changes.
+      </p>
+      <lf-board id="work-board">
+        <lf-column id="col-todo" label="To do">
+          <lf-card id="card-audit"><strong>Audit key usage</strong></lf-card>
+          <lf-card id="card-rotate"><strong>Rotate signing keys</strong></lf-card>
+          <lf-card id="card-docs"><strong>Update runbook</strong></lf-card>
+        </lf-column>
+        <lf-column id="col-doing" label="Doing">
+          <lf-card id="card-inventory"><strong>Inventory services</strong></lf-card>
+          <lf-card id="card-alerts"><strong>Expiry alerts</strong></lf-card>
+        </lf-column>
+        <lf-column id="col-done" label="Done"></lf-column>
+      </lf-board>
+    </main>
+  </body>
+</html>

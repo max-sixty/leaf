@@ -499,10 +499,10 @@ def line_ref_errors(lf_elements: list, registry: dict) -> list:
     return errors
 
 
-def suggestion_errors(lf_elements: list, registry: dict, comment_ids: set) -> list:
+def suggestion_errors(lf_elements: list, registry: dict, thread_ids: set) -> list:
     """What the registry's schema can't say about a suggestion: it holds at most
     one of each slot and at least one of them, it doesn't nest, and `resolves`
-    names a comment in the document's reference namespace. A family lint, named
+    names a thread in the document's thread namespace. A family lint, named
     for its family — and it reads even its own slots out of the merged registry,
     so a layer that adds one to the family is linted for it rather than around it."""
     tags = {
@@ -529,9 +529,9 @@ def suggestion_errors(lf_elements: list, registry: dict, comment_ids: set) -> li
                     f"{where}: carries {carried.count(tag)} <{tag}> children, one at most"
                 )
         resolves = rec["attrs"].get("resolves")
-        if resolves and resolves not in comment_ids:
+        if resolves and resolves not in thread_ids:
             errors.append(
-                f"{where}: resolves={resolves!r} names no comment in this document"
+                f"{where}: resolves={resolves!r} names no thread in this document"
             )
     return errors
 

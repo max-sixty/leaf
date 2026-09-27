@@ -50,7 +50,7 @@ from .service import (
 from .thread_context import (
     batch_threads,
     thread_memberships,
-    thread_roots,
+    thread_names,
     thread_structure,
     thread_widgets,
 )
@@ -182,13 +182,11 @@ def batch_data(page_dir: Path, transaction, batch: list[dict]) -> dict:
     registry = _registry(page_dir)
     events = transaction.events
     within = active_enclosing(page_dir)
-    roots = thread_roots(events)
-    structure = thread_structure(events)
-    widget_threads = thread_widgets(structure, roots)
+    names = thread_names(events)
     memberships = thread_memberships(
         events,
-        roots,
-        widget_threads,
+        names,
+        thread_widgets(thread_structure(events), names),
         within,
     )
     responses = current_responses(page_dir, events)

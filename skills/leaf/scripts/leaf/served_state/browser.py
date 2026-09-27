@@ -252,7 +252,7 @@ def browser_state(
                 events,
                 threads,
                 words,
-                thread_reading.roots,
+                thread_reading.thread_by_name,
                 thread_reading.thread_by_widget,
             )
         }

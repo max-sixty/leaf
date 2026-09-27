@@ -768,6 +768,7 @@ class PageEndpoint:
             executable=artifact.executable,
             widgets=artifact.widgets,
             resources=artifact.resources,
+            registry=artifact.registry,
             delivery=self._delivery(artifact, revision),
         )
         return self._content(200, "text/html; charset=utf-8", projected.encode())

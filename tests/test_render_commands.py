@@ -61,44 +61,32 @@ def unnamed_browser():
 
 
 def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
-    """The gate refuses words under `.lf-ui` inside a widget, because a widget reaching for
-    that marker is how a user ends up unable to comment on a heading they can see. The
-    line saying how many comments are on a passage wears the same marker and sits wherever
-    the passage does — inside the widget, when that is where the comment was made. Unless
-    the gate knows the difference, one comment on an option is a page nobody can hand over,
-    and every page the sweep above renders is a page with no comments on it.
+    """A comment on a widget's option leaves a page the gate passes: the mark and the note
+    counting the comment are the runtime's, and none of it is words the widget wrote.
 
-    The pass hunting words drawn on other words has to know the same difference,
-    and knows it as a float the runtime hangs over the page. The resting control
-    is transparent and clipped to one pixel, so this test gives it paint and
-    places it over prose. The normal reading holds the float out; the reading
-    with that hold disabled must report the planted overlap.
-
-    The hold is the float predicate rather than a class named in the skip list, which is
-    what the second reading has to reach for now: the line is out-of-flow chrome like a
-    suggestion's controls, so one rule answers for both and a name beside it would be the
-    same guarantee kept twice."""
+    The pass hunting words drawn on other words holds out a control the runtime hangs out
+    of flow over the page (`floating` in words.js). A control planted over the option's
+    words is held out by the normal reading and reported by the reading with that hold
+    disabled, so the hold is what keeps such a control from failing the page."""
     url = serve(INLINE_PAGE, anchored=[("opt-b", "quietly puts one back")])
     page = open_page(browser, url)
-    # Vacuous otherwise: the gate has to be looking at a page that has the line on it.
-    page.wait_for_function(
-        "() => document.querySelectorAll('.lf-mark-note').length === 1"
-    )
-    # Plant the floating label on its option's words. Its resting one-pixel,
-    # transparent box cannot paint an overlap, and relying on its incidental position
-    # makes this test depend on the page's current spacing.
-    page.locator(".lf-mark-note").evaluate(
-        """note => {
+    # Vacuous otherwise: the gate has to be looking at a page that carries the comment.
+    expect(page.locator(".lf-mark-note")).to_have_count(1)
+    page.evaluate(
+        """() => {
           const text = document.querySelector('#opt-b strong').firstChild;
           const range = document.createRange();
           range.selectNodeContents(text);
           const word = range.getClientRects()[0];
-          Object.assign(note.style, {
-            width: 'auto', height: 'auto', whiteSpace: 'nowrap',
-            opacity: '1', overflow: 'visible'
+          const float = Object.assign(document.createElement('span'), {
+            className: 'lf-ui', textContent: 'planted float',
           });
-          const resting = note.getBoundingClientRect();
-          note.style.transform = `translate(${word.left - resting.left}px, ${word.top - resting.top}px)`;
+          Object.assign(float.dataset, { lfGen: '1', lfOffer: 'button' });
+          Object.assign(float.style, {
+            position: 'absolute', whiteSpace: 'nowrap',
+            left: `${word.left + scrollX}px`, top: `${word.top + scrollY}px`,
+          });
+          document.body.append(float);
         }"""
     )
     held = render_checks_model.evaluate_probe(page, "coveredWords")
@@ -108,8 +96,8 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     page.close()
     assert render_gate_model.render_version(browser, url).failures == []
     assert held == []
-    assert any("1 comment" in found for found in reported), (
-        "the planted label covers no words, so a gate that never looked would pass too"
+    assert any("planted float" in found for found in reported), (
+        "the planted control covers no words, so a gate that never looked would pass too"
     )
 
 

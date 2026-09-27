@@ -50,6 +50,7 @@ from render_harness import (
     FEATURE_GALLERY,
     _traffic,
     _until,
+    comment_note,
     compare_with,
     consume_browser_errors,
     leaf_page,
@@ -6382,7 +6383,7 @@ def test_a_note_walked_on_inside_the_panel_is_left_by_the_list_holding_it(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
 
-    note = page.locator("#mounts-p .lf-mark-note")
+    note = comment_note(page, "#mounts-p")
     note.focus()
     page.keyboard.press("Enter")
     expect(
@@ -6450,7 +6451,7 @@ def test_a_card_stays_its_press_to_take_off_when_it_moves_on(browser, serve, ent
     preview = page.locator(".lf-margin-preview")
     card = preview.locator(".lf-page-thread")
     if entry == "note":
-        stood = page.locator("#mounts-p .lf-mark-note")
+        stood = comment_note(page, "#mounts-p")
         stood.focus()
         page.keyboard.press("Enter")
         expect(card).to_be_focused()
@@ -6551,14 +6552,14 @@ def test_a_second_press_into_a_standing_card_leaves_one_level_to_take_off(
     seeded_thread(page, serve.page_dir, "#heater-p")
     preview = page.locator(".lf-margin-preview")
     card = preview.locator(".lf-page-thread")
-    first = page.locator("#mounts-p .lf-mark-note")
+    first = comment_note(page, "#mounts-p")
     first.focus()
     page.keyboard.press("Enter")
     expect(card).to_be_focused()
     shown = card.get_attribute("data-thread")
 
     stood = (
-        page.locator("#heater-p .lf-mark-note")
+        comment_note(page, "#heater-p")
         if second == "note"
         else page.locator('[data-lf-margin-for="heater-p"] .lf-margin-marker')
     )

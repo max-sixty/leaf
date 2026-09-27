@@ -111,18 +111,19 @@
    opacity property. Clipped instead, it read as a one-pixel control at the top of the
    document that the floating comment bar could be standing on.
 
-   It takes no pointer while it rests, which is the whole difference between it and a
-   thread mark's note: that one is a real hit target on purpose, so a press reaches the
-   handler Enter reaches, while this is a keyboard affordance and nothing else. A
-   transparent pixel under the banner that could still receive a click is a control the
-   layer is standing on — which is what the page's own reading of that question said,
-   correctly. */
+   It takes no pointer while it rests, because it is a keyboard affordance and nothing
+   else. A transparent pixel under the banner that could still receive a click is a
+   control the layer is standing on — which is what the page's own reading of that
+   question said, correctly. */
 .lf-skip { opacity: 0; pointer-events: none; }
-/* The skip link (leaf.js says why it stands where it does). It rests transparent, the
-   way the comment note above does and for the same reason, and on focus takes the face
-   the two controls below take, in the same place — a user who has just pressed Tab
-   from the top of the document is the only one who ever sees it. Outside the scope
-   block because it stands outside the container, which is the whole point of it.
+/* A comment note (anchor-note-view.js) wears the skip link's face and rests where that
+   face stands. It lives in the chrome after the whole page, so a note focused while it
+   rested in flow would scroll the page to the chrome's end; fixed, focus moves nothing. */
+.lf-mark-note { position: fixed; top: calc(var(--lf-banner-h) + 6px); left: 8px; }
+/* The skip link (leaf.js says why it stands where it does) and a comment note. On focus
+   either takes this chip's face under the banner — a user who has just reached one is
+   the only one who ever sees it. Outside the scope block because the
+   skip link stands outside the container, which is the whole point of it.
 
    Its ring insets, which is the rule for a box whose own edge touches something that
    paints: this one is dropped over whatever the page has under the banner, and an

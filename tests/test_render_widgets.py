@@ -83,12 +83,14 @@ from render_harness import (
     compare_with,
     consume_browser_errors,
     expect_banner_control_offered,
+    expect_comment_notes,
     holding,
     holds_the_window,
     leaf_page,
     open_page,
     pane_posture,
     panel_settled,
+    plant_quiet_word,
     post_event,
     refuse,
     regions_side_by_side,
@@ -6344,8 +6346,8 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
     url = serve(SHORT_SUGGESTION, anchored=[("now", "Retry three times")])
     page = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    # Vacuous otherwise: the line has to be inside the slot the label is read from.
-    assert page.locator("lf-new #now > leaf-anchor-note > .lf-mark-note").count() == 1
+    # Vacuous otherwise: the slot the label is read from has to carry the comment.
+    expect_comment_notes(page, "lf-new #now", 1)
     control = page.locator(f"[data-lf-margin-for='sug'] .lf-sug-{outcome}")
     (unfolded_button(control) if folded else control).click()
     expect(page.locator(".lf-live")).to_have_text(
@@ -9223,8 +9225,7 @@ def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
     page = open_page(browser, url)
     # The note is what this test is about, so its presence is stated rather than assumed:
     # without it every assertion below holds for the wrong reason.
-    note = page.locator("#sug-refill .lf-mark-note")
-    expect(note).to_have_count(1)
+    expect_comment_notes(page, "#sug-refill", 1)
 
     page.keyboard.press("a")
     page.keyboard.press("a")
@@ -9240,7 +9241,6 @@ def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
         "LF-OLD",
         "LF-NEW",
     ], f"the ring reached past the page's own boxes: {marks}"
-    expect(page.locator("#sug-refill .lf-mark-note[data-lf-ask]")).to_have_count(0)
 
 
 # Charts. Every reading here is of the composed drawing rather than of the body it was
@@ -9586,17 +9586,16 @@ def test_a_dated_column_is_read_as_the_day_the_page_wrote(browser, serve):
 def test_a_redraw_keeps_the_words_the_runtime_hung_on_the_chart(browser, serve):
     """A chart redraws for a new width, and the runtime writes inside widgets.
 
-    The line saying a comment stands on this chart is a child of the element, put there by
-    the anchor pass. Replacing the element's children to hold the new drawing took it away
-    — and took it away at the moment the user narrowed the window or opened the panel to
-    read that very comment, for the life of the tab, since nothing puts it back. So the
-    drawing lives in a box of its own and the redraw replaces what is in that box.
+    A word the runtime hangs on the chart, such as a quiet word for a user listening, is a
+    child of the element. Replacing the element's children to hold the new drawing takes
+    it away, for the life of the tab, since nothing puts it back. So the drawing lives in
+    a box of its own and the redraw replaces what is in that box.
 
     The room is changed by the window, the one thing that changes it; what this is about
     is that a redraw happened at all, which the drawing's own width says."""
-    page = open_page(
-        browser, serve(CHART_PAGE, anchored=[("c-bars", "")]), context=None
-    )
+    page = open_page(browser, serve(CHART_PAGE), context=None)
+    page.wait_for_function("() => document.querySelector('#c-bars svg')")
+    plant_quiet_word(page, "#c-bars", "")
     read = """() => {
         const el = document.getElementById('c-bars');
         return { room: Math.round(el.clientWidth),
@@ -9604,7 +9603,7 @@ def test_a_redraw_keeps_the_words_the_runtime_hung_on_the_chart(browser, serve):
                  drawn: Number(el.querySelector('svg').getAttribute('width')) };
     }"""
     before = page.evaluate(read)
-    assert before["notes"] > 0, "the fixture must hang a comment line on the chart"
+    assert before["notes"] > 0, "the chart holds no word of the runtime's"
 
     resized(page, 620, 900)
     page.wait_for_function(

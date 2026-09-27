@@ -610,8 +610,8 @@ customElements.define(
     // hears one perfectly ordinary sentence.
     //
     // ARIA's own names for the two, said as text, because text is the one thing every
-    // screen reader announces in every mode — the bargain the mark note struck, and
-    // why role="deletion" is not what stands here. It follows the state exactly as the
+    // screen reader announces in every mode, which is why role="deletion" is not what
+    // stands here. It follows the state exactly as the
     // emphasis does: a decided suggestion is plain prose, so the surviving slot gives
     // up this word along with its marks.
     //

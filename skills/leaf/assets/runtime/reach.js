@@ -2,7 +2,6 @@
 
 import { TAB_STOP, TEXT_BOX } from "./focus.js";
 import { sizeObserver } from "./rendering.js";
-import { ANCHOR_NOTE_TAG } from "./anchor-note-view.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { shadowRootsIn } from "./shadow.js";
 import { LAYOUT } from "./widget-elements.js";
@@ -15,18 +14,9 @@ import { LAYOUT } from "./widget-elements.js";
 // entry, and it reaches the runtime's own boxes on the same terms as the page's — and
 // into the trees an x-shadow widget renders in, which the walk alone does not enter.
 //
-// A box holding a control of its own is already reachable (lf-board, through its
-// grips). Re-read that content when layout changes: an initially empty Page Map list
-// must give up its container stop once actions arrive inside it.
-//
-// Of its own is the load-bearing half. The anchor note is the one control the runtime
-// hangs inside a block it does not own, and it is a skip control over that block rather
-// than a stop inside it: a 1px transparent button (shadow.css, .lf-mark-note) that
-// leaves the flow for `position: fixed` the moment it takes focus, so standing on it
-// scrolls nothing and leaves everything past the box's edge as unreachable as before.
-// Counting it took the scroll stop off any box a user had commented on — one comment
-// anchored to a flowchart wider than the window, and the keyboard lost the half of the
-// graph hanging off the right of it.
+// A box holding a control is already reachable (lf-board, through its grips). Re-read
+// that content when layout changes: an initially empty Page Map list must give up its
+// container stop once actions arrive inside it.
 //
 // Two things every caller owes it, both learned by getting them wrong. It runs after a
 // widget has rendered rather than as one stages, because the look a scroll box has is
@@ -40,11 +30,10 @@ import { LAYOUT } from "./widget-elements.js";
 // block. An out-of-flow box is laid out against its containing block, and scrolling
 // makes a box no such thing: a static scroller's absolutely positioned descendant is
 // laid out against the page instead, where the scroller neither carries it as the
-// user scrolls nor clips it at its edge. The runtime hangs one in every block a
-// comment lands on — the count a user listening hears, clipped to a pixel
-// (.lf-mark-note, and .lf-quiet beside it) — so one comment on the far column of a
-// table wider than the window had the page itself scrolling sideways to reach a word
-// nobody can see. So every static box this finds declaring a scroll is marked, and the
+// user scrolls nor clips it at its edge. A widget's word for a user listening is one,
+// clipped to a pixel (.lf-quiet): standing past the far edge of a line of code wider
+// than its box, it would have the page itself scrolling sideways to reach a word nobody
+// can see. So every static box this finds declaring a scroll is marked, and the
 // theme positions the mark ([data-lf-holds]). Off the declaration and not the
 // measurement below, on purpose: the stop is owed only while something is out of
 // sight, while containment has to hold at whatever width the user's window turns
@@ -72,12 +61,7 @@ import { LAYOUT } from "./widget-elements.js";
 // leaves behind, so the re-measure walks a handful of boxes rather than the document.
 const overflows = (el) =>
   el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight;
-// The box's own controls, which is every focusable inside it but the note above.
-function holdsOwnStop(el) {
-  for (const node of el.querySelectorAll(TAB_STOP))
-    if (!node.closest(ANCHOR_NOTE_TAG)) return true;
-  return false;
-}
+const holdsOwnStop = (el) => el.querySelector(TAB_STOP) !== null;
 const mayScroll = new Set();
 // The same measurement spent on the eye. Scrolling is the layer's honest degrade for a
 // box whose content is wider than the room it was given — a diagram at the size it was

@@ -26,6 +26,7 @@ import {
   validateRows,
   word,
 } from "./bindings.js";
+import { deepFocus } from "../focus.js";
 import { upFrom } from "../shadow.js";
 import { repaint } from "../repaint.js";
 
@@ -377,11 +378,6 @@ const spoken = (row) => {
   return word(row.label) ?? active.map(spokenBinding).join(" or ");
 };
 
-const deepestFocus = () => {
-  let el = document.activeElement;
-  while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
-  return el;
-};
 const FOCUS = "lf-focus";
 const FOCUS_VISIBLE = "lf-focus-visible";
 const FOCUS_WITHIN = "lf-focus-within";
@@ -420,7 +416,7 @@ document.addEventListener(
       .composedPath()
       .find((node) => node?.localName === "label" && node.control);
     if (!label) return;
-    const active = deepestFocus();
+    const active = deepFocus();
     if (active && active !== document.body) markLabelPress(active, event.pointerId);
   },
   true,
@@ -442,13 +438,13 @@ const recoveredLabelKeys = new WeakMap();
 document.addEventListener(
   "keydown",
   (event) => {
-    const active = deepestFocus();
+    const active = deepFocus();
     if (!labelPress || event.isComposing || MODIFIER_KEYS.includes(event.key)) return;
     const { held } = finishLabelPress();
     if (active === held) return;
     if (!held.isConnected) return;
     held.focus({ preventScroll: true });
-    if (deepestFocus() === held) recoveredLabelKeys.set(event, held);
+    if (deepFocus() === held) recoveredLabelKeys.set(event, held);
   },
   true,
 );
@@ -459,7 +455,7 @@ document.addEventListener(
 // needs the inner element in both cases so its scope stays the one the user is leaving
 // or working.
 export const focused = () => {
-  const active = deepestFocus();
+  const active = deepFocus();
   return labelPress?.held.isConnected ? labelPress.held : active;
 };
 // Document readings want the host of a control staged in a shadow tree. Retarget the

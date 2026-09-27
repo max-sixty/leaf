@@ -22,6 +22,7 @@
 import {
   dragging,
   commands,
+  holdFocus,
   layoutChanged,
   motion,
   once,
@@ -450,6 +451,7 @@ customElements.define(
         this.#interactive &&
         focused?.localName === "lf-swipe-card" &&
         focused.closest("lf-swipe-deck") === this;
+      const restoreFocus = holdFocus(this);
       const cards = this.#piles().flatMap((pile) => this.#cards(pile));
       // A position record keeps action metadata on its units. Work newest-first so one
       // state read that brings several classifications animates the last arrival; all
@@ -487,10 +489,10 @@ customElements.define(
         });
       }
       this.#render();
+      // Standing on a card follows the deck to its next one; anywhere else is held.
       if (focusedCard && focused !== this.#active())
         (this.#active() ?? this.#progress).focus({ preventScroll: true });
-      else if (focused?.isConnected && document.activeElement !== focused)
-        focused.focus({ preventScroll: true });
+      else restoreFocus?.();
       if (moved) layoutChanged(this);
       return played;
     }

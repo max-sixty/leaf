@@ -12,6 +12,13 @@
 
 ## Current Status
 
+MCP Apps is not a current focus (2026-09-27), and the probe no longer passes
+against the current runtime. Its page renders in the reference host, but a choice
+pressed on it never reaches the page's event log: `observe-direct.mjs` stops at
+"No new matching durable event", and the MCP server logs no request or error. Resume
+by comparing the fetch and `EventSource` stand-ins in `probe/direct-entry.js` with
+how the runtime now sends a gesture, before running any experiment below.
+
 ### Latest Results: experiment 56
 
 The real Leaf design-decision page travels directly in a `ui://` resource in the

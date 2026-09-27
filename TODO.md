@@ -181,12 +181,6 @@ and its chrome coordinate.
 
 ### Shared definitions
 
-- **Hold focus in the thread seats with `holdFocus`.** `focus.js` `holdFocus` is the
-  one hand-over of the user's place across a DOM move, but `thread/inline.js`
-  `ThreadSeat.present` (across one render) and `retain` (across a refused batch) still
-  pair `readCaret` with `focusDestination` by hand. Cutting `retain` over also lets a
-  user who moved on while the batch waited keep their new place. Left while the
-  `thread-focus-scroll` branch had unmerged edits to `present`.
 - **Say which panes the workspace holds without naming `lf-pane`.** `layouts.css`
   holds an authored pane only as the workspace body or a cell of it (a pane in a
   section flows), and a generated pane at any depth. It tells the two apart by the

@@ -241,12 +241,6 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Implementation candidates
 
-- **Write the unresolved-gesture ledger as one state machine.** `application.ts`
-  (`accept`, `accountPresented`), `application.js` (`releasableEntries`) and
-  `pending/model.js` track a gesture through five flags, and each writes its own rule
-  for when an action leaves the ledger. Nothing
-  has drifted and this is the hottest race path, so take it when a change has to touch
-  the ledger anyway.
 - **Set interaction-trace privacy before sharing pages.** Define who can inspect
   traces, consent or opt-out, sensitive-field redaction (including passwords,
   pasted text, and selection), and retention/deletion for page-local files and

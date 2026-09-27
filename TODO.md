@@ -194,12 +194,6 @@ and its chrome coordinate.
   second after the panes first draw. Both need a mark the stylesheet can read before
   the script: an authored/generated distinction in the paint, and the role in the
   first paint.
-- **Pick "any suggestion's control" without its owner key.** The harness's
-  `suggestion_owner` is the suite's one spelling of `lf-suggestion`'s contribution key,
-  but four prefix selectors in `test_render_controls.py` (`^="suggestion:"`,
-  `^="draft:"`), one that slices the key apart there, and one in
-  `test_render_threads.py` still spell it. Give the harness a by-kind locator, or
-  find these controls by the widget's own element.
 
 ## Etc
 

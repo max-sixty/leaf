@@ -55,6 +55,7 @@ from render_harness import (
     FEATURE_GALLERY,
     LONG_PAGE,
     CutOff,
+    any_owner_entry,
     holding,
     leaf_page,
     open_page,
@@ -2622,15 +2623,14 @@ def test_two_standard_thread_lists_share_updates_but_not_local_state(browser, se
     page = open_page(browser, url)
     page.evaluate(
         """async () => {
-          const assetRoot = new URL('.', document.querySelector('script[src$="/leaf.js"]').src);
           const [{ createThreadPanelElements }, { createThreadListController },
             { createThreadNarrowing }, { threadList },
             { registerThreadPanel, refreshThread }] = await Promise.all([
-              import(new URL('runtime/thread/panel-elements.js', assetRoot)),
-              import(new URL('runtime/thread/thread-list.js', assetRoot)),
-              import(new URL('runtime/thread/narrowing.js', assetRoot)),
-              import(new URL('runtime/thread/state.js', assetRoot)),
-              import(new URL('runtime/application.js', assetRoot)),
+              window.__lfRuntimeImport('/runtime/thread/panel-elements.js'),
+              window.__lfRuntimeImport('/runtime/thread/thread-list.js'),
+              window.__lfRuntimeImport('/runtime/thread/narrowing.js'),
+              window.__lfRuntimeImport('/runtime/thread/state.js'),
+              window.__lfRuntimeImport('/runtime/application.js'),
             ]);
           const host = document.createElement('div');
           host.style.cssText = 'display:flex; gap:24px; position:relative; z-index:50';
@@ -2726,8 +2726,7 @@ def test_two_standard_thread_lists_share_updates_but_not_local_state(browser, se
     expect(b.locator(f'.lf-thread[data-id="{later["id"]}"]')).to_be_visible()
     pending = page.evaluate(
         """async () => {
-          const assetRoot = new URL('.', document.querySelector('script[src$="/leaf.js"]').src);
-          const { readApplicationPresentation } = await import(new URL('runtime/semantic-state.js', assetRoot));
+          const { readApplicationPresentation } = await window.__lfRuntimeImport('/runtime/semantic-state.js');
           return readApplicationPresentation().pending;
         }"""
     )
@@ -5525,7 +5524,7 @@ def test_a_control_in_a_reply_holds_the_page_s_control_shape(browser, serve):
     focus_panel_thread(page.locator('.lf-thread[data-id="tv-decisioned"]'))
     geometries = (
         "() => [...document.querySelectorAll("
-        "'.lf-margin-entry[data-lf-margin-entry-owner^=\"suggestion:\"]')]"
+        f"'.lf-margin-entry{any_owner_entry('suggestion')}')]"
         ".map((b) => { const s = getComputedStyle(b); "
         "return [s.width, s.height, s.borderRadius]; })"
     )

@@ -74,7 +74,8 @@ function marginReading(main) {
     if (
       !el.checkVisibility({ opacityProperty: true, visibilityProperty: true }) ||
       el.hasAttribute("data-lf-space")
-    ) return false;
+    )
+      return false;
     const style = getComputedStyle(el);
     const box = el.getBoundingClientRect();
     // Clipped to nothing is not standing in the margin: the words a page paints for

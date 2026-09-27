@@ -75,6 +75,7 @@ import { letGo } from "../focus.js";
 import { pageParts } from "../passages.js";
 import { addressableSays, fragmentTarget } from "../anchor-resolution.js";
 import { announce, notice } from "../notifications.js";
+import { retainUserIntent } from "../user-intent.js";
 import { closestAcross, pageQueryAll } from "../passages.js";
 import {
   currentTray,
@@ -192,6 +193,9 @@ export function createGoToSequence({
 
   function followLink(link) {
     const fragment = sameDocumentFragment(link);
+    // Held from the hint's own press, so a newer gesture during the landing keeps the
+    // focus it took, as travel keeps the scroll it took.
+    const mayFocus = retainUserIntent();
     let activation = null;
     link.addEventListener("click", (event) => (activation = event), {
       capture: true,
@@ -205,6 +209,7 @@ export function createGoToSequence({
       const landed = window.navigation?.transition?.finished ?? Promise.resolve();
       landed.then(
         () => {
+          if (!mayFocus()) return;
           const destination = fragmentFocusTarget(fragmentTarget(fragment));
           if (destination) focusDestination(destination);
         },

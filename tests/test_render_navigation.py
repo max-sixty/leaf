@@ -6,7 +6,7 @@ import re
 import pytest
 from leaf import data as data_model
 from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.render_checks import one_frame, rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASKS_PAGE,
@@ -1685,6 +1685,40 @@ def test_an_addressed_link_leaves_the_user_at_its_destination(
     tab = opened_tab(page, destination, lambda: page.keyboard.type(external_code))
     expect(tab).to_have_url(destination)
     expect(page.locator(".lf-live")).to_have_text("Opened Leaf guide in a new tab")
+
+
+def test_a_link_hint_leaves_a_newer_gesture_where_it_is(browser, serve):
+    """A link hint's trip may wait on what holds its destination. A press made
+    meanwhile is the user's newer word: neither the landing nor the hint's focus
+    takes them back from it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "held link",
+                """
+<h1>Held link</h1>
+<p><a id="internal" href="#arrival">Read the conclusion</a>.</p>
+<p><button id="elsewhere" type="button">Elsewhere</button></p>
+<div style="height: 1600px"></div>
+<section id="holder"><h2 id="arrival">Conclusion</h2></section>
+""",
+            )
+        ),
+    )
+    page.evaluate(
+        """() => document.getElementById('holder').addEventListener('lf-reveal',
+             (event) => event.detail.present(new Promise((r) => (window.__release = r))))"""
+    )
+    go_to_address(page, "Link", "internal")
+    page.wait_for_url(re.compile(r"#arrival$"))
+    page.wait_for_function("() => typeof window.__release === 'function'")
+    page.locator("#elsewhere").click()
+    page.evaluate("() => window.__release()")
+    one_frame(page)
+    one_frame(page)
+    expect(page.locator("#elsewhere")).to_be_focused()
+    expect(page.locator("#arrival")).not_to_be_in_viewport()
 
 
 def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve):

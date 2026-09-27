@@ -7537,11 +7537,10 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
-    # And a mark note out on the page. It is one of Leaf's controls, placed beside the
-    # words it marks rather than in the chrome, so the ladder's foot backs out of it
-    # onto the page and the standing scope, which lets go of a destination, does not
-    # stand: the reference names that one press rather than listing every step whose
-    # own condition is true.
+    # And a comment note. It is apparatus standing at the block it counts rather than a
+    # destination, so the ladder's foot backs out of it onto the page and the standing
+    # scope, which lets go of a destination, does not stand: the reference names that
+    # one press rather than listing every step whose own condition is true.
     page.locator(".lf-mark-note").focus()
     expect(page.locator(".lf-mark-note")).to_be_focused()
     page.keyboard.press("?")

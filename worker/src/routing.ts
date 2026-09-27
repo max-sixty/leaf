@@ -48,10 +48,15 @@ const sitePageSchema = z
     ),
   );
 
-// A page's URL namespace beneath its root: `schema.PAGE_ROUTE_DIRS` and the vendored
-// files, written into the manifest by `scripts/site.py`.
+// A page's URL namespace beneath its root, by kind: its API directory, its browser
+// layer's directories, the directories its session writes, and the vendored files
+// (`schema.API_ROUTE_DIR`, `BROWSER_DIRS`, `SESSION_ROUTE_DIRS`, `VENDORED_FILES`).
+// `scripts/site.py` writes it into the manifest.
+const routeDir = z.string().check(z.regex(/^[a-z]+$/));
 const pageRoutesSchema = z.object({
-  dirs: z.array(z.string().check(z.regex(/^[a-z]+$/))),
+  api: routeDir,
+  layer: z.array(routeDir),
+  session: z.array(routeDir),
   files: z.array(z.string().check(z.regex(/^[a-z0-9-]+\.[a-z]+$/))),
 });
 
@@ -90,10 +95,13 @@ export function parseSiteManifest(value: unknown): SiteManifest {
   return result.data;
 }
 
+const within = (dirs: string[], inside: string): boolean =>
+  dirs.some((dir) => inside === dir || inside.startsWith(`${dir}/`));
+
 function pageResource(routes: SiteManifest["routes"], inside: string): boolean {
   return (
     routes.files.includes(inside) ||
-    routes.dirs.some((dir) => inside === dir || inside.startsWith(`${dir}/`))
+    within([routes.api, ...routes.layer, ...routes.session], inside)
   );
 }
 
@@ -104,7 +112,7 @@ export function releaseAssetRoute(
   for (const [root, page] of Object.entries(pages)) {
     if (!pathname.startsWith(`${page.assets}/`)) continue;
     const inside = pathname.slice(page.assets.length + 1);
-    if (!pageResource(routes, inside) || inside.startsWith("api/")) return null;
+    if (!pageResource(routes, inside) || within([routes.api], inside)) return null;
     const publicRoot = root === "/" ? "" : root;
     return {
       route: { root, inside, ...page },
@@ -135,13 +143,20 @@ export function pageRoute(
   return null;
 }
 
-export function isPageApiRequest(route: PageRoute | null): boolean {
-  return route?.inside === "api" || route?.inside.startsWith("api/") || false;
+export function isPageApiRequest(
+  route: PageRoute | null,
+  { routes }: SiteManifest,
+): boolean {
+  return route !== null && within([routes.api], route.inside);
 }
 
-export function isPageSessionFileRequest(route: PageRoute | null): boolean {
-  const directory = route?.inside.split("/", 1)[0];
-  return ["media", "revisions", "versions"].includes(directory ?? "");
+/** A file the page's session writes after its publish, which a static miss may still
+ * find in its container. */
+export function isPageSessionFileRequest(
+  route: PageRoute | null,
+  { routes }: SiteManifest,
+): boolean {
+  return route !== null && within(routes.session, route.inside);
 }
 
 /** The page's live document: the stable address a revision activates by reloading. */

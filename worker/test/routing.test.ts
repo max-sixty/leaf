@@ -36,11 +36,13 @@ const pages = {
   "/examples/triage-board": page("example"),
 };
 const routes = {
-  dirs: ["api", "runtime", "widgets", "vendor", "media", "revisions", "versions"],
+  api: "api",
+  layer: ["runtime", "widgets", "vendor"],
+  session: ["media", "revisions", "versions"],
   files: ["leaf.js", "theme.css", "shadow.css", "registry.json", "icon.svg"],
 };
-const route = (pathname: string) =>
-  pageRoute(pathname, { release: "a".repeat(64), routes, pages });
+const manifest = { release: "a".repeat(64), routes, pages };
+const route = (pathname: string) => pageRoute(pathname, manifest);
 
 describe("website page routing", () => {
   it("accepts only manifests whose current state and release paths agree", () => {
@@ -88,21 +90,33 @@ describe("website page routing", () => {
     ).toThrow('at pages["/"].image');
   });
 
+  it("reads every directory's kind from the manifest", () => {
+    const renamed = {
+      ...manifest,
+      routes: { ...routes, api: "rpc", session: [...routes.session, "drafts"] },
+    };
+    const at = (pathname: string) => pageRoute(pathname, renamed);
+    expect(isPageApiRequest(at("/examples/rpc/state"), renamed)).toBe(true);
+    expect(at("/examples/api/state")).toBeNull();
+    expect(isPageSessionFileRequest(at("/examples/drafts/d1.html"), renamed)).toBe(true);
+    expect(isPageSessionFileRequest(at("/examples/runtime/a.js"), renamed)).toBe(false);
+  });
+
   it("sends product and concrete example routes to Leaf", () => {
     expect(route("/")).not.toBeNull();
     expect(route("/api/state")).not.toBeNull();
     expect(route("/examples/")).not.toBeNull();
-    expect(isPageApiRequest(route("/examples/api/state"))).toBe(true);
-    expect(isPageApiRequest(route("/examples/triage-board/api/state"))).toBe(true);
-    expect(isPageApiRequest(route("/examples/triage-board/runtime/state-feed.js"))).toBe(false);
-    expect(isPageSessionFileRequest(route("/media/upload.png"))).toBe(true);
+    expect(isPageApiRequest(route("/examples/api/state"), manifest)).toBe(true);
+    expect(isPageApiRequest(route("/examples/triage-board/api/state"), manifest)).toBe(true);
+    expect(isPageApiRequest(route("/examples/triage-board/runtime/state-feed.js"), manifest)).toBe(false);
+    expect(isPageSessionFileRequest(route("/media/upload.png"), manifest)).toBe(true);
     expect(
       isPageSessionFileRequest(
-        route("/examples/triage-board/revisions/r3-aabbccdd.html"),
+        route("/examples/triage-board/revisions/r3-aabbccdd.html"), manifest,
       ),
     ).toBe(true);
     expect(
-      isPageSessionFileRequest(route("/examples/triage-board/versions/v3.html")),
+      isPageSessionFileRequest(route("/examples/triage-board/versions/v3.html"), manifest),
     ).toBe(true);
     // The layer's own files are routed to the page and served from it, rather than
     // held as session files. Both sheets: a page reads /theme.css, and an x-shadow
@@ -110,10 +124,10 @@ describe("website page routing", () => {
     expect(route("/examples/triage-board/theme.css")?.inside).toBe("theme.css");
     expect(route("/examples/triage-board/shadow.css")?.inside).toBe("shadow.css");
     expect(
-      isPageSessionFileRequest(route("/examples/triage-board/theme.css")),
+      isPageSessionFileRequest(route("/examples/triage-board/theme.css"), manifest),
     ).toBe(false);
     expect(
-      isPageSessionFileRequest(route("/examples/triage-board/shadow.css")),
+      isPageSessionFileRequest(route("/examples/triage-board/shadow.css"), manifest),
     ).toBe(false);
     expect(route("/examples.html")).toBeNull();
     // Only the namespace the manifest names: a page serves no guidance.

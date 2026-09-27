@@ -220,6 +220,12 @@ and its chrome coordinate.
 - **Ask once whether the page has caught up with a reading.** `tests/render_harness.py`
   `told()` waits for `data-lf-reading` to match the server's reading, and the `data`
   and `log` stages of the runtime's `pageReadiness` (#1250) answer the same question.
+- **Serve an unnamed agent's name to the browser.** Python names an agent with no
+  `agent` field `schema.UNNAMED_AGENT`, but five runtime sites still spell `|| "Agent"`
+  (`context.js`, `margin-projection.js`, `semantic-news.js`, `thread/messages.js`,
+  `thread/thread-card.js`), and `lf-activity.js` shows such a row under the claimant's
+  name instead. Resolve the name where the browser's threads, margin updates and
+  activity rows are served, then delete the JS fallbacks.
 
 ## Etc
 

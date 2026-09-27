@@ -1051,7 +1051,7 @@ export default {
       /^[1-9][0-9]*$/.test(privateRevision ?? "");
     if (
       (request.method === "GET" || request.method === "HEAD") &&
-      !isPageApiRequest(route) &&
+      !isPageApiRequest(route, manifest) &&
       !privateDocumentReload
     ) {
       const response = stampedStaticResponse(
@@ -1061,7 +1061,7 @@ export default {
       );
       if (
         response.status !== 404 ||
-        !isPageSessionFileRequest(route) ||
+        !isPageSessionFileRequest(route, manifest) ||
         existing === null ||
         !active
       ) {

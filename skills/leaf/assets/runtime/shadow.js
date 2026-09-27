@@ -68,6 +68,9 @@ export const overIn = (el, selector, frame) => {
 // A label a widget declared as the page speaking (relabel), which the anchor pass reads
 // over the chrome it sits in.
 export const SAID = "[data-lf-said]";
+// The pair `uiInside` weighs, the nearer deciding. The passage walk reads the same pair one
+// element at a time on its way down (passages.js, `chromeMark`).
+export const UI_MARKS = `.lf-ui, ${SAID}`;
 // The same question one node at a time: is this the runtime's own chrome rather than the
 // document? Every affordance asks it before acting on where the pointer or the caret is.
 // The nearest element that answers wins: a declared label is the page's words inside the
@@ -87,7 +90,7 @@ export const SAID = "[data-lf-said]";
 // that what a mark may hang on, what a settlement has emptied, and what a quote may
 // name cannot come apart.
 export const uiInside = (el, within) => {
-  const near = el && overIn(el, `.lf-ui, ${SAID}`, within);
+  const near = el && overIn(el, UI_MARKS, within);
   return Boolean(near) && !near.matches(SAID);
 };
 export const inUi = (node) =>

@@ -101,7 +101,7 @@ def jsonl_line(event: dict) -> str:
     JSON strings and line breaks to any splitlines()-shaped reader, so they are
     written as escapes — a pasted comment carrying one must not decide where an
     event ends. The log's own reader splits on the "\\n" the writer puts between
-    events either way; the escape is for what `wait` and `events` print, which
+    events either way; the escape is for what `wait` and `page events` print, which
     stays one event per line for every consumer. json.dumps escapes every other
     line-breaking character on its own."""
     line = json.dumps(event, ensure_ascii=False)
@@ -192,8 +192,7 @@ def _append_event_unlocked(f, event: dict, events: list[dict]) -> tuple[dict, bo
         # the write rather than assumed from width, and the id stays short
         # enough for an agent to read off a projection and retype into `leaf
         # thread reply --for`. Nothing may treat one as a global identifier: a host
-        # keying an external operation on a `request` pairs the id with the page
-        # (`references/packages.md`).
+        # keying an external operation on an event pairs the id with the page.
         while True:
             candidate = secrets.token_hex(4)
             if not _event_id_exists(events, candidate):

@@ -8,7 +8,6 @@ from interact_support import (
     append_command,
     record_claim,
 )
-from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -60,7 +59,6 @@ from render_cases_navigation import (
     _publish,
     actions,
     live_watcher,
-    source_revision,
 )
 from render_cases_widgets import (
     SCROLLED,
@@ -82,6 +80,7 @@ from render_harness import (
     any_owner_entry,
     any_suggestion_control,
     consume_browser_errors,
+    expect_comment_notes,
     holding,
     leaf_page,
     nudge,
@@ -105,49 +104,6 @@ from render_harness import (
 pytestmark = pytest.mark.nightly
 
 SWIPE_GALLERY = next(path for path in CORPUS_SOURCES if path.stem == "swipe-gallery")
-
-
-def test_projected_request_rows_have_independent_buttons(browser, serve):
-    url = serve(FEATURE_GALLERY)
-    data_model.cmd_data_set(serve.page_dir, "gallery-latency", 184)
-    page = open_page(browser, url)
-    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Data & work").click()
-    jobs_revision = source_revision(serve.page_dir, "gallery-jobs")
-    assert (
-        page.evaluate("() => document.querySelector('#bg-jobs').snapshot.revision")
-        == jobs_revision
-    )
-    rows = page.locator("#bg-jobs p")
-    expect(rows).to_have_count(2)
-    first = rows.nth(0).get_by_role("button", name="Restart")
-    second = rows.nth(1).get_by_role("button", name="Restart")
-    expect(first).to_be_enabled()
-    expect(second).to_be_enabled()
-
-    first.focus()
-    with page.expect_response("**/api/event") as posted:
-        page.keyboard.press("Enter")
-    assert posted.value.status == 200
-    assert posted.value.request.post_data_json["source_revision"] == jobs_revision
-    expect(first).to_be_disabled()
-    expect(second).to_be_enabled()
-    assert page.evaluate("""async () => {
-      const holder = document.querySelector('#bg-jobs');
-      const {dispatchWidget} = await window.__lfRuntimeImport('/runtime/application.js');
-      const {widgetDescriptor} = await window.__lfRuntimeImport('/runtime/widget-descriptors.js');
-      const descriptor = widgetDescriptor(holder);
-      const duplicate = dispatchWidget(descriptor, {
-        kind: 'request', verb: 'restart',
-        detail: {target: 'indexer', state: 'stopped'},
-      });
-      const missing = dispatchWidget(descriptor, {
-        kind: 'request', verb: 'restart',
-        detail: {target: 'unknown', state: 'stopped'},
-      });
-      return [duplicate, missing];
-    }""") == [None, None]
-    second.click()
-    expect(second).to_be_disabled()
 
 
 TARGETING_GALLERY = next(
@@ -224,9 +180,11 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     views["overview"].get_by_role("button", name="Close threads").click()
     expect(views["overview"].locator(".lf-thread-panel")).to_be_hidden()
     expect(views["you"].locator(".lf-thread-panel")).to_be_visible()
-    page.locator("#overview-sample").get_by_role(
+    reset = page.locator("#overview-sample").get_by_role(
         "button", name="Reset", exact=True
-    ).click()
+    )
+    reset.click()
+    expect(reset).to_be_enabled(timeout=30000)
     expect(views["overview"].locator(".lf-thread-panel")).to_be_visible()
     expect(views["overview"].locator(".lf-thread:not([hidden])")).to_have_count(3)
 
@@ -2840,7 +2798,8 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     # carried, rather than being redirected onto one stamped version.
     assert destination is not None and destination.startswith(f"{other_url}/?t=")
     tab = opened_tab(page, destination, link.click)
-    expect(tab).to_have_url(destination)
+    # The arrival leaves the key in the cookie and the bare address in the tab.
+    expect(tab).to_have_url(f"{other_url}/")
     tab.close()
     # The press left this tab alone, tray still standing.
     expect(others_panel).to_be_visible()
@@ -3392,7 +3351,7 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf, one_user)
     destination = rows.nth(1).get_attribute("href")
     assert destination is not None and destination.startswith(f"{other_url}/?t=")
     tab = opened_tab(page, destination, lambda: page.keyboard.press("Enter"))
-    expect(tab).to_have_url(destination)
+    expect(tab).to_have_url(f"{other_url}/")
     tab.close()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-others-panel")).not_to_be_visible()
@@ -4228,15 +4187,12 @@ def test_a_scroll_box_inside_a_widgets_shadow_tree_takes_the_keyboard(browser, s
 
 def test_a_comment_on_a_scrolling_box_leaves_its_tab_stop_alone(browser, serve):
     """A box already holding a control of its own needs no stop of the sweep's: the
-    user reaches what is out of sight through the control. The note the runtime hangs
-    in every commented block is not such a control. It is a one-pixel transparent button
-    that leaves the flow for `position: fixed` the moment it takes focus, so standing on
-    it scrolls nothing, and counting it took the stop off any box a user had commented
-    on — one comment on a flowchart wider than the window, and the keyboard lost the half
-    of the graph hanging off the right of it.
+    user reaches what is out of sight through the control. A comment on the box adds
+    no control to it, so one comment on a flowchart wider than the window leaves the
+    keyboard its way to the half of the graph hanging off the right of it.
 
-    Read with the note on and off the same box, because the assertion says nothing unless
-    the box would otherwise have the stop."""
+    Read with the comment on and off the same box, because the assertion says nothing
+    unless the box would otherwise have the stop."""
     url = serve(WIDE_DIAGRAM_PAGE)
     page = open_page(browser, url)
     resized(page, 760, 900)
@@ -4245,7 +4201,7 @@ def test_a_comment_on_a_scrolling_box_leaves_its_tab_stop_alone(browser, serve):
         "this diagram fits its room, so it proves nothing"
     )
     expect(diagram).to_have_attribute("tabindex", "0")
-    expect(page.locator("#flow .lf-mark-note")).to_have_count(0)
+    expect_comment_notes(page, "#flow", 0)
 
     events_model.append_event(
         serve.page_dir,
@@ -4259,7 +4215,7 @@ def test_a_comment_on_a_scrolling_box_leaves_its_tab_stop_alone(browser, serve):
         },
     )
     told(page)
-    expect(page.locator("#flow .lf-mark-note")).to_have_count(1)
+    expect_comment_notes(page, "#flow", 1)
     expect(diagram).to_have_attribute("tabindex", "0")
 
 
@@ -5382,7 +5338,6 @@ RING_CASES = (
                     ("ask", "margin-entry"),
                 ),
                 (".lf-draft-edit", "draft-editor"),
-                (".lf-mark-note", "pressable"),
             ),
             "heat-loss": ((".lf-visual-action", "visual-target"),),
             "pr-walkthrough": (
@@ -5396,6 +5351,7 @@ RING_CASES = (
             "release-notes": (
                 ("main p.lf-mark-el", "passage-focus"),
                 ('lf-shot .lf-shotcomparison [part~="handle"]', "shot"),
+                (".lf-shotcap", "pressable"),
             ),
             "ship-review": ((".lf-reopen", "thread-action"),),
         },

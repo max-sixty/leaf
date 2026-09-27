@@ -116,7 +116,7 @@ def append_command(page_dir, command):
 def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
     """Write revision `revision` of `data` under the page's current registry.
 
-    A shortcut past `version stamp` for a test that stages history directly: it
+    A shortcut past `page stamp` for a test that stages history directly: it
     runs no gate and no activation, and refuses a revision number already taken."""
     from leaf.registry.storage import read_page_registry
     from leaf.revision_artifact import capture_artifact, write_artifact
@@ -182,6 +182,9 @@ class ModelPage:
 
     def document(self, revision: int):
         return self.documents[revision]
+
+    def reading(self, revision: int, registry: dict):
+        return passages_model.SourceReading(self.documents[revision], registry)
 
     def registry(self, revision: int | None) -> dict:
         """One layer for every revision: a stated page never re-vendors, so no
@@ -440,13 +443,13 @@ def page_dir(tmp_path, monkeypatch, initialized_page):
 
 
 def check(d):
-    """`version check`, in-process. A page that runs its own code has the check start
+    """`page check`, in-process. A page that runs its own code has the check start
     Playwright, whose sync API refuses a thread already driving another instance —
     which a worker holding the session `browser` fixture is — so the command gets a
     thread of its own."""
     with ThreadPoolExecutor(1) as pool:
         return pool.submit(
-            CliRunner().invoke, cli_model.cli, ["version", "check", str(d)]
+            CliRunner().invoke, cli_model.cli, ["page", "check", str(d)]
         ).result()
 
 
@@ -501,7 +504,7 @@ def declare_data_input(
 
 
 def stamp_activation(d):
-    """Activate the source as `version stamp` does: checked against the standing
+    """Activate the source as `page stamp` does: checked against the standing
     log with transitions allowed, ahead of the note that records them."""
     from leaf.validation.source import check_source
 
@@ -511,7 +514,7 @@ def stamp_activation(d):
 
 def publish(d, version=1):
     """Append the note event that makes a version the user-seen baseline:
-    `version check` compares against the last *published* version, and an action
+    `page check` compares against the last *published* version, and an action
     can only ever be made against one the server exposed."""
     activated = stamp_activation(d)
     assert activated.error is None and activated.revision is not None
@@ -560,7 +563,7 @@ def stamp(d, text="stamped", completes=()):
     return CliRunner().invoke(
         cli_model.cli,
         [
-            "version",
+            "page",
             "stamp",
             str(d),
             "--text",
@@ -657,7 +660,7 @@ def decide(page_dir, outcome, widget="sug-refill"):
 
 def _decided(page_dir, words):
     """v1 carrying a draft the user has since rewritten, and the log that
-    says so. Whatever v2 does about it, `version check` is what has to notice."""
+    says so. Whatever v2 does about it, `page check` is what has to notice."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
@@ -702,7 +705,7 @@ def _tasks_version(page_dir, status, extra=""):
 def _report(page_dir, *args):
     """Report as a worker, with the posted event on stdout for the caller to read."""
     return CliRunner().invoke(
-        cli_model.cli, ["experimental", "report", "--json", str(page_dir), *args]
+        cli_model.cli, ["page", "report", "--json", str(page_dir), *args]
     )
 
 

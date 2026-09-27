@@ -6,7 +6,6 @@ from leaf.render_checks import RENDER_VIEWPORT, SERVED_TIMEOUT_MS
 
 from .readings import (
     margin_changes,
-    margin_cover_advice,
     shrunk_label_advice,
     sweep,
     swept_overflow,
@@ -91,7 +90,7 @@ def _render_version_attempt(
     change.
     Returns the failures and the advice; no failures is a pass.
 
-    One implementation with two callers — `version check --render` on the page an agent
+    One implementation with two callers — `page check --render` on the page an agent
     just wrote, and the render suite on the shipped examples
     (the tests/test_render_*.py modules) — so the gate and the suite hold one set of
     invariants. Returns ordinary failures, ResizeObserver notices, whether every
@@ -112,7 +111,6 @@ def _render_version_attempt(
 
     def once(page):
         # Advice first, at the viewport it is about; the sweep then resizes the page.
-        advice.extend(margin_cover_advice(page))
         advice.extend(shrunk_label_advice(page))
         widths = sweep(page, RENDER_VIEWPORTS)
         swept.extend(swept_overflow(widths, RENDER_VIEWPORTS))

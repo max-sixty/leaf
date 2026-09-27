@@ -9,11 +9,11 @@ from leaf.event_log import follow_events, jsonl_line, read_events
 from leaf.events import build_threads, is_reaction, standing_approvals, taken_back
 from leaf.files import latest_revision, revision_label
 from leaf.gesture_words import GestureWords, revisions_on_disk
-from leaf.passages import active_enclosing, enclosing_of, spoken
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.storage import active_registry
+from leaf.revision_artifact import active_enclosing, read_revision
 from leaf.schema import agent_name
-from leaf.structure import parse_revision
+from leaf.thread import thread_named
 from leaf.thread_context import (
     thread_memberships,
     thread_names,
@@ -25,10 +25,8 @@ from leaf.thread_context import (
 def cmd_events(page_dir: Path, after: int, thread: str | None = None) -> None:
     events = read_events(page_dir)
     if thread is not None:
+        thread = thread_named(page_dir, events, thread)
         within = active_enclosing(page_dir)
-        threads = build_threads(events, within)
-        if thread not in threads:
-            sys.exit(f"unknown thread id {thread!r}")
         names = thread_names(events)
         memberships = thread_memberships(
             events,
@@ -85,7 +83,7 @@ def _revision_title(page_dir: Path) -> tuple[int | None, str]:
     title = ""
     revision = latest_revision(page_dir)
     if revision is not None:
-        title = parse_revision(page_dir, revision).title.strip()
+        title = read_revision(page_dir, revision).document.title.strip()
     return revision, title
 
 
@@ -149,7 +147,7 @@ def _print_edits(page_dir: Path, events: list, registry: dict) -> None:
                 )
 
 
-def _published_reading(
+def _published_within(
     page_dir: Path,
     registry: dict,
     revision: int | None,
@@ -158,7 +156,7 @@ def _published_reading(
     # transcript is an account of. A page with no valid revision has no reading.
     if revision is None:
         return {}
-    return spoken(parse_revision(page_dir, revision), registry)
+    return read_revision(page_dir, revision).under(registry).within
 
 
 def _thread_heading(thread: dict) -> str:
@@ -208,8 +206,8 @@ def _print_message(message: dict, registry: dict) -> None:
     print(f"- **{who}**{edited}: " + body.replace("\n", "\n  "))
 
 
-def _print_threads(events: list, spk: dict, registry: dict) -> None:
-    threads = build_threads(events, enclosing_of(spk))
+def _print_threads(events: list, within: dict, registry: dict) -> None:
+    threads = build_threads(events, within)
     if threads:
         print("\n### Threads\n")
     for thread in threads.values():
@@ -232,6 +230,6 @@ def cmd_transcript(page_dir: Path) -> None:
     print(f"## Leaf: {title or page_dir.name}")
     _print_versions(events)
     _print_edits(page_dir, events, registry)
-    spk = _published_reading(page_dir, registry, revision)
-    _print_threads(events, spk, registry)
+    within = _published_within(page_dir, registry, revision)
+    _print_threads(events, within, registry)
     _print_approvals(events)

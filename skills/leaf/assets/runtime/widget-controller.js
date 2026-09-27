@@ -94,12 +94,6 @@ const unavailable = (reading) =>
         { ...entry, available: false, undo: [] },
       ]),
     ),
-    requests: Object.fromEntries(
-      Object.entries(reading.requests).map(([verb, entry]) => [
-        verb,
-        { ...entry, available: false },
-      ]),
-    ),
   });
 
 const commandTarget = (target) =>
@@ -312,67 +306,21 @@ function createWidgetController(owner) {
         }
       };
     },
-    request(unit) {
-      const declaration = descriptor.declaration["x-request"];
-      if (!declaration?.records)
-        throw new TypeError("Widget does not declare record requests");
-      if (typeof unit !== "string" || !unit)
-        throw new TypeError("Request unit must be a non-empty string");
-      const select = (reading) => {
-        const seat = reading.requestUnits[unit] ?? null;
-        return immutable({
-          request: seat,
-          requests: Object.fromEntries(
-            Object.entries(reading.requests).map(([verb, offer]) => [
-              verb,
-              {
-                ...offer,
-                available:
-                  offer.available &&
-                  seat?.phase === "ready" &&
-                  seat.seat.offered !== false,
-              },
-            ]),
-          ),
-        });
-      };
-      return Object.freeze({
-        read: () => select(read()),
-        subscribe: (callback) => this.subscribe((reading) => callback(select(reading))),
-        dispatch: (command) => {
-          const field = declaration.verbs?.[command?.verb]?.unit;
-          if (command?.kind !== "request" || command.detail?.[field] !== unit)
-            throw new TypeError("Request detail must name this unit");
-          return this.dispatch(command);
-        },
-      });
-    },
     dispatch(command) {
-      const semantic = ["action", "request"].includes(command?.kind);
+      const action = command?.kind === "action";
       const undo = command?.kind === "undo";
-      if (!semantic && !undo)
-        throw new TypeError(
-          "Widget dispatch needs an action, request, or exact undo command",
-        );
+      if (!action && !undo)
+        throw new TypeError("Widget dispatch needs an action or exact undo command");
       if (
-        semantic &&
+        action &&
         (typeof command.verb !== "string" ||
           !command.verb ||
           command.detail === null ||
           typeof (command.detail ?? {}) !== "object")
       )
-        throw new TypeError(
-          "Widget action and request commands need {kind, verb, detail}",
-        );
+        throw new TypeError("Widget action commands need {kind, verb, detail}");
       if (!descriptorStillMatches(owner, descriptor)) return null;
-      const before = read();
-      if (
-        semantic &&
-        !(command.kind === "action"
-          ? before.actions[command.verb]?.available
-          : before.requests[command.verb]?.available)
-      )
-        return null;
+      if (action && !read().actions[command.verb]?.available) return null;
       const delivery = dispatchWidget(
         descriptor,
         undo ? { kind: "undo", target: commandTarget(command.target) } : command,
@@ -438,15 +386,9 @@ export function widgetController(owner) {
     const resolve = () => (implementation ??= createWidgetController(owner));
     controller = Object.freeze(
       Object.fromEntries(
-        [
-          "read",
-          "subscribe",
-          "request",
-          "dispatch",
-          "reference",
-          "defer",
-          "present",
-        ].map((method) => [method, (...args) => resolve()[method](...args)]),
+        ["read", "subscribe", "dispatch", "reference", "defer", "present"].map(
+          (method) => [method, (...args) => resolve()[method](...args)],
+        ),
       ),
     );
     controllers.set(owner, controller);

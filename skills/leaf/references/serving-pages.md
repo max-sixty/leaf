@@ -6,13 +6,13 @@ For a served page, read the private diagnostic stream while reproducing a user o
 test-agent path:
 
 ```bash
-leaf interactions <page> --follow
+leaf page interactions <page> --follow
 ```
 
 It combines browser gestures and server request outcomes in delivery order. Browser
 rows carry a tab session, event time, and sequence; large values appear as ordered
 `interaction_part` rows whose `json` fields concatenate to the original row.
-The semantic decisions remain in `leaf events <page>`. See [page-storage.md](../scripts/leaf/page-storage.md)
+The semantic decisions remain in `leaf page events <page>`. See [page-storage.md](../scripts/leaf/page-storage.md)
 for the file contract. The public site stores its browser batches in Workers
 Observability; `worker/README.md` describes lookup by session reference.
 
@@ -22,14 +22,14 @@ When `$ARGUMENTS` asks for `--export`, build the page as a finished record (the
 main skill's "Operate", step 3), since only a stamped version exports, then run:
 
 ```bash
-leaf version export <page> -o <file>
+leaf page export <page> -o <file>
 ```
 
 Hand back the `file://` URL. Do not start a server or wait. The file opens
 offline and runs the page's own runtime against the captured revision and its
 state: widgets, local controls, and page-owned computation work as served. No host
-stands behind it, so thread and any action or request that needs an agent or
-server are unavailable. A page that declares a live sample needs a server and
+stands behind it, so threads and any action that needs an agent or server are
+unavailable. A page that declares a live sample needs a server and
 cannot be exported. Write the file where the project keeps user-facing artifacts.
 A live page can be exported without ending its loop.
 

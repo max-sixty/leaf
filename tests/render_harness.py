@@ -37,7 +37,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit
 
 import pytest
 from click.testing import CliRunner
@@ -103,7 +103,7 @@ def stamp_page(
     complete_args = [arg for widget in completes for arg in ("--completes", widget)]
     result = CliRunner().invoke(
         cli_model.cli,
-        ["version", "stamp", "--json", str(page_dir), "--text", text, *complete_args],
+        ["page", "stamp", "--json", str(page_dir), "--text", text, *complete_args],
         catch_exceptions=False,
     )
     assert result.exit_code == 0, result.output
@@ -748,6 +748,83 @@ def holding(page, held, count, what):
         page.wait_for_timeout(20)
 
 
+_NOTES_OF = """(holder) => {
+    const root = document.querySelector(holder);
+    const named = root ? [root, ...root.querySelectorAll('*')] : [];
+    return [...new Set(named.flatMap((el) => el.ariaDetailsElements ?? []))]
+        .filter((note) => note.matches('.lf-mark-note'));
+}"""
+
+
+def expect_comment_notes(page, holder, count):
+    """Wait until the element `holder` (a selector) and the elements inside it name
+    `count` comment notes as their details (anchor-note-view.js)."""
+    page.wait_for_function(
+        f"([holder, count]) => ({_NOTES_OF})(holder).length === count",
+        arg=[holder, count],
+    )
+
+
+def comment_note(page, holder):
+    """The first comment note the element `holder` (a selector), or one inside it, names
+    as its details.
+
+    A note stands in the chrome rather than in its block, so a block's own note is found
+    through the relation a screen reader follows. The locator is resolved by position
+    among the chrome's notes, so take it once the note stands and use it before another
+    block's note goes."""
+    page.wait_for_function(f"(holder) => ({_NOTES_OF})(holder).length > 0", arg=holder)
+    index = page.evaluate(
+        f"""(holder) => [...document.querySelectorAll('.lf-mark-note')]
+            .indexOf(({_NOTES_OF})(holder)[0])""",
+        holder,
+    )
+    return page.locator(".lf-mark-note").nth(index)
+
+
+def accessible_details(page, selector):
+    """The names of what the element `selector` names as its details, read from the
+    browser's accessibility tree: what a screen reader is given, not the DOM attribute
+    that asked for it."""
+    cdp = page.context.new_cdp_session(page)
+    try:
+        root = cdp.send("DOM.getDocument")["root"]["nodeId"]
+        node = cdp.send("DOM.querySelector", {"nodeId": root, "selector": selector})
+
+        def ax(**at):
+            return cdp.send(
+                "Accessibility.getPartialAXTree", {**at, "fetchRelatives": False}
+            )["nodes"][0]
+
+        return [
+            ax(backendNodeId=related["backendDOMNodeId"])["name"]["value"]
+            for prop in ax(nodeId=node["nodeId"]).get("properties", [])
+            if prop["name"] == "details"
+            for related in prop["value"].get("relatedNodes", [])
+        ]
+    finally:
+        cdp.detach()
+
+
+def plant_quiet_word(page, selector, holding):
+    """Hang a word for a user listening (`.lf-quiet`, the shape a widget's quiet word
+    takes) at the end of the first `selector` element whose text holds `holding`, and
+    return it as a locator."""
+    page.evaluate(
+        """([selector, holding]) => {
+          const holder = [...document.querySelectorAll(selector)]
+            .find((el) => el.textContent.includes(holding));
+          const word = Object.assign(document.createElement('span'), {
+            id: 'planted-quiet', className: 'lf-ui lf-quiet', textContent: 'quiet word',
+          });
+          word.dataset.lfGen = '1';
+          holder.append(word);
+        }""",
+        [selector, holding],
+    )
+    return page.locator("#planted-quiet")
+
+
 # The other direction of the same trip. Nothing a test writes into the page directory
 # announces itself — a declared status, a changed wait lease, an appended event all reach
 # the page when it next reads — so an assertion made straight after the write is waiting
@@ -1296,7 +1373,15 @@ def opened_tab(page, destination, press, timeout=10_000):
     `page` must belong to an explicitly created context such as `one_user`. Playwright
     refuses `context.new_page()` on the owner context created by `browser.new_page()`,
     which is what `open_page` uses when no context is passed.
+
+    A handover link's target may already stand at the address the runtime leaves once
+    it takes the key out of the address bar, so either spelling is the arrival.
     """
+    parts = urlsplit(destination)
+    query = parse_qsl(parts.query, keep_blank_values=True)
+    keyless = parts._replace(
+        query=urlencode([p for p in query if p[0] != "t"])
+    ).geturl()
     browser_session = page.context.browser.new_browser_cdp_session()
 
     def page_targets():
@@ -1329,7 +1414,7 @@ def opened_tab(page, destination, press, timeout=10_000):
                     f"one press opened {len(opened)} page targets: "
                     f"{sorted(opened.values())}"
                 )
-            if list(opened.values()) == [destination]:
+            if len(opened) == 1 and set(opened.values()) <= {destination, keyless}:
                 break
             remaining = deadline - time.monotonic()
             if remaining <= 0:

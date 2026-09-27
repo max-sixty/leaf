@@ -172,10 +172,10 @@ initialized /home/you/review
 
 # the agent writes ./review/index.html — an ordinary file write
 
-$ leaf version check ./review
+$ leaf page check ./review
 ✓ index.html: parses, widgets, authored modules, and styles validate, protected ids and decisions carried over
 
-$ leaf version stamp ./review --text "Two ways to shed load — which?"
+$ leaf page stamp ./review --text "Two ways to shed load — which?"
 stamped v1 — Two ways to shed load — which?
 
 $ leaf wait ./review
@@ -354,9 +354,9 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
                 makes that move's label read Working.
               </li>
               <li id="response-evidence">
-                <strong>Response</strong>: what settled the move: a reply in its thread,
-                a revision, or a request's outcome. Receipt and work leave it open. Once
-                it is answered, the agent names your next move with a waiting status.
+                <strong>Response</strong>: what settled the move: a reply in its thread
+                or a revision. Receipt and work leave it open. Once it is answered, the
+                agent names your next move with a waiting status.
               </li>
             </ul>
           </section>
@@ -432,15 +432,15 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
             </p>
             <lf-diagram
               id="updates-diagram"
-              parts="node:Reply node:Awaits node:Stamp node:Receipt node:Status node:Pickup node:Turn node:Banner node:Beside node:Thread node:Asks node:Versions node:Widget"
+              parts="node:Reply node:Awaits node:Stamp node:Report node:Status node:Pickup node:Turn node:Banner node:Beside node:Thread node:Asks node:Versions node:Widget"
             >
               <pre>
 flowchart LR
   subgraph Sources["Who writes it"]
     Reply["agent: leaf thread reply · leaf thread open"]
     Awaits["agent: leaf thread reply --awaits"]
-    Stamp["agent: leaf version stamp"]
-    Receipt["agent: leaf experimental report · receipt"]
+    Stamp["agent: leaf page stamp"]
+    Report["agent: leaf page report"]
     Status["agent: leaf status"]
     Pickup["Leaf: how far your input got"]
     Turn["Leaf: the agent's turn and watcher"]
@@ -456,7 +456,7 @@ flowchart LR
   Reply --&gt; Thread
   Awaits --&gt; Asks
   Stamp --&gt; Versions
-  Receipt --&gt; Widget
+  Report --&gt; Widget
   Status --&gt; Banner
   Status -.-&gt; Beside
   Turn --&gt; Banner
@@ -495,9 +495,9 @@ flowchart LR
                 your thread, which clears the label beside your comment.
               </li>
               <li id="updates-written-followup">
-                <strong><code>leaf thread reply --to …</code></strong> A later message
-                in a thread already answered, such as the result of work the first reply
-                promised.
+                <strong><code>leaf thread reply … &lt;thread&gt;</code></strong> A later
+                message in a thread already answered, such as the result of work the
+                first reply promised.
               </li>
               <li id="updates-written-awaits">
                 <strong><code>leaf thread reply … --awaits</code></strong> A question
@@ -513,18 +513,16 @@ flowchart LR
                 <em>edited</em>, or a thread it closes (<em>✓ Resolved by Claude</em>).
               </li>
               <li id="updates-written-stamp">
-                <strong><code>leaf version stamp --text "…"</code></strong> A revision.
-                The page updates in place, the status line says <em>Updated to v4</em>,
-                and the text joins the versions menu as that revision's note. While you
-                read an earlier revision, a chip offers the new one:
+                <strong><code>leaf page stamp --text "…"</code></strong> A revision. The
+                page updates in place, the status line says <em>Updated to v4</em>, and
+                the text joins the versions menu as that revision's note. While you read
+                an earlier revision, a chip offers the new one:
                 <em>New page available → open v4</em>.
               </li>
             </ul>
-            <p id="updates-written-experimental">
-              <code>leaf experimental report</code> and
-              <code>leaf experimental receipt</code> let optional packages' widgets show
-              a worker's progress and the outcome of a request you made. Both may
-              change.
+            <p id="updates-written-report">
+              <code>leaf page report</code> lets optional packages' widgets show a
+              worker's progress.
             </p>
 
             <h3 id="updates-observed-heading">Written by Leaf beside your input</h3>
@@ -816,10 +814,6 @@ flowchart TD
                     The agent's host reports that an answer to you failed or stopped.
                   </td>
                 </tr>
-                <tr id="updates-notice-request">
-                  <td>Request succeeded, Request failed</td>
-                  <td>A request you made from a widget gets its outcome.</td>
-                </tr>
                 <tr id="updates-notice-active">
                   <td>Agent active on this page</td>
                   <td>
@@ -841,7 +835,7 @@ flowchart TD
             <p id="agent-versions">
               Each changed, valid save of <code>index.html</code> becomes an immutable
               revision, including the document and its local dependencies, and goes live
-              at once. <code>leaf version stamp</code> marks a revision as a public
+              at once. <code>leaf page stamp</code> marks a revision as a public
               version, served at an address such as <code>/versions/v2.html</code>: the
               live address follows revisions, and a tab pinned to v1 stays there.
             </p>
@@ -865,7 +859,7 @@ flowchart TD
               source's structure, vocabulary, dependencies, and your standing decisions.
               An invalid save leaves the last valid revision live and shows its
               diagnostic. For a finished record,
-              <code>leaf version check --render</code> also opens the page in Chrome in
+              <code>leaf page check --render</code> also opens the page in Chrome in
               both color schemes, catching console errors, invisible widgets, and
               horizontal overflow.
             </p>

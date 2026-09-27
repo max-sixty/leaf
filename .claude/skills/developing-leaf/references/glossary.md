@@ -6,8 +6,8 @@ references. When an existing name disagrees with this glossary, change the name;
 not add an alias.
 
 This reference does not define the protocol between the page and its agent. Events,
-comments, threads, replies, Asks, requests, receipts, activity, and their
-lifecycles are owned by their protocol references.
+comments, threads, replies, Asks, activity, and their lifecycles are owned by
+their protocol references.
 
 ## How to use the vocabulary
 
@@ -28,7 +28,7 @@ uses the same word.
 | **User session** | One browser tab's temporary interaction with a page instance |
 
 Core Leaf owns revision activation, scoped serving, executable and inert-input
-boundaries, target identity, event admission, requests, comments, and export. A
+boundaries, target identity, event admission, comments, and export. A
 package owns reusable declarations, widgets, browser modules, styles, data contracts,
 and guidance. A page instance owns its content, page-local modules, styles, assets, and
 declarations, semantic target choices, drafts, and package selection. A user session
@@ -124,7 +124,7 @@ The margin projection has a separate registration and layout hierarchy:
 |---|---|
 | **Rail** | The right-hand strip beside `main` where margin rows stand beside their targets. It claims nothing: it stands wherever the room the page leaves right of the centred `main` holds it, and only `data-rail="right"` on `main` makes the shell give it up |
 | **Margin resident** | Something the page's margin holds: the rail, the contents map, a column's first sidebar, its sidenotes. One measurement (`settleResidency`) admits them in that order where the room beside `main` holds them, moving the column over by `--lf-shift`, and writes `data-lf-margin` on `main` |
-| **Pin** | A margin row standing over the page inside its target's top-right corner, where no rail stands: the page declared none, the room beside `main` does not hold one, the target sits in a pane that scrolls on its own, the target reaches past the rail's inner edge, or a hanging note stands level with it |
+| **Pin** | A margin row standing over the page inside its target's top-right corner, where no rail stands: the page declared none, the room beside `main` does not hold one, the target sits in a pane that scrolls on its own, the target reaches past the rail's inner edge, or a hanging note stands level with it. It is an overlay: it covers what lies under it, and nothing reserves room for it or moves when it comes, goes, or changes place |
 | **Margin row** | One target-anchored geometry participant whose placement is `rail`, `pin`, or `withheld` |
 | **Margin lane** | The layer holding the margin rows of one scroller: the root lane for the document, one lane per bounded reading region, clipped to what that region shows |
 | **Contributed control** | A margin entry a package puts in a target's cluster, such as a suggestion's Accept and Reject |
@@ -155,7 +155,7 @@ spine instead.
 | **Scope** | A registered command-applicability and shadowing boundary |
 | **Design mode** | The `l` interaction that reinterprets input for interface comments until the user exits |
 | **Draw mode** | The `w` interaction that reinterprets pointer input as a drawing until the user exits |
-| **Annotation layer** | Everything Leaf draws over the page's content: the margin rows standing as pins, the durable marks on commented and reacted passages with their contours, an open card, an unfolded cluster. The rail covers nothing and is not part of it. `o` toggles whether it shows, as tab view state rather than a mode |
+| **Annotation layer** | Everything Leaf draws over the page's content: the margin rows standing as pins, the durable marks on commented and reacted passages with their contours, an open card, an unfolded cluster. The rail covers nothing and is not part of it. The layer takes no room, so showing or hiding any of it moves nothing on the page. `o`, or More's Hide annotations under a finger, toggles whether it shows, as tab view state rather than a mode |
 | **Go-to sequence** | The `g` prefix grammar that builds a current map of Go-to targets, paints transient hint codes, and resolves complete ordered addresses |
 | **Target chooser** | The `s` interaction that presents addressable elements and ends when the user chooses one or closes it |
 | **Page search** | The `/` interaction that filters or walks text matches for a query |
@@ -163,7 +163,7 @@ spine instead.
 | **Trip** | One travel to a destination, a thread's passage, an Ask, a datum, or the element a followed fragment link names: it clears the auxiliary surface hiding the destination, then stays when the user already has it or departs, leaving a history entry. A fragment link always departs, by the entry the browser's navigation adds; Back or Forward to an entry whose fragment names an element the page has hidden since is a trip that departs by no entry |
 | **Journey** | Consecutive trips each leaving from the last one's landing, which share one history entry so Back returns to where the first began; it may mix threads and Asks, and is not a walk |
 | **Standing** | Holding a destination or a control inside it: a thread on the page or in the panel, an Ask, or authored page content. A panel thread's title and its messages are one destination. Chrome controls, margin markers, mark notes, and contents-outline links are apparatus rather than destinations |
-| **Standing target** | The addressable element a user stands at, from whichever side they hold it: the element or anything inside it, its margin cluster, or the thread card showing its threads. The element is a thread's parent, so the card shows while the user stands at its target and goes when they stand elsewhere on the page or let go. With Threads open, the list's expanded thread plays the card's part. Every side answers alike: an open Ask stood at from its card still wears its ring and takes its digits, `c` at an element whose own thread is shown continues it, and `a` and `t` step from the target |
+| **Standing target** | The addressable element a user stands at, from whichever side they hold it: the element or anything inside it, its margin cluster, its comment note, or the thread card showing its threads. The element is a thread's parent, so the card shows while the user stands at its target and goes when they stand elsewhere on the page or let go. With Threads open, the list's expanded thread plays the card's part. A thread is about exactly its anchor's target, so standing at an element shows the threads of the innermost target holding it that has some (its own, else an enclosing one's), never those of anything inside it: a thread on an Ask's options shows from the options, not from the Ask. Every side answers alike: an open Ask stood at from its card still wears its ring and takes its digits, `c` at an element whose own thread is shown continues it, and `a` and `t` step from the target |
 | **Floor** | The place in a layer where the user stands on nothing: the page's body, the whole thread panel |
 | **Unwind** | What Escape takes off, read from what stands in front of the user rather than from how they reached it: the innermost step of the ladder `skills/leaf/assets/runtime/keyboard/AGENTS.md` states, with containment before kind, each landing them at the parent of what it closed |
 | **Landing** | Where a step leaves the user: a box at its container, a standing at its floor, a surface at the document, which is the block they are reading, focused and then blurred |

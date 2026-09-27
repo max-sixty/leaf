@@ -61,44 +61,32 @@ def unnamed_browser():
 
 
 def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
-    """The gate refuses words under `.lf-ui` inside a widget, because a widget reaching for
-    that marker is how a user ends up unable to comment on a heading they can see. The
-    line saying how many comments are on a passage wears the same marker and sits wherever
-    the passage does — inside the widget, when that is where the comment was made. Unless
-    the gate knows the difference, one comment on an option is a page nobody can hand over,
-    and every page the sweep above renders is a page with no comments on it.
+    """A comment on a widget's option leaves a page the gate passes: the mark and the note
+    counting the comment are the runtime's, and none of it is words the widget wrote.
 
-    The pass hunting words drawn on other words has to know the same difference,
-    and knows it as a float the runtime hangs over the page. The resting control
-    is transparent and clipped to one pixel, so this test gives it paint and
-    places it over prose. The normal reading holds the float out; the reading
-    with that hold disabled must report the planted overlap.
-
-    The hold is the float predicate rather than a class named in the skip list, which is
-    what the second reading has to reach for now: the line is out-of-flow chrome like a
-    suggestion's controls, so one rule answers for both and a name beside it would be the
-    same guarantee kept twice."""
+    The pass hunting words drawn on other words holds out a control the runtime hangs out
+    of flow over the page (`floating` in words.js). A control planted over the option's
+    words is held out by the normal reading and reported by the reading with that hold
+    disabled, so the hold is what keeps such a control from failing the page."""
     url = serve(INLINE_PAGE, anchored=[("opt-b", "quietly puts one back")])
     page = open_page(browser, url)
-    # Vacuous otherwise: the gate has to be looking at a page that has the line on it.
-    page.wait_for_function(
-        "() => document.querySelectorAll('.lf-mark-note').length === 1"
-    )
-    # Plant the floating label on its option's words. Its resting one-pixel,
-    # transparent box cannot paint an overlap, and relying on its incidental position
-    # makes this test depend on the page's current spacing.
-    page.locator(".lf-mark-note").evaluate(
-        """note => {
+    # Vacuous otherwise: the gate has to be looking at a page that carries the comment.
+    expect(page.locator(".lf-mark-note")).to_have_count(1)
+    page.evaluate(
+        """() => {
           const text = document.querySelector('#opt-b strong').firstChild;
           const range = document.createRange();
           range.selectNodeContents(text);
           const word = range.getClientRects()[0];
-          Object.assign(note.style, {
-            width: 'auto', height: 'auto', whiteSpace: 'nowrap',
-            opacity: '1', overflow: 'visible'
+          const float = Object.assign(document.createElement('span'), {
+            className: 'lf-ui', textContent: 'planted float',
           });
-          const resting = note.getBoundingClientRect();
-          note.style.transform = `translate(${word.left - resting.left}px, ${word.top - resting.top}px)`;
+          Object.assign(float.dataset, { lfGen: '1', lfOffer: 'button' });
+          Object.assign(float.style, {
+            position: 'absolute', whiteSpace: 'nowrap',
+            left: `${word.left + scrollX}px`, top: `${word.top + scrollY}px`,
+          });
+          document.body.append(float);
         }"""
     )
     held = render_checks_model.evaluate_probe(page, "coveredWords")
@@ -108,8 +96,8 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     page.close()
     assert render_gate_model.render_version(browser, url).failures == []
     assert held == []
-    assert any("1 comment" in found for found in reported), (
-        "the planted label covers no words, so a gate that never looked would pass too"
+    assert any("planted float" in found for found in reported), (
+        "the planted control covers no words, so a gate that never looked would pass too"
     )
 
 
@@ -204,9 +192,9 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
 
 
 def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell):
-    """`version check --render` end to end, as the agent runs it: the static lint
+    """`page check --render` end to end, as the agent runs it: the static lint
     passes both sources, and only one renders clean. The broken source is deliberately
-    unstamped — refusing it before `version stamp` names it is the gate's whole job,
+    unstamped — refusing it before `page stamp` names it is the gate's whole job,
     so the preview server has to expose the exact candidate without activating it.
 
     Over the clean source once through each browser a host can supply: the installed
@@ -227,7 +215,7 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell)
         return subprocess.run(
             [
                 *LEAF_COMMAND,
-                "version",
+                "page",
                 "check",
                 str(d),
                 "--render",
@@ -273,7 +261,7 @@ def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
     named = unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": str(missing)}
 
     checked = subprocess.run(
-        [*LEAF_COMMAND, "version", "check", str(d), "--render"],
+        [*LEAF_COMMAND, "page", "check", str(d), "--render"],
         capture_output=True,
         text=True,
         check=False,
@@ -287,7 +275,7 @@ def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
 
     for variable in ("CHROME_PATH", "CHROME_BIN"):
         answered = subprocess.run(
-            [*LEAF_COMMAND, "version", "check", str(d), "--render"],
+            [*LEAF_COMMAND, "page", "check", str(d), "--render"],
             capture_output=True,
             text=True,
             check=False,
@@ -349,9 +337,9 @@ def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_pa
         )
 
     ended = "Connection closed while reading from the driver"
-    answered(ran(silent, "version", "check", str(d), "--render"), silent, ended)
+    answered(ran(silent, "page", "check", str(d), "--render"), silent, ended)
     answered(
-        ran(missing, "version", "check", str(d), "--render"),
+        ran(missing, "page", "check", str(d), "--render"),
         missing,
         "No such file or directory",
     )
@@ -387,7 +375,7 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
     stamp = subprocess.run(
         [
             launcher,
-            "version",
+            "page",
             "stamp",
             page_dir,
             "--text",
@@ -402,7 +390,7 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
 
     for executable in ("", headless_shell):
         rendered = subprocess.run(
-            [launcher, "version", "check", page_dir, "--render"],
+            [launcher, "page", "check", page_dir, "--render"],
             cwd=elsewhere,
             capture_output=True,
             text=True,
@@ -975,14 +963,12 @@ def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):
     the error box, which is why the gate is worth its couple of seconds."""
     serve(UNPARSABLE_DIAGRAM)
     d = serve.page_dir
-    assert (
-        CliRunner().invoke(cli_model.cli, ["version", "check", str(d)]).exit_code == 0
-    )
+    assert CliRunner().invoke(cli_model.cli, ["page", "check", str(d)]).exit_code == 0
 
     shim = Path(__file__).parent.parent / "bin" / "leaf"
     for executable in ("", headless_shell):
         run = subprocess.run(
-            [str(shim), "version", "check", str(d), "--render"],
+            [str(shim), "page", "check", str(d), "--render"],
             cwd=tmp_path,
             capture_output=True,
             text=True,
@@ -1015,7 +1001,7 @@ FILM_PAGE = LONG_PAGE.replace(
 
 
 def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_shell):
-    """A quick page takes plain `version check` and nothing else, so that is the check
+    """A quick page takes plain `page check` and nothing else, so that is the check
     that has to run the page's own code: a widget that throws on its first paint, or
     a load that rejects, is otherwise heard of only once the user's browser reports
     it to the watcher. The check fails on those reports, worded as the watcher gets
@@ -1044,7 +1030,7 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
 
     def check(**env):
         return subprocess.run(
-            [*LEAF_COMMAND, "version", "check", str(d)],
+            [*LEAF_COMMAND, "page", "check", str(d)],
             capture_output=True,
             text=True,
             check=False,

@@ -82,13 +82,16 @@ from render_harness import (
     ask_actions_hint,
     compare_with,
     consume_browser_errors,
+    displayed,
     expect_banner_control_offered,
+    expect_comment_notes,
     holding,
     holds_the_window,
     leaf_page,
     open_page,
     pane_posture,
     panel_settled,
+    plant_quiet_word,
     post_event,
     refuse,
     regions_side_by_side,
@@ -769,6 +772,69 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     holds_the_window(page, page.locator("main"), True)
 
 
+ZONE_PACKAGE = {
+    "lf-zone": {
+        "description": "A project package's differently named pane.",
+        "type": "object",
+        "properties": {"id": {"type": "string"}, "label": {"type": "string"}},
+        "required": ["id", "label"],
+        "additionalProperties": False,
+        "x-content": "markup",
+        "x-reading-role": "pane",
+        "x-upgrade": False,
+    }
+}
+NESTED_PANES_PAGE = leaf_page(
+    "a pane in a pane's body",
+    """<div id="cells">
+  <lf-zone id="outer-zone" label="Zones"><div>
+    <lf-zone id="inner-zone" label="Inner zone"><div>
+      <p>A zone's reading.</p><div style="height: 900px"></div>
+    </div></lf-zone>
+  </div></lf-zone>
+  <lf-pane id="outer-pane" label="Panes"><div>
+    <lf-pane id="inner-pane" label="Inner pane"><div>
+      <p>A pane's reading.</p><div style="height: 900px"></div>
+    </div></lf-pane>
+  </div></lf-pane>
+</div>""",
+    head=regions_side_by_side("cells"),
+    layout="workspace",
+)
+
+
+def test_a_package_pane_is_held_where_an_lf_pane_is(browser, serve):
+    """Which panes a held workspace scrolls is read from the pane role, whichever
+    package names the tag. A package's pane that is a cell of the body scrolls its own
+    body, and one written inside that pane's body is content there and scrolls with it,
+    exactly as lf-panes nested the same way do. The role arrives with the document, so
+    the workspace holds the same panes while the runtime has not started."""
+    boot = []
+    context = browser.new_context(viewport={"width": 1280, "height": 720})
+    page = context.new_page()
+    page.route("**/leaf.js", lambda route: boot.append(route))
+    url = serve(NESTED_PANES_PAGE, layer_registry=ZONE_PACKAGE)
+
+    def postures():
+        for tag in ("zone", "pane"):
+            pane_posture(page, page.locator(f"#outer-{tag}"), "bounded")
+            pane_posture(page, page.locator(f"#inner-{tag}"), "flow")
+
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.goto(url, wait_until="commit")
+        displayed(page)
+        assert boot, "the runtime was not held"
+        postures()
+        boot.pop().continue_()
+        wait_until_ready(page)
+        postures()
+    finally:
+        for route in boot:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+
+
 def test_an_ask_with_more_than_one_answer_part_keeps_each_parts_height(browser, serve):
     """An Ask passes the height on only when it is a heading and one answer, which then
     takes what is left. With context between the heading and the options there is no one
@@ -1038,30 +1104,25 @@ def test_a_bound_at_its_end_follows_a_rebuilt_feed_until_the_user_scrolls_back(
     assert page.locator("#feed").evaluate("feed => feed.scrollTop") == 200
 
 
-def test_release_rollback_is_a_bound_host_request_not_local_page_state(browser, serve):
-    """The release escape path names exact releases and waits for a host receipt."""
+def test_release_rollback_is_the_operators_answer_to_an_ask(browser, serve):
+    """The release escape path is a question the operator answers: the page lists it
+    among its Asks, and the pick reaches the agent as an action naming the option."""
     example = Path(__file__).parent.parent / "examples" / "live-progress.html"
     page = open_page(browser, live_url(serve(example)))
-    holder = page.locator("#lp-release-actions")
-    button = holder.get_by_role("button", name="Request rollback to checkout-v1")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
+    rollback = page.locator("#lp-rollback-now")
 
-    expect(button).to_be_enabled()
-    with sending(page, "the rollback request"):
-        button.click()
+    with sending(page, "the rollback pick"):
+        rollback.click()
 
-    request = events_model.read_events(serve.page_dir)[-1]
-    assert (request["kind"], request["widget"], request["action"]) == (
-        "request",
-        "lp-release-actions",
-        "rollback",
+    pick = events_model.read_events(serve.page_dir)[-1]
+    assert (pick["kind"], pick["widget"], pick["action"]) == (
+        "action",
+        "lp-rollback",
+        "choose",
     )
-    assert request["detail"] == {
-        "candidate": "checkout-v2",
-        "stable": "checkout-v1",
-    }
-    expect(holder).to_contain_text("Rollback requested · waiting for the host")
-    expect(button).to_have_attribute("aria-disabled", "true")
-    expect(page.locator(".lf-asks-row")).to_have_count(0)
+    assert pick["detail"] == {"options": ["lp-rollback-now"]}
+    expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
 
 
 def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
@@ -6344,8 +6405,8 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
     url = serve(SHORT_SUGGESTION, anchored=[("now", "Retry three times")])
     page = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    # Vacuous otherwise: the line has to be inside the slot the label is read from.
-    assert page.locator("lf-new #now > leaf-anchor-note > .lf-mark-note").count() == 1
+    # Vacuous otherwise: the slot the label is read from has to carry the comment.
+    expect_comment_notes(page, "lf-new #now", 1)
     control = page.locator(f"[data-lf-margin-for='sug'] .lf-sug-{outcome}")
     (unfolded_button(control) if folded else control).click()
     expect(page.locator(".lf-live")).to_have_text(
@@ -8520,7 +8581,8 @@ def test_pending_action_waits_for_the_ask_list_paint_before_retiring(
     held.pop(0).continue_()
     page.unroute("**/api/event")
     page.wait_for_function(
-        "() => __lfReadAskApplication().unresolved.some(entry => entry.answered)"
+        "() => __lfReadAskApplication().unresolved.some("
+        "entry => entry.state === 'accepted:logged')"
     )
     assert "asks" in page.evaluate("__lfReadAskPresentation().pending")
     assert page.evaluate("__lfReadAskApplication().unresolved.length") == 1
@@ -8567,7 +8629,8 @@ def test_pending_action_waits_for_the_ask_banner_paint_before_retiring(
     held.pop(0).continue_()
     page.unroute("**/api/event")
     page.wait_for_function(
-        "() => __lfReadAskApplication().unresolved.some(entry => entry.answered)"
+        "() => __lfReadAskApplication().unresolved.some("
+        "entry => entry.state === 'accepted:logged')"
     )
     assert "asks" in page.evaluate("__lfReadAskPresentation().pending")
     assert page.evaluate("__lfReadAskApplication().unresolved.length") == 1
@@ -9223,8 +9286,7 @@ def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
     page = open_page(browser, url)
     # The note is what this test is about, so its presence is stated rather than assumed:
     # without it every assertion below holds for the wrong reason.
-    note = page.locator("#sug-refill .lf-mark-note")
-    expect(note).to_have_count(1)
+    expect_comment_notes(page, "#sug-refill", 1)
 
     page.keyboard.press("a")
     page.keyboard.press("a")
@@ -9240,7 +9302,6 @@ def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
         "LF-OLD",
         "LF-NEW",
     ], f"the ring reached past the page's own boxes: {marks}"
-    expect(page.locator("#sug-refill .lf-mark-note[data-lf-ask]")).to_have_count(0)
 
 
 # Charts. Every reading here is of the composed drawing rather than of the body it was
@@ -9586,17 +9647,16 @@ def test_a_dated_column_is_read_as_the_day_the_page_wrote(browser, serve):
 def test_a_redraw_keeps_the_words_the_runtime_hung_on_the_chart(browser, serve):
     """A chart redraws for a new width, and the runtime writes inside widgets.
 
-    The line saying a comment stands on this chart is a child of the element, put there by
-    the anchor pass. Replacing the element's children to hold the new drawing took it away
-    — and took it away at the moment the user narrowed the window or opened the panel to
-    read that very comment, for the life of the tab, since nothing puts it back. So the
-    drawing lives in a box of its own and the redraw replaces what is in that box.
+    A word the runtime hangs on the chart, such as a quiet word for a user listening, is a
+    child of the element. Replacing the element's children to hold the new drawing takes
+    it away, for the life of the tab, since nothing puts it back. So the drawing lives in
+    a box of its own and the redraw replaces what is in that box.
 
     The room is changed by the window, the one thing that changes it; what this is about
     is that a redraw happened at all, which the drawing's own width says."""
-    page = open_page(
-        browser, serve(CHART_PAGE, anchored=[("c-bars", "")]), context=None
-    )
+    page = open_page(browser, serve(CHART_PAGE), context=None)
+    page.wait_for_function("() => document.querySelector('#c-bars svg')")
+    plant_quiet_word(page, "#c-bars", "")
     read = """() => {
         const el = document.getElementById('c-bars');
         return { room: Math.round(el.clientWidth),
@@ -9604,7 +9664,7 @@ def test_a_redraw_keeps_the_words_the_runtime_hung_on_the_chart(browser, serve):
                  drawn: Number(el.querySelector('svg').getAttribute('width')) };
     }"""
     before = page.evaluate(read)
-    assert before["notes"] > 0, "the fixture must hang a comment line on the chart"
+    assert before["notes"] > 0, "the chart holds no word of the runtime's"
 
     resized(page, 620, 900)
     page.wait_for_function(

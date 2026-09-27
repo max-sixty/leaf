@@ -50,6 +50,7 @@ from render_harness import (
     FEATURE_GALLERY,
     _traffic,
     _until,
+    comment_note,
     compare_with,
     consume_browser_errors,
     leaf_page,
@@ -3354,7 +3355,7 @@ def test_page_map_only_origins_do_not_count_as_margin_entries(browser, serve):
     sent = CliRunner().invoke(
         cli_model.cli,
         [
-            "experimental",
+            "page",
             "report",
             str(serve.page_dir),
             "t-mounts",
@@ -6382,7 +6383,7 @@ def test_a_note_walked_on_inside_the_panel_is_left_by_the_list_holding_it(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
 
-    note = page.locator("#mounts-p .lf-mark-note")
+    note = comment_note(page, "#mounts-p")
     note.focus()
     page.keyboard.press("Enter")
     expect(
@@ -6450,7 +6451,7 @@ def test_a_card_stays_its_press_to_take_off_when_it_moves_on(browser, serve, ent
     preview = page.locator(".lf-margin-preview")
     card = preview.locator(".lf-page-thread")
     if entry == "note":
-        stood = page.locator("#mounts-p .lf-mark-note")
+        stood = comment_note(page, "#mounts-p")
         stood.focus()
         page.keyboard.press("Enter")
         expect(card).to_be_focused()
@@ -6551,14 +6552,14 @@ def test_a_second_press_into_a_standing_card_leaves_one_level_to_take_off(
     seeded_thread(page, serve.page_dir, "#heater-p")
     preview = page.locator(".lf-margin-preview")
     card = preview.locator(".lf-page-thread")
-    first = page.locator("#mounts-p .lf-mark-note")
+    first = comment_note(page, "#mounts-p")
     first.focus()
     page.keyboard.press("Enter")
     expect(card).to_be_focused()
     shown = card.get_attribute("data-thread")
 
     stood = (
-        page.locator("#heater-p .lf-mark-note")
+        comment_note(page, "#heater-p")
         if second == "note"
         else page.locator('[data-lf-margin-for="heater-p"] .lf-margin-marker')
     )
@@ -7962,6 +7963,37 @@ def test_o_hides_what_is_drawn_over_the_page_and_moves_nothing(browser, serve):
     assert page.evaluate(wash) == ""
 
 
+def test_a_finger_hides_the_annotations_from_the_banner(browser, serve):
+    """A phone has no `o` to press, so the banner's More holds the same toggle: the pin
+    goes, no box of the page moves, and the control's word turns to the way back."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(
+        browser, serve(PANEL_PAGE, events=[_comment_on("lede")]), context=context
+    )
+    margins_laid_out(page)
+    pin = page.locator('.lf-margin-cluster[data-lf-margin-for="lede"]')
+    expect(pin).to_have_attribute("data-lf-place", "pin")
+    expect(pin).to_be_visible()
+    boxes = """() => [...document.querySelectorAll('main, main *')].map(el => {
+      const b = el.getBoundingClientRect();
+      return [b.left, b.top, b.width, b.height].map(Math.round).join(',');
+    })"""
+    before = page.evaluate(boxes)
+
+    banner_control(page, ".lf-banner-menu .lf-btn:text-is('Hide annotations')").tap()
+    expect(page.locator(".lf-banner-menu")).to_be_hidden()
+    expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
+    expect(pin).to_be_hidden()
+    margins_laid_out(page)
+    assert page.evaluate(boxes) == before, "hiding the annotations moved the page"
+
+    banner_control(page, ".lf-banner-menu .lf-btn:text-is('Show annotations')").tap()
+    expect(page.locator("html")).to_have_attribute("data-lf-annotations", "shown")
+    expect(pin).to_be_visible()
+
+
 PANE_PIN_PAGE = leaf_page(
     "a pin in a pane",
     """
@@ -8234,31 +8266,6 @@ def test_a_marker_with_nowhere_to_stand_is_withheld_and_reported(browser, serve)
     expect(stuck).to_be_hidden()
     findings = render_checks_model.evaluate_probe(page, "strandedMargins")
     assert [f for f in findings if "fixed-note" in f], findings
-
-
-def test_the_gate_advises_where_a_pin_stands_over_text(browser, serve):
-    """On a phone a pin is wider than the page's gutter and covers the ends of the lines
-    beside it. That is expected, so the gate advises rather than fails: it names the pin
-    and how many lines it stands over, and says nothing of a rail marker at a desktop
-    width, which covers nothing."""
-    page = open_page(browser, serve(SUGGESTION_PAGE))
-    resized(page, 1440, 900)
-    margins_laid_out(page)
-    wide = [
-        pin
-        for pin in render_checks_model.evaluate_probe(page, "coveringMargins")
-        if "sug-refill" in pin["at"]
-    ]
-    assert wide == [], wide
-    resized(page, 390, 800)
-    margins_laid_out(page)
-    page.locator("#sug-refill").scroll_into_view_if_needed()
-    narrow = [
-        pin
-        for pin in render_checks_model.evaluate_probe(page, "coveringMargins")
-        if "sug-refill" in pin["at"]
-    ]
-    assert narrow and narrow[0]["covered"] > 0, narrow
 
 
 @pytest.mark.parametrize(

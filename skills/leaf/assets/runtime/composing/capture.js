@@ -2,16 +2,16 @@
  * the selection the page hands back to the user. */
 import { COLLAPSE } from "../collapse.js";
 import {
-  blockOf,
   closestAcross,
   cut,
   DATUM,
-  elementOver,
   neighbourhood,
   pageRange,
   pageText,
   pageWords,
+  pointAt,
   quoteFrom,
+  segmentBlock,
   segmentsIn,
   spanIn,
 } from "../passages.js";
@@ -61,16 +61,8 @@ export function selectionAnchor(sel) {
   const section = closestAcross(holder, "[id]:not(.lf-ui)")?.id ?? null;
   const reading = pageText();
   const [start, stop] = spanIn(reading, segments);
-  const prefix = cut(
-    neighbourhood(reading.origin, reading.fences, start, CONTEXT, true),
-    -CONTEXT,
-    Infinity,
-  );
-  const suffix = cut(
-    neighbourhood(reading.origin, reading.fences, stop, CONTEXT, false),
-    0,
-    CONTEXT,
-  );
+  const prefix = cut(neighbourhood(reading, start, CONTEXT, true), -CONTEXT, Infinity);
+  const suffix = cut(neighbourhood(reading, stop, CONTEXT, false), 0, CONTEXT);
   // Only what there is. A passage against the document's own edge has no neighbour on
   // that side, and writing that down as an empty string puts a field in the event that
   // never says anything.
@@ -119,29 +111,33 @@ export const leftThePage = (sel = getSelection()) =>
 // machine-placed words (data-lf-gen) stand flush against the author's — a chip row is
 // written with no space after the title it follows — the two runs read as one word, and
 // growing across that seam would hand a selection of the chip the title too.
-const spoke = (origin) => elementOver(origin.node).closest("[data-lf-gen]");
+//
+// Asked of two points of the page reading (`pointAt`), by the block and the generated
+// element (`gen`) their segments carry.
 const sameRun = (left, right) =>
   Boolean(left && right) &&
-  blockOf(left.node) === blockOf(right.node) &&
-  spoke(left) === spoke(right);
+  segmentBlock(left.segment) === segmentBlock(right.segment) &&
+  left.segment.gen === right.segment.gen;
 const sentenceUnits = new Intl.Segmenter(undefined, { granularity: "sentence" });
 
+// An EDGE in the reading: a position inside it that holds no character.
+const edgeAt = (reading, i) =>
+  i >= 0 && i < reading.raw.length && pointAt(reading, i) === null;
+
 function snapOut(reading, at, back) {
-  const { raw, origin, fences } = reading;
+  const { raw, fences } = reading;
   const behind = fences.filter((f) => f <= at).at(-1) ?? 0;
   const ahead = fences.find((f) => f >= at) ?? raw.length;
   // An EDGE's neighbours are the nearest characters, not the nearest cells: an empty
-  // text node is an empty segment, which puts two EDGEs flush, and every reader of
-  // `origin` steps over its nulls.
+  // text node is an empty segment, which puts two EDGEs flush, and every reader of the
+  // reading's points steps over its edges.
   const joined = (i) => {
-    if (origin[i] !== null) return true;
+    if (!edgeAt(reading, i)) return true;
     let a = i - 1;
-    while (origin[a] === null) a--;
+    while (edgeAt(reading, a)) a--;
     let b = i + 1;
-    while (b < origin.length && origin[b] === null) b++;
-    const prev = origin[a];
-    const next = origin[b];
-    return sameRun(prev, next);
+    while (edgeAt(reading, b)) b++;
+    return sameRun(pointAt(reading, a), pointAt(reading, b));
   };
   const inRun = (i) => !/\s/.test(raw[i]) && joined(i);
   let lo = at;
@@ -152,7 +148,7 @@ function snapOut(reading, at, back) {
   let boundary = 0; // the end's own index within `run`
   const from = []; // from[i] = the raw index run[i] came from; an EDGE holds no character
   for (let i = lo; i < hi; i++) {
-    if (origin[i] === null) continue;
+    if (edgeAt(reading, i)) continue;
     if (i < at) boundary++;
     from.push(i);
     run += raw[i];
@@ -167,9 +163,10 @@ function snapOut(reading, at, back) {
 // the path back to the DOM reading. A declared generated label is a separate speaking run
 // even when it sits flush inside the same block.
 function snapSentence(reading, lo, hi) {
-  const { raw, origin, fences } = reading;
-  const first = origin[lo];
-  const last = origin[hi - 1];
+  const { raw, fences } = reading;
+  const point = (i) => pointAt(reading, i);
+  const first = point(lo);
+  const last = point(hi - 1);
   if (!first || !last) return [lo, hi];
   // Sentence punctuation is prose structure. In code, the same glyphs are syntax:
   // the closing brace and quote after a selected interpolation are not part of the
@@ -180,18 +177,21 @@ function snapSentence(reading, lo, hi) {
 
   const belongs = (part) => sameRun(first, part);
   if (!belongs(last) || fences.some((f) => f > lo && f < hi)) return [lo, hi];
-  for (let at = lo; at < hi; at++)
-    if (origin[at] && !belongs(origin[at])) return [lo, hi];
+  for (let at = lo; at < hi; at++) {
+    const part = point(at);
+    if (part && !belongs(part)) return [lo, hi];
+  }
 
   const behind = fences.filter((f) => f <= lo).at(-1) ?? 0;
   const ahead = fences.find((f) => f >= hi) ?? raw.length;
   const inScope = (at) => {
-    if (origin[at]) return belongs(origin[at]);
+    const part = point(at);
+    if (part) return belongs(part);
     let before = at - 1;
-    while (before >= behind && origin[before] === null) before--;
+    while (before >= behind && edgeAt(reading, before)) before--;
     let after = at + 1;
-    while (after < ahead && origin[after] === null) after++;
-    return belongs(origin[before]) && belongs(origin[after]);
+    while (after < ahead && edgeAt(reading, after)) after++;
+    return belongs(point(before)) && belongs(point(after));
   };
 
   let start = lo;
@@ -205,7 +205,7 @@ function snapSentence(reading, lo, hi) {
   const from = [];
   let inWhitespace = false;
   for (let at = start; at < stop; at++) {
-    if (origin[at] === null) continue;
+    if (edgeAt(reading, at)) continue;
     const character = raw[at].replace(COLLAPSE, " ");
     const whitespace = character === " ";
     if (whitespace && inWhitespace) continue;
@@ -286,14 +286,14 @@ export function snapSelection() {
   let hi = snapOut(reading, stop, false);
   [lo, hi] = snapSentence(reading, lo, hi);
   if (lo === start && hi === stop) return;
+  const first = pointAt(reading, lo);
+  const last = pointAt(reading, hi - 1);
   const head =
     lo === start
       ? [range.startContainer, range.startOffset]
-      : [reading.origin[lo].node, reading.origin[lo].offset];
+      : [first.node, first.offset];
   const tail =
-    hi === stop
-      ? [range.endContainer, range.endOffset]
-      : [reading.origin[hi - 1].node, reading.origin[hi - 1].offset + 1];
+    hi === stop ? [range.endContainer, range.endOffset] : [last.node, last.offset + 1];
   // Backward means the anchor sits past the range's start — asked of boundary points,
   // because node order misreads containment: a focus on the element holding the anchor's
   // text node both precedes and contains it.

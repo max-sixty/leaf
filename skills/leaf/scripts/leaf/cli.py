@@ -144,9 +144,9 @@ def codex_run(
         sys.exit(run_adapter(codex_path, answer, app_server))
 
 
-@cli.group(short_help="Create pages and add media.")
+@cli.group(short_help="Create, check, stamp, and read pages.")
 def page() -> None:
-    """Create pages and add media."""
+    """Create, check, stamp, and read pages."""
 
 
 @page.command(short_help="Create or re-vendor a page directory.")
@@ -262,6 +262,23 @@ def package_run(name: str, script: str, arguments: tuple[str, ...]) -> None:
     cmd_package_run(name, script, arguments)
 
 
+@page.command(short_help="Check the mutable page source.")
+@click.argument("dir", metavar="PAGE")
+@click.option(
+    "--render", is_flag=True, help="also check the rendered page in the host's browser"
+)
+def check(dir: str, render: bool) -> None:
+    """Check PAGE/index.html.
+
+    Runs deterministic markup checks. --render also checks the drawn page in the
+    host's browser: whichever executable LEAF_BROWSER_EXECUTABLE, CHROME_PATH, or
+    CHROME_BIN names, else the installed Chrome, else the first browser on PATH.
+    """
+    from leaf.validation.command import cmd_check
+
+    sys.exit(cmd_check(resolve_dir(dir), render))
+
+
 @page.command(short_help="Add images and print their page paths.")
 @click.argument("dir", metavar="PAGE")
 @click.argument(
@@ -305,6 +322,150 @@ def state(dir: str) -> None:
     cmd_page_state(resolve_dir(dir))
 
 
+@page.command(short_help="Stamp the current source as the next version.")
+@click.argument("dir", metavar="PAGE")
+@click.option("--text", help="changelog text (default: stdin)")
+@click.option(
+    "--completes",
+    multiple=True,
+    metavar="WIDGET",
+    help="active widget work this version completes (repeatable)",
+)
+@click.option("--json", "as_json", is_flag=True, help="print the note event instead")
+def stamp(dir: str, text: str, completes: tuple[str, ...], as_json: bool) -> None:
+    """Stamp PAGE/index.html with a changelog.
+
+    Checks the exact source first, then records it as the next public version. Repeat
+    --completes for each active widget work claim this version completes. A
+    widget claim otherwise survives unrelated versions, and a version cannot
+    silently remove its page target.
+    """
+    from leaf.publishing import cmd_stamp
+
+    accepted = cmd_stamp(resolve_dir(dir), text, completes)
+    if as_json:
+        print(json.dumps(accepted, ensure_ascii=False))
+        return
+    click.echo(f"stamped v{accepted['version']} — {accepted['text']}")
+
+
+@page.command(short_help="Export a stamped version to one HTML file.")
+@click.argument("dir", metavar="PAGE")
+@click.option(
+    "-o",
+    "--out",
+    required=True,
+    type=click.Path(dir_okay=False, path_type=Path),
+    help="output HTML file",
+)
+@click.option(
+    "--version",
+    type=int,
+    metavar="N",
+    help="stamped version to export (default: latest)",
+)
+def export(dir: str, out: Path, version: int) -> None:
+    """Export a stamped version to one HTML file that opens offline.
+
+    The file runs the page's own runtime against its captured state, with no Leaf
+    server or host behind it.
+    """
+    from leaf.exporting import cmd_export
+
+    sys.exit(cmd_export(resolve_dir(dir), out, version))
+
+
+@page.command(short_help="Report a state change onto a page widget, as a worker.")
+@click.argument("dir", metavar="PAGE")
+@click.argument("widget", metavar="WIDGET")
+@click.argument("verb", metavar="VERB")
+@click.argument("fields", metavar="[NAME=VALUE]...", nargs=-1)
+@click.option("--json", "as_json", is_flag=True, help="print the report event instead")
+def report(
+    dir: str,
+    widget: str,
+    verb: str,
+    fields: tuple,
+    as_json: bool,
+) -> None:
+    """Report a state change onto a page widget, as a worker.
+
+    The verb and its fields are the widget's own agent-written x-state verb —
+    `leaf page report <page> t-parser status status=review` moves a
+    task. The page paints the report live as provisional news; it stands until a
+    version absorbs or overrules it, and the page's watcher wakes to fold it in.
+    """
+    from leaf.thread import cmd_report
+
+    accepted = cmd_report(resolve_dir(dir), widget, verb, fields)
+    if as_json:
+        print(json.dumps(accepted, ensure_ascii=False))
+        return
+    click.echo(f"reported {verb} on {widget}")
+
+
+@page.command(short_help="Print the event log as JSON lines.")
+@click.argument("dir", metavar="PAGE")
+@click.option(
+    "--after",
+    type=int,
+    default=0,
+    metavar="SEQ",
+    help="print events after this sequence",
+)
+@click.option(
+    "--thread",
+    metavar="THREAD",
+    help="print only events belonging to the thread this message is in",
+)
+@click.option(
+    "--follow",
+    is_flag=True,
+    help="keep printing each event as it is appended, until stopped",
+)
+def events(dir: str, after: int, thread: str | None, follow: bool) -> None:
+    """Print the event log as JSON lines.
+
+    Each line is one stored event record; `seq` is its position, and `--after`
+    resumes from the last one a reader saw. THREAD, any message in the
+    thread, selects that thread's events. This is read-only and does not
+    acknowledge user events.
+    """
+    from leaf.transcript import cmd_events, cmd_follow_events
+
+    if follow and thread is not None:
+        raise click.UsageError("--follow and --thread cannot be used together")
+    if follow:
+        cmd_follow_events(resolve_dir(dir), after)
+        return
+    cmd_events(resolve_dir(dir), after, thread)
+
+
+@page.command(short_help="Print browser and server interactions as JSON lines.")
+@click.argument("dir", metavar="PAGE")
+@click.option("--follow", is_flag=True, help="keep printing new interactions")
+def interactions(dir: str, follow: bool) -> None:
+    """Read the diagnostic trace without acknowledging semantic events."""
+    from leaf.interaction_log import lines
+
+    try:
+        for line in lines(resolve_dir(dir), follow=follow):
+            click.echo(line)
+    except KeyboardInterrupt:
+        return
+    except BrokenPipeError:
+        return
+
+
+@page.command(short_help="Print the page's exchange as Markdown.")
+@click.argument("dir", metavar="PAGE")
+def transcript(dir: str) -> None:
+    """Print the page's exchange as Markdown."""
+    from leaf.transcript import cmd_transcript
+
+    cmd_transcript(resolve_dir(dir))
+
+
 @cli.group(short_help="Read input delivered by any Leaf host.")
 def delivery() -> None:
     """Handle transport-independent Leaf deliveries."""
@@ -326,7 +487,7 @@ def thread() -> None:
 
 @thread.command("read", short_help="Read one bounded thread history.")
 @click.argument("dir", metavar="PAGE")
-@click.argument("thread_id", metavar="THREAD_ID")
+@click.argument("thread", metavar="THREAD")
 @click.option(
     "--after",
     type=click.IntRange(min=0),
@@ -342,16 +503,19 @@ def thread() -> None:
 )
 def thread_read(
     dir: str,
-    thread_id: str,
+    thread: str,
     after: int,
     limit: int,
 ) -> None:
-    """Print one current thread and a page of its exact event history."""
+    """Print one current thread and a page of its exact event history.
+
+    THREAD is any message in the thread.
+    """
     from leaf.agent_state import cmd_thread_read
 
     cmd_thread_read(
         resolve_dir(dir),
-        thread_id,
+        thread,
         after=after,
         limit=limit,
     )
@@ -359,51 +523,48 @@ def thread_read(
 
 @thread.command("title", short_help="Set or update a short thread title.")
 @click.argument("dir", metavar="PAGE")
-@click.argument("thread_id", metavar="THREAD_ID")
+@click.argument("thread", metavar="THREAD")
 @click.option(
     "--text", required=True, help="short descriptive title (at most 80 characters)"
 )
 @click.option("--json", "as_json", is_flag=True, help="print the title event")
-def thread_title(dir: str, thread_id: str, text: str, as_json: bool) -> None:
-    """Name the thread for the thread panel; repeat to rename it.
+def thread_title(dir: str, thread: str, text: str, as_json: bool) -> None:
+    """Name THREAD, by any message in it, for the thread panel; repeat to rename it.
 
     Choose a few descriptive words when first handling a thread. Keep the
     title stable unless its subject changes. This adds no message or reply.
     """
     from leaf.thread import cmd_title
 
-    accepted = cmd_title(resolve_dir(dir), thread_id, text)
+    accepted = cmd_title(resolve_dir(dir), thread, text)
     if as_json:
         click.echo(json.dumps(accepted, ensure_ascii=False))
         return
-    click.echo(f"named thread {thread_id}: {accepted['title']}")
+    click.echo(f"named thread {accepted['thread']}: {accepted['title']}")
 
 
 @thread.command("summarize", short_help="Summarize a contiguous message range.")
 @click.argument("dir", metavar="PAGE")
-@click.argument("thread_id", metavar="THREAD_ID")
-@click.option("--from", "from_message", required=True, metavar="ID")
-@click.option("--through", "through_message", required=True, metavar="ID")
+@click.option("--from", "from_message", required=True, metavar="MESSAGE")
+@click.option("--through", "through_message", required=True, metavar="MESSAGE")
 @click.option("--text", help="summary Markdown (default: stdin)")
 @click.option("--json", "as_json", is_flag=True, help="print the summary event")
 def thread_summarize(
     dir: str,
-    thread_id: str,
     from_message: str,
     through_message: str,
     text: str | None,
     as_json: bool,
 ) -> None:
-    """Replace FROM through THROUGH in the panel with a Markdown summary.
+    """Replace --from through --through in the panel with a Markdown summary.
 
-    The original messages remain in the append-only transcript and can always be
-    revealed. A later overlapping summary replaces this one.
+    Both name messages in one thread, which is the thread summarized. The original
+    messages remain in the append-only transcript and can always be revealed. A
+    later overlapping summary replaces this one.
     """
     from leaf.thread import cmd_summarize
 
-    accepted = cmd_summarize(
-        resolve_dir(dir), thread_id, from_message, through_message, text
-    )
+    accepted = cmd_summarize(resolve_dir(dir), from_message, through_message, text)
     if as_json:
         print(json.dumps(accepted, ensure_ascii=False))
         return
@@ -456,81 +617,6 @@ def data_clear(dir: str, source: str) -> None:
     from leaf.data import cmd_data_clear
 
     cmd_data_clear(resolve_dir(dir), source)
-
-
-@cli.group(short_help="Check, stamp, and export versions.")
-def version() -> None:
-    """Check, stamp, and export versions."""
-
-
-@version.command(short_help="Check the mutable page source.")
-@click.argument("dir", metavar="PAGE")
-@click.option(
-    "--render", is_flag=True, help="also check the rendered page in the host's browser"
-)
-def check(dir: str, render: bool) -> None:
-    """Check PAGE/index.html.
-
-    Runs deterministic markup checks. --render also checks the drawn page in the
-    host's browser: whichever executable LEAF_BROWSER_EXECUTABLE, CHROME_PATH, or
-    CHROME_BIN names, else the installed Chrome, else the first browser on PATH.
-    """
-    from leaf.validation.command import cmd_check
-
-    sys.exit(cmd_check(resolve_dir(dir), render))
-
-
-@version.command(short_help="Stamp the current source as the next version.")
-@click.argument("dir", metavar="PAGE")
-@click.option("--text", help="changelog text (default: stdin)")
-@click.option(
-    "--completes",
-    multiple=True,
-    metavar="WIDGET",
-    help="active widget work this version completes (repeatable)",
-)
-@click.option("--json", "as_json", is_flag=True, help="print the note event instead")
-def stamp(dir: str, text: str, completes: tuple[str, ...], as_json: bool) -> None:
-    """Stamp PAGE/index.html with a changelog.
-
-    Checks the exact source first, then records it as the next public version. Repeat
-    --completes for each active widget work claim this version completes. A
-    widget claim otherwise survives unrelated versions, and a version cannot
-    silently remove its page target.
-    """
-    from leaf.publishing import cmd_stamp
-
-    accepted = cmd_stamp(resolve_dir(dir), text, completes)
-    if as_json:
-        print(json.dumps(accepted, ensure_ascii=False))
-        return
-    click.echo(f"stamped v{accepted['version']} — {accepted['text']}")
-
-
-@version.command(short_help="Export a stamped version to one HTML file.")
-@click.argument("dir", metavar="PAGE")
-@click.option(
-    "-o",
-    "--out",
-    required=True,
-    type=click.Path(dir_okay=False, path_type=Path),
-    help="output HTML file",
-)
-@click.option(
-    "--version",
-    type=int,
-    metavar="N",
-    help="stamped version to export (default: latest)",
-)
-def export(dir: str, out: Path, version: int) -> None:
-    """Export a stamped version to one HTML file that opens offline.
-
-    The file runs the page's own runtime against its captured state, with no Leaf
-    server or host behind it.
-    """
-    from leaf.exporting import cmd_export
-
-    sys.exit(cmd_export(resolve_dir(dir), out, version))
 
 
 @cli.group(short_help="Start, run, or stop the local server.")
@@ -666,7 +752,7 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
     With working, --on names an open thread, by any message in it, or a widget:
     whatever a delivered event gives as its address, which then reads Working.
     The user sees DETAIL beside that subject as well as in the banner.
-    Your next reply ends a thread claim; a version stamp with --completes ends
+    Your next reply ends a thread claim; `leaf page stamp --completes` ends
     a widget claim. Renew the status as work changes: a claim left after your
     turn ends, or without updates, eventually reads as stalled.
     """
@@ -752,11 +838,7 @@ def thread_open(
 
 @thread.command("reply", short_help="Reply to a thread as the agent.")
 @click.argument("dir", metavar="PAGE")
-@click.option(
-    "--to",
-    metavar="ID",
-    help="thread message ID; without --for, posts a new message there",
-)
+@click.argument("thread", metavar="[THREAD]", required=False)
 @click.option(
     "--for",
     "for_event",
@@ -779,7 +861,7 @@ def thread_open(
 @click.option("--json", "as_json", is_flag=True, help="print the reply event instead")
 def thread_reply(
     dir: str,
-    to: str,
+    thread: str | None,
     for_event: str | None,
     quote: str,
     section: str,
@@ -793,9 +875,9 @@ def thread_reply(
     """Post a threaded reply as the agent (--text or stdin).
 
     Answer user input with --for EVENT_ID. With exactly one outstanding reply
-    in this turn's opened delivery, omit it to select that reply. --to ID
-    without --for posts a new agent message, refused while that thread
-    owes a reply.
+    in this turn's opened delivery, omit it to select that reply. THREAD, by
+    any message in it, posts a new agent message there instead, refused while
+    that thread owes a reply.
 
     --quote, --section, and --part move the thread's current anchor; --detach
     removes it when the subject leaves the page. The original anchor stays in
@@ -803,10 +885,12 @@ def thread_reply(
     """
     from leaf.thread import cmd_reply, thread_of
 
+    if thread is not None and for_event is not None:
+        raise click.UsageError("THREAD and --for cannot be used together")
     page_dir = resolve_dir(dir)
     accepted = cmd_reply(
         page_dir,
-        to,
+        thread,
         text,
         markup,
         awaits,
@@ -825,11 +909,11 @@ def thread_reply(
 
 @thread.command("edit", short_help="Edit one of this agent session's messages.")
 @click.argument("dir", metavar="PAGE")
-@click.option("--to", required=True, metavar="ID", help="comment or reply ID to edit")
+@click.argument("message", metavar="MESSAGE")
 @click.option("--text", help="replacement text (default: stdin)")
 @click.option("--json", "as_json", is_flag=True, help="print the edit event instead")
-def thread_edit(dir: str, to: str, text: str, as_json: bool) -> None:
-    """Replace the visible text of an agent-authored comment or reply.
+def thread_edit(dir: str, message: str, text: str, as_json: bool) -> None:
+    """Replace the visible text of MESSAGE, an agent-authored comment or reply.
 
     The original and every revision remain in the append-only event log. Frozen
     widget markup is not editable.
@@ -837,21 +921,19 @@ def thread_edit(dir: str, to: str, text: str, as_json: bool) -> None:
     from leaf.thread import cmd_edit, thread_of
 
     page_dir = resolve_dir(dir)
-    accepted = cmd_edit(page_dir, to, text)
+    accepted = cmd_edit(page_dir, message, text)
     if as_json:
         print(json.dumps(accepted, ensure_ascii=False))
         return
-    click.echo(f"edited {to} in {thread_of(page_dir, to)}")
+    click.echo(f"edited {message} in {thread_of(page_dir, message)}")
 
 
 @thread.command("resolve", short_help="Close a thread as the agent.")
 @click.argument("dir", metavar="PAGE")
-@click.option(
-    "--to", required=True, metavar="ID", help="a message in the thread to close"
-)
+@click.argument("thread", metavar="THREAD")
 @click.option("--json", "as_json", is_flag=True, help="print the resolve event instead")
-def thread_resolve(dir: str, to: str, as_json: bool) -> None:
-    """Close a thread as the agent.
+def thread_resolve(dir: str, thread: str, as_json: bool) -> None:
+    """Close THREAD, by any message in it, as the agent.
 
     The user ordinarily closes a thread; the Leaf skill's
     references/threads.md says when the agent does. Refuses a thread
@@ -861,134 +943,11 @@ def thread_resolve(dir: str, to: str, as_json: bool) -> None:
     from leaf.thread import cmd_resolve, thread_of
 
     page_dir = resolve_dir(dir)
-    accepted = cmd_resolve(page_dir, to)
+    accepted = cmd_resolve(page_dir, thread)
     if as_json:
         print(json.dumps(accepted, ensure_ascii=False))
         return
-    click.echo(f"resolved {thread_of(page_dir, to)}")
-
-
-@cli.group(short_help="Commands optional packages use; they may change.")
-def experimental() -> None:
-    """Commands that serve optional packages. They may change or be removed.
-
-    `report` moves a widget's worker-written state; `receipt` records a user
-    request's terminal outcome.
-    """
-
-
-@experimental.command(
-    short_help="Report a state change onto a page widget, as a worker."
-)
-@click.argument("dir", metavar="PAGE")
-@click.argument("widget", metavar="WIDGET")
-@click.argument("verb", metavar="VERB")
-@click.argument("fields", metavar="[NAME=VALUE]...", nargs=-1)
-@click.option("--json", "as_json", is_flag=True, help="print the report event instead")
-def report(
-    dir: str,
-    widget: str,
-    verb: str,
-    fields: tuple,
-    as_json: bool,
-) -> None:
-    """Report a state change onto a page widget, as a worker.
-
-    The verb and its fields are the widget's own agent-written x-state verb —
-    `leaf experimental report <page> t-parser status status=review` moves a
-    task. The page paints the report live as provisional news; it stands until a
-    version absorbs or overrules it, and the page's watcher wakes to fold it in.
-    """
-    from leaf.thread import cmd_report
-
-    accepted = cmd_report(resolve_dir(dir), widget, verb, fields)
-    if as_json:
-        print(json.dumps(accepted, ensure_ascii=False))
-        return
-    click.echo(f"reported {verb} on {widget}")
-
-
-@experimental.command(short_help="Record the terminal outcome of a user request.")
-@click.argument("dir", metavar="PAGE")
-@click.argument("request", metavar="REQUEST")
-@click.argument(
-    "status",
-    type=click.Choice(["succeeded", "failed"]),
-    metavar="succeeded|failed",
-)
-@click.option("--text", help="host outcome (default: stdin)")
-@click.option("--json", "as_json", is_flag=True, help="print the receipt event instead")
-def receipt(dir: str, request: str, status: str, text: str, as_json: bool) -> None:
-    """Record exactly one terminal host outcome for REQUEST."""
-    from leaf.requests import cmd_receipt
-
-    accepted = cmd_receipt(resolve_dir(dir), request, status, text)
-    if as_json:
-        print(json.dumps(accepted, ensure_ascii=False))
-        return
-    click.echo(f"settled request {request} as {status}")
-
-
-@cli.command(short_help="Print the event log as JSON lines.")
-@click.argument("dir", metavar="PAGE")
-@click.option(
-    "--after",
-    type=int,
-    default=0,
-    metavar="SEQ",
-    help="print events after this sequence",
-)
-@click.option(
-    "--thread",
-    metavar="THREAD",
-    help="print only events belonging to this exact thread id",
-)
-@click.option(
-    "--follow",
-    is_flag=True,
-    help="keep printing each event as it is appended, until stopped",
-)
-def events(dir: str, after: int, thread: str | None, follow: bool) -> None:
-    """Print the event log as JSON lines.
-
-    Each line is one stored event record; `seq` is its position, and `--after`
-    resumes from the last one a reader saw. THREAD is an exact identity
-    lookup, not a general event filter. This is read-only and does not
-    acknowledge user events.
-    """
-    from leaf.transcript import cmd_events, cmd_follow_events
-
-    if follow and thread is not None:
-        raise click.UsageError("--follow and --thread cannot be used together")
-    if follow:
-        cmd_follow_events(resolve_dir(dir), after)
-        return
-    cmd_events(resolve_dir(dir), after, thread)
-
-
-@cli.command(short_help="Print browser and server interactions as JSON lines.")
-@click.argument("dir", metavar="PAGE")
-@click.option("--follow", is_flag=True, help="keep printing new interactions")
-def interactions(dir: str, follow: bool) -> None:
-    """Read the diagnostic trace without acknowledging semantic events."""
-    from leaf.interaction_log import lines
-
-    try:
-        for line in lines(resolve_dir(dir), follow=follow):
-            click.echo(line)
-    except KeyboardInterrupt:
-        return
-    except BrokenPipeError:
-        return
-
-
-@cli.command(short_help="Print the page's exchange as Markdown.")
-@click.argument("dir", metavar="PAGE")
-def transcript(dir: str) -> None:
-    """Print the page's exchange as Markdown."""
-    from leaf.transcript import cmd_transcript
-
-    cmd_transcript(resolve_dir(dir))
+    click.echo(f"resolved {thread_of(page_dir, thread)}")
 
 
 @cli.command(hidden=True)

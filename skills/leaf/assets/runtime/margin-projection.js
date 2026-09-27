@@ -117,7 +117,7 @@ import {
   holdFocus,
   letGo,
 } from "./focus.js";
-import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
+import { el, keeps, keepsHidden, keepsText, offer } from "./widget-elements.js";
 import { setChildren } from "./dom-children.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
@@ -141,7 +141,7 @@ import { repaint } from "./repaint.js";
 import { chromeRoot } from "./chrome.js";
 import { versionBtn } from "./version-chooser.js";
 import { motion, scrollBehavior } from "./motion.js";
-import { declareSide } from "./standing-target.js";
+import { declareSide, placeOf } from "./standing-target.js";
 import { closestAcross, elementById, inChrome } from "./passages.js";
 import { addressableSays, addressableWord, visualAt } from "./anchor-resolution.js";
 import { paintTrace } from "./target-paint.js";
@@ -159,7 +159,14 @@ import { anchorLabel } from "./thread/messages.js";
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
 import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
-import { bannerControlDoor } from "./banner-shelf.js";
+import {
+  BANNER_CONTROL_RANK,
+  bannerControlDoor,
+  dismissBannerControls,
+  registerBannerControl,
+  showBannerControl,
+} from "./banner-shelf.js";
+import { coarsePointer } from "./pointer.js";
 import { threadCardGeometry } from "./thread-card-geometry.js";
 import { shownWindow } from "./geometry.js";
 import { placeKeeper } from "./user-place.js";
@@ -176,6 +183,22 @@ import { retainUserIntent } from "./user-intent.js";
 
 // A margin card's reply box.
 const REPLY_BOX = `.lf-say ${TEXT_FIELD}`;
+
+// A pin covers the corner of its block, and `o`, which clears it, has no key under a
+// finger. Wherever the pointer is coarse, More holds the same toggle.
+const annotationsButton = el("button", "lf-btn lf-annotations-toggle");
+annotationsButton.type = "button";
+registerBannerControl({
+  key: "annotations",
+  control: annotationsButton,
+  rank: BANNER_CONTROL_RANK.annotations,
+  present: coarsePointer.matches,
+});
+const paintAnnotationsButton = () =>
+  keepsText(
+    annotationsButton,
+    annotationsHidden() ? "Show annotations" : "Hide annotations",
+  );
 
 export function createMarginProjection({
   panel,
@@ -1379,7 +1402,18 @@ export function createMarginProjection({
     },
     { capture: true },
   );
+  function toggleAnnotations() {
+    setAnnotationsHidden(!annotationsHidden());
+    notice(
+      !annotationsHidden()
+        ? "Annotations shown"
+        : coarsePointer.matches
+          ? "Annotations hidden"
+          : "Annotations hidden. o shows them",
+    );
+  }
   watchAnnotations((hidden) => {
+    paintAnnotationsButton();
     if (hidden) {
       const holding = closestAcross(document.activeElement, ".lf-margin-cluster");
       if (holding?.dataset.lfPlace === "pin" && holding.lfTarget?.isConnected)
@@ -1397,12 +1431,7 @@ export function createMarginProjection({
     keys: ["o"],
     does: "Hide or show the annotations drawn over the page",
     line: () => (annotationsHidden() ? "show annotations" : "hide annotations"),
-    run: () => {
-      setAnnotationsHidden(!annotationsHidden());
-      notice(
-        annotationsHidden() ? "Annotations hidden. o shows them" : "Annotations shown",
-      );
-    },
+    run: toggleAnnotations,
   });
 
   let marginKeysAvailable = false;
@@ -2542,12 +2571,21 @@ export function createMarginProjection({
     [
       ...document.querySelectorAll(`.lf-page-thread[data-thread="${CSS.escape(id)}"]`),
     ].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
-  // The innermost target holding the node whose threads the card would show.
+  // The innermost target holding the node whose threads the card would show. A thread is
+  // about exactly its anchor's target (glossary, Standing target), reached from anywhere
+  // inside it and never from outside: after `a` the user stands on the Ask element, so
+  // the card shows a thread on the Ask but not one on its options or a phrase in its
+  // heading. Treating an Ask as one target for its threads is a possible refinement. It
+  // belongs where a thread's target is decided (anchor-paint's placement), so every
+  // reader keeps one definition, not in this or any other single reader.
+  // Read from where the node stands (standing-target.js), so chrome that shows a page
+  // target, such as a comment note, arrives at that target as its own content does.
   const threadEntryAt = (node) => {
+    const place = placeOf(node);
     let standing = null;
     for (const entry of pageInventory) {
       const target = targetFor(entry);
-      if (!target || !threadReading(entry) || !under(node, target)) continue;
+      if (!target || !threadReading(entry) || !under(place, target)) continue;
       if (seatedOnPage(threadIdOf(entry))) continue;
       if (!standing || under(target, targetFor(standing))) standing = entry;
     }
@@ -2718,6 +2756,16 @@ export function createMarginProjection({
 
   function mount() {
     mountMarginLayer(toolbar);
+    paintAnnotationsButton();
+    coarsePointer.addEventListener("change", () => {
+      showBannerControl(annotationsButton, coarsePointer.matches);
+      repaint();
+    });
+    annotationsButton.addEventListener("click", () => {
+      dismissBannerControls();
+      bannerControlDoor(annotationsButton)?.focus({ preventScroll: true });
+      toggleAnnotations();
+    });
     onPaper.addEventListener("change", () => {
       if (!onPaper.matches) renderMargin.refresh();
     });

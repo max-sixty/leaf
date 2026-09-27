@@ -23,7 +23,7 @@
  * was invisible while document and chrome were the one system face.
  *
  * The serif is stacked, not shipped. theme.css is inlined whole into every
- * `version export` and parsed by `version check` on every version, so a webfont
+ * `page export` and parsed by `page check` on every version, so a webfont
  * would have to arrive as a base64 blob in both — and referenced by URL instead
  * it silently falls back in exactly the medium (an exported file, mailed on) that
  * has no server to ask. Charter and Iowan Old Style ship on macOS, Georgia everywhere
@@ -37,8 +37,10 @@
  * contents explicitly because it is the outer page frame.
  *
  * Where the fact belongs to the registry rather than to the rule that draws the box,
- * `markDeclared` paints it and the selector reads the paint. The lists that ask whether
- * a suggestion slot or a variant holds block content invert HTML's phrasing content,
+ * delivery paints it into the served document (revision_delivery.py, `mark_declared`;
+ * the runtime's `markDeclared` in a message) and the selector reads the paint. The
+ * lists that ask whether a suggestion slot or a variant holds block content invert
+ * HTML's phrasing content,
  * which answers "block" for every custom element, so they exclude `[data-lf-inline]`
  * rather than the tags that declare `x-inline`. The affordance rules that draw a choose
  * group as a control exclude the descendants of `[data-lf-exhibit]` for the same reason,
@@ -75,8 +77,8 @@
    - `wide` takes the shared capped evidence width;
    - `available` takes all room the page can give it.
 
-   `markDeclared` exposes this declaration and CSS computes room after chrome strips and
-   occupied margins. A spatial element inside a framed box uses that box's room, not the
+   Delivery paints this declaration (`data-lf-space`) and CSS computes room after chrome
+   strips and occupied margins. A spatial element inside a framed box uses that box's room, not the
    outer page's. Packages arrange content inside the allocation. Size the widget's box
    with `contain: inline-size` where its contents would otherwise make the box wider.
 
@@ -798,17 +800,12 @@ main {
  * stands over the page, and `main` subtracts the page's own two margin claims from that
  * one browser reading. */
 @media screen {
-  /* Two attributes carry one fact. `data-lf-space` is what the runtime paints from the
-   * registry, and it arrives with the script. `data-width` is the page's own occurrence
-   * saying the same thing, and it is in the markup the browser first lays out — so the
-   * rules read both, and an authored width is in the first paint rather than a reflow
-   * once leaf.js resolves. They never disagree: the paint of an authored occurrence is
-   * that attribute's own value (markDeclared). In a message the runtime withholds the
-   * room deliberately, the document's rather than the panel's, so the authored half of
-   * each selector is the document's to give and stays under `main`. The two are written
-   * as a list rather than one :is(), so the painted selector keeps the specificity every
-   * widget and package rule already overrides it at. */
-  [data-lf-space], main [data-width] {
+  /* `data-lf-space` is the room an element takes: what its tag declares (x-space), or
+   * the page's own occurrence saying so (`data-width`). Delivery paints it into the
+   * served document (revision_delivery.py, `mark_declared`), so a width is in the first
+   * paint rather than a reflow once leaf.js resolves. In a message the runtime withholds
+   * the room deliberately, the document's rather than the panel's, by not painting it. */
+  [data-lf-space] {
     /* Held to what is free beside the page (main's --lf-free-l and --lf-free-r), and
      * spent evenly each way where both sides are free; otherwise the freer side takes
      * what the other lacks. */
@@ -829,24 +826,22 @@ main {
      * intrinsic width; what it holds already scrolls. */
     contain: inline-size;
   }
-  [data-lf-space="column"], main [data-width="column"] {
+  [data-lf-space="column"] {
     --lf-reach: min(var(--col), var(--lf-room, 0px));
     --lf-surplus: 0px;
     width: min(100%, var(--col));
     margin-inline: auto;
   }
-  table[data-width][data-lf-space]:not([data-lf-space="column"]),
-  main table[data-width]:not([data-width="column"]) {
+  table[data-lf-space]:not([data-lf-space="column"]) {
     width: calc(100% + var(--lf-surplus));
   }
-  [data-lf-space="wide"], main [data-width="wide"] {
+  [data-lf-space="wide"] {
     --lf-reach: min(var(--wide), var(--lf-room, 0px));
   }
-  [data-lf-space="available"], main [data-width="available"] {
+  [data-lf-space="available"] {
     --lf-reach: var(--lf-room, 0px);
   }
-  [data-lf-space] [data-lf-space],
-  main :is([data-lf-space], [data-width]) :is([data-lf-space], [data-width]) {
+  [data-lf-space] [data-lf-space] {
     --lf-room: 100%;
   }
   /* A widget whose upgrade failed is showing the message and the source it choked on
@@ -862,8 +857,7 @@ main {
    * so the box came out as wide as the longest line — 854px of it in a 720px column,
    * scrolling, on the first real diagram source anyone fed it. The `pre` scrolls inside
    * the message instead, which is what a `pre` does everywhere else on the page. */
-  [data-lf-space]:has(> .lf-error),
-  main [data-width]:has(> .lf-error) { --lf-room: 0px; }
+  [data-lf-space]:has(> .lf-error) { --lf-room: 0px; }
   /* A box that draws one of its own is a box a wide widget stays inside. The room is the
    * page's to give, and inside a disclosure or a callout the page is not what holds the
    * widget — a board that took the window from inside a <details> hung out over both
@@ -890,7 +884,7 @@ main {
    *
    * A transparent wrapper declares nothing: a section and a tab's panel are the page's
    * own flow, and an exhibit breaking out through one is the point. What says so when a
-   * box that draws has not declared is `version check --render`, which measures every
+   * box that draws has not declared is `page check --render`, which measures every
    * wide element against the nearest ancestor that draws one. It could not see through a
    * scroll container until a diagram in a board card was drawn 332px across the next
    * column, and four widgets letting a diagram out were found the day it could. */
@@ -910,7 +904,7 @@ main {
   /* A block that bounds its own height scrolls inside it (x-bound, or data-bound on an
    * occurrence), so a long log or feed never grows the page. `end` follows the newest
    * entry (bounds.js). Paper has no scroller to hold it, so print shows it whole. */
-  [data-lf-bound], main [data-bound] {
+  [data-lf-bound] {
     max-block-size: var(--lf-bound, 28rem);
     overflow: auto;
     overscroll-behavior: contain;
@@ -1040,7 +1034,7 @@ img { aspect-ratio: attr(width type(<number>)) / attr(height type(<number>)); }
  * run — so whatever wraps in a scrolling table wraps at a word a line, beside a
  * name that could not break (an identifier has nowhere to break until the rule
  * at `code` above gives it one) or because there are more columns than the
- * measure holds. `version check --render` refuses a table that scrolls with a
+ * measure holds. `page check --render` refuses a table that scrolls with a
  * cell in it wrapped (SQUEEZED_TABLES) and leaves the third case to a table with
  * nothing left to wrap.
  *
@@ -1275,8 +1269,8 @@ main.layout-column aside.sidenote { --lf-resident: note; }
 aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
                  margin: 12px 0 12px var(--sp-4); }
 @media screen {
-  main.layout-column[data-lf-margin~="note"] :is([data-lf-space]:not([data-lf-space="column"]),
-    [data-width]:not([data-width="column"])) { clear: right; }
+  main.layout-column[data-lf-margin~="note"] [data-lf-space]:not([data-lf-space="column"]) {
+    clear: right; }
   main.layout-column[data-lf-margin~="note"] aside.sidenote {
     float: right; clear: right; width: calc(var(--note) - var(--sp-4));
     margin: 0 calc(-1 * var(--note)) 12px 0; }
@@ -1406,8 +1400,8 @@ lf-new { background: var(--add-tint); }
  * grow: a custom element is never in it, so a block widget from any layer is covered
  * unnamed. The marker at the end is the other direction's residue, and the inversion's
  * one wrong answer: an inline widget is a custom element too. Which widgets those are is
- * the registry's to say (x-inline) and a stylesheet cannot read it, so the runtime paints
- * the declaration where a selector can reach it (data-lf-inline, leaf.js markDeclared).
+ * the registry's to say (x-inline) and a stylesheet cannot read it, so delivery paints
+ * the declaration where a selector can reach it (data-lf-inline, `mark_declared`).
  * Four widget names stood here instead, one of them a standard chip's — a shipped tag in
  * the integrated theme, and the layer that most needed the answer, a project's own, was
  * the one layer it could never be given for. What the tag list bought that the marker
@@ -1862,8 +1856,10 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
   }
 }
 
-/* lf-pane is one task region: authored grammar with no generated wrappers, an optional
- * header, one body element, an optional footer. The rows are `auto 1fr auto`, because a
+/* A pane is one task region: an optional header, one body element, an optional footer,
+ * with no generated wrappers. It is whatever element declares `x-reading-role: pane`,
+ * whose role delivery paints into the served document (`data-lf-reading-role`), so the
+ * first paint lays it out before any script runs. The rows are `auto 1fr auto`, because a
  * grid row's minimum is its content's: a body that scrolls contributes nothing and the
  * row takes what the header and footer leave, while a body that doesn't holds the row at
  * its full height. Whether a body scrolls is the stylesheet's: the workspace Layout
@@ -1871,34 +1867,33 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
  * reads which box scrolls from the result.
  *
  * A widget that composes regions out of boxes it generates, such as a playground's
- * controls beside its preview or a visual review's evidence, marks them
- * data-lf-reading-role="pane" and takes these same rules, so no package keeps a copy of
- * them. They are the kernel's rather than the default package's for that reason: a
- * package's rules reach only its own widgets (layer.py, `widget_confinement`), and these
- * reach every package's. The attribute sits inside :where(), so every selector keeps the
- * tag's specificity. */
-:is(lf-pane, :where([data-lf-reading-role="pane"])) {
+ * controls beside its preview or a visual review's evidence, marks them with the same
+ * role and takes these same rules, so no package keeps a copy of them. They are the
+ * kernel's rather than the default package's for that reason: a package's rules reach
+ * only its own widgets (layer.py, `widget_confinement`), and these reach every
+ * package's. */
+[data-lf-reading-role="pane"] {
   display: grid;
   grid-template-rows: auto 1fr auto;
   grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   --lf-block-frame: 1;
 }
-:is(lf-pane, :where([data-lf-reading-role="pane"])) > header {
+[data-lf-reading-role="pane"] > header {
   grid-row: 1; margin: 0;
 }
-:is(lf-pane, :where([data-lf-reading-role="pane"])) > footer {
+[data-lf-reading-role="pane"] > footer {
   grid-row: 3; margin: 0;
 }
-:is(lf-pane, :where([data-lf-reading-role="pane"])) > :not(header, footer) {
+[data-lf-reading-role="pane"] > :not(header, footer) {
   grid-row: 2; min-width: 0; margin: 0;
 }
-:is(lf-pane, :where([data-lf-reading-role="pane"])) {
+[data-lf-reading-role="pane"] {
   border: 1px solid var(--rule);
   border-radius: var(--r);
   background: var(--paper);
 }
-:is(lf-pane, :where([data-lf-reading-role="pane"])) > header {
+[data-lf-reading-role="pane"] > header {
   padding: 10px 14px;
   border-bottom: 1px solid var(--rule);
   font: 600 var(--t-5)/1.4 var(--sans);
@@ -1907,14 +1902,14 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
 /* A pane is a region of a workspace, so its name takes a panel's voice (section.panel,
  * theme.css): small capitals that rank below the page's title and the pane's own
  * headings, where a bare h2 drew the region's label larger than anything it held. */
-:is(lf-pane, :where([data-lf-reading-role="pane"])) > header > :is(h2, h3, h4, h5, h6) {
+[data-lf-reading-role="pane"] > header > :is(h2, h3, h4, h5, h6) {
   margin: 0;
   font: 600 var(--t-6)/1.3 var(--sans);
   letter-spacing: .06em;
   text-transform: uppercase;
   color: var(--muted);
 }
-:is(lf-pane, :where([data-lf-reading-role="pane"])) > footer {
+[data-lf-reading-role="pane"] > footer {
   padding: 10px 14px;
   border-top: 1px solid var(--rule);
   --lf-block-frame: 1;
@@ -1927,7 +1922,7 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
  * makes its card a container for the same reason; its sample is a table, which
  * containment skips, so it states `--lf-box-cap` for what it holds instead. A tab's panel
  * is the page's own flow, which an exhibit breaks out through, so it is not one. */
-:is(lf-pane, :where([data-lf-reading-role="pane"])) > :not(header, footer) {
+[data-lf-reading-role="pane"] > :not(header, footer) {
   padding: 14px;
   container-type: inline-size;
   --lf-block-frame: 1;

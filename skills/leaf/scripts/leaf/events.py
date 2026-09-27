@@ -26,7 +26,7 @@ def document_identity(scope: str, revision: int | None = None) -> dict:
 
     A `page` event's document is the revision it names; a `thread` event's is the
     frozen thread markup, which lasts the page's whole lifetime and so carries no
-    revision. Admission, request seats, and the browser all key documents on this
+    revision. Admission, thread folds, and the browser all key documents on this
     identity."""
     if scope == "thread":
         return {"kind": "thread"}
@@ -376,7 +376,7 @@ def current_anchors(events: list, within: dict) -> list:
     thread yet.
 
     One rule for every reader that asks whether a written anchor still binds the
-    page, because a version check refusing to drop what a thread has already let
+    page, because a page check refusing to drop what a thread has already let
     go is the same bug as a browser painting a mark there. `within` is the
     containment the settlement half reads, as every other fold of the threads
     takes it."""
@@ -488,10 +488,10 @@ def seat_root(thread: dict) -> str | None:
 def seats_with_agent(threads: dict) -> set[str]:
     """Widget ids whose own seat holds a thread now waiting on the agent.
 
-    A request whose own thread is with the agent is not one the user has to
+    An Ask whose own thread is with the agent is not one the user has to
     deal with, so an Ask projection reading their list subtracts these. It is not an
     answer — the widget's state is untouched — which is why the reading that asks
-    whether a request is answered passes an empty set instead. The browser receives
+    whether an Ask is answered passes an empty set instead. The browser receives
     the Asks this subtraction leaves rather than subtracting again, so the banner's
     count and `page state` cannot disagree about whose turn it is.
 

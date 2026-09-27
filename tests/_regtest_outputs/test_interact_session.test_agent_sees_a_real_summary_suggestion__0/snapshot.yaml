@@ -77,8 +77,8 @@ delivery:
           This event's thread has grown long, and its entry in the batch's `threads`
           carries a `summary_hint`. Once you have replied, read the messages from
           its `from` through its `through` and summarize them with `leaf thread
-          summarize <page> <thread-id> --from <from> --through <through>`, as the
-          Leaf skill's `references/threads.md`, "Summarize a long discussion", says.
+          summarize <page> --from <from> --through <through>`, as the Leaf skill's
+          `references/threads.md`, "Summarize a long discussion", says.
         h4: >-
           When the event asks for work, name that work before any other, including
           reading the source it concerns: `leaf status <page> working "<the work,

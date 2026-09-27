@@ -135,7 +135,6 @@ export function createSelectionComposer({
   beginFabFocus,
   endFabFocus,
   landFabFocus,
-  refreshFab,
   showFab,
   formatGoToAddress,
   createComment,
@@ -233,8 +232,8 @@ export function createSelectionComposer({
   // The composer's suggest-mode rendering — the offer of it, the button label and the
   // placeholder — derived from the standing state in one place, so the four paths that
   // set that state (toggle, open, close, another tab's keystroke) can't each restate
-  // half of it. The placeholder itself is wireInput's to write; syncComposer repaints it
-  // from the hint above.
+  // half of it. The placeholder itself is wireInput's to paint, from the box's hint;
+  // syncComposer asks for that paint.
   function syncSuggestMode() {
     // A suggestion is replacement text for a passage of the page; a remark about the
     // layer proposes no words, whatever it quotes.
@@ -247,7 +246,7 @@ export function createSelectionComposer({
       collapse: true,
     });
     keeps(fabSuggest, "aria-label", suggest ? "Suggest" : "Comment");
-    fabSuggest.title = suggest ? "Suggest" : "Comment";
+    keeps(fabSuggest, "title", suggest ? "Suggest" : "Comment");
     syncComposer();
     syncResponseOptions();
     repaint(); // the submit action says which of the two the box will do
@@ -599,7 +598,6 @@ export function createSelectionComposer({
           : true,
       hasContent: holdsContent,
       save: saveComposerDraft,
-      layout: refreshFab,
       send: async (_text, raw, owns, visible) => {
         const anchor = structuredClone(pendingAnchor);
         const ctx = composerCtx(anchor);

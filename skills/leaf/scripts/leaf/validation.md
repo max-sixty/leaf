@@ -9,8 +9,8 @@ re-vendoring.
 
 ## Static validation
 
-`version check` starts with a deterministic check of the exact mutable `index.html`
-(no browser, near-free; activation and `version stamp` run the same boundary): the HTML parses with balanced
+`page check` starts with a deterministic check of the exact mutable `index.html`
+(no browser, near-free; activation and `page stamp` run the same boundary): the HTML parses with balanced
 tags; one direct `<body><main>` contains all authored content; page-authored behavior
 appears only in inline modules or literal local module graphs rooted below `/page/`,
 never classic scripts, network imports, event-handler attributes, or `javascript:` URLs;
@@ -32,14 +32,14 @@ has moved, detached, or closed. That release is final — a revision the part ha
 left cannot be asked for it back, so reopening the closed thread restores
 the thread and not its target. An agent reply may detach a thread in the same
 transition that removes its subject. A declared retirement protects its holder and slots until its
-outcome licenses their removal. Other dropped ids are reported as advice. These carry-over rules judge a candidate. A source whose captured artifact is the active revision's had its transition judged when it activated, and the append door has judged every event since against the revision it names, so neither activation nor `version check` re-judges it against the longer log. Near-free
+outcome licenses their removal. Other dropped ids are reported as advice. These carry-over rules judge a candidate. A source whose captured artifact is the active revision's had its transition judged when it activated, and the append door has judged every event since against the revision it names, so neither activation nor `page check` re-judges it against the longer log. Near-free
 and deterministic is what makes running it on every save affordable, so keep a new
 check that way; anything needing a browser belongs in the command's browser half.
 The effective registry is validated where it differs from the active revision's
 captured copy, which was validated when that revision activated; vendored sheets are
 validated when `page init` composes them, not on each check.
 
-That half has one piece plain `version check` runs too. A page that runs code of its
+That half has one piece plain `page check` runs too. A page that runs code of its
 own, a module script or a page widget the document places, is served and run once at
 the render viewport through upgrade, presentation, and one frame after it, and fails on
 each `error` event its runtime posts in that time: the event `leaf wait` would deliver,
@@ -76,7 +76,7 @@ can become a script module.
 
 ## Browser validation
 
-`version check --render` adds the rest of the browser half, run once before a page's URL is first
+`page check --render` adds the rest of the browser half, run once before a page's URL is first
 handed over: the exact current source loads in the host's browser (whichever
 executable `LEAF_BROWSER_EXECUTABLE`, `CHROME_PATH`, or `CHROME_BIN` names, else
 Playwright's `channel="chrome"`, else the first browser `PATH` answers with) and the
@@ -166,3 +166,10 @@ holds; layout advice also reads the stylesheets the page links from `page/`, as 
 revision's capture resolves them (`RevisionArtifact.page_stylesheets`). A new question about a page becomes a field on one of those readings rather
 than a pattern over the file's text, because a pattern answers something adjacent to
 the question asked.
+
+Immutable inputs are read once per process. A stored revision's document, captured
+vocabulary, and passage readings live on its one `RevisionReading`
+(`revision_artifact.read_revision`); a candidate's live on a `SourceReading` for as
+long as its check. Each logged markup fragment is parsed once
+(`thread_context.logged_fragment`), while markup a writer hands in is parsed afresh
+at its gate.

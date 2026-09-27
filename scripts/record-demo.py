@@ -366,8 +366,6 @@ def record(
         "thread",
         "reply",
         str(page_dir),
-        "--to",
-        comment_id,
         "--for",
         comment_id,
         "--text",
@@ -375,7 +373,7 @@ def record(
     )
     (page_dir / "index.html").write_text(demo_page(2), encoding="utf-8")
     run_leaf(
-        "version",
+        "page",
         "stamp",
         str(page_dir),
         "--text",
@@ -463,7 +461,7 @@ def shoot_stills(
         demo_page(2, folded_board(page_dir)), encoding="utf-8"
     )
     run_leaf(
-        "version",
+        "page",
         "stamp",
         str(page_dir),
         "--text",
@@ -582,7 +580,7 @@ def main() -> None:
         run_leaf("page", "init", str(page_dir))
         (page_dir / "index.html").write_text(demo_page(1), encoding="utf-8")
         run_leaf(
-            "version",
+            "page",
             "stamp",
             str(page_dir),
             "--text",

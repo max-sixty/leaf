@@ -6,12 +6,8 @@ from ..projection import PageReading, StateProjection
 from .wire import browser_projection
 
 
-def browser_document(
-    page: PageReading,
-    threads: dict,
-    data: dict,
-) -> tuple[dict, DocumentReading]:
-    document = read_document(page, threads, data)
+def browser_document(page: PageReading, threads: dict) -> tuple[dict, DocumentReading]:
+    document = read_document(page, threads)
     return (
         {
             "revision": page.revision,
@@ -21,7 +17,6 @@ def browser_document(
                 within=document.within,
                 floors=document.floors,
             ),
-            "requests": document.requests,
             # The complete Ask reading of this revision under the same transaction.
             # The browser draws its tray, walk, and banner count
             # from these lists rather than folding the declarations a second time.

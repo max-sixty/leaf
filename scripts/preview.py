@@ -55,8 +55,8 @@ watches any stopped server. The page log and user decisions survive; a refused
 update stays visible in the output and is retried after the next edit. Seeded
 history is installed once, when the page is built, so a change to it is refused
 until the preview is restarted.
-`version stamp` lints the example on the way past. The browser gate a page normally
-passes before its URL goes out is left to the suite: `version check --render` and
+`page stamp` lints the example on the way past. The browser gate a page normally
+passes before its URL goes out is left to the suite: `page check --render` and
 `test_page_fixture_renders` drive the same `render_version` over the same files, so
 running it here would only repeat what the suite has already said about these exact
 pages.
@@ -526,7 +526,7 @@ def refresh_preview(
 
     Only the re-vendor takes the server down (`PreviewService.replacing`). The rest
     writes into a live page the way an agent authors one — media, `index.html`, then
-    `version stamp` — so a prose edit arrives in the tab the user is standing in.
+    `page stamp` — so a prose edit arrives in the tab the user is standing in.
     """
     if fixture_seed(source) != state["seed"]:
         return refused(
@@ -563,7 +563,7 @@ def refresh_preview(
                 leaf(
                     launcher,
                     runtime,
-                    "version",
+                    "page",
                     "stamp",
                     str(page),
                     "--text",
@@ -898,7 +898,7 @@ def main() -> None:
             suffix = f"-{args.slot}" if args.slot else ""
             out = TMP / f"example-{source.stem}{suffix}.html"
             out.unlink(missing_ok=True)
-            leaf(launcher, runtime, "version", "export", str(page), "-o", str(out))
+            leaf(launcher, runtime, "page", "export", str(page), "-o", str(out))
         print(
             preparation_note(source, prepared.data_sources, prepared.versions),
             end="\n\n",

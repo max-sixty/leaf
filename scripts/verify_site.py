@@ -41,7 +41,9 @@ from typing import IO, NamedTuple
 from urllib.parse import urlencode, urljoin, urlsplit
 
 import click
+from eval_harness import codex_home
 from leaf.render_gate.browser import launch_browser
+from leaf.served_state.reading import reading_files
 from playwright.sync_api import APIResponse, BrowserContext, Page, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -158,16 +160,6 @@ def unpresented(url: str, reached: list[str], failures: list[str]) -> str:
     return f"{url} never presented, reaching {milestones}{reported}"
 
 
-def _stamped(reading: str) -> str:
-    """A reading without its presence fingerprint.
-
-    `/api/state` names a reading as the page's own content stamp followed by a
-    fingerprint of who is present, and presence moves on its own clock. Two readings
-    that agree on the stamp were taken over the same page.
-    """
-    return reading.rsplit(".", 1)[0]
-
-
 def undrawn_reply(url: str, debug: dict, served: str) -> str:
     """What a reply the container holds and the panel never drew has to say for itself.
 
@@ -181,12 +173,14 @@ def undrawn_reply(url: str, debug: dict, served: str) -> str:
     The page separates them itself. `data-lf-reading` is the reading of the last state
     it applied completely, and the gate holds the reading of the state it read the
     answer out of; a page standing on the same one took the answer in, and a page
-    standing behind it never did. `data-lf-traffic` says whether it is still asking.
+    standing behind it never did. Standing on the same one is agreeing on the file
+    stamp (`reading_files`), since presence moves on its own clock.
+    `data-lf-traffic` says whether it is still asking.
     """
     applied = debug.get("reading")
     if applied is None:
         account = "the page has applied no state at all"
-    elif _stamped(applied) == _stamped(served):
+    elif reading_files(applied) == reading_files(served):
         account = (
             f"the page has applied the reading the answer was read out of ({applied}), "
             "so the answer reached it and was not drawn"
@@ -1272,15 +1266,10 @@ def local_adapter():
     ):
         root = Path(temporary)
         site = root / "site"
-        codex_home = root / "codex-home"
-        codex_home.mkdir(mode=0o700)
-        host_home = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
-        shutil.copyfile(
-            ROOT / "worker" / "codex-config.toml", codex_home / "config.toml"
+        home = codex_home(
+            root / "codex-home",
+            (ROOT / "worker" / "codex-config.toml").read_text(),
         )
-        auth = codex_home / "auth.json"
-        shutil.copyfile(host_home / "auth.json", auth)
-        auth.chmod(0o600)
         subprocess.run(
             [sys.executable, str(ROOT / "scripts" / "site.py")],
             cwd=ROOT,
@@ -1323,7 +1312,7 @@ def local_adapter():
             cwd=ROOT,
             env={
                 **os.environ,
-                "CODEX_HOME": str(codex_home),
+                "CODEX_HOME": str(home),
                 "LEAF_SITE_ROOT": str(site),
             },
         ):

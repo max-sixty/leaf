@@ -1907,7 +1907,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     page.evaluate("window.__leafMain = document.querySelector('main')")
     stamped = CliRunner().invoke(
         cli_model.cli,
-        ["version", "stamp", str(serve.page_dir), "--text", "new findings"],
+        ["page", "stamp", str(serve.page_dir), "--text", "new findings"],
     )
     assert stamped.exit_code == 0, stamped.output
     told(page)
@@ -1940,7 +1940,7 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     told(page)
     stamped = CliRunner().invoke(
         cli_model.cli,
-        ["version", "stamp", str(serve.page_dir), "--text", "second"],
+        ["page", "stamp", str(serve.page_dir), "--text", "second"],
     )
     assert stamped.exit_code == 0, stamped.output
     told(page)
@@ -4672,7 +4672,7 @@ def test_the_ask_walk_follows_registry_declarations(browser, serve):
 def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     browser, serve
 ):
-    """The agent channel, end to end in the browser: a `leaf experimental report`
+    """The agent channel, end to end in the browser: a `leaf page report`
     reaches the open page on the next poll and paints as provisional news — the status
     attribute moves, the parent's done-fraction recounts, and Page Map identifies a
     Reported update rather than the user's change. Task status remains work
@@ -4693,7 +4693,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
 
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["experimental", "report", str(d), "t-parser", "status", "status=review"],
+        ["page", "report", str(d), "t-parser", "status", "status=review"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -4718,7 +4718,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     # fraction chip recounts across the tree.
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["experimental", "report", str(d), "t-parser", "status", "status=done"],
+        ["page", "report", str(d), "t-parser", "status", "status=done"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -4881,7 +4881,7 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
         # A state the markup does not already hold, or there is no news to paint: a
         # report saying what the page says is blessed silence, not provisional state.
         [
-            "experimental",
+            "page",
             "report",
             str(d),
             "ag-wren",
@@ -4952,7 +4952,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     report = CliRunner().invoke(
         cli_model.cli,
         [
-            "experimental",
+            "page",
             "report",
             str(d),
             "ag-wren",
@@ -5067,7 +5067,7 @@ def test_report_words_and_widget_state_wait_together_for_a_drag(browser, serve):
     first = CliRunner().invoke(
         cli_model.cli,
         [
-            "experimental",
+            "page",
             "report",
             str(d),
             "ag-wren",
@@ -5092,7 +5092,7 @@ def test_report_words_and_widget_state_wait_together_for_a_drag(browser, serve):
     second = CliRunner().invoke(
         cli_model.cli,
         [
-            "experimental",
+            "page",
             "report",
             str(d),
             "ag-wren",
@@ -5177,7 +5177,7 @@ def test_a_rosters_row_survives_the_polls_that_keep_it_fresh(browser, serve):
     sent = CliRunner().invoke(
         cli_model.cli,
         [
-            "experimental",
+            "page",
             "report",
             str(d),
             "ag-finch",
@@ -5199,7 +5199,7 @@ def test_a_rosters_row_survives_the_polls_that_keep_it_fresh(browser, serve):
     sent = CliRunner().invoke(
         cli_model.cli,
         [
-            "experimental",
+            "page",
             "report",
             str(d),
             "ag-wren",
@@ -5273,7 +5273,7 @@ def test_a_recounted_fraction_holds_the_width_it_had(browser, serve):
 
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["experimental", "report", str(d), "t-parser", "status", "status=done"],
+        ["page", "report", str(d), "t-parser", "status", "status=done"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -5295,7 +5295,7 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
     Every document the gate reads used to be fetched inside the page, and
     `page.evaluate` sends the driver no timeout at all — measured, an evaluate
     awaiting a fetch that never answers is still running at 200s. So a server that
-    accepted a request and then went quiet left `version check --render` running with
+    accepted a request and then went quiet left `page check --render` running with
     nothing printed, which is the one failure a user cannot tell from slowness: the
     gate stopping is loud, and the gate never stopping looks like a slow machine.
 
@@ -5561,7 +5561,7 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
     ]:
         sent = CliRunner().invoke(
             cli_model.cli,
-            ["experimental", "report", str(serve.page_dir), widget, verb, *fields],
+            ["page", "report", str(serve.page_dir), widget, verb, *fields],
         )
         assert sent.exit_code == 0, sent.output
 
@@ -8092,479 +8092,6 @@ def test_command_goal_thread_follows_its_declaration_not_talk(
     expect(seat.get_by_role("button", name="pause", exact=True)).to_be_visible()
 
 
-def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt(
-    browser, serve
-):
-    """A typed host request paints and locks its siblings before the log answers,
-    then waits for its exact receipt.
-
-    The tray row is the other half: whether the Ask the request stands for is still the
-    user's is the log's reading, so the row turns over when the request reaches it."""
-    page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
-    operations = page.locator("#dedupe-operations")
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/5")
-    available = operations.evaluate(
-        """async holder => {
-          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const reading = widgetController(holder).read();
-          return [
-            reading.requests.restart.available,
-            reading.requests.land.available,
-          ];
-        }"""
-    )
-    assert available == [True, False]
-
-    banner_control(page, ".lf-asks").click()
-    request_row = page.locator('.lf-asks-row[data-lf-at="dedupe-operations-decision"]')
-    expect(request_row).to_have_attribute("data-lf-answer-state", "open")
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    operations.get_by_role("button", name="Restart with a fresh worker").click()
-    holding(page, held, 1, "the restart request")
-    expect(operations).to_contain_text("restart requested · waiting for the host")
-    expect(request_row).to_have_attribute("data-lf-answer-state", "open")
-    held[0].continue_()
-    page.unroute("**/api/event")
-    round_trip(page)
-    expect(request_row).to_have_attribute("data-lf-answer-state", "answered")
-    expect(request_row.locator(".lf-asks-answer")).to_have_text(
-        "Restart with a fresh worker"
-    )
-    requests = [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "request"
-    ]
-    assert len(requests) == 1
-    request = requests[0]
-    assert (request["revision"], request["action"], request["detail"]) == (
-        1,
-        "restart",
-        {
-            "target": "parser-dedupe",
-            "worker": "w-5",
-            "worktree": "tree-w-5",
-        },
-    )
-    expect(operations).to_contain_text("restart requested · waiting for the host")
-    expect(page.locator(".lf-asks")).to_have_text("Asks 1/5")
-    expect(request_row).to_have_attribute("data-lf-answer-state", "answered")
-    expect(request_row.locator(".lf-asks-answer")).to_have_text(
-        "Restart with a fresh worker"
-    )
-    banner_control(page, ".lf-asks").click()
-    expect(operations.get_by_role("button")).to_have_count(3)
-    assert operations.get_by_role("button").evaluate_all(
-        "buttons => buttons.every(button => button.getAttribute('aria-disabled') === 'true')"
-    )
-
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "experimental",
-            "receipt",
-            str(serve.page_dir),
-            request["id"],
-            "succeeded",
-            "--text",
-            "Started w-9 on the preserved branch",
-        ],
-    )
-    assert result.exit_code == 0, result.output
-    told(page)
-    expect(operations).to_contain_text(
-        "restart succeeded · Started w-9 on the preserved branch"
-    )
-    expect(page.locator(".lf-asks")).to_have_text("Asks 1/5")
-    # The feed's newest row is the receipt, worded by the offered operation and
-    # leading back to the holder it answered.
-    receipt = page.locator("#atlas-record .lf-activity-row").first
-    expect(receipt).to_contain_text("completed “Restart with a fresh worker” in")
-    expect(receipt).to_contain_text("Started w-9 on the preserved branch")
-    expect(receipt.locator('a[href="#dedupe-operations"]')).to_have_count(1)
-
-
-def test_request_controls_join_presentation_without_replacing_authored_items(
-    browser, serve
-):
-    """The holder's render proof includes its Lit controls and retains page nodes."""
-    page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
-    operations = page.locator("#dedupe-operations")
-    restart = operations.locator(':scope > lf-operation[verb="restart"]')
-    button = restart.get_by_role("button", name="Restart with a fresh worker")
-    expect(button).to_be_visible()
-    page.evaluate(
-        """async holder => {
-          const item = holder.querySelector(':scope > lf-operation[verb="restart"]');
-          const control = item.querySelector(':scope > lf-request-control');
-          window.requestItem = item;
-          window.requestControl = control;
-          window.requestAuthoredChildren = [...item.childNodes].filter(
-            child => child !== control
-          );
-          window.requestIdentityHeld = () =>
-            holder.querySelector(':scope > lf-operation[verb="restart"]') === requestItem &&
-            requestItem.querySelector(':scope > lf-request-control') === requestControl &&
-            requestAuthoredChildren.every((child, index) =>
-              requestItem.childNodes[index] === child
-            );
-
-          let release;
-          const held = new Promise(resolve => { release = resolve; });
-          window.releaseRequestControl = release;
-          const schedule = control.scheduleUpdate.bind(control);
-          control.scheduleUpdate = async () => {
-            control.scheduleUpdate = schedule;
-            await held;
-            return schedule();
-          };
-          const presentation = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js'
-          );
-          window.whenRequestPresented = presentation.whenApplicationPresented;
-          window.readRequestPresentation = presentation.readApplicationPresentation;
-        }""",
-        operations.element_handle(),
-    )
-
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    try:
-        button.click()
-        holding(page, held, 1, "the request whose generated control update is held")
-        page.evaluate(
-            "() => { requestPresentationReady = false; "
-            "void whenRequestPresented().then(() => { "
-            "requestPresentationReady = true; }); }"
-        )
-        assert page.evaluate("requestPresentationReady") is False
-        assert "widget:dedupe-operations:render" in page.evaluate(
-            "readRequestPresentation().pending"
-        )
-        assert page.evaluate("requestIdentityHeld()") is True
-
-        page.evaluate("releaseRequestControl()")
-        page.wait_for_function("requestPresentationReady")
-        expect(operations).to_contain_text("restart requested · waiting for the host")
-        expect(button).to_have_attribute("aria-disabled", "true")
-
-        operations.evaluate(
-            """holder => {
-              const parent = holder.parentNode;
-              const next = holder.nextSibling;
-              holder.remove();
-              parent.insertBefore(holder, next);
-              window.reconnectedRequestReady = false;
-              whenRequestPresented().then(() => {
-                reconnectedRequestReady = true;
-              });
-            }"""
-        )
-        page.wait_for_function("reconnectedRequestReady")
-        assert page.evaluate("requestIdentityHeld()") is True
-    finally:
-        page.evaluate("releaseRequestControl?.()")
-        if held:
-            held[0].continue_()
-        page.unroute("**/api/event")
-
-    round_trip(page)
-
-
-def test_a_page_request_gets_a_fresh_seat_in_a_new_revision(browser, serve):
-    """A page holder's completed lifecycle does not cross a document revision,
-    and its broader x-ask-surface region follows that same ready/pending reading."""
-    first = leaf_page(
-        "Page request scope",
-        """<lf-command id="hub"><lf-task id="goal" status="active">
-<strong>Goal</strong>
-<lf-agent id="worker" state="waiting" on="goal"><strong>Worker</strong>
-  <lf-worktree id="tree" source="project-worktrees"></lf-worktree>
-</lf-agent>
-<lf-ask id="command-decision"><h2>Recover this work</h2>
-  <lf-operations id="commands" target="goal" worker="worker" worktree="tree">
-    <lf-operation verb="restart"><strong>Restart</strong></lf-operation>
-  </lf-operations>
-</lf-ask></lf-task></lf-command>""",
-    )
-    page = open_page(browser, live_url(serve(first)))
-    operations = page.locator("#commands")
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
-    with sending(page, "the restart request"):
-        operations.get_by_role("button", name="Restart").click()
-    expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
-    request = next(
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "request"
-    )
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "experimental",
-            "receipt",
-            str(serve.page_dir),
-            request["id"],
-            "succeeded",
-            "--text",
-            "Restarted",
-        ],
-    )
-    assert result.exit_code == 0, result.output
-    told(page)
-    expect(operations).to_contain_text("restart succeeded")
-
-    stamp_page(
-        serve.page_dir,
-        first.replace("Recover this work", "Second instruction"),
-        "new instruction",
-    )
-    wait_for_revision(page, 2)
-    expect(page.locator("#command-decision")).to_contain_text("Second instruction")
-    expect(operations).not_to_contain_text("restart succeeded")
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
-    expect(operations.get_by_role("button", name="Restart")).to_have_attribute(
-        "aria-disabled", "false"
-    )
-
-
-def test_a_ready_request_contributes_its_operation_as_an_ask_action(browser, serve):
-    source = leaf_page(
-        "Request action address",
-        """<lf-command id="hub"><lf-task id="goal" status="active">
-<strong>Goal</strong>
-<lf-agent id="worker" state="waiting" on="goal"><strong>Worker</strong>
-  <lf-worktree id="tree" source="project-worktrees"></lf-worktree>
-</lf-agent>
-<lf-ask id="command-decision"><h2>Recover this work</h2>
-  <lf-operations id="commands" target="goal" worker="worker" worktree="tree">
-    <lf-operation verb="restart"><strong>Restart</strong></lf-operation>
-  </lf-operations>
-</lf-ask></lf-task></lf-command>""",
-    )
-    page = open_page(browser, serve(source))
-
-    page.keyboard.press("a")
-    expect(page.locator("#command-decision")).to_be_focused()
-    assert ask_actions_hint("1") in shortcut_bar_text(page)
-    page.keyboard.press("1")
-    round_trip(page)
-    expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
-
-
-def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serve):
-    """The panel is a second document. Its operation asks while ready, hands the
-    turn to the host while pending, returns after failure, and keeps its completed
-    receipt across page revisions without borrowing the page holder's lifecycle.
-    A later plain reply does not hide that earlier structural request."""
-    page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
-    root = events_model.append_event(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Can you recover the dedupe branch?",
-        },
-    )
-    events_model.append_event(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "agent": "Codex",
-            "parent": root["id"],
-            "text": "Choose the host operation.",
-            "markup": (
-                '<lf-ask id="thread-command-decision">'
-                "<h3>What should the host do?</h3>"
-                '<lf-operations id="thread-commands" target="parser-dedupe" '
-                'worker="w-5" worktree="tree-w-5">'
-                '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-                "</lf-operations></lf-ask>"
-            ),
-        },
-    )
-    events_model.append_event(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "agent": "Codex",
-            "parent": root["id"],
-            "text": "The operation above remains ready when you are.",
-        },
-    )
-    told(page)
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/6")
-    page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-thread-summary").first.click()
-    panel_settled(page)
-    expect(page.locator(".lf-needs")).to_have_text("You (1)")
-    operations = page.locator("#thread-commands")
-    with sending(page, "the restart request"):
-        operations.get_by_role("button", name="Restart").click()
-    expect(page.locator(".lf-asks")).to_have_text("Asks 1/6")
-    expect(page.locator(".lf-needs")).to_have_text("You (0)")
-    request = next(
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "request" and event["widget"] == "thread-commands"
-    )
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "experimental",
-            "receipt",
-            str(serve.page_dir),
-            request["id"],
-            "failed",
-            "--text",
-            "The worker was still shutting down",
-        ],
-    )
-    assert result.exit_code == 0, result.output
-    told(page)
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/6")
-    expect(page.locator(".lf-needs")).to_have_text("You (1)")
-    expect(operations).to_contain_text("restart failed")
-
-    with sending(page, "the retried restart request"):
-        operations.get_by_role("button", name="Restart").click()
-    expect(page.locator(".lf-needs")).to_have_text("You (0)")
-    request = [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "request" and event["widget"] == "thread-commands"
-    ][-1]
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "experimental",
-            "receipt",
-            str(serve.page_dir),
-            request["id"],
-            "succeeded",
-            "--text",
-            "Restarted from the preserved branch",
-        ],
-    )
-    assert result.exit_code == 0, result.output
-    told(page)
-    expect(operations).to_contain_text("restart succeeded")
-
-    stamp_page(
-        serve.page_dir,
-        COMMAND_HUB_PAGE.replace("week 3 of 6", "week 4 of 6"),
-        "advance the authored plan",
-    )
-    wait_for_revision(page, 2)
-    expect(operations).to_contain_text("restart succeeded")
-    expect(page.locator(".lf-asks")).to_have_text("Asks 1/6")
-
-
-def test_a_succeeded_host_request_waits_for_an_authored_plan_revision(browser, serve):
-    """A receipt records the host outcome; it does not rewrite the page's plan."""
-    page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
-    with sending(page, "the park request"):
-        page.locator("#dedupe-operations").get_by_role(
-            "button", name="Park it for tomorrow"
-        ).click()
-    request = next(
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "request" and event["widget"] == "dedupe-operations"
-    )
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "experimental",
-            "receipt",
-            str(serve.page_dir),
-            request["id"],
-            "succeeded",
-            "--text",
-            "Parked the preserved branch",
-        ],
-    )
-    assert result.exit_code == 0, result.output
-    told(page)
-    stopped = page.locator("#hub-readings > .lf-stopped-view")
-    expect(stopped).to_contain_text("Deduplicate the corpus snapshot")
-    expect(page.locator("#atlas-record .lf-activity-row").first).to_contain_text(
-        "completed “Park it for tomorrow” in"
-    )
-
-    parked = re.sub(
-        r'(<lf-task\s+id="parser-dedupe"\s+)status="blocked"\s+' r'stopped-at="[^"]+"',
-        r'\1status="planned"',
-        COMMAND_HUB_PAGE,
-        count=1,
-    )
-    parked = re.sub(
-        r'<lf-ask\s+id="dedupe-operations-decision".*?</lf-ask>',
-        "",
-        parked,
-        count=1,
-        flags=re.DOTALL,
-    )
-    assert parked != COMMAND_HUB_PAGE
-    stamp_page(serve.page_dir, parked, "parked branch")
-    wait_for_revision(page, 2)
-    expect(stopped).not_to_contain_text("Deduplicate the corpus snapshot")
-    expect(page.locator("#dedupe-operations")).to_have_count(0)
-    expect(page.locator("#parser-dedupe")).to_have_attribute("status", "planned")
-
-
-def test_a_failed_host_request_reopens_its_commands_without_changing_the_plan(
-    browser, serve
-):
-    """Failure makes another attempt available and leaves authored state alone."""
-    page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
-    operations = page.locator("#dedupe-operations")
-    with sending(page, "the park request"):
-        operations.get_by_role("button", name="Park it for tomorrow").click()
-    expect(page.locator(".lf-asks")).to_have_text("Asks 1/5")
-    request = next(
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "request" and event["widget"] == "dedupe-operations"
-    )
-
-    page.keyboard.press("z")
-    assert not [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "undo"
-    ]
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "experimental",
-            "receipt",
-            str(serve.page_dir),
-            request["id"],
-            "failed",
-            "--text",
-            "Branch is protected by another review",
-        ],
-    )
-    assert result.exit_code == 0, result.output
-    told(page)
-    expect(operations).to_contain_text(
-        "park failed · Branch is protected by another review"
-    )
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/5")
-    expect(operations.get_by_role("button")).to_have_count(3)
-    assert operations.get_by_role("button").evaluate_all(
-        "buttons => buttons.every(button => button.getAttribute('aria-disabled') === 'false')"
-    )
-    expect(page.locator("#hub-readings > .lf-stopped-view")).to_contain_text(
-        "Deduplicate the corpus snapshot"
-    )
-
-
 def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     """An input action discharges the request live; the honoring version removes its
     authored `needed` condition, so incorporating its state into source cannot turn the input back into
@@ -8696,7 +8223,7 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
 
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["experimental", "report", str(d), "api-errors", "status", "status=done"],
+        ["page", "report", str(d), "api-errors", "status", "status=done"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -8742,7 +8269,7 @@ def test_command_hub_reads_one_publication_before_worker_presentation_commits(
     sent = CliRunner().invoke(
         cli_model.cli,
         [
-            "experimental",
+            "page",
             "report",
             str(serve.page_dir),
             "w-1",
@@ -8828,26 +8355,6 @@ def test_command_hub_goal_metadata_wraps_on_a_phone(browser, serve):
 
     expect(page.locator("#goal-parser > .lf-task-meta")).to_contain_text(long_when)
     assert root_overflow(page) == 0
-
-
-def test_command_hub_operations_fit_their_column(browser, serve):
-    page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
-    operations = page.locator("lf-operations").first
-
-    resized(page, 320, 900)
-    assert operations.evaluate(
-        "holder => [...holder.querySelectorAll('lf-operation')].every("
-        "card => card.getBoundingClientRect().right <= "
-        "holder.getBoundingClientRect().right + 1)"
-    )
-    assert root_overflow(page) == 0
-
-    resized(page, 1280, 900)
-    assert operations.evaluate(
-        "holder => { const [first, second] = holder.querySelectorAll('lf-operation'); "
-        "return first.getBoundingClientRect().top === second.getBoundingClientRect().top "
-        "&& first.getBoundingClientRect().right < second.getBoundingClientRect().left; }"
-    )
 
 
 WIDE_TREE_PAGE = leaf_page(
@@ -9001,36 +8508,6 @@ def test_command_hub_keeps_a_real_request_outside_a_quoted_decision(browser, ser
     )
 
 
-def test_command_hub_quotes_host_operations_without_offering_a_request(browser, serve):
-    command = """<lf-command id="hub-plan" label="Quoted operation">
-      <lf-task id="goal" status="active"><strong>Active goal</strong>
-        <lf-agent id="worker" state="waiting" on="goal"><strong>Worker</strong>
-          <lf-worktree id="tree" source="project-worktrees"></lf-worktree>
-        </lf-agent>
-        <lf-sample id="sample"><lf-operations id="example-commands" target="goal"
-          worker="worker" worktree="tree">
-          <lf-operation verb="restart"><strong>Restart</strong></lf-operation>
-        </lf-operations></lf-sample>
-      </lf-task>
-    </lf-command>"""
-    html = re.sub(
-        r"<lf-command\b.*?</lf-command>",
-        command,
-        COMMAND_HUB_PAGE,
-        count=1,
-        flags=re.DOTALL,
-    )
-    page = open_page(browser, serve(html))
-
-    expect(page.locator("#example-commands .lf-request-press")).to_have_count(0)
-    expect_banner_control_offered(page.locator(".lf-asks"), offered=False)
-    assert not [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "request"
-    ]
-
-
 def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser, serve):
     page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
     d = serve.page_dir
@@ -9040,7 +8517,7 @@ def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser,
     sent = CliRunner().invoke(
         cli_model.cli,
         [
-            "experimental",
+            "page",
             "report",
             str(d),
             "w-2",
@@ -9058,7 +8535,7 @@ def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser,
     sent = CliRunner().invoke(
         cli_model.cli,
         [
-            "experimental",
+            "page",
             "report",
             str(d),
             "w-2",
@@ -9174,7 +8651,7 @@ def test_command_hub_repaints_anchors_after_generated_projections_change(
     round_trip(page)
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["experimental", "report", str(d), "goal-parser", "status", "status=review"],
+        ["page", "report", str(d), "goal-parser", "status", "status=review"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -9199,9 +8676,9 @@ def test_command_hub_reveals_collapsed_worker_evidence_from_threads(browser, ser
                 "anchor": {"section": target},
             },
         )["id"]
-        for target in ("schema-operations", "w-1", "lf-tree-w-1-diff")
+        for target in ("decision-schema", "w-1", "lf-tree-w-1-diff")
     }
-    page = open_page(browser, f"{url}#schema-operations")
+    page = open_page(browser, f"{url}#decision-schema")
     page.emulate_media(reduced_motion="reduce")
     # Initial anchor painting already reveals its evidence. Close both disclosures
     # again so the quote gesture, rather than page startup, is the single changed
@@ -9217,15 +8694,15 @@ def test_command_hub_reveals_collapsed_worker_evidence_from_threads(browser, ser
     expect(page.locator("#w-1")).to_be_hidden()
     page.locator(".lf-threads-toggle").click()
 
-    # This operation surface is already readable and is a sibling of the goal's worker.
+    # This decision is already readable and is a sibling of the goal's worker.
     # Returning to it neither needs the worker nor a new reading position.
-    schema = page.locator("#schema-operations")
+    schema = page.locator("#decision-schema")
     schema.scroll_into_view_if_needed()
     before = page.evaluate(
         """() => ({
           scroll: document.scrollingElement.scrollTop,
-          top: document.querySelector('#schema-operations').getBoundingClientRect().top,
-          bottom: document.querySelector('#schema-operations').getBoundingClientRect().bottom,
+          top: document.querySelector('#decision-schema').getBoundingClientRect().top,
+          bottom: document.querySelector('#decision-schema').getBoundingClientRect().bottom,
           banner: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
           height: innerHeight,
         })"""
@@ -9233,15 +8710,15 @@ def test_command_hub_reveals_collapsed_worker_evidence_from_threads(browser, ser
     assert before["top"] > before["banner"]
     assert before["bottom"] < before["height"]
     page.locator(
-        f'.lf-thread[data-id="{threads["schema-operations"]}"] .lf-thread-summary'
+        f'.lf-thread[data-id="{threads["decision-schema"]}"] .lf-thread-summary'
     ).click()
     page.locator(
-        f'.lf-thread[data-id="{threads["schema-operations"]}"] .lf-quote'
+        f'.lf-thread[data-id="{threads["decision-schema"]}"] .lf-quote'
     ).click()
     after = page.evaluate(
         """() => ({
           scroll: document.scrollingElement.scrollTop,
-          top: document.querySelector('#schema-operations').getBoundingClientRect().top,
+          top: document.querySelector('#decision-schema').getBoundingClientRect().top,
         })"""
     )
     assert after["scroll"] == pytest.approx(before["scroll"], abs=0.5)
@@ -9427,11 +8904,11 @@ def test_command_hub_keeps_its_command_owners_through_a_live_version(browser, se
     """
     url = serve(COMMAND_HUB_EXAMPLE)
     page = open_page(browser, live_url(url))
-    operations = page.locator("#dedupe-operations")
+    operations = page.locator("#decision-dedupe")
     original_document = page.evaluate("performance.timeOrigin")
     page.evaluate(
         "() => { window.__leafMain = document.querySelector('main');"
-        " window.__leafOperations = document.getElementById('dedupe-operations'); }"
+        " window.__leafOperations = document.getElementById('decision-dedupe'); }"
     )
     stamp_page(serve.page_dir, COMMAND_HUB_PAGE, "same plan")
     told(page)
@@ -9441,21 +8918,17 @@ def test_command_hub_keeps_its_command_owners_through_a_live_version(browser, se
     )
     assert page.evaluate("window.__leafMain === document.querySelector('main')")
     assert page.evaluate(
-        "window.__leafOperations === document.getElementById('dedupe-operations')"
+        "window.__leafOperations === document.getElementById('decision-dedupe')"
     ), "the revision replaced a widget whose authored markup it did not change"
-    # And the retained controller still answers for the widget: its descriptor, its
-    # request offers, and the projection it reads all survived with the element.
+    # And the retained controller still answers for the widget: its descriptor and
+    # the projection it reads both survived with the element.
     available = operations.evaluate(
         """async holder => {
           const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const reading = widgetController(holder).read();
-          return [
-            reading.requests.restart.available,
-            reading.requests.land.available,
-          ];
+          return widgetController(holder).read().actions.choose.available;
         }"""
     )
-    assert available == [True, False]
+    assert available is True
 
 
 READING_PANELS = ":is(.lf-command-head, .lf-stopped-view, .lf-fleet-view)"
@@ -9690,9 +9163,8 @@ customElements.define(\"lf-area\", class extends HTMLElement {
     expect_banner_control_offered(page.locator(".lf-asks"))
 
 
-def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, serve):
-    """Two readings of the same fault on one page: the command hub told the user
-    nothing, at rest, about what could be pressed and what had already been.
+def test_a_spent_press_and_a_static_badge_say_so_before_the_press(browser, serve):
+    """What can be pressed says so at rest, before the pointer is on it.
 
     The count. A count that opens a worker list and a badge that counts finished tasks
     once computed the same ground, ink, corner and size, and nothing separated them until
@@ -9700,14 +9172,10 @@ def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, ser
     pressed is still the marker the runtime writes on a control it built, which is the
     one thing on the page that already knows the answer.
 
-    The request. A one-shot request is spent for good the moment its receipt lands, and a
-    spent one kept its border at full strength and differed from a live one only by ink -
-    111,106,96 against 28,27,24. Greyscale drops that, and a user scanning eight presses
-    down a column never sees it as a difference at all. The shape cue is the layer's,
-    stated once beside the hand it withdraws, so a request that is finished cannot go on
-    looking like one that is waiting.
-
-    The request also uses the ordinary button focus ring, reached by keyboard."""
+    The spent press. A press that has nothing left to do keeps its shape and gives up
+    its opacity and the hand, the layer's one cue stated beside the hand it withdraws;
+    ink alone is dropped by greyscale. The press also wears the ordinary here ring,
+    reached by keyboard."""
     page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
     face = """el => { const cs = getComputedStyle(el);
         return {cursor: cs.cursor, opacity: cs.opacity,
@@ -9721,59 +9189,30 @@ def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, ser
         f"a chip that opens a section and one that counts something read the same: "
         f"{worn} vs {still}"
     )
-
-    operations = page.locator("#dedupe-operations")
-    live = operations.get_by_role("button", name="Restart with a fresh worker")
-    ready = live.evaluate(face)
-    assert ready["cursor"] == "pointer" and float(ready["opacity"]) == 1
+    assert float(worn["opacity"]) == 1
 
     # Reach the ordinary button ring by Tab: :focus-visible depends on how focus arrived.
-    live.focus()
+    chip.focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")
     ring = page.evaluate(
         """() => { const cs = getComputedStyle(document.activeElement);
              return [cs.outlineStyle, cs.outlineWidth,
-                     cs.getPropertyValue('--here-ring-w').trim(),
-                     cs.getPropertyValue('--lf-here-ring').trim()]; }"""
+                     cs.getPropertyValue('--here-ring-w').trim()]; }"""
     )
-    assert ring == [
-        "solid",
-        ring[2],
-        ring[2],
-        "btn",
-    ], f"a request press wears no here ring from the layer's shared rule: {ring}"
+    assert ring[0] == "solid" and ring[1] == ring[2], (
+        f"a layer-built press wears no here ring from the layer's shared rule: {ring}"
+    )
 
-    with sending(page, "the request"):
-        live.click()
-    request = next(
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "request"
-    )
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "experimental",
-            "receipt",
-            str(serve.page_dir),
-            request["id"],
-            "succeeded",
-            "--text",
-            "Started w-9 on the preserved branch",
-        ],
-    )
-    assert result.exit_code == 0, result.output
-    told(page)
-    expect(operations).to_contain_text("restart succeeded")
-
-    spent = live.evaluate(face)
+    press = page.locator(".lf-worktree-head").first
+    assert press.evaluate(face)["cursor"] == "pointer"
+    press.evaluate("press => press.setAttribute('aria-disabled', 'true')")
+    spent = press.evaluate(face)
     assert float(spent["opacity"]) < 1, (
-        f"a request that has been answered looks exactly as available as one that has "
-        f"not: {spent}"
+        f"a spent press looks exactly as available as a live one: {spent}"
     )
     assert spent["cursor"] == "default", (
-        "a spent request still takes the hand, so the page invites a press it will refuse"
+        "a spent press still takes the hand, so the page invites a press it will refuse"
     )
 
 

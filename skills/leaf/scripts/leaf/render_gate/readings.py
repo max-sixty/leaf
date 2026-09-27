@@ -11,7 +11,7 @@ import json
 from dataclasses import dataclass
 from itertools import pairwise
 
-from leaf.passages import page_passages
+from leaf.passages import SourceReading, page_passages
 from leaf.projection import (
     frozen_thread_reading,
     generated_children,
@@ -164,27 +164,25 @@ def _expected_verbatim(markup, events, registry, here):
     markup has no later authored revision and therefore uses the thread's whole
     action window. Both use the same passage projection as comment capture.
     """
-    document = SourceDocument(markup)
-    page = page_reading(document, events, registry, here)
+    page = page_reading(SourceReading(SourceDocument(markup), registry), events, here)
     expected = _projected_verbatim(
-        document,
+        page.document,
         registry,
         page.projection,
         page.document.ids,
         ("page", None),
     )
     thread = frozen_thread_reading(events, registry)
-    for event in events:
-        if fragment := event.get("markup"):
-            expected.update(
-                _projected_verbatim(
-                    SourceDocument(fragment),
-                    registry,
-                    thread.projection,
-                    thread.structure.ids,
-                    ("event", event["id"]),
-                )
+    for event_id, fragment in thread.structure.fragments.items():
+        expected.update(
+            _projected_verbatim(
+                fragment,
+                registry,
+                thread.projection,
+                thread.structure.ids,
+                ("event", event_id),
             )
+        )
     return expected
 
 
@@ -295,7 +293,9 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
             # about.
             if slots := retirement_slots(registry):
                 reading = page_reading(
-                    SourceDocument(markup), state["events"], registry, here
+                    SourceReading(SourceDocument(markup), registry),
+                    state["events"],
+                    here,
                 )
                 outcomes = retirement_outcomes(reading.projection.actions)
                 holders = []
@@ -322,7 +322,9 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     if scheme == "light" and replayed:
         if earlier is not None:
             projection = page_reading(
-                SourceDocument(markup), state["events"], registry, here
+                SourceReading(SourceDocument(markup), registry),
+                state["events"],
+                here,
             ).projection
             carried = [
                 event["id"]
@@ -525,18 +527,6 @@ def swept_overflow(readings, viewports) -> list[str]:
         span = f"{low}px" if low == high else f"{low}–{high}px"
         found.append(f"at {span} wide, {text}")
     return found
-
-
-def margin_cover_advice(page) -> list[str]:
-    """Advice naming each pin that stands over lines of the page's text."""
-    width = page.viewport_size["width"]
-    return [
-        f"at {width}px wide the margin pin for {pin['at']} stands over "
-        f"{pin['covered']} line(s) of text: a pin stands inside its block's "
-        "top-right corner, so give the block padding on its right, or the page a rail "
-        "(page-authoring.md, the rail and the margin), where those words matter"
-        for pin in evaluate_probe(page, "coveringMargins")
-    ]
 
 
 # The drawn size below which a shrunk label is advised about. The theme's drawing idiom

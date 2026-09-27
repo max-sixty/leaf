@@ -723,17 +723,17 @@ export default [
     },
   },
   {
-    files: ["scripts/vendor-src/pierre/*.mjs"],
+    files: ["build/pierre/*.mjs"],
     rules: { "no-undef": "error" },
   },
   {
-    files: ["scripts/vendor-src/pierre/build.mjs"],
+    files: ["build/pierre/build.mjs"],
     languageOptions: { globals: { process: "readonly" } },
   },
   {
     // This transport boot entry loads Leaf after installing the MCP fetch bridge.
     // It may boot /leaf.js, but must not reach private runtime owners.
-    files: ["scripts/mcp-app/direct-entry.js"],
+    files: ["notes/mcp-apps/probe/direct-entry.js"],
     rules: {
       "no-restricted-syntax": [
         "error",

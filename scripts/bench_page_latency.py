@@ -23,7 +23,7 @@ Each of RUNS runs reloads the page and times five transitions against the object
 - `reply`: `leaf thread reply` on an agent thread, painted when the reply shows. The
   thread is opened first, since the panel shows only the open thread's messages.
 - `status`: `leaf status <page> working "..."`, painted when the banner shows it.
-- `revision`: a changed `index.html` saved, then `leaf version stamp`, presented when
+- `revision`: a changed `index.html` saved, then `leaf page stamp`, presented when
   the new revision's words show after `data-lf-presented`. Install says whether the
   runtime patched the document in place or reloaded it.
 
@@ -65,7 +65,7 @@ from functools import partial
 from pathlib import Path
 
 import click
-from eval_harness import build_arm, environment, run_leaf
+from eval_harness import build_arm, environment, merge_base, run_leaf, serving
 from leaf.render_gate.browser import launch_browser
 from page_fixtures import prepare_page, read_fixture
 from playwright.sync_api import Browser, Page, sync_playwright
@@ -447,7 +447,7 @@ class Session:
         act = self.written(
             "events.jsonl",
             *("thread", "reply", str(self.page_dir)),
-            *("--to", self.thread, "--text", words),
+            *(self.thread, "--text", words),
         )
         return self.measure("reply", {"painted": ("message", words)}, act)
 
@@ -470,7 +470,7 @@ class Session:
             index.write_text(html.replace(LEDE_END, f"{LEDE_END} {words}"), "utf-8")
             saved = index.stat().st_mtime_ns / 1e6
             run_leaf(
-                self.arm_dir, self.state, "version", "stamp", str(self.page_dir),
+                self.arm_dir, self.state, "page", "stamp", str(self.page_dir),
                 "--text", words, check=True,
             )  # fmt: skip
             return saved
@@ -492,29 +492,17 @@ def served(browser: Browser, arm: str, arm_dir: Path, source: str, scratch: Path
             "--text", "Bench thread.", "--json",
         ).stdout
     )["id"]  # fmt: skip
-    server = subprocess.Popen(
-        [str(arm_dir / "bin" / "leaf"), "server", "run", "--temporary", str(page_dir)],
-        env=environment(XDG_STATE_HOME=str(state)),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        text=True,
-    )
-    context = None
-    try:
-        address = server.stdout.readline().strip()
+    with serving(arm_dir, state, page_dir) as address:
         context = browser.new_context(viewport=VIEWPORT)
-        context.add_init_script(script=PROBE)
-        page = context.new_page()
-        page.goto(address)  # The token sets the page cookie; later loads drop it.
-        origin = address.split("?", 1)[0]
-        yield Session(
-            arm, source, arm_dir, state, page_dir, page, f"{origin}#{PASSAGE}", thread
-        )
-    finally:
-        if context is not None:
+        try:
+            context.add_init_script(script=PROBE)
+            page = context.new_page()
+            page.goto(address)  # The token sets the page cookie; later loads drop it.
+            origin = address.split("?", 1)[0]
+            url = f"{origin}#{PASSAGE}"
+            yield Session(arm, source, arm_dir, state, page_dir, page, url, thread)
+        finally:
             context.close()
-        server.terminate()
-        server.wait(10)
 
 
 def clock_offset(page: Page) -> float:
@@ -580,12 +568,7 @@ def report(results: list[dict], header: str) -> tuple[str, list[str]]:
 def main(base_ref: str | None) -> None:
     """Time an open page's transitions, RUNS times, for BASE_REF's runtime and HEAD's."""
     if base_ref is None:
-        base_ref = subprocess.run(
-            ["git", "-C", ROOT, "merge-base", "HEAD", "main"],
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip()
+        base_ref = merge_base()
     load_before = os.getloadavg()
     results = []
     offsets = []

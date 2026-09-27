@@ -20,8 +20,20 @@ it is given, declare the minimum it needs, and never let its content size its ho
 
 Nothing Leaf draws at run time moves the page's content. A margin row stands in the
 free room measured beside its target, in a rail the page declares, or as a pin
-inside its target's corner. The
-auxiliary surfaces (Asks tray, thread panel, Leaves tray) stand over the page and
+inside its target's corner.
+
+The rail and a pin are different kinds. The rail is room: a strip beside the column,
+which the column may move over to leave (`settleResidency`) but never narrows or
+indents for. A pin, a passage mark, and everything else in the annotation layer is an
+overlay: it covers what lies under it and takes no room. No rule pads, indents,
+widens, or reflows a block, heading, or line to clear a pin, and nothing moves when a
+marker arrives, leaves, or changes place, including a marker that always accompanies
+its target, such as an Ask's. Reserved room would make the page's geometry depend on
+which markers stand and where, which is what the overlay exists to avoid. Where a pin
+covers something the user needs, the answers are `o` (or More's Hide annotations
+under a finger) and a better placement (`TODO.md`), never room made for it.
+
+The auxiliary surfaces (Asks tray, thread panel, Leaves tray) stand over the page and
 never change its geometry; the Asks tray and panel leave the page live beside
 them, and cover it where they would leave less than a usable page
 (`--lf-auxiliary-beside`, read by `standsBeside`). Which box scrolls is the
@@ -111,7 +123,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Delivery, accepted state, and wakeups | `delivery.js`, `state-application.js`, `state-feed.js`, `layer-client.js`, `traffic.js` |
 | State models and projection | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `asks/model.js` |
 | Widget capture and lifecycle | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js` |
-| Vocabulary and public helpers | `registry.js`, `widget-api.js`, `widget-elements.js`, `request-elements.js` |
+| Vocabulary and public helpers | `registry.js`, `widget-api.js`, `widget-elements.js` |
 | External data | `data.js`, `projection/data.js`, `projection/authored.js` |
 | Revision installs and continuity | `version.js`, `version-chooser.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js` |
 | Repaint and geometry | `rendering.js`, `repaint.js`, `standing.js`, `page-geometry.js`, `geometry.js`, `rect.js`, `pointer.js` |
@@ -155,7 +167,9 @@ the page, so they are adopted after page and package sheets and win by their
 selectors. `runtime/marks.css` is adopted by the document and shadow stages. A `:has()` whose rightmost compound carries no class, id, attribute, or
 type restyles every element on ordinary runtime writes
 (`test_no_has_rule_restyles_the_whole_document`); key a repeated type by a class
-its owner writes.
+its owner writes. A `:has()` on the chrome root is read again on every write inside the
+chrome and restyles all of it (`test_no_has_rule_stands_on_the_chrome_root`), so the
+owner of such a condition states it as an attribute on the root.
 
 ### One writer for each fact
 
@@ -258,7 +272,7 @@ key, and keep the widget fenced when its transformation cannot be represented.
 
 ## Render gates
 
-`leaf version check <page> --render` is the browser contract: both color schemes,
+`leaf page check <page> --render` is the browser contract: both color schemes,
 the runtime's actual readiness and motion boundary, screen and print, and
 reapplied standing state. Run it, or the relevant browser test file, after
 changing `leaf.js`, a runtime owner, a widget module, the registry, or the theme.
@@ -286,7 +300,7 @@ changing `leaf.js`, a runtime owner, a widget module, the registry, or the theme
 | `trappedMargins`, `splitEdges` | suite only: the theme's frame trim reaches Leaf's own boxes |
 | `replayOverrides` | the log, not conflicting markup, determines projected state |
 | `relativeReplays` | rendering a complete widget state twice changes nothing |
-| `coveringMargins`, `shrunkLabels` | advice only |
+| `shrunkLabels` | advice only |
 
 Put a check on the side that can observe the fact: static validation owns schema,
 ids, nesting, passages, event shapes, and file readings; the browser owns computed
@@ -296,12 +310,13 @@ interpretation of it.
 
 The gates judge contracts, not how the page looks. A change to what the page
 draws, including one made for geometry, is proved with before/after screenshots
-of each state it touches (`/developing-leaf`, "Prove and hand off a visible
-change").
+of each state it touches. `uv run scripts/stills.py` takes them for a catalogue of
+states and crops the ones that changed (`/developing-leaf`, "Prove and hand off a
+visible change").
 
 ## Working on the runtime
 
-`scripts/browser/build.mjs` compiles the TypeScript foundation into
+`build/browser/build.mjs` compiles the TypeScript foundation into
 `vendor/browser-runtime.js` and writes `vendor/lit.js`, the page's one copy of Lit
 (`scripts/AGENTS.md` owns the commands). What a module decides on its own is
 tested under `tests/runtime/` (`npm run test:runtime`; `tests/AGENTS.md` says

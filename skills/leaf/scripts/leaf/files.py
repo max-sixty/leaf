@@ -115,7 +115,7 @@ def entry_stamps(directory: Path, ignored: Collection[str]) -> list[tuple[str, o
 
 
 # How often a reader waiting on a page looks for news: the browser's news stream,
-# `leaf events --follow`, and `leaf wait`. The look is a re-stat rather than an
+# `leaf page events --follow`, and `leaf wait`. The look is a re-stat rather than an
 # in-process signal because an append does not have to come from the reader's process —
 # `leaf thread reply` and every other command write these same files from outside a server,
 # and a follower has no server at all — so one mechanism covers a browser's POST and an
@@ -252,12 +252,13 @@ def version_descriptors(page_dir: Path, events: list) -> list[dict]:
 
 def active_descriptor(page_dir: Path, events: list) -> dict | None:
     """The exact immutable document shown at the live root, or None before one."""
-    from leaf.revision_artifact import read_manifest
+    from leaf.revision_artifact import read_revision
 
     revision = latest_revision(page_dir)
     if revision is None:
         return None
-    path = revision_path(page_dir, revision)
+    reading = read_revision(page_dir, revision)
+    path = reading.marker
     version = stamped_version(events, revision)
     label = f"v{version}" if version is not None else revision_label(events, revision)
     return {
@@ -270,7 +271,7 @@ def active_descriptor(page_dir: Path, events: list) -> dict | None:
         # digest that document's own delivery stamped, and needs a fresh document
         # only when the two differ. Read once here, so every consumer of the
         # active revision works from one reading of it.
-        "executable": read_manifest(page_dir, revision).get("executable"),
+        "executable": reading.manifest.get("executable"),
         "activated_at": datetime.fromtimestamp(
             path.stat().st_mtime, timezone.utc
         ).isoformat(),

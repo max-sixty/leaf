@@ -1,8 +1,8 @@
 /* Revision-bound widget identity captured before a content module upgrades the DOM.
 
    A controller receives no caller-supplied declaration or scope. Leaf records the
-   authored owner, its declared ancestors, exhibit fence, and direct request offers
-   while the revision's markup is still intact. Later physical reparenting is layout;
+   authored owner, its declared ancestors, and exhibit fence while the revision's
+   markup is still intact. Later physical reparenting is layout;
    semantic commands keep using this captured document coordinate. A data renderer may
    replace a widget node while preserving its authored id; that replacement reuses the
    same revision-bound descriptor.
@@ -41,29 +41,6 @@ const declaredAncestors = (element) => {
   return ancestors;
 };
 
-const requestOffers = (element, declaration) => {
-  const offers = declaration["x-request"]?.offers ?? {};
-  const captured = [];
-  for (const child of element.children) {
-    const attribute = offers[child.localName];
-    const verb = attribute && child.getAttribute(attribute);
-    if (verb) captured.push({ tag: child.localName, attribute, verb });
-  }
-  return captured;
-};
-
-const requestBindings = (element, declaration) => {
-  if (declaration["x-request"]?.records) return {};
-  const attributes = new Set(
-    Object.values(declaration["x-request"]?.verbs ?? {}).flatMap((request) =>
-      Object.values(request.bind ?? {}),
-    ),
-  );
-  return Object.fromEntries(
-    [...attributes].map((attribute) => [attribute, element.getAttribute(attribute)]),
-  );
-};
-
 const quotedBy = (element) => {
   for (let node = element; node; node = parentOf(node))
     if (runtime.registry[node.localName]?.["x-exhibit"]) return true;
@@ -98,8 +75,6 @@ export function stageWidgetDescriptors(
       parent: ancestors[0] ?? null,
       ancestors,
       quoted: quotedBy(element),
-      bindings: requestBindings(element, declaration),
-      offers: requestOffers(element, declaration),
     };
     bindings.push({ element, descriptor });
     captured.set(element.id, descriptor);
@@ -139,19 +114,5 @@ export function widgetDescriptor(owner) {
   return replacement;
 }
 
-export function descriptorStillMatches(owner, descriptor) {
-  if (owner.id !== descriptor.id || owner.localName !== descriptor.tag) return false;
-  if (
-    Object.entries(descriptor.bindings).some(
-      ([attribute, value]) => owner.getAttribute(attribute) !== value,
-    )
-  )
-    return false;
-  const currentOffers = requestOffers(owner, descriptor.declaration).sort(
-    (left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)),
-  );
-  const capturedOffers = [...descriptor.offers].sort((left, right) =>
-    JSON.stringify(left).localeCompare(JSON.stringify(right)),
-  );
-  return JSON.stringify(currentOffers) === JSON.stringify(capturedOffers);
-}
+export const descriptorStillMatches = (owner, descriptor) =>
+  owner.id === descriptor.id && owner.localName === descriptor.tag;

@@ -1298,7 +1298,7 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     )
     page.wait_for_function(
         "attempt => readLeafApplication().unresolved.some("
-        "entry => entry.event.attempt === attempt && entry.answered)",
+        "entry => entry.event.attempt === attempt && entry.state === 'refused')",
         arg=attempt,
     )
     expect(page.locator("#page-local")).to_have_attribute("data-delivery", "refused")

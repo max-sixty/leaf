@@ -81,18 +81,29 @@ sheet.replaceSync(`
     contain: inline-size; overflow-x: clip; text-overflow: ellipsis;
     color: var(--muted); }
   :host(:not(:state(placeholder-shown))) .lf-field-placeholder { visibility: hidden; }
+  /* A draft wears the sent message's faces. Strong, emphasis and strikethrough are the
+     elements themselves, which the platform dresses here as it does in the message;
+     the rest read the theme's tokens, since its element rules stop at this root. A
+     heading is bold, as the platform draws one, at the size of the words around it. A
+     block is drawn line by line, so a code block's frame is each line's sides, closed
+     above its first line and below its last. */
   .lf-md-mark { color: var(--muted); }
-  .lf-md-code { font-family: var(--mono); font-size: 0.9em;
-    background: var(--code-bg); border-radius: 3px; padding: 0.1em 0.25em; }
-  .lf-md-code-block { font-family: var(--mono); font-size: 0.9em;
-    background: var(--code-bg); }
-  .lf-md-em { font-style: italic; }
-  .lf-md-strong, .lf-md-heading { font-weight: 650; }
-  .lf-md-strike { text-decoration: line-through; }
-  .lf-md-link { color: var(--accent); text-decoration: underline;
-    text-underline-offset: 2px; }
-  .lf-md-quote { border-inline-start: 3px solid var(--border-2);
-    padding-inline-start: 8px !important; color: var(--muted); }
+  code { font-family: var(--mono); font-size: var(--code-inline-size);
+    background: var(--code-bg); border-radius: var(--code-inline-r);
+    padding: var(--code-inline-pad); box-decoration-break: slice; }
+  .lf-md-heading { font-weight: bold; }
+  .lf-md-link { color: var(--accent); text-decoration: underline var(--link-underline);
+    text-underline-offset: var(--link-underline-offset); }
+  .lf-md-quote { border-inline-start: var(--quote-rule); font-style: var(--quote-style);
+    padding-inline-start: var(--quote-inset) !important; color: var(--muted); }
+  .lf-md-code-block { font-family: var(--mono); font-size: var(--code-size);
+    line-height: var(--code-line); color: var(--code-ink); background: var(--pre-bg);
+    font-variant-ligatures: none; border-inline: 1px solid var(--code-border);
+    padding-inline: var(--pre-inset) !important; }
+  .lf-md-code-first { border-block-start: 1px solid var(--code-border);
+    border-start-start-radius: var(--r); border-start-end-radius: var(--r); }
+  .lf-md-code-last { border-block-end: 1px solid var(--code-border);
+    border-end-start-radius: var(--r); border-end-end-radius: var(--r); }
 `);
 
 // The editor wears the box's type and colour: the host is the textarea-shaped control
@@ -108,15 +119,16 @@ const fieldTheme = EditorView.theme({
 
 const hide = Decoration.replace({});
 const dim = Decoration.mark({ class: "lf-md-mark" });
-const marked = (cls) => Decoration.mark({ class: cls });
+const link = Decoration.mark({ class: "lf-md-link" });
 const line = (cls) => Decoration.line({ class: cls });
 
-// The inline constructs the preview styles, by the renderer's token type.
+// The inline constructs the preview draws, by the renderer's token type: each as the
+// element the renderer sends it as.
 const INLINE = {
-  codespan: "lf-md-code",
-  em: "lf-md-em",
-  strong: "lf-md-strong",
-  del: "lf-md-strike",
+  codespan: Decoration.mark({ tagName: "code" }),
+  em: Decoration.mark({ tagName: "em" }),
+  strong: Decoration.mark({ tagName: "strong" }),
+  del: Decoration.mark({ tagName: "del" }),
 };
 
 // Whether the selection touches [from, to], ends included: the caret standing just
@@ -233,8 +245,8 @@ function decorate(state, placed) {
       // `[words](url)`, `[words][id]`, `<url>` and a bare address are drawn as links
       // where the renderer kept them (`linked`); one it refused sends its words alone,
       // so its syntax steps aside all the same.
-      if (token.type !== "link") add(from, to, marked(INLINE[token.type]));
-      else if (token.linked) add(words[0], words[1], marked("lf-md-link"));
+      if (token.type !== "link") add(from, to, INLINE[token.type]);
+      else if (token.linked) add(words[0], words[1], link);
       add(from, words[0], syntax);
       add(words[1], to, syntax);
     } else if (token.type === "escape") {
@@ -253,7 +265,11 @@ function decorate(state, placed) {
       const end = from + text.trimEnd().length;
       const fenced = /^ {0,3}(`{3,}|~{3,})/.test(text);
       lines(from, end, (each) => {
-        out.push(line("lf-md-code-block").range(each.from));
+        const ends = [
+          each.from <= from ? " lf-md-code-first" : "",
+          each.to >= end ? " lf-md-code-last" : "",
+        ].join("");
+        out.push(line(`lf-md-code-block${ends}`).range(each.from));
         if (
           fenced &&
           (each.from === from || /^ {0,3}(`{3,}|~{3,})\s*$/.test(each.text))

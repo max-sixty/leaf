@@ -1240,8 +1240,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-msg-body :is(th, td) { overflow-wrap: normal; }
   .lf-msg-body :is(h1, h2, h3, h4, h5, h6) { margin: 8px 0 4px; font-size: var(--t-5); }
   .lf-msg-body li { margin: 2px 0; }
-  .lf-msg-body pre { padding: 8px 10px; }
-  .lf-msg-body blockquote { padding: 2px 10px; }
+  .lf-msg-body pre { padding-block: 8px; }
+  /* The panel's column insets a quote and a code block less, in a message and in the
+     draft a composer here draws of one, so the insets are the theme's tokens set once
+     for the whole panel. */
+  .lf-thread-panel { --quote-inset: 10px; --pre-inset: 10px; }
   /* A reference to an element this version hasn't got keeps its underline but
      changes it to dashed, while muted ink reinforces that its press is disabled.
      The whole text-decoration shorthand, because a widget's § reference (lf-ref)

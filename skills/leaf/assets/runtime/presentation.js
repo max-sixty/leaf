@@ -529,7 +529,7 @@ export function dress(root) {
 // exhibit and the rules exclude what stands under it. That is the descendant half of the
 // question — quoted() answers for the element itself as well — and it is the half these
 // rules need while the tag they key on, lf-options, is not itself an exhibit. A layer
-// that declared one to be would have to say so in its own rules. Ten of those rules spelled lf-specimen before: a bundled
+// that declared one to be would have to say so in its own rules. Ten of those rules spelled lf-sample before: a bundled
 // tag, saying nothing about a project's own exhibit. quoted() still asks the registry
 // rather than this paint, which is the arrangement and not an oversight — the
 // declaration is the one representation, and the mark is how a stylesheet, which cannot
@@ -551,7 +551,7 @@ export function dress(root) {
 // What separates the two tables is where each fact holds. x-inline is true of the element
 // wherever it renders, a thread's message included, or a chip-led comparison quoted into
 // a reply would stack there and nowhere else. So is x-exhibit: quoting is the element's
-// own fact, and a specimen carried into a reply is quoted there too. A page's widget
+// own fact, and a sample carried into a reply is quoted there too. A page's widget
 // renders in both places, and only one of the three changes meaning when it moves. The
 // room x-space hands out is the document's, and a message is the one place a
 // widget of the page's vocabulary renders outside the document, where the room is the

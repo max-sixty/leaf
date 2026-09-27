@@ -1,9 +1,9 @@
-/* Placement and grouping for threads: the page's order, which every
-   reading of the threads shares, and the panel's Recent order. */
+/* Placement for threads: the page's order, which every reading of the threads
+   shares, the panel's Recent order, and the page part each thread stands in. */
 import { addressableSays, addressableWord, sectionOf } from "../anchor-resolution.js";
 import { pageParts } from "../passages.js";
-import { inChrome, layerPart } from "../passages.js";
-import { clockValue, serverNow } from "../presence.js";
+import { inChrome } from "../passages.js";
+import { serverNow } from "../presence.js";
 import { readingRegionFor } from "../reading-regions.js";
 import { hostIn } from "../shadow.js";
 import { threadSummary } from "./model.js";
@@ -28,8 +28,8 @@ import { threadSummary } from "./model.js";
 // A passage this version has rewritten falls back to the element the anchor names, which
 // is the whole point of an anchor carrying one: an id survives a rewrite that takes the
 // quote down with it, so a thread whose words are gone still belongs where it was about.
-// It reads as detached in the list and sits under its own heading, which are two true
-// things rather than one true and one lost.
+// It reads as detached in the list and keeps its place in the page's order, which are two
+// true things rather than one true and one lost.
 //
 // What is left resolves nowhere at all: a general comment, which names nowhere, and an
 // anchor whose element this version no longer holds either. Both go under the list rather
@@ -82,8 +82,8 @@ const subjectLabel = (target) => addressableSays(target) || addressableWord(targ
 
 // A repeated outline subject needs the nearest named reading region to remain
 // distinguishable after a route leaves the page. Unique subjects keep the author's own
-// concise name. Both Page Map and Threads consume this reading so navigation cannot add
-// context that its destination drops.
+// concise name. Page Map consumes this reading so navigation cannot add context that its
+// destination drops.
 export function outlineSubjectFor(target, peers = [target], outline = pageOutline()) {
   const label = subjectLabel(target);
   const repeated =
@@ -115,54 +115,16 @@ function headingFor(place, outline) {
   return above;
 }
 
-// The run of threads a heading stands over, named. The key is what the panel reconciles
-// the heading node by, so it is positional (the outline's own index) rather than an id the
-// author may not have written. The named keys below it are the places a page has no seat
-// for; none of them ever carries a target, so a group's node keeps its kind — a button
-// where there is somewhere to go, a plain line where there is not — across every
-// reconcile.
-export function groupFor(t, outline, placedAt) {
+// What Threads' narrowing reads of where a thread stands: whether its passage is gone
+// from this version, which the Placement filter asks, and the name of the page part it
+// stands in, which a search matches. A general comment names nowhere and is not gone; a
+// thread in the runtime's own chrome, a reply's or the page design's, stands in no part.
+export function threadSection(t, outline, placedAt) {
   const place = threadPlace(t, placedAt);
   if (!place)
-    return t.detached_from || t.anchor
-      ? { key: "gone", label: "No longer in this version" }
-      : { key: "page", label: "About the page as a whole" };
-  if (inChrome(place))
-    return layerPart(place)
-      ? { key: "design", label: "Page design" }
-      : { key: "sent", label: "Sent in the thread" };
-  const heading = headingFor(place, outline);
-  // A page its author wrote no headings into has no runs to name, and a run with no name
-  // gets no line: "Above the first heading" over the whole list would be a landmark
-  // naming a landmark the page hasn't got. The list is still the page's order.
-  if (!heading)
-    return { key: "top", label: outline.length ? "Above the first heading" : "" };
-  return {
-    key: "h" + outline.indexOf(heading),
-    label: subjectLabel(heading),
-    target: heading,
-  };
-}
-
-// Ambiguity belongs to the rendered set: one thread under a repeated page heading still
-// has a unique destination name, while two such runs need their regions. Group the whole
-// list once so every thread in a run receives the same answer.
-export function threadGroups(threads, outline, placedAt) {
-  const groups = new Map(
-    threads.map((thread) => [thread, groupFor(thread, outline, placedAt)]),
-  );
-  const subjects = [
-    ...new Set([...groups.values()].map((group) => group.target).filter(Boolean)),
-  ];
-  for (const [thread, group] of groups) {
-    if (!group.target) continue;
-    const subject = outlineSubjectFor(group.target, subjects, outline);
-    groups.set(thread, {
-      ...group,
-      label: [subject.context, subject.label].filter(Boolean).join(" · "),
-    });
-  }
-  return groups;
+    return Object.freeze({ gone: Boolean(t.detached_from || t.anchor), section: "" });
+  const heading = inChrome(place) ? null : headingFor(place, outline);
+  return Object.freeze({ gone: false, section: heading ? subjectLabel(heading) : "" });
 }
 
 // ---------- the panel's Recent order ----------
@@ -180,37 +142,4 @@ export function inRecentOrder(threads) {
   return [...threads].sort(
     (a, b) => moved.get(b) - moved.get(a) || seat.get(a) - seat.get(b),
   );
-}
-
-const dayOf = (ms) => {
-  const at = new Date(ms);
-  return new Date(at.getFullYear(), at.getMonth(), at.getDate());
-};
-const DAY_NAME = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-const DATED_NAME = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-});
-
-// The run a thread sits in under Recent: the user's calendar day it last moved on.
-// Rounding absorbs a daylight-saving day that is 23 or 25 hours long. Today is read
-// through the shared clock, so the paint holding these headings repaints at midnight.
-export function recentGroup(thread) {
-  const now = serverNow();
-  const day = dayOf(lastMoved(thread, now));
-  const today = new Date(clockValue((at) => dayOf(at).getTime()));
-  const behind = Math.round((today - day) / 86_400_000);
-  const label =
-    behind === 0
-      ? "Today"
-      : behind === 1
-        ? "Yesterday"
-        : (day.getFullYear() === today.getFullYear() ? DAY_NAME : DATED_NAME).format(
-            day,
-          );
-  return {
-    key: `day:${day.getFullYear()}-${day.getMonth() + 1}-${day.getDate()}`,
-    label,
-  };
 }

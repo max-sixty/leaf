@@ -91,7 +91,7 @@ lf-gloss:has(> .lf-gloss-mark:is(:focus-visible, .lf-focus-visible)) {
  * the chip the number is set in, and moves whatever stands after it. The integrated
  * theme's copy of this rule carries the measurement and the norm it answers. */
 .lf-tree-badge, .lf-shotcap, lf-metric,
-lf-specimen::before, lf-specimen > [data-lf-said="label"], lf-column::before,
+lf-sample::before, lf-sample > [data-lf-said="label"], lf-column::before,
 lf-column > [data-lf-said="label"], lf-tab::before,
 lf-chip {
   font-family: var(--sans); font-variant-numeric: tabular-nums; }
@@ -356,7 +356,7 @@ lf-compare:has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button
  * combinator asks the descendant half of quoted()'s question: does this element stand
  * inside one. quoted() answers for the element itself too, and that half is nobody's
  * here while lf-options is not an exhibit — a layer declaring it one would have to say
- * so in its own rules. Spelled, it was `lf-specimen` ten times over: the tag this package
+ * so in its own rules. Spelled, it was `lf-sample` ten times over: the tag this package
  * happens to ship, and no answer at all for a project whose exhibit has another name.
  *
  * In :where(), which is the idiom the phrasing lists set (theme.css) and not a contest
@@ -1085,7 +1085,7 @@ lf-metric[direction="up-bad"][delta^="+"] > [data-lf-said="delta"]
  * that respects a widget's minimum, as a flex item's or a grid track's automatic minimum
  * does, gives the board that much or wraps it onto a row of its own; held to less, the
  * board scrolls its columns inside itself. The nearest size container caps it: the
- * shell, or a framed box holding the board (a pane's body, a card), and a specimen,
+ * shell, or a framed box holding the board (a pane's body, a card), and a sample,
  * which cannot be one, through `--lf-box-cap`. So a phone or a box narrower
  * than the minimum scrolls the board rather than the page. Screen only: a sheet has no room
  * beside the column to give, so on paper the board is the column's width. */
@@ -1773,7 +1773,7 @@ lf-ask { display: block; }
   }
 }
 
-/* lf-specimen: quoted material — a widget or section the page exhibits rather
+/* lf-sample: quoted material — a widget or section the page exhibits rather
  * than speaks (a sample decision, a demo board). It wears the quotation idiom, a
  * muted left gutter — not the callout's tinted field, and not the left-accent bar
  * that rule forbids: a quotation's gutter marks provenance, an accent bar demands
@@ -1792,7 +1792,7 @@ lf-ask { display: block; }
  * diff and the capture all take the note where the file has it, first inside the
  * element — so the one account that was wrong was the one the user could see.
  *
- * The word over it is the user's; `lf-specimen` is the author's. A tag names a member
+ * The word over it is the user's; `lf-sample` is the author's. A tag names a member
  * of a vocabulary its author picks from and can afford a word to learn, where the note's
  * whole job is telling a user who has met none of that vocabulary that the page is
  * showing this rather than saying it. The tag keeps its own name because the plain one is
@@ -1819,11 +1819,11 @@ lf-ask { display: block; }
  * table sizes to its content besides, so the board on the how-it-works page came out
  * 523px wide in a 380px column, with the document scrolling sideways to reach what the
  * board's own overflow was holding — which is what `table-layout: fixed` settles, and
- * what test_a_specimen_holds_a_wide_exhibit_inside_the_column holds it to.
+ * what test_a_sample_holds_a_wide_exhibit_inside_the_column holds it to.
  *
  * The bar is a pixel heavier than the 2px it was and the exhibit is set deeper: the
  * bar is the whole of the marking now that the note stands off it, and it is read
- * against content that draws its own boxes — a specimen full of cards is one more line
+ * against content that draws its own boxes — a sample full of cards is one more line
  * on a page of borders, where a quoted paragraph is the only rule in a column of prose.
  * The note stands 4px off the bar and the theme's own 18px under the paragraph above,
  * because proximity is what says which block a line belongs to, and this line belongs
@@ -1834,12 +1834,12 @@ lf-ask { display: block; }
  * room against the neighbours it expects; a table cell is a margin barrier, so the room
  * the exhibit's outermost blocks reserve cannot collapse out of the marking and is
  * painted as bar instead. Sixteen pixels of it over the first card and under the last,
- * on every specimen in the corpus, held for neighbours that are not there — and the
+ * on every sample in the corpus, held for neighbours that are not there — and the
  * user who reported it read the top as the loose end, because the note is 4px off the
  * bar and so appears to open it, leaving a marking that begins at a line and then waits
- * twenty pixels for the thing it is marking. So the specimen states no padding of its
+ * twenty pixels for the thing it is marking. So the sample states no padding of its
  * own and declares the frame, which drops those margins where they abut the marking:
- * what separates a specimen from the prose around it is its own 18px, stated once.
+ * what separates a sample from the prose around it is its own 18px, stated once.
  *
  * The trim that declaration buys is the layer's (theme.css), and the reach is the direct
  * children, which is what a selector has. Nothing about the note is stated here, though
@@ -1850,7 +1850,7 @@ lf-ask { display: block; }
  * A child that generates no box hands its own margins to the flow and the trim lands on
  * nothing. The one such widget shipped is the suggestion, and it is why the block slot
  * asks for its room above rather than around itself (theme.css) — which leaves one edge
- * rather than two, measured: a suggestion leading a specimen still holds its 10px. Which
+ * rather than two, measured: a suggestion leading a sample still holds its 10px. Which
  * edge is left follows from the room having to sit on one side, and the other side was
  * worse — stated between siblings, it could not cross the boxless wrapper at all, and two
  * suggestions in a row on a shipped page shut against each other. A box that stands in
@@ -1859,43 +1859,43 @@ lf-ask { display: block; }
  * out here is the fix that suggests itself, and it
  * trades a silent failure for a worse one: the grandchild whose margin shows is the
  * grandchild of a *boxless* parent, and the same selector over a padded one — a callout
- * leading a specimen — closes up that box's own first line, which is the exhibit
- * rendering at less than full fidelity, the one thing a specimen promises. So no
+ * leading a sample — closes up that box's own first line, which is the exhibit
+ * rendering at less than full fidelity, the one thing a sample promises. So no
  * selector reaches the next boxless widget either, and what holds this is a reading of
- * the painted bar against the exhibit's own boxes over every specimen the corpus has
+ * the painted bar against the exhibit's own boxes over every sample the corpus has
  * (test_the_gutter_runs_beside_the_exhibit_and_no_further) — loud where the rule goes
  * quiet, and what a leading suggestion meets the day one is written. */
-lf-specimen { display: table; table-layout: fixed; width: 100%;
+lf-sample { display: table; table-layout: fixed; width: 100%;
               box-sizing: border-box; margin: 18px 0; padding-left: var(--sp-4);
               border-left: 3px solid var(--border-2); --lf-block-frame: 1; }
-/* Containment does not apply to a table, so the specimen cannot be the size container
+/* Containment does not apply to a table, so the sample cannot be the size container
  * a framed box is (theme.css, at the pane's body). Its width is fixed, so it states the
  * cap for what it holds as a percentage instead, which resolves against its cell. */
-lf-specimen > * { --lf-box-cap: 100%; }
-lf-specimen::before,
-lf-specimen > [data-lf-said="label"] { display: table-caption;
+lf-sample > * { --lf-box-cap: 100%; }
+lf-sample::before,
+lf-sample > [data-lf-said="label"] { display: table-caption;
               font-size: var(--t-6); margin-bottom: var(--sp-1);
               letter-spacing: .08em; text-transform: uppercase;
               color: var(--muted); }
-lf-specimen::before { content: "quoted"; }
-lf-specimen[label]::before { content: "quoted · " attr(label); }
-lf-specimen:has(> [data-lf-said="label"])::before { content: none; }
-lf-specimen > [data-lf-said="label"]::before { content: "quoted · "; }
-lf-specimen[data-lf-specimen-live]::before { content: "live specimen"; }
-lf-specimen[data-lf-specimen-live][label]::before { content: "live specimen · " attr(label); }
-lf-specimen[data-lf-specimen-live]:has(> [data-lf-said="label"])::before { content: none; }
-lf-specimen[data-lf-specimen-live] > [data-lf-said="label"]::before { content: "live specimen · "; }
+lf-sample::before { content: "quoted"; }
+lf-sample[label]::before { content: "quoted · " attr(label); }
+lf-sample:has(> [data-lf-said="label"])::before { content: none; }
+lf-sample > [data-lf-said="label"]::before { content: "quoted · "; }
+lf-sample[data-lf-sample-live]::before { content: "live sample"; }
+lf-sample[data-lf-sample-live][label]::before { content: "live sample · " attr(label); }
+lf-sample[data-lf-sample-live]:has(> [data-lf-said="label"])::before { content: none; }
+lf-sample[data-lf-sample-live] > [data-lf-said="label"]::before { content: "live sample · "; }
 /* Like the label, host controls describe the exhibit; they stand outside its gutter.
  * The frame's height is a placeholder until its child presents and the widget sizes it
  * to the child's page. */
-.lf-specimen-controls { display: table-caption; margin-bottom: 10px; }
-.lf-specimen-controls > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-.lf-specimen-status { color: var(--muted); font: var(--t-6)/1.4 var(--sans); }
-.lf-specimen-frame { display: block; box-sizing: border-box; width: 100%; height: 32rem;
+.lf-sample-controls { display: table-caption; margin-bottom: 10px; }
+.lf-sample-controls > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.lf-sample-status { color: var(--muted); font: var(--t-6)/1.4 var(--sans); }
+.lf-sample-frame { display: block; box-sizing: border-box; width: 100%; height: 32rem;
                     border: 1px solid var(--border-2); border-radius: var(--r);
                     background: var(--paper); }
 @media print {
-  .lf-specimen-controls, .lf-specimen-frame { display: none; }
+  .lf-sample-controls, .lf-sample-frame { display: none; }
 }
 /* A quoted choose group renders as one that never declared `choose`. That promise is
  * kept where each pressable look is granted, not undone here: every affordance rule in
@@ -1997,7 +1997,20 @@ lf-tree .lf-tree-badge.del { background: var(--danger-tint); color: var(--danger
 @property --lf-code-gutter { syntax: "<length>"; inherits: true; initial-value: 38px; }
 lf-code.lf-rendered pre { padding: 12px 0; --lf-block-frame: 1;
              --lf-code-gutter: max(38px, calc(var(--lf-code-digits, 2) * 1ch + 16px)); }
-lf-code.lf-rendered pre:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: code-pre-light;
+/* The block's ring is drawn over its lines by the host rather than as the <pre>'s own
+   outline, which paints with the <pre>'s in-flow content: a note row is sticky, so it
+   paints after that and took the ring's side runs where it crosses them. The host's
+   pseudo-element is positioned and follows every row in tree order, so it paints over
+   them at the same level. The host is
+   the carrier because the <pre> scrolls, and a box positioned inside a scroller moves
+   with what it scrolls; the host holds nothing else and the <pre>'s margin collapses
+   through it, so the two boxes are one. */
+lf-code.lf-rendered { position: relative; }
+lf-code.lf-rendered pre:is(:focus-visible, .lf-focus-visible) { outline: none; }
+lf-code.lf-rendered:has(> pre:is(:focus-visible, .lf-focus-visible))::after {
+             content: ""; position: absolute; inset: 0; pointer-events: none;
+             border-radius: var(--r);
+             outline: var(--here-ring); --lf-here-ring: code-pre-light;
              outline-offset: calc(-1 * var(--here-ring-w)); }
 /* An hi range's tint has to run the whole scrolled line, not stop at the fold. The diff
    package answers the same question on its own rows, but from the track rather than the

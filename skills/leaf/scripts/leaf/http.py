@@ -64,6 +64,7 @@ from .revision_delivery import (
     rebase_document,
 )
 from .revisioning import activate_source
+from .samples import Samples
 from .schema import (
     BINARY_TYPES,
     CONTENT_TYPES,
@@ -77,7 +78,6 @@ from .served_state import reading as served_reading
 from .served_state.service import PageStateService
 from .server import preview_metadata
 from .service import PageTransaction
-from .specimens import Specimens
 from .structure import (
     EXTERNAL_SOURCES,
     FRAME_ANCESTORS_CSP,
@@ -643,9 +643,9 @@ class PageEndpoint:
                 if prepare:
                     self.body_unread = True
                 return self._refuse(NO_KEY, 403)
-            specimen_answer = self._specimen_request()
-            if specimen_answer is not None:
-                return specimen_answer
+            sample_answer = self._sample_request()
+            if sample_answer is not None:
+                return sample_answer
             if prepare:
                 self.posted, self.posted_error = prepare()
                 prepared = True
@@ -668,35 +668,35 @@ class PageEndpoint:
         whose streams are read overrides this to keep the operator's copy too.
         """
 
-    def _specimen_request(self) -> Response | None:
+    def _sample_request(self) -> Response | None:
         """Enter a child only after its parent transport has authorized this request."""
-        match = re.fullmatch(r"/api/specimens/([a-f0-9]{32})(/.*)?", self.path)
+        match = re.fullmatch(r"/api/samples/([a-f0-9]{32})(/.*)?", self.path)
         if match is None:
             return None
         identity, inside = match.groups()
-        specimen = self.server.specimens.get(self.page_dir, identity)
-        if specimen is None:
+        sample = self.server.samples.get(self.page_dir, identity)
+        if sample is None:
             return self._not_found()
         if self.method == "POST" and inside == "/api/release":
             self.read_body(MAX_MEDIA_UPLOAD_BYTES)
-            self.server.specimens.release(self.page_dir, identity)
+            self.server.samples.release(self.page_dir, identity)
             return self._json({"released": True})
-        child = SpecimenEndpoint(
+        child = SampleEndpoint(
             self.request,
             self.server,
-            page_dir=specimen.directory,
-            layer_identity=specimen.layer,
-            page_root=f"{self.page_root}/api/specimens/{identity}",
+            page_dir=sample.directory,
+            layer_identity=sample.layer,
+            page_root=f"{self.page_root}/api/samples/{identity}",
         )
         child.path = inside or "/"
         child.parent = self
-        child.passive = specimen.passive
-        child.asset_root = specimen.asset_root
+        child.passive = sample.passive
+        child.asset_root = sample.asset_root
         child.frame_ancestors_policy = (
             "frame-ancestors 'self'" if self.frame_ancestors_policy else None
         )
-        with specimen.lock:
-            if specimen.closed:
+        with sample.lock:
+            if sample.closed:
                 return self._not_found()
             answer = child.respond()
             self.response_layer = child.response_layer
@@ -742,7 +742,7 @@ class PageEndpoint:
         """The immutable dependency namespace selected for this document."""
         return self._artifact_root(revision)
 
-    def _specimen_asset_root(self, revision: int) -> str:
+    def _sample_asset_root(self, revision: int) -> str:
         """Capture the parent's resource provenance when creating a child."""
         return self._document_asset_root(revision)
 
@@ -962,7 +962,7 @@ class PageEndpoint:
         if path not in {
             "/api/event",
             "/api/media",
-            "/api/specimens",
+            "/api/samples",
             "/api/interaction",
         }:
             return self._json({"error": "not found"}, 404)
@@ -979,7 +979,7 @@ class PageEndpoint:
                 or any(not isinstance(entry, dict) for entry in entries)
             ):
                 return self._refuse("interaction requires a nonempty array of entries")
-            # A specimen's directory is temporary. Keep its trace in the owning
+            # A sample's directory is temporary. Keep its trace in the owning
             # page, with the scoped address identifying which child produced it.
             owner = getattr(self, "parent", None)
             directory = owner.page_dir if owner is not None else self.page_dir
@@ -988,9 +988,9 @@ class PageEndpoint:
             return self._content(204, "text/plain", b"")
         # Preview requests have passed authentication and body preparation. An event
         # refusal can therefore name its attempt; media uses the route's generic shape.
-        # A specimen allocates an independent page from the frozen reading; it does
+        # A sample allocates an independent page from the frozen reading; it does
         # not write to the preview's parent.
-        if self.page_snapshot is not None and path != "/api/specimens":
+        if self.page_snapshot is not None and path != "/api/samples":
             return self._refuse("the preview server is read-only", 403)
         try:
             view_revision = self.requested_view_revision(header=True)
@@ -1023,7 +1023,7 @@ class PageEndpoint:
             return self._json({"layer": current_layer})
         if self.posted_error:
             return self._refuse(self.posted_error)
-        if path == "/api/specimens":
+        if path == "/api/samples":
             template = self.posted.get("template")
             passive = self.posted.get("passive", False)
             if (
@@ -1032,26 +1032,26 @@ class PageEndpoint:
                 or not isinstance(passive, bool)
             ):
                 return self._refuse(
-                    "specimen requires a template id and a boolean passive value"
+                    "sample requires a template id and a boolean passive value"
                 )
             revision = view_revision or active_revision
             if revision is None:
-                return self._refuse("specimen requires an active parent revision")
+                return self._refuse("sample requires an active parent revision")
             try:
                 if self.page_snapshot is not None:
                     artifact = self._artifact(revision)
                     events = list(self.page_snapshot.events)
                     data = self.page_snapshot.data
-                    asset_root = self._specimen_asset_root(revision)
+                    asset_root = self._sample_asset_root(revision)
                 else:
                     with PageTransaction(self.page_dir) as page:
                         artifact = self._artifact(revision)
                         events = page.events
                         data = read_data(self.page_dir, artifact.registry)
-                        asset_root = self._specimen_asset_root(revision)
+                        asset_root = self._sample_asset_root(revision)
                 # Allocation validates and writes only the child's directory.
                 # Its parent reading is complete before releasing the log lease.
-                identity = self.server.specimens.create(
+                identity = self.server.samples.create(
                     self.page_dir,
                     artifact,
                     events,
@@ -1062,7 +1062,7 @@ class PageEndpoint:
                 )
             except ValueError as error:
                 return self._refuse(str(error))
-            return self._json({"url": f"{self.page_root}/api/specimens/{identity}/"})
+            return self._json({"url": f"{self.page_root}/api/samples/{identity}/"})
         if path == "/api/media":
             try:
                 media_path = store_uploaded_media(
@@ -1079,14 +1079,14 @@ class PageEndpoint:
         return self._json(answer, status)
 
 
-class SpecimenEndpoint(PageEndpoint):
+class SampleEndpoint(PageEndpoint):
     """A normal child page whose parent route already checked access."""
 
     def authorized(self) -> bool:
         return True
 
     def record_fault(self, error: Exception) -> None:
-        # `_specimen_request` builds this child, not the host that chose the parent's
+        # `_sample_request` builds this child, not the host that chose the parent's
         # class, so wherever the host keeps its copy of a fault is reachable from the
         # parent alone. Recording there also names the address the browser asked at
         # rather than the path inside the child, which is the request an operator
@@ -1106,7 +1106,7 @@ class SpecimenEndpoint(PageEndpoint):
             html_attributes=({} if self.passive else {"data-lf-contained": ""})
             | {"data-lf-user-scope": self.page_root + "/"},
             body_attributes={"inert": ""}
-            | ({"data-lf-specimen-passive": ""} if self.passive else {}),
+            | ({"data-lf-sample-passive": ""} if self.passive else {}),
         )
 
 
@@ -1152,7 +1152,7 @@ def page_app(endpoint, server):
     an open news stream is the one response that stays on the loop itself.
     """
 
-    server.specimens = Specimens()
+    server.samples = Samples()
 
     async def app(scope, receive, send) -> None:
         if scope["type"] != "http":

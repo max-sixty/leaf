@@ -5,7 +5,7 @@
    text field, then materializes the same Markdown again when its visible words change or
    Send reads the draft. Sent-message images open one native modal viewer. The document
    declares its public page root because a website module may live under an immutable
-   release URL shared with a specimen. All three resolve
+   release URL shared with a sample. All three resolve
    the same canonical `/media/…` text without rewriting durable content. The viewer's
    native dialog remains a direct chrome child while its light-DOM Lit face owns the
    generated title, control, and image. */

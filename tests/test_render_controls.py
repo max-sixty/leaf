@@ -224,9 +224,11 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     views["overview"].get_by_role("button", name="Close threads").click()
     expect(views["overview"].locator(".lf-thread-panel")).to_be_hidden()
     expect(views["you"].locator(".lf-thread-panel")).to_be_visible()
-    page.locator("#overview-sample").get_by_role(
+    reset = page.locator("#overview-sample").get_by_role(
         "button", name="Reset", exact=True
-    ).click()
+    )
+    reset.click()
+    expect(reset).to_be_enabled(timeout=30000)
     expect(views["overview"].locator(".lf-thread-panel")).to_be_visible()
     expect(views["overview"].locator(".lf-thread:not([hidden])")).to_have_count(3)
 

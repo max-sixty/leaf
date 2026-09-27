@@ -27,9 +27,10 @@ stays standing when an earlier layer is flipped, and reads as a blind test.
 
 The tests are the node ids given, or else every test function the branch added or
 changed in `tests/**/test_*.py`, found by mapping the diff's lines onto each
-function's span. A changed hunk that falls in no test function, such as a module-level
-parameter list, a helper, or a shared module like `render_harness.py`, selects
-nothing, and is printed as `not selected` so its tests can be named. Node tests under
+function's span. A changed line outside every test function, such as in a
+module-level parameter list, a helper, or a shared module like `render_harness.py`,
+selects nothing, and each run of them is printed as `not selected`, even where the
+same hunk also touches a test, so the tests reading them can be named. Node tests under
 `tests/runtime/` are not pytest's and not run. A test walking several routes goes red
 on the first route a mutation breaks and never runs the rest, so read which arm the
 message's line is, and flip each arm's guard separately to prove it.
@@ -61,6 +62,7 @@ import shutil
 import subprocess
 import tempfile
 from datetime import datetime
+from itertools import groupby
 from pathlib import Path
 
 import click
@@ -105,8 +107,8 @@ def git(*args: str, cwd: Path = ROOT, input: bytes | None = None) -> str:
 
 def changed_tests(base: str) -> tuple[tuple[str, ...], list[str]]:
     """The node ids of the test functions the diff from `base` to HEAD adds or
-    changes, decorators included, and each changed hunk under `tests/` that falls
-    in none, as `path:first-last`."""
+    changes, decorators included, and each run of changed lines under `tests/`
+    outside every test function, as `path:first-last`."""
     hunks: dict[str, list[range]] = {}
     diff = git("diff", "--unified=0", "--no-renames", base, "HEAD", "--", TESTS)
     for line in diff.splitlines():
@@ -126,11 +128,15 @@ def changed_tests(base: str) -> tuple[tuple[str, ...], list[str]]:
             for node, prefix in functions(tree.body, path):
                 first = min([node.lineno, *(d.lineno for d in node.decorator_list)])
                 tests.append((f"{prefix}::{node.name}", range(first, node.end_lineno + 1)))  # fmt: skip
+        covered = {line for _, body in tests for line in body}
         for span in spans:
             hit = [name for name, body in tests if set(span) & set(body)]
             ids.extend(name for name in hit if name not in ids)
-            if not hit:
-                unselected.append(f"{path}:{span.start}-{span.stop - 1}")
+            outside = [line for line in span if line not in covered]
+            # Consecutive lines share `line - index`, so each group is one run.
+            for _, stretch in groupby(enumerate(outside), lambda p: p[1] - p[0]):
+                lines = [line for _, line in stretch]
+                unselected.append(f"{path}:{lines[0]}-{lines[-1]}")
     return tuple(ids), unselected
 
 
@@ -257,9 +263,11 @@ def sweep() -> None:
     its run's pid, so the next run removes what a killed one left."""
     SCRATCH.mkdir(exist_ok=True)
     for stale in SCRATCH.iterdir():
-        pid = int(stale.name.partition("-")[0])
+        pid = stale.name.partition("-")[0]
+        if not pid.isdigit():
+            continue
         try:
-            os.kill(pid, 0)
+            os.kill(int(pid), 0)
         except ProcessLookupError:
             shutil.rmtree(stale, ignore_errors=True)
         except PermissionError:

@@ -70,15 +70,22 @@ class Outcome:
 
 # Set once the command is stopping: every run in progress stops too.
 STOPPING = threading.Event()
+# Every run in progress, so a second signal can kill them all at once.
+LIVE: set[subprocess.Popen] = set()
 
 
 @contextmanager
 def stoppable():
     """Turn SIGTERM and SIGINT into stopping every run, then exiting 143 or 130
     through the caller's own cleanup. The runs sit in sessions of their own, so no
-    signal reaches them unless it comes from here."""
+    signal reaches them unless it comes from here. A second signal means now: it
+    kills every run's process group before exiting, rather than waiting out the
+    first stop's `GRACE`, so no cleanup after it runs beside a live run."""
 
     def stop(signum, frame):
+        if STOPPING.is_set():
+            for proc in list(LIVE):
+                signal_group(proc.pid, signal.SIGKILL)
         STOPPING.set()
         raise SystemExit(128 + signum)
 
@@ -108,6 +115,7 @@ def pytest(root: Path, *args: str, out: Path, env: dict | None = None) -> int | 
             stderr=subprocess.STDOUT,
             start_new_session=True,
         )
+        LIVE.add(proc)
         try:
             while not STOPPING.is_set() and time.monotonic() < deadline:
                 try:
@@ -117,6 +125,7 @@ def pytest(root: Path, *args: str, out: Path, env: dict | None = None) -> int | 
             return None
         finally:
             stop(proc)
+            LIVE.discard(proc)
 
 
 def stop(proc: subprocess.Popen) -> None:

@@ -268,8 +268,9 @@ the gate before accepting a test, and again when a refactor changes how an exist
 failure shows. `uv run leaf-dev bugback` does it on a committed branch: it runs the
 tests the branch added or changed with the branch's change reverted, or with each
 `--flip` patch, one guard at a time, and says which went red. An assertion that
-nothing moved straddles a transition that would move without the rule. Check what a lower layer already guarantees: a send queue that drops
-a second POST hides whether the widget refused it.
+nothing moved straddles a transition that would move without the rule. Check what a
+lower layer already guarantees: a send queue that drops a second POST hides whether
+the widget refused it.
 
 The corpus has two matrices. Return state is anchored on a first visit
 (`arrival_findings`); semantic replay is anchored on a static authored state, applying

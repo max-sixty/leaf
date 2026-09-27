@@ -134,7 +134,7 @@ def test_the_log_reopens_a_refused_save_but_never_the_active_revision(page_dir):
 
     # A tab still showing r1 may anchor a thread on the id r2 dropped. r2 is live
     # and its transition was judged when it activated, so neither activation nor
-    # `version check` re-judges it against the later event; the thread detaches.
+    # `page check` re-judges it against the later event; the thread detaches.
     events_model.append_event(
         page_dir,
         {
@@ -1563,13 +1563,13 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
 ):
     """A hand-written seed is the one markup in the product no gate has read.
 
-    Markup reaches a page two ways. A version goes through `version check`. An
+    Markup reaches a page two ways. A version goes through `page check`. An
     event's `markup` goes through `leaf thread reply`, which validates it and then freezes
     it in an append-only log, so that door is the last moment anything about it can
     be fixed. An example's companion log is neither: it is written into the
     repository by hand, and from there `scripts/site.py` publishes it to
     leaf.page, `serve` lays it into every browser sweep, and `scripts/preview.py`
-    serves it live. `version check` reads such a log only for ids colliding
+    serves it live. `page check` reads such a log only for ids colliding
     with the version's.
 
     So the seed is put through the real door rather than through a list of checks

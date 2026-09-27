@@ -45,9 +45,9 @@ A moved card, on a board or in a swipe deck's piles, is one exception. A move
 records a place among the cards the user saw, so when you change the cards in
 its column or pile, write the moved card where its move in `state` left it: in the
 column or pile the move names, ordered among the cards there by rank (`$state` in
-`registry.json` defines ranks). `version check` names the place when a version misses
+`registry.json` defines ranks). `page check` names the place when a version misses
 it. From then on your markup places it. Keep it there in later versions too: a version
-keeps a user's placement unless it marks the card `restated`, and `version check`
+keeps a user's placement unless it marks the card `restated`, and `page check`
 refuses one that moves it silently.
 
 A user's answer to a page Ask is the other: it shows as waiting on you, and
@@ -84,7 +84,7 @@ structure included, is an ordinary revision, and when the structure changes, wri
 `index.html` whole rather than as a series of edits. Ids are what carry threads and
 user state across a rewrite (`page-authoring.md`, "Stable anchors"), so a passage
 that survives keeps its id wherever on the page it goes, and moving it needs neither
-a suggestion nor `restated`. `version check` refuses a rewrite that drops an id an
+a suggestion nor `restated`. `page check` refuses a rewrite that drops an id an
 open thread or the user's state still rests on, and names the way out. It does
 not guard the words an open thread quotes, so leave those as they stand while the
 thread is open.

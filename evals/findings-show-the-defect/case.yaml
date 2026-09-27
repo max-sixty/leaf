@@ -18,7 +18,7 @@ execution:
     > 2. **Workspace stacking.** `1fr 2.4fr` stacks below 786px of page width and a 900px
     >    window leaves 769px, so the queue stacked at 900px, and the workspace split the
     >    window between two short scroll boxes. Fix: a workspace flows when its grid
-    >    stacks, and `version check` reports each grid's stacking width.
+    >    stacks, and `page check` reports each grid's stacking width.
     > 3. **Rail floor.** At 900px a 14rem rail stayed beside the body, and the checks
     >    table and event log inside it wrapped at two or three words a line. Fix: a
     >    track's stacking width comes from what it holds, not one floor.

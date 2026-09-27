@@ -5295,7 +5295,7 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
     Every document the gate reads used to be fetched inside the page, and
     `page.evaluate` sends the driver no timeout at all — measured, an evaluate
     awaiting a fetch that never answers is still running at 200s. So a server that
-    accepted a request and then went quiet left `version check --render` running with
+    accepted a request and then went quiet left `page check --render` running with
     nothing printed, which is the one failure a user cannot tell from slowness: the
     gate stopping is loud, and the gate never stopping looks like a slow machine.
 

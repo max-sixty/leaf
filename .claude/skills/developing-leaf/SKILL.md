@@ -55,19 +55,24 @@ Re-vendor before trusting a browser result after a runtime, theme, registry, or
 widget change. A green suite does not judge visual quality; run `/ui-sweep` or
 look at a composed page.
 
-Compare against a baseline from `git merge-base HEAD main` ("Compare checkout
-versions" below). For every difference a still can show, the handoff carries one
-sentence and matched before/after screenshots, embedded in the reply or as one
-`lf-shot`; a live preview may accompany the pair but does not replace it. For an
-interaction-only change, keep both previews live and hand off the labeled URL
-pair with the action that reveals the difference.
+Compare against the merge base with `main`. `uv run scripts/stills.py`
+screenshots a catalogue of states on both runtimes and crops each one that
+changed into a before/after pair; commit first, since it compares commits. The
+catalogue holds states a user reaches by acting as well as pages at rest, because
+a change can alter what only such a state draws: a padding moved for layout once
+put a row over a focus ring drawn only while the element is focused. Where a
+change reaches a state the catalogue lacks, add it to `STATES` instead of driving
+the state by hand.
 
-Exercise the same journey in baseline and candidate at the same fragment,
-viewport, theme, and interaction state. Capture each state that draws a box the
-change touches, not only the page at rest: a padding moved for layout can put a
-row over a focus ring that is drawn only while the element is focused. A live
-preview handed to the user carries the fragment of the semantic block it is
-about (a titled section's own id) and stays running.
+For every difference a still can show, the handoff carries one sentence and
+matched before/after screenshots, embedded in the reply or as one `lf-shot`; a
+live preview may accompany the pair but does not replace it. For an
+interaction-only change, serve both versions ("Compare checkout versions" below),
+keep both previews live, and hand off the labeled URL pair with the action that
+reveals the difference. Exercise the same journey in both at the same fragment,
+viewport, theme, and interaction state. A live preview handed to the user
+carries the fragment of the semantic block it is about (a titled section's own
+id) and stays running.
 
 ## Preview a shipped example
 

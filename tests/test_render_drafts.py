@@ -177,16 +177,19 @@ def draft_control(page, key, draft_id="draft-ops"):
     )
 
 
-def deaf_to_draft_news(page, ctx):
-    """Suppress this tab's storage news for the draft at `ctx`: a capture listener at
-    the window runs before the runtime's own, so another tab's writes reach storage
-    and never this tab's view of it."""
-    page.evaluate(
-        """draft => addEventListener('storage', event => {
-          if (event.key === draft) event.stopImmediatePropagation();
-        }, true)""",
-        draft_key(page, ctx),
-    )
+# A storage fault stands in an init script, because it has to run ahead of the
+# runtime's own storage listener and at the window listeners run in the order they
+# were added, capture or not. That is before the page can say which key its draft is
+# stored under, so the script compares against `window.lfDraftKey`, which
+# `name_the_draft` sets once the page has loaded and nothing has been typed.
+DEAF_TO_DRAFT_NEWS = """addEventListener('storage', event => {
+  if (event.key === window.lfDraftKey) event.stopImmediatePropagation();
+}, true);"""
+
+
+def name_the_draft(page, ctx):
+    """Point this page's storage fault at the draft at `ctx`, by the store's key."""
+    page.evaluate("key => { window.lfDraftKey = key; }", draft_key(page, ctx))
 
 
 def cancel_draft(page, draft_id="draft-ops"):
@@ -1843,23 +1846,25 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
     """
     url = serve(SEATED_QUESTION_PAGE)
     first = open_page(browser, url, context=one_user)
-    second = open_page(browser, url, context=one_user)
-    second.evaluate(
-        """draft => addEventListener('storage', event => {
-          if (event.key !== draft) return;
+    second = open_page(
+        browser,
+        url,
+        context=one_user,
+        init_script="""addEventListener('storage', event => {
+          if (event.key !== window.lfDraftKey) return;
           try {
             if (JSON.parse(event.newValue)?.settled)
               event.stopImmediatePropagation();
           } catch {}
-        }, true)""",
-        draft_key(second, "say:jobs"),
+        }, true);""",
     )
+    name_the_draft(second, "say:jobs")
     first_say = first.locator("#jobs > .lf-thread-seat > .lf-say")
     second_say = second.locator("#jobs > .lf-thread-seat > .lf-say")
     raw = "  Keep one exact first answer.  "
     write(first_say.locator("leaf-text"), raw)
     expect(second_say.locator("leaf-text")).to_have_js_property("value", raw)
-    # The capture listener beats the runtime's listener for settlement,
+    # The init-script capture listener beats the runtime's listener for settlement,
     # leaving the old value on screen after the other tab stores its tombstone.
     cut = CutOff().hold(second)
 
@@ -2226,24 +2231,24 @@ def test_an_accepted_nondurable_branch_cannot_tombstone_a_newer_shared_generatio
 ):
     """A held older send reconciles its base before writing settlement."""
     url = serve(SEATED_QUESTION_PAGE)
-    older = open_page(browser, url, context=one_user)
-    older.evaluate(
-        """draft => {
+    older = open_page(
+        browser,
+        url,
+        context=one_user,
+        init_script="""(() => {
           const set = Storage.prototype.setItem;
           let refuse = true;
           Storage.prototype.setItem = function (key, value) {
-            if (refuse && key === draft) {
+            if (refuse && key === window.lfDraftKey) {
               refuse = false;
               throw new DOMException('full', 'QuotaExceededError');
             }
             return set.call(this, key, value);
           };
-          addEventListener('storage', event => {
-            if (event.key === draft) event.stopImmediatePropagation();
-          }, true);
-        }""",
-        draft_key(older, "say:jobs"),
+        })();"""
+        + DEAF_TO_DRAFT_NEWS,
     )
+    name_the_draft(older, "say:jobs")
     newer_tab = open_page(browser, url, context=one_user)
     older_say = older.locator("#jobs > .lf-thread-seat > .lf-say")
     newer_say = newer_tab.locator("#jobs > .lf-thread-seat > .lf-say")
@@ -2278,13 +2283,15 @@ def test_a_nondurable_branch_yields_to_unrelated_live_storage_news(
 ):
     """Only news from a branch's base may be replaced by that local branch."""
     url = serve(SEATED_QUESTION_PAGE)
-    local = open_page(browser, url, context=one_user)
-    local.evaluate(
-        """draft => {
+    local = open_page(
+        browser,
+        url,
+        context=one_user,
+        init_script="""(() => {
           const set = Storage.prototype.setItem;
           let refuse = true;
           Storage.prototype.setItem = function (key, value) {
-            if (refuse && key === draft) {
+            if (refuse && key === window.lfDraftKey) {
               refuse = false;
               throw new DOMException('full', 'QuotaExceededError');
             }
@@ -2292,11 +2299,11 @@ def test_a_nondurable_branch_yields_to_unrelated_live_storage_news(
           };
           window.lfDraftNews = 0;
           addEventListener('storage', event => {
-            if (event.key === draft) window.lfDraftNews += 1;
+            if (event.key === window.lfDraftKey) window.lfDraftNews += 1;
           }, true);
-        }""",
-        draft_key(local, "say:jobs"),
+        })();""",
     )
+    name_the_draft(local, "say:jobs")
     shared = open_page(browser, url, context=one_user)
     local_say = local.locator("#jobs > .lf-thread-seat > .lf-say")
     shared_say = shared.locator("#jobs > .lf-thread-seat > .lf-say")
@@ -2316,8 +2323,10 @@ def test_a_delayed_storage_event_cannot_send_a_stale_durable_generation(
 ):
     """Send refreshes shared storage instead of trusting a stale durable cache."""
     url = serve(SEATED_QUESTION_PAGE)
-    stale = open_page(browser, url, context=held_stale(one_user))
-    deaf_to_draft_news(stale, "say:jobs")
+    stale = open_page(
+        browser, url, context=held_stale(one_user), init_script=DEAF_TO_DRAFT_NEWS
+    )
+    name_the_draft(stale, "say:jobs")
     current = open_page(browser, url, context=one_user)
     stale_say = stale.locator("#jobs > .lf-thread-seat > .lf-say")
     current_say = current.locator("#jobs > .lf-thread-seat > .lf-say")
@@ -2345,8 +2354,10 @@ def test_a_stale_cancel_cannot_settle_a_newer_durable_generation(
 ):
     """Cancel refreshes ownership before writing the shared tombstone."""
     url = serve(JOURNEY_V1)
-    stale = open_page(browser, url, context=held_stale(one_user))
-    deaf_to_draft_news(stale, "edit:draft-ops")
+    stale = open_page(
+        browser, url, context=held_stale(one_user), init_script=DEAF_TO_DRAFT_NEWS
+    )
+    name_the_draft(stale, "edit:draft-ops")
     current = open_page(browser, url, context=one_user)
     stale_draft = stale.locator("#draft-ops")
     current_draft = current.locator("#draft-ops")
@@ -2377,8 +2388,8 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
     # generation leaves settlement nothing older to be tempted by, so the assertions
     # below would pass while asking nothing rather than fail.
     stale_held = held_stale(one_user)
-    stale = open_page(browser, url, context=stale_held)
-    deaf_to_draft_news(stale, "say:jobs")
+    stale = open_page(browser, url, context=stale_held, init_script=DEAF_TO_DRAFT_NEWS)
+    name_the_draft(stale, "say:jobs")
     current = open_page(browser, url, context=one_user)
     stale_say = stale.locator("#jobs > .lf-thread-seat > .lf-say")
     current_say = current.locator("#jobs > .lf-thread-seat > .lf-say")

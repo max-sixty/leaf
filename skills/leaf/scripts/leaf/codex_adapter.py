@@ -35,6 +35,8 @@ import sys
 import tempfile
 import threading
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 # The stream-activity writers are called as `codex.<name>`, so `leaf.codex` holds their
@@ -979,19 +981,20 @@ def _wait_for_app_server(path: Path, process: subprocess.Popen, log) -> None:
     raise RuntimeError("Codex App Server did not become ready")
 
 
-def cmd_codex_launch(codex_path: str | None = None) -> int:
-    """Run one private App Server and its Codex terminal client."""
-    executable = codex_path or shutil.which("codex")
-    if executable is None:
-        raise RuntimeError("cannot find the `codex` executable on PATH")
+@contextmanager
+def private_app_server(executable: str) -> Iterator[str]:
+    """Run one App Server on a Unix socket only this user can reach, and yield its
+    endpoint until the block ends and the server stops.
+
+    The server's environment names that endpoint as `LEAF_CODEX_APP_SERVER`, so a
+    task it runs hands its pages to this server when it runs `leaf codex start`."""
     with tempfile.TemporaryDirectory(prefix="leaf-codex-", dir="/tmp") as directory:
         path = Path(directory) / "app-server.sock"
         endpoint = f"unix://{path}"
-        environment = os.environ | {APP_SERVER_ENV: endpoint}
         with tempfile.TemporaryFile() as log:
             server = subprocess.Popen(
                 [executable, "app-server", "--listen", endpoint],
-                env=environment,
+                env=os.environ | {APP_SERVER_ENV: endpoint},
                 stdin=subprocess.DEVNULL,
                 stdout=log,
                 stderr=subprocess.STDOUT,
@@ -999,9 +1002,18 @@ def cmd_codex_launch(codex_path: str | None = None) -> int:
             )
             try:
                 _wait_for_app_server(path, server, log)
-                return subprocess.call(
-                    [executable, "--remote", endpoint],
-                    env=environment,
-                )
+                yield endpoint
             finally:
                 stop_app_server(server)
+
+
+def cmd_codex_launch(codex_path: str | None = None) -> int:
+    """Run one private App Server and its Codex terminal client."""
+    executable = codex_path or shutil.which("codex")
+    if executable is None:
+        raise RuntimeError("cannot find the `codex` executable on PATH")
+    with private_app_server(executable) as endpoint:
+        return subprocess.call(
+            [executable, "--remote", endpoint],
+            env=os.environ | {APP_SERVER_ENV: endpoint},
+        )

@@ -41,6 +41,7 @@ from typing import IO, NamedTuple
 from urllib.parse import urlencode, urljoin, urlsplit
 
 import click
+from eval_harness import codex_home
 from leaf.render_gate.browser import launch_browser
 from playwright.sync_api import APIResponse, BrowserContext, Page, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -1272,15 +1273,10 @@ def local_adapter():
     ):
         root = Path(temporary)
         site = root / "site"
-        codex_home = root / "codex-home"
-        codex_home.mkdir(mode=0o700)
-        host_home = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
-        shutil.copyfile(
-            ROOT / "worker" / "codex-config.toml", codex_home / "config.toml"
+        home = codex_home(
+            root / "codex-home",
+            (ROOT / "worker" / "codex-config.toml").read_text(),
         )
-        auth = codex_home / "auth.json"
-        shutil.copyfile(host_home / "auth.json", auth)
-        auth.chmod(0o600)
         subprocess.run(
             [sys.executable, str(ROOT / "scripts" / "site.py")],
             cwd=ROOT,
@@ -1323,7 +1319,7 @@ def local_adapter():
             cwd=ROOT,
             env={
                 **os.environ,
-                "CODEX_HOME": str(codex_home),
+                "CODEX_HOME": str(home),
                 "LEAF_SITE_ROOT": str(site),
             },
         ):

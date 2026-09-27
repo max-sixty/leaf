@@ -121,6 +121,16 @@ uv run <root>/scripts/verify_site.py wrangler --agent
 The `publish-site` workflow's run against the deployed release is the only
 production reading.
 
+## Test a terminal Codex task
+
+`uv run <root>/scripts/verify_codex_task.py` runs a real Codex task, with this
+working tree installed as its plugin, through the App Server adapter `leaf codex
+start` leaves running, and checks each comment it posts is answered once and each
+turn is closed under App Server's id. Run it after a change to `codex.py`,
+`codex_adapter.py`, `hooks.py`, or the claim's turn in `service.py`; the suite
+scripts App Server, and only this run shows what Codex itself sends. It spends a
+few turns on the host's Codex login, and CI has none.
+
 ## Compare checkout versions
 
 Build the baseline in a detached worktree at the merge base:

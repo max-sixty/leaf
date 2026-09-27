@@ -2028,8 +2028,10 @@ def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):
         const box = el.getBoundingClientRect();
         return [el.id, {left: box.left, right: box.right, width: box.width}];
       }))""")
-    assert at["block-available"]["width"] > at["block-wide"]["width"] > (
-        at["prose"]["width"] + 100
+    assert (
+        at["block-available"]["width"]
+        > at["block-wide"]["width"]
+        > (at["prose"]["width"] + 100)
     ), at
     for width in ("wide", "available"):
         sample, block = at[f"sample-{width}"], at[f"block-{width}"]
@@ -2043,9 +2045,7 @@ def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):
             control,
             at,
         )
-    assert at["sample-nested"]["width"] == pytest.approx(
-        at["item"]["width"], abs=1
-    ), at
+    assert at["sample-nested"]["width"] == pytest.approx(at["item"]["width"], abs=1), at
     assert root_overflow(page) == 0
 
 

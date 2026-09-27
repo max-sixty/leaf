@@ -1060,7 +1060,7 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
     # Start with Threads beside the page. A covering panel makes the background inert,
     # even when some of the page remains visible beyond its edge.
     resized(page, 1000, 900)
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     field = page.locator(".lf-fab-input")
     bar = page.locator(".lf-fab-bar")

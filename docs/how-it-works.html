@@ -2283,10 +2283,11 @@ flowchart TD
             <h2>Current state is computed on every read</h2>
             <p id="data-fold-lede">
               Nothing stores the page's current state. The live revision's markup is
-              where it starts, and the log records every change since. Your browser and
-              <code>leaf page state</code> each start from that markup and fold the log
-              over it: for each widget, unit, and verb, the latest action still standing
-              wins.
+              where it starts, and the log records every change since. On each read, the
+              server folds the log over that markup: for each widget, unit, and verb,
+              the latest action still standing wins. <code>leaf page state</code>
+              reports from that one reading, and your browser draws it together with any
+              move you have made that the server has not yet answered.
             </p>
             <p id="data-fold-append">
               A change enters the log only through the append door, which checks each

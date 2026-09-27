@@ -2531,7 +2531,7 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
             "this page declares a specimen but no visible exhibit or corpus panel owns it"
         )
         for owner in owners:
-            page.locator(f'#{owner["set"]}').get_by_role(
+            page.locator(f"#{owner['set']}").get_by_role(
                 "tab", name=owner["label"], exact=True
             ).click()
         specimens = page.locator("lf-specimen").evaluate_all(

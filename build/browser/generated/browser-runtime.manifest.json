@@ -1,13 +1,13 @@
 {
   "format": "leaf-browser-build-v1",
   "sourceRoots": [
-    "scripts/browser"
+    "build/browser"
   ],
   "sourceInputs": [
-    "scripts/browser/application.ts",
-    "scripts/browser/index.ts",
-    "scripts/browser/presentation.ts",
-    "scripts/browser/snapshot.ts",
+    "build/browser/application.ts",
+    "build/browser/index.ts",
+    "build/browser/presentation.ts",
+    "build/browser/snapshot.ts",
     "skills/leaf/assets/runtime/anchor-coordinate.js",
     "skills/leaf/assets/runtime/collapse.js",
     "skills/leaf/assets/runtime/pending/model.js",
@@ -16,7 +16,7 @@
     "skills/leaf/assets/runtime/thread/model.js"
   ],
   "entryPoints": {
-    "skills/leaf/assets/vendor/browser-runtime.js": "scripts/browser/index.ts",
+    "skills/leaf/assets/vendor/browser-runtime.js": "build/browser/index.ts",
     "skills/leaf/assets/vendor/lit.js": "leaf:lit"
   },
   "outputRoot": "skills/leaf/assets/vendor",
@@ -164,7 +164,7 @@
       "bytes": 27241,
       "sha256": "b18144f1e0fe7dd8923f4287ad8b0b026b3d6043568912fb944c3f672cb4112b"
     },
-    "scripts/browser/generated/browser-runtime.js.map": {
+    "build/browser/generated/browser-runtime.js.map": {
       "bytes": 175047,
       "sha256": "61bddad9a618a396d6bc5abdc60552601bae8e003231a73ea7e162ce134f709b"
     },
@@ -172,7 +172,7 @@
       "bytes": 32020,
       "sha256": "5a7a4e660fe0085f5e81ea8734bdd3468fbeb857f9a6427bddb55fbb6f3531a5"
     },
-    "scripts/browser/generated/lit.js.map": {
+    "build/browser/generated/lit.js.map": {
       "bytes": 363756,
       "sha256": "37c5dcefc083b37cbe938542a4aa7372275913a997a6fe257eadf472a27384d8"
     },

@@ -3,7 +3,7 @@
  * What every third-party bundle Leaf commits must be, and what it must carry.
  *
  * Both builders consume this module: `build.mjs` for the browser framework and Lit,
- * `scripts/vendor.py` for every other bundle, including the files it copies as
+ * `build/vendor.py` for every other bundle, including the files it copies as
  * published. So one parser decides whether an output runs under the page CSP, and one
  * writer states the licenses of the packages that reached it.
  *
@@ -19,7 +19,7 @@
  * the served layout rather than of the bundle, and capturing a revision refuses a
  * missing one (`revision_artifact.captured_imports`).
  *
- * Run as `node scripts/browser/shipped.mjs METAFILE NOTICES [MODULE...]` from the
+ * Run as `node build/browser/shipped.mjs METAFILE NOTICES [MODULE...]` from the
  * build's working directory: it refuses the first module the page CSP forbids, then
  * writes NOTICES from the packages METAFILE (esbuild's) says reached the bundle.
  */
@@ -164,7 +164,7 @@ export function licenseNotices(title, packageRoots) {
 function main([metafilePath, notices, ...modules]) {
   if (!metafilePath || !notices)
     throw new Error(
-      "Usage: node scripts/browser/shipped.mjs METAFILE NOTICES [MODULE...]",
+      "Usage: node build/browser/shipped.mjs METAFILE NOTICES [MODULE...]",
     );
   for (const module of modules) checkModule(readFileSync(module, "utf8"), module);
   const metafile = JSON.parse(readFileSync(metafilePath, "utf8"));

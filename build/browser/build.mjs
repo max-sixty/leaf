@@ -10,11 +10,11 @@
  * module in one namespace, shaped like Lit's own `lit-all` bundle, where the
  * static-html tags are renamed `staticHtml`, `staticSvg`, and `staticMathml` so
  * they do not shadow the ordinary ones. The framework imports Lit from it, and so
- * does the Web Awesome bundle (`scripts/vendor-src/webawesome/build.mjs`), so a page
+ * does the Web Awesome bundle (`build/webawesome/build.mjs`), so a page
  * registers one LitElement, one template cache, and one version. Outputs import
  * only one another, statically; nothing else crosses the bundle. `shipped.mjs`
  * decides whether each output runs under the page CSP and writes the notices for
- * the packages that reached them, as it does for every bundle `scripts/vendor.py`
+ * the packages that reached them, as it does for every bundle `build/vendor.py`
  * makes.
  */
 import { createHash } from "node:crypto";
@@ -27,8 +27,8 @@ import { bundledPackages, checkModule, licenseNotices } from "./shipped.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const outputRoot = "skills/leaf/assets/vendor";
-const diagnosticsRoot = "scripts/browser/generated";
-const entry = "scripts/browser/index.ts";
+const diagnosticsRoot = "build/browser/generated";
+const entry = "build/browser/index.ts";
 const modulePath = `${outputRoot}/browser-runtime.js`;
 const litPath = `${outputRoot}/lit.js`;
 const manifestPath = `${diagnosticsRoot}/browser-runtime.manifest.json`;
@@ -96,7 +96,7 @@ export async function buildOutputs() {
     [
       path.join(root, "node_modules/typescript/bin/tsc"),
       "--project",
-      "scripts/browser/tsconfig.json",
+      "build/browser/tsconfig.json",
     ],
     { cwd: root, encoding: "utf8" },
   );
@@ -112,7 +112,7 @@ export async function buildOutputs() {
     entryPoints,
     outdir: outputRoot,
     plugins: [litModule(lit)],
-    tsconfig: "scripts/browser/tsconfig.json",
+    tsconfig: "build/browser/tsconfig.json",
     platform: "browser",
     format: "esm",
     target: "es2022",
@@ -171,7 +171,7 @@ export async function buildOutputs() {
   );
   const manifest = {
     format: "leaf-browser-build-v1",
-    sourceRoots: ["scripts/browser"],
+    sourceRoots: ["build/browser"],
     sourceInputs: Object.keys(result.metafile.inputs)
       .filter(
         (name) => !name.startsWith("node_modules/") && !name.startsWith("leaf-lit:"),
@@ -232,12 +232,12 @@ export async function checkOutputs(outputs, directory = root) {
 async function main(args) {
   if (args.length === 1 && args[0] === "--help") {
     console.log(
-      "Usage: node scripts/browser/build.mjs [--check]\n\nBuild committed browser ESM, or check it without writing. Run npm ci first.",
+      "Usage: node build/browser/build.mjs [--check]\n\nBuild committed browser ESM, or check it without writing. Run npm ci first.",
     );
     return;
   }
   if (args.length > 1 || (args.length && args[0] !== "--check")) {
-    throw new Error("Usage: node scripts/browser/build.mjs [--check]");
+    throw new Error("Usage: node build/browser/build.mjs [--check]");
   }
   const outputs = await buildOutputs();
   if (args[0] === "--check") await checkOutputs(outputs);

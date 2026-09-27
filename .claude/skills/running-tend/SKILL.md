@@ -106,7 +106,7 @@ On that PR's branch:
 ```bash
 npm ci
 npm run build:browser
-uv run scripts/vendor.py
+uv run build/vendor.py
 ```
 
 Commit the result to the same branch. Read each `*.LICENSES.txt` diff: a package

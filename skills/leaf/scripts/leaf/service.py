@@ -590,9 +590,7 @@ class PageTransaction:
         claim = self.claim
         if reply_binding_stands(
             standing, claim["id"], claim["turn"], claim["turn_closed"]
-        ) and not _held_by(
-            standing, session_id, attempt
-        ):
+        ) and not _held_by(standing, session_id, attempt):
             raise RuntimeError(
                 f"response {responds!r} is already bound to another delivery"
             )

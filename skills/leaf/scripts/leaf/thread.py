@@ -15,7 +15,7 @@ from leaf.files import (
 )
 from leaf.host import message_identity
 from leaf.leases import contract_writer
-from leaf.passages import active_enclosing
+from leaf.passages import SourceReading
 from leaf.projection import (
     generated_children,
     page_reading,
@@ -23,9 +23,9 @@ from leaf.projection import (
     rewritten_bodies,
 )
 from leaf.requests import receipt_event
+from leaf.revision_artifact import active_enclosing, read_revision
 from leaf.schema import MESSAGE_KINDS, THREAD_ANSWER_KINDS
 from leaf.service import PageTransaction, delivery_reply_attempt
-from leaf.structure import SourceDocument, parse_revision
 from leaf.thread_context import thread_names
 from leaf.validation.admission import (
     check_markup,
@@ -264,16 +264,18 @@ def _current_anchor(
         revision = require_revision(page_dir)
     if not (quote or section or part):
         return revision, None
-    document = parse_revision(page_dir, revision)
+    from leaf.registry.storage import require_registry
+
+    reading = read_revision(page_dir, revision).under(require_registry(page_dir))
     return revision, _capture_anchor(
-        page_dir, events, document, quote, section, part, revision
+        page_dir, events, reading, quote, section, part, revision
     )
 
 
 def _capture_anchor(
     page_dir: Path,
     events: list,
-    document: SourceDocument,
+    reading: SourceReading,
     quote: str,
     section: str,
     part: str,
@@ -281,16 +283,14 @@ def _capture_anchor(
 ) -> dict:
     """Capture a target against one exact document reading."""
     from leaf.anchor_capture import capture_anchor
-    from leaf.registry.storage import require_registry
 
-    registry = require_registry(page_dir)
-    page = page_reading(document, events, registry, revision)
+    page = page_reading(reading, events, revision)
     decided = retirement_outcomes(page.projection.actions)
     edited = rewritten_bodies(page.projection.actions)
     try:
         anchor = capture_anchor(
-            document,
-            registry,
+            page.document,
+            page.registry,
             quote,
             section,
             decided,
@@ -561,10 +561,12 @@ def cmd_reply(
                     )
                 prospective_page = checked.document
                 if moving:
+                    from leaf.registry.storage import require_registry
+
                     prospective_anchor = _capture_anchor(
                         page_dir,
                         events,
-                        checked.document,
+                        SourceReading(checked.document, require_registry(page_dir)),
                         quote,
                         section,
                         part,

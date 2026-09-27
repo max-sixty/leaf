@@ -63,7 +63,8 @@ has tried; settle that before building it.
   show the native selection menu or software keyboard.
 - **Finish what a phone user still cannot reach.** Give touch users visible passage
   threads, and remove keyboard-only hints, hover-only reasons, clipped diagram content,
-  and remaining undersized touch targets.
+  and remaining undersized touch targets. Undo (`z`) and Draw mode (`w`) have no route
+  under a finger; `o` and `s` have one in the banner's More.
 - **Take the layout readings across widths.** The render check renders each page at
   1200px and 540px and sweeps sideways overflow from 360px to 1200px, but it reads a
   drawing's label size on the settled 1200px page only, and nothing yet reads an Ask
@@ -90,6 +91,16 @@ and its chrome coordinate.
   `--layout-columns: 3fr 2fr`, stacking below 720px, would carry it. A bounded box of
   panes outside a workspace also restates the Layout's pane scrolling (the feature
   gallery), which could key on `--lf-held` instead.
+- **Place markers so they cover less without losing what they track.** Where no rail
+  stands, a marker pins inside its block's top-right corner and covers the end of the
+  block's first line. On a 390px phone an Ask's pin covers the end of its question's
+  heading, and a blind judge named that in 24 of 34 arrangement-eval judgments. A
+  marker is an overlay, so the answer cannot reserve room, pad a block, or move text
+  when a marker comes or goes (`skills/leaf/assets/AGENTS.md`, "Space and
+  scrolling"). A better place must still sit at its own target and not a neighbour's,
+  hold still as the page scrolls and reflows, stay off the block's controls, and work
+  where the target is inside a pane that scrolls on its own. Hiding the annotations
+  (`o`, or Hide annotations in More under a finger) stays the escape.
 - **Give a declared rail a floor.** `data-rail="right"` makes the shell give up the
   rail's width at every width, so on a phone it leaves a 295px column. The margin pass
   admits residents by measuring the room they leave (`settleResidency`), which a rail
@@ -180,14 +191,18 @@ and its chrome coordinate.
 
 ### Shared definitions
 
-- **Say which panes the workspace holds without naming `lf-pane`.** `layouts.css`
-  holds an authored pane only as the workspace body or a cell of it (a pane in a
-  section flows), and a generated pane at any depth. It tells the two apart by the
-  `lf-pane` tag, so a package's authored pane takes the generated rule, and it names
-  the tag for first paint too: the runtime paints `data-lf-reading-role` about half a
-  second after the panes first draw. Both need a mark the stylesheet can read before
-  the script: an authored/generated distinction in the paint, and the role in the
-  first paint.
+- **Keep the comment note out of the page's structure.** `anchor-note-view.js`
+  appends a `leaf-anchor-note` inside each commented block, so the block's authored
+  `:last-child`, `:only-child` and `:nth-last-child` rules stop matching while a comment
+  stands: with `.list > :last-child { margin-bottom: 80px }`, one comment on `.list`
+  moves the next paragraph up 67px. The block frame and a few widget rules skip the
+  note with `of :not(.lf-ui, [data-lf-gen])`. Page CSS does not, and neither, by
+  reading, do the default package's `:last-child` rules for milestones, chronology
+  entries, cards and a held Ask's answer, or `theme.css`'s map-only sidebar rules,
+  where a comment would change which residents the margin admits. Patching selectors
+  cannot reach page CSS. The note sits there to follow the block in tab and reading
+  order, so the fix is a route to the block's comments from that position that adds
+  no element to authored content.
 
 ## Etc
 

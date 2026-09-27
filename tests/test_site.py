@@ -1108,7 +1108,7 @@ def test_published_workspaces_keep_their_allocation_without_site_note(
         """() => {
           const page = document.documentElement;
           const regions = document.querySelectorAll(
-            'body > main.layout-workspace :is(lf-pane, [data-lf-reading-role="pane"])');
+            'body > main.layout-workspace [data-lf-reading-role="pane"]');
           const bodies = [...regions].map(region =>
             [...region.children].find(child => !child.matches('header, footer')));
           return page.scrollHeight === page.clientHeight && bodies.length > 0

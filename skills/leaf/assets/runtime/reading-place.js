@@ -16,10 +16,10 @@
  */
 import { clippedContents, landingBand, shownBox, shownWindow } from "./geometry.js";
 import {
-  blockAt,
   closestAcross,
   cut,
   inChrome,
+  pageBlocks,
   pageText,
   quoteFrom,
   rangeOf,
@@ -48,17 +48,12 @@ const HEADING = "h1, h2, h3, h4, h5, h6";
 // Asks starts when they have pointed at nothing.
 // A block's landmark is the top of its first line (a range), not its border box; restore
 // measures the matched text the same way, so the line box's leading cancels out.
-export function textBlocks(root = document.querySelector("body > main")) {
-  const seen = new Set();
-  // Walk the page's composed text rather than querying only its light DOM. A declared
-  // shadow root renders authored words at its host's place in reading order; those
-  // words are pointable and resolvable through the shared passage reading, so version
-  // continuity must be able to choose the same blocks as landmarks. Each word's block
-  // is the one every passage reading uses (`blockAt`).
-  return textNodesUnder(root)
-    .map(({ node }) => blockAt(node))
-    .filter((block) => block && !seen.has(block) && seen.add(block));
-}
+// The blocks are the page reading's (`pageBlocks`) rather than a query of the light DOM: a
+// declared shadow root renders authored words at its host's place in reading order, and
+// those words are pointable and resolvable through the same reading, so version
+// continuity must be able to choose the same blocks as landmarks.
+export const textBlocks = (root = document.querySelector("body > main")) =>
+  pageBlocks().filter((block) => under(block, root));
 
 export function* blocksOnScreen(region = null, blocks = textBlocks()) {
   const shown = region ? shownRegionBounds(region) : shownWindow();

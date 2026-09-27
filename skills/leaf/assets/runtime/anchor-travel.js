@@ -18,7 +18,9 @@
  * the destination and then decides whether the user is already there or departs. A
  * departure leaves a history entry, so browser Back returns the user to where they
  * were reading; a journey, trips each leaving from the last one's landing, is one
- * entry. A fragment link's trip (`followFragment`) departs by the browser's own entry.
+ * entry. A fragment link's trip (`followFragment`) departs by the browser's own entry,
+ * and Back or Forward to a place the page has hidden since (`returnToFragment`) is a
+ * trip that departs by none.
  */
 
 import {
@@ -45,6 +47,15 @@ import { renderedParent, upFrom } from "./shadow.js";
 import { closestAcross } from "./passages.js";
 import { reveal } from "./widget-elements.js";
 import { retainUserIntent } from "./user-intent.js";
+
+// The browser's rule for landing the element a fragment names: its start at its
+// scroller's landing edge, which a sticky cover's declared room keeps clear. Travel
+// applies it where the browser's own landing does not reach the element: at an arrival
+// the page reshapes after the browser landed it (version.js, `aimArrival`), and at a
+// traversal, where the browser restores an offset instead (`returnToFragment`).
+export function scrollToFragment(element) {
+  element.scrollIntoView({ block: "start", inline: "nearest", behavior: "instant" });
+}
 
 export function createAnchorTravel({
   anchors,
@@ -141,15 +152,34 @@ export function createAnchorTravel({
   // scrolling behind it, the link's own thread still in front), and reveal what holds
   // it, which reaches a widget's own disclosure as well as `hidden="until-found"` (a
   // worker in a shut goal is `display: none`, and the browser landed on nothing). It
-  // then lands by the browser's own fragment rule (`land`), which moves `:target` and
-  // the sequential focus starting point with it, so the arrival at a fresh load
-  // (version.js, `aimArrival`) and one in session reveal and land alike. A fragment
-  // naming nothing here is not claimed, and the browser keeps it.
-  function followFragment(url) {
+  // then lands by the browser's own fragment rule (`land`, history.js), which moves
+  // `:target` and the sequential focus starting point with it, so the arrival at a
+  // fresh load (version.js, `aimArrival`) and one in session reveal and land alike. A
+  // fragment naming nothing here is not claimed, and the browser keeps it.
+  function followFragment(url, land) {
     const where = fragmentTarget(url.hash);
-    if (!where) return null;
+    return where && fragmentTrip(where, land);
+  }
+
+  // Back or Forward restores the offset the entry was left at (history.js), which is
+  // where the user was reading while the page still holds the place the entry's
+  // fragment names. Once that place is no longer shown, closed since in a tab, a
+  // disclosure or a widget's own shut state, the offset was read over a page that has
+  // changed, and restoring it lands on whatever now sits at that pixel. The fragment is
+  // then the one thing the entry still says, so the traversal is a trip to it that
+  // departs by no new entry: the same clearing and reveal as a followed link. The
+  // browser's own landing on a traversal is that offset, so travel lands the place by
+  // the fragment rule itself (`scrollToFragment`).
+  function returnToFragment(url) {
+    const where = fragmentTarget(url.hash);
+    return where && !where.checkVisibility()
+      ? fragmentTrip(where, () => scrollToFragment(where))
+      : null;
+  }
+
+  function fragmentTrip(where, land) {
     const mayArrive = retainTravel();
-    return async (land) => {
+    return async () => {
       mayArrive.handoff(() => surfaces.clearFor(where));
       await reveal(where, mayArrive);
       if (mayArrive()) land();
@@ -388,6 +418,7 @@ export function createAnchorTravel({
   return {
     trip,
     followFragment,
+    returnToFragment,
     navigateToDatum,
     scrollToElement,
     scrollRevealedElement,

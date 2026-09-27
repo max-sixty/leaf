@@ -399,7 +399,9 @@ moved since (`runtime/reading-place.js`). A widget that adds same-document histo
 entries adds them with `pushEntry(url)` and `replaceEntry(url)`, and places the page
 itself at Back or Forward to one of them by claiming that traversal with
 `claimTraversals(claim, {signal})`. Every other traversal returns the user to the offset
-the entry was left at (`runtime/history.js`).
+the entry was left at (`runtime/history.js`), unless the element the entry's fragment
+names is no longer shown: that one reaches the widget holding it shut as `lf-reveal`
+and lands on it, as a followed link to it does.
 
 A sticky box that covers the top of its scroller declares the room it takes with
 `declareCoverRoom(host, property, covers)`, which keeps `property` on `host` at the

@@ -390,7 +390,7 @@
     }
   },
   "lf-worktree": {
-    "description": "One stable address for a disposable worker's inspectable evidence. Author an empty element with an id and bind its `worktrees` input through the `source` attribute. The widget projects the matching record into the element and keeps datum comments attached when a later snapshot replaces it. Branch, divergence, diffstat, test result, file tree, and diff are observed data rather than authored version state.",
+    "description": "One stable address for a disposable worker's inspectable evidence. Author an empty element with an id and bind its `worktrees` input through the `source` attribute. The widget shows the one record its source keys by this element's id, and keeps datum comments attached when a later snapshot replaces it; the element shows no record stored under any other key. Branch, divergence, diffstat, test result, file tree, and diff are observed data rather than authored version state.",
     "type": "object",
     "properties": {
       "id": {

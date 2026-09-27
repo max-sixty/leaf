@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Order-history backfill schedule</title>
+  </head>
+  <body>
+    <main class="layout-column">
+      <h1>Order-history backfill schedule</h1>
+      <p class="lede" id="lede">
+        The order-history backfill copies 310 million rows into the warehouse over
+        eleven nights.
+      </p>
+
+      <section id="schedule">
+        <h2>Schedule</h2>
+        <p id="window">
+          The copy runs each night in the maintenance window, at full speed, in batches
+          of 500 rows.
+        </p>
+        <p id="start-date">The first night is 6 October; the last is 16 October.</p>
+      </section>
+
+      <section id="safety">
+        <h2>Safety</h2>
+        <p id="replica">
+          The replica absorbs the write load; the soak test showed it keeps up with
+          room to spare.
+        </p>
+        <p id="rollback">
+          If a night's batch fails, the job stops and the next night resumes from the
+          last committed batch.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

@@ -50,7 +50,10 @@ User input comes before the work in hand, in this order:
 2. Name the work each move asks for on the page before starting it. Each delivered
    event's `answering` clauses say how: for a comment, a status claim on its
    thread, with the reply carrying the result once it lands. A move that asks for
-   no work, such as a question, is answered by its reply at once.
+   no work, such as a question, is answered by its reply at once. In a batch, each
+   move that asks for work takes its own claim where its clauses put it, rather
+   than sharing one sentence with the others, so a comment reads **Working** beside
+   its own thread.
 3. If the move interrupted other work, write the page status again once its own
    work is done, so the banner describes the work that continues rather than the
    last step before the interruption.

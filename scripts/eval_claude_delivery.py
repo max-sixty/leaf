@@ -82,15 +82,11 @@ are written to `.tmp/eval-claude-delivery/<arm>-<case>-<round>/`, with `work-dir
 naming the child's cwd, which holds the page; `arms.json` records each arm's commit.
 """
 
-import http.cookiejar
 import json
 import re
 import shutil
-import subprocess
 import tempfile
 import threading
-import urllib.parse
-import urllib.request
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -98,7 +94,19 @@ from functools import partial
 from pathlib import Path
 
 import click
-from eval_harness import build_arm, claude_child, run_leaf, scratch
+from eval_harness import (
+    URL,
+    PageClient,
+    build_arm,
+    commands,
+    hook_delivered,
+    live_child,
+    now,
+    run_leaf,
+    scratch,
+    tool_calls,
+    waits_started,
+)
 from leaf.event_log import read_events
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -124,51 +132,27 @@ COMMENTS = (
         "anchor": {"section": "triage-why"},
     },
 )
-URL = re.compile(r"https?://[^\s\"\\]+\?t=[A-Za-z0-9_-]+")
 
 
 def attempt(n: int) -> str:
     return f"eval-claude-delivery-{n}"
 
 
-def now() -> str:
-    return datetime.now().astimezone().isoformat()
-
-
 def moment(record: dict) -> float:
     return datetime.fromisoformat(record["received_at"]).timestamp()
 
 
-class PageClient:
-    """The served page's API, reached the way a tab reaches it: token and cookies."""
-
-    def __init__(self, url: str) -> None:
-        parts = urllib.parse.urlsplit(url)
-        self.origin = f"{parts.scheme}://{parts.netloc}"
-        self.token = urllib.parse.parse_qs(parts.query)["t"][0]
-        self.opener = urllib.request.build_opener(
-            urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
-        )
-
-    def state(self) -> dict:
-        with self.opener.open(f"{self.origin}/api/state?t={self.token}") as response:
-            return json.loads(response.read())
-
-    def post_comment(self, n: int) -> None:
-        """Post comment `n` as the page does: keyed, on the served layer and revision."""
-        state = self.state()
-        comment = {
+def post_comment(url: str, n: int) -> None:
+    """Post comment `n` as the page does, on its served revision."""
+    page = PageClient(url)
+    page.post(
+        {
             "kind": "comment",
-            "revision": state["active"]["revision"],
+            "revision": page.state()["active"]["revision"],
             "attempt": attempt(n),
             **COMMENTS[n - 1],
         }
-        request = urllib.request.Request(
-            f"{self.origin}/api/event?t={self.token}",
-            data=json.dumps(comment).encode(),
-            headers={"Leaf-Layer": state["layer"]["generation"]},
-        )
-        self.opener.open(request).close()
+    )
 
 
 def sample_page(url: str, path: Path, stop: threading.Event) -> None:
@@ -213,38 +197,6 @@ def spans(
     return [(value, begun - start, ended - start) for value, begun, ended in runs]
 
 
-def waits_started(record: dict) -> list[str]:
-    """Return the ids of the backgrounded `leaf wait` calls one stream record makes."""
-    content = (record.get("message") or {}).get("content")
-    return [
-        block["id"]
-        for block in (content if isinstance(content, list) else ())
-        if block.get("type") == "tool_use"
-        and block["name"] == "Bash"
-        and "leaf wait" in block["input"].get("command", "")
-        and block["input"].get("run_in_background")
-    ]
-
-
-def tool_calls(record: dict) -> list[tuple[str, str]]:
-    """Return each tool call in one stream record: its id, and what it runs, or the
-    tool and its file."""
-    content = (record.get("message") or {}).get("content")
-    return [
-        (
-            block["id"],
-            block["input"].get("command")
-            or " ".join(filter(None, [block["name"], block["input"].get("file_path")])),
-        )
-        for block in (content if isinstance(content, list) else ())
-        if block.get("type") == "tool_use"
-    ]
-
-
-def commands(record: dict) -> list[str]:
-    return [ran for _, ran in tool_calls(record)]
-
-
 def calls_within(
     stream: list[dict], start: float, end: float
 ) -> list[tuple[float, float, str]]:
@@ -273,13 +225,6 @@ def tool_time(
         reach = max(reach, ended)
     slowest = max(calls, key=lambda c: c[1] - c[0], default=None)
     return inside, slowest and (slowest[1] - slowest[0], slowest[2])
-
-
-def hook_delivered(record: dict) -> bool:
-    """Whether one stream record is a Leaf hook handing a delivery to the turn."""
-    return record.get("subtype") == "hook_response" and "leaf-delivery-v" in (
-        record.get("output") or ""
-    )
 
 
 def claims(ran: str) -> bool:
@@ -316,25 +261,15 @@ def run_session(arm: Path, case: str, run: Path) -> None:
         "Release triage for review.",
         check=True,
     )
-    proc = subprocess.Popen(
-        **claude_child(
-            work,
-            "--input-format",
-            "stream-json",
-            "--plugin-dir",
-            str(arm),
-            "--include-hook-events",
-            dirs=[arm, state],
-            env={"XDG_STATE_HOME": str(state)},
-        ),
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=(run / "stderr.txt").open("w"),
-        text=True,
+    proc = live_child(
+        work,
+        PROMPT,
+        "--plugin-dir",
+        str(arm),
+        stderr=run / "stderr.txt",
+        dirs=[arm, state],
+        env={"XDG_STATE_HOME": str(state)},
     )
-    message = {"type": "user", "message": {"role": "user", "content": PROMPT}}
-    proc.stdin.write(json.dumps(message) + "\n")
-    proc.stdin.flush()
 
     def close_stdin() -> None:
         if not proc.stdin.closed:
@@ -357,7 +292,7 @@ def run_session(arm: Path, case: str, run: Path) -> None:
             def post() -> None:
                 nonlocal posted
                 posted += 1
-                PageClient(url).post_comment(posted)
+                post_comment(url, posted)
                 marker = {"type": "eval_comment", "n": posted, "received_at": now()}
                 stream.write(json.dumps(marker) + "\n")
                 due.pop(0)

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Order-history backfill</title>
+  </head>
+  <body>
+    <main class="layout-column">
+      <h1>Order-history backfill</h1>
+      <p class="lede" id="lede">
+        Fourteen months of order history move into the warehouse before the reporting
+        cutover. Pick how the copy runs.
+      </p>
+
+      <section id="plan">
+        <h2>Plan</h2>
+        <p id="backfill-scope">
+          The backfill copies 310 million rows of order history from the primary
+          database into the warehouse.
+        </p>
+        <p id="dry-run">A dry run over one month of orders finished without errors.</p>
+        <p id="why-now">
+          The reporting team moves its dashboards to the warehouse on 3 November, and
+          every dashboard that reads order history needs the full fourteen months to be
+          there first, because the year-over-year comparisons that finance reviews each
+          month reach back that far, and a partial history would show those comparisons
+          as sharp drops that nobody could tell apart from real ones.
+        </p>
+      </section>
+
+      <section id="approach">
+        <lf-ask id="approach-decision">
+          <h2>How should the copy run?</h2>
+          <lf-options id="copy-mode" choose>
+            <lf-option id="opt-online"
+              ><strong>Online, throttled</strong> Copy in batches during business hours
+              at 20% of the replica's capacity. No maintenance window; about nine
+              days.</lf-option
+            >
+            <lf-option id="opt-window"
+              ><strong>Nightly window</strong> Copy at full speed in the 01:00–03:00 UTC
+              maintenance window. Eleven nights.</lf-option
+            >
+            <lf-option id="opt-snapshot"
+              ><strong>Snapshot restore</strong> Restore last night's snapshot into the
+              warehouse in one step. Needs a 40-minute write freeze on the
+              primary.</lf-option
+            >
+          </lf-options>
+        </lf-ask>
+      </section>
+
+      <section id="follow-ups">
+        <h2>Follow-ups</h2>
+        <lf-board id="follow-board">
+          <lf-column id="col-open" label="Open">
+            <lf-card id="card-lag-alert"><strong>Alert on backfill lag</strong></lf-card>
+            <lf-card id="card-row-counts"
+              ><strong>Dashboard for row counts</strong></lf-card
+            >
+          </lf-column>
+          <lf-column id="col-done" label="Done"></lf-column>
+        </lf-board>
+      </section>
+
+      <section id="summary-tools">
+        <h2>Summary</h2>
+        <p id="summary">
+          Backfill: 310 million rows over fourteen months, before the 3 November
+          cutover.
+        </p>
+        <button id="copy-summary" type="button">Copy summary</button>
+      </section>
+      <script type="module">
+        document.getElementById("copy-summary").addEventListener("click", () => {
+          const text = document.getElementById("summary").textContent;
+          navigator.clipboard.writeText(text.trim().replaceAll(/\s+/, " "));
+        });
+      </script>
+    </main>
+  </body>
+</html>

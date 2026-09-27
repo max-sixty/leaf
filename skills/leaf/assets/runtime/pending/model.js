@@ -1,7 +1,7 @@
 /* Pure readings of the events an unresolved browser gesture carries.
 
    The ledger holding each gesture, and the lifecycle that decides when it leaves, belong
-   to the application publisher (`scripts/browser/application.ts`). */
+   to the application publisher (`build/browser/application.ts`). */
 import { PENDING } from "../thread/identity.js";
 
 export const isThreadEvent = (event) =>

@@ -249,6 +249,16 @@ def canonical_activity(
     refuses a second writer, reads that answer rather than the binding."""
     now = datetime.fromisoformat(now_iso)
     status = present["status"]
+    # Whether an open turn is eligible to take input at all, before the working
+    # grace says whether it still is: shared by the deadline that schedules the
+    # next read at that boundary and by the reading that acts on it below.
+    open_turn_input = (
+        present["session_alive"] is True
+        and present.get("turn_takes_input", False)
+        and present.get("claim_turn") is not None
+        and present.get("turn_closed") is None
+        and present.get("turn_opened") is not None
+    )
     stream_quiet = bool(stream and _quiet(stream.get("ts"), now, WORKING_GRACE))
     stream_current = bool(
         stream
@@ -301,6 +311,10 @@ def canonical_activity(
     ):
         deadlines.append(due)
     if due := _deadline(present.get("turn_closed"), TURN_RENEWAL_GRACE, now):
+        deadlines.append(due)
+    if open_turn_input and (
+        due := _deadline(present.get("turn_opened"), WORKING_GRACE, now)
+    ):
         deadlines.append(due)
     for item in workflows:
         if item["stage"] == "sent":
@@ -355,6 +369,17 @@ def canonical_activity(
     queued = [item for item in obligations if item["stage"] == "queued"]
     pending = [item for item in obligations if item["stage"] == "sent"]
 
+    # A claimant takes input while a wait holds the lease, or while its open turn
+    # takes new input before it ends: a wait that ends to deliver a comment has
+    # left the lease, and the turn it reaches, or the one it opens, takes the
+    # comment. A turn no Stop closed, as an interrupted one, stops counting after
+    # the working grace, whose boundary the deadline above schedules a read at.
+    # The page's `kind` reads this wherever it asks whether anyone is there, in
+    # the banner and in neighbouring pages' rows; a watch question such as the
+    # Stop hook's still asks for the lease.
+    taking_input = present["listening"] or (
+        open_turn_input and not _quiet(present.get("turn_opened"), now, WORKING_GRACE)
+    )
     kind = "away"
     detail = ""
     ts = status.get("ts")
@@ -403,11 +428,11 @@ def canonical_activity(
         latest = max(active, key=lambda item: (item["seq"], item["id"]))
         detail, ts = latest.get("detail") or "", latest["ts"]
         quiet, dropped = latest["quiet"], latest["dropped"]
-        kind = "stalled" if present["listening"] else "away"
+        kind = "stalled" if taking_input else "away"
     elif status["state"] == "working":
         detail = status.get("detail", "")
-        kind = "stalled" if present["listening"] else "away"
-    elif present["listening"]:
+        kind = "stalled" if taking_input else "away"
+    elif taking_input:
         kind, detail, quiet, dropped = (
             "listening",
             status.get("detail", ""),

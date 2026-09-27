@@ -81,7 +81,7 @@ def now_iso() -> str:
 
 
 def read_cursor(page_dir: Path) -> int:
-    """The seq the agent has acknowledged through (`leaf wait --ack`); 0 before any.
+    """The seq the agent's carrier has confirmed through; 0 before any.
 
     A cursor is a position in this log, so one past its end belongs to a log that
     is gone — what `page init` on a directory whose log was moved or renamed away

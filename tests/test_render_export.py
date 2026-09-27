@@ -29,6 +29,7 @@ from leaf import leases as leases_model
 from leaf import media as media_model
 from leaf import server as server_model
 from leaf import service as service_model
+from leaf import session as session_model
 from leaf.schema import ELEMENT_ID
 from leaf.structure import UTF8_BOM
 from playwright.sync_api import expect
@@ -1044,7 +1045,9 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
         },
     )
     assert waiter.wait(timeout=30) == 0, waited.read_text()
-    assert "still there?" in waited.read_text()
+    assert "has new input" in waited.read_text()
+    [batch] = session_model.take_input(session)["batches"]
+    assert [event["text"] for event in batch["events"]] == ["still there?"]
 
 
 def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(

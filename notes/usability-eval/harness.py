@@ -459,7 +459,15 @@ def build_resume(run: Run, page: Path) -> None:
         "text": "Batches of 500 saturate the replica's disk queue. Drop to 200 and say why on the page.",
         "anchor": anchor(v2, "batch-size", "batches of 500"),
     })  # fmt: skip
-    (page / "index.html").write_text((FIXTURES / "resume-candidate.html").read_text())
+    # The previous session's last save: an unexplained date change, and a paragraph
+    # inside the options that makes the save invalid, so the live page stays at v2.
+    candidate = v2.replace("scheduled for 21 October", "scheduled for 3 November")
+    candidate = candidate.replace(
+        '<lf-options id="rollout" choose>',
+        '<lf-options id="rollout" choose>\n<p id="approach-deadline">Decide by Friday.</p>',
+    )
+    assert candidate.count("3 November") == 1 and "approach-deadline" in candidate
+    (page / "index.html").write_text(candidate)
 
 
 CONSTRUCTS_DRAFT = (
@@ -473,12 +481,12 @@ def build_constructs(run: Run, page: Path) -> None:
     in its source, and the chart."""
     template = (FIXTURES / "constructs.html").read_text()
     run.leaf("page", "init", str(page), check=True)
-    (page / "index.html").write_text(template.replace("{at}", "2026-09-20T09:00:00Z"))
+    (page / "index.html").write_text(template)
     measured = run.leaf(
         "data", "set", str(page), "checkout-p95", input_text="184", check=True
     ).stdout
     at = re.search(r"updated (\S+)", measured)[1]
-    (page / "index.html").write_text(template.replace("{at}", at))
+    (page / "index.html").write_text(re.sub(r'\bat="[^"]*"', f'at="{at}"', template))
     run.leaf("version", "stamp", str(page), "--text", "Release 4.2 review", check=True)
     run.leaf("status", str(page), "waiting", "Edit the release note", check=True)
     admit(run, page, {

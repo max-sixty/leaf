@@ -481,6 +481,7 @@ export function mountShortcutBar({ setGoToSequence, setReact }) {
 
 const SHORTCUT_HELP = pageCommand({
   id: "command.reference.open",
+  touch: false,
   runFromCommandReference: false,
   keys: ["?"],
   does: () => (shortcutShelfOpen() ? "Command reference" : "More keyboard shortcuts"),

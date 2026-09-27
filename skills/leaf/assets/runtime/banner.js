@@ -110,7 +110,6 @@ const TONE = {
   stalled: "away",
   away: "away",
   unheld: "",
-  unattended: "",
   closed: "",
 };
 const WORK_WORDS = {
@@ -118,6 +117,7 @@ const WORK_WORDS = {
   tool: "using a tool",
   awaiting_approval: "waiting for approval",
   awaiting_input: "waiting for input",
+  awaiting_user: "waiting for you",
   replying: "replying",
 };
 export const countUpdates = (count) => `${count} update${count === 1 ? "" : "s"}`;
@@ -125,13 +125,13 @@ export const countUpdates = (count) => `${count} update${count === 1 ? "" : "s"}
 // before either words it. Each seat keeps its own sentences; a fact they share changes
 // here once:
 //
-// - `left` and `silentSince` date a silence by whichever fact ended the belief. A
-//   dropped claim is dated by its ending and not by its own last word, because "last
-//   checked in just now" under an amber dot is the line arguing with the dot beside it.
+// - `left` says the turn's ending retired the belief, and `silentSince` dates the
+//   silence by the reading's own `ts`, which the server already sets to that ending
+//   for a dropped claim.
 // - `listening` is whether input is still on its way to the agent (pending or queued),
 //   which turns a listening page's standing request into "listening".
 // - `waiting` phrases the queued and pending updates, in that order.
-export function activityFacts({ activity, turn_closed: turnClosed }) {
+export function activityFacts({ activity }) {
   const { counts } = activity;
   const waiting = [];
   if (counts.queued) waiting.push(`${countUpdates(counts.queued)} queued`);
@@ -140,7 +140,7 @@ export function activityFacts({ activity, turn_closed: turnClosed }) {
     tone: TONE[activity.kind],
     work: WORK_WORDS[activity.observed_kind] || "working",
     left: Boolean(activity.dropped),
-    silentSince: ago(activity.dropped ? turnClosed : activity.ts),
+    silentSince: ago(activity.ts),
     listening: Boolean(counts.pending || counts.queued),
     waiting: Object.freeze(waiting),
   });
@@ -436,19 +436,14 @@ function statusWords({
   handling,
   kind,
   listening,
+  overdue,
   progressSummary,
-  quiet,
   saved,
   total,
   work,
 }) {
   const savedSummary = total ? ` · ${total} saved` : "";
   if (kind === "closed") return ["Leaf closed", "Leaf closed"];
-  if (kind === "unattended")
-    return [
-      "Browser only · no agent",
-      "Nobody is behind this page. What you do here stays in this browser.",
-    ];
   if (kind === "unheld")
     return [
       `No session${savedSummary}`,
@@ -486,10 +481,13 @@ function statusWords({
   }
   if (kind === "stalled")
     return [shortDate, `${dated}${detail ? ": " + detail : ""}. ${saved}`];
-  return quiet
+  // Away is only worth a nudge once input has stalled (`counts.overdue`): the
+  // session's next turn picks up whatever it finds, and Leaf messages a harness it
+  // can reach once it has seen the turn end.
+  return overdue
     ? [
         `Nudge ${agent} in terminal${savedSummary}`,
-        `${dated}. ${saved} Nudge it in the terminal.`,
+        `${dated}. ${saved} Nothing is answering them, so nudge it in the terminal.`,
       ]
     : [
         `${agent} away${savedSummary}`,
@@ -559,15 +557,11 @@ function renderStatusNow(state) {
   renderPreview(state);
   const publication = state.publication;
   if (publication) {
-    presentStatus({
-      kind: "unattended",
-      tone: TONE.unattended,
-      publication,
-    });
+    presentStatus({ kind: "publication", tone: "", publication });
     return;
   }
   const { activity } = state;
-  const { kind, quiet, detail } = activity;
+  const { kind, detail } = activity;
   const facts = activityFacts(state);
   const { agent } = state;
   // What the user's words do meanwhile. The log takes them with nobody on the other
@@ -593,8 +587,8 @@ function renderStatusNow(state) {
     kind,
     total: activity.counts.total,
     listening: facts.listening,
+    overdue: activity.counts.overdue,
     progressSummary,
-    quiet,
     saved,
     work: facts.work,
   });
@@ -606,11 +600,17 @@ function renderStatusNow(state) {
     explanation += ` · ${activity.observed}`;
   if (facts.waiting.length && ["working", "listening"].includes(kind))
     explanation += `${explanation.endsWith(".") ? "" : "."} ${facts.waiting.join(" · ")}.`;
-  const actionableWork = ["awaiting_approval", "awaiting_input"].includes(
-    activity.observed_kind,
-  )
+  const actionableWork = [
+    "awaiting_approval",
+    "awaiting_input",
+    "awaiting_user",
+  ].includes(activity.observed_kind)
     ? activity.observed_kind
     : null;
+  // An approval or a question the agent's own window holds is answered there, and
+  // the page is the one place the user may be looking instead.
+  if (actionableWork && kind === "working")
+    explanation += `${explanation.endsWith(".") ? "" : "."} It waits in its own session, not on this page.`;
   presentStatus({ kind, tone: facts.tone, summary, explanation, actionableWork });
 }
 

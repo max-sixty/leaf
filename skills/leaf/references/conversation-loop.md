@@ -122,8 +122,8 @@ as its own. Work that needs its own conversation with the user belongs to a sess
 of its own, with its own page.
 
 A `working` claim is believed while the turn that wrote it is open. The page is
-told when that turn ends, so a claim nothing has renewed within a couple of
-minutes of the ending stops being believed: the banner reports that your turn ended,
+told when that turn ends, an interrupted one included, so a claim nothing has
+renewed within a couple of minutes of the ending stops being believed: the banner reports that your turn ended,
 and its explanation keeps the claim's words. A claim nobody renews at all ages out
 after about a quarter of an hour. Before you end a turn while workers run, make your
 last status say what is still running, and write it again in the turn that a worker's

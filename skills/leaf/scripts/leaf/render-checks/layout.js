@@ -1,9 +1,49 @@
 import { pageScroller, shownBand, TEXT_BOX, uiInside } from "/runtime/widget-api.js";
+import { laidOutItems } from "./framing.js";
 import { at as element } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
 export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.clientWidth;
 const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
+
+// How the page's own arrangement stands: for each flex or grid box the page wrote (a
+// Layout, or the page's own grid), how many of its items stand in each row. The walk goes
+// through the widgets named in `open`, those whose content is the page's own markup or
+// members, since a pane's or a tab's content is the page's; a widget's own box is the
+// widget's business and is not read, and nothing Leaf generates is. Each box comes back
+// with its place under `main`, a selector another load of the same page resolves to the
+// same box, and the name every finding uses (locate.js).
+export function arrangedBoxes(open) {
+  const main = document.querySelector("main");
+  if (!main) return [];
+  const opens = new Set(open);
+  const boxes = [];
+  const walk = (el, path) => {
+    if (el.matches(".lf-ui, [data-lf-gen]")) return;
+    const widget = el.localName.includes("-");
+    if (widget && !opens.has(el.localName)) return;
+    if (!widget) boxes.push([el, path]);
+    [...el.children].forEach((child, i) =>
+      walk(child, `${path} > :nth-child(${i + 1})`),
+    );
+  };
+  walk(main, "main");
+  return boxes.flatMap(([box, path]) => {
+    if (!/flex|grid/.test(getComputedStyle(box).display)) return [];
+    const tops = laidOutItems(box)
+      .map((item) => item.getBoundingClientRect())
+      .filter((r) => r.width > 0 && r.height > 0)
+      .map((r) => Math.round(r.top));
+    if (tops.length < 2) return [];
+    const rows = [];
+    for (const top of tops) {
+      const row = rows.find((r) => Math.abs(r.top - top) <= 2);
+      if (row) row.count++;
+      else rows.push({ top, count: 1 });
+    }
+    return [{ path, at: element(box), rows: rows.map((r) => r.count).join("+") }];
+  });
+}
 
 // Every box is drawn somewhere, and something has to answer for where. Three
 // readings ask it — of the column, of the room the page keeps for a wide widget,

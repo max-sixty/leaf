@@ -2,7 +2,7 @@
 
 A carrier is whatever keeps a Codex task reachable on Leaf's behalf: the detached
 process in `codex_adapter.py`, which observes a task it does not own, and the
-website's embedded host in `worker/server.py`, which owns the tasks it starts.
+website's embedded host in `leaf_website` (`worker/`), which owns the tasks it starts.
 What both need is here — the App Server connection and the request shapes one Leaf
 turn is opened with, the per-turn fold from a turn's notifications into its
 activity, its reply and its ending (`TurnFold`), the loop that reads a started

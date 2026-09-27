@@ -1543,7 +1543,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
     event's `markup` goes through `leaf thread reply`, which validates it and then freezes
     it in an append-only log, so that door is the last moment anything about it can
     be fixed. An example's companion log is neither: it is written into the
-    repository by hand, and from there `scripts/site.py` publishes it to
+    repository by hand, and from there `leaf-dev site` publishes it to
     leaf.page, `serve` lays it into every browser sweep, and `scripts/preview.py`
     serves it live. `page check` reads such a log only for ids colliding
     with the version's.

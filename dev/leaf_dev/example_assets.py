@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Fetch the exact external image revision used to build leaf.page.
 
 The generated catalog previews live in a separate Git repository so their history
@@ -6,7 +5,11 @@ does not enlarge Leaf installs. A tracked commit pin keeps every Leaf checkout t
 one immutable image set. Downloads land under .tmp, which both local builds and CI may
 discard and reconstruct.
 
-Usage: uv run scripts/example_assets.py
+    uv run leaf-dev fetch-previews
+
+The site build (`leaf_dev.site`) and the preview refresh (`leaf_dev.example_previews`)
+call `example_previews()`, which fetches on a miss; the command only warms the cache,
+as `wt setup` does.
 """
 
 import json
@@ -17,7 +20,10 @@ import urllib.error
 import urllib.request
 from pathlib import Path, PurePosixPath
 
-ROOT = Path(__file__).resolve().parent.parent
+import click
+
+from leaf_dev import ROOT
+
 LOCK = ROOT / "example-previews.json"
 CACHE = ROOT / ".tmp" / "example-previews"
 
@@ -102,10 +108,8 @@ def example_previews() -> Path:
     return target / "examples"
 
 
-def main() -> None:
+@click.command("fetch-previews")
+def fetch_previews() -> None:
+    """Fetch the catalog previews example-previews.json pins."""
     previews = example_previews()
-    print(f"✓ {len(list(previews.glob('example-*.jpg')))} previews → {previews}")
-
-
-if __name__ == "__main__":
-    main()
+    click.echo(f"✓ {len(list(previews.glob('example-*.jpg')))} previews → {previews}")

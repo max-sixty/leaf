@@ -1,7 +1,6 @@
 """The product pages are Leaf documents using the site's composed vocabulary."""
 
 import html
-import importlib.util
 import json
 import re
 import shlex
@@ -23,6 +22,7 @@ from leaf.registry.contract import event_clauses
 from leaf.registry.storage import active_registry
 from leaf.structure import SourceDocument
 from leaf.validation import compatibility as validation_model
+from leaf_dev import record_demo
 from PIL import Image
 
 ROOT = Path(__file__).parent.parent
@@ -31,12 +31,6 @@ DEFAULT_PACKAGE = ROOT / "skills" / "leaf" / "packages" / "default"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
-
-_record_demo_spec = importlib.util.spec_from_file_location(
-    "record_demo", ROOT / "scripts" / "record-demo.py"
-)
-record_demo = importlib.util.module_from_spec(_record_demo_spec)
-_record_demo_spec.loader.exec_module(record_demo)
 
 
 def test_kernel_event_contracts_declare_closed_records():
@@ -562,14 +556,14 @@ def test_demo_recording_drives_the_browser_journey(tmp_path):
     # same nothing. This is `open_page`'s complaint about "Failed to load
     # resource" one file over — carry what failed into the failure.
     recorded = subprocess.run(
-        [sys.executable, ROOT / "scripts" / "record-demo.py", "--output", output],
+        [sys.executable, "-m", "leaf_dev", "record-demo", "--output", output],
         capture_output=True,
         text=True,
         check=False,
     )
 
     assert recorded.returncode == 0, (
-        f"record-demo.py exited {recorded.returncode}\n"
+        f"leaf-dev record-demo exited {recorded.returncode}\n"
         f"{recorded.stdout}{recorded.stderr}".rstrip()
     )
     assert recorded.stdout.strip() == f"Recorded {output}"

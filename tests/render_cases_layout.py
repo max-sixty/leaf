@@ -485,6 +485,46 @@ LOOSE_SCROLLER_PAGE = LONG_PAGE.replace(
     "<div style='width: 700px'>The same row, in a box that holds its own.</div></div>"
     "\n</main>",
 )
+# A box the page's own stylesheet makes scroll, standing in content the browser skips
+# until it is shown: a closed disclosure, and a tab not chosen (`hidden="until-found"`).
+# Each record is the page and the press that shows the box.
+HIDDEN_SCROLLER_STYLE = """<style>
+#unfolded { width: 240px; overflow-x: auto; }
+.row { width: 700px; }
+</style>"""
+HIDDEN_SCROLLER_ROW = (
+    '<div id="unfolded"><div class="row">A row wider than the box that scrolls it.'
+    "</div></div>"
+)
+HIDDEN_SCROLLERS = {
+    "disclosure": (
+        leaf_page(
+            "folded-scroller",
+            f"""
+<h1 id="t">Folded scroller</h1>
+<details id="folded"><summary>Folded</summary>
+{HIDDEN_SCROLLER_ROW}
+</details>
+""",
+            head=HIDDEN_SCROLLER_STYLE,
+        ),
+        lambda page: page.locator("#folded > summary").click(),
+    ),
+    "tab": (
+        leaf_page(
+            "tabbed-scroller",
+            f"""
+<h1 id="t">Tabbed scroller</h1>
+<lf-tabs id="views">
+  <lf-tab id="tab-first" label="First"><p id="p-first">The tab shown first.</p></lf-tab>
+  <lf-tab id="tab-wide" label="Wide">{HIDDEN_SCROLLER_ROW}</lf-tab>
+</lf-tabs>
+""",
+            head=HIDDEN_SCROLLER_STYLE,
+        ),
+        lambda page: page.get_by_role("tab", name="Wide", exact=True).click(),
+    ),
+}
 SCROLLED_CONTAINER = LONG_PAGE.replace(
     "</main>",
     "<div id='rolled' style='width: 300px; overflow-x: auto'>"

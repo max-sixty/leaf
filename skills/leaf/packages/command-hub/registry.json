@@ -290,7 +290,7 @@
       }
     },
     "x-upgrade": true,
-    "x-example": "<div class=\"layout-sidebar\">\n  <lf-command id=\"garden-command\" label=\"A squirrel-proof garden\" phase=\"week 2 of 4\">\n    <lf-task id=\"goal-feeders\" status=\"active\"><strong>Rebuild the feeders</strong></lf-task>\n  </lf-command>\n  <lf-command-readings for=\"garden-command\"></lf-command-readings>\n</div>"
+    "x-example": "<div class=\"layout-sidebar\">\n  <lf-command id=\"garden-command\" label=\"A squirrel-proof garden\" phase=\"week 2 of 4\">\n    <lf-task id=\"goal-feeders\" status=\"active\"><strong>Rebuild the feeders</strong></lf-task>\n  </lf-command>\n  <aside><lf-command-readings for=\"garden-command\"></lf-command-readings></aside>\n</div>"
   },
   "lf-task": {
     "description": "One piece of the work. Lead with a <strong> title; prose follows, and child lf-task elements after the prose are its decomposition. `status` colors the marker: planned, active, blocked (stuck — the prose says on what), review (finished by whoever held it and ready to be reviewed), stalled (work produced no durable progress), or done. Status describes the work. User work is a nested Ask whose widget supplies the answer control; the task rolls that Ask through the plan but never originates one. `owner` names who holds the work, `when` is a free-text schedule label, and `tags` adds one chip per entry. A parent with children gets a generated done-fraction chip. The `status` report is provisional agent state (`leaf page report <page> <task-id> status status=review`); a stamped version absorbs or overrules it through `overruled` (see $report).",

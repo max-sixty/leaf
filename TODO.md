@@ -53,6 +53,23 @@ has tried; settle that before building it.
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
 
+### Repository tooling
+
+- **Import every module as a package; never edit an import path.** Nothing should
+  reach code through `sys.path`, `PYTHONPATH`, `pythonpath`, or loading a file by path:
+  such an import breaks when the file moves, and it works only from one working
+  directory. The Worker's server is now the `leaf_website` package. What remains:
+  - `pyproject.toml`'s pytest `pythonpath = ["scripts"]`, so that tests can import
+    `preview`, `verify_site`, `corpus`, and `keydocs`. Move those four into `leaf_dev`
+    as commands, as `site.py` moved, then delete the setting.
+  - `leaf-dev bench-check` puts `leaf_dev/tracer/` on a child's `PYTHONPATH` so its
+    `sitecustomize.py` runs inside another arm's environment. Replace it with
+    something that doesn't change the child's import path, such as running the child
+    under `python -c` with a launcher that installs the tracer first.
+  - `test_interact_layer.py` and `test_interact_session.py` set `PYTHONPATH` to put an
+    older copy of `leaf` first, to stand in for a stale plugin install. Build that
+    install as an environment of its own instead.
+
 ## Next
 
 ### User continuity and mobile access
@@ -63,8 +80,7 @@ has tried; settle that before building it.
   show the native selection menu or software keyboard.
 - **Finish what a phone user still cannot reach.** Give touch users visible passage
   threads, and remove keyboard-only hints, hover-only reasons, clipped diagram content,
-  and remaining undersized touch targets. Undo (`z`) and Draw mode (`w`) have no route
-  under a finger; `o` and `s` have one in the banner's More.
+  and remaining undersized touch targets.
 - **Take the layout readings across widths.** The render check renders each page at
   1200px and 540px and sweeps sideways overflow from 360px to 1200px, but it reads a
   drawing's label size on the settled 1200px page only, and nothing yet reads an Ask
@@ -157,10 +173,9 @@ and its chrome coordinate.
 - **Consider loading a page once per render check.** `page check --render` loads
   the page afresh for each of its four passes, including dark mode and the narrow
   viewport. Switching those in place would save at most about 1.4 s on
-  `triage-board` and 12.6 s on the corpus, measured with
-  `scripts/bench_render_check.py`. The price is that dark mode and the narrow width
-  would no longer be checked from a fresh start. Decide whether that coverage is
-  worth the time before building it.
+  `triage-board` and 12.6 s on the corpus, measured with `leaf-dev bench-check`.
+  The price is that dark mode and the narrow width would no longer be checked from
+  a fresh start. Decide whether that coverage is worth the time before building it.
 - **Scale a drawing by the box it was drawn in.** On replay, scale the strokes by
   the anchored element's size over the recorded `box`, so a mark stays on its
   element in a narrower window; reflowed text still moves under it. Verify replay

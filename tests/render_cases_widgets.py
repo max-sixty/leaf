@@ -385,7 +385,7 @@ graph LR
 )
 # What a diagram is doing with the width it was given, beside what the board on the same
 # page is doing with the width it was given: the drawing's own size, the box around it,
-# and whether either had to scroll.
+# and whether that box had to scroll. Whether the page did is `root_overflow`'s.
 DIAGRAM_ROOM = """() => {
     const holder = document.getElementById('flow');
     const svg = holder.querySelector('svg');
@@ -405,8 +405,7 @@ DIAGRAM_ROOM = """() => {
                        .getPropertyValue('--wide')),
              board: board.getBoundingClientRect().width,
              column: mb.width - parseFloat(ms.paddingLeft) - parseFloat(ms.paddingRight),
-             scrolls: holder.scrollWidth > holder.clientWidth,
-             sideways: document.body.scrollWidth - document.body.clientWidth };
+             scrolls: holder.scrollWidth > holder.clientWidth };
 }"""
 # A diagram whose renderer rejects the type, which is the shape of every soft failure: the
 # module replaces the element's body with the message and the source it choked on. Its
@@ -640,8 +639,7 @@ DRAWING_PLACEMENT = """() => {
     };
     return { col, place: acts.closest('.lf-margin-cluster')?.dataset.lfPlace,
              rail: acts.getBoundingClientRect().left,
-             small: at('small'), flow: at('flow'),
-             sideways: document.body.scrollWidth - document.body.clientWidth };
+             small: at('small'), flow: at('flow') };
 }"""
 # A widget that declares width beside one that doesn't, so what the assertions turn on is
 # the declaration and not the tag: both are widgets, both hold more than the column shows
@@ -885,8 +883,7 @@ ROOM_GEOMETRY = (
     + SHELL_BOX
     + """,
              board: box('sprint'), diff: box('patch'), prose: box('prose'),
-             note: box('note'), later: box('later'),
-             sideways: document.body.scrollWidth - document.body.clientWidth };
+             note: box('note'), later: box('later') };
 }"""
 )
 # A wide widget inside each of the two kinds of holder: a box that paints (the quoted
@@ -1129,8 +1126,7 @@ RAIL_BANDS = """() => {
                        right: mb.right - parseFloat(ms.paddingRight) },
              pageLeft: bb.left + parseFloat(bs.paddingLeft),
              pageGutter: parseFloat(ms.paddingLeft),
-             pageRight: bb.right - parseFloat(bs.paddingRight),
-             sideways: body.scrollWidth - body.clientWidth };
+             pageRight: bb.right - parseFloat(bs.paddingRight) };
 }"""
 
 

@@ -790,10 +790,7 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
     assert controller_renders == 2
     waiting = page.evaluate(
         """async () => {
-              const entry = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
-              const runtime = await import(
-                new URL('runtime/semantic-state.js', new URL(entry, location.href)).href
-              );
+              const runtime = await window.__lfRuntimeImport('/runtime/semantic-state.js');
               window.readStartupApplication = runtime.readApplication;
               window.readStartupPresentation = runtime.readApplicationPresentation;
               const application = runtime.readApplication();

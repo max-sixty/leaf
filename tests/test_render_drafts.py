@@ -2,7 +2,6 @@
 
 import base64
 import itertools
-import json
 import re
 
 import pytest
@@ -19,7 +18,6 @@ from render_cases_interaction import (
     ASK_PAGE,
     SEATED_QUESTION_PAGE,
     live_url,
-    sent_events,
 )
 from render_cases_layout import (
     glyph_action_face,
@@ -44,13 +42,12 @@ from render_cases_navigation import (
 from render_harness import (
     EXAMPLE_MEDIA,
     LONG_PAGE,
-    STORED_DRAFT_SETTLED,
-    STORED_DRAFT_TEXT,
     CutOff,
     _traffic,
     _until,
     compare_with,
     consume_browser_errors,
+    draft_key,
     expect_banner_control_offered,
     held_stale,
     hold_selection,
@@ -64,8 +61,11 @@ from render_harness import (
     sending,
     shortcut_bar_text,
     stamp_page,
+    stored_draft_settled,
+    stored_draft_text,
     ticked,
     told,
+    until_draft_settled,
     wait_for_revision,
     write,
 )
@@ -164,7 +164,7 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve, box
 
     message = [
         event
-        for event in sent_events(serve.page_dir)
+        for event in events_model.read_events(serve.page_dir)
         if event["kind"] in {"comment", "reply"}
     ][-1]
     assert message["text"] == " "
@@ -175,6 +175,21 @@ def draft_control(page, key, draft_id="draft-ops"):
         f'[data-lf-margin-entry-owner="draft:{draft_id}"]'
         f'[data-lf-margin-entry-key="{key}"]:visible'
     )
+
+
+# A storage fault stands in an init script, because it has to run ahead of the
+# runtime's own storage listener and at the window listeners run in the order they
+# were added, capture or not. That is before the page can say which key its draft is
+# stored under, so the script compares against `window.lfDraftKey`, which
+# `name_the_draft` sets once the page has loaded and nothing has been typed.
+DEAF_TO_DRAFT_NEWS = """addEventListener('storage', event => {
+  if (event.key === window.lfDraftKey) event.stopImmediatePropagation();
+}, true);"""
+
+
+def name_the_draft(page, ctx):
+    """Point this page's storage fault at the draft at `ctx`, by the store's key."""
+    page.evaluate("key => { window.lfDraftKey = key; }", draft_key(page, ctx))
 
 
 def cancel_draft(page, draft_id="draft-ops"):
@@ -273,9 +288,7 @@ def test_page_round_trip(browser, serve):
 
     # The trail those gestures left, exactly — kinds, authorship (the server
     # stamps browser events `user`), the anchor, and the move's placement.
-    events = [
-        json.loads(line) for line in (d / "events.jsonl").read_text().splitlines()
-    ]
+    events = events_model.read_events(d)
     assert [(e["kind"], e["author"], e["revision"]) for e in events] == [
         ("note", "agent", 1),
         ("comment", "user", 1),
@@ -541,7 +554,7 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     draft = page.locator("#draft-ops")
     draft.locator(".lf-draft-body").dblclick()
     draft.locator("textarea").fill("")
-    assert page.evaluate(STORED_DRAFT_TEXT, "edit:draft-ops") == ""
+    assert stored_draft_text(page, "edit:draft-ops") == ""
 
     d = serve.page_dir
     stamp_page(d, JOURNEY_V2, "v2")
@@ -575,17 +588,13 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     expect(draft).to_have_attribute("aria-busy", "true")
     expect(draft.locator("textarea")).to_have_count(0)
     expect(draft.locator(".lf-draft-body")).to_have_text("")
-    assert page.evaluate(STORED_DRAFT_TEXT, "edit:draft-ops") == ""
+    assert stored_draft_text(page, "edit:draft-ops") == ""
 
     page.evaluate("window.lfFailDraft = false")
     wait_for_revision(page, 2)
     expect(page.locator("#draft-ops .lf-draft-body")).to_have_text("")
-    page.wait_for_function(STORED_DRAFT_SETTLED, arg="edit:draft-ops")
-    events = [
-        json.loads(line)
-        for line in (d / "events.jsonl").read_text().splitlines()
-        if '"kind": "action"' in line
-    ]
+    until_draft_settled(page, "edit:draft-ops")
+    events = [e for e in events_model.read_events(d) if e["kind"] == "action"]
     assert events[-1]["action"] == "edit"
     assert events[-1]["detail"] == {"text": ""}
 
@@ -620,7 +629,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     draft.locator("textarea").fill(sent)
     draft_control(page, "save").click()
     expect(draft).to_have_attribute("aria-busy", "true")
-    assert page.evaluate(STORED_DRAFT_TEXT, "edit:draft-ops") == sent
+    assert stored_draft_text(page, "edit:draft-ops") == sent
 
     expect(draft_control(page, "edit")).to_be_disabled()
     # The projection owns a native disabled button, so a forced DOM click is refused
@@ -630,14 +639,14 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
 
     page.evaluate("window.releaseDraftSend()")
     page.wait_for_function(
-        """ctx => !document.getElementById('draft-ops').hasAttribute('aria-busy')
-          && JSON.parse(localStorage.getItem('lf-draft:' + ctx))?.settled === true""",
-        arg="edit:draft-ops",
+        """key => !document.getElementById('draft-ops').hasAttribute('aria-busy')
+          && JSON.parse(localStorage.getItem(key))?.settled === true""",
+        arg=draft_key(page, "edit:draft-ops"),
     )
     events = [
-        json.loads(line)
-        for line in (serve.page_dir / "events.jsonl").read_text().splitlines()
-        if '"kind": "action"' in line
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action"
     ]
     assert [event["detail"]["text"] for event in events] == [sent]
 
@@ -742,7 +751,9 @@ def test_a_refused_draft_keeps_text_and_offers_retry_without_a_details_pane(
         "Keep the revised unsent words."
     )
     edits = [
-        event for event in sent_events(serve.page_dir) if event.get("action") == "edit"
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("action") == "edit"
     ]
     assert [event["detail"] for event in edits] == [
         {"text": "Keep the revised unsent words."}
@@ -777,7 +788,7 @@ def test_one_draft_edit_is_what_every_tab_of_the_page_shows(browser, serve, one_
     # The body the other tab is left looking at is the log's, which is what closing the
     # box in front of it was for: renderState defers while an editor stands open.
     expect(second_draft.locator(".lf-draft-body")).to_have_text(edited)
-    assert second.evaluate(STORED_DRAFT_SETTLED, "edit:draft-ops")
+    assert stored_draft_settled(second, "edit:draft-ops")
 
     # A second edit, with only the first tab's box open. The store's value arriving is
     # the fact to consume before reading an absence: the storage event carrying it is
@@ -786,23 +797,21 @@ def test_one_draft_edit_is_what_every_tab_of_the_page_shows(browser, serve, one_
     first_draft.locator(".lf-draft-body").dblclick()
     first_draft.locator("textarea").fill(discarded)
     second.wait_for_function(
-        """text => JSON.parse(
-          localStorage.getItem('lf-draft:edit:draft-ops')
-        )?.text === text""",
-        arg=discarded,
+        """([key, text]) => JSON.parse(localStorage.getItem(key))?.text === text""",
+        arg=[draft_key(second, "edit:draft-ops"), discarded],
     )
     assert second_draft.locator("textarea").count() == 0, (
         "the second tab opened an editor for a keystroke nobody made there"
     )
     cancel_draft(first)
-    second.wait_for_function(STORED_DRAFT_SETTLED, arg="edit:draft-ops")
+    until_draft_settled(second, "edit:draft-ops")
     second_draft.locator(".lf-draft-body").dblclick()
     expect(second_draft.locator("textarea")).to_have_value(edited)
 
     events = [
-        json.loads(line)
-        for line in (serve.page_dir / "events.jsonl").read_text().splitlines()
-        if '"kind": "action"' in line
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action"
     ]
     assert [event["detail"]["text"] for event in events] == [edited]
 
@@ -832,14 +841,14 @@ def test_one_shared_draft_edit_appends_one_action_across_tabs(browser, serve, on
     round_trip(first)
     edits = [
         event
-        for event in sent_events(serve.page_dir)
+        for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action" and event["action"] == "edit"
     ]
     assert [event["detail"]["text"] for event in edits] == [text]
     assert edits[0]["attempt"]
     assert _traffic(first).sends == _traffic(second).sends == 1
     expect(second_draft.locator("textarea")).to_have_count(0)
-    assert second.evaluate(STORED_DRAFT_SETTLED, "edit:draft-ops")
+    assert stored_draft_settled(second, "edit:draft-ops")
 
 
 def test_one_shared_added_option_has_one_action_payload_across_tabs(
@@ -886,7 +895,7 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
 
     moves = [
         event
-        for event in sent_events(serve.page_dir)
+        for event in events_model.read_events(serve.page_dir)
         if event.get("kind") == "action" and event.get("widget") == "jobs"
     ]
     adds = [event["detail"] for event in moves if event["action"] == "add"]
@@ -982,7 +991,9 @@ def test_a_general_comment_appends_one_event_across_tabs(browser, serve, one_use
     first.unroute("**/api/event")
     round_trip(first)
     roots = [
-        event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
     ]
     assert [event["text"] for event in roots] == [raw]
     assert roots[0]["attempt"]
@@ -1008,9 +1019,11 @@ def test_a_held_general_send_preserves_a_newer_exact_draft(browser, serve):
     page.unroute("**/api/event")
     round_trip(page)
     expect(box).to_have_js_property("value", newer)
-    assert page.evaluate(STORED_DRAFT_TEXT, "general") == newer
+    assert stored_draft_text(page, "general") == newer
     roots = [
-        event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
     ]
     assert [event["text"] for event in roots] == [old]
 
@@ -1049,7 +1062,9 @@ def test_a_sent_comment_stands_in_the_panel_before_the_log_answers(browser, serv
     )
     expect(box).to_have_js_property("value", "")
     assert not [
-        event for event in sent_events(serve.page_dir) if event.get("text") == words
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("text") == words
     ]
     page.evaluate(
         """() => {
@@ -1067,7 +1082,9 @@ def test_a_sent_comment_stands_in_the_panel_before_the_log_answers(browser, serv
     expect(kept).to_have_count(1)
     expect(kept.locator(".lf-msg")).not_to_have_attribute("aria-busy", "true")
     roots = [
-        event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
     ]
     assert [event["text"] for event in roots] == [words]
 
@@ -1102,7 +1119,9 @@ def test_a_refused_selection_comment_leaves_the_words_on_their_passage(
     compose(page, "#p3")
     expect(page.locator(".lf-composer leaf-text")).to_have_js_property("value", words)
     assert not [
-        event for event in sent_events(serve.page_dir) if event.get("text") == words
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("text") == words
     ]
     consume_browser_errors(page, "400")
 
@@ -1144,7 +1163,7 @@ def test_a_reply_behind_a_refused_parent_is_withdrawn_rather_than_sent(
         route for route in held if "pending:" in (route.request.post_data or "")
     ], "a gesture reached the wire naming a thread the log never took"
     # The reply's draft keys by its thread's stable name, which is the parent's attempt.
-    assert page.evaluate(STORED_DRAFT_TEXT, f"reply:{attempt}") == words
+    assert stored_draft_text(page, f"reply:{attempt}") == words
     consume_browser_errors(page, "400")
 
 
@@ -1181,7 +1200,9 @@ def test_a_sent_reply_stands_in_its_thread_before_the_log_answers(held_events, s
     expect(thread.locator(".lf-msg")).to_have_count(before + 1)
     expect(thread.locator(".lf-msg").last).not_to_have_attribute("aria-busy", "true")
     replies = [
-        event for event in sent_events(serve.page_dir) if event["kind"] == "reply"
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "reply"
     ]
     assert [event["text"] for event in replies] == [words]
 
@@ -1223,9 +1244,11 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     expect(page.locator(".lf-threads")).to_be_focused()
     expect(box).to_have_js_property("value", words)
     expect(page.locator(".lf-notice")).to_contain_text("Couldn't send")
-    assert page.evaluate(STORED_DRAFT_TEXT, "general") == words
+    assert stored_draft_text(page, "general") == words
     assert not [
-        event for event in sent_events(serve.page_dir) if event.get("text") == words
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("text") == words
     ]
     consume_browser_errors(page, "400")
 
@@ -1604,7 +1627,7 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     write(reply, "")
     # A thread's reply draft is keyed by the name the log's answer does not change —
     # the attempt the user's own comment opened it with (thread/model.js).
-    assert page.evaluate(STORED_DRAFT_TEXT, f"reply:{sent['attempt']}") == ""
+    assert stored_draft_text(page, f"reply:{sent['attempt']}") == ""
     v3 = v2.replace(
         "A revised short second passage.", "A twice-revised short second passage."
     )
@@ -1729,8 +1752,9 @@ def test_an_unsent_comment_stays_with_its_passage_when_another_is_selected(
     expect(field).not_to_be_focused()
     assert (
         page.evaluate(
-            """() => Object.keys(localStorage)
-          .filter(key => key.startsWith('lf-draft:composer:')).length"""
+            """prefix => Object.keys(localStorage)
+          .filter(key => key.startsWith(prefix)).length""",
+            draft_key(page, "composer:"),
         )
         == 1
     )
@@ -1758,12 +1782,12 @@ def test_failed_settlement_keeps_the_base_for_a_chained_nondurable_edit(
         "value", predecessor
     )
     local.evaluate(
-        """([first, second]) => {
+        """([draft, first, second]) => {
           const set = Storage.prototype.setItem;
           let secondFailed = false;
           window.lfBranchAttempt = null;
           Storage.prototype.setItem = function (key, value) {
-            if (key === 'lf-draft:general') {
+            if (key === draft) {
               const record = JSON.parse(value);
               if (record.text === first) {
                 window.lfBranchAttempt = record.attempt;
@@ -1779,7 +1803,7 @@ def test_failed_settlement_keeps_the_base_for_a_chained_nondurable_edit(
             return set.call(this, key, value);
           };
         }""",
-        [first, second],
+        [draft_key(local, "general"), first, second],
     )
 
     write(local.locator(".lf-general leaf-text"), first)
@@ -1795,7 +1819,9 @@ def test_failed_settlement_keeps_the_base_for_a_chained_nondurable_edit(
     round_trip(local)
 
     comments = [
-        event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
     ]
     assert [event["text"] for event in comments] == [first, second]
     assert len({event["attempt"] for event in comments}) == 2
@@ -1805,7 +1831,7 @@ def test_failed_settlement_keeps_the_base_for_a_chained_nondurable_edit(
     # holds its settlement. Read the store on the fact the page states, the way the tabs
     # below do; a plain read is the same assertion made a step early, and a loaded runner
     # lands in that step, which is what CI read here as an unsettled chain.
-    local.wait_for_function(STORED_DRAFT_SETTLED, arg="general")
+    until_draft_settled(local, "general")
 
 
 def test_a_stale_question_first_message_cannot_append_across_tabs(
@@ -1825,13 +1851,14 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
         url,
         context=one_user,
         init_script="""addEventListener('storage', event => {
-          if (event.key !== 'lf-draft:say:jobs') return;
+          if (event.key !== window.lfDraftKey) return;
           try {
             if (JSON.parse(event.newValue)?.settled)
               event.stopImmediatePropagation();
           } catch {}
         }, true);""",
     )
+    name_the_draft(second, "say:jobs")
     first_say = first.locator("#jobs > .lf-thread-seat > .lf-say")
     second_say = second.locator("#jobs > .lf-thread-seat > .lf-say")
     raw = "  Keep one exact first answer.  "
@@ -1849,9 +1876,9 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
     held[0].continue_()
     first.unroute("**/api/event")
     round_trip(first)
-    first.wait_for_function(STORED_DRAFT_SETTLED, arg="say:jobs")
+    until_draft_settled(first, "say:jobs")
     expect(second_say.locator("leaf-text")).to_have_js_property("value", raw)
-    assert second.evaluate(STORED_DRAFT_SETTLED, "say:jobs")
+    assert stored_draft_settled(second, "say:jobs")
     second_send = second_say.get_by_role("button", name="Send", exact=True)
     expect(second_send).to_have_attribute("aria-disabled", "false")
     second_send.click()
@@ -1859,7 +1886,9 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
     cut.restore()
 
     roots = [
-        event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
     ]
     assert [(event["anchor"], event["text"]) for event in roots] == [
         ({"section": "jobs"}, raw)
@@ -1900,7 +1929,9 @@ def test_a_question_reply_appends_one_event_across_tabs(browser, serve, one_user
     first.unroute("**/api/event")
     round_trip(first)
     replies = [
-        event for event in sent_events(serve.page_dir) if event["kind"] == "reply"
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "reply"
     ]
     assert [(event["parent"], event["text"]) for event in replies] == [
         (root["id"], raw)
@@ -1955,9 +1986,11 @@ def test_a_held_thread_send_cannot_clear_a_newer_raw_draft(browser, serve, one_u
     expect(second_inline).to_have_js_property("value", newer_raw)
     # This root was appended by the agent, so it carries no attempt and its reply draft
     # keys by the id, which for such a thread never changes either.
-    assert first.evaluate(STORED_DRAFT_TEXT, f"reply:{root['id']}") == newer_raw
+    assert stored_draft_text(first, f"reply:{root['id']}") == newer_raw
     replies = [
-        event for event in sent_events(serve.page_dir) if event["kind"] == "reply"
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "reply"
     ]
     assert [event["text"] for event in replies] == [sent_raw]
 
@@ -1991,7 +2024,9 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
     # a notice saying so beside them would be the same acknowledgement twice.
     expect(first.locator("#jobs > .lf-thread-seat")).to_contain_text(raw.strip())
     roots = [
-        event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
     ]
     assert [event["text"] for event in roots] == [raw]
     # Asked of the words rather than of the box: a seat that can hold keeps its composer
@@ -2027,7 +2062,7 @@ def test_a_late_refusal_cannot_restore_an_attempt_another_tab_settled(
         second_say.get_by_role("button", name="Send", exact=True).click()
         round_trip(second)
         expect(first_say.locator("leaf-text")).to_have_js_property("value", "")
-        first.wait_for_function(STORED_DRAFT_SETTLED, arg="say:jobs")
+        until_draft_settled(first, "say:jobs")
         holding(first, held_state, 1, "the accepted attempt's state read")
         if newer is not None:
             write(first_say.locator("leaf-text"), newer)
@@ -2080,7 +2115,9 @@ def test_a_question_can_send_when_draft_storage_refuses_writes(browser, serve):
     _until(page, lambda t: t.sends == 1, "sent the live unpersisted answer")
     round_trip(page)
     roots = [
-        event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
     ]
     assert [event["text"] for event in roots] == [raw]
 
@@ -2138,7 +2175,9 @@ def test_a_closed_sender_cannot_append_its_accepted_attempt_twice(
     second_held.restore()
     told(second)
     roots = [
-        event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
     ]
     assert len(roots) == 1
     assert roots[0]["text"] == raw
@@ -2172,14 +2211,16 @@ def test_an_older_settlement_cannot_erase_a_newer_failed_write(
 
     other_say.get_by_role("button", name="Send", exact=True).click()
     round_trip(other)
-    other.wait_for_function(STORED_DRAFT_SETTLED, arg="say:jobs")
+    until_draft_settled(other, "say:jobs")
     expect(local_say.locator("leaf-text")).to_have_js_property("value", newer)
 
     local_say.get_by_role("button", name="Send", exact=True).click()
     _until(local, lambda t: t.sends == 1, "sent the nondurable newer answer")
     round_trip(local)
     roots = [
-        event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
     ]
     assert [event["text"] for event in roots] == [old, newer]
     assert len({event["attempt"] for event in roots}) == 2
@@ -2198,17 +2239,16 @@ def test_an_accepted_nondurable_branch_cannot_tombstone_a_newer_shared_generatio
           const set = Storage.prototype.setItem;
           let refuse = true;
           Storage.prototype.setItem = function (key, value) {
-            if (refuse && key === 'lf-draft:say:jobs') {
+            if (refuse && key === window.lfDraftKey) {
               refuse = false;
               throw new DOMException('full', 'QuotaExceededError');
             }
             return set.call(this, key, value);
           };
-          addEventListener('storage', event => {
-            if (event.key === 'lf-draft:say:jobs') event.stopImmediatePropagation();
-          }, true);
-        })();""",
+        })();"""
+        + DEAF_TO_DRAFT_NEWS,
     )
+    name_the_draft(older, "say:jobs")
     newer_tab = open_page(browser, url, context=one_user)
     older_say = older.locator("#jobs > .lf-thread-seat > .lf-say")
     newer_say = newer_tab.locator("#jobs > .lf-thread-seat > .lf-say")
@@ -2221,7 +2261,7 @@ def test_an_accepted_nondurable_branch_cannot_tombstone_a_newer_shared_generatio
     older_say.get_by_role("button", name="Send", exact=True).click()
     holding(older, held, 1, "the nondurable send")
     write(newer_say.locator("leaf-text"), newer)
-    assert newer_tab.evaluate(STORED_DRAFT_TEXT, "say:jobs") == newer
+    assert stored_draft_text(newer_tab, "say:jobs") == newer
     newer_tab.close()
 
     held[0].continue_()
@@ -2229,9 +2269,11 @@ def test_an_accepted_nondurable_branch_cannot_tombstone_a_newer_shared_generatio
     round_trip(older)
     restored = older.locator("#jobs > .lf-thread-seat > .lf-say leaf-text")
     expect(restored).to_have_js_property("value", newer)
-    assert older.evaluate(STORED_DRAFT_TEXT, "say:jobs") == newer
+    assert stored_draft_text(older, "say:jobs") == newer
     roots = [
-        event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
     ]
     assert [event["text"] for event in roots] == [old]
 
@@ -2249,7 +2291,7 @@ def test_a_nondurable_branch_yields_to_unrelated_live_storage_news(
           const set = Storage.prototype.setItem;
           let refuse = true;
           Storage.prototype.setItem = function (key, value) {
-            if (refuse && key === 'lf-draft:say:jobs') {
+            if (refuse && key === window.lfDraftKey) {
               refuse = false;
               throw new DOMException('full', 'QuotaExceededError');
             }
@@ -2257,10 +2299,11 @@ def test_a_nondurable_branch_yields_to_unrelated_live_storage_news(
           };
           window.lfDraftNews = 0;
           addEventListener('storage', event => {
-            if (event.key === 'lf-draft:say:jobs') window.lfDraftNews += 1;
+            if (event.key === window.lfDraftKey) window.lfDraftNews += 1;
           }, true);
         })();""",
     )
+    name_the_draft(local, "say:jobs")
     shared = open_page(browser, url, context=one_user)
     local_say = local.locator("#jobs > .lf-thread-seat > .lf-say")
     shared_say = shared.locator("#jobs > .lf-thread-seat > .lf-say")
@@ -2272,7 +2315,7 @@ def test_a_nondurable_branch_yields_to_unrelated_live_storage_news(
 
     expect(local_say.locator("leaf-text")).to_have_js_property("value", newer)
     expect(shared_say.locator("leaf-text")).to_have_js_property("value", newer)
-    assert local.evaluate(STORED_DRAFT_TEXT, "say:jobs") == newer
+    assert stored_draft_text(local, "say:jobs") == newer
 
 
 def test_a_delayed_storage_event_cannot_send_a_stale_durable_generation(
@@ -2281,13 +2324,9 @@ def test_a_delayed_storage_event_cannot_send_a_stale_durable_generation(
     """Send refreshes shared storage instead of trusting a stale durable cache."""
     url = serve(SEATED_QUESTION_PAGE)
     stale = open_page(
-        browser,
-        url,
-        context=held_stale(one_user),
-        init_script="""addEventListener('storage', event => {
-          if (event.key === 'lf-draft:say:jobs') event.stopImmediatePropagation();
-        }, true);""",
+        browser, url, context=held_stale(one_user), init_script=DEAF_TO_DRAFT_NEWS
     )
+    name_the_draft(stale, "say:jobs")
     current = open_page(browser, url, context=one_user)
     stale_say = stale.locator("#jobs > .lf-thread-seat > .lf-say")
     current_say = current.locator("#jobs > .lf-thread-seat > .lf-say")
@@ -2297,14 +2336,16 @@ def test_a_delayed_storage_event_cannot_send_a_stale_durable_generation(
     expect(current_say.locator("leaf-text")).to_have_js_property("value", old)
     write(current_say.locator("leaf-text"), newer)
     expect(stale_say.locator("leaf-text")).to_have_js_property("value", old)
-    assert stale.evaluate(STORED_DRAFT_TEXT, "say:jobs") == newer
+    assert stored_draft_text(stale, "say:jobs") == newer
 
     stale_say.get_by_role("button", name="Send", exact=True).click()
     assert _traffic(stale).sends == 0
     expect(stale_say.locator("leaf-text")).to_have_js_property("value", newer)
     expect(current_say.locator("leaf-text")).to_have_js_property("value", newer)
     assert [
-        event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
     ] == []
 
 
@@ -2314,14 +2355,9 @@ def test_a_stale_cancel_cannot_settle_a_newer_durable_generation(
     """Cancel refreshes ownership before writing the shared tombstone."""
     url = serve(JOURNEY_V1)
     stale = open_page(
-        browser,
-        url,
-        context=held_stale(one_user),
-        init_script="""addEventListener('storage', event => {
-          if (event.key === 'lf-draft:edit:draft-ops')
-            event.stopImmediatePropagation();
-        }, true);""",
+        browser, url, context=held_stale(one_user), init_script=DEAF_TO_DRAFT_NEWS
     )
+    name_the_draft(stale, "edit:draft-ops")
     current = open_page(browser, url, context=one_user)
     stale_draft = stale.locator("#draft-ops")
     current_draft = current.locator("#draft-ops")
@@ -2333,11 +2369,11 @@ def test_a_stale_cancel_cannot_settle_a_newer_durable_generation(
     expect(current_draft.locator("textarea")).to_have_value(old)
     current_draft.locator("textarea").fill(newer)
     expect(stale_draft.locator("textarea")).to_have_value(old)
-    assert stale.evaluate(STORED_DRAFT_TEXT, "edit:draft-ops") == newer
+    assert stored_draft_text(stale, "edit:draft-ops") == newer
 
     cancel_draft(stale)
     expect(current_draft.locator("textarea")).to_have_value(newer)
-    assert current.evaluate(STORED_DRAFT_TEXT, "edit:draft-ops") == newer
+    assert stored_draft_text(current, "edit:draft-ops") == newer
     stale_draft.locator(".lf-draft-body").dblclick()
     expect(stale_draft.locator("textarea")).to_have_value(newer)
 
@@ -2352,14 +2388,8 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
     # generation leaves settlement nothing older to be tempted by, so the assertions
     # below would pass while asking nothing rather than fail.
     stale_held = held_stale(one_user)
-    stale = open_page(
-        browser,
-        url,
-        context=stale_held,
-        init_script="""addEventListener('storage', event => {
-          if (event.key === 'lf-draft:say:jobs') event.stopImmediatePropagation();
-        }, true);""",
-    )
+    stale = open_page(browser, url, context=stale_held, init_script=DEAF_TO_DRAFT_NEWS)
+    name_the_draft(stale, "say:jobs")
     current = open_page(browser, url, context=one_user)
     stale_say = stale.locator("#jobs > .lf-thread-seat > .lf-say")
     current_say = current.locator("#jobs > .lf-thread-seat > .lf-say")
@@ -2368,7 +2398,8 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
     write(stale_say.locator("leaf-text"), old)
     expect(current_say.locator("leaf-text")).to_have_js_property("value", old)
     old_attempt = stale.evaluate(
-        "() => JSON.parse(localStorage.getItem('lf-draft:say:jobs')).attempt"
+        "key => JSON.parse(localStorage.getItem(key)).attempt",
+        draft_key(stale, "say:jobs"),
     )
     write(current_say.locator("leaf-text"), newer)
     expect(stale_say.locator("leaf-text")).to_have_js_property("value", old)
@@ -2390,7 +2421,7 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
     # the only arrangement that asks anything.
     stale_held.restore()
     told(stale)
-    assert current.evaluate(STORED_DRAFT_TEXT, "say:jobs") == newer
+    assert stored_draft_text(current, "say:jobs") == newer
     expect(stale_say.locator("leaf-text")).to_have_js_property("value", newer)
     expect(current_say.locator("leaf-text")).to_have_js_property("value", newer)
 
@@ -2413,7 +2444,9 @@ def test_a_read_failure_cannot_make_a_successfully_written_draft_unsendable(
     _until(page, lambda t: t.sends == 1, "sent the cached draft")
     round_trip(page)
     roots = [
-        event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
     ]
     assert [event["text"] for event in roots] == [raw]
 
@@ -2434,7 +2467,7 @@ def test_a_remove_failure_cannot_resurrect_an_accepted_draft(browser, serve, one
     write(say.locator("leaf-text"), raw)
     say.get_by_role("button", name="Send", exact=True).click()
     round_trip(first)
-    first.wait_for_function(STORED_DRAFT_SETTLED, arg="say:jobs")
+    until_draft_settled(first, "say:jobs")
 
     again = open_page(browser, url, context=one_user)
     # The composer is still standing — a seat that can hold keeps it — so the claim is
@@ -2443,7 +2476,9 @@ def test_a_remove_failure_cannot_resurrect_an_accepted_draft(browser, serve, one
         again.locator("#jobs > .lf-thread-seat > .lf-say leaf-text")
     ).to_have_js_property("value", "")
     roots = [
-        event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
     ]
     assert [event["text"] for event in roots] == [raw]
 
@@ -2471,7 +2506,9 @@ def test_an_intentional_later_identical_reply_gets_a_fresh_attempt(browser, serv
         expect(thread.locator("leaf-text")).to_have_js_property("value", "")
 
     replies = [
-        event for event in sent_events(serve.page_dir) if event["kind"] == "reply"
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "reply"
     ]
     assert [event["text"] for event in replies] == [text, text]
     assert len({event["attempt"] for event in replies}) == 2
@@ -2628,7 +2665,9 @@ def test_a_held_selection_comment_preserves_a_newer_exact_draft(held_events, ser
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(box).to_have_js_property("value", newer)
     comments = [
-        event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
     ]
     assert [event["text"] for event in comments] == [old]
     assert comments[0]["attempt"]
@@ -2885,9 +2924,9 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
     expect(draft).to_have_attribute("data-lf-user-override", "1")
 
     events = [
-        json.loads(line)
-        for line in (serve.page_dir / "events.jsonl").read_text().splitlines()
-        if '"kind": "action"' in line
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action"
     ]
     assert [event["detail"]["text"] for event in events] == [
         edits[0],
@@ -3130,10 +3169,7 @@ def test_registered_control_keys_activate_once(browser, serve):
     # satisfies this too, which is what makes it the right wait for both assertions —
     # the repeats below must add none of their own.
     round_trip(page)
-    sent = [
-        json.loads(line)
-        for line in (serve.page_dir / "events.jsonl").read_text().splitlines()
-    ]
+    sent = events_model.read_events(serve.page_dir)
     assert [e for e in sent if e.get("action") == "choose"] != [], (
         "the first press sent nothing, so the repeats below had nothing to duplicate"
     )

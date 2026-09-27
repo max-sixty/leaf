@@ -88,6 +88,7 @@ from render_harness import (
     panel_settled,
     rendered,
     resized,
+    root_overflow,
     round_trip,
     scroll_settled,
     select,
@@ -378,7 +379,7 @@ def test_live_specimens_retire_before_navigation_and_coalesce_reset(browser, ser
     """A held replacement navigation cannot keep a released child alive."""
     page = open_page(browser, serve(LIVE_SPECIMENS_PAGE))
     page.evaluate("""async () => {
-        const {mountSpecimen} = await import('/runtime/specimen.js');
+        const {mountSpecimen} = await window.__lfRuntimeImport('/runtime/specimen.js');
         window.practiceFrame = document.createElement('iframe');
         document.body.append(practiceFrame);
         window.practiceHost = mountSpecimen(practiceFrame, {template: 'first-source'});
@@ -430,7 +431,7 @@ def test_live_specimens_retire_before_navigation_and_coalesce_reset(browser, ser
     )
     assert (
         page.evaluate("""async () => {
-        const {mountSpecimen} = await import('/runtime/specimen.js');
+        const {mountSpecimen} = await window.__lfRuntimeImport('/runtime/specimen.js');
         window.practiceHost = mountSpecimen(practiceFrame, {template: 'first-source'});
         return practiceHost.ready.catch(error => error.message);
     }""")
@@ -467,7 +468,7 @@ def test_live_specimens_release_pending_allocations_and_can_reconnect(browser, s
     held = []
     page.route("**/api/specimens", lambda route: held.append(route))
     page.evaluate("""async () => {
-        const {mountSpecimen} = await import('/runtime/specimen.js');
+        const {mountSpecimen} = await window.__lfRuntimeImport('/runtime/specimen.js');
         window.pendingFrame = document.createElement('iframe');
         document.body.append(pendingFrame);
         window.pendingHost = mountSpecimen(pendingFrame, {template: 'first-source'});
@@ -487,7 +488,7 @@ def test_live_specimens_release_pending_allocations_and_can_reconnect(browser, s
     held.clear()
     page.route(re.compile(r"/api/specimens/[^/]+/$"), lambda route: held.append(route))
     page.evaluate("""async () => {
-        const {mountSpecimen} = await import('/runtime/specimen.js');
+        const {mountSpecimen} = await window.__lfRuntimeImport('/runtime/specimen.js');
         window.pendingHost = mountSpecimen(pendingFrame, {template: 'first-source'});
         window.pendingResult = pendingHost.ready.catch(error => error.name);
     }""")
@@ -950,10 +951,9 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
         if width <= 840:
             assert boxes[".lf-threads-toggle"]["height"] >= 40
             assert boxes[".lf-signoff"]["height"] >= 40
-        assert page.evaluate(
-            "() => document.documentElement.scrollWidth"
-            "   === document.documentElement.clientWidth"
-        ), "the banner made the page itself scroll sideways"
+        assert root_overflow(page) == 0, (
+            "the banner made the page itself scroll sideways"
+        )
         # Nothing hangs off the fixed primary row's own edge at any width.
         assert page.evaluate(
             "() => { const actions = document.querySelector('.lf-banner-actions');"
@@ -1306,9 +1306,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
           return {
             row: [...actions.children]
               .filter(c => c !== more && c.getClientRects().length).map(words),
-            secondary: menu.children.length,
-            document: {shown: document.documentElement.clientWidth,
-                       needed: document.documentElement.scrollWidth}};
+            secondary: menu.children.length};
         }"""
     )
     assert crowded["secondary"], (
@@ -1316,9 +1314,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     )
     clipped = [c for c in crowded["row"] if c["shown"] < c["needed"]]
     assert not clipped, f"the crowded row compressed the controls it kept: {clipped}"
-    assert crowded["document"]["shown"] == crowded["document"]["needed"], (
-        f"the crowded row widened the document: {crowded}"
-    )
+    assert root_overflow(page) == 0, "the crowded row widened the document"
 
     # The open panel and a version popup can overlap broadly. Once native focus leaves the
     # transient menu, it closes before painting over the next keyboard destination.
@@ -1806,16 +1802,14 @@ def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other
     shelf = page.evaluate(
         """() => {
           const actions = document.querySelector('.lf-banner-actions');
-          return {shown: actions.clientWidth, needed: actions.scrollWidth,
-                  document: {shown: document.documentElement.clientWidth,
-                             needed: document.documentElement.scrollWidth}};
+          return {shown: actions.clientWidth, needed: actions.scrollWidth};
         }"""
     )
     assert shelf["shown"] == shelf["needed"], (
         f"the phone row still hid controls off its own edge: {shelf}"
     )
-    assert shelf["document"]["shown"] == shelf["document"]["needed"], (
-        f"the phone banner made the page itself scroll sideways: {shelf}"
+    assert root_overflow(page) == 0, (
+        "the phone banner made the page itself scroll sideways"
     )
     more = page.locator(".lf-banner-more")
     expect(more).to_be_visible()
@@ -2893,14 +2887,12 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
               const box = threads.getBoundingClientRect();
               const edge = document.elementFromPoint(box.right - 1, box.top + box.height / 2);
               return {shown: actions.clientWidth, needed: actions.scrollWidth,
-                      pageShown: document.documentElement.clientWidth,
-                      pageNeeded: document.documentElement.scrollWidth,
                       threads: {left: box.left, right: box.right,
                                 visible: threads.checkVisibility(),
                                 ownsRightEdge: edge === threads || threads.contains(edge)}}; }"""
         )
         assert fit["needed"] <= fit["shown"] + 1, fit
-        assert fit["pageShown"] == fit["pageNeeded"], fit
+        assert root_overflow(page) == 0, fit
         assert fit["threads"]["visible"] and fit["threads"]["ownsRightEdge"], fit
         assert 0 <= fit["threads"]["left"] < fit["threads"]["right"] <= width, fit
 

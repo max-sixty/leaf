@@ -5,12 +5,18 @@
    while the revision's markup is still intact. Later physical reparenting is layout;
    semantic commands keep using this captured document coordinate. A data renderer may
    replace a widget node while preserving its authored id; that replacement reuses the
-   same revision-bound descriptor. */
+   same revision-bound descriptor.
+
+   The binding also answers the other way, id to element, for the layer's own paint:
+   a message's frozen markup is bound when it is prepared, before the thread mounts
+   it, so what the projection paints on it arrives with the node. */
 import { runtime } from "./context.js";
 import { authoredParents } from "./projection/authored.js";
+import { elementById } from "./passages.js";
 
 const byElement = new WeakMap();
 const byId = new Map();
+const elements = new Map();
 
 const declaredTags = () =>
   Object.keys(runtime.registry).filter((tag) => !tag.startsWith("$"));
@@ -109,12 +115,20 @@ export function commitWidgetDescriptors(stage, retired = new Set()) {
   // from the markup it replaced. The id survives the revision and the element does not,
   // so the id-keyed readings are the ones that would otherwise answer for a document
   // nobody is reading; the element-keyed ones leave with their elements.
-  for (const id of retired) byId.delete(id);
+  for (const id of retired) {
+    byId.delete(id);
+    elements.delete(id);
+  }
   for (const { element, descriptor } of stage.bindings) {
     byElement.set(element, descriptor);
     byId.set(descriptor.id, descriptor);
+    elements.set(descriptor.id, element);
   }
 }
+
+// The element standing for a widget id: the one the document holds under it, else the
+// bound node not yet mounted (a message's frozen markup before the thread places it).
+export const widgetElement = (id) => elementById(id) ?? elements.get(id) ?? null;
 
 export function widgetDescriptor(owner) {
   const captured = byElement.get(owner);

@@ -1784,44 +1784,85 @@
 
       const specimen = document.querySelector("#bg-panel-specimen");
       let selected = null;
+      let selectionVersion = 0;
+      const pendingPaints = new Set();
 
-      async function showPanelView(view, ready = specimen.ready) {
+      function whenPanelMatches(child, isReady) {
+        if (isReady()) return Promise.resolve();
+        return new Promise((resolve) => {
+          const finish = () => {
+            observer.disconnect();
+            pendingPaints.delete(finish);
+            resolve();
+          };
+          const observer = new MutationObserver(() => {
+            if (isReady()) finish();
+          });
+          pendingPaints.add(finish);
+          for (const selector of ["leaf-thread-narrowing", "leaf-thread-list"])
+            observer.observe(child.querySelector(selector), {
+              attributes: true,
+              childList: true,
+              subtree: true,
+            });
+        });
+      }
+
+      async function showPanelView(view, version, ready = specimen.ready) {
         const child = await ready;
-        if (!specimen.isConnected || selected !== view) return;
+        if (!specimen.isConnected || version !== selectionVersion) return;
         const panel = child.querySelector(".lf-thread-panel");
         if (!panel.open) child.querySelector(".lf-threads-toggle").click();
         child.querySelector(".lf-thread-filter-reset")?.click();
+        await whenPanelMatches(
+          child,
+          () => child.querySelector(".lf-thread-view").hidden,
+        );
+        if (version !== selectionVersion) return;
         if (view === "you" || view === "resolved") {
           const filter = child.querySelector(".lf-thread-filter-toggle");
           if (filter.getAttribute("aria-expanded") !== "true") filter.click();
           const [kind, value] =
             view === "you" ? ["waiting", "user"] : ["status", "resolved"];
-          child
-            .querySelector(`[data-filter-kind="${kind}"][data-filter-value="${value}"]`)
-            .click();
+          const choice = child.querySelector(
+            `[data-filter-kind="${kind}"][data-filter-value="${value}"]`,
+          );
+          choice.click();
+          await whenPanelMatches(
+            child,
+            () => choice.getAttribute("aria-pressed") === "true",
+          );
+          if (version !== selectionVersion) return;
         }
-        await child.querySelector("leaf-thread-list").updateComplete;
-        if (selected !== view) return;
         const root = {
           overview: "72e031c5bf0d485ba9054628e09869d4",
           you: "2be2443f0bb6cc49fc86b52f340e6073",
           resolved: "bab3cdfcfb8c02aacbb27da731de947a",
           summary: "9ee465bb3f9c1fa309ea9cb1767fa365",
         }[view];
-        child
-          .querySelector(`.lf-thread[data-id="${root}"] > .lf-thread-summary`)
-          ?.click();
+        const row = child.querySelector(`.lf-thread[data-id="${root}"]`);
+        await whenPanelMatches(child, () => !row.hidden);
+        if (version !== selectionVersion) return;
+        if (!row.open) row.querySelector(".lf-thread-summary").click();
+        const filter = child.querySelector(".lf-thread-filter-toggle");
+        if (filter.getAttribute("aria-expanded") === "true") filter.click();
+        const list = child.querySelector("leaf-thread-list");
+        list.scrollTop +=
+          row.getBoundingClientRect().top - list.getBoundingClientRect().top;
+      }
+
+      function selectPanelView(view, ready = specimen.ready) {
+        selected = view;
+        for (const finish of pendingPaints) finish();
+        void showPanelView(view, ++selectionVersion, ready);
       }
 
       for (const button of document.querySelectorAll("#bg-panel-presets button")) {
-        button.addEventListener("click", () => {
-          selected = button.dataset.view;
-          void showPanelView(selected);
-        });
+        button.addEventListener("click", () => selectPanelView(button.dataset.view));
       }
       specimen.addEventListener("click", (event) => {
         if (!selected || !event.target.closest(".lf-specimen-controls button")) return;
-        queueMicrotask(() => void showPanelView(selected, specimen.ready));
+        queueMicrotask(() => selectPanelView(selected, specimen.ready));
       });
     </script>
 <!-- targeting-gallery.html authored styles -->
@@ -6639,9 +6680,9 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               <p id="bg-thread-checkpoint">
                 <strong>A summarized discussion.</strong> The workshop planning thread
                 keeps its earlier decisions in a summary. Open it in Threads, expand the
-                covered messages, and use Hide on the right to fold them again. The
-                latest exchange stays below the summary. Keyboard focus can reach both
-                disclosure controls.
+                earlier messages, then collapse them from the summary's own control. The
+                latest exchange stays below the summary, and keyboard focus can reach
+                the disclosure.
               </p>
               <p id="bg-thread-unread">
                 <strong>Unread replies.</strong> The seeded agent replies start unread.

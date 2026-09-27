@@ -34,7 +34,7 @@ from leaf.schema import (
     ACTIVITY_GRACE_SECS,
     EVENTS_FILE,
     STATUS_FILE,
-    UNCLAIMED_AGENT,
+    UNNAMED_AGENT,
 )
 
 # A repeated live detail carries only liveness. Renew it comfortably before the
@@ -367,7 +367,6 @@ class PageTransaction:
         detail: str,
         *,
         work: dict | None = None,
-        handling: dict | None = None,
     ) -> None:
         """Write the page declaration and any typed local evidence it renews.
 
@@ -378,10 +377,8 @@ class PageTransaction:
         together.
 
         Standing work carries across every other status write, so a page-wide
-        status update does not silently drop what a helper is holding. Exact
-        delivery handling carries until another delivered move replaces it; the
-        interaction fold stops using it as soon as that move is settled.
-        A new claim replaces the old claim on its semantic subject; `idle`
+        status update does not silently drop what a helper is holding. A new
+        claim replaces the old claim on its semantic subject; `idle`
         clears them all with the leaf.
         """
         status = {
@@ -394,8 +391,6 @@ class PageTransaction:
         }
         if state != "idle" and (stream := self.status.get("stream")):
             status["stream"] = stream
-        if state != "idle" and (current_handling := self.status.get("handling")):
-            status["handling"] = current_handling
         claims = [] if state == "idle" else list(self.status.get("work", []))
         if work:
             claims = [held for held in claims if held["subject"] != work["subject"]]
@@ -410,28 +405,20 @@ class PageTransaction:
             )
         if claims:
             status["work"] = claims
-        if handling:
-            status["handling"] = {
-                "id": secrets.token_hex(4),
-                **handling,
-                "detail": detail,
-                "ts": status["ts"],
-                **self.voice(),
-            }
         write_json(self.page_dir / STATUS_FILE, status)
 
     def voice(self) -> dict:
         """Who a line written on this page speaks as: the posting session where
         one is running, which need not be the claimant, and the page's claimant
         otherwise — a line written by a server speaks in the name of whoever
-        holds the page. `UNCLAIMED_AGENT` covers a page nothing has claimed,
+        holds the page. `UNNAMED_AGENT` covers a page nothing has claimed,
         where there is no name to use and inventing one would put words in a
         program's mouth."""
         identity = message_identity()
         claim = self.claim
         return {
             "agent": identity.get("agent")
-            or (claim["agent"] if claim else UNCLAIMED_AGENT),
+            or (claim["agent"] if claim else UNNAMED_AGENT),
             "session": identity.get("session") or (claim["id"] if claim else None),
         }
 
@@ -846,24 +833,5 @@ def claim_update_sources(status: dict) -> list[dict]:
             source["event"] = event
         if target["kind"] == "widget":
             source["revision"] = claim["revision"]
-        sources.append(source)
-    if handling := status.get("handling"):
-        target = handling["target"]
-        source = {
-            "id": handling["id"],
-            "target": target,
-            "source": "claim",
-            "scope": "interaction",
-            "action": "working",
-            "detail": {"text": handling["detail"]},
-            "text": handling["detail"],
-            "ts": handling["ts"],
-            "log_floor": handling["after"],
-            "event": handling["event"],
-            "agent": handling.get("agent"),
-            "session": handling.get("session"),
-        }
-        if target["kind"] == "widget":
-            source["revision"] = handling["revision"]
         sources.append(source)
     return sources

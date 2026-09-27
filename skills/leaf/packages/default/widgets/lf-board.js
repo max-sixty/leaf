@@ -42,6 +42,7 @@ import {
   rankAt,
   reducedMotion,
   scrollBehavior,
+  keepsText,
 } from "/runtime/widget-api.js";
 
 customElements.define(
@@ -153,8 +154,7 @@ customElements.define(
     #counts() {
       for (const col of this.querySelectorAll(":scope > lf-column")) {
         const count = col.querySelector(":scope > .lf-column-count");
-        const n = String(this.#cards(col).length);
-        if (count && count.textContent !== n) count.textContent = n;
+        keepsText(count, this.#cards(col).length);
       }
     }
 

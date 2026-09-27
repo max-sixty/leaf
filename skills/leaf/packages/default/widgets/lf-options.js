@@ -66,9 +66,10 @@
  * as state a version had written.
  *
  * The keyboard path: every mark is a checkbox, so Tab reaches it and Space toggles. From a
- * mark, ↑/↓ walk the options (a clamp at the ends, not a wrap). The Ask owns 1–9 across
- * the whole question and projects them onto the option cells. The column is held whether
- * or not a key is in it, which is the theme's half of this. The rows are
+ * mark, the runtime's row walk moves among the options: ↑/↓ clamp at the ends, and Home and
+ * End land on them. The Ask owns 1–9 across the whole question and projects them onto the
+ * option cells. The column is held whether or not a key is in it, which is the theme's
+ * half of this. The rows are
  * declared per mark, on the mark rather than on the group — the group holds the option's
  * own argument too, and a scope over the whole subtree would promise to work an option with
  * focus on a link inside one. An armed `g` sequence keeps its own digits without this module
@@ -100,19 +101,16 @@ import { OptionAddition } from "./lf-options-addition.js";
 import { SettledOptions } from "./lf-options-settled.js";
 import {
   LitElement,
-  beginWalk,
   threadInput,
-  focused,
   html,
   inChrome,
   commands,
   landInThread,
-  listWalkPosition,
   offer,
   quoted,
   reachedForWords,
+  rowWalk,
   notice,
-  walkRows,
   widgetController,
   worksInside,
   wrote,
@@ -466,7 +464,7 @@ customElements.define(
       this.#syncDone();
     }
 
-    // From a mark, ↑/↓ walk the options and Space toggles. The mark's own scope
+    // From a mark, the arrows walk the options and Space toggles. The mark's own scope
     // declares only those local mechanics (plus the thread's existing reply route).
     // The group contributes its ordered answer controls once, and core assigns their
     // contextual Ask bindings without the package maintaining a second digit map.
@@ -516,41 +514,14 @@ customElements.define(
                 line: "back to question",
               }),
           },
-          {
-            id: "option.walk",
-            keys: ["ArrowUp", "ArrowDown"],
-            routes: [
-              {
-                id: "option.previous",
-                binding: "ArrowUp",
-                does: "Previous option",
-              },
-              { id: "option.next", binding: "ArrowDown", does: "Next option" },
-            ],
-            does: "Walk the options",
-            line: "walk the options",
-            lineWhen: false,
-            repeat: true,
-            run: (binding) => {
-              walkRows(marks, binding === "ArrowDown" ? 1 : -1);
-              const picked = [...this.#options()].map((option) =>
-                option.hasAttribute("chosen"),
-              );
-              const answered = this.#done?.control?.getAttribute("aria-pressed");
-              beginWalk("option", "Option", () => {
-                const options = [...this.#options()];
-                if (
-                  options.length !== picked.length ||
-                  options.some(
-                    (option, index) => option.hasAttribute("chosen") !== picked[index],
-                  ) ||
-                  this.#done?.control?.getAttribute("aria-pressed") !== answered
-                )
-                  return null;
-                return listWalkPosition(this.#marks(), focused());
-              });
-            },
-          },
+          // The Ask's numbered actions are what a question offers that no other list
+          // does, so they keep the shortcut bar's slots and the walk stays off it.
+          ...rowWalk({
+            id: "option",
+            noun: "Option",
+            plural: "options",
+            rows: () => this.#marks(),
+          }).map((row) => ({ ...row, lineWhen: false })),
           {
             id: "option.toggle",
             keys: [" "],

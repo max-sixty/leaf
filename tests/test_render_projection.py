@@ -115,6 +115,7 @@ from render_harness import (
     regions_side_by_side,
     rendered,
     resized,
+    root_overflow,
     round_trip,
     scroll_settled,
     sending,
@@ -333,9 +334,7 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
 
     resized(page, 390, 900)
-    assert page.evaluate(
-        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
-    )
+    assert root_overflow(page) == 0
     page.emulate_media(media="print")
     expect(card.locator(".lf-pr-description-body")).to_be_visible()
     page.emulate_media(media="screen")
@@ -686,9 +685,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     )
 
     resized(page, 390, 900)
-    assert page.evaluate(
-        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
-    )
+    assert root_overflow(page) == 0
 
 
 def test_visual_review_guides_one_typed_still_run(browser, serve):
@@ -1032,9 +1029,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(next_button).to_be_focused()
 
     resized(page, 390, 900)
-    assert page.evaluate(
-        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
-    )
+    assert root_overflow(page) == 0
     widget.get_by_role("radio", name="Compare").click()
     expect(
         widget.locator(".lf-vr-case:not([hidden]) .lf-vr-frame-label").first
@@ -1405,13 +1400,9 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
         "node => node.scrollWidth <= node.clientWidth"
     )
     resized(page, 560, 720)
-    assert page.evaluate(
-        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
-    )
+    assert root_overflow(page) == 0
     resized(page, 390, 900)
-    assert page.evaluate(
-        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
-    )
+    assert root_overflow(page) == 0
     resized(page, 1366, 768)
     holds_the_window(page, widget, True)
     shot_host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
@@ -1712,9 +1703,7 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
     expect(progress).to_have_text("2 of 3 reviewed · 1 matching")
 
     resized(page, 390, 900)
-    assert page.evaluate(
-        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
-    )
+    assert root_overflow(page) == 0
     page.emulate_media(media="print")
     expect(diff.locator(".lf-diff-tools")).to_be_hidden()
     for index in range(3):
@@ -2675,6 +2664,61 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
     page.locator("#wd-never .lf-pick").click()
     round_trip(page)
     expect(page.locator("#wd-never")).to_have_attribute("chosen", "")
+
+
+def test_a_revision_inside_one_tab_keeps_the_tab_set_and_every_other_tab(
+    browser, serve
+):
+    """A tab set's module builds its strip beside the panels and reads only their labels
+    (`x-patch: members`), so a revision that rewrites a sentence in one tab edits that
+    sentence: the tab set, the tab the user has open and the question in the other tab
+    are the elements they were. A revision that adds a tab changes what the strip was
+    built from, and the set is rebuilt with a tab for it."""
+
+    def tabs(lede, extra=""):
+        return f"""<lf-tabs id="tp-views">
+  <lf-tab id="tp-plan" label="Plan"><p id="tp-lede">{lede}</p></lf-tab>
+  <lf-tab id="tp-ask-tab" label="Ask">
+    <lf-ask id="tp-store-ask"><h2>Which store?</h2>
+    <lf-options id="tp-store" choose>
+      <lf-option id="tp-keep">Keep the store</lf-option>
+      <lf-option id="tp-drop">Drop the store</lf-option>
+    </lf-options></lf-ask>
+  </lf-tab>{extra}
+</lf-tabs>"""
+
+    first = leaf_page("Tabs first", tabs("Ship on Monday."))
+    second = leaf_page("Tabs second", tabs("Ship on Tuesday."))
+    third = leaf_page(
+        "Tabs third",
+        tabs(
+            "Ship on Tuesday.",
+            '\n  <lf-tab id="tp-notes" label="Notes"><p>Later.</p></lf-tab>',
+        ),
+    )
+    page = open_page(browser, live_url(serve(first)))
+    page.get_by_role("tab", name="Ask").click()
+    expect(page.locator("#tp-ask-tab")).to_be_visible()
+    page.evaluate(
+        "() => { window.__tpTabs = document.getElementById('tp-views');"
+        " window.__tpStore = document.getElementById('tp-store'); }"
+    )
+
+    stamp_page(serve.page_dir, second, "move the ship date")
+    wait_for_revision(page, 2)
+    expect(page.locator("#tp-lede")).to_have_text("Ship on Tuesday.")
+    assert page.evaluate(
+        "window.__tpTabs === document.getElementById('tp-views')"
+        " && window.__tpStore === document.getElementById('tp-store')"
+    ), "a sentence in one tab rebuilt the tab set"
+    expect(page.locator("#tp-ask-tab")).to_be_visible()
+    expect(page.get_by_role("tab")).to_have_count(2)
+
+    stamp_page(serve.page_dir, third, "add a notes tab")
+    wait_for_revision(page, 3)
+    expect(page.get_by_role("tab")).to_have_count(3)
+    page.get_by_role("tab", name="Notes").click()
+    expect(page.locator("#tp-notes")).to_be_visible()
 
 
 def test_a_revision_retires_every_declared_identity_it_removes(browser, serve):
@@ -6337,19 +6381,24 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     browser, serve, tmp_path, monkeypatch
 ):
     """A settlement is the layer's rendering of the log's decision, never a module
-    obligation: the trial's module only defines the element and
-    supplies no renderState at all — and once its decision replays the holder wears
+    obligation: the trial's module is the product's starter, which only defines the
+    element — it never subscribes to its controller and supplies no renderState — and
+    once its decision replays the holder wears
     data-lf-state, the retired slot is marked and hidden by the theme's one generic
     rule, and the quote anchored in it detaches instead of pointing at words the
     page's reading has dropped. The mark and the hide used to be each holder
     module's own duty, stated in the module contract and the key table and enforced
     nowhere, and the first family that forgot would have split the page's reading
-    from the file's in silence. The second half drives it all back out: the fold
+    from the file's in silence. Later the layer painted them only through a
+    controller the module subscribed to, which left the same duty under another
+    name. The second half drives it all back out: the fold
     keeps the last surviving action per verb and unit, so a decision on an outcome
     that settles nothing displaces the one before it, and the mark, the marker and
     the hide follow it."""
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
+    module = (tmp_path / ".leaf" / "widgets" / "lf-trial.js").read_text()
+    assert "subscribe" not in module, "the holder's module must leave the mark to Leaf"
 
     url = serve(
         TWO_HOLDER_PAGE,
@@ -6404,6 +6453,51 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
         "the displaced decision's slot is back on the page, so its quote must "
         "anchor again"
     )
+
+
+def test_a_settled_holder_in_a_reply_joins_the_panel_wearing_its_mark(
+    browser, serve, tmp_path, monkeypatch
+):
+    """The same mark on a holder an agent sent in a reply. Its markup is frozen and
+    the thread mounts it after the projection has painted the page, so a paint that
+    looks the holder up in the document finds nothing and the reply opens with both
+    slots showing. The holder's node exists before either pass, so the mark is on it
+    when the thread places it."""
+    monkeypatch.chdir(tmp_path)
+    trial_family(tmp_path)
+    url = serve(REPLY_HOST_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-trial",
+            "author": "agent",
+            "revision": 1,
+            "text": "Should the cache warm lazily?",
+            "markup": (
+                '<lf-trial id="rq-cache">'
+                '<lf-current><p id="rq-now">Warm on deploy.</p></lf-current>'
+                '<lf-proposed><p id="rq-next">Warm on first request.</p></lf-proposed>'
+                "</lf-trial>"
+            ),
+        },
+    )
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "rq-cache",
+            "action": "decide",
+            "detail": {"outcome": "shelve"},
+        },
+    )
+    page = open_page(browser, url)
+    page.get_by_role("button", name="Threads (1)").click()
+    expect(page.locator("#rq-now")).to_be_visible()
+    expect(page.locator("#rq-cache")).to_have_attribute("data-lf-state", "shelve")
+    expect(page.locator("#rq-next")).to_be_hidden()
 
 
 def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
@@ -8510,9 +8604,7 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     page.emulate_media(media="screen")
 
     resized(page, 390, 900)
-    assert page.evaluate(
-        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
-    )
+    assert root_overflow(page) == 0
 
 
 def test_command_hub_reads_one_publication_before_worker_presentation_commits(
@@ -8627,9 +8719,7 @@ def test_command_hub_goal_metadata_wraps_on_a_phone(browser, serve):
     resized(page, 390, 900)
 
     expect(page.locator("#goal-parser > .lf-task-meta")).to_contain_text(long_when)
-    assert page.evaluate(
-        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
-    )
+    assert root_overflow(page) == 0
 
 
 def test_command_hub_operations_fit_their_column(browser, serve):
@@ -8642,9 +8732,7 @@ def test_command_hub_operations_fit_their_column(browser, serve):
         "card => card.getBoundingClientRect().right <= "
         "holder.getBoundingClientRect().right + 1)"
     )
-    assert page.evaluate(
-        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
-    )
+    assert root_overflow(page) == 0
 
     resized(page, 1280, 900)
     assert operations.evaluate(

@@ -1,0 +1,32 @@
+{
+  "cases": [
+    [
+      "\na\nb\n",
+      "a\nb"
+    ],
+    [
+      "\n\na\nb\n\n  \n",
+      "a\nb"
+    ],
+    [
+      "  a\n  b",
+      "  a\n  b"
+    ],
+    [
+      "a\nb\n\ufeff",
+      "a\nb"
+    ],
+    [
+      "a\nb\n\u2028\u00a0",
+      "a\nb"
+    ],
+    [
+      "a\nb\n\u0085",
+      "a\nb\n\u0085"
+    ],
+    [
+      "a\nb\n\u001c",
+      "a\nb\n\u001c"
+    ]
+  ]
+}

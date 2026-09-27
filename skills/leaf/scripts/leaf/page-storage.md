@@ -85,9 +85,9 @@ other page files and the external state listed below.
   Any process may rewrite one; readings validate it against the recorded contract.
   Deferred record fields served by `/api/deferred` come from these same files.
 
-- `status.json` — work declarations and transient delivery handling, observed activity,
-  and reply bindings. [session-lifetime.md](session-lifetime.md) owns their writers and
-  lifetimes; `thread.py` owns response reservations and their release.
+- `status.json` — work declarations, observed activity, and reply bindings.
+  [session-lifetime.md](session-lifetime.md) owns their writers and lifetimes;
+  `thread.py` owns response reservations and their release.
 
 - `waiter.lock` — bare-shell wait lease, present only while held; host sessions instead
   use `<state-home>/sessions/<session>.wait`. See [session-lifetime.md](session-lifetime.md).

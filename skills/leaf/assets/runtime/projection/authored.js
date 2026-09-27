@@ -5,6 +5,7 @@
 import { recordedWidgetSelector, stateSpecs } from "../registry.js";
 import { quoteFrom, textNodesUnder } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
+import { bodyText } from "../widget-upgrade.js";
 import { authoredRank } from "./model.js";
 
 /* The authored initial condition, read once from validated source before upgrade.
@@ -70,14 +71,10 @@ export function rememberAuthoredParents(root = document, parent = root.parentEle
 
 // A body record is licensed only for x-content: data, whose validated source is one
 // direct <pre>. Keep the source's words while removing the layout its surrounding HTML
-// needed: one opening newline, trailing whitespace, and the common indentation of its
+// needed: the data body's own trim (`bodyText`), then the common indentation of its
 // nonblank lines.
 function decodeBodyRecord(widget) {
-  const raw = widget
-    .querySelector(":scope > pre")
-    .textContent.replace(/^\n/, "")
-    .replace(/\s+$/, "");
-  const lines = raw.split("\n");
+  const lines = bodyText(widget).split("\n");
   const indents = lines
     .filter((line) => line.trim())
     .map((line) => line.match(/^[ \t]*/)[0].length);

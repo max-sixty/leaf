@@ -31,7 +31,7 @@ import { pageQueryAll, pageText } from "./passages.js";
 import { registry } from "./registry.js";
 import { upFrom } from "./shadow.js";
 import { targetElement, targetParts } from "./resolved-target.js";
-import { offer, reveal } from "./widget-elements.js";
+import { keepsText, offer, reveal } from "./widget-elements.js";
 import { retainUserIntent } from "./user-intent.js";
 
 const MSG_REF = '.lf-msg-body a[href^="#"]';
@@ -329,7 +329,7 @@ export function createAnchorControls({
 
   function paintDraft({ open, anchor, about, marked }) {
     const label = open ? labelAnchor(anchor, about) : "";
-    if (draftQuote.textContent !== label) draftQuote.textContent = label;
+    keepsText(draftQuote, label);
     draftQuote.classList.toggle("lf-unseen", !label || (marked && !about));
   }
 

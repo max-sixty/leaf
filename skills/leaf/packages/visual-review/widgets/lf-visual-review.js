@@ -68,7 +68,7 @@ function make(tag, className, text = null, says = true) {
 }
 
 function setText(element, text) {
-  if (element.textContent !== text) relabel(element, text, { says: true });
+  relabel(element, text, { says: true });
 }
 
 function previewUrl(target, path) {
@@ -326,7 +326,7 @@ customElements.define(
       slider.value = this.#opacity;
       const readout = opacity.querySelector(".lf-vr-opacity-value");
       const percent = `${this.#opacity}%`;
-      if (readout.textContent !== percent) relabel(readout, percent, { says: false });
+      relabel(readout, percent, { says: false });
       for (const shot of this.querySelectorAll("lf-shot")) {
         const flip = this.#mode === "flip";
         if (flip) shot.removeAttribute("data-lf-shot-controls");

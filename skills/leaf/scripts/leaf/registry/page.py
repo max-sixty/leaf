@@ -15,6 +15,7 @@ from typing import NamedTuple
 
 from .contract import RegistryError
 from .layer import merge_layer_declarations
+from .state import stamp_decisions
 from .validation import validate_registry
 
 
@@ -35,7 +36,9 @@ def compose_page_registry(
     """Validate a page vocabulary and resolve its upgraded widgets.
 
     ``validated`` is a vocabulary already validated, such as the active revision's:
-    a composition equal to it is not validated again.
+    a composition equal to it is not validated again. A composition that is
+    validated gets its `$decisions` stamped (`registry.state.stamp_decisions`); one
+    equal to ``validated`` already carries it.
 
     ``widget_paths`` contains available page-root-relative file names, including
     ``widgets/<tag>.js`` from the layer and ``page/widgets/<tag>.js`` from the
@@ -56,6 +59,7 @@ def compose_page_registry(
 
         if page_declarations:
             validate_registry_examples(registry, source)
+        stamp_decisions(registry)
     declaration_sources = {}
     widget_sources = {}
     available = set(widget_paths)

@@ -9,7 +9,7 @@ import { cancelRender, nextRender } from "./rendering.js";
 import { visualAt } from "./anchor-resolution.js";
 import { documentPoint } from "./geometry.js";
 import { inChrome } from "./passages.js";
-import { LAYOUT } from "./widget-elements.js";
+import { keepsText, LAYOUT } from "./widget-elements.js";
 
 export function createPageGeometry({
   refreshAnchorHover,
@@ -69,7 +69,7 @@ export function createPageGeometry({
     const name = target.part
       ? `${target.part} · ${designMode.name(target.element)}`
       : designMode.name(target.element);
-    if (inspect.textContent !== name) inspect.textContent = name;
+    keepsText(inspect, name);
     const above = corner.top - inspect.offsetHeight - 2;
     const at = documentPoint(
       Math.max(2, corner.left),

@@ -32,7 +32,6 @@ from render_cases_interaction import (
     SUGGESTION_PAGE,
     executable_revision,
     live_url,
-    sent_events,
 )
 from render_cases_layout import (
     SHADOWED_DIFF,
@@ -724,8 +723,7 @@ def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
     priming.goto(url, wait_until="load")
     priming.evaluate(
         """async saved => {
-            const entry = document.querySelector('script[type="module"][src]');
-            const {userStore} = await import(new URL('runtime/storage.js', entry.src));
+            const {userStore} = await window.__lfRuntimeImport('/runtime/storage.js');
             for (const [key, value] of Object.entries(saved)) userStore.set(key, value);
         }""",
         saved,
@@ -1946,9 +1944,7 @@ def test_accepting_a_suggestion_resolves_its_thread_in_one_event(browser, serve)
     page.get_by_role("button", name=re.compile("^Accept the suggested change")).click()
     page.get_by_role("button", name=re.compile("^Threads")).click()
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
-    events = [
-        json.loads(line) for line in (d / "events.jsonl").read_text().splitlines()
-    ]
+    events = events_model.read_events(d)
     accept = next(e for e in events if e.get("kind") == "action")
     assert accept["action"] == "decide" and accept["detail"] == {"outcome": "accept"}
     assert accept["meaning"]["answer"] == "c1"
@@ -3926,7 +3922,9 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_user_saw(
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
 
-    comment = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
+    comment = next(
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
+    )
     assert comment["anchor"] == {
         "section": "deployments",
         "datum": "api",
@@ -4051,7 +4049,9 @@ customElements.define('lf-feed', class extends HTMLElement {
     write(page.locator(".lf-composer leaf-text"), "Check this deployment.")
     with sending(page, "the keyed record comment"):
         page.keyboard.press("ControlOrMeta+Enter")
-    comment = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
+    comment = next(
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
+    )
     assert comment["anchor"]["datum"] == "a-1"
     assert comment["anchor"]["source"] == "deployments"
     assert comment["anchor"]["identity"] == "a"
@@ -4063,7 +4063,9 @@ customElements.define('lf-feed', class extends HTMLElement {
     expect(reaction).to_be_visible()
     with sending(page, "the record reaction"):
         reaction.click()
-    marked = next(e for e in sent_events(serve.page_dir) if e.get("token") == "keep")
+    marked = next(
+        e for e in events_model.read_events(serve.page_dir) if e.get("token") == "keep"
+    )
     assert marked["token"] == "keep"
     assert marked["anchor"]["identity"] == "a"
     assert "quote" not in marked["anchor"]
@@ -4100,7 +4102,7 @@ customElements.define('lf-feed', class extends HTMLElement {
         draft.press("ControlOrMeta+Enter")
     drafted = next(
         e
-        for e in sent_events(serve.page_dir)
+        for e in events_model.read_events(serve.page_dir)
         if e.get("text") == "Keep this draft with the row."
     )
     assert drafted["anchor"]["source_revision"] == seen
@@ -4111,7 +4113,9 @@ customElements.define('lf-feed', class extends HTMLElement {
     expect(reaction).to_have_attribute("aria-pressed", "true")
     with sending(page, "the record reaction withdrawal"):
         reaction.click()
-    withdrawn = next(e for e in sent_events(serve.page_dir) if e["kind"] == "undo")
+    withdrawn = next(
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "undo"
+    )
     assert withdrawn["undoes"] == marked["id"]
 
 
@@ -4294,7 +4298,11 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     page.keyboard.press("c")
     expect(page.locator(".lf-general leaf-text")).to_be_focused()
     round_trip(page)
-    assert not [event for event in sent_events(serve.page_dir) if event.get("token")]
+    assert not [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("token")
+    ]
     page.keyboard.press("Escape")  # out of the box, onto the list
     page.keyboard.press("Escape")  # and out of the panel that holds it
     expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
@@ -4438,7 +4446,9 @@ customElements.define('lf-derived', class extends HTMLElement {
     write(page.locator(".lf-composer leaf-text"), "Which readiness check is this?")
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
-    comment = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
+    comment = next(
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
+    )
     assert comment["anchor"] == {
         "section": "deployments",
         "datum": "api",
@@ -4548,7 +4558,9 @@ def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
     write(page.locator(".lf-composer leaf-text"), "Keep this exact source.")
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
-    comment = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
+    comment = next(
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
+    )
     assert comment["anchor"]["section"] == "skill-source"
     assert comment["anchor"]["datum"] == "document"
 
@@ -5065,7 +5077,11 @@ def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
     assert page.evaluate("window.healthyClock") == 2
     assert _traffic(page).asked == asked
     consume_browser_errors(page, "clock paint failed:")
-    assert {e["text"] for e in sent_events(serve.page_dir) if e["kind"] == "error"} == {
+    assert {
+        e["text"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "error"
+    } == {
         "clock paint failed: read broke",
         "clock paint failed: paint broke",
         "clock paint failed: async broke",

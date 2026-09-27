@@ -1,12 +1,15 @@
-/* Coordinate, provenance, and chrome commit for the semantic projection.
+/* Coordinate, provenance, settlement, and chrome commit for the semantic projection.
 
-   Widget controllers render total state and own their presentation proof. This adapter
-   retains the coordinate commits needed by coverage, provenance, chrome, and pending
-   release. It is an epoch presenter and paints first in the pass, because the words it
-   materializes inside authored elements are nodes the thread then resolves its
-   passages over. Its one document-wide drag gate withholds that global projection work
-   while the gesture's own controller holds its local reading; the region stays open
-   until the gesture ends and a fresh claim supersedes it. */
+   Widget controllers run each module's own rendering of total state and own its
+   presentation proof. This adapter paints what the layer derives for every widget,
+   whether or not its module subscribed: the restated and origin marks and each
+   holder's settlement. It retains the coordinate commits needed by coverage,
+   provenance, chrome, and pending release. It is an epoch presenter and paints first
+   in the pass, because the words it materializes inside authored elements are nodes
+   the thread then resolves its passages over. Its one document-wide drag gate
+   withholds that global projection work while the gesture's own controller holds its
+   local reading; the region stays open until the gesture ends and a fresh claim
+   supersedes it. */
 import { authoredStates } from "./authored.js";
 import { projectionOrigins } from "./model.js";
 import { projectionDeferred, setProjectionDeferred } from "./state.js";
@@ -17,8 +20,16 @@ import {
   PRESENTATION_ORDER,
 } from "../semantic-state.js";
 import { runtime } from "../context.js";
+import { decisionFor } from "../registry.js";
 import { dragHeld, watchDragRelease } from "../widget-elements.js";
-import { authored, elementById, inChrome, pageQueryAll } from "../passages.js";
+import { widgetElement } from "../widget-descriptors.js";
+import {
+  authored,
+  elementById,
+  inChrome,
+  pageQueryAll,
+  renderRetired,
+} from "../passages.js";
 import {
   PAGE_PAINT_ATTRIBUTE,
   PAGE_PAINT_ATTRIBUTES,
@@ -55,6 +66,25 @@ function paintStateOrigins(projection) {
     }
   }
   return touched;
+}
+
+// A holder's settlement is the registry's slot relation read against its deciding
+// verb's standing outcome, so the layer paints it for every holder whether or not its
+// module renders anything. A module with a choreography of its own (lf-suggestion's
+// fold) has already run it in the publication, before this pass writes the same mark.
+// A holder in a message's frozen markup is painted before the thread mounts it, so it
+// joins the panel settled and the thread's passages skip what it retired.
+function paintSettlements(widgets) {
+  for (const [widgetId, { state }] of widgets) {
+    const owner = widgetElement(widgetId);
+    const decision = owner && decisionFor(owner.localName);
+    if (!decision) continue;
+    const outcome = state[decision.verb]?.detail?.outcome ?? null;
+    if (decision.retires[outcome])
+      owner.setAttribute(PAGE_PAINT_ATTRIBUTE.settlement, outcome);
+    else owner.removeAttribute(PAGE_PAINT_ATTRIBUTE.settlement);
+    renderRetired(owner, outcome);
+  }
 }
 
 export function createProjectionPresentation({ onDeferredReady }) {
@@ -206,6 +236,7 @@ export function createProjectionPresentation({ onDeferredReady }) {
     }
     for (const [coordinate, commit] of committedProjection)
       if (!elementById(commit.widgetId)) committedProjection.delete(coordinate);
+    paintSettlements(snapshot.effective.widgets);
     const originTargets = paintStateOrigins(projection);
     renderQuiet(document.body, originTargets);
     document.body.setAttribute(

@@ -1859,7 +1859,9 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     page = open_page(browser, serve(REPLAYED_PAGE))
     page.keyboard.press("l")
     threads = page.locator(".lf-banner .lf-threads-toggle")
-    said = threads.inner_text()  # "Threads (0)" — the control's word is what it shows
+    said = (
+        threads.inner_text()
+    )  # "Open threads: 0" — the control's word is what it shows
     threads.hover()
     expect(page.locator(".lf-inspect")).to_have_text(f"{said} · banner")
     threads.click()

@@ -1056,7 +1056,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
             f"{wanted} was not on the row at all, so this order proves little: {widest}"
         )
     for width, order in orders.items():
-        assert order[-1].startswith("Threads"), (
+        assert order[-1].startswith("Open threads:"), (
             f"the thread no longer finishes the row at {width}px: {order}"
         )
     resized(page, 500, 900)
@@ -1430,6 +1430,127 @@ def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
     expect(viewer.locator("img")).to_have_attribute("alt", "A media chart")
     page.keyboard.press("Escape")
     expect(media_button).to_be_focused()
+
+
+MARKDOWN = (
+    "Words, `inline code`, **strong**, *emphasis*, ~~struck~~ and a"
+    " [link](https://example.com/).\n\n> A quoted line\n\n## A heading\n\n"
+    "```\nfenced(code)\n```\n\nend"
+)
+# Each construct as the sent message draws it, and as the draft draws the same source.
+# The draft is set in the box's type and the message in the body's, so sizes are
+# compared as a share of each one's container; the rest is the face itself.
+FACES = {
+    "inline code": ("p code", "code"),
+    "strong": ("strong", "strong"),
+    "emphasis": ("em", "em"),
+    "strikethrough": ("del", "del"),
+    "link": ("a", ".lf-md-link"),
+    "quote": ("blockquote", ".lf-md-quote"),
+    "heading": ("h2", ".lf-md-heading"),
+    "code block": ("pre", ".lf-md-code-block"),
+}
+FACE = [
+    "font-family",
+    "font-style",
+    "font-weight",
+    "color",
+    "background-color",
+    "padding-left",
+    "border-top-left-radius",
+    "border-left-width",
+    "border-left-style",
+    "border-left-color",
+    "text-decoration-line",
+    "text-decoration-color",
+    "text-underline-offset",
+]
+
+
+def test_a_draft_wears_the_faces_its_sent_message_wears(browser, serve):
+    """The composer's Markdown preview draws each construct the way the message will.
+
+    The preview stands in the field's closed shadow root, where the theme's element
+    rules do not reach, so it reads the faces from the theme's tokens instead of
+    stating its own. It had stated its own from birth: a quote drafted upright with a
+    heavy dark rule was sent italic with a light one, and code sat a size and a chip
+    shape away from how it arrived. DevTools reads the closed root, as it reads any.
+    """
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, MARKDOWN, {"section": "p0"})
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.locator(".lf-thread-summary").first.click()
+    body = page.locator(".lf-msg-body").first
+    expect(body.locator("blockquote")).to_be_visible()
+    box = page.locator(".lf-general leaf-text")
+    write(box, MARKDOWN)
+
+    sent = body.evaluate(
+        """(body, [faces, face]) => Object.fromEntries(Object.entries(faces)
+          .map(([name, [selector]]) => {
+            const style = getComputedStyle(body.querySelector(selector));
+            return [name, Object.fromEntries(
+              [...face, "font-size"].map((p) => [p, style.getPropertyValue(p)]))];
+          }))""",
+        [FACES, FACE],
+    )
+    cdp = page.context.new_cdp_session(page)
+    cdp.send("DOM.enable")
+    cdp.send("CSS.enable")
+    document = cdp.send("DOM.getDocument", {"depth": -1, "pierce": True})["root"]
+    host = cdp.send(
+        "DOM.querySelector",
+        {"nodeId": document["nodeId"], "selector": ".lf-general leaf-text"},
+    )["nodeId"]
+
+    def find(node):
+        if node["nodeId"] == host:
+            return node
+        for child in node.get("children", []) + node.get("shadowRoots", []):
+            if found := find(child):
+                return found
+        return None
+
+    root = find(document)["shadowRoots"][0]["nodeId"]
+
+    def drawn(selector):
+        node = cdp.send("DOM.querySelector", {"nodeId": root, "selector": selector})
+        assert node["nodeId"], f"the draft draws no {selector}"
+        style = {
+            entry["name"]: entry["value"]
+            for entry in cdp.send(
+                "CSS.getComputedStyleForNode", {"nodeId": node["nodeId"]}
+            )["computedStyle"]
+        }
+        return {name: style[name] for name in [*FACE, "font-size"]}
+
+    draft = {name: drawn(selector) for name, (_, selector) in FACES.items()}
+
+    # Inline constructs are sized against the words around them, and the draft's words
+    # are the box's type where the message's are the body's; a code block is set at the
+    # code size whatever holds it. A draft marks a heading by weight alone, at the size
+    # of its words, so a heading's size is left out.
+    def px(value):
+        return float(value.removesuffix("px"))
+
+    size = {
+        "draft": box.evaluate("box => getComputedStyle(box).fontSize"),
+        "sent": body.evaluate("body => getComputedStyle(body).fontSize"),
+    }
+    for face, which in ((draft, "draft"), (sent, "sent")):
+        del face["heading"]["font-size"]
+        for name in FACES.keys() - {"heading", "code block"}:
+            share = px(face[name]["font-size"]) / px(size[which])
+            face[name]["font-size"] = round(share, 3)
+    differ = {
+        name: {
+            k: (v, sent[name][k]) for k, v in draft[name].items() if v != sent[name][k]
+        }
+        for name in FACES
+    }
+    assert not any(differ.values()), differ
 
 
 # A wide page of a body and its side track: a long body beside a short side track, the

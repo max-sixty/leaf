@@ -18,7 +18,7 @@ from .files import (
 from .interaction_log import INTERACTIONS_FILE
 from .leases import wait_is_live, waiter_lease_path
 from .machine import state_home
-from .schema import STATUS_FILE, UNCLAIMED_AGENT, VIEWED_FILE, WAITER_LOCK
+from .schema import STATUS_FILE, UNNAMED_AGENT, VIEWED_FILE, WAITER_LOCK
 from .server import running_server
 from .service import (
     claim_is_active,
@@ -235,7 +235,7 @@ def presence_with_activity(
     status = {
         key: value
         for key, value in stored_status.items()
-        if key not in {"handling", "work", "stream"}
+        if key not in {"work", "stream"}
     }
     status.setdefault("after", 0)
     claim = page_claim(page_dir)
@@ -258,7 +258,7 @@ def presence_with_activity(
         # The claimant's chosen display name. Harness-specific facts stay out of
         # this reading: it is what a browser seat may know, and the browser has
         # never had a use for which program is running the agent.
-        "agent": claim["agent"] if claim else UNCLAIMED_AGENT,
+        "agent": claim["agent"] if claim else UNNAMED_AGENT,
         # None when nothing claimed the page — leaf run outside an agent host.
         "session_alive": active is not None if claim else None,
         # Which session the turn-closed evidence belongs to. Thread updates carry

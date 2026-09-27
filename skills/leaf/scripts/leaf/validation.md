@@ -10,7 +10,7 @@ re-vendoring.
 ## Static validation
 
 `page check` starts with a deterministic check of the exact mutable `index.html`
-(no browser, near-free; activation and `version stamp` run the same boundary): the HTML parses with balanced
+(no browser, near-free; activation and `page stamp` run the same boundary): the HTML parses with balanced
 tags; one direct `<body><main>` contains all authored content; page-authored behavior
 appears only in inline modules or literal local module graphs rooted below `/page/`,
 never classic scripts, network imports, event-handler attributes, or `javascript:` URLs;

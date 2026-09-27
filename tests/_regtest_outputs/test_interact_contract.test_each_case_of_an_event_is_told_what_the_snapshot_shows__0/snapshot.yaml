@@ -86,7 +86,7 @@
 #        text: A reaction is a mark, not a question. Read the token and the `means`
 #              its package gives, if any, and act on it if it calls for a change;
 #              reply only if its meaning is unclear. Once the page reflects it, close
-#              it with `leaf thread resolve <page> --to <event-id>`. It never blocks
+#              it with `leaf thread resolve <page> <event-id>`. It never blocks
 #              publishing a version, and it does not wait on an answer.
 #      clause 7, applies:
 #        (no `when`, so it always applies)
@@ -470,7 +470,7 @@ reaction on the page:
         A reaction is a mark, not a question. Read the token and the `means` its
         package gives, if any, and act on it if it calls for a change; reply only
         if its meaning is unclear. Once the page reflects it, close it with `leaf
-        thread resolve <page> --to <event-id>`. It never blocks publishing a version,
+        thread resolve <page> <event-id>`. It never blocks publishing a version,
         and it does not wait on an answer.
 
 reply:
@@ -599,8 +599,8 @@ reply in a long thread:
         This event's thread has grown long, and its entry in the batch's `threads`
         carries a `summary_hint`. Once you have replied, read the messages from
         its `from` through its `through` and summarize them with `leaf thread summarize
-        <page> <thread-id> --from <from> --through <through>`, as the Leaf skill's
-        `references/threads.md`, "Summarize a long discussion", says.
+        <page> --from <from> --through <through>`, as the Leaf skill's `references/threads.md`,
+        "Summarize a long discussion", says.
     - text: >-
         When the event asks for work, name that work before any other, including
         reading the source it concerns: `leaf status <page> working "<the work,

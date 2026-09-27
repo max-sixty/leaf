@@ -2,8 +2,8 @@ Your brief names `LEAF`, `PAGE`, `WORKER`, `ROW`, and `TASK`. Use that launcher
 for every Leaf write, under that name. Start by moving your agent row and task:
 
 ```bash
-LEAF_AGENT="$WORKER" "$LEAF" experimental report "$PAGE" "$ROW" state state=working doing="<current activity>"
-LEAF_AGENT="$WORKER" "$LEAF" experimental report "$PAGE" "$TASK" status status=active
+LEAF_AGENT="$WORKER" "$LEAF" page report "$PAGE" "$ROW" state state=working doing="<current activity>"
+LEAF_AGENT="$WORKER" "$LEAF" page report "$PAGE" "$TASK" status status=active
 ```
 
 If a report fails, return its exact error through the host task and run no other

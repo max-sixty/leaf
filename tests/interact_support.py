@@ -116,7 +116,7 @@ def append_command(page_dir, command):
 def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
     """Write revision `revision` of `data` under the page's current registry.
 
-    A shortcut past `version stamp` for a test that stages history directly: it
+    A shortcut past `page stamp` for a test that stages history directly: it
     runs no gate and no activation, and refuses a revision number already taken."""
     from leaf.registry.storage import read_page_registry
     from leaf.revision_artifact import capture_artifact, write_artifact
@@ -504,7 +504,7 @@ def declare_data_input(
 
 
 def stamp_activation(d):
-    """Activate the source as `version stamp` does: checked against the standing
+    """Activate the source as `page stamp` does: checked against the standing
     log with transitions allowed, ahead of the note that records them."""
     from leaf.validation.source import check_source
 
@@ -563,7 +563,7 @@ def stamp(d, text="stamped", completes=()):
     return CliRunner().invoke(
         cli_model.cli,
         [
-            "version",
+            "page",
             "stamp",
             str(d),
             "--text",
@@ -705,7 +705,7 @@ def _tasks_version(page_dir, status, extra=""):
 def _report(page_dir, *args):
     """Report as a worker, with the posted event on stdout for the caller to read."""
     return CliRunner().invoke(
-        cli_model.cli, ["experimental", "report", "--json", str(page_dir), *args]
+        cli_model.cli, ["page", "report", "--json", str(page_dir), *args]
     )
 
 

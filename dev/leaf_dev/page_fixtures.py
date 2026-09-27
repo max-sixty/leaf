@@ -159,7 +159,7 @@ def prepare_page(
             version.read_text(encoding="utf-8"), encoding="utf-8"
         )
         run_leaf(
-            "version",
+            "page",
             "stamp",
             str(page),
             "--text",

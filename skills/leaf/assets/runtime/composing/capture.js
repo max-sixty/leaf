@@ -5,7 +5,6 @@ import {
   closestAcross,
   cut,
   DATUM,
-  elementOver,
   neighbourhood,
   pageRange,
   pageText,
@@ -113,13 +112,12 @@ export const leftThePage = (sel = getSelection()) =>
 // written with no space after the title it follows — the two runs read as one word, and
 // growing across that seam would hand a selection of the chip the title too.
 //
-// Asked of two points of the page reading (`pointAt`); two in one segment are one run.
-const spoke = (point) => elementOver(point.node).closest("[data-lf-gen]");
+// Asked of two points of the page reading (`pointAt`), by the block and the generated
+// element (`gen`) their segments carry.
 const sameRun = (left, right) =>
   Boolean(left && right) &&
-  (left.segment === right.segment ||
-    (segmentBlock(left.segment) === segmentBlock(right.segment) &&
-      spoke(left) === spoke(right)));
+  segmentBlock(left.segment) === segmentBlock(right.segment) &&
+  left.segment.gen === right.segment.gen;
 const sentenceUnits = new Intl.Segmenter(undefined, { granularity: "sentence" });
 
 // An EDGE in the reading: a position inside it that holds no character.

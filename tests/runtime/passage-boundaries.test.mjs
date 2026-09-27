@@ -27,6 +27,7 @@ import {
   pageText,
   pageWords,
   pointAt,
+  says,
   watchPassageRoot,
 } from "/runtime/passages.js";
 
@@ -193,6 +194,16 @@ test("a declared label inside chrome is read down to its last word", () => {
   document.body.innerHTML =
     '<main><p>Page</p></main><div class="lf-ui"><span data-lf-said="tab"><b>Tab</b> label</span></div>';
   assert.match(pageText().raw, /Tab.*label/s);
+});
+
+// A reading rooted at a shadow tree starts where its host stands: the tree renders at
+// the host's place, inside the host's block, so two spans in it are one run of words.
+test("a reading rooted at a shadow tree reads in its host's block", () => {
+  document.body.innerHTML =
+    '<main><p>Rate <lf-rated id="rate"></lf-rated> today</p></main>';
+  const root = document.querySelector("#rate").attachShadow({ mode: "open" });
+  root.innerHTML = "<span>12</span><span>%</span>";
+  assert.equal(says(root), "12%");
 });
 
 // Every position in the reading leads back to the character it came from, and the edges

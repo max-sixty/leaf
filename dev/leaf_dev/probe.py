@@ -6,8 +6,9 @@
 SOURCE is a page name (`leaf_dev.example_data.named_source`) or an authored `.html`
 path. The page is built fresh from it with the checkout's own launcher, so the working
 tree is what runs, uncommitted edits included, and served under a state home of its
-own. `--base` adds the same page on an arm built at the merge base with `main`, or at
-the ref it names, so a probe compares a change with where it started in one command.
+own. `--base` adds the same page on an arm built at the merge base with
+`origin/main`, or at the ref it names, so a probe compares a change with where it
+started in one command.
 
 The tab opens at the viewport and color scheme asked for, with reduced motion, and
 settles before and after the input (`leaf_dev.browser`). The steps (`STEPS`, listed in
@@ -180,7 +181,7 @@ def read_arm(browser, label: str, arm: Path, source: Path, look: dict) -> dict:
     is_flag=False,
     flag_value="",
     default=None,
-    help="Also probe the merge base with main, or the ref given.",
+    help="Also probe the merge base with origin/main, or the ref given.",
 )
 def probe(source, steps, expression, shot, size, dark, base) -> None:
     """Open SOURCE in Chrome, run each --do step, and print what --js returns.

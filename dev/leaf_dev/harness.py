@@ -14,9 +14,9 @@ its plugin.
 
 An A/B command compares two arms, `base` and `head` (`build_pair`), or, as
 `leaf-dev guidance-ab` does, a base and the working tree's arm. Its base is the
-merge base with `main` unless the caller names another ref (`base_ref`), so a branch
-behind `main` is compared with where it started rather than with changes it has not
-merged. A timed one prints the machine's load average before and after
+merge base with `origin/main` unless the caller names another ref (`base_ref`), so
+a branch behind `main` is compared with where it started rather than with changes it
+has not merged. A timed one prints the machine's load average before and after
 (`load_average`), since other processes' load moves every timing.
 
 A child is `claude -p` from a scratch cwd outside any repository, under a home of its
@@ -167,11 +167,14 @@ def serving_source(arm: Path, source: Path, scratch: Path):
 
 
 def merge_base(ref: str = "HEAD") -> str:
-    """The commit `ref` branched from `main`: the base an A/B command compares HEAD
-    against unless it is handed another, and the control `leaf-dev ci-failures`
-    reads a branch's CI against."""
+    """The commit `ref` branched from `origin/main`: the base an A/B command
+    compares HEAD against unless it is handed another, and the control
+    `leaf-dev ci-failures` reads a branch's CI against. It is `origin/main`, what
+    GitHub holds, rather than a local `main` that can lag it: a branch that merged
+    the newer `origin/main` would otherwise count everything landed since as its
+    own change."""
     return subprocess.run(
-        ["git", "-C", ROOT, "merge-base", ref, "main"],
+        ["git", "-C", ROOT, "merge-base", ref, "origin/main"],
         capture_output=True,
         text=True,
         check=True,

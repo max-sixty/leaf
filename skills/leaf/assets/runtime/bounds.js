@@ -171,11 +171,7 @@ export function holdArrivingBounds() {
     arrive: (el) => {
       if (!holds.has(el)) holds.set(el, holdBlock(el));
       const hold = holds.get(el);
-      if (
-        !registered.has(hold) ||
-        hold.bound !== el.getAttribute(BOUND)
-      )
-        hold.sync();
+      if (!registered.has(hold) || hold.bound !== el.getAttribute(BOUND)) hold.sync();
     },
     leave: (el) => holds.get(el)?.sync(),
   });

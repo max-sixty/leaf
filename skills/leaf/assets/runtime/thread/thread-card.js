@@ -69,6 +69,15 @@ export function threadReading(
   const kind = resolved ? "unresolve" : "resolve";
   const word = resolved ? "Reopen" : "Resolve";
   const label = resolved ? word : "Resolve thread";
+  const attention = threadAttention(thread);
+  const messages = turns(thread).map((message) =>
+    messageReading(message, {
+      panel,
+      nativeAuthored: panel && commands.nativeAuthored !== false,
+      reactions: reactionReading(thread, message, panel || surface === "outlet"),
+      workflows: message.workflows,
+    }),
+  );
   return Object.freeze({
     key: threadKey(thread),
     summary: threadSummary(thread),
@@ -86,7 +95,14 @@ export function threadReading(
     search,
     quote: panel ? quoteReading(thread, commands.anchors) : null,
     resolved,
-    attention: threadAttention(thread),
+    attention,
+    // A waiting thread's status is the stage of one message's workflow, which that
+    // message already draws in its own header. The summary repeats it only for the
+    // folded row, where no message shows; whose turn it is stays, since no message
+    // says that.
+    statusFolded:
+      attention?.kind === "waiting" &&
+      messages.some((message) => message.workflow?.id === attention.workflow?.id),
     resolvedBy:
       thread.resolved?.author === "agent"
         ? `✓ Resolved by ${thread.resolved.agent}`
@@ -96,16 +112,7 @@ export function threadReading(
     settlement: Object.freeze({ kind, word, label, pending: settling }),
     reply: !resolved,
     summaries: panel ? Object.freeze(thread.summaries) : Object.freeze([]),
-    messages: Object.freeze(
-      turns(thread).map((message) =>
-        messageReading(message, {
-          panel,
-          nativeAuthored: panel && commands.nativeAuthored !== false,
-          reactions: reactionReading(thread, message, panel || surface === "outlet"),
-          workflows: message.workflows,
-        }),
-      ),
-    ),
+    messages: Object.freeze(messages),
   });
 }
 
@@ -133,6 +140,7 @@ function navigationSummary(navigation, model) {
           ? html`<span
               class="lf-thread-status"
               data-lf-turn=${model.attention?.kind === "needs_user" ? "user" : nothing}
+              data-lf-folded=${model.statusFolded ? "" : nothing}
               title=${
                 model.attention?.secondary
                   ? `${status} · ${model.attention.secondary}`

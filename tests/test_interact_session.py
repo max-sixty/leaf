@@ -12339,11 +12339,8 @@ def test_session_end_does_not_start_uv_before_the_plugin_environment_exists(
         (PLUGIN_ROOT / "hooks" / "scripts" / "loop-guard.py").read_bytes()
     )
     package = project / "skills" / "leaf" / "scripts" / "leaf"
-    package.mkdir(parents=True)
-    for name in ("__init__.py", "state_paths.py"):
-        (package / name).write_bytes(
-            (PLUGIN_ROOT / "skills" / "leaf" / "scripts" / "leaf" / name).read_bytes()
-        )
+    package.parent.mkdir(parents=True)
+    package.symlink_to(PLUGIN_ROOT / "skills" / "leaf" / "scripts" / "leaf", target_is_directory=True)
     tools = tmp_path / "tools"
     tools.mkdir()
     uv = tools / "uv"
@@ -12394,8 +12391,8 @@ def test_session_end_does_not_start_uv_before_the_plugin_environment_exists(
     assert not called.exists()
 
     # A different Leaf checkout can claim a page in the shared state home while
-    # this plugin copy's environment is still cold. SessionEnd must reach the
-    # CLI to release that claim.
+    # this plugin copy's environment is still cold. SessionEnd releases it
+    # without starting uv.
     record_claim(page_dir, id="unused")
     cross_copy = subprocess.run(
         [sys.executable, str(guard)],
@@ -12411,8 +12408,8 @@ def test_session_end_does_not_start_uv_before_the_plugin_environment_exists(
         "",
         "",
     )
-    assert called.exists()
-    called.unlink()
+    assert not called.exists()
+    assert service_model.page_claim(page_dir)["released"] is not None
 
     installed = project / ".venv" / "bin" / "leaf"
     installed.parent.mkdir(parents=True)
@@ -12427,7 +12424,31 @@ def test_session_end_does_not_start_uv_before_the_plugin_environment_exists(
         check=False,
     )
     assert (warm.returncode, warm.stdout, warm.stderr) == (0, "", "")
-    assert "--no-sync" in called.read_text().splitlines()
+    assert not called.exists()
+
+
+def test_cold_session_end_releases_a_claim_from_another_checkout(tmp_path, page_dir):
+    project = tmp_path / "cold-plugin"
+    guard = project / "hooks" / "scripts" / "loop-guard.py"
+    guard.parent.mkdir(parents=True)
+    guard.write_bytes((PLUGIN_ROOT / "hooks" / "scripts" / "loop-guard.py").read_bytes())
+    package = project / "skills" / "leaf" / "scripts" / "leaf"
+    package.parent.mkdir(parents=True)
+    package.symlink_to(PLUGIN_ROOT / "skills" / "leaf" / "scripts" / "leaf", target_is_directory=True)
+    record_claim(page_dir, id="cross-checkout")
+
+    ended = subprocess.run(
+        [sys.executable, str(guard)],
+        input=json.dumps({"hook_event_name": "SessionEnd", "session_id": "cross-checkout"}),
+        env=os.environ | {"PATH": str(tmp_path / "no-uv")},
+        capture_output=True,
+        text=True,
+        timeout=3,
+        check=False,
+    )
+
+    assert (ended.returncode, ended.stdout, ended.stderr) == (0, "", "")
+    assert service_model.page_claim(page_dir)["released"] is not None
 
 
 def test_a_hook_in_a_session_holding_no_page_imports_no_page_reading_or_server():

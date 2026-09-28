@@ -176,9 +176,10 @@ Session death is not completion or an explicit stop: work status and desired
 service stay as they were. Absent the harness the environment implies, nothing is
 claimed and the hooks stand down. `hooks/scripts/loop-guard.py`, which the hosts
 run, leaves the active-claim decision to this command. For a cold SessionEnd it
-skips `uv` only when the shared state home has no claim record for that session;
-otherwise it runs the command and stays silent when it cannot get an answer, so
-a leaf bug costs a turn nothing.
+releases records still naming that session directly under each page's transaction
+lock, without starting `uv`; the CLI uses the same release path. Other hooks run
+the command and stay silent when it cannot get an answer, so a leaf bug costs a
+turn nothing.
 
 Only a page handed to a user owes a watcher, so the unwatched clause passes
 over a page carrying `preview.json`, which only a checkout's `leaf-dev preview`

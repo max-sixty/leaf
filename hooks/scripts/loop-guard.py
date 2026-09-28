@@ -15,11 +15,9 @@ command names a `leaf wait` that command started, with how to close the turn it
 outlives. Codex runs the same `hooks.json` and ignores its `if` filter, so that
 registration keeps a `$CLAUDECODE` gate ahead of this script.
 
-This script decides nothing about active ownership or what to say about the
-pages a session holds. Both questions belong to the `leaf` CLI, which owns the
-page-directory model. One `uv run` per turn is what it costs to ask them there.
-Only a cold SessionEnd skips that call when the shared state home holds no claim
-record this session could own; that negative reading does not classify claims.
+The CLI owns the turn's active-ownership reading. SessionEnd only releases
+records still naming the ended session, under the page transaction lock. Its
+standard-library path works before this plugin copy has an environment.
 
 What is left is the one thing the CLI cannot do for itself: fail open. Anything
 unexpected — no uv on PATH, an install that will not sync, a timeout — is
@@ -40,7 +38,6 @@ matches the launcher: the dev group is the suite's, not a host's.
 """
 
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -53,27 +50,14 @@ def main() -> None:
         payload = sys.stdin.read()
         hook = json.loads(payload)
         event = hook.get("hook_event_name")
-        environment = Path(
-            os.environ.get("UV_PROJECT_ENVIRONMENT") or PROJECT / ".venv"
-        )
-        if not environment.is_absolute():
-            environment = PROJECT / environment
-        # An untouched session needs no CLI under the host's three-second
-        # deadline. Claims are shared across plugin copies, so check their
-        # presence before treating this copy's missing environment as proof.
-        if event == "SessionEnd" and not (environment / "bin" / "leaf").exists():
-            sys.path.insert(0, str(PROJECT / "skills" / "leaf" / "scripts"))
-            from leaf.state_paths import session_may_have_claim
-
-            if not session_may_have_claim(hook.get("session_id") or ""):
-                return
-        command = ["uv", "run", "-q", "--no-dev"]
         if event == "SessionEnd":
-            # A stale environment should fail open instead of syncing until the
-            # host cancels this short-lived hook.
-            command.append("--no-sync")
+            sys.path.insert(0, str(PROJECT / "skills" / "leaf" / "scripts"))
+            from leaf.state_paths import end_session
+
+            end_session(hook.get("session_id") or "")
+            return
         answer = subprocess.run(
-            [*command, "--project", str(PROJECT), "leaf", "hook"],
+            ["uv", "run", "-q", "--no-dev", "--project", str(PROJECT), "leaf", "hook"],
             input=payload,
             capture_output=True,
             text=True,

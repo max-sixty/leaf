@@ -140,6 +140,7 @@
   --lf-z-page-paint: 8890;        /* paint on a page element */
   --lf-z-margin-raised: 8895;     /* the margin item under pointer or focus */
   --lf-z-surface: 8900;           /* a standing drawer or thread panel */
+  --lf-z-margin-preview: 8920;    /* the thread card, under the bars it scrolls beneath */
   --lf-z-shortcut-bar: 8940;
   --lf-z-menu: 8950;              /* a door's menu */
   --lf-z-banner: 9000;
@@ -151,7 +152,6 @@
   --lf-z-key-badges: 9070;
   --lf-z-page-search: 9080;
   --lf-z-thread-transition: 9140;
-  --lf-z-margin-preview: 9150;
   --lf-z-dialog: 9300;            /* the command reference, the page map */
   --lf-z-media-viewer: 9400;
   /* The document is warm paper. Code uses a white editor canvas and quiet gray chrome

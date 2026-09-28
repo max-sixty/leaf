@@ -1201,7 +1201,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      control floats over the page's own content rather than standing in the empty rail,
      so it cannot rely on a hairline to separate it from whatever it happens to cover. */
   :is(.lf-fab-bar, .lf-response-control) { --lf-response-height: 32px; }
-  .lf-fab-bar { position: fixed; display: none; width: max-content;
+  .lf-fab-bar { position: absolute; display: none; width: max-content;
     align-items: flex-end; gap: 4px; white-space: nowrap;
     max-width: var(--lf-float-w, calc(100vw - 16px)); }
   /* A side response and a thread card whose reply is being drafted both write top as
@@ -1211,6 +1211,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     .lf-margin-preview[data-lf-thread-held]) {
     translate: 0 -100%; }
   .lf-fab-bar[data-lf-margin-raised] { display: none !important; }
+  /* A floating surface stands in the plane a scroll carries it with (floating.js). */
+  :is(.lf-fab-bar, .lf-margin-preview)[data-lf-plane="window"] { position: fixed; }
   /* The field and its choices are one anchored response control. This primitive owns
      their height, vertical padding, type, border, corners, and elevation. Tab extends
      the control at its trailing edge without replacing or moving the field.
@@ -1443,8 +1445,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      ancestor makes other than the viewport's; these are the fallbacks for a card no
      placement has measured yet, so only they are held to the viewport. The card itself never scrolls: its thread list does, in every
      posture and before the first open, so the list is the preview's one reading
-     scroller (reading-regions.js reads posture off that list's overflow). */
-  .lf-margin-preview { position: fixed; inset: 0 auto auto 0;
+     scroller (reading-regions.js reads posture off that list's overflow). Absolute here, it
+     stands in the page's plane as the cluster it hangs from does, or in the window's
+     (floating.js), and passes under the banner and the bottom bar the way the words
+     do. */
+  .lf-margin-preview { position: absolute; inset: 0 auto auto 0;
     z-index: var(--lf-z-margin-preview);
     width: var(--lf-thread-width, min(var(--thread-card), calc(100vw - 16px)));
     max-height: var(--lf-thread-max-height,
@@ -1705,7 +1710,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-key-badges > .lf-key-badge { position: absolute; display: block;
     transform: translate(-50%, -100%); }
   /* Ask binding badges sit on the answer control's upper-left corner. Unlike a route name
-     above prose, the single digit is a local label for the control it touches. */
+     above prose, the single digit is a local label for the control it touches, so they
+     stand in the document plane with it, where a scroll carries them, under the chrome
+     they never cover. */
+  .lf-ask-binding-badges { position: absolute; inset: 0 auto auto 0;
+    z-index: var(--lf-z-page-paint); }
   .lf-ask-binding-badges > .lf-ask-binding-badge { transform: translate(-50%, -50%); }
   /* The Target picker and Go-to sequence both give visible targets generated, prefix-free
      names while their interaction stands. Every hint remains visible: the face is

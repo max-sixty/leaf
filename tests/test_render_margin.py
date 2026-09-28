@@ -7841,6 +7841,84 @@ def test_a_card_under_a_containing_block_stands_beside_its_cluster(
     assert after == pytest.approx(before, abs=0.5), (before, after)
 
 
+QUOTED_ON_ASK = {
+    **COMMENT_ON_ASK,
+    "anchor": {"section": "sec-mounts", "quote": "one came down in January"},
+}
+
+
+def scroll_writes(page):
+    """Scroll the page up and back down by a few small steps, off the page's controls,
+    and return each DOM write the scroll caused."""
+    # Off the page's controls, so the scroll brings nothing new under the pointer.
+    page.mouse.move(2, 300)
+    rendered(page)
+    page.evaluate(
+        """() => {
+          window.lfWrites = [];
+          new MutationObserver((records) => window.lfWrites.push(...records.map(
+            (r) => `${r.type} ${r.attributeName ?? ""} on ${r.target.nodeName}` +
+              ` ${r.target.className}`,
+          ))).observe(document, {
+            subtree: true, attributes: true, childList: true, characterData: true,
+          });
+        }"""
+    )
+    start = page.evaluate("() => scrollY")
+    for step in (-20, -20, 20, 20, 20):
+        page.evaluate("step => scrollBy(0, step)", step)
+        rendered(page)
+    assert page.evaluate("() => scrollY") == start + 20
+    return page.evaluate("() => window.lfWrites")
+
+
+def test_a_scroll_that_carries_the_card_writes_nothing(browser, serve):
+    """A scroll the card rides with its cluster leaves the page's DOM as it was: the
+    card, its target's trace, the marks, and the Ask's binding badges stand in the plane
+    the scroll carries them with, and each owner on the scroll path writes only what
+    changed. Chrome repaints the whole document for any write while a highlight holds a
+    range, which a page with a quoted comment always has."""
+    page = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK, QUOTED_ON_ASK]))
+    resized(page, 1440, 600)
+    marker = page.locator('[data-lf-margin-for="bracket"] .lf-margin-marker')
+    marker.evaluate(
+        "node => node.scrollIntoView({block: 'center', behavior: 'instant'})"
+    )
+    marker.click()
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_attribute("data-lf-plane", "page")
+    offset = """() =>
+      document.querySelector('.lf-margin-preview').getBoundingClientRect().top -
+      document.querySelector('[data-lf-margin-for="bracket"]').getBoundingClientRect().top"""
+    before = page.evaluate(offset)
+    writes = scroll_writes(page)
+    assert writes == [], writes
+    assert page.evaluate(offset) == pytest.approx(before, abs=0.5)
+
+
+def test_a_scroll_that_carries_the_response_bar_writes_nothing(browser, serve):
+    """The response bar a selection raises rides a scroll with its passage in the same
+    plane, writing nothing, as the card does."""
+    page = open_page(browser, serve(ASK_PAGE, events=[QUOTED_ON_ASK]))
+    resized(page, 1440, 600)
+    words = page.locator("#heater-p")
+    words.evaluate(
+        "node => node.scrollIntoView({block: 'center', behavior: 'instant'})"
+    )
+    box = words.bounding_box()
+    y = box["y"] + 10
+    select(page, (box["x"] + 2, y), (box["x"] + 120, y))
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_be_visible()
+    expect(bar).to_have_attribute("data-lf-plane", "page")
+    offset = """() => document.querySelector('.lf-fab-bar').getBoundingClientRect().top -
+      document.querySelector('#heater-p').getBoundingClientRect().top"""
+    before = page.evaluate(offset)
+    writes = scroll_writes(page)
+    assert writes == [], writes
+    assert page.evaluate(offset) == pytest.approx(before, abs=0.5)
+
+
 def test_a_live_version_keeps_the_user_on_the_same_margin_location(browser, serve):
     """Replacing authored main must not discard focus held by retained map chrome."""
     version_url = serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])

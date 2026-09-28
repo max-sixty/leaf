@@ -64,7 +64,7 @@ import {
   progressStates,
   rowSteps,
 } from "./presentation.js";
-import { el } from "../widget-elements.js";
+import { el, keeps, keepsHidden } from "../widget-elements.js";
 import { lineOwner, shadow, stack, executeCommand } from "./dispatch.js";
 
 import {
@@ -425,7 +425,7 @@ export function renderShortcutBar(goToStatus) {
         : null,
     expanded,
   });
-  shortcutBarEl.dataset.lfExpanded = String(model.expanded);
+  keeps(shortcutBarEl, "data-lf-expanded", model.expanded);
   render(shortcutBarTemplate(model), shortcutBarEl);
   const rowSpans = shortcutBarEl.querySelectorAll(":scope > .lf-shortcut");
   const drawn = model.items.map((presentation, index) => ({
@@ -435,7 +435,7 @@ export function renderShortcutBar(goToStatus) {
   // Lit leaves `hidden` alone, so every paint first restores each row's semantic
   // eligibility; the expanded bar's trim below is then the one measurement that may hide
   // more.
-  for (const { presentation, span } of drawn) span.hidden = presentation.hidden;
+  for (const { presentation, span } of drawn) keepsHidden(span, presentation.hidden);
   if (!expanded) return;
 
   const rowsUsed = () => {

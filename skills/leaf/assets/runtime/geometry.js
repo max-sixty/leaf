@@ -28,6 +28,8 @@ import { overlaps, overlapsAcross, union } from "./rect.js";
    - `shownRect` for visible placement of floating chrome and key badges;
    - `seenRect` for whether, and how much of, something is in front of the user;
    - `clippedRect` for an element's box the caller has adjusted;
+   - `pagePlaneRect` for the same box drawn by paint in the document plane, which the
+     window does not cut;
    - `clippedContents` when the subject has no element box of its own.
 
    `skipped` is asked first by a reading that can leave out a box the browser is not
@@ -515,16 +517,22 @@ export const startsAt = (item, clips) => {
 // The clips standing over a box, applied to it. Taken apart from shownRect because the two
 // readings above and a painted Range want the same walk over different boxes.
 export const clippedRect = (box, item, clips) => clipped(box, item, clips, false);
+// The same walk for paint that stands in the document plane, which a root scroll carries
+// with the page: the page's own boxes cut it, and the window does not, since cutting it
+// there moves the cut with every scroll and has the paint written again for each one.
+// A header stuck over the root's edge still cuts it, since it stands over the page.
+export const pagePlaneRect = (box, item, clips) =>
+  clipped(box, item, clips, false, false);
 // The same walk for a box measured from what an element holds: a Range inside it. The
 // holder's own band stands over its contents, where it says nothing about the holder's
 // own box, so text scrolled out of the `pre` it sits in directly is text nobody sees.
 export const clippedContents = (box, holder, clips) =>
   clipped(box, holder, clips, true);
-function clipped(box, item, clips, held) {
-  let left = Math.max(box.left, 0),
-    top = Math.max(box.top, 0),
-    right = Math.min(box.right, innerWidth),
-    bottom = Math.min(box.bottom, innerHeight);
+function clipped(box, item, clips, held, inWindow = true) {
+  let left = inWindow ? Math.max(box.left, 0) : box.left,
+    top = inWindow ? Math.max(box.top, 0) : box.top,
+    right = inWindow ? Math.min(box.right, innerWidth) : box.right,
+    bottom = inWindow ? Math.min(box.bottom, innerHeight) : box.bottom;
   // From the box itself, not from its parent: an element is not clipped by its own
   // overflow — that clips what it holds — so its band is skipped and only its position is
   // read. Starting at the parent instead asked the question of every ancestor of a fixed
@@ -553,7 +561,8 @@ function clipped(box, item, clips, held) {
         }),
       );
     }
-    if ((held || a !== item) && c.band) {
+    const windowBand = a === a.ownerDocument?.scrollingElement && !c.headers.length;
+    if ((held || a !== item) && c.band && (inWindow || !windowBand)) {
       const band = c.headers.length ? bandLess(c.band, c.headers, item) : c.band;
       if (!band) return null;
       left = Math.max(left, band.left);

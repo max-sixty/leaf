@@ -28,10 +28,10 @@
    column by no more than that room's shortfall. The card keeps its height in every
    case; one too tall for its spot slides across its cluster rather than shrinking. This
    module supplies the visible boundary — the reading region or the viewport under the
-   banner and over the bottom chrome — measures the card, and clips it to the part of
-   the window the page shows, so a card leaving with its cluster passes under the chrome
-   rather than over it. Floating UI (floating.js) carries the spot into the card's
-   positioning space and follows what moves the cluster. The card contains the complete
+   banner and over the bottom chrome — and measures the card. Floating UI (floating.js)
+   carries the spot into the card's positioning space, in the plane the geometry names,
+   and follows what moves the cluster. A card leaving with its cluster passes under the
+   chrome, which stacks over it, and a reading region clips it at its edge. The card contains the complete
    inline thread view; the Threads panel remains the complete index and takes over when
    already open. Once placed, the card keeps its side and holds one edge at its distance
    from the cluster (the geometry's `hold`): its foot, and the editor pinned to it,
@@ -654,16 +654,23 @@ export function createMarginProjection({
   // within its target's reading region when it has one. That is the visible viewport, so
   // a reply editor stays above a phone's software keyboard.
   function threadCardBoundary(target, { gap = CARD_GAP, viewport } = {}) {
-    const region = containingReadingRegionFor(target);
-    return shownWindow({
-      within: region ? shownRegionBounds(region) : null,
-      gap,
-      viewport,
-    });
+    return shownWindow({ within: regionBounds(target), gap, viewport });
   }
+  const regionBounds = (target) => {
+    const region = containingReadingRegionFor(target);
+    return region ? shownRegionBounds(region) : null;
+  };
+  // A scroll moves the held edge and with it the room to the boundary, so the cap moves
+  // with every scroll. A card short of both the cap it wears and the new one renders the
+  // same under either, and every write during a scroll costs a repaint
+  // (widget-elements.js, `keeps`), so such a card keeps the cap it wears. Growth that
+  // reaches a cap resizes the card, and the placement that answers takes the new one.
   function measureThreadCard(width, cap) {
     preview.style.setProperty("--lf-thread-width", `${width}px`);
-    preview.style.setProperty("--lf-thread-max-height", `${cap}px`);
+    const worn = parseFloat(preview.style.getPropertyValue("--lf-thread-max-height"));
+    const height = preview.getBoundingClientRect().height;
+    if (!(height < worn - 0.5 && height < cap - 0.5))
+      preview.style.setProperty("--lf-thread-max-height", `${cap}px`);
     fitThreadCardEditors();
     return preview.getBoundingClientRect().height;
   }
@@ -749,12 +756,7 @@ export function createMarginProjection({
         return {
           x: rects.reference.x + (geometry.x - clusterBox.x) / scale.x,
           y: rects.reference.y + (geometry.y - clusterBox.y) / scale.y,
-          data: {
-            geometry,
-            drafting,
-            scale,
-            shown: threadCardBoundary(target, { gap: 0 }),
-          },
+          data: { geometry, drafting, scale, region: regionBounds(target) },
         };
       },
     };
@@ -776,32 +778,37 @@ export function createMarginProjection({
           getBoundingClientRect: () => cluster.getBoundingClientRect(),
         };
         previewPlacement.watch(target ?? cluster, reference, autoUpdate);
-        return computePosition(reference, preview, {
-          strategy: "fixed",
-          middleware: [threadCardMiddleware(cluster, target)],
-        });
+        return previewPlacement.position(
+          computePosition,
+          reference,
+          { middleware: [threadCardMiddleware(cluster, target)] },
+          ({ middlewareData }) => middlewareData.threadCard?.geometry?.plane,
+        );
       })
       .then((position) => {
         const placed = position?.middlewareData.threadCard;
         if (!placed?.geometry || !stillCurrent()) return;
-        const { geometry, drafting, scale, shown } = placed;
+        const { geometry, drafting, scale, region } = placed;
         previewHold = geometry.hold;
         previewAway = geometry.away;
+        // An unchanged declaration is the browser's own no-op, and `keeps` is the rest's.
         preview.style.left = `${position.x}px`;
         // A card held by its foot writes its foot, so growth before the next placement
         // moves its top.
         preview.style.top = `${position.y + (drafting ? geometry.height / scale.y : 0)}px`;
-        // Leaving with its cluster, the card passes under the chrome rather than over it.
-        const inset = [
-          (shown.top - geometry.y) / scale.y,
-          (geometry.x + geometry.width - shown.right) / scale.x,
-          (geometry.y + geometry.height - shown.bottom) / scale.y,
-          (shown.left - geometry.x) / scale.x,
-        ];
-        preview.style.clipPath = `inset(${inset.map((side) => `${side}px`).join(" ")})`;
-        preview.dataset.lfThreadPlacement = geometry.placement;
-        if (drafting) preview.dataset.lfThreadHeld = "";
-        else delete preview.dataset.lfThreadHeld;
+        // Leaving with its cluster, the card passes under the chrome, which stacks over
+        // it, and a reading region cuts it at the region's edge as it cuts the words.
+        if (region) {
+          const inset = [
+            (region.top - geometry.y) / scale.y,
+            (geometry.x + geometry.width - region.right) / scale.x,
+            (geometry.y + geometry.height - region.bottom) / scale.y,
+            (region.left - geometry.x) / scale.x,
+          ];
+          preview.style.clipPath = `inset(${inset.map((side) => `${side}px`).join(" ")})`;
+        } else preview.style.removeProperty("clip-path");
+        keeps(preview, "data-lf-thread-placement", geometry.placement);
+        preview.toggleAttribute("data-lf-thread-held", drafting);
         preview.style.removeProperty("opacity");
         preview.style.removeProperty("pointer-events");
         answerThreadPreviewPosition(true);

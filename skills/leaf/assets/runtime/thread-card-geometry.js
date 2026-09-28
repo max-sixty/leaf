@@ -49,7 +49,10 @@
    stays inside the `scrollport`, the room the page scrolls it through, so scrolling never
    squeezes it. Once the cluster leaves the scrollport, the clamp gives by exactly as far
    as the cluster has gone, so the card leaves with it and comes back with it; `away`
-   says the card has left the boundary altogether. Nothing about a scroll closes the
+   says the card has left the boundary altogether. `plane` says what a scroll carries the
+   card with: the `window`, while the boundary's own edge holds it in, or the `page`,
+   where it stands at its spot or at a bound that has given with its cluster. A caller
+   that stands the card in that plane leaves every scroll that keeps it to the browser. Nothing about a scroll closes the
    card. The clamp gives only for a cluster `seen` since the card was placed: a card
    opened from words deep in a block whose cluster is above the window stands in the
    window until that cluster has been in it, and a caller whose window changed size
@@ -95,24 +98,31 @@ export function threadCardGeometry({
   const gone = (distance) => (seen ? Math.max(0, distance) : 0);
   const head = boundary.top - gone(scrollport.top - cluster.bottom);
   const foot = boundary.bottom + gone(cluster.top - scrollport.bottom);
-  const within = (y, height) => clamp(y, head, foot - height);
-  const holding = (placement, y, height, kept = {}) => ({
-    placement,
-    x,
-    y,
-    width,
-    height,
-    away: y + height <= boundary.top || y >= boundary.bottom,
-    hold: {
+  // `spot` is where the card stands relative to its cluster, before the boundary clamps it.
+  const holding = (placement, spot, height, kept = {}) => {
+    const y = clamp(spot, head, foot - height);
+    return {
       placement,
+      x,
+      y,
       width,
-      top: y - cluster.top,
-      foot: y + height - cluster.top,
       height,
-      seen,
-      ...kept,
-    },
-  });
+      away: y + height <= boundary.top || y >= boundary.bottom,
+      plane:
+        (y > spot && head === boundary.top) || (y < spot && foot === boundary.bottom)
+          ? "window"
+          : "page",
+      hold: {
+        placement,
+        width,
+        top: y - cluster.top,
+        foot: y + height - cluster.top,
+        height,
+        seen,
+        ...kept,
+      },
+    };
+  };
 
   if (hold && (hold.placement === "right") === beside && hold.width === width) {
     // Read, a card over its cluster holds its foot, the edge toward its cluster.
@@ -126,8 +136,9 @@ export function threadCardGeometry({
         ? clamp(at, boundary.top + last, boundary.bottom) - boundary.top
         : boundary.bottom - clamp(at, boundary.top, boundary.bottom - last);
     const height = heightAt(width, cap);
-    const y = within(held === "foot" ? at - height : at, height);
-    return holding(hold.placement, y, height, { [held]: hold[held] });
+    return holding(hold.placement, held === "foot" ? at - height : at, height, {
+      [held]: hold[held],
+    });
   }
   const height = heightAt(width, boundary.height);
   const clears = !beside && target && x < target.right ? [cluster, target] : [cluster];
@@ -139,5 +150,5 @@ export function threadCardGeometry({
       ? "below"
       : "above";
   const spot = { right: cluster.top, below: under, above: over }[placement];
-  return holding(placement, within(spot, height), height, { top: spot - cluster.top });
+  return holding(placement, spot, height, { top: spot - cluster.top });
 }

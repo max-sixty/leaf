@@ -30,7 +30,6 @@ from interact_support import (
     PAGE,
     PAGE_PACKAGES,
     PLUGIN_ROOT,
-    SKILL_ROOT,
     STATED_TIMEOUT,
     Prose,
     _status,
@@ -40,6 +39,7 @@ from interact_support import (
     fetch,
     fifo_writer,
     hold_status_read,
+    install_payload,
     let_a_pick_settle_a_thread,
     owed,
     page_state,
@@ -51,6 +51,7 @@ from interact_support import (
     start_server_command,
     state_json,
     take_stream_activity,
+    thread_records,
     vendored_by_another_leaf,
     wait_for,
     yaml_document,
@@ -5690,10 +5691,10 @@ def test_first_delivery_carries_thread_title_without_repeating_messages(
             cli_model.cli,
             [
                 "thread",
-                "title",
+                "edit",
                 str(page_dir),
                 root["id"],
-                "--text",
+                "--title",
                 title,
             ],
         )
@@ -5786,7 +5787,7 @@ def test_thread_read_is_exact_and_paginated(page_dir):
 
     first = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "read", str(page_dir), root["id"], "--limit", "2"],
+        ["page", "state", str(page_dir), root["id"], "--limit", "2"],
     )
     assert first.exit_code == 0, first.output
     reading = json.loads(first.output)
@@ -5811,8 +5812,8 @@ def test_thread_read_is_exact_and_paginated(page_dir):
     second = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
-            "read",
+            "page",
+            "state",
             str(page_dir),
             root["id"],
             "--after",
@@ -5855,8 +5856,6 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
         start: str,
         end: str,
         text: str = "The first exchange.",
-        *,
-        as_json: bool = True,
     ):
         return CliRunner().invoke(
             cli_model.cli,
@@ -5870,7 +5869,6 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
                 end,
                 "--text",
                 text,
-                *(["--json"] if as_json else []),
             ],
         )
 
@@ -5906,9 +5904,9 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
     assert withdrawn_range.exit_code != 0
     assert "endpoints must name spoken turns in one thread" in withdrawn_range.output
 
-    described = summarize(second["id"], third["id"], as_json=False)
+    described = summarize(second["id"], third["id"])
     assert described.exit_code == 0, described.output
-    assert described.output == f"summarized {second['id']} through {third['id']}\n"
+    assert json.loads(described.output)["through"] == third["id"]
 
     accepted = summarize(root["id"], second["id"])
     assert accepted.exit_code == 0, accepted.output
@@ -5925,7 +5923,7 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
 
     read = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "read", str(page_dir), root["id"]],
+        ["page", "state", str(page_dir), root["id"]],
     )
     assert read.exit_code == 0, read.output
     [projected] = json.loads(read.output)["thread"]["summaries"]
@@ -6514,13 +6512,7 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
         (origin["id"], [origin["id"], accepted["id"]]),
         (target["id"], [target["id"], accepted["id"]]),
     ):
-        selected = CliRunner().invoke(
-            cli_model.cli, ["page", "events", str(page_dir), "--thread", thread]
-        )
-        assert selected.exit_code == 0, selected.output
-        assert [
-            json.loads(line)["id"] for line in selected.output.splitlines()
-        ] == expected
+        assert thread_records(page_dir, thread) == expected
 
     reply = thread_model.cmd_reply(
         page_dir,
@@ -6735,11 +6727,7 @@ def test_exact_thread_history_and_wait_share_indirect_resolution_events(
             "restated": ["sug-refill"],
         },
     )
-    selected = CliRunner().invoke(
-        cli_model.cli, ["page", "events", str(page_dir), "--thread", "c1"]
-    )
-    assert selected.exit_code == 0, selected.output
-    assert [json.loads(line)["id"] for line in selected.output.splitlines()] == [
+    assert thread_records(page_dir, "c1") == [
         "c1",
         accepted["id"],
         rejected["id"],
@@ -7485,7 +7473,7 @@ def test_a_wait_watches_a_stopped_server_until_its_page_ends(
         pytest.fail("a disabled service was revived")
 
     monkeypatch.setattr(session_model, "start_server", unexpected_start)
-    assert hosting_model.cmd_stop(page_dir) == "no server running"
+    assert hosting_model.cmd_stop(page_dir) is False
 
     def unexpected_delivery(reading):
         pytest.fail(f"nothing was sent, yet {reading.page_dir} delivered")
@@ -7663,7 +7651,7 @@ def test_page_init_restarts_a_served_page_under_the_sessions_wait(
     session = os.environ["CLAUDE_CODE_SESSION_ID"]
     started = start_server_command(page_dir, session_id=session)
     assert started.returncode == 0, started.stderr
-    url = started.stdout.strip()
+    url = json.loads(started.stdout)["url"]
     claim = service_model.page_claim(page_dir)
     generation = files_model.read_json(page_dir / "registry.json")["$layer"][
         "generation"
@@ -7755,7 +7743,7 @@ def test_a_refused_revendor_leaves_the_running_server_alone(page_dir):
         page_dir, session_id=os.environ["CLAUDE_CODE_SESSION_ID"]
     )
     assert started.returncode == 0, started.stderr
-    url = started.stdout.strip()
+    url = json.loads(started.stdout)["url"]
     state = urllib.parse.urlsplit(url)._replace(path="/api/state").geturl()
 
     def incarnation():
@@ -7790,7 +7778,7 @@ def test_page_init_leaves_a_service_it_cannot_restart_for_this_session(
         "generation"
     ]
     if service == "stopped":
-        assert hosting_model.cmd_stop(page_dir) == "stopped server"
+        assert hosting_model.cmd_stop(page_dir) is True
     elif service == "orphaned":
         with service_model.PageTransaction(page_dir) as page:
             page.release_claim()
@@ -7891,7 +7879,7 @@ def test_a_delayed_revival_cannot_cross_an_explicit_stop(page_dir, monkeypatch):
     reviving = threading.Thread(target=tick)
     reviving.start()
     assert entered.wait(5), "the watcher did not decide to revive"
-    assert hosting_model.cmd_stop(page_dir) == "no server running"
+    assert hosting_model.cmd_stop(page_dir) is False
     release.set()
     reviving.join(timeout=10)
 
@@ -9247,14 +9235,21 @@ def test_a_later_codex_start_names_the_running_transport(
         release_start.touch()
         out, err = started.communicate(timeout=60)
         assert started.returncode == 0, f"{out}{err}"
-        assert out.strip() == "Codex delivery started for task codex-thread"
+        assert json.loads(out) == {
+            "task": "codex-thread",
+            "app_server": None,
+            "started": True,
+        }
         status, _, err = start("--app-server", "unix:///tmp/elsewhere.sock")
         assert status != 0
         assert "not through App Server unix:///tmp/elsewhere.sock" in err
-        assert start()[:2] == (
-            0,
-            "Codex delivery is already active for task codex-thread",
-        )
+        status, again, _ = start()
+        assert status == 0
+        assert json.loads(again) == {
+            "task": "codex-thread",
+            "app_server": None,
+            "started": False,
+        }
     finally:
         session_model.cmd_status(page, "idle", "")
         with service_model.PageTransaction(page) as transaction:
@@ -9320,7 +9315,8 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
     release_start.touch()
     out, err = started.communicate(timeout=60)
     assert started.returncode == 0, f"{out}{err}"
-    assert "Codex delivery started for task codex-thread" in out
+    assert json.loads(out)["task"] == "codex-thread"
+    assert json.loads(out)["started"] is True
     try:
         wait_for(
             lambda: (
@@ -9450,7 +9446,7 @@ def test_codex_adapter_stays_on_a_stopped_page_until_it_goes_idle(
     program, log = fake_codex_cli(tmp_path)
     release_start = tmp_path / "release-start"
     session_model.cmd_status(page, "waiting", "comment on the prototype")
-    assert hosting_model.cmd_stop(page) == "stopped server"
+    assert hosting_model.cmd_stop(page) is True
 
     started = under_codex(
         shlex.join(
@@ -9929,7 +9925,7 @@ raise SystemExit(codex_adapter_model.run_adapter(os.environ["CODEX_PATH"]))
         text=True,
         check=True,
     )
-    assert standing.stdout.startswith("http://127.0.0.1:")
+    assert json.loads(standing.stdout)["url"].startswith("http://127.0.0.1:")
     session_model.cmd_status(second, "waiting", "second page")
     starter = None
     try:
@@ -12131,12 +12127,12 @@ def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
 
     early = CliRunner().invoke(cli_model.cli, waiting)
     assert early.exit_code == 0, early.output
-    assert early.output.splitlines() == [
-        "waiting — pick one",
+    assert json.loads(early.stdout)["detail"] == "pick one"
+    assert early.stderr.splitlines() == [
         (
             f"1 user move with no answer (`leaf thread reply <page> --for {comment}`); "
             "the page reads waiting once each has one"
-        ),
+        )
     ]
 
     replied = CliRunner().invoke(
@@ -12153,18 +12149,28 @@ def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
     )
     assert replied.exit_code == 0, replied.output
     settled = CliRunner().invoke(cli_model.cli, waiting)
-    assert settled.output.splitlines() == ["waiting — pick one"]
+    assert settled.stderr == ""
+    assert json.loads(settled.stdout)["state"] == "waiting"
     snapshot.check(
         yaml_document(
             "The waiting status command names unanswered work until the reply settles it.",
             _interaction_prompt_evidence(
                 claimed,
                 {
-                    "before reply": {"exit": early.exit_code, "output": early.output},
-                    "after reply": {
-                        "exit": settled.exit_code,
-                        "output": settled.output,
-                    },
+                    moment: {
+                        "exit": result.exit_code,
+                        # The status as written, less the instant it was written at.
+                        "status": {
+                            key: value
+                            for key, value in json.loads(result.stdout).items()
+                            if key != "ts"
+                        },
+                        "note": result.stderr,
+                    }
+                    for moment, result in (
+                        ("before reply", early),
+                        ("after reply", settled),
+                    )
                 },
             ),
         )
@@ -12486,7 +12492,7 @@ def test_server_start_hands_the_page_to_a_process_of_its_own(page_dir):
     costing the watcher alone."""
     started = start_server_command(page_dir)
     assert started.returncode == 0, started.stderr
-    url = started.stdout.strip()
+    url = json.loads(started.stdout)["url"]
     assert url.startswith("http://127.0.0.1:")
     assert "server   session" in started.stderr
     info = server_model.running_server(page_dir)
@@ -12536,38 +12542,33 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
     """Re-vendoring a served page restarts its server under the recorded lifetime
     and URL, onto the new layer, and preserves the active revision contract."""
     publish(page_dir)
-    old_skill = page_dir.parent / "old-skill"
-    old_scripts = old_skill / "scripts"
-    old_scripts.mkdir(parents=True)
-    shutil.copytree(SKILL_ROOT / "scripts" / "leaf", old_scripts / "leaf")
-    shutil.copytree(schema_model.ASSETS, old_skill / "assets")
+    old_plugin = install_payload(page_dir.parent / "old-plugin")
     old_registry = files_model.read_json(page_dir / "registry.json")
     del old_registry["$events"]["kinds"]["comment"]["record"]["properties"]["attempt"]
     files_model.write_json(page_dir / "registry.json", old_registry)
-    files_model.write_json(old_skill / "assets" / "registry.json", old_registry)
+    files_model.write_json(
+        old_plugin / "skills" / "leaf" / "assets" / "registry.json", old_registry
+    )
 
     if lifetime == "standing":
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
         monkeypatch.delenv("CLAUDE_PID")
     old_server = spawn(
         [
-            *LEAF_COMMAND,
+            # The old plugin's own launcher, so `SKILL_ROOT` resolves into it and
+            # this server answers out of the registry there rather than the
+            # checkout's.
+            old_plugin / "bin" / "leaf",
             "server",
             "run",
             str(page_dir),
             *(["--standing"] if lifetime == "standing" else []),
         ],
-        # The old skill's own copy of the package, so `SKILL_ROOT` resolves into
-        # it and this server answers out of the registry beside it rather than
-        # the checkout's. PYTHONPATH is what puts that copy first: the `leaf`
-        # this environment installs is editable, and reaches sys.path through a
-        # .pth file site reads after PYTHONPATH.
-        env=os.environ | {"PYTHONPATH": str(old_scripts)},
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
-    url = old_server.stdout.readline().strip()
+    url = json.loads(old_server.stdout.readline())["url"]
     assert url.startswith("http://127.0.0.1:")
     assert old_server.stderr.readline().startswith(f"server   {lifetime}")
     prior_status = files_model.read_json(page_dir / "status.json")
@@ -12634,7 +12635,7 @@ def test_server_stop_disables_desired_state_without_signalling_a_pid(
 
     monkeypatch.setattr(os, "kill", unexpected_signal)
 
-    assert hosting_model.cmd_stop(page_dir) == "no server running"
+    assert hosting_model.cmd_stop(page_dir) is False
     assert files_model.read_json(page_dir / "service.json")["enabled"] is False
 
 
@@ -12655,7 +12656,7 @@ def test_server_stop_reports_a_server_that_exits_as_soon_as_it_is_disabled(
             )
 
     monkeypatch.setattr(hosting_model, "write_json", write_and_wait_for_exit)
-    assert hosting_model.cmd_stop(page_dir) == "stopped server"
+    assert hosting_model.cmd_stop(page_dir) is True
     server.wait(timeout=5)
 
 
@@ -12708,7 +12709,7 @@ def test_server_stop_waits_for_the_live_server_to_release_its_lease(
     assert not returned_while_paused, "server stop returned before lock release"
     assert not stopping.is_alive(), "server stop did not cross the release barrier"
     assert errors == []
-    assert outcomes == ["stopped server"]
+    assert outcomes == [True]
     assert not leases_model.lock_is_held(page_dir / "server.lock")
 
 
@@ -12728,7 +12729,7 @@ def test_server_stop_closes_accepted_keep_alive_connections(page_dir, standing_s
         ).encode()
     )
 
-    assert hosting_model.cmd_stop(page_dir) == "stopped server"
+    assert hosting_model.cmd_stop(page_dir) is True
     server.wait(timeout=5)
 
     accepted.settimeout(1)
@@ -12752,7 +12753,7 @@ def test_a_sessionless_server_ignores_a_stale_claim_and_requires_explicit_stop(
     # plus room to act — long enough that the bug, had it been here, would have shown.
     time.sleep(schema_model.ORPHAN_GRACE_SECS + 0.5)
     assert server.poll() is None, "a manual server inherited the stale session claim"
-    assert "stopped server" in hosting_model.cmd_stop(page_dir)
+    assert hosting_model.cmd_stop(page_dir) is True
     server.wait(timeout=5)
 
 
@@ -12774,7 +12775,7 @@ def test_server_run_standing_declines_the_claim_a_host_session_offers(page_dir, 
         stderr=subprocess.PIPE,
         text=True,
     )
-    assert process.stdout.readline().startswith("http://127.0.0.1:")
+    assert json.loads(process.stdout.readline())["url"].startswith("http://127.0.0.1:")
     assert process.stderr.readline().strip() == "server   standing"
     assert files_model.read_json(page_dir / "service.json")["lifetime"] == "standing"
     assert service_model.page_claim(page_dir) is None
@@ -12792,7 +12793,7 @@ def test_server_run_temporary_uses_the_browser_harness_boundary(page_dir, spawn)
         stderr=subprocess.PIPE,
         text=True,
     )
-    url = process.stdout.readline().strip()
+    url = json.loads(process.stdout.readline())["url"]
     assert url.startswith("http://127.0.0.1:")
     assert process.stderr.readline().strip() == (
         "server   temporary (stops with this command)"
@@ -12843,7 +12844,7 @@ def test_a_standing_server_outlives_a_session_that_picks_the_page_up(
     # running server has, not the one this claiming launch would have given it.
     hosting_model.cmd_serve(page_dir)
     served = capsys.readouterr()
-    assert served.out.strip() == launched["url"]
+    assert json.loads(served.out) == {"url": launched["url"]}
     assert "server   standing" in served.err
 
     hooks_model.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "later"})
@@ -12854,7 +12855,7 @@ def test_a_standing_server_outlives_a_session_that_picks_the_page_up(
     assert service_model.page_claim(page_dir)["released"] is not None
     assert page_dir not in service_model.owned_pages("later")
     # Explicit stop crosses that server's release barrier before returning.
-    assert "stopped server" in hosting_model.cmd_stop(page_dir)
+    assert hosting_model.cmd_stop(page_dir) is True
     server.wait(timeout=5)
 
 

@@ -131,7 +131,7 @@ file begins with its first rule rather than a title of its own.
 A widget attaches its own guidance through `x-guidance`, while a data contract may
 carry producer guidance beside its schema. Packages define audiences such as `author`,
 `reviewer`, or `worker`; Leaf does not keep a role list. `leaf page guidance PAGE` lists
-the audiences in the vendored page, and `leaf page guidance PAGE AUDIENCE` composes all
+the audiences in the vendored page as a JSON array, and `leaf page guidance PAGE AUDIENCE` composes all
 three sources. The page author reads the `author` audience when the list includes it;
 that guide ends by naming the page's other audiences, so a package does not point at
 its own.
@@ -227,6 +227,12 @@ declaration carries a
 non-empty `description`. Its first plain sentence identifies the widget's purpose; the
 rest explains its detailed contract. An entry's `x-example` must validate and is the
 markup an author queries with that entry.
+
+A `boolean` attribute is present or absent, as in HTML, so it names what its presence
+means, and the widget's default is its absence: `lf-diff collapsed`,
+`lf-options multiple`, `lf-shot outlines`. A feature a page usually wants is still
+off until the author asks for it, and the guidance that routes to the widget says
+when to ask.
 
 The shipped element declarations are the worked examples. For the keys that reshape a
 widget's role on the page:

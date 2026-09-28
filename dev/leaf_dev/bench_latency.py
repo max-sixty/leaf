@@ -2,59 +2,23 @@
 
     uv run leaf-dev bench-latency [BASE_REF]
 
-BASE_REF defaults to the merge base of HEAD and `main`. Each arm is the plugin payload
-at its commit (`leaf_dev.harness.build_pair`), so commit what you want measured. Every
-page is built from this checkout's example source by the arm's own launcher
-(`leaf_dev.harness.build_source`), and served by that arm's `leaf server run
---temporary`, so the browser runtime and the server both come from the arm. Pages are
-`examples/triage-board.html` and the corpus (`examples/corpus.html`, opened on its
-Triage tab), in one headless Chrome (`leaf_dev.browser.chrome`) at
-`leaf_dev.browser.DESKTOP` with the Threads panel open. The two arms' pages stay open
-side by side and take turns within each run.
+BASE_REF defaults to the merge base with `main`; each arm is the plugin payload at its
+commit (`leaf_dev.harness.build_pair`), so commit what you want measured. Each arm
+builds and serves the triage board and the corpus from this checkout's examples, and
+both arms' tabs stay open in one headless Chrome, taking turns within each run. Each
+run reloads the page, opens the Threads panel, and times five transitions
+(`TRANSITIONS`): a passage comment and a card move, each ended by a key, and an agent
+reply, status, and revision, each by the arm's `leaf`.
 
-Each of RUNS runs reloads the page and times five transitions against the objectives in
-`notes/user-feedback-responsiveness.md`:
-
-- `comment`: a passage comment sent with Mod+Enter. Painted is the first frame showing
-  the message; Sent is the first frame showing its "Sent" receipt.
-- `move`: a board card grabbed, moved one column left, and dropped with Enter. Painted
-  is the first frame with the card set down in its new column; Sent is the first frame
-  whose margin shows "Sent" for that card.
-- `reply`: `leaf thread reply` on an agent thread, painted when the reply shows. The
-  thread is opened first, since the panel shows only the open thread's messages.
-- `status`: `leaf status <page> working "..."`, painted when the banner shows it.
-- `revision`: a changed `index.html` saved, then `leaf page stamp`, presented when
-  the new revision's words show after `data-lf-presented`. Install says whether the
-  runtime patched the document in place or reloaded it.
-
-A transition's clock starts at the input event's own timestamp for a gesture, and at
-the first modification time of the file the command writes (`events.jsonl`,
-`status.json`) or the saved `index.html` for a write. It stops at the end of the first
-rendering update whose result satisfies the transition: an init script samples every
-frame after its animation-frame callbacks, from a task posted there, which runs after
-that frame's paint. A DOM change is therefore counted at the frame that paints it, not
-when it happens. The report flags a gesture painted after 100 ms, and a receipt or a
-write painted after 1 s; a receipt is timed from the input rather than from server
-acceptance, which makes its objective stricter than the note's. Page time is
-`performance.timeOrigin + performance.now()`; file time is the filesystem's
-modification stamp. Both read the machine's wall clock, which the command assumes is
-shared; it prints the page-to-Python offset it observed.
-
-Requests and bytes are the primary comparison; time is diagnostic. They count what the
-page did from the gesture or write until it is quiet (`lfReadiness` null, the traffic
-ledger's sends and reads all answered) and stays quiet for SETTLE_MS: the resource
-entries started in that window, or every entry of the new document after a reload,
-with bytes as their `transferSize`.
-
-Limits: request bodies and the long-lived `api/news` stream carry no resource entry,
-so neither is counted; the frame sampler keeps Chrome producing frames while it waits;
-one headless browser on a shared machine measures load too, so read the spread and the
-printed load average (`leaf_dev.harness.load_average`) before a median; the gestures
-skip the selection and grab that precede them. Results go to
-`.tmp/bench-latency/results.json`.
-
-`leaf-dev profile` runs the same transitions on the same pages (`served`) under a
-profiler, to say where the time goes.
+A gesture's clock starts at its input event's timestamp; an agent write's at the first
+modification of the file it writes, so the command's startup is left out. It stops at
+the first frame that paints the result (an init script samples after each frame's
+paint), and a gesture's "Sent" receipt is timed the same way. Requests and bytes, the
+primary comparison, are the resource entries the page started from then until it has
+stayed quiet for SETTLE_MS, or the whole new document after a reload; request bodies
+and the `api/news` stream carry no entry. Compare the numbers with the objectives in
+`notes/user-feedback-responsiveness.md`, and read the spread and load average before
+a median. `leaf-dev profile` drives the same transitions (`served`) under a profiler.
 """
 
 import json
@@ -103,11 +67,6 @@ MOVES = (
     ("card-avatar", "col-next"),
 )
 TRANSITIONS = ("comment", "move", "reply", "status", "revision")
-# The objectives of notes/user-feedback-responsiveness.md, in milliseconds: a gesture's
-# local result, a visible receipt, and an agent write's paint.
-PAINTED_OBJECTIVE = {"comment": 100, "move": 100}
-WRITE_OBJECTIVE = 1000
-SENT_OBJECTIVE = 1000
 
 # Installed before every document. `arm` stores the goals in sessionStorage, so a
 # revision that reloads the page goes on being sampled in the document that replaces it.
@@ -220,7 +179,6 @@ PROBE = """
       watch: watched,
       disarm: () => sessionStorage.removeItem(WATCH),
       input: () => input,
-      clock,
       revision: () => Number(document.querySelector('meta[name="lf-revision"]')?.content),
       quiet() {
         const ready =
@@ -287,31 +245,23 @@ def first_write(path: Path, command: list[str], env: dict) -> float:
 
     The modification stamp of the first change the file shows is the write itself,
     whatever the command spent starting up before it."""
-
-    def identity():
-        stat = path.stat()
-        return stat.st_ino, stat.st_mtime_ns, stat.st_size
-
-    before = identity()
+    before = path.stat().st_mtime_ns
     process = subprocess.Popen(
         command, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
     )
-    written = None
-    while written is None:
+    while True:
         exited = process.poll() is not None
-        if identity() != before:
-            written = path.stat().st_mtime_ns / 1e6
-        elif exited:
+        written = path.stat().st_mtime_ns
+        if written != before or exited:
             break
-        else:
-            time.sleep(0.0005)
+        time.sleep(0.0005)
     output, _ = process.communicate()
-    if process.returncode or written is None:
+    if process.returncode or written == before:
         raise click.ClickException(
-            f"{' '.join(command[1:])} exited {process.returncode} "
-            f"{'without writing ' + path.name if written is None else ''}:\n{output}"
+            f"{' '.join(command[1:])} exited {process.returncode}, "
+            f"{'unchanged' if written == before else 'changed'} {path.name}:\n{output}"
         )
-    return written
+    return written / 1e6
 
 
 @dataclass
@@ -472,8 +422,6 @@ class Session:
         words = f"Bench revision {run + 1}."
         index = self.page_dir / "index.html"
         html = index.read_text(encoding="utf-8")
-        if html.count(LEDE_END) != 1:
-            raise click.ClickException(f"{index} does not hold {LEDE_END!r} once")
         revision = self.page.evaluate("() => window.__leafBench.revision()") + 1
 
         def act():
@@ -499,7 +447,7 @@ def served(browser: Browser, arm: str, arm_dir: Path, source: str, scratch: Path
     thread = json.loads(
         leaf(
             "thread", "open", str(page_dir), "--section", PASSAGE, "--quote", QUOTE,
-            "--text", "Bench thread.", "--json",
+            "--text", "Bench thread.",
         ).stdout
     )["id"]  # fmt: skip
     with serving(arm_dir, state, page_dir) as address:
@@ -517,62 +465,22 @@ def served(browser: Browser, arm: str, arm_dir: Path, source: str, scratch: Path
             context.close()
 
 
-def clock_offset(page: Page) -> float:
-    """How far the page's clock sits from Python's, in milliseconds."""
-    before = time.time() * 1000
-    page_time = page.evaluate("() => window.__leafBench.clock()")
-    after = time.time() * 1000
-    return page_time - (before + after) / 2
-
-
 def spread(values: list[float]) -> str:
     if not values:
-        return "never shown"
+        return ""
     return f"{statistics.median(values):.0f} [{min(values):.0f}-{max(values):.0f}]"
 
 
-def report(results: list[dict], header: str) -> tuple[str, list[str]]:
-    rows = [
-        (
-            f"{'page':13} {'transition':10} {'arm':4} {'painted ms':>16} "
-            f"{'Sent ms':>16} {'requests':>8} {'KB':>7}  install"
-        )
-    ]
-    misses = []
-    for source in SOURCES:
-        for transition in TRANSITIONS:
-            for arm in ("base", "head"):
-                runs = [
-                    r
-                    for r in results
-                    if (r["page"], r["transition"], r["arm"])
-                    == (source, transition, arm)
-                ]
-                if not runs:
-                    continue
-                painted = [r["painted"] for r in runs]
-                sent = [r["sent"] for r in runs if "sent" in r]
-                installs = sorted({r["install"] for r in runs})
-                rows.append(
-                    f"{source:13} {transition:10} {arm:4} {spread(painted):>16} "
-                    f"{spread(sent) if sent else '':>16} "
-                    f"{statistics.median(r['requests'] for r in runs):>8.0f} "
-                    f"{statistics.median(r['bytes'] for r in runs) / 1000:>7.1f}  "
-                    f"{', '.join(installs) if transition == 'revision' else ''}"
-                )
-                limit = PAINTED_OBJECTIVE.get(transition, WRITE_OBJECTIVE)
-                for name, values, objective in (
-                    ("painted", painted, limit),
-                    ("Sent", sent, SENT_OBJECTIVE),
-                ):
-                    over = sum(value > objective for value in values)
-                    if over:
-                        misses.append(
-                            f"{source} {transition} {arm}: {name} over {objective} ms "
-                            f"in {over} of {len(values)} runs "
-                            f"(median {statistics.median(values):.0f} ms)"
-                        )
-    return "\n".join([header, *rows]), misses
+def row(source: str, transition: str, arm: str, runs: list[dict]) -> str:
+    painted = spread([r["painted"] for r in runs])
+    sent = spread([r["sent"] for r in runs if "sent" in r])
+    requests = statistics.median(r["requests"] for r in runs)
+    kb = statistics.median(r["bytes"] for r in runs) / 1000
+    installs = ", ".join(sorted({r["install"] for r in runs}))
+    return (
+        f"{source:13} {transition:10} {arm:4} {painted:>16} {sent:>16} "
+        f"{requests:>8.0f} {kb:>7.1f}  {installs if transition == 'revision' else ''}"
+    )
 
 
 @click.command()
@@ -582,13 +490,12 @@ def bench_latency(base_ref: str | None) -> None:
 
     Times a page's answer to a gesture, an agent write, and a revision, on two
     pages, taking turns between BASE_REF's runtime and HEAD's; BASE_REF defaults to
-    the merge base with origin/main. Prints a table of median [min-max] milliseconds
-    to the painted frame, with the requests and bytes each caused, and each
-    objective a transition missed; every run lands in .tmp/bench-latency/.
+    the merge base with main. Prints a table of median [min-max] milliseconds
+    to the painted frame, with the requests and bytes each caused; every run lands
+    in .tmp/bench-latency/.
     """
     load_before = load_average()
     results = []
-    offsets = []
     with tempfile.TemporaryDirectory(prefix="leaf-bench-") as built:
         scratch = Path(built)
         arms, commits = build_pair(base_ref, scratch)
@@ -606,7 +513,6 @@ def bench_latency(base_ref: str | None) -> None:
                         # the machine the other just loaded.
                         for session in sessions[:: 1 if run % 2 == 0 else -1]:
                             session.open()
-                            offsets.append(clock_offset(session.page))
                             for transition in TRANSITIONS:
                                 result = getattr(session, transition)(run)
                                 results.append({**result, "run": run})
@@ -620,15 +526,22 @@ def bench_latency(base_ref: str | None) -> None:
     (OUT / "results.json").write_text(
         json.dumps({"commits": commits, "results": results}, indent=1)
     )
-    header = (
+    click.echo(
         f"base {commits['base'][:10]} vs head {commits['head'][:10]}, {RUNS} runs, "
         f"Chrome {version}, {DESKTOP[0]}x{DESKTOP[1]}\n"
-        f"load average {load_before} before, {load_average()} after; page clock within "
-        f"{max(abs(o) for o in offsets):.1f} ms of Python's\n"
-        "times are median [min-max] from input or write to the painted frame"
+        f"load average {load_before} before, {load_average()} after\n"
+        "times are median [min-max] from input or write to the painted frame\n"
+        f"{'page':13} {'transition':10} {'arm':4} {'painted ms':>16} "
+        f"{'Sent ms':>16} {'requests':>8} {'KB':>7}  install"
     )
-    table, misses = report(results, header)
-    click.echo(table)
-    for miss in misses:
-        click.echo(f"objective missed: {miss}")
+    for source in SOURCES:
+        for transition in TRANSITIONS:
+            for arm in arms:
+                runs = [
+                    r
+                    for r in results
+                    if (r["page"], r["transition"], r["arm"])
+                    == (source, transition, arm)
+                ]
+                click.echo(row(source, transition, arm, runs))
     click.echo(f"details: {OUT / 'results.json'}")

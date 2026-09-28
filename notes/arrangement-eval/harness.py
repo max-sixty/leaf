@@ -37,7 +37,7 @@ references and registry keys read; page CSS lines (`<style>` plus `page/*.css`),
 attributes, JavaScript lines and each arrangement term used; and an independent
 `page check --render` with the arm's launcher, cached in `gate-<phase>.json`. A
 run's phase counts only when every trace through it reached its result, with `is_error`
-false and no auto-memory loaded (`Run.usable`); `score` marks the others, and `review`
+false (`Run.usable`); `score` marks the others, and `review`
 and `summarize` leave them out alike.
 
 Review. A fresh child sees only the request and both pages' screenshots, copied under
@@ -69,7 +69,6 @@ from leaf_dev.harness import (
     blocks,
     build_arm,
     completed,
-    loaded_memory,
     read_trace,
     run_claude,
     run_leaf,
@@ -173,8 +172,8 @@ class Run:
         return page if (page / "index.html").exists() else None
 
     def usable(self, phase: int) -> bool:
-        """Whether the run counts at `phase`: every trace through it reached its result,
-        without error and without loading auto-memory. Phase 2 resumes phase 1's
+        """Whether the run counts at `phase`: every trace through it reached its result
+        without error. Phase 2 resumes phase 1's
         session, so a void phase 1 voids it too."""
         return all(
             counts(trace_scores(self.dir / f"stream-{p}.jsonl"))
@@ -183,10 +182,11 @@ class Run:
 
     @contextmanager
     def served(self, page: Path):
-        """Serve `page` with the arm's launcher; yield its URL."""
+        """Serve `page` with the arm's launcher; yield its URL, which an arm from
+        before the CLI printed JSON prints bare."""
         out = self.leaf("server", "start", "--standing", str(page), check=True).stdout
         try:
-            yield re.search(r"https?://\S+", out)[0]
+            yield re.search(r"https?://[^\s\"]+", out)[0]
         finally:
             self.leaf("server", "stop", str(page))
 
@@ -381,8 +381,6 @@ def trace_scores(stream: Path) -> dict:
     done = result(trace)
     usage = done.get("usage", {})
     return {
-        # A child that loaded auto-memory read the user's notes, so the run is void.
-        "memory": loaded_memory(trace),
         "completed": completed(trace),
         "finished": bool(done),
         "turns": done.get("num_turns"),
@@ -401,7 +399,7 @@ def trace_scores(stream: Path) -> dict:
 
 def counts(trace: dict) -> bool:
     """Whether a phase's `trace_scores` count: it reached its result, which says it did
-    not fail, and it loaded no auto-memory."""
+    not fail."""
     return bool(trace.get("completed"))
 
 

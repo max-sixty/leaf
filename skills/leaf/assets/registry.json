@@ -139,7 +139,7 @@
               ]
             }
           },
-          "text": "This event's thread has no title yet: name it with `leaf thread title <page> <thread-id> --text \"<a few words>\"`, so the thread panel lists its subject rather than its opening words."
+          "text": "This event's thread has no title yet: name it by adding `--title \"<a few words>\"` to the reply that answers it, so the thread panel lists its subject rather than its opening words."
         },
         {
           "when": {
@@ -159,7 +159,7 @@
               ]
             }
           },
-          "text": "The user answered in a thread; the batch's `threads` carries the thread's context, and `leaf thread read <page> <thread-id>` reads its history in pages."
+          "text": "The user answered in a thread; the batch's `threads` carries the thread's context, and `leaf page state <page> <thread-id>` reads its history in pages."
         },
         {
           "when": {
@@ -197,7 +197,7 @@
               ]
             }
           },
-          "text": "This event's thread has no title yet: name it with `leaf thread title <page> <thread-id> --text \"<a few words>\"`, so the thread panel lists its subject rather than its opening words."
+          "text": "This event's thread has no title yet: name it by adding `--title \"<a few words>\"` to the reply that answers it, so the thread panel lists its subject rather than its opening words."
         },
         {
           "when": {
@@ -235,7 +235,7 @@
       ],
       "unresolve": [
         {
-          "text": "The user reopened a closed thread. The reopening owes nothing of its own; if the thread's latest user message was never answered, `leaf thread read <page> <thread-id>` shows the `answer` its workflow still owes."
+          "text": "The user reopened a closed thread. The reopening owes nothing of its own; if the thread's latest user message was never answered, `leaf page state <page> <thread-id>` shows the `answer` its workflow still owes."
         }
       ],
       "done": [

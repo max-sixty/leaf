@@ -64,7 +64,7 @@ assert EXAMPLES, "no examples found — parametrizing over an empty list tests n
 FEATURE_GALLERY = ROOT / "examples" / "developer" / "feature-gallery.html"
 assert FEATURE_GALLERY.is_file(), "the developer feature gallery is missing"
 DEVELOPER_PAGES = tuple(sorted((ROOT / "examples" / "developer").glob("*.html")))
-# The inputs scripts/corpus.py composes. The corpus is a generated presentation of
+# The inputs `leaf-dev corpus` composes. The corpus is a generated presentation of
 # the public pages plus the feature gallery, not another author source. Every authored-
 # content sweep uses this source set, while public-site tests read the top-level glob.
 PUBLIC_EXAMPLES = tuple(p for p in EXAMPLES if p.stem != "corpus")
@@ -103,7 +103,7 @@ def stamp_page(
     complete_args = [arg for widget in completes for arg in ("--completes", widget)]
     result = CliRunner().invoke(
         cli_model.cli,
-        ["page", "stamp", "--json", str(page_dir), "--text", text, *complete_args],
+        ["page", "stamp", str(page_dir), "--text", text, *complete_args],
         catch_exceptions=False,
     )
     assert result.exit_code == 0, result.output
@@ -1004,7 +1004,7 @@ there yet, so it is set where a merely slow handover still finishes and a wedged
 one still fails well inside the nightly step's own bound. Waiting longer weakens
 no claim, since the stamps say the same thing whenever they arrive and nothing
 here reads how quickly a page came up — the suite's startup readings are the
-phase profile `scripts/verify_site.py wrangler` takes."""
+phase profile `leaf-dev verify-site wrangler` takes."""
 
 
 def draft_key(page, ctx: str) -> str:

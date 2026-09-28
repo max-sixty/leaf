@@ -526,7 +526,7 @@ def test_the_feature_gallery_eyebrows_index_literal_code_names():
     assert apparatus.isdisjoint(indexed), (
         f"feature eyebrows expose gallery apparatus: {', '.join(sorted(apparatus & indexed))}"
     )
-    # scripts/corpus.py strips the contents sidebar when it composes the tab, so
+    # `leaf-dev corpus` strips the contents sidebar when it composes the tab, so
     # lf-toc is page chrome rather than a sample a section demonstrates.
     sections = re.sub(
         r'<aside class="sidebar".*?</aside>', "", authored, flags=re.DOTALL
@@ -565,10 +565,10 @@ def test_playground_range_requires_its_upper_bound_at_the_markup_boundary():
 
 def test_corpus_is_generated_from_the_examples():
     """examples/corpus.html is derived; a commit that lets it drift fails here."""
-    import corpus
+    from leaf_dev import corpus
 
     committed = (Path(__file__).parent.parent / "examples" / "corpus.html").read_text()
-    assert corpus.build() == committed, "examples changed — rerun scripts/corpus.py"
+    assert corpus.build() == committed, "examples changed — rerun leaf-dev corpus"
     assert "<lf-toc" not in committed, (
         "a source page's document map becomes a repeated whole-corpus outline in a tab"
     )
@@ -576,10 +576,10 @@ def test_corpus_is_generated_from_the_examples():
         (Path(__file__).parent.parent / "examples" / "corpus.data.json").read_text()
     )
     assert corpus.build_data() == committed_data, (
-        "example data changed — rerun scripts/corpus.py"
+        "example data changed — rerun leaf-dev corpus"
     )
     assert corpus.build_events() == corpus.CORPUS_EVENTS.read_text(), (
-        "sample threads changed — rerun scripts/corpus.py"
+        "sample threads changed — rerun leaf-dev corpus"
     )
     committed_page = {
         path.relative_to(corpus.CORPUS_PAGE).as_posix(): path.read_bytes()
@@ -587,7 +587,7 @@ def test_corpus_is_generated_from_the_examples():
         if path.is_file()
     }
     assert corpus.build_page() == committed_page, (
-        "an example's own elements changed — rerun scripts/corpus.py"
+        "an example's own elements changed — rerun leaf-dev corpus"
     )
     assert committed_data["$captures"]["gallery-source"]["file"] == (
         "developer/feature-gallery-source.toml"
@@ -596,7 +596,7 @@ def test_corpus_is_generated_from_the_examples():
 
 def test_the_key_reference_is_generated_from_the_registry():
     """The registry reference is written from the same $keys agents query."""
-    import keydocs
+    from leaf_dev import keydocs
 
     committed = keydocs.DOCS_PAGE.read_text()
 
@@ -607,7 +607,7 @@ def test_the_key_reference_is_generated_from_the_registry():
         return re.sub("\\s+", " ", re.sub("\\s*(<[^>]*>)\\s*", "\\1", tags))
 
     assert said(keydocs.build(committed)) == said(committed), (
-        "the registry's $keys changed — rerun scripts/keydocs.py"
+        "the registry's $keys changed — rerun leaf-dev keydocs"
     )
     # Every key appears once in the index and once at its generated definition.
     keys = json.loads(schema_model.ASSETS.joinpath("registry.json").read_text())[
@@ -653,7 +653,7 @@ def test_no_example_writes_another_example_s_sentences():
         p.stem: p.read_text(encoding="utf-8")
         for p in sorted((ROOT / "examples").glob("*.html"))
         # corpus.html embeds every sibling's prose, so it shares everything by
-        # construction; scripts/corpus.py is what holds it true.
+        # construction; `leaf-dev corpus` is what holds it true.
         if p.stem != "corpus"
     }
     assert len(examples) > 1, examples
@@ -910,7 +910,6 @@ def test_agent_messages_preserve_a_single_space(page_dir):
             root["id"],
             "--text",
             " ",
-            "--json",
         ],
     )
     assert replied.exit_code == 0, replied.output
@@ -1127,7 +1126,6 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
         [
             "thread",
             "reply",
-            "--json",
             str(page_dir),
             "--for",
             user["id"],
@@ -1153,7 +1151,6 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
                 message["id"],
                 "--text",
                 text,
-                "--json",
             ],
         )
         assert result.exit_code == 0, result.output
@@ -1182,16 +1179,14 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
         set(thread) == {"id", "title", "anchor", "detached_from", "resolved", "unread"}
         for thread in state["threads"]
     )
-    expected = {
-        root["id"]: [root["id"], revisions[0]["id"], revisions[1]["id"]],
-        user["id"]: [user["id"], reply["id"], revisions[2]["id"]],
-    }
+    expected = {root["id"]: [root["id"]], user["id"]: [user["id"], reply["id"]]}
     for thread, ids in expected.items():
         selected = CliRunner().invoke(
-            cli_model.cli, ["page", "events", str(page_dir), "--thread", thread]
+            cli_model.cli, ["page", "state", str(page_dir), thread]
         )
         assert selected.exit_code == 0, selected.output
-        assert [json.loads(line)["id"] for line in selected.output.splitlines()] == ids
+        content = json.loads(selected.output)["content"]
+        assert [message["message"] for message in content] == ids
 
     transcript = CliRunner().invoke(
         cli_model.cli, ["page", "transcript", str(page_dir)]
@@ -1549,7 +1544,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
     it in an append-only log, so that door is the last moment anything about it can
     be fixed. An example's companion log is neither: it is written into the
     repository by hand, and from there `leaf-dev site` publishes it to
-    leaf.page, `serve` lays it into every browser sweep, and `scripts/preview.py`
+    leaf.page, `serve` lays it into every browser sweep, and `leaf-dev preview`
     serves it live. `page check` reads such a log only for ids colliding
     with the version's.
 
@@ -1640,10 +1635,10 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
     state = state_json(page_dir)
     assert [t["id"] for t in state["threads"]] == [answered["id"]]
     selected = CliRunner().invoke(
-        cli_model.cli, ["page", "events", str(page_dir), "--thread", answered["id"]]
+        cli_model.cli, ["page", "state", str(page_dir), answered["id"]]
     )
     assert selected.exit_code == 0, selected.output
-    assert [json.loads(line)["id"] for line in selected.output.splitlines()] == [
+    assert [m["message"] for m in json.loads(selected.output)["content"]] == [
         answered["id"],
         reply["id"],
     ]
@@ -1681,12 +1676,11 @@ def test_an_agent_names_and_renames_a_thread_without_changing_its_speech(
             cli_model.cli,
             [
                 "thread",
-                "title",
+                "edit",
                 str(page_dir),
                 root["id"],
-                "--text",
+                "--title",
                 title,
-                "--json",
             ],
         )
         assert result.exit_code == 0, result.output
@@ -1700,19 +1694,12 @@ def test_an_agent_names_and_renames_a_thread_without_changing_its_speech(
 
     selected = runner.invoke(
         cli_model.cli,
-        [
-            "page",
-            "events",
-            str(page_dir),
-            "--thread",
-            root["id"],
-        ],
+        ["page", "state", str(page_dir), root["id"]],
     )
     assert selected.exit_code == 0, selected.output
-    assert [json.loads(line)["id"] for line in selected.output.splitlines()] == [
-        root["id"],
-        *(title["id"] for title in titles),
-    ]
+    reading = json.loads(selected.output)
+    assert [m["message"] for m in reading["content"]] == [root["id"]]
+    assert reading["thread"]["title"] == "Terrace accessibility"
     assert [(event["kind"], event["thread"], event["title"]) for event in titles] == [
         ("thread_title", root["id"], "Workshop venue"),
         ("thread_title", root["id"], "Terrace accessibility"),

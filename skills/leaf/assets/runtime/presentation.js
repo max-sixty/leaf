@@ -82,11 +82,9 @@
    excluded from clipboard and anchor readings, but available to assistive technology.
    `quietFacts` derives them from `x-paints` and the runtime's provenance attributes.
 
-   The runtime may inject its own words inside a widget. Comment-note buttons, for
-   example, can be placed on a text block owned by that widget. A module reading its slot
-   or body must call `says` so runtime words do not become authored or user content.
-   Place injected lines on the block or anchored element, not on an intermediate body
-   node from which a draft editor seeds its text. */
+   The runtime may inject its own words inside a widget: a quiet word, or an attribute
+   the registry says aloud. A module reading its slot or body must call `says` so
+   runtime words do not become authored or user content. */
 
 import { elementDeclarations, registry, tagsDeclaring } from "./registry.js";
 import {
@@ -308,12 +306,18 @@ export function quietWord(el, word) {
 }
 
 // External page links keep native link behavior but make the boundary explicit: the
-// target opens beside this Leaf, and the visible mark says it will leave the page. A URL on this page's own origin is
-// still local even when the author wrote it absolutely; non-web schemes keep their
-// platform meaning.
+// target opens beside this Leaf, and the visible mark says it will leave the page. A URL
+// on this page's own origin is still local even when the author wrote it absolutely;
+// non-web schemes keep their platform meaning.
+//
+// The mark is also what a screen reader is told: the link's description names it, and it
+// carries the words as its label. It stays hidden, so the words are not part of the
+// link's name, and a description may name a hidden element. Everything the treatment adds
+// stands inside the link, so the page's own rules about which of a block's children
+// comes last, or what follows a link, match what the page wrote.
 const EXTERNAL_LINK_ATTRIBUTES = ["target", "rel", "aria-describedby"];
 const externalLinkState = new WeakMap();
-let externalNoteSequence = 0;
+let externalMarkSequence = 0;
 export function isExternalPageLink(link) {
   if (!(link instanceof HTMLAnchorElement)) return false;
   try {
@@ -360,7 +364,7 @@ function rememberExternalLinkChanges(link, state) {
     let value = current[name];
     if (name === "rel" && state.addedNoopener)
       value = withoutToken(value, "noopener", true);
-    if (name === "aria-describedby") value = withoutToken(value, state.noteId);
+    if (name === "aria-describedby") value = withoutToken(value, state.markId);
     state.baseline[name] = value;
   }
 }
@@ -370,7 +374,6 @@ function clearExternalLink(link, state) {
   link
     .querySelectorAll(':scope > .lf-external-mark[data-lf-gen="1"]')
     .forEach((node) => node.remove());
-  state.note?.remove();
   externalLinkState.delete(link);
 }
 function leaveExternalLink(link) {
@@ -390,13 +393,14 @@ function renderExternalLink(link) {
     state = {
       baseline: linkAttributes(link),
       painted: null,
-      noteId: `lf-external-note-${++externalNoteSequence}`,
+      markId: `lf-external-mark-${++externalMarkSequence}`,
       addedNoopener: false,
     };
     externalLinkState.set(link, state);
   } else rememberExternalLinkChanges(link, state);
-  if (!link.querySelector(':scope > .lf-external-mark[data-lf-gen="1"]')) {
-    const mark = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  let mark = link.querySelector(':scope > .lf-external-mark[data-lf-gen="1"]');
+  if (!mark) {
+    mark = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     mark.setAttribute("class", "lf-ui lf-external-mark");
     mark.setAttribute("viewBox", "0 0 16 16");
     mark.dataset.lfGen = "1";
@@ -409,26 +413,17 @@ function renderExternalLink(link) {
     mark.append(line);
     link.append(mark);
   }
-  if (!state.note) {
-    state.note = Object.assign(document.createElement("span"), {
-      className: "lf-ui lf-external-note",
-      hidden: true,
-      textContent: "opens in a new tab",
-    });
-    state.note.dataset.lfGen = "1";
-    state.note.id = state.noteId;
-  }
-  if (link.parentNode && state.note.parentNode !== link.parentNode)
-    link.after(state.note);
+  // Written on a mark found as well as on one made: a link cloned with its mark, ids
+  // stripped, is a new link to this pass, and its description must name its own mark.
+  mark.id = state.markId;
+  mark.setAttribute("aria-label", "opens in a new tab");
   state.addedNoopener = !tokens(state.baseline.rel).some(
     (value) => value.toLowerCase() === "noopener",
   );
   writeLinkAttributes(link, {
     target: "_blank",
     rel: withToken(state.baseline.rel, "noopener", true),
-    "aria-describedby": state.note.parentNode
-      ? withToken(state.baseline["aria-describedby"], state.noteId)
-      : state.baseline["aria-describedby"],
+    "aria-describedby": withToken(state.baseline["aria-describedby"], state.markId),
   });
   state.painted = linkAttributes(link);
 }

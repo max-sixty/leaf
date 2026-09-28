@@ -47,7 +47,7 @@ shipped examples and `notes/` for an exploration of the same surface, and extend
 its playground when it owns the same decision.
 
 A playground is one HTML file, like a standalone sketch. Write it under `.tmp/`
-and serve it with `scripts/preview.py --source <file> --user` ("Preview a
+and serve it with `uv run leaf-dev preview --source <file> --user` ("Preview a
 page"), which builds the page from that file alone. Its CSS reads the live
 theme's tokens, and the `playground` package's elements
 (`<root>/skills/leaf/packages/playground/guidance/author.md`) wrap the
@@ -79,7 +79,7 @@ Playwright script: it builds the page from this working tree, runs the input ste
 you give it, and prints what a JavaScript expression returns, with `--base` for the
 merge base beside it (`dev/AGENTS.md`).
 
-Compare against the merge base with `origin/main`. `uv run leaf-dev stills`
+Compare against the merge base with `main`. `uv run leaf-dev stills`
 screenshots a catalogue of states on both runtimes and crops each one that
 changed into a before/after pair; commit first, since it compares commits. The
 catalogue holds states a user reaches by acting as well as pages at rest, because
@@ -100,8 +100,8 @@ id) and stays running.
 
 ## Preview a page
 
-`scripts/preview.py <example> --export` writes one file that opens offline.
-`scripts/preview.py <example>` serves a live page at `.tmp/previews/<example>`
+`uv run leaf-dev preview <example> --export` writes one file that opens offline.
+`uv run leaf-dev preview <example>` serves a live page at `.tmp/previews/<example>`
 in the foreground, like a dev server, so run it as a long-running command
 (`run_in_background` in Claude Code). `--source <file>` serves any authored HTML
 file in place of a shipped example. It follows source and runtime edits at one
@@ -130,17 +130,17 @@ idle a preview to quiet the loop; `idle` closes the page in the browser.
 
 ## Test the hosted website agent
 
-`uv run <root>/scripts/verify_site.py local` builds the site, starts the website
-adapter against the host's Codex login, asks for one heading edit, and verifies
-the publication, reply, and changed page in Chrome. It bypasses the Cloudflare
-Worker, container limits, and credential proxy. When a change touches those and
-`OPENAI_API_KEY` is exported, run the same check through Wrangler's local
+`uv run --project <root> leaf-dev verify-site local` builds the site, starts the
+website adapter against the host's Codex login, asks for one heading edit, and
+verifies the publication, reply, and changed page in Chrome. It bypasses the
+Cloudflare Worker, container limits, and credential proxy. When a change touches
+those and `OPENAI_API_KEY` is exported, run the same check through Wrangler's local
 container:
 
 ```bash
 npm ci --prefix <root>/worker
 npm run build --prefix <root>/worker
-uv run <root>/scripts/verify_site.py wrangler --agent
+uv run --project <root> leaf-dev verify-site wrangler --agent
 ```
 
 The `publish-site` workflow's run against the deployed release is the only
@@ -148,8 +148,8 @@ production reading.
 
 ## Test a terminal Codex task
 
-`uv run <root>/scripts/verify_codex_task.py` runs a real Codex task, with this
-working tree installed as its plugin, through the App Server adapter `leaf codex
+`uv run --project <root> leaf-dev verify-codex-task` runs a real Codex task, with
+this working tree installed as its plugin, through the App Server adapter `leaf codex
 start` leaves running, and checks each comment it posts is answered once and each
 turn is closed under App Server's id. Run it after a change to `codex.py`,
 `codex_adapter.py`, `hooks.py`, or the claim's turn in `service.py`; the suite
@@ -162,7 +162,7 @@ Build the baseline in a detached worktree at the merge base:
 
 ```bash
 candidate_root=$(git rev-parse --show-toplevel)
-baseline_commit=$(git merge-base HEAD origin/main)
+baseline_commit=$(git merge-base HEAD main)
 baseline_parent=$(mktemp -d "${TMPDIR:-/tmp}/leaf-baseline.XXXXXX")
 baseline_parent=$(cd "$baseline_parent" && pwd -P)
 baseline_root="$baseline_parent/checkout"
@@ -175,13 +175,13 @@ as separate long-running commands, adding `--user` to both when their URLs go to
 the user:
 
 ```bash
-"$candidate_root/scripts/preview.py" --source <baseline-source.html> \
+uv run --project "$candidate_root" leaf-dev preview --source <baseline-source.html> \
   --runtime "$baseline_root" \
   --slot <slot>-baseline
 ```
 
 ```bash
-"$candidate_root/scripts/preview.py" --source <candidate-source.html> \
+uv run --project "$candidate_root" leaf-dev preview --source <candidate-source.html> \
   --runtime "$candidate_root" \
   --slot <slot>-candidate
 ```
@@ -211,7 +211,7 @@ loads `leaf:leaf` and reads the references as a real session does. Score a chang
 uv run leaf-dev guidance-ab [CASE]... [--base REF] [--runs N]
 ```
 
-It runs the cases on the base's guidance (the merge base with `origin/main` by
+It runs the cases on the base's guidance (the merge base with `main` by
 default) and the working tree's at once, and prints each case's passes per arm and the
 cost. It passes `--allow-tools Skill Read`, without which the child's `dontAsk` mode denies
 the skill and the references and every run answers with no guidance, while
@@ -219,8 +219,7 @@ the skill and the references and every run answers with no guidance, while
 read the reference it tests, and a run that fails that check measured nothing.
 
 Grow the suite slowly, toward a modest set of cases that each tell two wordings
-apart; several older cases predate this rule, and their comments say where they
-stand. Measure with whatever scenarios and guardrails the change needs, then add a
+apart. Measure with whatever scenarios and guardrails the change needs, then add a
 case only if it pins a clause no existing case pins and it separated two arms you ran:
 the base failed most runs and the change passed every run, or a blunter draft failed
 a guardrail the change passes. That is usually one case per problem, and rarely more
@@ -259,11 +258,10 @@ there, it is the branch's. Use the base SHA's
 GitHub Actions run as the control, not a local container or a green run a few
 commits back. `uv run leaf-dev ci-failures` makes that comparison for the pushed
 HEAD, or `HEAD^2` in a pull request's CI checkout, which sits on GitHub's merge
-commit. Its exit 0 proves that every branch job has a result and that each failure
-also fails on the base: a test by node id, but any other step only by name, so
-read both logs for each step it lists as matched by name. Main holds one nightly
-slot, so a base commit may carry no nightly result; the command then prints the
-dispatch that makes one. A case can differ between Linux and a Mac, or between
+commit. Its exit 0 proves that each failed job failed only with tests that also
+fail, by node id, in the base's same job; every other case lists the jobs to read
+by hand. Main holds one nightly slot, so a base commit may carry no nightly result;
+the command then prints the dispatch that makes one. A case can differ between Linux and a Mac, or between
 the full suite under `-n 2` and a run alone.
 
 `wt merge --no-hooks` lands past a red local hook whose failures reproduce on the

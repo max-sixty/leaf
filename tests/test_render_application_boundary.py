@@ -194,7 +194,12 @@ def test_browser_interactions_are_recorded_beside_server_requests(browser, serve
     with page.expect_response(lambda response: contains(response, "interaction_part")):
         page.locator("#trace-input").fill("x" * 50_000)
 
-    rows = [json.loads(line) for line in interaction_model.lines(serve.page_dir)]
+    rows = [
+        json.loads(line)
+        for line in (serve.page_dir / interaction_model.INTERACTIONS_FILE)
+        .read_text()
+        .splitlines()
+    ]
     inputs = [row for row in rows if row.get("type") == "input"]
     clicks = [row for row in rows if row.get("type") == "click"]
     commands = [row for row in rows if row.get("type") == "command"]
@@ -248,7 +253,12 @@ def test_browser_trace_records_where_touch_events_are_not_exposed(browser, serve
     ):
         page.locator("#trace-target").tap()
 
-    rows = [json.loads(line) for line in interaction_model.lines(serve.page_dir)]
+    rows = [
+        json.loads(line)
+        for line in (serve.page_dir / interaction_model.INTERACTIONS_FILE)
+        .read_text()
+        .splitlines()
+    ]
     assert any(
         row.get("type") == "touchstart" and len(row["touches"]) == 1 for row in rows
     )
@@ -285,7 +295,12 @@ def test_browser_trace_sheds_repeated_gestures_when_delivery_stalls(browser, ser
     ):
         page.wait_for_timeout(2500)
 
-    rows = [json.loads(line) for line in interaction_model.lines(serve.page_dir)]
+    rows = [
+        json.loads(line)
+        for line in (serve.page_dir / interaction_model.INTERACTIONS_FILE)
+        .read_text()
+        .splitlines()
+    ]
     browser_rows = [row for row in rows if row.get("source") == "client"]
     assert any(row["type"] == "click" for row in browser_rows)
     assert sum(row["type"] == "pointermove" for row in browser_rows) < 512
@@ -329,7 +344,12 @@ def test_browser_trace_keeps_actions_ahead_of_new_repeated_observations(browser,
     ):
         page.wait_for_timeout(2500)
 
-    rows = [json.loads(line) for line in interaction_model.lines(serve.page_dir)]
+    rows = [
+        json.loads(line)
+        for line in (serve.page_dir / interaction_model.INTERACTIONS_FILE)
+        .read_text()
+        .splitlines()
+    ]
     browser_rows = [row for row in rows if row.get("source") == "client"]
     assert sum(row["type"] == "click" for row in browser_rows) == 512
     assert not any(row["type"] == "pointermove" for row in browser_rows)

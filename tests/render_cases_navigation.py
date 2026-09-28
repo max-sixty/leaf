@@ -796,7 +796,6 @@ def _publish(page_dir, version, html, note):
         [
             "page",
             "stamp",
-            "--json",
             str(page_dir),
             "--text",
             note,

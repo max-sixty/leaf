@@ -6,8 +6,9 @@
    working it is, never the page Ask its thread is about. Other chrome stands at the page
    target it shows, as each side's owner declares (`declareSide`): the margin for its
    cluster controls, the thread card, and a thread in the Threads panel; the Asks tray
-   for its rows; the comment notes for the blocks they count. A side's answer drawn in the chrome itself, such as a margin control on
-   a widget frozen into a reply, stands only where an Ask holds it. Chrome no side
+   for its rows; the details shelf for the elements that name its notes. A side's answer
+   drawn in the chrome itself, such as a margin control on a widget frozen into a reply,
+   stands only where an Ask holds it. Chrome no side
    claims — the banner, a tray's own controls, the panel's list — stands nowhere, and a
    press made from it means the page whole.
 

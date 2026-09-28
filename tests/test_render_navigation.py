@@ -1359,7 +1359,8 @@ def test_the_feature_gallery_sections_are_stable_preview_destinations(
     assert len({target["href"] for target in targets}) == len(targets), targets
 
     target = page.locator(destination)
-    expect(page).to_have_url(root + destination)
+    # The handover key is exchanged for a cookie before the address is shown.
+    expect(page).to_have_url(root.split("?", 1)[0] + destination)
     expect(page.locator(":target")).to_have_attribute("id", destination[1:])
     expect(target).to_be_in_viewport()
 
@@ -1434,12 +1435,13 @@ def test_the_feature_gallery_exercises_core_user_workflows(browser, serve):
     consume_browser_errors(page, "400")
 
 
-def test_a_render_that_keeps_an_external_link_gives_back_the_note_it_dropped(
+def test_a_render_that_keeps_an_external_link_gives_back_the_mark_it_dropped(
     browser, serve
 ):
-    """A render that keeps a link and rebuilds the children around it (`setChildren`)
-    drops the link's note, which stands beside it. The link must get the note back, or
-    it keeps describing itself by an id nothing carries."""
+    """The link's treatment stands inside the link, so a render that rebuilds the
+    children around a kept link leaves nothing beside it to lose. A render that rebuilds
+    the link's own words drops its mark, and the link must get the mark back, or it keeps
+    describing itself by an id nothing carries."""
     page = open_page(
         browser,
         serve(
@@ -1452,17 +1454,17 @@ def test_a_render_that_keeps_an_external_link_gives_back_the_note_it_dropped(
     )
     link = page.locator("#ext")
     expect(link).to_have_accessible_description("opens in a new tab")
+    expect(page.locator("#ext ~ *")).to_have_count(0)
     page.evaluate(
         """async () => {
           const { setChildren } = await window.__lfRuntimeImport(
             '/runtime/widget-api.js');
-          const holder = document.getElementById('holder');
-          setChildren(holder, [...holder.childNodes].filter(
-            (node) => !node.classList?.contains('lf-external-note')));
+          const link = document.getElementById('ext');
+          setChildren(link, [document.createTextNode('the source')]);
         }"""
     )
     rendered(page)
-    expect(page.locator("#ext + .lf-external-note")).to_have_count(1)
+    expect(link.locator(":scope > .lf-external-mark")).to_have_count(1)
     expect(link).to_have_accessible_description("opens in a new tab")
 
 
@@ -1620,8 +1622,8 @@ def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body")
 
 
-def test_a_thread_walk_card_keeps_its_margin_until_its_anchor_leaves(browser, serve):
-    """A contextual thread has one side and only lives while its anchor is visible."""
+def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
+    """A contextual thread has one side, and leaves and returns with its anchor."""
     page = open_page(browser, live_url(serve(FEATURE_GALLERY)))
     page.emulate_media(reduced_motion="reduce")
     resized(page, 1440, 900)
@@ -1655,17 +1657,37 @@ def test_a_thread_walk_card_keeps_its_margin_until_its_anchor_leaves(browser, se
     expect(card).to_be_visible()
     expect(card).to_have_attribute("data-lf-thread-placement", "right")
 
+    # Scrolled away, the card leaves with its anchor rather than closing, and scrolled
+    # back it stands where it stood, with the user still in it.
+    rendered(page)
+    placed = card.evaluate("node => node.getBoundingClientRect().top")
+    before = page.evaluate("() => document.scrollingElement.scrollTop")
     page.evaluate("() => scrollTo(0, document.scrollingElement.scrollHeight)")
-    expect(card).to_be_hidden()
-
-    marker = page.locator(
-        '.lf-margin-marker[data-lf-kinds~="comment"]:not([hidden])'
-    ).first
-    marker.scroll_into_view_if_needed()
-    marker.click()
-    expect(card).to_be_visible()
-    page.evaluate("() => scrollTo(0, 0)")
-    expect(card).to_be_hidden()
+    rendered(page)
+    assert card.evaluate(
+        "node => node.getBoundingClientRect().bottom"
+        " <= document.querySelector('.lf-banner').getBoundingClientRect().bottom"
+    )
+    page.evaluate("top => scrollTo(0, top)", before)
+    rendered(page)
+    assert card.evaluate("node => node.getBoundingClientRect().top") == pytest.approx(
+        placed, abs=0.5
+    )
+    expect(
+        card.locator('.lf-page-thread[data-thread="72e031c5bf0d485ba9054628e09869d4"]')
+    ).to_be_focused()
+    # A key pressed in a card scrolled away brings its cluster, and the card, back.
+    page.evaluate("() => scrollTo(0, document.scrollingElement.scrollHeight)")
+    rendered(page)
+    page.keyboard.press("c")
+    expect(card.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
+    page.wait_for_function(
+        """() => {
+          const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+          const head = document.querySelector('.lf-banner').getBoundingClientRect().bottom;
+          return card.top >= head && card.bottom <= innerHeight;
+        }"""
+    )
 
 
 def test_a_pane_frame_comment_preview_is_not_confined_to_its_body(browser, serve):
@@ -1778,7 +1800,8 @@ def test_an_external_link_says_and_opens_where_it_goes(
     expect(external).to_have_attribute("rel", re.compile(r"(?:^| )noopener(?: |$)"))
     expect(external).to_have_accessible_name("other leaf documentation")
     expect(external).to_have_accessible_description("curated source opens in a new tab")
-    expect(page.locator("#external + .lf-external-note")).to_be_hidden()
+    # The treatment stands inside the link, so the paragraph ends where it was written.
+    expect(page.locator("#external ~ *")).to_have_count(0)
     expect(mark).to_be_visible()
     assert mark.evaluate("node => node.localName") == "svg"
     expect(mark.locator(":scope > path")).to_have_count(1)
@@ -1789,8 +1812,8 @@ def test_an_external_link_says_and_opens_where_it_goes(
     expect(page.locator("#svg-external")).not_to_have_attribute("target", "_blank")
 
     tab = opened_tab(page, destination, external.click)
-    expect(tab).to_have_url(destination)
-    expect(page).to_have_url(url)
+    expect(tab).to_have_url(f"{other_url}/")
+    expect(page).to_have_url(url.split("?", 1)[0])
 
 
 def test_an_addressed_link_leaves_the_user_at_its_destination(
@@ -1832,7 +1855,7 @@ def test_an_addressed_link_leaves_the_user_at_its_destination(
     page.keyboard.press("g")
     external_code = address_code(page, "Link", "external")
     tab = opened_tab(page, destination, lambda: page.keyboard.type(external_code))
-    expect(tab).to_have_url(destination)
+    expect(tab).to_have_url(f"{other_url}/")
     expect(page.locator(".lf-live")).to_have_text("Opened Leaf guide in a new tab")
 
 
@@ -4632,6 +4655,62 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     expect_comment_notes(page, "#p2", 1)
     assert accessible_details(page, "#p1")[0].startswith("2 comments on ")
     assert accessible_details(page, "#p2")[0].startswith("1 comment on ")
+
+
+def test_the_details_shelf_keeps_every_note_and_the_pages_own_details(browser, serve):
+    """Two kinds of note on one element (a drawing's comment note and its response
+    proxies) are both named after whatever the element's own `aria-details` names. Taking
+    one off keeps the other named, a pass that finds nothing changed writes nothing, a
+    revision's new `aria-details` is kept ahead of the notes, and the last note leaving
+    gives the element back the attribute the page wrote."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "shelf",
+                '<h1 id="t">Shelf</h1><p id="held" aria-details="own">Held.</p>'
+                '<p id="own">The page own details.</p><p id="later">Later.</p>',
+            )
+        ),
+    )
+    readings = page.evaluate(
+        """async () => {
+          const { shelve, unshelve } = await window.__lfRuntimeImport(
+            '/runtime/details-shelf.js');
+          const held = document.getElementById('held');
+          const named = () => (held.ariaDetailsElements ?? []).map(
+            (node) => node.id || node.className);
+          const one = Object.assign(document.createElement('button'), {className: 'one'});
+          const two = Object.assign(document.createElement('div'), {className: 'two'});
+          let writes = 0;
+          new MutationObserver((records) => { writes += records.length; })
+            .observe(held, {attributes: true, attributeFilter: ['aria-details']});
+          const settle = () => new Promise((resolve) => setTimeout(resolve));
+          shelve(held, one);
+          shelve(held, two);
+          const both = named();
+          unshelve(held, one);
+          const left = named();
+          await settle();
+          const before = writes;
+          shelve(held, two);
+          shelve(held, two);
+          await settle();
+          const idle = writes - before;
+          held.setAttribute('aria-details', 'later');
+          shelve(held, two);
+          const revised = named();
+          unshelve(held, two);
+          return {both, left, idle, revised, restored: held.getAttribute('aria-details')};
+        }"""
+    )
+    assert readings == {
+        "both": ["own", "one", "two"],
+        "left": ["own", "two"],
+        "idle": 0,
+        "revised": ["later", "two"],
+        "restored": "later",
+    }, readings
 
 
 def test_a_revision_keeps_a_block_naming_its_comment_note(browser, serve):

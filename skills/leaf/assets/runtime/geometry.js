@@ -63,7 +63,9 @@ export const shellRight = () => document.body.getBoundingClientRect().right;
 // chrome are laid out in, and a surface placed in the layout viewport alone can stand
 // under the keyboard. `within` narrows the room to a box the caller keeps to, such as a
 // reading region's shown bounds, and `gap` holds what stands in the room that far inside
-// each of its edges.
+// each of its edges. `viewport: "layout"` reads the room in the layout viewport instead,
+// the window the page scrolls through, for a caller asking whether a scroll has carried
+// something out of the page's room rather than whether the user can see it.
 let banner = null;
 let bottomBand = () => [];
 export const declareBanner = (element) => {
@@ -73,8 +75,16 @@ export const declareBottomBand = (boxes) => {
   bottomBand = boxes;
 };
 export const bannerFoot = () => banner?.getBoundingClientRect().bottom ?? 0;
-export function shownWindow({ within = null, gap = 0 } = {}) {
-  const { offsetLeft, offsetTop, width, height } = window.visualViewport;
+export function shownWindow({ within = null, gap = 0, viewport = "visual" } = {}) {
+  const { offsetLeft, offsetTop, width, height } =
+    viewport === "visual"
+      ? window.visualViewport
+      : {
+          offsetLeft: 0,
+          offsetTop: 0,
+          width: document.documentElement.clientWidth,
+          height: document.documentElement.clientHeight,
+        };
   const left = Math.max(offsetLeft, within?.left ?? -Infinity) + gap;
   const right = Math.min(offsetLeft + width, within?.right ?? Infinity) - gap;
   const top = Math.max(offsetTop, bannerFoot(), within?.top ?? -Infinity) + gap;

@@ -1,7 +1,7 @@
 # The Python server behind leaf.page, as the package `leaf_website`. The website's
 # container installs it with `uv sync --package leaf-website` and runs
 # `python -m leaf_website`; the root dev group installs it editable, so the site build
-# (`leaf_dev.site`), `scripts/verify_site.py` and the suite import it. `bin/leaf`, which
+# (`leaf_dev.site`), `leaf-dev verify-site` and the suite import it. `bin/leaf`, which
 # runs `--no-dev`, never installs it.
 [project]
 name = "leaf-website"

@@ -108,10 +108,11 @@ thread/start:
 
     Set the page to `waiting` and run `leaf codex start <page>` before finishing the turn
     with the URL and a concrete gesture. The first start in a task leaves a detached
-    adapter connected to the App Server, and its output ends
-    `through App Server <endpoint>`; output without that ending means Leaf is not on the
-    App Server, and `references/host-codex.md` applies. A later start adds its page to the
-    running adapter and reports that adapter's transport the same way; it refuses an
+    adapter connected to the App Server, and it prints `{"task", "app_server",
+    "started"}` with that endpoint as `app_server`; a null `app_server` means Leaf is
+    not on the App Server, and `references/host-codex.md` applies. A later start adds its
+    page to the running adapter, prints `started: false`, and reports that adapter's
+    `app_server` the same way; it refuses an
     `--app-server` endpoint other than the one the adapter holds. The adapter watches
     every page this task owns, and a completed turn does not stop it.
 
@@ -157,14 +158,14 @@ turn/start:
   toolOutput:
     name: leaf_delivery
     output: '{"format":"leaf-delivery-v3","id":"00000001","created_at":1790096400.0,"carrier":"app-server","acknowledge":null,"batches":[{"page":"/page","through_seq":1,"threads":[{"id":"user-event","title":null,"anchor":null,"detached_from":null,"resolved":null,"elided":{"messages":0,"actions":0},"messages":[],"summaries":[],"actions":[]}],"handling":{"h1":"This
-      event''s thread has no title yet: name it with `leaf thread title <page> <thread-id>
-      --text \"<a few words>\"`, so the thread panel lists its subject rather than
-      its opening words.","h2":"Your turn''s first and final messages are the reply,
-      and `leaf thread reply` refuses this event. Before your first tool call, open
-      with a short message to the user: the answer, or what you are about to do.
-      Leaf streams it into the thread at once, and later working messages stay in
-      Codex. Finish the reply in your final message: the answer, or what changed
-      and where it appears. The reply leaves the thread on its anchor.","h3":"Your
+      event''s thread has no title yet: name it by adding `--title \"<a few words>\"`
+      to the reply that answers it, so the thread panel lists its subject rather
+      than its opening words.","h2":"Your turn''s first and final messages are the
+      reply, and `leaf thread reply` refuses this event. Before your first tool
+      call, open with a short message to the user: the answer, or what you are about
+      to do. Leaf streams it into the thread at once, and later working messages
+      stay in Codex. Finish the reply in your final message: the answer, or what
+      changed and where it appears. The reply leaves the thread on its anchor.","h3":"Your
       reply renders as Markdown, so show code or markup in a fenced block."},"events":[{"kind":"comment","author":"user","text":"Use
       backfill first.","id":"user-event","ts":"2026-09-22T10:00:00-07:00","seq":1,"subject":{"kind":"thread","id":"user-event"},"threads":["user-event"],"handling":["h1","h2","h3"],"answer":{"kind":"turn","to":"user-event","for":"user-event","attempt":"leaf-delivery-ae5ce162888ee3ebe974976cac5ab94a"}}]}]}'
   turnTrigger: leaf

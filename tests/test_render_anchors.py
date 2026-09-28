@@ -2095,7 +2095,11 @@ rename to new-name.js
 diff --git "a/old\\tname.js" "b/new\\tname.js"
 similarity index 100%
 rename from "old\\tname.js"
-rename to "new\\tname.js"'''
+rename to "new\\tname.js"
+diff --git "a/\\357\\273\\277old.js" "b/\\357\\273\\277new.js"
+similarity index 100%
+rename from "\\357\\273\\277old.js"
+rename to "\\357\\273\\277new.js"'''
     page = open_page(browser, serve(_diff_page(("mixed-rename-diff", escape(source)))))
     result = page.evaluate("""async () => {
       const host = document.querySelector('#mixed-rename-diff');
@@ -2103,6 +2107,7 @@ rename to "new\\tname.js"'''
       const renames = [...(shadow?.querySelectorAll('.lf-diff-rename') ?? [])];
       const rename = renames[0];
       const quotedRename = renames[1];
+      const bomRename = renames[2];
       const { says, wrote } = await window.__lfRuntimeImport('/runtime/widget-api.js');
       return {
         rendered: host.classList.contains('lf-rendered'),
@@ -2118,6 +2123,8 @@ rename to "new\\tname.js"'''
         quotedFrom:
           quotedRename?.querySelector('.lf-diff-before')?.textContent ?? null,
         quotedTo: quotedRename?.querySelector('.lf-diff-after')?.textContent ?? null,
+        bomFrom: bomRename?.querySelector('.lf-diff-before')?.textContent ?? null,
+        bomTo: bomRename?.querySelector('.lf-diff-after')?.textContent ?? null,
         lines: [...(shadow?.querySelectorAll('[data-line]') ?? [])]
           .map(line => line.textContent),
         saysRename: says(document).includes('old-name.js → new-name.js'),
@@ -2129,14 +2136,16 @@ rename to "new\\tname.js"'''
         "error": None,
         "details": 1,
         "diffs": 1,
-        "renameCount": 2,
+        "renameCount": 3,
         "from": "old-name.js",
         "to": "new-name.js",
         "stat": "renamed",
         "generated": True,
         "saidOverride": False,
-        "quotedFrom": '"old\\tname.js"',
-        "quotedTo": '"new\\tname.js"',
+        "quotedFrom": "old\tname.js",
+        "quotedTo": "new\tname.js",
+        "bomFrom": "\ufeffold.js",
+        "bomTo": "\ufeffnew.js",
         "lines": ["const value = 1;", "const value = 2;"],
         "saysRename": True,
         "wroteRename": False,
@@ -2739,7 +2748,6 @@ def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser,
         [
             "thread",
             "reply",
-            "--json",
             str(d),
             "--for",
             root["id"],
@@ -4062,10 +4070,14 @@ def test_a_pinned_row_opens_its_card_clear_of_the_passage(browser, serve):
         f"the card spans {card[0]:.0f}\u2013{card[1]:.0f} over the pressed words at "
         f"{words[0]:.0f}\u2013{words[1]:.0f}"
     )
-    # The same box decides when the card has outlived its subject: it leaves when the
-    # pin, and so the passage, does.
+    # The same box decides where the card goes once its subject leaves: it leaves with
+    # the pin, and so the passage.
     page.evaluate("() => document.scrollingElement.scrollBy(0, 900)")
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    rendered(page)
+    assert page.locator(".lf-margin-preview").evaluate(
+        "card => card.getBoundingClientRect().bottom"
+        " <= document.querySelector('.lf-banner').getBoundingClientRect().bottom"
+    )
 
 
 def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):

@@ -10,6 +10,7 @@ from interact_support import (
     SHIPPED_PACKAGES,
     append_command,
 )
+from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -45,6 +46,7 @@ from render_cases_layout import (
     edge_settled,
     geometry,
 )
+from render_cases_navigation import source_revision
 from render_cases_widgets import (
     GENERIC_VISUAL_LAYER,
     GENERIC_VISUAL_PAGE,
@@ -1143,14 +1145,14 @@ def test_design_legend_tracks_a_height_only_page_reflow(browser, serve):
     )
 
 
-def test_covering_auxiliary_surfaces_separate_page_paint_from_chrome_target_paint(
-    browser, serve
-):
-    """A covering auxiliary surface owns its pixels and remains a chrome target itself.
+def test_a_covering_auxiliary_surface_holds_design_paint_beneath_it(browser, serve):
+    """A covering auxiliary surface owns its pixels, and in Design mode stays Leaf's.
 
-    Covered page content is inert, so aim and comment cannot reach it through the visible
-    remainder. The sheet remains part of Leaf's chrome: its aim, inspect name, and response
-    bar use the chrome plane above it, while the page's standing design legend stays below.
+    Covered page content is inert, so neither the aim nor a design comment reaches it
+    through the visible remainder, and the page's standing design legend paints beneath
+    the sheet. The sheet itself is Leaf's chrome, which the mode leaves working: nothing
+    on it is a design target, and a press on its scrim puts it away as it would outside
+    the mode, which is how a phone the sheet covers gets back to its page.
     """
     page = open_page(browser, serve(ASKS_PAGE))
     resized(page, 700, 900)
@@ -1170,60 +1172,24 @@ def test_covering_auxiliary_surfaces_separate_page_paint_from_chrome_target_pain
         "y": target_box["y"] + target_box["height"] / 2,
     }
     page.mouse.move(point["x"], point["y"])
-    page.keyboard.down("Alt")
-    page.mouse.click(point["x"], point["y"])
-    page.keyboard.up("Alt")
-    expect(page.locator('.lf-aim[data-for="lq-keep"]')).to_be_hidden()
-    expect(page.locator(".lf-composer")).to_be_hidden()
-
+    expect(page.locator(".lf-aim")).to_be_hidden()
     tray_box = tray.bounding_box()
     assert tray_box is not None
     page.mouse.move(tray_box["x"] + 12, tray_box["y"] + 12)
-    expect(page.locator(".lf-aim")).to_be_visible()
-    chrome_plane = page.evaluate(
-        """() => {
-          const tray = document.querySelector('.lf-asks-panel');
-          const aim = document.querySelector('.lf-aim');
-          const inspect = document.querySelector('.lf-inspect');
-          const target = document.getElementById(aim.dataset.for);
-          const legend = document.querySelector('.lf-legend-box[data-for="lq-keep"]');
-          return {tray: Number(getComputedStyle(tray).zIndex),
-                  aim: Number(getComputedStyle(aim).zIndex),
-                  inspect: Number(getComputedStyle(inspect).zIndex),
-                  legend: Number(getComputedStyle(legend).zIndex),
-                  plane: aim.dataset.lfPaintPlane,
-                  targetInChrome: Boolean(target?.closest('.lf-chrome'))};
-        }"""
+    expect(page.locator(".lf-aim")).to_be_hidden()
+    planes = page.evaluate(
+        """() => ({
+          tray: Number(getComputedStyle(document.querySelector('.lf-asks-panel')).zIndex),
+          legend: Number(getComputedStyle(
+            document.querySelector('.lf-legend-box[data-for="lq-keep"]')).zIndex),
+        })"""
     )
-    assert chrome_plane["targetInChrome"] and chrome_plane["plane"] == "chrome"
-    assert chrome_plane["aim"] > chrome_plane["tray"]
-    assert chrome_plane["inspect"] > chrome_plane["tray"]
-    assert chrome_plane["legend"] < chrome_plane["tray"]
+    assert planes["legend"] < planes["tray"], planes
 
-    # Dispatch on the sheet itself so the design target is the sheet rather than one of
-    # the decision rows it contains.
-    tray.evaluate(
-        """target => {
-          const box = target.getBoundingClientRect();
-          const init = {bubbles: true, cancelable: true, button: 0, buttons: 1,
-                        clientX: box.left + 12, clientY: box.top + 12, detail: 1};
-          target.dispatchEvent(new PointerEvent('pointerdown', init));
-          target.dispatchEvent(new MouseEvent('mousedown', init));
-          target.dispatchEvent(new PointerEvent('pointerup', {...init, buttons: 0}));
-          target.dispatchEvent(new MouseEvent('mouseup', {...init, buttons: 0}));
-          target.dispatchEvent(new MouseEvent('click', {...init, buttons: 0}));
-        }"""
-    )
-    expect(page.locator(".lf-composer")).to_be_visible()
-    chrome_response = page.locator(".lf-fab-bar").evaluate(
-        "node => ({plane: node.dataset.lfPaintPlane, "
-        "z: Number(getComputedStyle(node).zIndex), "
-        "tray: Number(getComputedStyle(document.querySelector('.lf-asks-panel')).zIndex)})"
-    )
-    assert (
-        chrome_response["plane"] == "chrome"
-        and chrome_response["z"] > chrome_response["tray"]
-    ), f"a response bar about the Asks sheet paints beneath it: {chrome_response}"
+    page.mouse.click(point["x"], point["y"])
+    expect(tray).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
 
 
 def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
@@ -1881,109 +1847,162 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
     ], "the inline margin entry action reached the durable log despite Design mode"
 
 
-def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
-    """The banner, the panel, a control on either: what no comment could reach before.
+def test_design_mode_leaves_the_chrome_working(browser, serve):
+    """Design mode comments on what the agent made; Leaf's own chrome works as it does
+    outside the mode, as it does for the target chooser.
 
-    The anchor pass passes over runtime chrome, so a remark about the Threads
-    button had nowhere to land. In design mode the press on it is a comment on it —
-    anchored on the part the runtime named (`lf-banner`), naming the control the press
-    landed on — and the button does not do what it does: the panel stays closed."""
-    page = open_page(browser, serve(REPLAYED_PAGE))
-    page.keyboard.press("l")
-    threads = page.locator(".lf-banner .lf-threads-toggle")
-    said = (
-        threads.inner_text()
-    )  # "Open threads: 0" — the control's word is what it shows
-    threads.hover()
-    expect(page.locator(".lf-inspect")).to_have_text(f"{said} · banner")
-    threads.click()
-    expect(page.locator(".lf-composer")).to_be_visible()
-    expect(page.locator("#lf-composer-quote")).to_have_text(f"design · {said} · banner")
-    expect(page.locator(".lf-thread-panel")).to_be_hidden()
-    write(page.locator(".lf-composer leaf-text"), "reads dim against the wash")
-    with sending(page, "the comment on the chrome"):
-        page.keyboard.press("ControlOrMeta+Enter")
-    posted = [
-        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
-    ]
-    assert [(e["about"], e["anchor"]) for e in posted] == [
-        ("design", {"section": "lf-banner", "part": said})
-    ]
-    # The thread's mark is the outline an element anchor wears, on the chrome too.
-    expect(page.locator("#lf-banner")).to_have_class(re.compile(r"\blf-mark-el\b"))
-    expect(page.locator(".lf-thread-summary").first).to_be_focused()
-    # The send opened Threads on the new thread, the card being withheld in the mode.
-    # The thread hands the user to the whole panel, and the panel to the page.
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-thread-panel")).to_be_hidden()
-    expect(page.locator("body")).to_be_focused()
-    page.keyboard.press("l")
-    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-
-    # And the thread panel, which is the case where the aim's own geometry had nothing to
-    # say. A fixed box is not clipped by the root scrollport, so the panel measured through
-    # the page flow's ancestors came back wholly clipped away, and a mode whose row
-    # promises a click on the chrome drew nothing over the chrome. Wide enough for the
-    # panel to stand over a live page rather than cover it.
-    resized(page, 1280, 800)
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
-    expect(page.locator(".lf-thread-panel")).not_to_have_attribute("aria-modal", "true")
-    page.keyboard.press("l")
-    box = page.locator(".lf-thread-panel").bounding_box()
-    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + 30)
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lf-threads")
-    assert page.evaluate(
-        """() => {
-             const aim = document.querySelector('.lf-aim').getBoundingClientRect();
-             const panel = document.querySelector('.lf-thread-panel').getBoundingClientRect();
-             return Math.abs(aim.width - panel.width) < 3
-                 && Math.abs(aim.left - panel.left) < 3;
-           }"""
-    ), "the aim's box does not stand on the panel it names"
-
-
-def test_design_mode_takes_an_edge_rather_than_drawing_it(browser, serve):
-    """The mode promises that a press comments on what it lands on and does nothing else,
-    and a region's edge is the piece of chrome whose press moves the page rather than the
-    page's content. A drag on it under the mode leaves the region where it was and opens a
-    composer naming the edge, which is what a user remarking on it has to be able to do.
-
-    Neither half is anything the edge knows: the mode takes the press above the runtime's
-    own handler, and the name comes of the platform's word for what the press landed on.
-    So this is a reading of whether a new control joins the mode by being one — which is
-    what it would stop doing the day an edge answered a press for itself. One edge is the
-    whole reading, both being one handler (`drawnEdge`); what the second edge could break
-    here it would break for the first too."""
+    A remark on the banner or a panel has no reader who can act on it, and a mode that
+    took the chrome took the way out of the panel its own send opened: on a phone that
+    panel covers the page, the banner goes inert under it, and its close was a comment.
+    So under the mode the Threads button opens the panel rather than a composer, nothing
+    under the pointer promises a comment there, the panel's edge draws it wider, and its
+    close closes it."""
     edge = EDGES[0]
     page = open_page(browser, serve(LONG_PAGE, comments=1))
     resized(page, 1280, 800)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    standing = geometry(page, edge)
+
+    def comments():
+        return [
+            e
+            for e in events_model.read_events(serve.page_dir)
+            if e["kind"] == "comment"
+        ]
+
+    seeded = comments()
     page.keyboard.press("l")
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    # The control: the same press on the page is a design comment.
+    page.locator("#t").click()
+    composer = page.locator(".lf-composer")
+    expect(composer).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(composer).to_be_hidden()
+
+    threads = page.locator(".lf-banner .lf-threads-toggle")
+    threads.hover()
+    expect(page.locator(".lf-inspect")).to_be_hidden()
+    threads.click()
+    panel = page.locator(".lf-thread-panel")
+    panel_settled(page)
+    expect(panel).to_be_visible()
+    expect(composer).to_be_hidden()
+
+    standing = geometry(page, edge)
     draw_edge(page, edge, 160)
     held = geometry(page, edge)
-    expect(page.locator(".lf-composer")).to_be_visible()
-    response_bar = page.locator(".lf-fab-bar")
-    expect(response_bar).to_have_attribute("data-lf-paint-plane", "chrome")
-    assert int(response_bar.evaluate("el => getComputedStyle(el).zIndex")) > int(
-        page.locator(".lf-thread-panel").evaluate("el => getComputedStyle(el).zIndex")
-    ), "the field opened on chrome underneath the auxiliary surface it describes"
-    expect(page.locator("#lf-composer-quote")).to_have_text(
-        "design · Thread panel width · threads"
+    assert held["width"] > standing["width"] and held["chosen"], (
+        f"the mode took the edge rather than drawing it: {standing} then {held}"
     )
-    page.close()
+    expect(composer).to_be_hidden()
 
-    assert held["width"] == standing["width"], (
-        f"the mode moved the edge it was asked to comment on: {standing} then {held}"
+    panel.get_by_role("button", name="Close threads").click()
+    expect(panel).to_be_hidden()
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    assert comments() == seeded, "a press on the chrome posted a comment"
+
+
+def test_design_mode_leaves_leaves_surfaces_working_inside_a_widget(browser, serve):
+    """Leaf's own surfaces stay Leaf's where a widget seats them.
+
+    A diff seats a thread beside its line, inside page content, where the page's presses
+    are the mode's; so does the response bar it seats in its own outlet. The thread's
+    reply box still takes the caret and sends a reply. It stands in the diff's shadow
+    tree, so the press is read where it lands rather than at the host it is retargeted
+    to."""
+    url = serve(
+        leaf_page(
+            "diff in design mode",
+            '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch">'
+            "<pre></pre></lf-diff>",
+        )
     )
-    assert held["chosen"] is None, (
-        f"a press the mode took was still recorded as the user's width: {held}"
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-return "old"
++return "new"
+""",
     )
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep this check beside the changed line.",
+            "anchor": {
+                "section": "patch",
+                "datum": '["app.py","new",1]',
+                "source": "review-patch",
+                "source_revision": source_revision(serve.page_dir, "review-patch"),
+            },
+        },
+    )
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root["id"]}"]')
+    reply = thread.locator("leaf-text")
+    expect(reply).to_be_visible()
+    page.keyboard.press("l")
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+
+    # The control: a press on the diff's own file control is the mode's.
+    page.locator("#patch .lf-diff-file-comment").click()
+    expect(page.locator("#lf-composer-quote")).to_have_text(re.compile(r"^design · "))
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-composer")).to_be_hidden()
+
+    reply.click()
+    expect(reply).to_be_focused()
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    write(reply, "Covered now.")
+    with sending(page, "the reply from the seated thread"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert (sent["kind"], sent["parent"], sent["text"]) == (
+        "reply",
+        root["id"],
+        "Covered now.",
+    ), sent
+
+
+def test_design_mode_settles_on_a_page_with_marked_elements(browser, serve):
+    """The legend follows the page's markup, not the runtime's own paint on it.
+
+    A mark rewrites its element's classes on every repaint, and a legend that heard those
+    writes as the page moving started the repaint that wrote them again, so a page with a
+    reaction or a comment on an element never stopped rendering while the mode stood."""
+    url = serve(
+        leaf_page(
+            "marked elements",
+            '<h1 id="t">Review</h1><p id="reacted">Reacted to.</p>'
+            '<p id="commented">Commented on.</p>',
+        )
+    )
+    for anchor, extra in (
+        ("reacted", {"token": "keep"}),
+        ("commented", {"text": "Why?"}),
+    ):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "anchor": {"section": anchor},
+                **extra,
+            },
+        )
+    page = open_page(browser, url)
+    expect(page.locator("#reacted.lf-react-el")).to_have_count(1)
+    expect(page.locator("#commented.lf-mark-el")).to_have_count(1)
+    page.keyboard.press("l")
+    expect(page.locator('.lf-legend-box[data-for="reacted"]')).to_be_visible()
+    rendered(page)
 
 
 def test_design_mode_leaves_prose_to_the_selection(browser, serve):

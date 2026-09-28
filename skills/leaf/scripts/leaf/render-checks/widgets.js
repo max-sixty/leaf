@@ -1,4 +1,5 @@
 import {
+  ADDRESSABLE,
   inChrome,
   matchesWhen,
   quoted,
@@ -45,8 +46,8 @@ const renderedAt = (element) => {
     current = upFrom(current);
   }
   const owner =
-    ancestors.find((el) => el.id && el.localName.includes("-")) ??
-    ancestors.find((el) => el.id) ??
+    ancestors.find((el) => el.matches(ADDRESSABLE) && el.localName.includes("-")) ??
+    ancestors.find((el) => el.matches(ADDRESSABLE)) ??
     element;
   return {
     tag: owner.localName,

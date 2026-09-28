@@ -14,9 +14,9 @@
 # `uv.lock` ships in the install, so a host runs the versions the suite last
 # passed on.
 #
-# The dev group is what the suite and `scripts/` need on top of the runtime:
+# The dev group is what the suite and `leaf-dev` need on top of the runtime:
 # pytest, the accessibility checks, screenshot assertions, and the filesystem
-# watcher behind `scripts/preview.py`. These run here rather than carrying
+# watcher behind `leaf-dev preview`. These run here rather than carrying
 # dependency headers of their own — developer tools like the suite, so one environment
 # covers both. `bin/leaf` passes `--no-dev`, so an install never fetches the group,
 # though the lock records it.
@@ -80,8 +80,6 @@ module-name = "leaf"
 dev = [
   "pytest>=9.1",
   "pytest-xdist>=3",
-  # The report log `leaf-dev flake` and `leaf-dev bugback` read each test's outcome from.
-  "pytest-reportlog>=1",
   "axe-playwright-python>=0.1.4",
   "pre-commit>=4.6.2",
   # Browser screenshot assertions.
@@ -89,7 +87,7 @@ dev = [
   "pytest-regtest>=2.7",
   # The YAML snapshots `interact_support.yaml_document` writes.
   "pyyaml>=6",
-  # scripts/preview.py's watcher. 1.1.0 is the first release with a wheel for the
+  # `leaf-dev preview`'s watcher. 1.1.0 is the first release with a wheel for the
   # interpreter this project runs on; earlier ones would build Rust from source.
   "watchfiles>=1.1.0",
   # Every requirement a bundled package script's header declares, repeated here so
@@ -121,7 +119,4 @@ leaf-website = { workspace = true }
 # `-n0` to debug a single test.
 [tool.pytest.ini_options]
 addopts = "-n 2 --dist loadgroup --regtest-consider-line-endings"
-# `scripts/` is not a package; the suite imports a few of its entry points directly.
-# `leaf` and `leaf_dev` need no entry here: the environment installs both editable.
-pythonpath = ["scripts"]
 markers = ["nightly: a pull request can land without it; `--run-nightly` runs it"]

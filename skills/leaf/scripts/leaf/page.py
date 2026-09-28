@@ -1,5 +1,6 @@
 """Vendored page guidance."""
 
+import json
 import sys
 from pathlib import Path
 
@@ -55,9 +56,8 @@ def page_guidance(page_dir: Path) -> dict[str, str]:
 def cmd_guidance(page_dir: Path, audience: str | None) -> None:
     guides = page_guidance(page_dir)
     if audience is None:
-        # A layer with no audiences is a real answer, and silence reads as a
-        # command that did nothing. Say which it was.
-        print("\n".join(guides) if guides else "no guidance audiences")
+        # A layer with no audiences is a real answer, `[]`, not silence.
+        print(json.dumps(list(guides)))
         return
     if text := guides.get(audience):
         print(text, end="" if text.endswith("\n") else "\n")

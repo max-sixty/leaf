@@ -27,8 +27,8 @@ ANSWER_KINDS = ("reply", "turn", "markup")
 # The answer kinds that post a message in a thread.
 THREAD_ANSWER_KINDS = frozenset({"reply", "turn"})
 ANSWER_ASK_INSTRUCTION = (
-    "Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with "
-    "`leaf thread read <page> <id>`."
+    "Each move takes the answer named for it. Read current obligations with "
+    "`leaf page state <page>` and thread history with `leaf page state <page> <id>`."
 )
 WAIT_BATCH_OUTPUT_INSTRUCTION = (
     "Print one page's complete ordered batch, thread context, and response "
@@ -46,6 +46,10 @@ WIDGET_NAME_RULE = (
     f"letters and digits, such as `lf-merge-film` ({WIDGET_NAME})"
 )
 ELEMENT_ID = r"[a-z0-9][a-z0-9-]*"
+# An id the log mints for an event. Page ids and event ids are one address space:
+# a command's ID is a widget or a message, whichever the page holds, so an authored
+# id may not take this shape (`validation.markup.id_errors`).
+EVENT_ID = r"[0-9a-f]{8}"
 DATA_SOURCE_NAME = HTML_NAME
 DATA_CONTRACT_NAME = r"[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*"
 # The record forms one vocabulary of declared state draws on ($state in the

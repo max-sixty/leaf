@@ -113,8 +113,8 @@ def test_touch_user_selects_an_element_comments_and_finds_its_thread(browser, se
 def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     """Undo, Draw mode, Design mode and search have no key under a finger, so More holds
     each, read off the command's own row, and what a finger does inside one stands on the
-    banner's row while it holds. Design mode lets that step's press through rather than
-    commenting on it."""
+    banner's row while it holds. Design mode leaves Leaf's own chrome working, that step
+    included."""
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )
@@ -165,6 +165,29 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     expect(page.locator(".lf-target-chooser-hint")).to_have_count(0)
     exit_design = row.get_by_role("button", name="Exit Design mode", exact=True)
 
+    # The mode is about what the agent made, so Leaf's own chrome stays a finger's: More
+    # opens to a tap, and the panel a design comment's send opens over the whole phone
+    # closes to one, where the banner beneath it has gone inert.
+    door = page.locator(".lf-banner-more")
+    door.tap()
+    expect(menu.get_by_role("button", name="Undo", exact=True)).to_be_visible()
+    door.tap()
+    expect(menu).to_be_hidden()
+    page.locator("#h").tap()
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    write(field, "The heading sits too close to the banner.")
+    with sending(page, "the design comment"):
+        page.locator(".lf-fab-bar .lf-compose-submit").tap()
+    assert events_model.read_events(serve.page_dir)[-1]["about"] == "design"
+    panel = page.locator(".lf-thread-panel")
+    expect(panel).to_be_visible()
+    panel.get_by_role("button", name="Close threads").tap()
+    expect(panel).to_be_hidden()
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    # A finger does not hover, so no name stays where the last tap was.
+    expect(page.locator(".lf-inspect")).to_be_hidden()
+
     # Prose still selects in Design mode. The selection is the nearer gesture, so its step
     # takes the narrowest phone row until the words are let go, and the mode's returns.
     page.set_viewport_size({"width": 320, "height": 700})
@@ -191,9 +214,14 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     )
     next_match.tap()
     expect(page.locator(".lf-live")).to_contain_text("Match 2 of 3")
-    row.get_by_role("button", name="Close search", exact=True).tap()
+    # Select takes the match as the selection, whose own step then stands on the row.
+    row.get_by_role("button", name="Select", exact=True).tap()
     expect(box).to_be_hidden()
     expect(next_match).to_have_count(0)
+    expect(comment).to_be_visible()
+    assert page.evaluate("getSelection().toString()") == "mounts"
+    page.evaluate("getSelection().removeAllRanges()")
+    expect(comment).to_be_hidden()
 
     # Searching inside a mode puts search's steps on the row in place of the mode's, and
     # the mode's way out returns when search closes.
@@ -204,7 +232,7 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     expect(next_match).to_be_visible()
     expect(exit_draw).to_be_hidden()
     expect(row.locator(".lf-btn:visible").filter(has_not_text="⋯")).to_have_text(
-        ["Previous", "Next", "Close search"]
+        ["Select", "Previous", "Next", "Close search"]
     )
     row.get_by_role("button", name="Close search", exact=True).tap()
     exit_draw.tap()

@@ -2283,6 +2283,101 @@ def test_a_finger_s_reaction_trigger_meets_the_floor_and_covers_no_words(
     assert reading == {"width": 44, "height": 44, "covered": 0, "opacity": "1"}
 
 
+def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
+    """A finger learns what a reaction means by pressing and holding it: the choice
+    under the finger shows its word for as long as the press lasts, sliding onto its
+    neighbour reads that one, and the release reacts with the choice it ends on. A
+    release off the list reacts with nothing, so a finger that read the wrong word
+    slides away first. The keyboard reads the same word by standing on a choice, and
+    its press still reacts."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Why this change?", {"section": "how-cap"})
+    reply = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "text": "Step three now reaps every process under the sandbox user.",
+        },
+    )["id"]
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").tap()
+    panel_settled(page)
+    page.locator(".lf-thread-summary").first.tap()
+    strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
+    strip.get_by_role("button", name="Add reaction", exact=True).tap()
+    expect(strip).to_have_class(re.compile(r"\blf-react-open\b"))
+    cdp = context.new_cdp_session(page)
+
+    def centre(token):
+        box = strip.locator(f'.lf-react[data-token="{token}"]').bounding_box()
+        return {
+            "x": round(box["x"] + box["width"] / 2),
+            "y": round(box["y"] + box["height"] / 2),
+        }
+
+    def touch(kind, point=None):
+        cdp.send(
+            "Input.dispatchTouchEvent",
+            {"type": kind, "touchPoints": [point] if point else []},
+        )
+
+    # What the choices read once the input so far has been delivered: Chromium hands
+    # touch moves over on a later frame, so a reading taken at once can be a move behind.
+    def reading():
+        rendered(page)
+        return strip.evaluate("""strip => [...strip.querySelectorAll('.lf-react')]
+            .filter((chip) => chip.hasAttribute('data-lf-reading'))
+            .map((chip) => [chip.dataset.token,
+                            getComputedStyle(chip, '::after').content])""")
+
+    def tokens():
+        return [
+            e.get("token")
+            for e in events_model.read_events(serve.page_dir)
+            if e.get("token")
+        ]
+
+    touch("touchStart", centre("keep"))
+    assert reading() == [["keep", '"keep"']]
+    touch("touchMove", centre("change"))
+    assert reading() == [["change", '"change"']]
+    off = centre("change")
+    touch("touchMove", {"x": off["x"], "y": off["y"] - 120})
+    assert reading() == []
+    touch("touchEnd")
+    assert reading() == []
+    assert tokens() == [], "a release off the list reacted"
+
+    touch("touchStart", centre("clarify"))
+    touch("touchEnd")
+    expect(strip.locator('.lf-react[data-token="clarify"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    assert reading() == []
+    assert tokens() == ["clarify"]
+
+    # The keyboard reads the word by standing on the choice: the list opened from its
+    # trigger stands on its first choice, whose word shows, and Enter reacts, once.
+    trigger = strip.get_by_role("button", name="Add reaction", exact=True)
+    page.keyboard.press("Shift")  # keyboard modality, so the focus below is visible
+    trigger.focus()
+    page.keyboard.press("Enter")
+    keep = strip.locator('.lf-react[data-token="keep"]')
+    expect(keep).to_be_focused()
+    assert keep.evaluate(
+        "c => [c.matches(':focus-visible'), getComputedStyle(c, '::after').content]"
+    ) == [True, '"keep"']
+    page.keyboard.press("Enter")
+    expect(keep).to_have_attribute("aria-pressed", "true")
+    assert tokens() == ["clarify", "keep"]
+
+
 @pytest.mark.parametrize("scheme", ["light", "dark"])
 @pytest.mark.parametrize("placement", ["panel", "inline"])
 def test_a_reopened_message_picker_keeps_the_selected_reaction_visible(

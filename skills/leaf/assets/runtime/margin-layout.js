@@ -236,7 +236,7 @@ export function scheduleMarginEntryLabels() {
   labelPlacementFrame = nextRender(() => {
     labelPlacementFrame = 0;
     for (const control of document.querySelectorAll(
-      '.lf-margin-entry:is(:hover, :focus-visible, .lf-focus-visible):not([aria-expanded="true"])',
+      '.lf-margin-entry:is(:hover, :focus-visible, .lf-focus-visible, [data-lf-reading]):not([aria-expanded="true"])',
     ))
       placeMarginEntryLabel(control);
   });

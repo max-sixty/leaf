@@ -377,6 +377,21 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
           color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
 .lf-react.lf-response-action:not([aria-pressed="true"]) { background: var(--card); }
 .lf-react[aria-busy="true"] { opacity: .55; }
+/* A reaction's word, while a press on it is held or the keyboard stands on it
+   (reactions.js, `holdToRead`): the finger's and the keyboard's reading of a face that is
+   otherwise one glyph. The word is the choice's own name, so it says what the accessible
+   name says, and it stands above the choice, where the finger pressing it does not cover
+   it. The press owns the gesture, so it neither scrolls nor opens the platform's
+   long-press menu; a margin choice says its word through its own label (theme.css). */
+.lf-react { touch-action: none; -webkit-touch-callout: none;
+          user-select: none; -webkit-user-select: none; }
+.lf-react:not(.lf-margin-entry) { position: relative; }
+.lf-react:not(.lf-margin-entry):is([data-lf-reading], :focus-visible, .lf-focus-visible)::after {
+          content: attr(aria-label); position: absolute; z-index: 5;
+          inset-block-end: calc(100% + 6px); inset-inline-start: 50%; translate: -50% 0;
+          width: max-content; max-width: 220px; padding: 4px 7px; border-radius: 4px;
+          background: var(--ink); color: var(--paper); box-shadow: 0 2px 8px var(--shade);
+          font: 500 var(--t-6)/1.2 var(--sans); white-space: nowrap; pointer-events: none; }
 /* A reaction surface offers one quiet trigger. It disappears when its list opens;
    a standing token remains visible in a closed message strip as the user's receipt
    and eraser. */

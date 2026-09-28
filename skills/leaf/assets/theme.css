@@ -1798,6 +1798,11 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
   opacity: 1; visibility: visible; transform: translateY(0);
   transition-delay: 90ms;
 }
+/* A reaction held under a press says its word at once, as a keyboard destination does
+   below (reactions.js, holdToRead). */
+.lf-margin-entry[data-lf-reading] > .lf-margin-entry-label {
+  opacity: 1; visibility: visible; transform: translateY(0); transition: none;
+}
 /* A keyboard destination says its label at once. Besides avoiding a needless delay for
    the user, this keeps a contribution that is rebuilt while the margin projection settles
    from restarting three paint-only transitions at time zero forever. Pointer discovery

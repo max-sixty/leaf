@@ -770,6 +770,65 @@ def test_a_transient_margin_entry_label_avoids_the_next_margin_entry(browser, se
     )
 
 
+QUESTION_MARKERS_PAGE = leaf_page(
+    "Question markers",
+    """
+<h1 id="h">Two open questions</h1>
+<lf-ask id="short-ask"><h2>Where should sessions live?</h2>
+<lf-options id="short-choice" choose>
+  <lf-option id="short-a"><strong>Keep the store</strong></lf-option>
+  <lf-option id="short-b"><strong>Signed tokens</strong></lf-option>
+</lf-options></lf-ask>
+<p id="between">Between the two questions, a paragraph of ordinary prose.</p>
+<lf-ask id="long-ask"><h2>Should the nightly export keep writing one file per tenant,
+or roll every tenant into a single partitioned archive?</h2>
+<lf-options id="long-choice" choose>
+  <lf-option id="long-a"><strong>One file per tenant</strong></lf-option>
+  <lf-option id="long-b"><strong>One archive</strong></lf-option>
+</lf-options></lf-ask>
+""",
+)
+
+
+def test_an_ask_marker_s_label_is_its_question_on_one_line(browser, serve):
+    """Hovering an Ask's marker shows the Ask's question, where it used to show only
+    "Ask…", which the marker's glyph already says. The label is one line: a question
+    longer than the label's room is cut there, and the marker's accessible name goes on
+    past the cut."""
+    page = open_page(browser, serve(QUESTION_MARKERS_PAGE))
+    resized(page, 1440, 900)
+    read = """(marker) => {
+        const word = marker.querySelector('.lf-margin-entry-label-word');
+        const style = getComputedStyle(word);
+        return {text: word.textContent, name: marker.getAttribute('aria-label'),
+                lines: Math.round(word.getBoundingClientRect().height
+                                  / parseFloat(style.lineHeight)),
+                cut: word.scrollWidth > word.clientWidth,
+                ellipsis: style.textOverflow};
+    }"""
+    seen = {}
+    for ask in ("short-ask", "long-ask"):
+        marker = page.locator(f'.lf-margin-marker[data-lf-margin-for="{ask}"]')
+        if not marker.count():
+            marker = page.locator(
+                f'[data-lf-margin-for="{ask}"] .lf-margin-marker[data-lf-kinds~="ask"]'
+            )
+        marker.scroll_into_view_if_needed()
+        marker.hover()
+        expect(marker.locator(".lf-margin-entry-label")).to_be_visible()
+        seen[ask] = marker.evaluate(read)
+    question = page.locator("#long-ask h2").evaluate(
+        "h => h.textContent.replace(/\\s+/g, ' ').trim()"
+    )
+    assert seen["short-ask"]["text"] == "Where should sessions live?", seen
+    assert seen["short-ask"]["lines"] == 1 and not seen["short-ask"]["cut"], seen
+    assert seen["long-ask"]["text"] == question, seen
+    assert seen["long-ask"]["lines"] == 1 and seen["long-ask"]["cut"], seen
+    assert seen["long-ask"]["ellipsis"] == "ellipsis", seen
+    # Past where the label is cut, the name still has the question's words.
+    assert "roll every tenant" in seen["long-ask"]["name"], seen
+
+
 @pytest.mark.parametrize("width", [1440, 390])
 def test_dense_suggestion_labels_cover_no_neighboring_margin_entry(
     browser, serve, width

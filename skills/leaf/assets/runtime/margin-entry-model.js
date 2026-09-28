@@ -249,8 +249,11 @@ export function compareMarginEntryRecords(left, right) {
   return contribution || left.record.key.localeCompare(right.record.key);
 }
 
+// A disclosure's label says it opens with a trailing ellipsis, unless the label already
+// ends in a stop of its own: an ellipsis, or a question's mark, which would read as
+// "?…".
 export const visibleMarginEntryLabel = ({ behavior, label }) =>
-  behavior !== "disclosure" || label.endsWith("…") ? label : `${label}…`;
+  behavior !== "disclosure" || /[…?]$/.test(label) ? label : `${label}…`;
 
 // A contribution owns its reading IDs; generated readings have no owner.
 export const marginItemKey = (item) => JSON.stringify([item.owner ?? null, item.id]);

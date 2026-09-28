@@ -1771,7 +1771,8 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
 .lf-margin-entry > .lf-margin-entry-space { display: none; }
 .lf-margin-entry > .lf-margin-entry-label {
   position: absolute; z-index: 3; inset-block-start: calc(100% + 6px);
-  inset-inline-end: 0; display: block; width: max-content; max-width: 180px;
+  inset-inline-end: 0; display: block; width: max-content;
+  max-width: min(320px, 100vw - 8px);
   padding: 4px 7px; border-radius: 4px;
   background: var(--ink); color: var(--paper);
   font: 500 var(--t-6)/1.2 var(--sans); white-space: normal; overflow-wrap: anywhere;
@@ -1782,6 +1783,9 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
 }
 .lf-margin-entry-label-word,
 .lf-margin-entry-context { display: block; }
+/* The label is one line, cut where the tooltip's width runs out: most are a kind's
+   word, and an Ask's is its question, which the marker's accessible name also says. */
+.lf-margin-entry-label-word { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lf-margin-entry-context {
   margin-block-start: 2px; color: color-mix(in srgb, var(--paper) 72%, transparent);
   font-size: 10px; line-height: 1.25; font-weight: 450;

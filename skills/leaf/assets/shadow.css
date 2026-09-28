@@ -463,10 +463,11 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * scroll position: inline end at the start, both edges in the middle, and inline start
  * at the end. Masking the box makes the content itself recede instead of casting an
  * unexplained shadow behind it. That is right for text, where a word fading at the edge
- * reads as cut; a widget whose content it fails for paints the same marks its own way
- * (lf-diagram's theme, for a drawing). Focus within removes the mask so the scroller's
- * complete ring and controls painted outside its box remain visible; the user standing
- * there already has the platform's scroll affordance.
+ * reads as cut. A widget whose content reads otherwise states how wide the fade is
+ * (--lf-more-fade, 24px) and how much of the content is left at the edge
+ * (--lf-more-fade-to, none); lf-diagram's theme does, for a drawing. Focus within
+ * removes the mask so the scroller's complete ring and controls painted outside its box
+ * remain visible; the user standing there already has the platform's scroll affordance.
  *
  * Neither the mask nor its attributes affect layout, so observing the scroller cannot
  * feed the measurement back into itself. Screen only, because a mark whose whole
@@ -479,8 +480,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   [data-lf-more-before]:where(
       [data-lf-scroll-direction="rtl"]:not([data-lf-more-after])
     ) {
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
-    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - var(--lf-more-fade, 24px)), var(--lf-more-fade-to, transparent));
+    mask-image: linear-gradient(to right, #000 calc(100% - var(--lf-more-fade, 24px)), var(--lf-more-fade-to, transparent));
   }
   [data-lf-more-before]:where(
       [data-lf-scroll-direction="ltr"]:not([data-lf-more-after])
@@ -488,23 +489,23 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   [data-lf-more-after]:where(
       [data-lf-scroll-direction="rtl"]:not([data-lf-more-before])
     ) {
-    -webkit-mask-image: linear-gradient(to right, transparent, #000 24px);
-    mask-image: linear-gradient(to right, transparent, #000 24px);
+    -webkit-mask-image: linear-gradient(to right, var(--lf-more-fade-to, transparent), #000 var(--lf-more-fade, 24px));
+    mask-image: linear-gradient(to right, var(--lf-more-fade-to, transparent), #000 var(--lf-more-fade, 24px));
   }
   [data-lf-more-before][data-lf-more-after] {
     -webkit-mask-image: linear-gradient(
       to right,
-      transparent,
-      #000 24px,
-      #000 calc(100% - 24px),
-      transparent
+      var(--lf-more-fade-to, transparent),
+      #000 var(--lf-more-fade, 24px),
+      #000 calc(100% - var(--lf-more-fade, 24px)),
+      var(--lf-more-fade-to, transparent)
     );
     mask-image: linear-gradient(
       to right,
-      transparent,
-      #000 24px,
-      #000 calc(100% - 24px),
-      transparent
+      var(--lf-more-fade-to, transparent),
+      #000 var(--lf-more-fade, 24px),
+      #000 calc(100% - var(--lf-more-fade, 24px)),
+      var(--lf-more-fade-to, transparent)
     );
   }
   :is([data-lf-more-before], [data-lf-more-after]):is(

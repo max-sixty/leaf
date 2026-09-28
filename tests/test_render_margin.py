@@ -7790,11 +7790,15 @@ def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve, widt
     ), (before, after)
 
 
-def test_a_card_under_a_containing_block_stands_beside_its_cluster(browser, serve):
+@pytest.mark.parametrize("transform", ["translate(30px, 40px)", "scale(1.2)"])
+def test_a_card_under_a_containing_block_stands_beside_its_cluster(
+    browser, serve, transform
+):
     """The card's rule is worked out in client coordinates, and Floating UI carries it
     into the card's positioning space. A transformed ancestor is a containing block for
-    the fixed card, so a spot written as a client coordinate would stand off by the
-    transform; carried across, the card stays where the rule put it."""
+    the fixed card, so a spot or a length written as a client one would be moved or
+    scaled by the transform; carried across, the card stays where and as wide as the
+    rule put it."""
     page = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
     resized(page, 1920, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
@@ -7808,17 +7812,21 @@ def test_a_card_under_a_containing_block_stands_beside_its_cluster(browser, serv
       const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
       const controls = document.querySelector('.lf-margin-marker[data-lf-kinds="comment"]')
         .closest('[data-lf-margin-for]').getBoundingClientRect();
-      return {left: card.left - controls.left, top: card.top - controls.top};
+      return {left: card.left - controls.left, top: card.top - controls.top,
+              width: card.width};
     }"""
     before = page.evaluate(offset)
     page.evaluate(
-        """() => {
+        """transform => {
           const card = document.querySelector('.lf-margin-preview');
+          // A block the size of the window, as a transformed body would be.
           const block = document.createElement('div');
-          block.style.transform = 'translate(30px, 40px)';
+          block.style.cssText = 'position: fixed; inset: 0; pointer-events: none';
+          block.style.transform = transform;
           card.before(block);
           block.append(card);
-        }"""
+        }""",
+        transform,
     )
     page.evaluate("() => dispatchEvent(new Event('resize'))")
     rendered(page)

@@ -710,8 +710,9 @@ export function createMarginProjection({
     return row.checkVisibility() ? row : (targetFor(previewEntry) ?? row);
   }
   // Where the card stands is thread-card-geometry.js's rule, worked out in client
-  // coordinates. Floating UI carries the answer into the card's positioning space by the
-  // distance it measured between the cluster's client box and its box there.
+  // coordinates. Floating UI measures the cluster in the card's positioning space; the
+  // cluster's box there and its client box give the offset and scale that carry the
+  // rule's answer across, and the card's own lengths are written in that space too.
   function threadCardMiddleware(cluster, target) {
     return {
       name: "threadCard",
@@ -726,6 +727,11 @@ export function createMarginProjection({
           (replyEditor.closest(".lf-say").contains(document.activeElement) ||
             replyEditor.value !== "");
         const clusterBox = cluster.getBoundingClientRect();
+        // Client pixels per positioning-space pixel.
+        const scale = {
+          x: clusterBox.width / rects.reference.width || 1,
+          y: clusterBox.height / rects.reference.height || 1,
+        };
         const style = getComputedStyle(preview);
         const geometry = threadCardGeometry({
           cluster: clusterBox,
@@ -735,14 +741,19 @@ export function createMarginProjection({
           gap: CARD_GAP,
           minWidth: parseFloat(style.getPropertyValue("--thread-card-min")),
           preferredWidth: parseFloat(style.getPropertyValue("--thread-card")),
-          heightAt: measureThreadCard,
+          heightAt: (width, cap) => measureThreadCard(width / scale.x, cap / scale.y),
           edge: drafting ? "foot" : "top",
           hold: previewHold,
         });
         return {
-          x: geometry.x + rects.reference.x - clusterBox.x,
-          y: geometry.y + rects.reference.y - clusterBox.y,
-          data: { geometry, drafting, shown: threadCardBoundary(target, { gap: 0 }) },
+          x: rects.reference.x + (geometry.x - clusterBox.x) / scale.x,
+          y: rects.reference.y + (geometry.y - clusterBox.y) / scale.y,
+          data: {
+            geometry,
+            drafting,
+            scale,
+            shown: threadCardBoundary(target, { gap: 0 }),
+          },
         };
       },
     };
@@ -772,17 +783,21 @@ export function createMarginProjection({
       .then((position) => {
         const placed = position?.middlewareData.threadCard;
         if (!placed?.geometry || !stillCurrent()) return;
-        const { geometry, drafting, shown } = placed;
+        const { geometry, drafting, scale, shown } = placed;
         previewHold = geometry.hold;
         previewAway = geometry.away;
         preview.style.left = `${position.x}px`;
         // A card held by its foot writes its foot, so growth before the next placement
         // moves its top.
-        preview.style.top = `${position.y + (drafting ? geometry.height : 0)}px`;
+        preview.style.top = `${position.y + (drafting ? geometry.height / scale.y : 0)}px`;
         // Leaving with its cluster, the card passes under the chrome rather than over it.
-        preview.style.clipPath = `inset(${shown.top - geometry.y}px ${
-          geometry.x + geometry.width - shown.right
-        }px ${geometry.y + geometry.height - shown.bottom}px ${shown.left - geometry.x}px)`;
+        const inset = [
+          (shown.top - geometry.y) / scale.y,
+          (geometry.x + geometry.width - shown.right) / scale.x,
+          (geometry.y + geometry.height - shown.bottom) / scale.y,
+          (shown.left - geometry.x) / scale.x,
+        ];
+        preview.style.clipPath = `inset(${inset.map((side) => `${side}px`).join(" ")})`;
         preview.dataset.lfThreadPlacement = geometry.placement;
         if (drafting) preview.dataset.lfThreadHeld = "";
         else delete preview.dataset.lfThreadHeld;

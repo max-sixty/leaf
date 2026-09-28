@@ -20,6 +20,7 @@ from conftest import LEAF_COMMAND
 from interact_support import install_payload, wait_for
 from leaf import cli as cli_model
 from leaf import data as data_model
+from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import files as files_model
@@ -28,7 +29,6 @@ from leaf import leases as leases_model
 from leaf import media as media_model
 from leaf import server as server_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf.schema import ELEMENT_ID
 from leaf.structure import UTF8_BOM
 from leaf_dev.example_data import patch_manifest
@@ -1050,7 +1050,7 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
     )
     assert waiter.wait(timeout=30) == 0, waited.read_text()
     assert "has new input" in waited.read_text()
-    [batch] = session_model.take_input(session)["batches"]
+    [batch] = delivery_model.take_input(session)["batches"]
     assert [event["text"] for event in batch["events"]] == ["still there?"]
 
 

@@ -3759,7 +3759,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     capsys.readouterr()
     assert session_model.cmd_wait(page_dir) == 0
     assert "has new input" in capsys.readouterr().out
-    envelope = session_model.take_input(host_model.session_harness().session)
+    envelope = delivery_model.take_input(host_model.session_harness().session)
     record = json.loads(logged)
     [batch] = envelope["batches"]
     [delivered] = batch["events"]

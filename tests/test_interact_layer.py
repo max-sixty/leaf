@@ -38,6 +38,7 @@ from interact_support import (
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
+from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import hooks as hooks_model
@@ -46,7 +47,6 @@ from leaf import locations as interact_locations
 from leaf import machine as machine_model
 from leaf import packages as packages_model
 from leaf import schema as schema_model
-from leaf import session as session_model
 from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import contract as registry_contract
@@ -189,7 +189,7 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     woke = runner.invoke(cli_model.cli, ["wait", str(page)])
     assert woke.exit_code == 0, woke.output
     assert "has new input" in woke.output
-    [batch] = session_model.take_input("s1")["batches"]
+    [batch] = delivery_model.take_input("s1")["batches"]
     assert len(batch["events"]) == 2
     record(["thread", "reply", str(page), "--text", "Answer"], 1)
     record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 1)

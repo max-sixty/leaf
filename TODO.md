@@ -282,14 +282,14 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **Claude Code tool observation:** consider a cheap hook for sessions holding
   pages if status evaluations show that agent declarations are insufficient.
 - **A cheap `leaf hook`:** every hook Leaf registers pays `uv run leaf hook`,
-  about 0.3–0.5s warm and 2.5s cold, and the host waits for it. That cost is why
-  the `PostToolUse` registration keeps its `if` prefilter, and it limits what
-  else hooks can carry. Most of the warm time is Python startup and imports:
-  `leaf.hooks` alone pulls in `delivery`, `event_contracts` and
-  `anchor_capture`, about 120ms. Get the hook path off those imports, then consider a `leaf` filter in
-  front of every tool-result hook, so Leaf can answer more events itself.
-  Rewriting the hook path in a compiled language is the further step if that
-  is not enough.
+  and the host waits for it. In a session holding no page it now costs about
+  0.15s warm (2.5s cold, after a plugin update leaves uv to sync), mostly uv and
+  Python startup: `leaf.hooks` imports in about 25ms. A session holding a page
+  adds about 0.1s to import page reading. That cost is why the `PostToolUse`
+  registration keeps its `if` prefilter, and it limits what else hooks can
+  carry. Consider a `leaf` filter in front of every tool-result hook, so Leaf
+  can answer more events itself. Rewriting the hook path in a compiled language
+  is the further step if that is not enough.
 - **Invoker commands:** revisit when the browser support Leaf needs can replace
   the current dialog and popover handlers. See the
   [dependency survey](notes/dependency-survey.md).

@@ -256,13 +256,6 @@ lf-playground-setting {
   display: none;
 }
 
-.lf-playground-presets .lf-btn,
-.lf-playground-actions .lf-btn {
-  min-height: var(--aim-floor);
-  padding: var(--sp-2) var(--sp-3);
-  font: 600 var(--t-6)/1.2 var(--sans);
-}
-
 /* The stage: one well the preview's artifacts stand on. A stage the rail beside it holds
  * taller than the artifacts sets them in its middle rather than leaving its lower half
  * bare, and one they overflow starts them at its top. */
@@ -306,19 +299,6 @@ lf-playground-value {
   color: var(--ink-2);
   font: var(--t-6)/1.3 var(--sans);
   text-align: end;
-}
-
-.lf-playground-copy-trigger {
-  box-sizing: border-box;
-  min-height: var(--aim-floor);
-  height: auto;
-  white-space: nowrap;
-  padding: var(--sp-2) var(--sp-3);
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--field);
-  color: var(--ink-2);
-  font: 600 var(--t-6)/1.2 var(--sans);
 }
 
 .lf-playground-copy-label.success,

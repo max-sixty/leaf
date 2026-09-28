@@ -310,7 +310,10 @@
      in the hand is 0 8px 24px against its resting 0 2px 8px, which is the whole
      difference and enough of one. */
   --shade: light-dark(rgb(0 0 0 / .14), rgb(0 0 0 / .55));
-  --code-bg: light-dark(#f6f8fa, #2b2b29); --pre-bg: light-dark(#fff, #1b1b1a);
+  /* Inline code's ground is measured against the paper it sits on, not the white code
+     canvas: GitHub's #f6f8fa over this ivory is 1.01:1, so the chip vanished and its
+     side padding read as double spaces around every span. */
+  --code-bg: light-dark(#ecebe5, #2b2b29); --pre-bg: light-dark(#fff, #1b1b1a);
   --code-chrome: light-dark(#f6f8fa, #222220);
   --code-ink: light-dark(#24292f, #e8e7e3); --code-muted: light-dark(#57606a, #9b9992);
   --code-border: light-dark(#d0d7de, #3b3a37);
@@ -725,6 +728,20 @@ body {
   border: 1px solid var(--border-2);
   border-radius: 6px; background: var(--card); color: inherit; resize: none;
   field-sizing: content; max-height: 50vh; overflow-y: auto; }
+/* A single-line field or select a widget offers wears the text box's frame at a
+   button's height, so a row of them beside .lf-btn reads as one set of controls. With
+   no face the browser drew its own: a 2px inset border and square corners, 21px tall
+   beside 30px buttons. At a class's weight, so a component rule naming its own field
+   still wins by standing later. */
+:where(select, input:not([type=checkbox], [type=radio], [type=range], [type=color],
+       [type=file], [type=button], [type=submit], [type=reset], [type=image])).lf-ui {
+  box-sizing: border-box; min-height: max(var(--aim-floor), calc(1em * var(--lf-ui-lh) + 10px));
+  padding: 4px 8px; border: 1px solid var(--border-2); border-radius: 6px;
+  background: var(--card); color: var(--ink); }
+:where(select, input:not([type=checkbox], [type=radio], [type=range], [type=color],
+       [type=file], [type=button], [type=submit], [type=reset], [type=image])).lf-ui:focus-visible {
+  outline: var(--here-ring); --lf-here-ring: text-box; outline-offset: 0;
+  border-color: transparent; }
 .lf-ui :is(input, textarea)::placeholder,
 :is(input, textarea).lf-ui::placeholder { color: var(--muted); opacity: 1; }
 .lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)):is(:focus, .lf-focus),

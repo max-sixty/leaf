@@ -35,6 +35,14 @@ and the others import it; a script under `scripts/` imports it too.
 - `leaf-dev stills [BASE_REF]` screenshots a catalogue of UI states, at rest and
   reached by input, on a base runtime and HEAD's, and crops each state that changed
   into a before/after pair under `.tmp/stills/`.
+- `suite.py` runs a selection of the suite in a checkout and reads each test's
+  outcome, by phase, from pytest's report log, refusing a selection pytest would not
+  run; its runs time out and stop with their command.
+- `leaf-dev flake NODEID...` runs tests from the working tree as 18 copies, six at a
+  time, and prints every failure's message, since a load flake never shows serially.
+- `leaf-dev bugback [NODEID...]` runs the branch's new or changed tests on HEAD and
+  with the branch's change reverted, or with each `--flip` patch, in a scratch
+  worktree, and reports which went red.
 - `leaf-dev bench-latency [BASE_REF]` times an open page's answer to a gesture, an
   agent write, and a revision in Chrome, with the traffic each causes, for a base
   runtime and HEAD's.

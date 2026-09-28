@@ -10314,9 +10314,15 @@ def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
         return ({_RING_WITHIN})(at, at.closest('code'));
     }}""")
     # Its right run is the row's end, as far off as the file's longest line, which the
-    # code box scrolls sideways to reach.
+    # code box scrolls sideways to reach; the other three are on screen.
     inside = row_ring["inside"]
     assert row_ring["drawn"] and inside["top"] and inside["bottom"], row_ring
+    # And the code box has not moved sideways. The row runs past the box, so a landing
+    # that let the browser bring it "nearest" scrolled the box to the row's start, the
+    # width of the line numbers over it, hiding every line's marker and first characters.
+    assert row_ring["sideways"] == 0 and inside["left"], (
+        f"the landing scrolled the file's lines sideways under their numbers: {row_ring}"
+    )
     assert row_ring["top"] >= landed["headBottom"], (
         f"the landed row's ring runs under its file's pinned header: {row_ring}"
     )

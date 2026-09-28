@@ -1375,13 +1375,24 @@ customElements.define(
     // inside its own box (shadow.css). A file header
     // already is one, and writing a tabindex of -1 onto it would take it out of the
     // order a user tabs through.
+    //
+    // A landing moves the reading down, never sideways. A row is as wide as its file's
+    // longest line, so where one line ran past the code box, "nearest" on the inline
+    // axis scrolled that box to put the row's start at its edge: the width of the line
+    // numbers, which stand over the code there, so every line in the file lost its
+    // change marker and first characters under them. Each box between the target and
+    // the shadow root keeps the sideways place the user left it at.
     land(box, node = box) {
       if (node.tabIndex < 0) node.tabIndex = -1;
+      const sideways = [];
+      for (let el = box.parentElement; el; el = el.parentElement)
+        if (el.scrollWidth > el.clientWidth) sideways.push([el, el.scrollLeft]);
       box.scrollIntoView({
         behavior: scrollBehavior(),
         block: "start",
         inline: "nearest",
       });
+      for (const [el, left] of sideways) el.scrollLeft = left;
       node.focus({ preventScroll: true });
     }
 

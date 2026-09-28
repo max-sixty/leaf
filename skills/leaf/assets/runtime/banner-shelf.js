@@ -285,6 +285,18 @@ export function bannerControlDoor(control) {
   return menu?.lfInvoker?.checkVisibility() ? menu.lfInvoker : null;
 }
 
+// Escape from a layer that opens from a banner control lands on that control, its parent
+// (runtime/keyboard/AGENTS.md, "Escape unwinds the hierarchy"). A control behind More is
+// reached as its door reaches it: More opens from the door, so More's own Escape then
+// hands the user back to the door, and the user stands on the control.
+export function returnToBannerControl(control) {
+  if (overflowMenu.contains(control) && !overflowMenu.matches(":popover-open")) {
+    overflowBtn.focus({ preventScroll: true });
+    overflowMenu.showPopover();
+  }
+  control.focus({ preventScroll: true });
+}
+
 export function dismissBannerControls() {
   if (overflowMenu.matches(":popover-open")) overflowMenu.hidePopover();
 }

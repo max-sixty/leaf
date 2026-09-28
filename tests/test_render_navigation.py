@@ -7622,13 +7622,15 @@ def test_global_destinations_switch_from_a_covering_workspace(
         "panel => panel.contains(document.activeElement)"
     ), "Tab left the version popover but escaped its covering auxiliary surface"
 
+    # Escape unwinds to the menu's parent, More, whatever the user stood on before g V;
+    # the covering surface stays standing under it.
     origin.focus()
     page.keyboard.press("g")
     page.keyboard.press("Shift+v")
     expect(versions).to_be_visible()
     page.keyboard.press("Escape")
     expect(versions).to_be_hidden()
-    expect(origin).to_be_focused()
+    expect(page.locator(".lf-version")).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
 
 
@@ -7668,10 +7670,13 @@ def test_entering_a_covering_workspace_dismisses_an_existing_popover(browser, se
     expect(versions).to_be_visible()
     page.keyboard.press("ArrowUp")
     expect(versions.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
+    # Escape returns to the menu's parent, More.
     page.keyboard.press("Escape")
     expect(versions).to_be_hidden()
-    expect(origin).to_be_focused()
+    expect(page.locator(".lf-version")).to_be_focused()
+    page.keyboard.press("Escape")
 
+    origin.focus()
     resized(page, 1000, 800)
     panel_settled(page)
     expect(origin).to_be_focused()
@@ -10049,6 +10054,48 @@ def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
         expect(page.locator(".lf-shortcut-bar")).to_contain_text("close threads")
         page.keyboard.press("Escape")
         expect(page.locator(".lf-thread-panel")).to_be_hidden()
+
+
+def test_escape_from_the_versions_menu_returns_to_more(browser, serve):
+    """Escape unwinds what contains what. The version chooser stands in More, so the
+    versions menu opens from inside More and Escape steps back there, onto the chooser,
+    whichever route opened it; the next Escape closes More onto its door. It used to
+    land on the page, which left a keyboard user in the banner without their place
+    after this one surface and not after More or the status beside it.
+
+    The Threads panel is the other side of the same rule: its route is g T from the
+    page, so the page is its parent and Escape lands there."""
+    page = open_page(browser, serve(LONG_PAGE))
+    more = page.locator(".lf-banner-more")
+    menu = page.locator(".lf-banner-menu")
+    versions = page.locator(".lf-version-menu")
+    chooser = page.locator(".lf-version")
+    for route in ("g V", "More"):
+        if route == "g V":
+            open_versions(page)
+        else:
+            more.focus()
+            page.keyboard.press("Enter")
+            expect(menu).to_be_visible()
+            chooser.focus()
+            page.keyboard.press("Enter")
+        expect(versions).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(versions).to_be_hidden()
+        expect(menu).to_be_visible()
+        expect(chooser).to_be_focused()
+        page.keyboard.press("Escape")
+        expect(menu).to_be_hidden()
+        expect(more).to_be_focused()
+        page.keyboard.press("Escape")
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel = page.locator(".lf-thread-panel")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(panel).to_be_hidden()
+    assert page.evaluate("() => !document.activeElement.closest('.lf-chrome')")
 
 
 def test_a_margin_marker_backs_out_onto_the_page_like_the_toggle(browser, serve):

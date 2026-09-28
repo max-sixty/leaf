@@ -45,7 +45,7 @@
      next press — F7, ⌥ click, a press on a draft's own box.
    - `lineWhen` is optional projection-only visibility on the shortcut bar. Unlike `when`, it
      never changes whether the command dispatches or appears in the command reference, and an
-     active sequence shows every live row regardless of it.
+     active sequence offers every live row regardless of it.
    - `promoteEscape` says whether an Escape row takes the line's second visible slot. On
      by default; a local action that happens to clear state can leave the slot to the
      next action on that state. A step of the ladder sets the same field for the shared

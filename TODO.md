@@ -164,13 +164,6 @@ and its chrome coordinate.
   rules: the box from the target and the room at the moment it opened, the card from the
   margin's own layout. Either the card opens where the box stood, or the box opens where
   the card will stand.
-- **Decide whether the shortcut line should wrap on a narrow window.** Below about
-  390px with a fine pointer, the resting line wraps to a second row
-  (`keyboard/shortcut-bar.js`, `chrome.css`), which stands about 31px over the page
-  beyond the bottom bar the page reserves. The alternative is truncating the resting line
-  to one row. A key sequence and the expanded bar must still wrap, so truncating brings back
-  a one-row mode beside them, and it has to keep More, which sits last, from being
-  cut first.
 - **Unconfirmed: scrolling a live sample sometimes sticks.** A user reported it
   while a sample still scrolled inside a fixed-height frame, with no reproduction.
   The frame now takes its page's height, so nothing scrolls inside it; check that the

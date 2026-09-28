@@ -5130,7 +5130,9 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
 def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve):
     """Generated hints reserve stable status, not a transient notice's footprint."""
     page = open_page(browser, serve(ADDRESSED_PAGE))
-    resized(page, 1280, 800)
+    # Wide enough that the armed line's one row ends short of the corner the link is
+    # fixed in; at 1280 the row fills the window and More stands over the link.
+    resized(page, 1920, 800)
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
     page.locator("#lk2").evaluate(
         "node => Object.assign(node.style, {position: 'fixed', right: '18px', bottom: '18px'})"
@@ -5484,7 +5486,10 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     page.keyboard.press("Escape")
 
     # Armed, the line names the available global routes and visible-target map. Every destination
-    # keeps its complete route, with the leader painted as already pressed.
+    # keeps its complete route, with the leader painted as already pressed. A window wide
+    # enough to hold every destination in the line's one row, so the comparison is of the
+    # rows the sequence offers rather than of what a narrower one has room for.
+    resized(page, 2560, 800)
     page.keyboard.press("g")
     shortcut_bar_text(page)
     visible_sequence = line.locator(".lf-shortcut:not([hidden])")
@@ -5602,8 +5607,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     for width in (1280, 420):
         resized(page, width, 800)
         rendered(page)
-        # The sequence's line grows upward over the page; the page's room stays the band's
-        # stated height rather than following it.
+        # The page's room is the bottom bar's stated height, and the line keeps to it.
         room = page.evaluate(
             """() => {
               const probe = document.createElement('div');
@@ -5643,12 +5647,18 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
         assert geometry["left"] >= 0 and geometry["right"] <= geometry["viewport"], (
             geometry
         )
-        # A desktop window holds the whole line in two rows. A narrow one wraps as far
-        # as the platform's font metrics take it, so what it owes the user is room: the
-        # line keeps to a fifth of the window, however many rows that comes to.
-        if width == 1280:
-            assert geometry["rows"] <= 2, geometry
-        assert geometry["height"] <= 800 * 0.2, geometry
+        # The line is one row at every width: the destinations it has no room for leave
+        # it from the end of the register's order, and the way out and More stay.
+        assert geometry["rows"] == 1, geometry
+        assert geometry["height"] == pytest.approx(room["band"], abs=0.5), geometry
+        expect(
+            line.locator('.lf-shortcut[data-lf-command-ids~="navigation.go-to.back"]')
+        ).to_be_visible()
+        expect(line.locator(".lf-shortcut-more")).to_be_visible()
+        if width == 420:
+            expect(
+                line.locator('.lf-shortcut[data-lf-command-ids~="navigation.page.top"]')
+            ).to_be_hidden()
     resized(page, 1280, 800)
     expect(page.locator(CHIPS).first).to_be_visible()
     # The chips are the eye's copy of the Go-to sequence; a user who cannot see them is told the
@@ -8825,13 +8835,14 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
           };
         }"""
     )
-    assert compact["rows"] <= 2, compact
+    assert compact["rows"] == 1, compact
     assert compact["scrollWidth"] <= compact["clientWidth"], compact
     assert compact["scrollHeight"] <= compact["clientHeight"], compact
 
-    # Linux's wider system face wraps this line at the smallest supported window, and the
-    # disclosure is the one control on it: whatever the face costs, More stays painted and
-    # the line stays inside its own box rather than clipping the way out of itself.
+    # Linux's wider system face leaves little room on this line at the smallest supported
+    # window, and the disclosure is the one control on it: whatever the face costs, the
+    # hints leave before More does, and the line stays inside its own box rather than
+    # clipping the way out of itself.
     resized(page, 320, 800)
     rendered(page)
     smallest = line.evaluate(

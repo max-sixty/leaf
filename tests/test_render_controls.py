@@ -70,6 +70,7 @@ from render_harness import (
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
+    RELEASE_FOCUS,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
     SHELL_BOX,
@@ -3574,7 +3575,7 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
     page = open_page(browser, serve(LONG_PAGE, comments=24))
     resized(page, 1000, 640)
     page.evaluate("() => document.scrollingElement.scrollTop = 240")
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page)
@@ -5574,7 +5575,7 @@ RING_SCOPE_WIDTH = {
 }
 # Focus put back at the document's start. A blur retains the previous sequential
 # navigation position, which would make the opening key sequences depend on the last case.
-RING_FOCUS_START = "() => document.body.focus()"
+RING_FOCUS_START = RELEASE_FOCUS
 # A keyboard stop this sweep has not reached, one it has, or the document boundary.
 # This deliberately waits for no settled geometry: focus paint is synchronous, and the
 # separate sample floor below owns ring geometry. Avoiding a layout-settlement probe at
@@ -5742,9 +5743,8 @@ def test_every_base_corpus_tab_stop_has_a_visible_focus_indicator(browser, serve
         page = open_page(browser, serve(example, comments=2))
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
-        page.evaluate(
-            "() => { window.__lfSeen = new WeakSet(); document.body.focus(); }"
-        )
+        page.evaluate("() => { window.__lfSeen = new WeakSet(); }")
+        page.evaluate(RELEASE_FOCUS)
         empty = 0
         for _ in range(400):
             page.keyboard.press("Tab")

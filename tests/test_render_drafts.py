@@ -42,6 +42,7 @@ from render_cases_navigation import (
 from render_harness import (
     EXAMPLE_MEDIA,
     LONG_PAGE,
+    RELEASE_FOCUS,
     CutOff,
     _traffic,
     _until,
@@ -3226,7 +3227,7 @@ def test_the_browser_pages_the_document_with_space(browser, serve):
     contract here is simply that the document moves down and then back up without the
     runtime canceling either key."""
     page = open_page(browser, serve(SMOOTH_LONG_PAGE))
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
 
     def press_and_settle(key):
         page.evaluate("""() => {
@@ -3458,7 +3459,7 @@ def test_the_reading_page_keys_move_the_region_the_user_is_scrolling(browser, se
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     # Put the user on the page before asking which reading region the page gesture chooses.
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     assert page.evaluate(
         "() => { const t = document.querySelector('.lf-threads');"
         " return t.scrollHeight > t.clientHeight; }"
@@ -3520,7 +3521,7 @@ def test_the_reading_page_keys_follow_the_user_into_the_panel(browser, serve):
     page = open_page(browser, serve(LONG_PAGE, comments=40))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     assert page.evaluate(
         "() => { const t = document.querySelector('.lf-threads');"
         " return t.scrollHeight > t.clientHeight; }"

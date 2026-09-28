@@ -34,6 +34,7 @@ from render_harness import (
     EXAMPLE_PACKAGES,
     INLINE_PAGE,
     LONG_PAGE,
+    RELEASE_FOCUS,
     REPLAYED_PAGE,
     SETTLED_PAGE,
     CutOff,
@@ -1893,7 +1894,7 @@ def test_undo_leaves_a_user_standing_elsewhere_where_they_are(browser, serve):
     page = open_page(browser, serve(SUGGESTION_PAGE))
     suggestion_control(page, "sug-refill", "accept").click()
     round_trip(page)
-    page.evaluate("() => document.body.focus()")
+    page.evaluate(RELEASE_FOCUS)
 
     undo(page)
     expect(page.locator("#sug-refill lf-old")).to_be_visible()

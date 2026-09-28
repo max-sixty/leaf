@@ -270,8 +270,17 @@ export function declareCovering({ surface, landing }) {
   coveringSurface = surface;
   coveringLanding = landing;
 }
+//
+// It is the same pair on the body, which carries no tab stop of its own. A standing
+// `tabindex` on body was once how the let-go worked on a page too short to scroll, but it
+// also made the body the focusable ancestor of every word: a click on a pane's text
+// focused the body, and Chrome starts Space, PageDown and the arrows from the focused
+// element before the node last pressed, so they scrolled the root, which a held
+// workspace keeps still, and never the pane under the click. So the body borrows the stop
+// for the focus that moves the starting point to the top, and gives it back on the blur.
 export function releaseFocus() {
-  document.body.focus({ preventScroll: true });
+  focusDestination(document.body);
+  document.body.blur();
 }
 
 // Letting go of what the user stands on, the standing scope's Escape, is a landing that

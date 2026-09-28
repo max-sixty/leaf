@@ -91,6 +91,7 @@ from render_harness import (
     EXAMPLE_MEDIA,
     EXAMPLE_PACKAGES,
     IMPORTER_CARD,
+    RELEASE_FOCUS,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
     SAMPLE_MARKUP,
@@ -1897,14 +1898,12 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
         == "2"
     ), "the new version's page-local style did not activate"
 
-    # The revision owns authored body attributes, but body remains the runtime's stable
-    # programmatic focus destination after the replacement, including for callers that
-    # use the platform operation directly rather than the Escape helper.
-    expect(page.locator("body")).to_have_attribute("tabindex", "-1")
+    # The revision owns authored body attributes, and the runtime's let-go still takes
+    # the user off an element after the replacement.
     page.locator("#live-reading").evaluate(
         "el => { el.tabIndex = -1; el.focus({preventScroll: true}); }"
     )
-    page.evaluate("document.body.focus({preventScroll: true})")
+    page.evaluate(RELEASE_FOCUS)
     assert page.evaluate("document.activeElement === document.body")
 
     page.evaluate("window.__leafMain = document.querySelector('main')")

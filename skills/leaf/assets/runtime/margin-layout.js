@@ -370,12 +370,15 @@ function reach(anchor, box, main, reaches) {
 
 // The page's own controls in a pin's block, which the pin may not stand on: a pin at a
 // card's top-right would otherwise take the presses meant for the card's grip. Anything
-// the keyboard can reach is a control, so a package need declare nothing.
-function controlsIn(anchor) {
+// the keyboard can reach is a control, so a package need declare nothing. Each is the
+// part of it its scrollers show (`clippedBand`), since a pin can take no press from a
+// control nobody can see: whole, a pane body's Ask with its options scrolled behind the
+// pane's footer pushed the footer Ask's marker a row below the heading it stands by.
+function controlsIn(anchor, bands) {
   return [...anchor.querySelectorAll(TAB_STOP)]
     .filter((control) => control.checkVisibility())
-    .map((control) => control.getBoundingClientRect())
-    .filter((box) => box.width && box.height);
+    .map((control) => clippedBand(control, control.getBoundingClientRect(), bands))
+    .filter(Boolean);
 }
 
 function scheduleMarginLayout() {
@@ -600,7 +603,7 @@ export function layoutMarginRows() {
       place,
       box,
       extent,
-      controls: place === "pin" && shown ? controlsIn(anchor) : [],
+      controls: place === "pin" && shown ? controlsIn(anchor, bands) : [],
     });
   }
   // What each lane's region shows, cut by the scrollers around it but not by the window,

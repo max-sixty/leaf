@@ -11894,3 +11894,32 @@ def test_an_ask_in_a_reply_is_where_the_user_stands_once_answered(browser, serve
     page.keyboard.press("1")
     round_trip(page)
     expect(page.locator("#cache-disk")).not_to_have_attribute("chosen", "")
+
+
+def test_the_reference_keeps_its_count_line_whole_above_the_results(browser, serve):
+    """The reference is a column in a window-capped box, and only its results give up
+    height to fit. Its count line was a shrinkable item too, squeezed to 13.8px under a
+    16.7px line with the results starting on its last pixel, so a row scrolled up to the
+    results' edge ran into the words above it. The line keeps a whole line, and the
+    results start a step below it."""
+    page = open_page(browser, serve(LONG_PAGE))
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    expect(page.locator(".lf-command-reference")).to_be_visible()
+    reading = page.evaluate(
+        """() => {
+          const box = (selector) => document.querySelector(selector)
+            .getBoundingClientRect();
+          const meta = document.querySelector('.lf-command-reference-meta');
+          const results = document.querySelector('.lf-command-reference-results');
+          return {
+            line: parseFloat(getComputedStyle(meta).lineHeight),
+            meta: box('.lf-command-reference-meta').toJSON(),
+            results: results.getBoundingClientRect().toJSON(),
+            scrolls: results.scrollHeight > results.clientHeight,
+          };
+        }"""
+    )
+    assert reading["scrolls"], "the results fit, so nothing had to give up height"
+    assert reading["meta"]["height"] >= reading["line"] - 0.5, reading
+    assert reading["results"]["top"] - reading["meta"]["bottom"] >= 4, reading

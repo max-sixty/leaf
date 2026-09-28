@@ -1413,7 +1413,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     border: 1px solid var(--border-2); border-radius: var(--r); background: var(--paper);
     color: var(--ink); }
   .lf-command-reference-search:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: help-search; outline-offset: 1px; }
-  .lf-command-reference-meta { min-height: 1.2em; margin-top: 6px; color: var(--muted);
+  /* The results are the one part of the column that gives up height when the window is
+     short; the head, the search and this line keep their own. As a shrinkable flex item
+     the line was squeezed to its 1.2em floor, 13.8px under a 16.7px line, and the results
+     started on its last pixel, so a scrolled row ran into the words. One line is its
+     floor, empty or not, and the results start a step below it. */
+  .lf-command-reference-head, .lf-command-reference-search,
+  .lf-command-reference-meta { flex: none; }
+  .lf-command-reference-meta { min-height: 1lh; margin: 6px 0; color: var(--muted);
     font-size: var(--t-6); }
   .lf-command-reference-results { --lf-command-key-column: 104px;
     min-height: 0; overflow-y: auto; }

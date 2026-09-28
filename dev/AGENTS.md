@@ -67,8 +67,9 @@ scripts and `.config/wt.toml` call them. Their output lands under `.tmp/` except
 catalog pin in `example-previews.json` and the demo frames the README and site cards
 draw.
 
-- `leaf-dev site [--serve]` builds <https://leaf.page/> into `.tmp/site`;
-  `scripts/verify_site.py` verifies what it built.
+- `leaf-dev site` builds <https://leaf.page/> into `.tmp/site`;
+  `scripts/verify_site.py` verifies what it built, and `npm run dev --prefix worker`
+  builds and serves it through `wrangler dev`.
 - `leaf-dev fetch-previews` fetches the catalog previews pinned in
   `example-previews.json` (`example_assets.py`, which the site build also calls).
   `leaf-dev refresh-previews`, run as `wt refresh-previews`, recaptures them,

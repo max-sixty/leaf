@@ -1036,7 +1036,7 @@ def test_an_invalid_product_document_stops_the_build(tmp_path, monkeypatch):
     monkeypatch.setattr(site_build, "DOCS", staged_docs)
 
     with pytest.raises(SystemExit) as stopped:
-        site_build.build(tmp_path / "invalid-site", verify_links=False)
+        site_build.build(tmp_path / "invalid-site")
     assert "<script src>" in str(stopped.value)
 
 

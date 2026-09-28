@@ -57,7 +57,7 @@ test("a document host value does not become a shadow-tree ancestor", () => {
 });
 
 // A detached subtree's root is an element, and an <a> or <area> has a `host` of its own:
-// its URL's. The Leaves tray's other-page rows are such links, and the reading watcher
+// its URL's. The Leaves drawer's other-page rows are such links, and the reading watcher
 // climbs from the one a removal record names once it has left.
 test("a detached link's URL host is not a shadow-tree ancestor", () => {
   document.body.innerHTML =

@@ -4912,11 +4912,11 @@ def test_the_ring_reading_sees_and_measures_a_ring_cast_as_a_shadow(browser, ser
         width: 120px; height: 30px; box-sizing: border-box; margin: 0`;
       if (how === 'a lift') box.style.boxShadow = '0 2px 8px var(--shade)';
       if (how === 'an inset wash')
-        box.style.boxShadow = 'inset var(--here-shadow) var(--accent)';
+        box.style.boxShadow = 'inset var(--here-shadow)';
       if (how === 'a wider band')
         box.style.boxShadow = '0 0 0 calc(var(--here-ring-w) + 1px) var(--accent)';
       if (how === 'the band itself')
-        box.style.boxShadow = 'var(--here-shadow) var(--accent)';
+        box.style.boxShadow = 'var(--here-shadow)';
       const cs = getComputedStyle(box);
       return [cs.boxShadow, cs.outlineStyle, box.getBoundingClientRect().bottom,
               innerHeight];

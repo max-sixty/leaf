@@ -779,6 +779,77 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_users_focus(browser, s
     )
 
 
+@pytest.mark.parametrize("scheme", ["light", "dark"])
+def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve, scheme):
+    """The response bar casts its here ring as a shadow, and cast it at a quarter of
+    the accent: a faint 2px halo, all but invisible in dark, where every other control
+    the keyboard stands on wears the solid band. The shadow is the band's own token,
+    ink and all, so the two carriers cannot drift apart."""
+    page = open_page(browser, serve(PANEL_PAGE), color_scheme=scheme)
+    select_paragraph(page, "#how-cap")
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.keyboard.press("c")
+    page.keyboard.press("Tab")
+    suggest = (
+        page.locator(".lf-fab-bar")
+        .get_by_role("button", name="Suggest", exact=True)
+        .last
+    )
+    expect(suggest).to_be_focused()
+    ring = suggest.evaluate("""node => {
+      const ink = document.createElement('span');
+      ink.style.color = 'var(--accent)';
+      node.append(ink);
+      const accent = getComputedStyle(ink).color;
+      ink.remove();
+      const band = getComputedStyle(document.documentElement)
+        .getPropertyValue('--here-ring-w').trim();
+      return {shadow: getComputedStyle(node).boxShadow, accent, band};
+    }""")
+    assert ring["shadow"].startswith(f"{ring['accent']} 0px 0px 0px {ring['band']}"), (
+        ring
+    )
+
+
+def test_the_response_choices_hold_one_row_beside_the_panel(browser, serve):
+    """A side is chosen for the field and its More press, narrower than Suggest and six
+    reactions at rest. Beside the open Threads panel at 1024px the bar had 256px for
+    that 288px row and the reactions dropped whole beneath Suggest. They give up spare
+    padding before the row breaks, so the row holds and stays inside the bar."""
+    page = open_page(browser, serve(PANEL_PAGE))
+    resized(page, 1024, 768)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    select_paragraph(page, "#how-cap")
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_be_visible()
+    page.keyboard.press("c")
+    page.keyboard.press("Tab")
+    choices = bar.locator(":scope > .lf-response-options .lf-response-action:visible")
+    expect(choices).to_have_count(7)
+    rendered(page)
+    row = bar.evaluate("""bar => {
+      const box = bar.getBoundingClientRect();
+      const choices = [...bar.querySelectorAll(
+        ':scope > .lf-response-options .lf-response-action')]
+        .filter((choice) => choice.checkVisibility())
+        .map((choice) => choice.getBoundingClientRect());
+      return {
+        bar: [box.left, box.right],
+        rows: new Set(choices.map((choice) => Math.round(choice.top))).size,
+        left: Math.min(...choices.map((choice) => choice.left)),
+        right: Math.max(...choices.map((choice) => choice.right)),
+        narrowest: Math.min(...choices.map((choice) => choice.width)),
+      };
+    }""")
+    assert row["bar"][1] - row["bar"][0] < 288, (
+        f"the bar has room for the resting row, so this proves nothing: {row}"
+    )
+    assert row["rows"] == 1, row
+    assert row["bar"][0] - 0.5 <= row["left"] and row["right"] <= row["bar"][1] + 0.5
+    assert row["narrowest"] >= 30, row
+
+
 @pytest.mark.parametrize("width", [390, 1280])
 @pytest.mark.parametrize("opener", ["click", "keyboard"])
 def test_comment_response_choices_expand_in_place(browser, serve, opener, width):
@@ -2126,6 +2197,50 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
         "clarify",
         first,
     )
+
+
+def test_a_finger_s_reaction_trigger_meets_the_floor_and_covers_no_words(
+    browser, serve
+):
+    """The add-reaction trigger was a fixed 26x26 under a finger, where every other aim
+    stands at the 44px floor, and it stands on every reply for good once there is no
+    hover to reveal it. At the floor's size hung over the reply's corner it covered the
+    end of the first line, so the head row holds the trigger's height instead."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Why this change?", {"section": "how-cap"})
+    reply = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "text": "Step three now requires the supervisor to reap every process "
+            "under the sandbox user and verify none remain before export.",
+        },
+    )["id"]
+    context = browser.new_context(
+        viewport={"width": 360, "height": 740}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").tap()
+    panel_settled(page)
+    page.locator(".lf-thread-summary").first.tap()
+    message = page.locator(f'.lf-msg[data-mid="{reply}"]')
+    trigger = message.get_by_role("button", name="Add reaction", exact=True)
+    expect(trigger).to_be_visible()
+    reading = trigger.evaluate("""trigger => {
+      const box = trigger.getBoundingClientRect();
+      const text = trigger.closest('.lf-msg').querySelector('.lf-msg-text');
+      const range = document.createRange();
+      range.selectNodeContents(text);
+      const covered = [...range.getClientRects()].filter((line) =>
+        line.right > box.left && line.left < box.right &&
+        line.bottom > box.top && line.top < box.bottom);
+      return {width: box.width, height: box.height, covered: covered.length,
+        opacity: getComputedStyle(trigger).opacity};
+    }""")
+    assert reading == {"width": 44, "height": 44, "covered": 0, "opacity": "1"}
 
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])

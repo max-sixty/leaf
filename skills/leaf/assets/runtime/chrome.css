@@ -1233,8 +1233,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-response-control:is(:focus, :focus-visible, .lf-focus, .lf-focus-visible) {
     outline: none; --lf-here-ring: response-control;
     border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
-    box-shadow: var(--here-shadow) color-mix(in srgb, var(--accent) 25%, transparent),
-      0 2px 8px var(--shade); }
+    box-shadow: var(--here-shadow), 0 2px 8px var(--shade); }
   /* The field takes the size its words want. A short note is one line; a
      longer one widens to a readable measure before it wraps, then grows along the edge
      placement attached and scrolls past the room placement gave the field
@@ -1273,16 +1272,25 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   }
   .lf-fab-bar.lf-response-open { flex-wrap: wrap; }
   .lf-fab-bar.lf-response-open > .lf-response-more { display: none !important; }
+  /* The choices are one row, the width the bar's side can hold. A side is chosen for
+     the field and its More press, which is narrower than Suggest and six reactions at
+     their resting 38px: beside the open Threads panel at 1024px the bar had 256px for
+     a 288px row, and the reactions dropped whole beneath Suggest. So the reactions give
+     up their spare inline padding before the row breaks, down to the floor every
+     response action keeps, and only a bar narrower than that wraps them. */
   .lf-fab-bar.lf-response-open > .lf-response-options {
-    display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px;
+    display: inline-flex; align-items: center; flex-wrap: nowrap; gap: 4px;
     max-width: 100%;
   }
   .lf-response-options .lf-response-action {
     min-height: var(--lf-response-height);
   }
+  .lf-response-options .lf-react.lf-response-action {
+    flex: 1 1 max(30px, var(--aim-floor)); max-width: max-content; }
   /* The reaction vocabulary is shadow.css's, where a thread seated in a widget tree
      reads it too. A panel message and the response bar add only what is theirs. */
-  .lf-response-options > .lf-react-palette { flex-wrap: wrap; }
+  .lf-response-options > .lf-react-palette { flex: 1 1 auto; min-width: 0;
+    flex-wrap: wrap; }
   .lf-msg.agent:is(:hover, :focus-within) > .lf-react-strip > .lf-react-trigger {
     opacity: 1; }
   .lf-msg.agent:has(> .lf-react-strip.lf-react-open) { z-index: 4; }
@@ -1727,7 +1735,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      it wears the layer's band — cast as a shadow, since a chip in a layer nothing can
      focus has no outline state to hang it on. */
   :is(.lf-target-chooser-hints, .lf-go-to-hints) > .lf-key-hint.lf-current { font-weight: 700;
-    --lf-here-ring: target-hint; box-shadow: var(--here-shadow) var(--accent); }
+    --lf-here-ring: target-hint; box-shadow: var(--here-shadow); }
   /* Search has one active result, painted as a quiet wash rather than a second native
      selection. The real Selection is made only on Enter, when the ordinary comment
      surface takes over. One inset line survives over both light and dark authored fills

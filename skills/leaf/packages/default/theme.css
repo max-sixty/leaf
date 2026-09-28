@@ -1565,8 +1565,11 @@ lf-toc li[data-lf-depth="1"] { --lf-toc-indent: 10px; }
 lf-toc li[data-lf-depth="2"] { --lf-toc-indent: 20px; }
 lf-toc li[data-lf-depth="3"] { --lf-toc-indent: 30px; }
 lf-toc li[data-lf-depth="4"] { --lf-toc-indent: 40px; }
-lf-toc a { display: inline-block; padding: 3px 0; color: inherit;
-           text-decoration: none; }
+/* Each link is a stacked row with no gap to the next, so its box is the whole of its aim:
+ * the padding centres its line in the aim floor, which a finger raises to 44px where the
+ * 3px a mouse needs left 24px rows. */
+lf-toc a { display: inline-block; color: inherit; text-decoration: none;
+           padding-block: max(3px, (var(--aim-floor) - 1lh) / 2); }
 lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
 
 /* The core sidebar states its actual posture after viewport and tray-room decisions.

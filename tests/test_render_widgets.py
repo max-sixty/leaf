@@ -1962,6 +1962,34 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     )
 
 
+def test_a_table_of_contents_link_is_a_finger_s_aim(browser, serve):
+    """The open outline stacks its links with no gap between them, so each link's box
+    is all there is to land on. Under a finger they stood 24px tall where the layer's
+    floor is 44; a mouse keeps its compact rows."""
+    source = leaf_page(
+        "contents",
+        """
+<h1>Migration plan</h1>
+<lf-toc id="contents"></lf-toc>
+<section><h2 id="prepare">Prepare</h2><p>Take a snapshot.</p></section>
+<section><h2 id="verify">Verify</h2><p>Compare the totals.</p></section>
+""",
+    )
+    url = serve(source)
+    heights = "links => links.map(link => link.getBoundingClientRect().height)"
+    touch = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, url, context=touch)
+    links = page.get_by_role("navigation", name="On this page").get_by_role("link")
+    expect(links).to_have_count(2)
+    assert all(h >= 44 for h in links.evaluate_all(heights))
+    mouse = open_page(browser, url)
+    links = mouse.get_by_role("navigation", name="On this page").get_by_role("link")
+    expect(links).to_have_count(2)
+    assert all(24 <= h < 30 for h in links.evaluate_all(heights))
+
+
 def test_a_table_of_contents_can_stop_at_an_authored_heading_level(browser, serve):
     """The author decides which semantic levels belong in the page route.
 

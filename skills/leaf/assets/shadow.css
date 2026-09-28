@@ -217,7 +217,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 
    .lf-outline-chip is halved on how it is spelled, because the class dresses a standing
    chip as well as a press and a chip is not something to aim at. */
-.lf-btn, .lf-outline-chip:is(button, [role="button"]), .lf-react, .lf-margin-entry,
+.lf-btn, .lf-outline-chip:is(button, [role="button"]), .lf-react, .lf-react-trigger,
+.lf-margin-entry,
 .lf-thread-action, .lf-preview, .lf-layer-reference, .lf-version-diff, .lf-version-row,
 .lf-command-reference-command, .lf-quote {
   min-height: var(--aim-floor); min-width: var(--aim-floor); }
@@ -415,6 +416,21 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
           font-size: 16px; }
 @media (hover: none) {
   .lf-react-strip > .lf-react-trigger { opacity: 1; }
+}
+/* Under a finger the trigger takes the aim floor, and with no hover to reveal it, it
+   stands on every reply for good; either way it is more than an overlay on the corner
+   can hold. Hung there at the floor's size it covered the last words of the reply's
+   first line at 360px, so the head row it stands beside holds its height and the
+   trigger stands in that row. The head's words keep their shared baseline and are
+   centred on the trigger by padding, since the panel's head states its alignment in
+   chrome.css, which this layer does not outrank. */
+@media (pointer: coarse), (hover: none) {
+  .lf-react-strip > .lf-react-trigger { inset-block-start: 0; }
+  :is(.lf-msg, .lf-page-thread-msg).agent > :is(.lf-msg-head, .lf-page-thread-head) {
+          --lf-react-row: max(26px, var(--aim-floor));
+          box-sizing: border-box; min-height: var(--lf-react-row);
+          padding-block-start: max(0px, (var(--lf-react-row) - 1lh) / 2);
+          padding-inline-end: var(--lf-react-row); }
 }
 .lf-msg-meta { display: flex; align-items: baseline; gap: var(--sp-2); min-width: 0; }
 .lf-msg-sending { color: var(--muted); font-weight: 600; white-space: nowrap; }

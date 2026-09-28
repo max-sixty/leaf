@@ -48,6 +48,7 @@ const browserGlobals = Object.fromEntries(
     "MutationObserver",
     "Node",
     "NodeFilter",
+    "OffscreenCanvas",
     "Range",
     "Response",
     "ResizeObserver",
@@ -761,11 +762,6 @@ export default [
           ),
       ],
     },
-  },
-  {
-    files: ["dev/leaf_dev/record_demo_browser.js"],
-    languageOptions: { globals: browserGlobals, sourceType: "script" },
-    rules: { "no-undef": "error" },
   },
   {
     files: ["skills/leaf/scripts/leaf/mcp-page-ready.js"],

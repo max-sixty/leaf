@@ -5961,9 +5961,13 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                     open_containing_thread(target)
                     page.keyboard.press("Tab")
                     target.focus(timeout=5_000)
-                    assert target.evaluate("node => node.tabIndex >= 0"), (
-                        f"{selector} {where} is not in sequential keyboard navigation"
-                    )
+                    # A note on the details shelf is reached from the element that
+                    # names it (details-shelf.js), never by Tab, and is focused here as
+                    # a screen reader moving to it would focus it.
+                    assert target.evaluate(
+                        "node => node.tabIndex >= 0"
+                        " || node.closest('.lf-details-shelf') !== null"
+                    ), f"{selector} {where} is not in sequential keyboard navigation"
                     expect(target).to_be_focused()
                     # A text field's focus is always visible, as a textarea's is, but
                     # Chrome gives `:focus-visible` to the node inside a delegating
@@ -6224,6 +6228,8 @@ AIM_BOXES = """(floor) => {
     seen.add(el);
     const style = getComputedStyle(el);
     if (!['pointer', 'grab'].includes(style.cursor)) continue;
+    // A box that takes no press is not an aim, however its cursor reads.
+    if (style.pointerEvents === 'none') continue;
     if (!el.checkVisibility({ visibilityProperty: true, opacityProperty: true })) continue;
     if (style.display === 'inline') continue;
     // The option mark is the one control held out, and it is a handover rather than an

@@ -16,7 +16,7 @@ import {
   spanIn,
 } from "../passages.js";
 import { textUnits } from "../text-alignment.js";
-import { anchorForDatum, anchoringIsReady } from "../anchor-resolution.js";
+import { ADDRESSABLE, anchorForDatum, anchoringIsReady } from "../anchor-resolution.js";
 
 // How much of a passage's surroundings an anchor writes down. Only the capture decides
 // this; the search asks for whatever a given anchor happens to hold.
@@ -58,7 +58,7 @@ export function selectionAnchor(sel) {
   // or repeat, so storing their words as prefix/suffix would make incidental layout a
   // second, conflicting answer to which datum the user selected.
   if (datum) return anchorForDatum(datum, { quote });
-  const section = closestAcross(holder, "[id]:not(.lf-ui)")?.id ?? null;
+  const section = closestAcross(holder, ADDRESSABLE)?.id ?? null;
   const reading = pageText();
   const [start, stop] = spanIn(reading, segments);
   const prefix = cut(neighbourhood(reading, start, CONTEXT, true), -CONTEXT, Infinity);

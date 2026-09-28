@@ -2253,6 +2253,7 @@ Deprecates the v1 auth header. It keeps working until 4.0, and v1 responses now 
         </p>
         <lf-shot
           id="rn-console-shot"
+          outlines
           alt="the run list with and without a status column"
           before="/media/051bee487bfb5d13.png"
           after="/media/a99a1b63048502d0.png"
@@ -7370,13 +7371,36 @@ gallery/
               </section>
               <p id="bg-shot-guide">
                 Sample labels invented content. Choose Before or After above the image,
-                or press the Shot control or image to flip.
+                or press the Shot control or image to flip. This pair carries
+                <code>outlines</code>, so outlines mark each region where the two images
+                differ, on both sides of the divider, and the rail counts them.
               </p>
               <lf-shot
                 id="bg-shot"
+                outlines
                 alt="a sample run list with and without a status column"
                 before="/media/051bee487bfb5d13.png"
                 after="/media/a99a1b63048502d0.png"
+              ></lf-shot>
+              <p id="bg-shot-plain-guide">
+                The same pair without <code>outlines</code>: nothing is marked, and the
+                rail says nothing, since the pair has a change to point at.
+              </p>
+              <lf-shot
+                id="bg-shot-plain"
+                alt="a sample run list with and without a status column"
+                before="/media/051bee487bfb5d13.png"
+                after="/media/a99a1b63048502d0.png"
+              ></lf-shot>
+              <p id="bg-shot-same-guide">
+                This pair is one picture twice. With or without <code>outlines</code>,
+                the rail reads identical.
+              </p>
+              <lf-shot
+                id="bg-shot-same"
+                alt="the sample run list, twice"
+                before="/media/051bee487bfb5d13.png"
+                after="/media/051bee487bfb5d13.png"
               ></lf-shot>
             </section>
           </section>

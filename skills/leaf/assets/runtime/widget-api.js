@@ -17,7 +17,7 @@ export async function mountSample(frame, options) {
 }
 
 export { USER_VIEW_RESTORE_CASES } from "./restore-state.js";
-export { addressableLabel, addressableWord } from "./anchor-resolution.js";
+export { ADDRESSABLE, addressableLabel, addressableWord } from "./anchor-resolution.js";
 // The name Threads, the margin, and reactions give a comment's anchor.
 export { anchorLabel } from "./thread/messages.js";
 // The page's `main`, or the body of the message whose markup a node stands in.
@@ -85,6 +85,12 @@ export {
   renderMarkdown,
 } from "./markdown.js";
 export { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
+// Where two images differ, gathered into regions (image-difference.js).
+export {
+  compareImages,
+  describeDifference,
+  differenceKind,
+} from "./image-difference.js";
 export { pageScroller } from "./scrolling.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";

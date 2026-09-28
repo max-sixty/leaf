@@ -90,7 +90,7 @@ lf-gloss:has(> .lf-gloss-mark:is(:focus-visible, .lf-focus-visible)) {
  * metric's value, a tree's badge — and in the sans's own figures each rewrite resizes
  * the chip the number is set in, and moves whatever stands after it. The integrated
  * theme's copy of this rule carries the measurement and the norm it answers. */
-.lf-tree-badge, .lf-shotcap, lf-metric,
+.lf-tree-badge, .lf-shotcap, .lf-shotdelta, lf-metric,
 lf-sample::before, lf-sample > [data-lf-said="label"], lf-column::before,
 lf-column > [data-lf-said="label"], lf-tab::before,
 lf-chip {
@@ -1472,6 +1472,28 @@ lf-shot .lf-shotcap[aria-pressed="true"] { color: var(--ink); background: var(--
     box-shadow: inset 0 -2px var(--accent); }
 lf-shot .lf-shotcap[aria-pressed="false"] {
     color: var(--muted); box-shadow: none; }
+/* Where the pair differs: one outline per changed region, over both frames at the same
+   place, so the region reads on either side of the divider. The marks take the pair's
+   own frame (natural width by the taller image's height), stand a little outside what
+   changed rather than over it, and stop at the frame's edge, so a region that reaches
+   the edge still shows its outline there. The rail counts the outlines, and says so
+   when there is none to draw: identical, throughout the image, or only slight. */
+lf-shot .lf-shotdiff { position: absolute; top: 0; left: 0; width: 100%;
+    aspect-ratio: var(--lf-shot-ratio); pointer-events: none; }
+lf-shot .lf-shotdiff > span { position: absolute;
+    left: max(0px, calc(var(--lf-shot-x) - 4px));
+    top: max(0px, calc(var(--lf-shot-y) - 4px));
+    right: max(0px, calc(100% - var(--lf-shot-x) - var(--lf-shot-w) - 4px));
+    bottom: max(0px, calc(100% - var(--lf-shot-y) - var(--lf-shot-h) - 4px));
+    border: 2px solid var(--warn); border-radius: 2px; }
+lf-shot .lf-shotdelta { font-size: var(--t-6); color: var(--muted); }
+/* A pair that is identical, or changed only slightly, is what a handoff most often
+   describes wrong, so the rail raises those readings. */
+lf-shot .lf-shotdelta:is([data-lf-shot-delta="identical"], [data-lf-shot-delta="slight"]) {
+    color: var(--warn-ink); font-weight: 650; }
+/* The outlines, and the count they make up, show where the pair asks for them. */
+lf-shot:not([outlines]) :is(.lf-shotdiff, .lf-shotdelta[data-lf-shot-delta="areas"]) {
+    display: none; }
 
 /* Before the progressive comparison arrives the image is itself the native target. The
    one fallback covers loading and controls-off. */
@@ -1544,11 +1566,7 @@ lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) {
  * weight and ink distinguish it within the same sans voice as the section labels. Their common inset then reads as one route rather than two typographic systems.
  * Depth changes only the labels' inset. Labels stop at two lines, so prose never
  * distorts the document-scale rows.
- * The open and paper forms retain the complete words.
- *
- * The one-pixel sibling target has a negative end margin that gives it no net height,
- * while the real box lets the shared arrival pass align a link precisely rather than
- * stopping as soon as a zero-height point enters the viewport. */
+ * The open and paper forms retain the complete words. */
 lf-toc { display: block; margin: var(--sp-4) 0 30px; }
 lf-toc:empty { display: none; }
 lf-toc .lf-toc-nav { position: relative; border-left: 1px solid var(--border-2);

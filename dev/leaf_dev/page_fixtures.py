@@ -31,14 +31,9 @@ class PreparedPage:
 
 def source_manifest_candidates(source: Path) -> list[Path]:
     candidates = [source.parent / "layer.json"]
-    examples = source.parent.parent
-    checkout = examples.parent
-    if (
-        source.parent.name == "developer"
-        and examples.name == "examples"
-        and (checkout / "bin" / "leaf").is_file()
-    ):
-        candidates.append(examples / "layer.json")
+    # `examples/developer/` pages take the catalog's package selection.
+    if source.parent.name == "developer":
+        candidates.append(source.parent.parent / "layer.json")
     return candidates
 
 

@@ -63,7 +63,14 @@ has tried; settle that before building it.
   show the native selection menu or software keyboard.
 - **Finish what a phone user still cannot reach.** Give touch users visible passage
   threads, and remove keyboard-only hints, hover-only reasons, clipped diagram content,
-  and remaining undersized touch targets.
+  and remaining undersized touch targets. Hover-only today: why Approve version is
+  disabled, and "Press z" once approved; a reaction's word before it is sent; a margin
+  marker's label and its status (Sent, Stalled); the diff's line "+"; and the
+  latest-edit error, a dead passage's reason, a disabled More entry's reason, and the
+  compare state. A finger also lacks exits a key has: a mode's or search's steps take
+  Threads and Approve off the row until it ends, Android's back gesture closes nothing
+  (the Escape ladder could answer it), Draw mode blocks scrolling and zoom, and an
+  `lf-draft` has no close that keeps the edit.
 - **Take the layout readings across widths.** The render check renders each page at
   1200px and 540px and sweeps sideways overflow from 360px to 1200px, but it reads a
   drawing's label size on the settled 1200px page only, and nothing yet reads an Ask
@@ -172,7 +179,7 @@ and its chrome coordinate.
 - **Consider loading a page once per render check.** `page check --render` loads
   the page afresh for each of its four passes, including dark mode and the narrow
   viewport. Switching those in place would save at most about 1.4 s on
-  `triage-board` and 12.6 s on the corpus, measured with `leaf-dev bench-check`.
+  `triage-board` and 12.6 s on the corpus, measured by tracing the check's passes.
   The price is that dark mode and the narrow width would no longer be checked from
   a fresh start. Decide whether that coverage is worth the time before building it.
 - **Scale a drawing by the box it was drawn in.** On replay, scale the strokes by
@@ -189,20 +196,6 @@ and its chrome coordinate.
   several open Asks and an informational page before choosing how the banner
   explains who owes the next move. Keep explicit agent status available when the
   Ask alone does not explain the wait.
-
-### Shared definitions
-
-- **Keep the rest of the runtime's apparatus out of authored structure.** Two
-  generated elements still stand among the page's own: `anchor-controls.js` puts a
-  `span.lf-visual-actions` after each drawing that takes visual comments, and
-  `presentation.js` puts a hidden `span.lf-external-note` after each external link.
-  Each changes which of its parent's children is last and what follows the drawing
-  or link, so page rules such as `:last-child` or `svg + p` stop matching. The
-  external note can move to the chrome and be named through
-  `ariaDescribedByElements`, as the comment note is named through
-  `ariaDetailsElements`. The visual actions are Tab stops placed after their drawing
-  so Tab reaches them there, so they need a keyboard route that does not depend on
-  where they stand in the document.
 
 ## Etc
 

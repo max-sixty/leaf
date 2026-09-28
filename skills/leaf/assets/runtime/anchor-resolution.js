@@ -216,7 +216,7 @@ export function visualAt(target, { unclaimed = true } = {}) {
     if (element) element = outermostAcross(element, genericVisualSelector);
   }
   if (!element) return null;
-  const seat = closestAcross(element, '[id]:not(.lf-ui):not([id^="lf-"])');
+  const seat = closestAcross(element, ADDRESSABLE);
   return seat ? { element, id: seat.id, part: visualPartAt(element, target) } : null;
 }
 

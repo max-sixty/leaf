@@ -526,7 +526,7 @@ def test_the_feature_gallery_eyebrows_index_literal_code_names():
     assert apparatus.isdisjoint(indexed), (
         f"feature eyebrows expose gallery apparatus: {', '.join(sorted(apparatus & indexed))}"
     )
-    # scripts/corpus.py strips the contents sidebar when it composes the tab, so
+    # `leaf-dev corpus` strips the contents sidebar when it composes the tab, so
     # lf-toc is page chrome rather than a sample a section demonstrates.
     sections = re.sub(
         r'<aside class="sidebar".*?</aside>', "", authored, flags=re.DOTALL
@@ -565,10 +565,10 @@ def test_playground_range_requires_its_upper_bound_at_the_markup_boundary():
 
 def test_corpus_is_generated_from_the_examples():
     """examples/corpus.html is derived; a commit that lets it drift fails here."""
-    import corpus
+    from leaf_dev import corpus
 
     committed = (Path(__file__).parent.parent / "examples" / "corpus.html").read_text()
-    assert corpus.build() == committed, "examples changed — rerun scripts/corpus.py"
+    assert corpus.build() == committed, "examples changed — rerun leaf-dev corpus"
     assert "<lf-toc" not in committed, (
         "a source page's document map becomes a repeated whole-corpus outline in a tab"
     )
@@ -576,10 +576,10 @@ def test_corpus_is_generated_from_the_examples():
         (Path(__file__).parent.parent / "examples" / "corpus.data.json").read_text()
     )
     assert corpus.build_data() == committed_data, (
-        "example data changed — rerun scripts/corpus.py"
+        "example data changed — rerun leaf-dev corpus"
     )
     assert corpus.build_events() == corpus.CORPUS_EVENTS.read_text(), (
-        "sample threads changed — rerun scripts/corpus.py"
+        "sample threads changed — rerun leaf-dev corpus"
     )
     committed_page = {
         path.relative_to(corpus.CORPUS_PAGE).as_posix(): path.read_bytes()
@@ -587,7 +587,7 @@ def test_corpus_is_generated_from_the_examples():
         if path.is_file()
     }
     assert corpus.build_page() == committed_page, (
-        "an example's own elements changed — rerun scripts/corpus.py"
+        "an example's own elements changed — rerun leaf-dev corpus"
     )
     assert committed_data["$captures"]["gallery-source"]["file"] == (
         "developer/feature-gallery-source.toml"
@@ -596,7 +596,7 @@ def test_corpus_is_generated_from_the_examples():
 
 def test_the_key_reference_is_generated_from_the_registry():
     """The registry reference is written from the same $keys agents query."""
-    import keydocs
+    from leaf_dev import keydocs
 
     committed = keydocs.DOCS_PAGE.read_text()
 
@@ -607,7 +607,7 @@ def test_the_key_reference_is_generated_from_the_registry():
         return re.sub("\\s+", " ", re.sub("\\s*(<[^>]*>)\\s*", "\\1", tags))
 
     assert said(keydocs.build(committed)) == said(committed), (
-        "the registry's $keys changed — rerun scripts/keydocs.py"
+        "the registry's $keys changed — rerun leaf-dev keydocs"
     )
     # Every key appears once in the index and once at its generated definition.
     keys = json.loads(schema_model.ASSETS.joinpath("registry.json").read_text())[
@@ -653,7 +653,7 @@ def test_no_example_writes_another_example_s_sentences():
         p.stem: p.read_text(encoding="utf-8")
         for p in sorted((ROOT / "examples").glob("*.html"))
         # corpus.html embeds every sibling's prose, so it shares everything by
-        # construction; scripts/corpus.py is what holds it true.
+        # construction; `leaf-dev corpus` is what holds it true.
         if p.stem != "corpus"
     }
     assert len(examples) > 1, examples
@@ -1544,7 +1544,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
     it in an append-only log, so that door is the last moment anything about it can
     be fixed. An example's companion log is neither: it is written into the
     repository by hand, and from there `leaf-dev site` publishes it to
-    leaf.page, `serve` lays it into every browser sweep, and `scripts/preview.py`
+    leaf.page, `serve` lays it into every browser sweep, and `leaf-dev preview`
     serves it live. `page check` reads such a log only for ids colliding
     with the version's.
 

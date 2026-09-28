@@ -53,19 +53,6 @@ has tried; settle that before building it.
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
 
-### Repository tooling
-
-- **Import every module as a package; never edit an import path.** Nothing should
-  reach code through `sys.path`, `PYTHONPATH`, `pythonpath`, or loading a file by path:
-  such an import breaks when the file moves, and it works only from one working
-  directory. The Worker's server is now the `leaf_website` package. What remains:
-  - `pyproject.toml`'s pytest `pythonpath = ["scripts"]`, so that tests can import
-    `preview`, `verify_site`, `corpus`, and `keydocs`. Move those four into `leaf_dev`
-    as commands, as `site.py` moved, then delete the setting.
-  - `test_interact_layer.py` and `test_interact_session.py` set `PYTHONPATH` to put an
-    older copy of `leaf` first, to stand in for a stale plugin install. Build that
-    install as an environment of its own instead.
-
 ## Next
 
 ### User continuity and mobile access
@@ -120,7 +107,7 @@ and its chrome coordinate.
 - **Make the outcome checks the gate.** `page check` passed a page that scrolled
   sideways at 520px. Check sideways scroll and leaking minimums (a box whose content,
   not its declared minimum, sets its holder's floor) across swept widths. The corpus
-  (`scripts/corpus.py`) sets every example's body in one column page, so only the
+  (`leaf-dev corpus`) sets every example's body in one column page, so only the
   nightly `test_page_fixture_renders` reads a sidebar, workspace or wide example in its
   own Layout.
 - **Offer the Page Map with the first paint.** The margin pass marks where markers are

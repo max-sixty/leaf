@@ -6,7 +6,7 @@ Each arm is the plugin payload at a ref (`leaf_dev.harness.build_pair`): BASE_RE
 by default the merge base of HEAD and `main`, and HEAD, so commit what you want
 measured. For each page in PAGES the command builds a page directory from this
 checkout's example with the arm's own launcher (`leaf_dev.harness.build_source`, as
-`preview.py` does), then runs that arm's `bin/leaf page check <page> --render` RUNS
+`leaf-dev preview` does), then runs that arm's `bin/leaf page check <page> --render` RUNS
 times, alternating arms within each round so drift in machine load falls on both. One
 untimed run per arm warms the environment, Chrome and the OS file cache first.
 

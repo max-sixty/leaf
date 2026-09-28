@@ -570,29 +570,27 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tm
 
     Two copies asked the same question, because either half alone is satisfied
     by a flag that prints a constant, or the directory the command was typed in.
-    The second is a payload of its own — one skill deep, which is the layout
-    `SKILL_ROOT` walks up from — and nothing about it is this checkout.
-    PYTHONPATH is what puts it first: the `leaf` this environment installs is
-    editable, and reaches sys.path through a .pth file site reads after it.
+    The second is a host's install, run through its own launcher, and nothing
+    about it is this checkout.
 
     Eager and page-free, so it answers with no page named and nothing written
     where it ran, which is the whole of what a session asking the question has.
     """
     cached_commit = "123456789abc"
-    cached = tmp_path / "plugins" / "cache" / "marketplace" / "leaf" / cached_commit
-    scripts = cached / "skills" / "leaf" / "scripts"
-    scripts.mkdir(parents=True)
-    shutil.copytree(SKILL_ROOT / "scripts" / "leaf", scripts / "leaf")
+    cached = install_payload(
+        tmp_path / "plugins" / "cache" / "marketplace" / "leaf" / cached_commit
+    )
     # A host's copy carries no `.git`, so the time it was made is the only date it
     # has: every file written then, the running module's own included.
     copied_at = 1_790_000_000
-    os.utime(scripts / "leaf" / "layer.py", (copied_at, copied_at))
+    layer = cached / "skills" / "leaf" / "scripts" / "leaf" / "layer.py"
+    os.utime(layer, (copied_at, copied_at))
     elsewhere = tmp_path / "unrelated-project"
     elsewhere.mkdir()
 
-    def asked(flag, **environment):
+    def asked(command, flag, **environment):
         return subprocess.run(
-            [*LEAF_COMMAND, flag],
+            [*command, flag],
             cwd=elsewhere,
             env=os.environ | environment,
             capture_output=True,
@@ -600,22 +598,23 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tm
             check=False,
         )
 
-    here = asked("--root")
+    here = asked(LEAF_COMMAND, "--root")
     assert here.returncode == 0, here.stderr
     assert here.stdout.strip() == str(PLUGIN_ROOT.resolve())
 
-    there = asked("--root", PYTHONPATH=str(scripts))
+    launcher = [str(cached / "bin" / "leaf")]
+    there = asked(launcher, "--root")
     assert there.returncode == 0, there.stderr
     assert there.stdout.strip() == str(cached.resolve())
 
-    version = asked("--version", PYTHONPATH=str(scripts), TZ="UTC")
+    version = asked(launcher, "--version", TZ="UTC")
     assert version.returncode == 0, version.stderr
     assert (
         version.stdout.strip()
         == f"leaf {cached_commit}, installed 2026-09-21T14:13:20+00:00"
     )
 
-    checkout = asked("--version")
+    checkout = asked(LEAF_COMMAND, "--version")
     assert checkout.returncode == 0, checkout.stderr
     assert re.fullmatch(
         r"leaf [0-9a-f]{12}\+?, committed "
@@ -767,7 +766,7 @@ def test_the_mcp_probe_writes_its_evidence_outside_the_candidate_payload():
     `notes/mcp-apps/experiments/<number>/results/`, inside the tracked tree, so every
     probe grew what a host copies by up to a megabyte that no install reads — 47
     result directories and 6.5M of the payload by the time it was measured. The rule
-    `scripts/AGENTS.md` states is that a script's output lands where git ignores it
+    `dev/AGENTS.md` states is that a tool's output lands where git ignores it
     unless an install reads that output from a committed path, and the runner's own
     assignment is what holds it. Read the directory off the script rather than
     naming it twice, then write where a run writes and ask the payload.

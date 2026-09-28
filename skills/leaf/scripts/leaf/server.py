@@ -35,7 +35,7 @@ def running_server(page_dir: Path):
 
 def preview_metadata(page_dir: Path) -> dict | None:
     """The identity a developer preview shows in browser chrome, as
-    `scripts/preview.py` wrote it, or None for a page that is not a preview.
+    `leaf-dev preview` wrote it, or None for a page that is not a preview.
     The script writes only what the chrome shows."""
     return read_json(page_dir / PREVIEW_FILE)
 

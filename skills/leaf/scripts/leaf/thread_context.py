@@ -35,7 +35,7 @@ def sample_events(
     template's declaration deciding whether the page works at all.
 
     That leaves a mistyped id to the one reader who can tell it from a page that has
-    not been written into yet: `scripts/corpus.py` selects against a history it is
+    not been written into yet: `leaf-dev corpus` selects against a history it is
     generating from, where every declared thread exists by construction, and refuses
     one that names nothing."""
     names = thread_names(events)

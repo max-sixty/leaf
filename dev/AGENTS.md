@@ -1,7 +1,7 @@
 # The `leaf-dev` package
 
-`leaf_dev` is Leaf's developer tooling as a package: the mechanisms the scripts, the
-suite and the eval harnesses share, and the `leaf-dev` commands built on them.
+`leaf_dev` is Leaf's developer tooling as a package: the mechanisms the suite and
+the eval harnesses share, and the `leaf-dev` commands built on them.
 
 ```sh
 uv run leaf-dev --help
@@ -12,13 +12,19 @@ environment installs it editable and `bin/leaf`, which runs `--no-dev`, never do
 Nothing in `skills/` may import it. Its code runs under the same pre-commit hooks as
 the rest of the tree.
 
+A command's output lands under `.tmp/` unless its reader finds it at a committed
+path, as `examples/corpus.html` and its companions are. Evidence, previews, and probe
+results leave the tracked tree unchanged.
+
 ## Where tooling goes
 
 When agents keep writing the same throwaway script, the job becomes a `leaf-dev`
 command: a module here that owns its mechanism, registered in `cli.py`. Standing
-tooling that CI, a hook or an alias runs is a command here too. A mechanism
-two tools need, such as building an arm or serving a page, lives in one module here
-and the others import it; a script under `scripts/` imports it too.
+tooling that CI, a hook or an alias runs is a command here too, so the repository
+has no directory of loose scripts. A mechanism two tools need, such as building an
+arm or serving a page, lives in one module here and the others import it. Code
+reaches a module by importing it from this package, never through `sys.path`,
+`PYTHONPATH` or a file path.
 
 - `harness.py`: arms (the plugin payload at a ref, or as the working tree has it) and
   an A/B's pair of them, whose base defaults to the merge base with `main`
@@ -63,18 +69,39 @@ and the others import it; a script under `scripts/` imports it too.
   (`.claude/skills/developing-leaf/SKILL.md`, "Land a change"); `--run ID` lists
   one run's failures.
 
+## Examples and previews
+
+- `leaf-dev preview [EXAMPLE]` serves one example or developer fixture as a live
+  page, or exports it with `--export`. `/developing-leaf` says when to pass `--user`.
+- `leaf-dev corpus` generates `examples/corpus.html` and its companions.
+- `leaf-dev keydocs` writes the `x-` key index in `docs/registry.html`.
+
 ## Website and demo
 
-These commands write what a committed file or a deploy reads, so CI, `worker/`'s npm
-scripts and `.config/wt.toml` call them. Their output lands under `.tmp/` except the
-catalog pin in `example-previews.json` and the demo frames the README and site cards
-draw.
+CI, `worker/`'s npm scripts and `.config/wt.toml` run these. Outside `.tmp/`, they
+write only the catalog pin in `example-previews.json` and the demo frames the README
+and site cards draw.
 
-- `leaf-dev site [--serve]` builds <https://leaf.page/> into `.tmp/site`;
-  `scripts/verify_site.py` verifies what it built.
+- `leaf-dev site [--serve]` builds <https://leaf.page/> into `.tmp/site`.
+- `leaf-dev verify-site` verifies a release at an origin, or with `wrangler` the
+  site `leaf-dev site` built, through the local Worker and container, and prints the
+  startup profile; CI runs `wrangler` on pull requests. With `--agent`, or `local`
+  for the Python adapter alone, it runs the hosted-agent journey and emits one JSON
+  sample. `worker/README.md` owns hosted-agent diagnostics and the failure contract.
+- `worker/deploy-dev.sh` (`npm run deploy:dev --prefix worker`) deploys the checkout
+  to the standing `leaf-website-dev` environment and verifies it. Production deploys
+  only through `.github/workflows/publish-site.yaml`.
 - `leaf-dev fetch-previews` fetches the catalog previews pinned in
   `example-previews.json` (`example_assets.py`, which the site build also calls).
   `leaf-dev refresh-previews`, run as `wt refresh-previews`, recaptures them,
   republishes them to `max-sixty/leaf-assets`, and updates the pin.
 - `leaf-dev record-demo` regenerates `docs/demo.gif`, the README stills, and
   `docs/session-card.png`.
+
+## Codex
+
+- `leaf-dev verify-codex-task` runs one real Codex task with this working tree's
+  plugin through `leaf codex start`'s App Server adapter. It posts comments while the
+  task is idle, mid-turn, and after the adapter is killed, and fails when a comment is
+  not answered exactly once or the page's claim does not name the task's last turn,
+  closed. It spends the host's Codex login, so CI does not run it.

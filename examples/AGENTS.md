@@ -43,7 +43,7 @@ below.
 ## The corpus
 
 `corpus.html`, `corpus.data.json`, `corpus.jsonl`, and `corpus.page/` are generated
-from the sources by `scripts/corpus.py`.
+from the sources by `leaf-dev corpus`.
 
 Every widget and idiom in the shipped vocabulary stands in some corpus source, and
 the suite refuses one that does not. `examples/layer.json` lists every bundled

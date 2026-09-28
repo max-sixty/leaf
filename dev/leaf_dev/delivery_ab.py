@@ -77,7 +77,7 @@ Known limits:
   labels from these values in `runtime/thread/workflow.js`. Each change is placed
   within SAMPLE_EVERY seconds, and each read counts as the page being viewed, as an
   open tab's does.
-- Only the `leaf wait` carrier is covered. `verify_site.py local` covers App Server;
+- Only the `leaf wait` carrier is covered. `leaf-dev verify-site local` covers App Server;
   nothing covers the Codex queue.
 
 It needs a logged-in `claude` on PATH. Each session costs about a dollar. Runs are

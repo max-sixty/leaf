@@ -327,7 +327,7 @@ def _retire(process: subprocess.Popen) -> None:
     """End one started process, and anything still in the group it leads.
 
     A child given a session of its own leads a group, and what it spawns joins
-    that group: `scripts/preview.py` re-executes into `uv run`, which holds the
+    that group: `leaf-dev preview` re-executes into `uv run`, which holds the
     watcher as a child, so the handle the test keeps names the launcher rather
     than the process doing the work. Ending the handle alone leaves the watcher
     running — past the test, past the run, still serving its page and still

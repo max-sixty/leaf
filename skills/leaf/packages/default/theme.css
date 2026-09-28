@@ -2100,8 +2100,10 @@ lf-text-document > .lf-text-document-view {
   margin: 0; border: 1px solid var(--code-border); border-radius: var(--r);
   overflow: hidden; background: var(--pre-bg); --lf-block-frame: 1;
 }
+/* The caption is the frame's header bar, not a line of reading, so it spans the frame:
+   under the reading measure its rule stopped 53px short of a 795px frame. */
 lf-text-document figcaption {
-  padding: 7px 11px; border-bottom: 1px solid var(--rule);
+  max-inline-size: none; padding: 7px 11px; border-bottom: 1px solid var(--rule);
   color: var(--muted); font-family: var(--sans); font-size: var(--t-6);
   font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
 }

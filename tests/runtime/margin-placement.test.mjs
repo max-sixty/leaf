@@ -93,14 +93,23 @@ test("rows are packed from the top, so a push carries on down the stack", () => 
 
 test("a pin level with a control of the page goes below it", () => {
   const grip = { left: 1060, right: 1076, top: 98, bottom: 114 };
-  const pushes = packRows([{ key: "pin", rect: rect(1045, 96), priority: 10 }], 4, [
-    grip,
-  ]);
+  const pushes = packRows(
+    [{ key: "pin", rect: rect(1045, 96), priority: 10, fixed: [grip] }],
+    4,
+  );
   assert.deepEqual(Object.fromEntries(pushes), { pin: 22 });
   // A control beside the pin rather than under it moves nothing.
-  const aside = packRows([{ key: "pin", rect: rect(1045, 96), priority: 10 }], 4, [
-    { left: 900, right: 916, top: 98, bottom: 114 },
-  ]);
+  const aside = packRows(
+    [
+      {
+        key: "pin",
+        rect: rect(1045, 96),
+        priority: 10,
+        fixed: [{ left: 900, right: 916, top: 98, bottom: 114 }],
+      },
+    ],
+    4,
+  );
   assert.deepEqual(Object.fromEntries(aside), { pin: 0 });
 });
 

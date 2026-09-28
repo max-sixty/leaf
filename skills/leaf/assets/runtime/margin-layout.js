@@ -405,9 +405,9 @@ function blockOf(target) {
 // it. The walk leaves any subtree whose box misses the band, so a long page costs what
 // lies near the target.
 //
-// The controls come back apart as well, since packing keeps every pin off them, a pin at
-// its corner too: a pin at a card's top-right would otherwise take the presses meant for
-// the card's grip. Anything the keyboard can reach is a control, so a package need declare
+// The controls come back apart as well, since packing keeps the pin off them, a pin left
+// at its corner too (`packRows`, `fixed`): a pin at a card's top-right would otherwise
+// take the presses meant for the card's grip. Anything the keyboard can reach is a control, so a package need declare
 // nothing. Each counts as the part of it its own scrollers show, short of the one that
 // scrolls the pin (`stop`): a pin can take no press from a control nobody can see, as a
 // pane body's options scrolled behind the pane's footer, but a control scrolled with the
@@ -531,7 +531,7 @@ function seatPins(standing, { bands, shell, pinInset }) {
       bands,
       stop,
     );
-    entry.controls = controls;
+    entry.fixed = controls;
     // A run of text is finished at the end of its last line, and the pin sits there,
     // level with that line; a block's pin keeps its corner, and so does a shape in a
     // drawing, whose `display` says nothing about lines.
@@ -911,11 +911,7 @@ export function layoutMarginRows() {
       row.removeAttribute("data-lf-parked");
   const standing = placed.filter(({ stranded }) => !stranded);
   seatPins(standing, { bands, shell, pinInset });
-  const packed = packRows(
-    standing,
-    GAP,
-    standing.flatMap(({ controls }) => controls ?? []),
-  );
+  const packed = packRows(standing, GAP);
   for (const { key: row, rect, read } of standing) {
     // Written as insets from the box the row anchors to, so the row keeps its place
     // beside its target through every scroll with no pass.

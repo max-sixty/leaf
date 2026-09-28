@@ -34,27 +34,25 @@ export function rowPosture({
 
 // Rows that would stand over one another are pushed down, the more important first and
 // then from the top. Two rows collide only where their rectangles do: a pin and a rail
-// marker at the same height stand apart and stay where they are. `fixed` are boxes a row
-// may not stand on and that never move — the page's own controls under a pin, such as a
-// card's grip — so a pin level with one goes below it rather than taking its presses.
+// marker at the same height stand apart and stay where they are. A row's `fixed` are
+// boxes it may not stand on and that never move — the page's own controls under a pin,
+// such as a card's grip — so a pin level with one goes below it rather than taking its
+// presses. They are each row's own, since which controls a row can take presses from
+// depends on the scroller it stands in: a pane body's options scrolled behind the pane's
+// footer are there for a pin in the body and nobody else.
 //
-// Each row is `{ key, rect, priority, held }`, its rect the one it takes with no push. A
-// row the user holds, under the pointer or with focus in it, comes before every other
-// (`inSeatingOrder`), so no row pushes it out from under the press. The answer maps each
-// key to its push.
-export function packRows(rows, gap, fixed = []) {
-  const placed = fixed.map(({ left, right, top, bottom }) => ({
-    left,
-    right,
-    top,
-    bottom,
-  }));
+// Each row is `{ key, rect, priority, held, fixed }`, its rect the one it takes with no
+// push. A row the user holds, under the pointer or with focus in it, comes before every
+// other (`inSeatingOrder`), so no row pushes it out from under the press. The answer maps
+// each key to its push.
+export function packRows(rows, gap) {
+  const placed = [];
   const pushes = new Map();
   const order = inSeatingOrder(rows);
-  for (const { key, rect, priority } of order) {
+  for (const { key, rect, priority, fixed = [] } of order) {
     const height = rect.bottom - rect.top;
     let top = rect.top;
-    const across = placed
+    const across = [...placed, ...fixed]
       .filter((box) => overlapsAcross(box, rect))
       .sort((a, b) => a.top - b.top);
     for (const box of across)

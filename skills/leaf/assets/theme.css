@@ -1816,7 +1816,7 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
 }
 /* A reaction held under a press says its word at once, as a keyboard destination does
    below (reactions.js, holdToRead). */
-.lf-margin-entry[data-lf-reading] > .lf-margin-entry-label {
+.lf-margin-entry[data-lf-held-word] > .lf-margin-entry-label {
   opacity: 1; visibility: visible; transform: translateY(0); transition: none;
 }
 /* A keyboard destination says its label at once. Besides avoiding a needless delay for

@@ -2332,7 +2332,7 @@ def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
     def reading():
         rendered(page)
         return strip.evaluate("""strip => [...strip.querySelectorAll('.lf-react')]
-            .filter((chip) => chip.hasAttribute('data-lf-reading'))
+            .filter((chip) => chip.hasAttribute('data-lf-held-word'))
             .map((chip) => [chip.dataset.token,
                             getComputedStyle(chip, '::after').content])""")
 

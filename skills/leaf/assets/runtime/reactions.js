@@ -74,7 +74,7 @@ export const reactionTokens = () => Object.entries(reactionVocabulary() ?? {});
 // Press and hold to read, release to commit. A reaction's word is otherwise only its
 // tooltip and accessible name, which a finger never sees, so every reaction choice —
 // the response bar's, a reply strip's, the margin's under `e` — answers a press the same
-// way. The choice under the pointer wears `data-lf-reading`, whose paint says its word
+// way. The choice under the pointer wears `data-lf-held-word`, whose paint says its word
 // (shadow.css; theme.css for a margin entry's label), for as long as the press is held;
 // sliding onto a neighbouring choice of the same list reads that one instead; and the
 // release presses the choice it ends on, or none when it ends off the list. So a tap
@@ -96,9 +96,9 @@ function holdToRead() {
       .find((node) => node instanceof Element && node.matches(REACTION_CHOICE));
   const read = (choice) => {
     if (hold.reading === choice) return;
-    hold.reading?.removeAttribute("data-lf-reading");
+    hold.reading?.removeAttribute("data-lf-held-word");
     hold.reading = choice;
-    choice?.setAttribute("data-lf-reading", "");
+    choice?.setAttribute("data-lf-held-word", "");
   };
   const under = (event) => {
     const choice = choiceIn(event);

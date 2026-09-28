@@ -113,8 +113,8 @@ def test_touch_user_selects_an_element_comments_and_finds_its_thread(browser, se
 def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     """Undo, Draw mode, Design mode and search have no key under a finger, so More holds
     each, read off the command's own row, and what a finger does inside one stands on the
-    banner's row while it holds. Design mode lets that step's press through rather than
-    commenting on it."""
+    banner's row while it holds. Design mode leaves Leaf's own chrome working, that step
+    included."""
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )
@@ -164,6 +164,27 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     expect(cancel).to_have_count(0)
     expect(page.locator(".lf-target-chooser-hint")).to_have_count(0)
     exit_design = row.get_by_role("button", name="Exit Design mode", exact=True)
+
+    # The mode is about what the agent made, so Leaf's own chrome stays a finger's: More
+    # opens to a tap, and the panel a design comment's send opens over the whole phone
+    # closes to one, where the banner beneath it has gone inert.
+    door = page.locator(".lf-banner-more")
+    door.tap()
+    expect(menu.get_by_role("button", name="Undo", exact=True)).to_be_visible()
+    door.tap()
+    expect(menu).to_be_hidden()
+    page.locator("#h").tap()
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    write(field, "The heading sits too close to the banner.")
+    with sending(page, "the design comment"):
+        page.locator(".lf-fab-bar .lf-compose-submit").tap()
+    assert events_model.read_events(serve.page_dir)[-1]["about"] == "design"
+    panel = page.locator(".lf-thread-panel")
+    expect(panel).to_be_visible()
+    panel.get_by_role("button", name="Close threads").tap()
+    expect(panel).to_be_hidden()
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
 
     # Prose still selects in Design mode. The selection is the nearer gesture, so its step
     # takes the narrowest phone row until the words are let go, and the mode's returns.

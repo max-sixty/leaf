@@ -240,14 +240,6 @@ export const inChrome = (node) => Boolean(node && closestAcross(node, ".lf-chrom
 // log, naming a section no version holds. `leaf thread open --section` refuses exactly that
 // from the file side, and file capture is the reading that is supposed to promise less.
 export const pageWords = (node) => Boolean(node) && !inChrome(node) && !inUi(node);
-// The runtime's own parts, as against everything else standing in its layer. Its parts
-// wear its id namespace — `lf-composer-quote`, which authored markup may not take — and
-// a widget an agent sent stands in the layer wearing an id of its own, no part of it.
-// `inChrome` answers which document an element is in, and it was standing in for this
-// question too: a design comment on a question asked in a reply was filed under the
-// runtime's own buttons and named "ps ask", where the same widget on the page reads
-// "lf-options · ps-decision".
-export const layerPart = (el) => inChrome(el) && el.id.startsWith("lf-");
 // The two readings, each one predicate over a text node and named for the question it
 // answers. Anchoring reads what the user can point at: not the runtime's own words —
 // `inUi`, which a declared label answers for itself — and nothing behind a wall no label

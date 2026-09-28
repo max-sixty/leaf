@@ -3372,6 +3372,34 @@ def test_a_keyboard_move_keeps_the_card_in_view(
     expect(grip).to_be_focused()
 
 
+def test_tabbing_to_a_grip_reveals_its_whole_card(browser, serve):
+    """The browser scrolls a sideways board only far enough to show the focused 30px
+    grip, which at a narrow width left the card's words cut off at the board's edge."""
+    page = open_page(browser, serve(SQUEEZED_BOARD_PAGE))
+    resized(page, 390, 500)
+    page.locator("#sq-card-0 .lf-grip").focus()
+    whole = """() => {
+      const card = document.activeElement.closest('lf-card');
+      const outer = card.closest('lf-board').getBoundingClientRect();
+      const inner = card.getBoundingClientRect();
+      return inner.left >= outer.left - 1 && inner.right <= outer.right + 1;
+    }"""
+    for i in range(1, 4):
+        page.keyboard.press("Tab")
+        expect(page.locator(f"#sq-card-{i} .lf-grip")).to_be_focused()
+        page.wait_for_function(whole)
+    # Grabbing it says so with the card's contour, not a shadow the dark paper hides.
+    page.keyboard.press("Enter")
+    card = page.locator("#sq-card-3")
+    expect(card).to_have_class(re.compile(r"\blf-lift\b"))
+    accent, border = card.evaluate(
+        """el => [getComputedStyle(document.documentElement).getPropertyValue('--accent'),
+                  getComputedStyle(el).borderTopColor]"""
+    )
+    rest = page.locator("#sq-card-2").evaluate("el => getComputedStyle(el).borderTopColor")
+    assert border != rest, (border, rest, accent)
+
+
 def test_cancelling_a_keyboard_move_stops_its_scroll(browser, serve):
     """Escape supersedes a reveal still travelling toward the abandoned placement."""
     page = open_page(browser, serve(TALL_BOARD_PAGE))

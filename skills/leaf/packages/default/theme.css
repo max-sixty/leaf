@@ -1216,7 +1216,10 @@ lf-card .lf-grip:is(:focus-visible, .lf-focus-visible) { outline: var(--here-rin
           color: var(--ink-2); }
 /* SortableJS drag states: the in-flow slot, the pressed card, the follower. */
 lf-card.lf-ghost { opacity: .4; border-style: dashed; border-color: var(--accent); }
-lf-card.lf-lift { box-shadow: 0 2px 8px var(--shade); }
+/* A held card says so with its contour. The lift's shadow alone does not show on the
+   dark paper, which left a card grabbed by keyboard looking exactly like one whose grip
+   is merely focused. */
+lf-card.lf-lift { box-shadow: 0 2px 8px var(--shade); border-color: var(--accent); }
 /* (No transform here: Sortable positions the follower with an inline matrix.) */
 lf-card.lf-inhand { opacity: 1; cursor: grabbing;
                     box-shadow: 0 8px 24px var(--shade); }

@@ -320,6 +320,14 @@ customElements.define(
       // Leaving the grip drops the grab: restore the origin. Arrow moves reparent
       // the grip (which blurs it) and synchronously refocus, so by the time this
       // settles only a real departure still lacks focus.
+      // The grip names its card, so reaching it reveals the card: the browser scrolls a
+      // sideways board only far enough to show the 30px grip, which on a narrow window
+      // left the card's title and its column cut off at the board's left edge. A held
+      // card's grip is refocused by each move, which reveals the card itself (#place).
+      grip.addEventListener("focus", () => {
+        if (this.#grabbed?.grip === grip) return;
+        card.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+      });
       grip.addEventListener("blur", () => {
         if (this.#grabbed?.grip !== grip) return;
         setTimeout(() => {

@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { packRows, rowPosture } from "/runtime/margin-placement.js";
+import { packRows, pinSpot, rowPosture } from "/runtime/margin-placement.js";
 
 const posture = (blockRight, over = {}) =>
   rowPosture({
@@ -102,4 +102,47 @@ test("a pin level with a control of the page goes below it", () => {
     { left: 900, right: 916, top: 98, bottom: 114 },
   ]);
   assert.deepEqual(Object.fromEntries(aside), { pin: 0 });
+});
+
+// A paragraph's last two lines at a phone's width, 366px of column in a 390px window:
+// the first fills its line, and a run that starts on it ends 280px into the second. The
+// next block starts 30px below.
+const box = (left, top, right, bottom) => ({ left, top, right, bottom });
+const words = [box(24, 100, 366, 121), box(24, 127, 280, 148)];
+const spot = (cover) =>
+  pinSpot({
+    // A 44px marker level with the run's last line, just after its end.
+    seat: box(284, 115.5, 328, 159.5),
+    home: box(318, 100, 362, 144),
+    parts: [box(160, 100, 366, 121), box(24, 127, 280, 148)],
+    cover,
+    bounds: box(4, -Infinity, 386, Infinity),
+    reach: 12,
+    gap: 4,
+  });
+
+test("a pin whose seat covers nothing takes it", () => {
+  assert.deepEqual(
+    spot([words[1], box(24, 178, 366, 260)]),
+    box(284, 115.5, 328, 159.5),
+  );
+});
+
+test("a pin whose seat covers words takes the nearest room beside its target", () => {
+  // The seat reaches up into the first line, so the pin drops below that line's words:
+  // still level with the run's last line, and clear of the next block.
+  assert.deepEqual(spot([...words, box(24, 178, 366, 260)]), box(284, 125, 328, 169));
+});
+
+test("another block counts whole, so a pin with no room of its own stays home", () => {
+  // Brought up to the paragraph, the next block leaves the last line too little room
+  // below, though nothing is drawn in its top 20px; the pin stands in the leading above
+  // the run instead.
+  const below = box(24, 152, 366, 260);
+  assert.deepEqual(spot([...words, below]), box(284, 52, 328, 96));
+  // With a heading 10px above the paragraph, that room is the heading's.
+  assert.deepEqual(
+    spot([...words, below, box(24, 40, 366, 90)]),
+    box(318, 100, 362, 144),
+  );
 });

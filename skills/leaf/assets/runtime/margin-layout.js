@@ -4,9 +4,10 @@
    positioning, so nothing Leaf draws is inserted into the page's content and nothing it
    draws moves that content. A row stands in one of two postures (`margin-placement.js`):
    in the rail, the strip beside `main` where the room there holds one, or as a pin over the
-   page at the top-right of its target's block. The stylesheet places each row from what
-   this pass writes on it (theme.css, at .lf-margin-cluster): its posture as
-   `data-lf-place`, and the push packing gives it as `--lf-push`. Scrolling moves a row with its target on the compositor, whether the
+   page by its target, seated where it covers no words when there is room for it
+   (`seatPins`). The stylesheet places each row from what this pass writes on it
+   (theme.css, at .lf-margin-cluster): its posture as `data-lf-place`, its seat as
+   `--lf-inset-top` and `--lf-inset-right`, and the push packing gives it as `--lf-push`. Scrolling moves a row with its target on the compositor, whether the
    document scrolls or a pane does, with no pass at all.
 
    The layer is a static, zero-height block. A positioned wrapper would become every row's
@@ -36,7 +37,7 @@ import { under, upFrom } from "./shadow.js";
 import { scrollerFor } from "./reading-regions.js";
 import { boundedBlockOf } from "./bounds.js";
 import { pageScroller } from "./scrolling.js";
-import { packRows, rowPosture } from "./margin-placement.js";
+import { packRows, pinSpot, rowPosture } from "./margin-placement.js";
 import { overlaps } from "./rect.js";
 import { repaintPage } from "./repaint.js";
 
@@ -312,8 +313,9 @@ function nameAnchor({ el, name, write }) {
 // The box a row anchors to. An anchor name reaches only its own tree, so a target inside
 // a shadow tree anchors through its host; a shape inside an SVG drawing has no CSS box of
 // its own, so it anchors through the drawing; a `display: contents` target through its
-// first shown part. Wherever it anchors, the row stands at the top-right corner of the
-// target's own extent (`shownExtent`), written as insets from the anchor's box.
+// first shown part. Wherever it anchors, the row stands level with the top of the
+// target's own extent (`shownExtent`), a pin wherever `seatPins` seats it, written as
+// insets from the anchor's box.
 function anchorElement(target) {
   let el = target;
   for (let root = el.getRootNode(); root instanceof ShadowRoot; root = el.getRootNode())
@@ -379,6 +381,146 @@ function controlsIn(anchor, bands) {
     .filter((control) => control.checkVisibility())
     .map((control) => clippedBand(control, control.getBoundingClientRect(), bands))
     .filter(Boolean);
+}
+
+// The boxes a pin's target is drawn in: one per line for a run of text, so the room at the
+// end of the line it ends on is seen as room rather than as part of its extent.
+function partsOf(target) {
+  return shownParts(target)
+    .flatMap((part) => [...part.getClientRects()])
+    .filter((box) => box.width && box.height);
+}
+
+// The block a target's words belong to: the target where it is a block, and otherwise the
+// box its line runs in.
+function blockOf(target) {
+  let el = target;
+  while (el.parentElement && el !== marginColumn()) {
+    const display = getComputedStyle(el).display;
+    if (!display.startsWith("inline") && display !== "contents") break;
+    el = el.parentElement;
+  }
+  return el;
+}
+
+// What a pin may not stand on across a band of the page: every run of words in its
+// target's block, each box that paints what no text node says (an image, a drawing, a
+// widget's shadow tree, the target's own if it is one), every control, and every other
+// block whole. A box that holds the target is not one to avoid, since the pin stands on
+// it. The walk leaves any subtree whose box misses the band, so a long page costs what
+// lies near the target.
+const OPAQUE = "img, svg, canvas, video, iframe, object, embed";
+function coverIn(root, band, target, block, bands) {
+  const cover = [];
+  const meets = (box) => box.bottom > band.top && box.top < band.bottom;
+  const edges = ({ left, top, right, bottom }) => ({ left, top, right, bottom });
+  const visit = (el) => {
+    for (const node of el.childNodes) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        if (!node.data.trim()) continue;
+        const words = document.createRange();
+        words.selectNodeContents(node);
+        for (const box of words.getClientRects())
+          if (box.width > 1 && box.height > 1 && meets(box)) cover.push(edges(box));
+        continue;
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE || node.closest(".lf-chrome")) continue;
+      const box = node.getBoundingClientRect();
+      const boxless = !box.width && !box.height;
+      if (!boxless && !meets(box)) continue;
+      const holds = node !== target && node.contains(target);
+      if (
+        !boxless &&
+        !holds &&
+        (node.shadowRoot || node.matches(OPAQUE) || node.matches(TAB_STOP)) &&
+        node.checkVisibility()
+      ) {
+        const shown = clippedBand(node, box, bands);
+        if (shown) cover.push(shown);
+        continue;
+      }
+      if (node instanceof SVGElement) continue;
+      if (!boxless && !holds && !block.contains(node)) {
+        const display = getComputedStyle(node).display;
+        if (!display.startsWith("inline") && display !== "contents") {
+          cover.push(edges(box));
+          continue;
+        }
+      }
+      // A closed disclosure draws only its summary; reading the rest would force its
+      // skipped content's layout (`skipped`).
+      if (node.localName === "details" && !node.open) {
+        const summary = node.querySelector(":scope > summary");
+        if (summary) visit({ childNodes: [summary] });
+        continue;
+      }
+      visit(node);
+    }
+  };
+  visit(root);
+  return cover;
+}
+
+// How far from its target's nearest part a pin may stand when its corner covers words.
+const REACH = 12;
+
+// Where each pin stands (`pinSpot`), taken in the order packing takes the rows, so a pin
+// seated first is one the next keeps off. A pin inside a shadow tree stays at its corner:
+// the words around it are the tree's, which this walk does not read. Each entry's rect
+// becomes the seat, which packing then only moves off what it still stands on.
+function seatPins(standing, { bands, shell, regions, pinInset }) {
+  const main = marginColumn();
+  const seated = [];
+  for (const entry of [...standing].sort(
+    (a, b) => a.priority - b.priority || a.rect.top - b.rect.top,
+  )) {
+    const { read } = entry;
+    if (read.place !== "pin") continue;
+    const { target } = read;
+    const parts = target.getRootNode() === document ? partsOf(target) : [];
+    if (!parts.length) {
+      seated.push(entry.rect);
+      continue;
+    }
+    const height = entry.rect.bottom - entry.rect.top;
+    const reach = height + REACH + GAP;
+    const band = {
+      top: Math.min(...parts.map((part) => part.top)) - reach,
+      bottom: Math.max(...parts.map((part) => part.bottom)) + reach,
+    };
+    const region = read.scroller === pageScroller ? null : regions.get(read.scroller);
+    const home = entry.rect;
+    // A run of text is finished at the end of its last line, and the pin sits there,
+    // level with that line; a block's pin keeps its corner, and so does a shape in a
+    // drawing, whose `display` says nothing about lines.
+    const end = parts.at(-1);
+    const inline =
+      target instanceof HTMLElement &&
+      getComputedStyle(target).display.startsWith("inline");
+    const seat = inline
+      ? {
+          left: end.right + GAP,
+          right: end.right + GAP + home.right - home.left,
+          top: (end.top + end.bottom - height) / 2,
+          bottom: (end.top + end.bottom + height) / 2,
+        }
+      : home;
+    entry.rect = pinSpot({
+      seat,
+      home,
+      parts,
+      cover: [...coverIn(main, band, target, blockOf(target), bands), ...seated],
+      bounds: {
+        left: (region?.left ?? 0) + pinInset,
+        right: (region?.right ?? shell) - pinInset,
+        top: region?.top ?? -Infinity,
+        bottom: region?.bottom ?? Infinity,
+      },
+      reach: REACH,
+      gap: GAP,
+    });
+    seated.push(entry.rect);
+  }
 }
 
 function scheduleMarginLayout() {
@@ -595,6 +737,7 @@ export function layoutMarginRows() {
     reads.push({
       row,
       options,
+      target,
       anchor,
       naming: anchorReading(anchor),
       scroller,
@@ -654,25 +797,26 @@ export function layoutMarginRows() {
     }
 
   // A withheld row is anchored too, so that when its target comes into view it has only
-  // to show.
+  // to show. Its insets are written once packing has said where it stands.
   const px = (length) => (length ? `${length}px` : null);
   for (const { row, naming, shown, place, box, extent } of reads) {
     mark(row, "lf-withheld", !shown);
     if (!naming) continue;
     setStyle(row, "position-anchor", nameAnchor(naming));
+    if (row.dataset.lfPlace !== place) row.dataset.lfPlace = place;
+    if (shown) continue;
     setStyle(row, "--lf-inset-top", px(extent && extent.top - box.top));
     setStyle(row, "--lf-inset-right", px(extent && box.right - extent.right));
-    if (row.dataset.lfPlace !== place) row.dataset.lfPlace = place;
   }
 
-  // Packing reads where each row stands with no push, then writes every push together. A
-  // pin stands `--pin-inset` inside its target's right edge, which is read here, so where
-  // it will stand across is worked out rather than read back.
+  // Packing reads where each row stands with no push, then writes every push together.
+  // Each row stands level with its target's top, and a pin `--pin-inset` inside its right
+  // edge, so where it will stand is worked out from the target rather than read back; only
+  // its size and whether the browser took its anchor are read off the row.
   const placed = reads
     .filter((read) => read.shown)
     .map((read) => {
       const box = read.row.getBoundingClientRect();
-      const push = pushes.get(read.row) ?? 0;
       const step = steps.get(read.row) ?? 0;
       return {
         key: read.row,
@@ -684,8 +828,8 @@ export function layoutMarginRows() {
               ? read.extent.right - pinInset - box.width
               : box.left - step,
           right: read.place === "pin" ? read.extent.right - pinInset : box.right - step,
-          top: box.top - push,
-          bottom: box.bottom - push,
+          top: read.extent.top,
+          bottom: read.extent.top + box.height,
         },
         priority: read.options.priority ?? 0,
         read,
@@ -699,12 +843,21 @@ export function layoutMarginRows() {
     } else if (row.hasAttribute("data-lf-parked"))
       row.removeAttribute("data-lf-parked");
   const standing = placed.filter(({ stranded }) => !stranded);
+  seatPins(standing, { bands, shell, regions, pinInset });
   const packed = packRows(
     standing,
     GAP,
     standing.flatMap(({ read }) => read.controls ?? []),
   );
   for (const { key: row, rect, read } of standing) {
+    // Written as insets from the box the row anchors to, so the row keeps its place
+    // beside its target through every scroll with no pass.
+    setStyle(row, "--lf-inset-top", px(rect.top - read.box.top));
+    setStyle(
+      row,
+      "--lf-inset-right",
+      read.place === "pin" ? px(read.box.right - pinInset - rect.right) : null,
+    );
     const push = packed.get(row) ?? 0;
     pushes.set(row, push);
     setStyle(row, "--lf-push", push ? `${push}px` : null);

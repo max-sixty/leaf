@@ -1526,9 +1526,9 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
  * A cluster stands level with its target's top (`--lf-inset-top` where it anchors to a
  * box holding the target), pushed down by packing (`--lf-push`). In
  * the rail it hangs `--rail-hang` off `main`'s edge and unfolds rightward. As a pin it
- * stands inside its target's top-right corner, `--pin-inset` in from the target's right
- * edge (`--lf-inset-right` in from the box holding it), and unfolds leftward over the
- * block. Every position function falls back to a place off screen: an anchor can be
+ * stands where the layout seats it, `--pin-inset` plus `--lf-inset-right` in from the
+ * right edge of the box it anchors to: inside its target's top-right corner, or in room
+ * beside its target where that corner would cover words. It unfolds leftward. Every position function falls back to a place off screen: an anchor can be
  * invalid (a target inside `content-visibility: hidden` or gone), and
  * `position-visibility` hides a cluster only when its anchor is valid and scrolled out of
  * view. */

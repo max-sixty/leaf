@@ -3469,6 +3469,35 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf, one_user)
     expect(help_el).to_contain_text("Last leaf")
 
 
+def test_a_press_on_the_pages_words_is_a_newer_word_than_a_waiting_hold(browser, serve):
+    """A hold hands focus back only if the user has not moved on since it began. With no
+    stop on body, a press on the page's words takes focus off the control and puts it
+    nowhere, with no focusin to count, so a hold still waiting pulled the user back
+    from the words they had chosen."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "hold",
+                '<h1 id="t">Hold</h1><details id="d"><summary>More</summary>'
+                "<p>Inside.</p></details><p id='words'>Words to press.</p>",
+            )
+        ),
+    )
+    page.keyboard.press("Tab")
+    page.locator("#d > summary").focus()
+    page.evaluate(
+        """async () => {
+          const { holdFocus } = await window.__lfRuntimeImport('/runtime/focus.js');
+          window.__restore = holdFocus(document.querySelector('main'));
+        }"""
+    )
+    page.locator("#words").click()
+    assert page.evaluate("() => document.activeElement === document.body")
+    assert page.evaluate("() => window.__restore()") is False
+    assert page.evaluate("() => document.activeElement === document.body")
+
+
 def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
     """A fresh page gives ordinary keyboard scrolling to the browser's root scrollport.
 

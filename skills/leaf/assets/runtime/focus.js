@@ -133,6 +133,23 @@ document.addEventListener(
 // and then the browser blurs it to the body, as it does a node under `display: none`.
 const drawn = (node) =>
   node?.isConnected && node.checkVisibility({ visibilityProperty: true });
+// Leaving for nowhere is a placement too. Body holds no stop, so a press on the page's
+// words takes focus off the control and puts it nowhere, with no `focusin` to count,
+// and a hold still waiting would pull the user back from the words they chose. A node
+// the change hid or replaced is not drawn when it blurs, and a window losing focus
+// leaves the document's focus where it was, so neither counts.
+document.addEventListener(
+  "focusout",
+  (event) => {
+    if (restoring || event.relatedTarget) return;
+    const left = event.target;
+    queueMicrotask(() => {
+      const at = document.activeElement;
+      if ((at === null || at === document.body) && drawn(left)) placements += 1;
+    });
+  },
+  true,
+);
 export function holdFocus(scope) {
   const standing = scope.getRootNode().activeElement;
   if (!standing || standing === document.body || !scope.contains(standing)) return null;

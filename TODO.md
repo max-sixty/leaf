@@ -14,7 +14,7 @@ has tried; settle that before building it.
 - **Make complete reading journeys feel coherent.** Audit a document, workspace,
   board or table, and populated thread in light and dark at wide and narrow
   widths. Fix recurring gaps in type, spacing, framing, controls, and responsive
-  behavior. Set one focus-ring weight for every keyboard target.
+  behavior.
 - **Keep the Thread hierarchy clear.** Check context, search, filters, agent
   activity, selection, and reply editing in the implemented accordion.
 - **Name a new Thread promptly.** Generate a short title from the first user

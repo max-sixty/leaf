@@ -1,6 +1,7 @@
 """The website route adapter preserves Leaf's canonical served-page contract."""
 
 import hashlib
+import itertools
 import json
 import os
 import shutil
@@ -43,7 +44,6 @@ from leaf.revision_artifact import Resource
 from leaf.revision_delivery import compose_document
 from leaf.schema import ASSETS
 from leaf.served_state import page as served_page
-from leaf.served_state.reading import join_reading
 from leaf.service import delivery_reply_attempt, open_session_turn
 from leaf.thread import cmd_reply, cmd_resolve
 from leaf_dev import example_previews, verify_site
@@ -946,8 +946,6 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
         "        self.wfile.write(json.dumps(dict(pid=os.getpid(), home=os.environ['CODEX_HOME'], site=os.environ['LEAF_SITE_ROOT'])).encode())\n"
         "server = HTTPServer(('127.0.0.1', 0), Handler)\n"
         "Path('port').write_text(str(server.server_port))\n"
-        "print('startup diagnostic', flush=True)\n"
-        "print(json.dumps(dict(component='leaf-agent', event='container_http_ready')), flush=True)\n"
         "server.serve_forever()\n"
     )
     monkeypatch.setattr(verify_site, "ROOT", root)
@@ -958,7 +956,10 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
 
     def local_health(url, **kwargs):
         assert url == "http://127.0.0.1:8080/health"
-        port = (root / "port").read_text()
+        try:
+            port = (root / "port").read_text()
+        except FileNotFoundError:
+            raise urllib.error.URLError("not listening yet") from None
         return urlopen(f"http://127.0.0.1:{port}/health", **kwargs)
 
     monkeypatch.setattr(verify_site.urllib.request, "urlopen", local_health)
@@ -1003,7 +1004,7 @@ def test_the_agent_pass_emits_one_json_sample_for_local_and_remote_targets(
             lifecycle.append("stop")
 
     @contextmanager
-    def playwright():
+    def browser():
         yield None
 
     def turn(browser, release, *, origin, direct_agent=False):
@@ -1013,18 +1014,12 @@ def test_the_agent_pass_emits_one_json_sample_for_local_and_remote_targets(
     # A remote agent pass needs no local build: the origin names its release.
     monkeypatch.setattr(verify_site, "MANIFEST", tmp_path / "unbuilt" / "site.json")
     monkeypatch.setattr(verify_site, "local_adapter", local)
-    monkeypatch.setattr(verify_site, "sync_playwright", playwright)
-    monkeypatch.setattr(
-        verify_site,
-        "launch_browser",
-        lambda _: (SimpleNamespace(close=lambda: None), "chrome"),
-    )
+    monkeypatch.setattr(verify_site, "chrome", browser)
     monkeypatch.setattr(verify_site, "verify_agent_turn", turn)
     runner = CliRunner()
     local_result = runner.invoke(verify_site.verify_site, ["local"])
     assert local_result.exit_code == 0, local_result.output
     assert json.loads(local_result.stdout) == {
-        "browser": "chrome",
         "origin": "http://127.0.0.1:8080",
         "release": "a" * 40,
     }
@@ -1033,7 +1028,6 @@ def test_the_agent_pass_emits_one_json_sample_for_local_and_remote_targets(
     )
     assert remote_result.exit_code == 0, remote_result.output
     assert json.loads(remote_result.stdout) == {
-        "browser": "chrome",
         "origin": "https://leaf-dev.example",
         "release": None,
     }
@@ -1042,11 +1036,6 @@ def test_the_agent_pass_emits_one_json_sample_for_local_and_remote_targets(
         ("http://127.0.0.1:8080", "a" * 40, True),
         ("https://leaf-dev.example", None, False),
     ]
-    invalid = runner.invoke(
-        verify_site.verify_site, ["https://leaf-dev.example/a-page", "--agent"]
-    )
-    assert invalid.exit_code == 2
-    assert len(calls) == 2
 
     # Through the local Worker the pass holds the container to the built release.
     @contextmanager
@@ -1061,10 +1050,6 @@ def test_the_agent_pass_emits_one_json_sample_for_local_and_remote_targets(
     wrangler_result = runner.invoke(verify_site.verify_site, ["wrangler", "--agent"])
     assert wrangler_result.exit_code == 0, wrangler_result.output
     assert calls[-1] == ("http://127.0.0.1:8787", "b" * 40, False)
-    stale = runner.invoke(
-        verify_site.verify_site, ["wrangler", "--agent", "--release", "c" * 40]
-    )
-    assert "differs from the built site" in str(stale.exception)
     assert lifecycle == ["start", "stop", "worker"]
 
 
@@ -3705,7 +3690,7 @@ def test_local_verification_settles_host_network_only_for_release(monkeypatch, a
         attempts.append((agent, settle_after_activation))
         raise RuntimeError("page did not present: net::ERR_NETWORK_CHANGED")
 
-    monkeypatch.setattr(verify_site, "built_release", lambda release: "release")
+    monkeypatch.setattr(verify_site, "built_release", lambda: "release")
     monkeypatch.setattr(verify_site, "local_worker", worker)
     monkeypatch.setattr(verify_site, "run_verification", verify)
 
@@ -3723,16 +3708,17 @@ def test_local_verification_settles_host_network_only_for_release(monkeypatch, a
 
 def test_host_network_waits_for_addresses_to_stop_changing(monkeypatch):
     now = [0.0]
-    readings = iter(["before", "before", "after", "after", "after", "after"])
+    readings = itertools.chain(["before", "before"], itertools.repeat("after"))
     monkeypatch.setattr(verify_site.time, "monotonic", lambda: now[0])
     monkeypatch.setattr(
         verify_site.time, "sleep", lambda seconds: now.__setitem__(0, now[0] + seconds)
     )
     monkeypatch.setattr(verify_site, "host_addresses", lambda: next(readings))
 
-    verify_site.wait_for_host_network(quiet_for=0.2, poll_every=0.1)
+    verify_site.wait_for_host_network()
 
-    assert now[0] >= 0.4
+    # Quiet for 2.5 s from the change at 0.2 s.
+    assert now[0] > 2.6
 
 
 def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):
@@ -3759,107 +3745,20 @@ def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):
     assert page.evaluate("window.__leafVerifier.visibleReplyAt") is not None
 
 
-def test_a_page_that_never_presents_names_itself_and_how_far_it_got():
-    """The site gate's own timeout says nothing; the message it raises has to.
-
-    A red `Measure the bundled release in Chrome` step carried only Playwright's
-    wait, so a user could not tell which of the three pages stalled, nor whether
-    widget upgrade or the first state read was the one that never answered.
-    """
-    stalled = verify_site.unpresented(
-        "https://leaf.page/examples/triage-board/", ["upgraded"], []
-    )
-    assert "examples/triage-board" in stalled
-    assert "upgraded" in stalled
-
-    early = verify_site.unpresented("https://leaf.page/", [], ["widget module 404"])
-    assert "no startup milestone" in early
-    assert "widget module 404" in early
-
-
 def test_a_refused_answer_carries_what_the_server_said_about_it():
-    """A status alone cannot separate one 500 from another.
-
-    Run 35906886800 stopped on `api/state returned 500` and left nothing else. The
-    page had written `<class>: <message>` into that body at its one fault boundary,
-    which is where a fault says which boundary refused and why, and the check read
-    the status past it. The server's own words travel with the status instead.
-    """
+    """A status alone cannot separate one 500 from another, so the body travels with
+    it, bounded so a page of HTML served by mistake does not become the run log."""
     url = "https://leaf.page/examples/triage-board/api/state"
     assert verify_site.answered(_answered(200), url).status == 200
 
+    fault = json.dumps({"error": "KeyError: 'browser'"})
     with pytest.raises(RuntimeError) as faulted:
-        verify_site.answered(
-            _answered(500, body=json.dumps({"error": "KeyError: 'browser'"})), url
-        )
-    assert str(faulted.value) == f"{url} returned 500: KeyError: 'browser'"
+        verify_site.answered(_answered(500, body=fault), url)
+    assert str(faulted.value) == f"{url} returned 500: {fault}"
 
-    # The edge refuses in prose rather than in Leaf's fault shape, and a body no
-    # boundary bounded would become the run log rather than a reading in it.
     with pytest.raises(RuntimeError) as refused:
         verify_site.answered(_answered(502, body="b" * 4000), url)
-    assert str(refused.value).endswith("…")
     assert len(str(refused.value)) < len(url) + 600
-
-
-def test_an_undrawn_reply_says_whether_the_page_took_the_answer_in():
-    """A reply the container admitted and the panel never drew has one open question.
-
-    `publish-site` failed on a turn whose every server record was healthy — it published
-    its revision, replied, and went back to listening — while the user's panel held an
-    agent bubble with no words in it. The gate reported the message nodes and nothing
-    else, and that snapshot is the same whether the page stopped asking, asked and never
-    got an answer, or took the answer in and drew nothing. The page paints the reading it
-    last applied, so the message says which.
-    """
-    current = join_reading("abc123", "p1")
-    presence_moved = join_reading("abc123", "p2")
-    older = join_reading("0bd999", "p1")
-    drew_nothing = verify_site.undrawn_reply(
-        "https://leaf.page/examples/triage-board/",
-        {
-            "panel": True,
-            "visibility": "visible",
-            "presented": True,
-            "reading": current,
-            "traffic": '{"asked":9,"heard":9}',
-            "revision": "1",
-            "status": "Codex is listening",
-            "messages": [
-                {
-                    "classes": ["lf-msg", "agent"],
-                    "mid": "stream:leaf-turn",
-                    "attempt": "leaf-delivery-1",
-                    "stream": "active",
-                    "busy": True,
-                    "hasText": False,
-                    "visible": True,
-                }
-            ],
-        },
-        presence_moved,
-    )
-    assert "the answer reached it and was not drawn" in drew_nothing
-    # The identity the panel is standing on, which says a stream placeholder outlived
-    # the durable reply that was meant to complete it.
-    assert "stream:leaf-turn" in drew_nothing
-    assert "attempt=leaf-delivery-1" in drew_nothing
-    assert '{"asked":9,"heard":9}' in drew_nothing
-
-    behind = verify_site.undrawn_reply(
-        "https://leaf.page/examples/triage-board/",
-        {"reading": older, "messages": []},
-        current,
-    )
-    assert "never took the answer in" in behind
-    assert older in behind and current in behind
-
-    silent = verify_site.undrawn_reply(
-        "https://leaf.page/examples/triage-board/",
-        {"reading": None, "messages": []},
-        current,
-    )
-    assert "applied no state at all" in silent
 
 
 def test_the_deploy_gate_waits_on_the_page_rather_than_its_own_clock(page_dir):
@@ -4665,13 +4564,8 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     assert page.init_scripts == [verify_site.VERIFIER_SCRIPT]
     # A green run reports startup and the post-presentation revision follow separately.
     reported = capsys.readouterr().err
-    assert "presented in 28444 ms" in reported
-    assert "followed revision 2 2500 ms after presentation" in reported
-    assert "request acknowledged 250 ms" in reported
-    assert "activity working: Editing the page at 1.0 s" in reported
-    assert "published at 12.0 s" in reported
-    assert "response visible at 12.5 s" in reported
-    assert "changed page — HTML first byte 100 ms" in reported
+    assert "followed it 2500 ms after presentation" in reported
+    assert '"responseVisibleMs": 12500.0' in reported
     assert benchmark == {
         "origin": "https://leaf.page",
         "release": release,

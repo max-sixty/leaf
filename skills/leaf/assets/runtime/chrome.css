@@ -994,8 +994,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-status { max-width: 150px; min-width: 0; overflow: hidden; text-overflow: ellipsis;
     white-space: nowrap; color: var(--muted); font-size: 11px; }
   .lf-thread-status[data-lf-turn="user"] { color: var(--turn-ink); }
-  /* Open, the message whose stage a folded-only status repeats says it beside itself. */
-  details[open] > .lf-thread-summary .lf-thread-status[data-lf-folded] { display: none; }
+  /* Open, the card shows what these digest: a message's stage, the draft, the unread. */
+  details[open] > .lf-thread-summary .lf-thread-meta > [data-lf-folded] { display: none; }
   .lf-thread-trailing { grid-column: 2; grid-row: 1; display: flex; align-items: center;
     justify-content: flex-end; gap: 4px; color: var(--muted); white-space: nowrap; }
   .lf-thread-recency { font-size: 10px; }

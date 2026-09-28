@@ -126,6 +126,10 @@ function navigationSummary(navigation, model) {
   const hasMeta = draft || status || model.unreadCount;
   // Until the agent names the thread, the title slot says so in words drawn apart from
   // any title; the theme sweeps a highlight through them while the naming is under way.
+  // The meta row digests a folded card. What the open card shows elsewhere is marked
+  // `data-lf-folded`: the draft stands in the reply box and the unread messages behind
+  // their boundary, so typing or an arriving reply doesn't grow the row and move the
+  // card under the reader.
   return html`<summary
     class="lf-thread-summary"
     title=${pendingTitle ? nothing : title}
@@ -134,7 +138,7 @@ function navigationSummary(navigation, model) {
       >${pendingTitle ? "Generating title" : title}</span
     >
     <span class=${`lf-thread-meta${hasMeta ? "" : " lf-empty"}`}>
-      ${draft ? html`<span class="lf-thread-draft">Draft</span>` : nothing}
+      ${draft ? html`<span class="lf-thread-draft" data-lf-folded>Draft</span>` : nothing}
       ${
         status
           ? html`<span
@@ -154,6 +158,7 @@ function navigationSummary(navigation, model) {
         model.unreadCount
           ? html`<span
               class="lf-thread-unread"
+              data-lf-folded
               aria-label=${`${model.unreadCount} unread`}
               >${model.unreadCount} unread</span
             >`

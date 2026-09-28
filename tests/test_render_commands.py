@@ -793,8 +793,9 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
     where a pair differs, or that it differs nowhere: a handoff once shipped a pair
     whose sides matched in every part its prose described. So the widget outlines each
     changed region over both frames, at the same place, and says on the rail what they
-    add up to, including a difference too slight to point at. An author can hide the
-    outlines and their count with `no-outlines`."""
+    add up to, including a difference too slight to point at. The outlines and their
+    count are the author's to ask for, with `outlines`; the rest of the reading shows
+    on every pair."""
     plain = solid_png(600, 300, (210, 220, 235))
     patched = solid_png(
         600, 300, (210, 220, 235), patch=(420, 200, 60, 40, (30, 30, 30))
@@ -810,15 +811,15 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
     url = serve(
         LONG_PAGE.replace(
             "</main>",
-            f"""<lf-shot id="shot-patch" alt="a dark square appears"
+            f"""<lf-shot id="shot-patch" outlines alt="a dark square appears"
                  before="{sources[plain]}" after="{sources[patched]}"></lf-shot>
-               <lf-shot id="shot-same" alt="nothing"
+               <lf-shot id="shot-same" outlines alt="nothing"
                  before="{sources[plain]}" after="{sources[plain]}"></lf-shot>
-               <lf-shot id="shot-tint" alt="a slight tint"
+               <lf-shot id="shot-tint" outlines alt="a slight tint"
                  before="{sources[plain]}" after="{sources[tinted]}"></lf-shot>
-               <lf-shot id="shot-quiet" no-outlines alt="a dark square"
+               <lf-shot id="shot-quiet" alt="a dark square"
                  before="{sources[plain]}" after="{sources[patched]}"></lf-shot>
-               <lf-shot id="shot-quiet-same" no-outlines alt="nothing"
+               <lf-shot id="shot-quiet-same" alt="nothing"
                  before="{sources[plain]}" after="{sources[plain]}"></lf-shot>
                </main>""",
         ),
@@ -850,8 +851,8 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
         assert left < 420 and right > 480 and top < 200 and bottom > 240
         assert right - left < 80 and bottom - top < 60
 
-    # An author can hide the outlines and their count, but not the word that a pair
-    # has nothing to point at.
+    # Without `outlines` a pair hides its outlines and their count, but not the word
+    # that it has nothing to point at.
     quiet = page.locator("#shot-quiet")
     expect(quiet.locator(".lf-shotdiff > span")).to_have_count(2)
     expect(quiet.locator(".lf-shotdiff").first).to_be_hidden()

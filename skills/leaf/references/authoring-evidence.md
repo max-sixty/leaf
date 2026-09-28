@@ -131,11 +131,11 @@ links.
 For a real visual change, use `lf-shot` with before and after captures from the
 same viewport, of the versions the page compares. Before writing the prose and
 `alt` around a pair, open both images and compare them where the change should be.
-On the page, the pair outlines each region where its images differ, and its rail
-says what they add up to: a count, "changed throughout", "only slight changes", or
-"identical". Check that an outline stands where the prose puts the change. Where none
-does, capture a case that shows the change, or say that nothing changed. Where one
-does but the rest mostly mark what the pair is not about, such as live data that
-moved between captures you cannot retake, add `no-outlines` and say in the prose
-where to look. The pair then hides its outlines and their count, and still reads
-"identical" or "only slight changes" when that is what it finds.
+Add `outlines`, and the pair outlines each region where its images differ and counts
+them on its rail. Leave it off where most outlines would mark what the pair is not
+about, such as live data that moved between captures you cannot retake, and say in
+the prose where to look. Either way, the rail reads "identical" or "only slight
+changes" when nothing moved far enough to point at, and "changed throughout" when most
+of the image changed. Where it reads "identical" or "only slight changes", or no
+outline stands where the prose puts the change, capture a case that shows the change,
+or say that nothing changed.

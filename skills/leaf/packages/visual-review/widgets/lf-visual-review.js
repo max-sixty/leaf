@@ -801,6 +801,7 @@ customElements.define(
         shot.setAttribute("before", before);
         shot.setAttribute("after", after);
         shot.setAttribute("alt", alt);
+        shot.toggleAttribute("outlines", true);
         entry.shotHost.replaceChildren(shot);
         entry.difference = undefined;
         this.#paintPosition(entry);

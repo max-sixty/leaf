@@ -11,15 +11,14 @@
  * Print stacks both frames.
  *
  * Once the page has presented, the widget compares the two images pixel for pixel
- * (`runtime/image-difference.js` owns what counts as a difference) and outlines each
- * region that changed over both frames, with its `describeDifference` between the rail
- * labels. A reader looking at one side of the divider, or at a screenshot of the page,
- * then still sees where the pair differs, that it changed throughout, or that nothing
- * but slight redrawing, or nothing at all, differs. `difference` is that reading, in
- * the images' own pixels, or null for a pair the widget refused; a parent that hides
- * the rail states it from there. An authored `no-outlines` hides the outlines and the
- * count of changed areas; a reading with no outlines to hide, "identical" among them,
- * stays on the rail.
+ * (`runtime/image-difference.js` owns what counts as a difference) and puts its
+ * `describeDifference` between the rail labels. A pair with nothing to point at, which
+ * is identical, only slightly changed, or changed throughout, says so on every pair, so
+ * a reader of one side of the divider, or of a screenshot of the page, still learns it.
+ * With `outlines`, the pair also outlines each region that changed over both frames,
+ * and the rail counts them. `difference` is that reading, in the images' own pixels,
+ * or null for a pair the widget refused; a parent that hides the rail states it from
+ * there.
  * Pairs compare one per frame, so a page of large captures does not hold input for the
  * whole batch.
  *

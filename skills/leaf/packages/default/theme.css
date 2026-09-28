@@ -1488,8 +1488,8 @@ lf-shot .lf-shotdelta { font-size: var(--t-6); color: var(--muted); }
    reading is the one the rail raises. */
 lf-shot .lf-shotdelta:is([data-lf-shot-delta="identical"], [data-lf-shot-delta="slight"]) {
     color: var(--warn-ink); font-weight: 650; }
-/* `no-outlines` hides the outlines and the count they make up. */
-lf-shot[no-outlines] :is(.lf-shotdiff, .lf-shotdelta[data-lf-shot-delta="areas"]) {
+/* The outlines, and the count they make up, show where the pair asks for them. */
+lf-shot:not([outlines]) :is(.lf-shotdiff, .lf-shotdelta[data-lf-shot-delta="areas"]) {
     display: none; }
 
 /* Before the progressive comparison arrives the image is itself the native target. The

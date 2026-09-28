@@ -398,6 +398,39 @@ function unclaimedScopes(binding) {
 // guard that stays an event's rather than a scope's: an IME's own Escape is not the
 // runtime's to take.
 export function dispatchKey(ev, { beforeCommand }) {
+  const answer = resolvePress(ev);
+  if (!answer) return false;
+  const { invocation } = answer;
+  // A held key repeats keydown where a real button fires once, so a row says whether
+  // it repeats: a held `]` was a page navigation per repeat and a held pick a `choose`
+  // per repeat, where a walk wants the repeat and is the reason the flag exists. The
+  // repeat is still consumed — a non-repeatable command must not be fired again merely
+  // because its key remains held after the first press.
+  //
+  // A `native` row is the narrow converse: Leaf has a result to perform before the
+  // platform completes the same press. The versions menu closes at its Tab boundary,
+  // for example, and the browser then carries focus forward from its stable door. It
+  // remains a registered press — and therefore visible, scoped and shadowed like every
+  // other one — but does not claim the platform's half of it.
+  if (!invocation.native) ev.preventDefault();
+  if (ev.repeat && !invocation.row.repeat) return true;
+  beforeCommand?.(invocation.row);
+  announceInvocation(invocation);
+  invocation.run();
+  return true;
+}
+
+// Where a press lands before it runs: the root of the scope whose command answers it, or
+// null where no Leaf command does and the press is the platform's, at focus. A surface
+// that moves with the page asks this to tell a press acting in it from one the page
+// answers around it.
+export function pressRoot(ev) {
+  const answer = resolvePress(ev);
+  return answer ? scopeRoot(answer.scope) : null;
+}
+
+// The scope and invocation that answer one keydown, by the walk `dispatchKey` runs.
+function resolvePress(ev) {
   const recovered = recoveredLabelFocus(ev);
   const nearer = shadow();
   for (const scope of stack(answers("Escape", ev) ? "Escape" : null)) {
@@ -421,28 +454,10 @@ export function dispatchKey(ev, { beforeCommand }) {
         );
       matched = invocation;
     }
-    if (matched) {
-      // A held key repeats keydown where a real button fires once, so a row says whether
-      // it repeats: a held `]` was a page navigation per repeat and a held pick a `choose`
-      // per repeat, where a walk wants the repeat and is the reason the flag exists. The
-      // repeat is still consumed — a non-repeatable command must not be fired again merely
-      // because its key remains held after the first press.
-      //
-      // A `native` row is the narrow converse: Leaf has a result to perform before the
-      // platform completes the same press. The versions menu closes at its Tab boundary,
-      // for example, and the browser then carries focus forward from its stable door. It
-      // remains a registered press — and therefore visible, scoped and shadowed like every
-      // other one — but does not claim the platform's half of it.
-      if (!matched.native) ev.preventDefault();
-      if (ev.repeat && !matched.row.repeat) return true;
-      beforeCommand?.(matched.row);
-      announceInvocation(matched);
-      matched.run();
-      return true;
-    }
+    if (matched) return { scope, invocation: matched };
     nearer.past(scope);
   }
-  return false;
+  return null;
 }
 
 // An action chosen from the reference has no keydown to match, but it still belongs to

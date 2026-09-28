@@ -139,6 +139,7 @@ import {
 
 import { focused, keys, paintKeys } from "./keyboard/scopes.js";
 import { pageCommand, pageRung, pageScope } from "./keyboard/register.js";
+import { pressRoot } from "./keyboard/dispatch.js";
 import {
   annotationsHidden,
   setAnnotationsHidden,
@@ -2842,21 +2843,45 @@ export function createMarginProjection({
     // that acts in it first brings the cluster back, as a browser brings a focused field
     // back into view for typing. A shortcut the browser or the system takes, a modifier
     // on its own, and Escape, which puts the card away, leave the page where it is.
+    //
+    // A key acts in the card when the card's own scopes answer it, or no Leaf command
+    // does and the platform takes it at focus. A page command acts where its owner says,
+    // so it brings the card back only once it has run and landed the user somewhere new
+    // in it, as `c` enters the reply box. `g` opens Go-to over the window the user
+    // scrolled to, and `j` scrolls on from there, so both leave the card away.
+    const bringPreviewBack = () =>
+      scrollToElement(
+        targetFor(previewEntry) ?? previewMarginEntry,
+        scrollBehavior(),
+        "nearest",
+      );
     preview.addEventListener(
       "keydown",
       (event) => {
         if (
-          previewAway &&
-          !event.ctrlKey &&
-          !event.metaKey &&
-          !event.altKey &&
-          !["Control", "Meta", "Alt", "Shift", "Escape"].includes(event.key)
+          !previewAway ||
+          event.ctrlKey ||
+          event.metaKey ||
+          event.altKey ||
+          ["Control", "Meta", "Alt", "Shift", "Escape"].includes(event.key)
         )
-          scrollToElement(
-            targetFor(previewEntry) ?? previewMarginEntry,
-            scrollBehavior(),
-            "nearest",
-          );
+          return;
+        const answeredBy = pressRoot(event);
+        if (!answeredBy || under(answeredBy, preview)) {
+          bringPreviewBack();
+          return;
+        }
+        const from = focused();
+        // On the window, whose bubble listeners run after the keyboard's on the document.
+        addEventListener(
+          "keydown",
+          (ran) => {
+            const at = focused();
+            if (ran === event && previewAway && at !== from && under(at, preview))
+              bringPreviewBack();
+          },
+          { once: true },
+        );
       },
       { capture: true },
     );

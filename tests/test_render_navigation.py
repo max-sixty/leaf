@@ -1676,9 +1676,24 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     expect(
         card.locator('.lf-page-thread[data-thread="72e031c5bf0d485ba9054628e09869d4"]')
     ).to_be_focused()
-    # A key pressed in a card scrolled away brings its cluster, and the card, back.
-    page.evaluate("() => scrollTo(0, document.scrollingElement.scrollHeight)")
+    # A press the page answers leaves the window where the user put it: `g G` carries the
+    # card away, and `g` then opens Go-to over the page's foot rather than bringing the
+    # card back and mapping the window around it.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+g")
     rendered(page)
+    foot = page.evaluate("() => document.scrollingElement.scrollTop")
+    assert card.evaluate(
+        "node => node.getBoundingClientRect().bottom"
+        " <= document.querySelector('.lf-banner').getBoundingClientRect().bottom"
+    )
+    page.keyboard.press("g")
+    expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
+    rendered(page)
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == foot
+    page.keyboard.press("Escape")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
+    # A key that acts in a card scrolled away brings its cluster, and the card, back.
     page.keyboard.press("c")
     expect(card.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
     page.wait_for_function(

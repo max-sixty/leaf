@@ -255,9 +255,8 @@ commands, ask the user to run `wt config approvals add`.
 A red gate is the branch's to fix. A pull request's `test` job and the local
 pre-merge `tests` run the broad selection, which main passes; the nightly-marked
 tests run only once main moves, and `tend-ci-fix` answers them when they fail.
-`wt merge --no-hooks` skips the local gate for a branch whose pull request CI passed;
-finish with `git push origin main:main`, since the skipped hook normally pushes.
-`✗ Can't push to local main branch` is a fast-forward failure.
+`wt merge` checks the rebased tree and lands it; `✗ Can't push to local main branch`
+is a fast-forward failure.
 
 Installed sessions load host caches, not the checkout. Claude Code picks up a
 push on its marketplace sweep; the post-merge hook refreshes an installed Codex

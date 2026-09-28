@@ -125,7 +125,7 @@ import {
   letGo,
   placeChrome,
 } from "./focus.js";
-import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
+import { closeControl, el, keeps, keepsHidden, offer } from "./widget-elements.js";
 import { setChildren } from "./dom-children.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
@@ -316,14 +316,11 @@ export function createMarginProjection({
   preview.hidden = true;
   preview.setAttribute("role", "dialog");
   const previewOpen = () => !preview.hidden;
-  const previewClose = el(
-    "button",
-    "lf-btn lf-icon-action lf-close-action lf-margin-preview-close",
-  );
-  previewClose.append(iconElement("cross", "lf-action-icon"));
-  previewClose.type = "button";
-  previewClose.setAttribute("aria-label", "Dismiss thread view");
-  previewClose.title = "Dismiss thread view (Esc)";
+  const previewClose = closeControl({
+    name: "Dismiss thread view",
+    title: "Dismiss thread view (Esc)",
+    className: "lf-margin-preview-close",
+  });
   const previewNav = el("span", "lf-margin-preview-nav");
   const previewPosition = el("span", "lf-margin-preview-position");
   const previewPrevious = offer(

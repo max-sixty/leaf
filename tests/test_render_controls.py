@@ -936,7 +936,8 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
             assert box["left"] >= 0 and box["right"] <= width, (
                 f"{selector} is outside the first {width}px view: {box}"
             )
-        if width <= 840:
+        # The narrow face a phone held upright wears: forty-pixel controls.
+        if width <= 480:
             assert boxes[".lf-threads-toggle"]["height"] >= 40
             assert boxes[".lf-signoff"]["height"] >= 40
         assert root_overflow(page) == 0, (
@@ -1894,6 +1895,62 @@ def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other
     expect(more).to_have_attribute("aria-expanded", "false")
 
 
+# Where the banner's two parts stand, and how much of the window it takes from the page.
+BANNER_ROWS = """() => {
+  const box = (selector) => document.querySelector(selector).getBoundingClientRect();
+  const banner = box('.lf-banner'), status = box('.lf-banner-status'),
+        actions = box('.lf-banner-actions');
+  return {wrapped: actions.top >= status.bottom - 1,
+          rows: document.documentElement.dataset.lfBannerRows,
+          height: banner.height, bannerBottom: banner.bottom,
+          actionsBottom: actions.bottom,
+          main: document.querySelector('body > main').getBoundingClientRect().top};
+}"""
+
+
+@pytest.mark.parametrize(
+    ("width", "touch", "signoff", "wrapped"),
+    [
+        # A landscape phone holds the status beside Threads, and beside Approval too.
+        (740, True, False, False),
+        (740, True, True, False),
+        # One window, two banners: the run that asks for sign-off leaves the status less
+        # than its floor there, and only that one wraps.
+        (600, False, False, False),
+        (600, False, True, True),
+        (390, True, False, True),
+    ],
+)
+def test_the_banner_wraps_by_what_it_holds(
+    browser, serve, width, touch, signoff, wrapped
+):
+    """The banner takes a second row only where its control run would leave the status
+    less than its floor, which is a fact about what it holds rather than the window: a
+    landscape phone has one row, as a desk window does, and at one width a page asking
+    for sign-off wraps where a page without it does not. The page starts under whatever
+    the banner drew, and the run stays inside it."""
+    html = SUGGESTION_PAGE
+    if signoff:
+        html = html.replace(
+            "<title>suggestions</title>",
+            '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
+        )
+    context = browser.new_context(
+        viewport={"width": width, "height": 800}, has_touch=touch, is_mobile=touch
+    )
+    page = open_page(browser, serve(html), context=context)
+    page_at_rest(page)
+    read = page.evaluate(BANNER_ROWS)
+    assert read["wrapped"] == wrapped, read
+    assert read["rows"] == ("2" if wrapped else "1"), read
+    row = 53 if touch else 52 if width <= 480 else 42
+    assert read["height"] == pytest.approx(row + (36 if wrapped else 0), abs=1), read
+    assert read["actionsBottom"] <= read["bannerBottom"] + 0.5, read
+    assert read["main"] == pytest.approx(read["bannerBottom"], abs=1), (
+        f"the document's head does not follow the rows the banner drew: {read}"
+    )
+
+
 def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
     browser, serve, other_leaf
 ):
@@ -2647,7 +2704,9 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     the poll has no gesture at all, so there is no line to draw: the user was
     somewhere else entirely, and every control in the chrome is a control they are
     holding. The document may still change under them, because a fact arriving is what
-    they are here to see; its resulting destination may not be.
+    they are here to see; its resulting destination may not be. A control whose own words
+    the news rewrote may grow or shrink into free room, as the status press does when the
+    sentence it carries changes; nothing else may move for it.
 
     The banner is where all of it lands, and it is packed to the right against a spacer,
     which decides who pays. A control that grows moves itself and everything to its
@@ -2752,7 +2811,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
         drive()
         page.wait_for_function(arrived)
         page_at_rest(page)
-        moved = displaced(before, page.evaluate("() => window.__lfBoxes()"))
+        moved = displaced(before, page.evaluate("() => window.__lfBoxes()"), news=True)
         assert not moved, f"{what} and the banner moved:\n  " + "\n  ".join(moved)
 
     # The two primary controls keep their reserved words when the row narrows.
@@ -2777,11 +2836,80 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     )
 
 
+STATUS_PRESS = """() => {
+  const press = document.querySelector('.lf-status-button');
+  const text = press.querySelector('.lf-status-text');
+  const status = document.querySelector('.lf-banner-status');
+  const roomRight = status.getBoundingClientRect().right
+    - parseFloat(getComputedStyle(status).paddingRight);
+  const box = press.getBoundingClientRect();
+  return {left: box.left, top: box.top, right: box.right, roomRight,
+          words: text.textContent, shown: text.clientWidth, needed: text.scrollWidth};
+}"""
+
+
+@pytest.mark.parametrize("width", [1280, 390])
+def test_the_status_press_grows_into_free_room_and_moves_nothing(browser, serve, width):
+    """The status press is as wide as its words: its ring and its hit box are the
+    sentence's, not the empty banner's. As the sentence the agent declares grows, the
+    press grows rightward into the room the controls leave, and nothing else on the banner
+    moves; once that room runs out its words truncate rather than push More. At 390 the
+    status has a row of its own, so the room is that row."""
+    html = SUGGESTION_PAGE.replace(
+        "<title>suggestions</title>",
+        '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
+    )
+    url = serve(html)
+    page = open_page(browser, url)
+    resized(page, width, 844)
+
+    def say(detail):
+        session_model.cmd_status(serve.page_dir, "working", detail)
+        told(page)
+        page.wait_for_function(
+            "(words) => document.querySelector('.lf-status-text').textContent === words",
+            arg=f"Agent working — {detail}",
+        )
+        page_at_rest(page)
+        return page.evaluate(STATUS_PRESS)
+
+    short = say("tests")
+    assert short["shown"] >= short["needed"], short
+    assert short["right"] < short["roomRight"] - 60, (
+        f"a short status press still spans the banner's free room: {short}"
+    )
+    page.evaluate(DEFINE_BOXES)
+    beside = page.evaluate(BANNER_WATCH, f":is({NEIGHBOUR}):not(.lf-status-button)")
+    assert any("lf-banner-more" in name for name in beside["names"]), beside["names"]
+
+    longer = say("running the browser suite")
+    assert longer["shown"] >= longer["needed"], longer
+    assert (longer["left"], longer["top"]) == (short["left"], short["top"])
+    assert longer["right"] > short["right"], (short, longer)
+    moved = displaced(beside, page.evaluate("() => window.__lfBoxes()"))
+    assert not moved, "a longer status moved the banner:\n  " + "\n  ".join(moved)
+
+    endless = say("checking every thread on the page before recording the update " * 4)
+    assert endless["shown"] < endless["needed"], (
+        f"a sentence longer than the room was shown whole: {endless}"
+    )
+    assert endless["right"] <= endless["roomRight"] + 0.5, endless
+    assert (endless["left"], endless["top"]) == (short["left"], short["top"])
+    moved = displaced(beside, page.evaluate("() => window.__lfBoxes()"))
+    assert not moved, "a status past its room pushed the banner:\n  " + "\n  ".join(
+        moved
+    )
+
+
 def test_a_recorded_move_is_acknowledged_in_the_status_and_nowhere_else(browser, serve):
     """The page has one place for brief news. A gesture's acknowledgement used to arrive
     as both a banner count and a toast in the opposite corner. The bottom status says it
     now: "Moved to Done — sent" stands in for the line's own words while it lasts, the
-    live region hears the same sentence, and the line's words return when it fades."""
+    live region hears the same sentence, and the line's words return when it fades.
+
+    The notice is status text, which takes no press, so it wears the status's own card
+    ground and hairline in ink. It was a filled accent pill, which read as a primary
+    button."""
     page = open_page(browser, serve(BOARD_PAGE))
     board = page.locator("#sprint")
     status = page.locator(".lf-status-text")
@@ -2795,6 +2923,15 @@ def test_a_recorded_move_is_acknowledged_in_the_status_and_nowhere_else(browser,
     page.keyboard.press("Enter")
     expect(notice).to_have_text("Moved to Done — sent")
     expect(notice).to_be_visible()
+    face = page.locator(".lf-bottom-status").evaluate(
+        "box => { const s = getComputedStyle(box);"
+        " return {ink: s.color, ground: s.backgroundColor, edge: s.borderTopColor}; }"
+    )
+    assert face == {
+        "ink": token_colour(page, "--ink"),
+        "ground": token_colour(page, "--card"),
+        "edge": token_colour(page, "--rule"),
+    }, f"the notice is not quiet status text: {face}"
     expect(status).to_be_visible()
     expect(page.locator(".lf-live")).to_have_text("Moved to Done — sent")
     assert page.locator(".lf-toast").count() == 0, "a second surface says the news"
@@ -5461,9 +5598,10 @@ RING_CASES = (
                 (".lf-status-button", "status"),
                 (".lf-others", "btn"),
                 (".lf-edge:visible", "edge"),
+                # Before the fields: More stands down while a field takes its key.
+                (".lf-shortcut-more", "key-more"),
                 (".lf-find-box input", "text-entry"),
                 (".lf-thread-panel leaf-text", "text-box"),
-                (".lf-shortcut-more", "key-more"),
             ),
             "feature-gallery": (
                 ("lf-option > .lf-pick", "options-row"),
@@ -6020,7 +6158,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             # their own page surface or to exercise the panel's entry route itself.
             if scope in RING_SCOPES_STARTING_WITHOUT_PANEL:
                 if page.locator(".lf-thread-panel.open").count():
-                    page.get_by_role("button", name="Close threads").click()
+                    page.get_by_role("button", name="Close threads", exact=True).click()
                     panel_settled(page, open=False)
                     page.evaluate(RING_FOCUS_START)
             elif not page.locator(".lf-thread-panel.open").count():

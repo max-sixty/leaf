@@ -1346,7 +1346,10 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     sheet = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(sheet).to_be_visible()
     header = sheet.locator(".lf-page-map-head")
-    close = header.get_by_role("button", name="Close", exact=True)
+    # The one close control every surface wears: the cross, named for what it closes.
+    close = header.get_by_role("button", name="Close Page Map", exact=True)
+    expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
+    expect(close).to_have_text("")
     header_box, close_box = header.bounding_box(), close.bounding_box()
     assert header_box and close_box
     assert close_box["x"] + close_box["width"] == pytest.approx(
@@ -2417,7 +2420,7 @@ def test_the_ask_walk_position_shares_the_shortcut_line(browser, serve):
         expect(position).to_have_text(f"Ask {index} of 4 open")
     expect(position).not_to_have_attribute("data-lf-boundary", "")
     status = page.locator(".lf-bottom-status")
-    ordinary = status.evaluate("node => getComputedStyle(node).backgroundColor")
+    ordinary = status.evaluate("node => getComputedStyle(node).color")
     page.keyboard.press("a")
     expect(position).to_have_text("Ask 4 of 4 open")
     expect(position).to_have_attribute("data-lf-boundary", "")
@@ -2425,7 +2428,8 @@ def test_the_ask_walk_position_shares_the_shortcut_line(browser, serve):
         status.evaluate("node => node.getBoundingClientRect().left")
         == geometry["status"]["left"]
     )
-    assert status.evaluate("node => getComputedStyle(node).backgroundColor") != ordinary
+    # The end of the walk is news, ink where the resting line is muted.
+    assert status.evaluate("node => getComputedStyle(node).color") != ordinary
     assert (
         position.evaluate("node => getComputedStyle(node).backgroundColor")
         == geometry["face"]["positionBackground"]
@@ -3094,12 +3098,12 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     assert preview_room["previewBottom"] <= preview_room["statusTop"], preview_room
 
     status = page.locator(".lf-bottom-status")
-    ordinary = status.evaluate("node => getComputedStyle(node).backgroundColor")
+    ordinary = status.evaluate("node => getComputedStyle(node).color")
     page.keyboard.press("t")
     expect(second).to_be_focused()
     expect(position).to_have_text("Thread 2 of 2")
     expect(position).to_have_attribute("data-lf-boundary", "")
-    assert status.evaluate("node => getComputedStyle(node).backgroundColor") != ordinary
+    assert status.evaluate("node => getComputedStyle(node).color") != ordinary
     expect(position).not_to_have_attribute("data-lf-boundary", "")
 
     page.keyboard.press("Shift+t")
@@ -6489,6 +6493,7 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     help_el = page.locator(".lf-command-reference")
     close = page.get_by_role("button", name="Back to more shortcuts")
     expect(close).to_be_visible()
+    expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
     for command in [
         "test.projected-only",
         "response.reaction.choose",
@@ -7619,13 +7624,15 @@ def test_global_destinations_switch_from_a_covering_workspace(
         "panel => panel.contains(document.activeElement)"
     ), "Tab left the version popover but escaped its covering auxiliary surface"
 
+    # Escape unwinds to the menu's parent, More, whatever the user stood on before g V;
+    # the covering surface stays standing under it.
     origin.focus()
     page.keyboard.press("g")
     page.keyboard.press("Shift+v")
     expect(versions).to_be_visible()
     page.keyboard.press("Escape")
     expect(versions).to_be_hidden()
-    expect(origin).to_be_focused()
+    expect(page.locator(".lf-version")).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
 
 
@@ -7665,10 +7672,13 @@ def test_entering_a_covering_workspace_dismisses_an_existing_popover(browser, se
     expect(versions).to_be_visible()
     page.keyboard.press("ArrowUp")
     expect(versions.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
+    # Escape returns to the menu's parent, More.
     page.keyboard.press("Escape")
     expect(versions).to_be_hidden()
-    expect(origin).to_be_focused()
+    expect(page.locator(".lf-version")).to_be_focused()
+    page.keyboard.press("Escape")
 
+    origin.focus()
     resized(page, 1000, 800)
     panel_settled(page)
     expect(origin).to_be_focused()
@@ -9477,14 +9487,17 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     expect(visible_hints.nth(0)).to_contain_text("send")
     expect(visible_hints.nth(1)).to_contain_text("back to list")
 
-    # The pointer route remains while this text box owns `?`; the key face and
-    # accessible shortcut return when pressing the button moves focus out of the box.
-    more = page.get_by_role("button", name="More keyboard shortcuts", exact=True)
+    # The line shows only what works from where the user is. This text box owns `?`, so
+    # More stands down with its key rather than standing bare; it returns, key and all,
+    # when the user steps back out to the list.
     more_node = page.locator(".lf-shortcut-more")
     more_node.evaluate("button => window.__lfShortcutMore = button")
+    expect(more_node).to_be_hidden()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    more = page.get_by_role("button", name="? more", exact=True)
     expect(more).to_have_attribute("aria-expanded", "false")
-    expect(more.locator("kbd")).to_be_hidden()
-    expect(more).not_to_have_attribute("aria-keyshortcuts", re.compile(r".+"))
+    expect(more).to_have_attribute("aria-keyshortcuts", "?")
     more.click()
     help_el = page.locator(".lf-command-reference")
     search = page.get_by_role("combobox", name="Search commands")
@@ -10046,6 +10059,48 @@ def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
         expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
 
+def test_escape_from_the_versions_menu_returns_to_more(browser, serve):
+    """Escape unwinds what contains what. The version picker stands in More, so the
+    versions menu opens from inside More and Escape steps back there, onto the picker,
+    whichever route opened it; the next Escape closes More onto its door. It used to
+    land on the page, which left a keyboard user in the banner without their place
+    after this one surface and not after More or the status beside it.
+
+    The Threads panel is the other side of the same rule: its route is g T from the
+    page, so the page is its parent and Escape lands there."""
+    page = open_page(browser, serve(LONG_PAGE))
+    more = page.locator(".lf-banner-more")
+    menu = page.locator(".lf-banner-menu")
+    versions = page.locator(".lf-version-menu")
+    picker = page.locator(".lf-version")
+    for route in ("g V", "More"):
+        if route == "g V":
+            open_versions(page)
+        else:
+            more.focus()
+            page.keyboard.press("Enter")
+            expect(menu).to_be_visible()
+            picker.focus()
+            page.keyboard.press("Enter")
+        expect(versions).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(versions).to_be_hidden()
+        expect(menu).to_be_visible()
+        expect(picker).to_be_focused()
+        page.keyboard.press("Escape")
+        expect(menu).to_be_hidden()
+        expect(more).to_be_focused()
+        page.keyboard.press("Escape")
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel = page.locator(".lf-thread-panel")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(panel).to_be_hidden()
+    assert page.evaluate("() => !document.activeElement.closest('.lf-chrome')")
+
+
 def test_a_margin_marker_backs_out_onto_the_page_like_the_toggle(browser, serve):
     """A margin marker is placed in the document beside the words it marks, outside
     `.lf-chrome`, and the standing floor used to read that container to tell a
@@ -10159,9 +10214,7 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
     expect(comment).to_have_count(0)
     expect(movement).to_have_count(0)
     more = line.locator(".lf-shortcut-more")
-    expect(more.locator("kbd")).to_be_hidden()
-    expect(more).to_have_attribute("aria-label", "More keyboard shortcuts")
-    expect(more).not_to_have_attribute("aria-keyshortcuts", re.compile(r".+"))
+    expect(more).to_be_hidden()
     page.keyboard.press("c")
     expect(page.locator("#note")).to_have_value("c")
     expect(page.locator(".lf-command-reference")).to_be_hidden()

@@ -63,7 +63,6 @@ import {
 import { captureCarry, restoreCarry } from "./carry.js";
 import { retainUserIntent } from "./user-intent.js";
 import { patchTree } from "./dom-children.js";
-import { letGo } from "./focus.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
 import { commandShortcut } from "./keyboard/control-keys.js";
 import { focused, keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
@@ -95,7 +94,7 @@ import {
 import { LIVE_ROOT, PAGE_SCOPE, tabStore } from "./storage.js";
 import { alignInlineText } from "./text-alignment.js";
 import { el, keeps, layoutChanged, quoted, reveal } from "./widget-elements.js";
-import { showNews } from "./banner-toolbar.js";
+import { returnToBannerControl, showNews } from "./banner-toolbar.js";
 import { allButCommandReference, pageScope } from "./keyboard/register.js";
 import { pointerAt, restorePointer } from "./pointer.js";
 
@@ -299,11 +298,12 @@ export function createVersionController({
   // `source`, which buys the anchor and the invoker relationship and nothing about focus
   // — so every door into this menu shows it from the button, and a pointer press that
   // lands on the button gets it back. Escape is Leaf's, and the menu's own row performs
-  // the whole of it: the close, and then the page the menu stood over, which is where a
-  // layer's one step lands the user rather than on the picker in the banner. Scoping
-  // the platform handback to its door rather than to the state is what keeps it off a
-  // light dismissal, which restores nothing on purpose: a user who pressed away into
-  // the page is left where they pressed.
+  // the whole of it: the close, and then the menu's parent. The picker stands in More,
+  // so the menu opens from inside More and a layer's one step lands the user back there,
+  // on the picker, whichever route opened it. Scoping the platform handback to its door
+  // rather than to the state is what keeps it off a light dismissal, which restores
+  // nothing on purpose: a user who pressed away into the page is left where they
+  // pressed.
   function closeVersionMenu() {
     versionPicker.close();
   }
@@ -396,7 +396,7 @@ export function createVersionController({
   // The picker represents the menu standing, not whether it has multiple versions to walk.
   // It suspends page shortcuts and owns exact numbered destinations plus the Tab-boundary
   // handoff that a popover does not provide. Light dismissal stays native; Escape is the
-  // menu's own row (`version.close`), which closes it and lands the user on the page.
+  // menu's own row (`version.close`), which closes it and returns the user to More.
   const VERSIONS = {
     title: "In the versions menu",
     root: () => versionMenu,
@@ -474,7 +474,7 @@ export function createVersionController({
         promoteEscape: false,
         run: () => {
           closeVersionMenu();
-          letGo();
+          returnToBannerControl(versionBtn);
         },
       },
     ],

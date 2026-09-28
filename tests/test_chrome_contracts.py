@@ -1214,7 +1214,8 @@ def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
                 more["y"] + more["height"] / 2, abs=1
             ), (width, panel_open, geometry, more)
         pixels = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
-        accent = tuple(map(int, re.findall(r"\d+", token_colour(page, "--accent"))))
+        # The notice's own card ground, inside its padding: a scrim over it would tint it.
+        ground = tuple(map(int, re.findall(r"\d+", token_colour(page, "--card"))))
         assert (
             pixels.getpixel(
                 (
@@ -1222,7 +1223,7 @@ def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
                     round((geometry["top"] + geometry["bottom"]) / 2),
                 )
             )
-            == accent
+            == ground
         ), (width, panel_open, "the notice is covered by the panel or its scrim")
 
 

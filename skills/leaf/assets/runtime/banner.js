@@ -19,6 +19,7 @@ import { watchProjection } from "./projection-watch.js";
 import { createBannerApprovalFace } from "./banner-approval.js";
 import { createBannerStatusView } from "./banner-status-view.js";
 import { declareBanner } from "./geometry.js";
+import { nextRender, sizeObserver } from "./rendering.js";
 
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
@@ -629,8 +630,26 @@ export const isSignoffDeclared = () =>
 
 let signoff = false;
 
+// The banner wraps by what it holds (chrome.css), and the browser's wrap is the one
+// decision: this reports which it drew as `data-lf-banner-rows` on the root, where the
+// theme's --lf-banner-h reads it, so the document's head and every surface hung below
+// the banner follow the rows on screen. It watches the two boxes whose widths decide the
+// wrap. The write moves the document's head, and so the body other observers watch, so
+// it waits for the next frame rather than resizing a watched box during delivery; the
+// banner itself is sized by its lines (chrome.css) and is right in the frame it wraps.
+let rowsWrite = null;
+const bannerRows = sizeObserver(() => {
+  rowsWrite ??= nextRender(() => {
+    rowsWrite = null;
+    const wrapped =
+      bannerStatus.getClientRects().length > 0 &&
+      bannerActions.offsetTop > bannerStatus.offsetTop;
+    document.documentElement.dataset.lfBannerRows = wrapped ? "2" : "1";
+  });
+});
+
 // The banner's row mounts after the version picker and drawers exist. Its complete
-// inventory and order already belong to the toolbar's explicit registrations above.
+// inventory and order already belong to the shelf's explicit registrations above.
 export function mountBanner({ approveVersion, paintApproval }) {
   signoff = isSignoffDeclared() && runtime.currentStamp !== null;
   showBannerControl(approveBtn, signoff);
@@ -638,6 +657,8 @@ export function mountBanner({ approveVersion, paintApproval }) {
   for (const control of [asksBtn, othersBtn]) showNews(control, false);
   banner.append(bannerStatus, bannerActions);
   reserveBannerControls();
+  bannerRows.observe(bannerStatus);
+  bannerRows.observe(bannerActions);
   approveBtn.onclick = async () => {
     if (approving) return;
     // A refused press answers with its reason where every user sees it.

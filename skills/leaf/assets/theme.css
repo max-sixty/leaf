@@ -118,15 +118,23 @@
   position: static !important;
   color-scheme: light dark;
   /* The fixed banner's height also reserves the document's head. It lives in the
-     render-blocking theme so the initial document and eventual chrome share one box. */
+     render-blocking theme so the initial document and eventual chrome share one box.
+     The banner wraps by what it holds (chrome.css): its control run shares the status's
+     line while both fit, and takes a 36px-lower line of its own when they don't. Which
+     it drew is `data-lf-banner-rows` on the root (banner.js); before the runtime has
+     drawn a banner, the window's width stands in for it (below), which is right for a
+     phone either way up and for any desk window. */
   --lf-safe-top: env(safe-area-inset-top, 0px);
   --lf-safe-right: env(safe-area-inset-right, 0px);
   --lf-safe-bottom: env(safe-area-inset-bottom, 0px);
   --lf-safe-left: env(safe-area-inset-left, 0px);
-  --lf-banner-h: calc(42px + var(--lf-safe-top));
+  --lf-banner-row: 42px;
+  --lf-banner-rows: 1;
+  --lf-banner-h: calc(36px * (var(--lf-banner-rows) - 1) + var(--lf-banner-row)
+    + var(--lf-safe-top));
   /* The bottom bar: the keyboard's line and the status, held at the window's foot at one
-     stated height, as the banner is at its head. The page ends above it and a
-     full-height workspace is the window less the two, so nothing about the page's size is measured
+     stated height, as the banner is at its head. The page ends above it and a held
+     workspace is the window less the two, so nothing about the page's size is measured
      off the chrome (chrome.css, at the shortcut bar). */
   --lf-bottom-bar-h: calc(44px + var(--lf-safe-bottom));
   /* What a page reads of the chrome, and only where it needs a number: a box that fills
@@ -432,12 +440,22 @@
   --series-3: light-dark(#25966a, #50a069); --series-4: light-dark(#6c489a, #7a4faf);
   --series-5: light-dark(#8c2d2a, #b13d54);
 }
-@media screen and (width <= 840px) {
-  html:root { --lf-banner-h: calc(88px + var(--lf-safe-top)); }
+/* The narrow face a phone held upright wears (chrome.css) holds forty-pixel controls,
+   and a finger's row 44px aims wherever it stands. */
+@media screen and (width <= 480px) { :root { --lf-banner-row: 52px; } }
+@media screen and (pointer: coarse) { :root { --lf-banner-row: 53px; } }
+/* Until the runtime says which rows it drew, guess them. A phone held upright has no room
+   for the status beside its controls. A page that asks for sign-off puts Approval on the
+   row too (banner.js), which wraps any window narrower than about 660px. A wrong guess
+   costs one move of the document when the banner arrives. */
+@media screen and (width <= 480px) {
+  html:root:not([data-lf-banner-rows]) { --lf-banner-rows: 2; }
 }
-@media screen and (pointer: coarse) and (width > 840px) {
-  :root { --lf-banner-h: calc(53px + var(--lf-safe-top)); }
+@media screen and (width <= 660px) {
+  html:root:not([data-lf-banner-rows]):has(meta[name="lf-review"][content="sign-off"]) {
+    --lf-banner-rows: 2; }
 }
+html[data-lf-banner-rows="2"] { --lf-banner-rows: 2; }
 /* Only a live page draws the banner. Without one, what sticks below the banner sticks
    to the top of the window. */
 html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-bottom-bar-h: 0px; }
@@ -611,6 +629,7 @@ html { background: var(--paper); }
    * auxiliary surface covers the sample at the height its page already has: opening
    * one changes nothing about the containing page's layout. */
   html[data-lf-live][data-lf-contained] {
+    --lf-banner-row: 48px;
     --lf-banner-h: 48px;
     --lf-bottom-bar-h: 0px;
     overflow-y: hidden;

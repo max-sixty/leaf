@@ -1,7 +1,7 @@
 /* Drawer DOM and readonly visibility are safe to import before browser boot.
  * createDrawers binds modality transitions to explicit commands and paint functions;
  * mountDrawers installs the controls only after chrome has been attached. */
-import { el } from "./widget-elements.js";
+import { closeControl, el } from "./widget-elements.js";
 import { drawnEdge } from "./drawn-edge.js";
 import { slide } from "./motion.js";
 import { declareOccluder } from "./geometry.js";
@@ -12,7 +12,6 @@ import { pageRung } from "./keyboard/register.js";
 import { pagePresented } from "./presentation.js";
 import { allAsks } from "./asks/model.js";
 import { rowWalk } from "./walk-position.js";
-import { iconElement } from "./icons.js";
 import { createLiveLeavesList } from "./live-leaves-list.js";
 import { bannerControlDoor, dismissBannerControls } from "./banner-toolbar.js";
 import { createAskDrawerList } from "./asks/drawer-list.js";
@@ -60,10 +59,10 @@ export const DRAWER_SLOT_PROP = "--lf-drawer-slot-width";
 function drawerFurniture(panel, name, list = el("div", "lf-drawer-list")) {
   const head = el("div", "lf-drawer-head");
   const title = el("span", "lf-auxiliary-title", name);
-  const close = el("button", "lf-btn lf-icon-action lf-close-action");
-  close.append(iconElement("cross", "lf-action-icon"));
-  close.title = `Close ${name.toLowerCase()} (Esc)`;
-  close.setAttribute("aria-label", `Close ${name.toLowerCase()}`);
+  const close = closeControl({
+    name: `Close ${name.toLowerCase()}`,
+    title: `Close ${name.toLowerCase()} (Esc)`,
+  });
   list.classList.add("lf-drawer-list");
   head.append(title, close);
   panel.append(head, list);

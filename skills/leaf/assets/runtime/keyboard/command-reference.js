@@ -38,7 +38,7 @@ import {
   neutralStates,
 } from "./presentation.js";
 import { handBack, tabStops } from "../focus.js";
-import { el, keeps } from "../widget-elements.js";
+import { closeControl, keeps } from "../widget-elements.js";
 import { ELEMENTS, pageScope, pageScopes } from "./register.js";
 import { EVERYTHING } from "./text-entry.js";
 import {
@@ -65,28 +65,27 @@ commandReferenceDialog.setAttribute("aria-modal", "true");
 // Focused on open, so the dialog is not silent to a screen reader.
 commandReferenceDialog.tabIndex = -1;
 
-// Page-key presentation owns this retained native control's changing words and shortcut
+// Page-key presentation owns this retained native control's changing name and shortcut
 // metadata. The reference template only seats it.
-export const commandReferenceClose = el("button", "lf-btn lf-command-reference-close");
-commandReferenceClose.type = "button";
+export const commandReferenceClose = closeControl({
+  name: "Close the command reference",
+  className: "lf-command-reference-close",
+});
 
-// What the user is sent back to when the reference closes. The expanded shortcut bar is
-// the one surface that can stand behind it, and it declares itself here rather than being
-// read from here: the bar that expands already reads this module, so the edge only goes
-// one way. The close control's words and its Escape row read this one answer, so the
-// button and the key cannot promise different destinations.
+// What the user is sent back to when the reference closes. The shortcut shelf is the one
+// surface that can stand behind it, and it declares itself here rather than being read from
+// here: the bar that owns the shelf already reads this module, so the edge only goes one
+// way. The close control's name and its Escape row read this one answer, so the button and
+// the key cannot promise different destinations.
 let expandedBarBehindReference = () => false;
 export const declareExpandedBarBehindReference = (reading) => {
   expandedBarBehindReference = reading;
 };
 
 function presentCommandReferenceClose() {
-  const returningToMore = Boolean(expandedBarBehindReference());
-  const label = returningToMore ? "Back to more shortcuts" : "Close";
-  const title = returningToMore
+  const title = expandedBarBehindReference()
     ? "Back to more shortcuts"
     : "Close the command reference";
-  render(label, commandReferenceClose);
   keeps(commandReferenceClose, "data-lf-key-title", title);
   keeps(commandReferenceClose, "aria-label", title);
 }
@@ -762,6 +761,11 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   commandReferenceDialog.classList.toggle("open", open);
   if (open && !commandReferenceDialog.open) commandReferenceDialog.showModal();
   else if (!open && commandReferenceDialog.open) commandReferenceDialog.close();
+  // A closed dialog's search box keeps focus until the browser's next focus fixup, so the
+  // repaint below would read the user as still typing there, and the shortcut bar would
+  // keep the More it hands back to standing down. Release it with the dialog.
+  if (!open && commandReferenceDialog.contains(document.activeElement))
+    document.activeElement.blur();
 
   // The results are a real overflow region and must enter the modal Tab loop.
   if (open) reachScrollers(commandReferenceDialog);

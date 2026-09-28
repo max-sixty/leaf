@@ -1970,6 +1970,41 @@ def test_design_mode_leaves_leaves_surfaces_working_inside_a_widget(browser, ser
     ), sent
 
 
+def test_design_mode_settles_on_a_page_with_marked_elements(browser, serve):
+    """The legend follows the page's markup, not the runtime's own paint on it.
+
+    A mark rewrites its element's classes on every repaint, and a legend that heard those
+    writes as the page moving started the repaint that wrote them again, so a page with a
+    reaction or a comment on an element never stopped rendering while the mode stood."""
+    url = serve(
+        leaf_page(
+            "marked elements",
+            '<h1 id="t">Review</h1><p id="reacted">Reacted to.</p>'
+            '<p id="commented">Commented on.</p>',
+        )
+    )
+    for anchor, extra in (
+        ("reacted", {"token": "keep"}),
+        ("commented", {"text": "Why?"}),
+    ):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "anchor": {"section": anchor},
+                **extra,
+            },
+        )
+    page = open_page(browser, url)
+    expect(page.locator("#reacted.lf-react-el")).to_have_count(1)
+    expect(page.locator("#commented.lf-mark-el")).to_have_count(1)
+    page.keyboard.press("l")
+    expect(page.locator('.lf-legend-box[data-for="reacted"]')).to_be_visible()
+    rendered(page)
+
+
 def test_design_mode_leaves_prose_to_the_selection(browser, serve):
     """Words are still the way to point at words: a drag on prose selects, and the
     comment it raises is about design; a plain click on prose comments on the block.

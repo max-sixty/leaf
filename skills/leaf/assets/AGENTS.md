@@ -155,6 +155,14 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 through its `nextRender`, `nextFrame`, `cancelRender`, and `sizeObserver`, since
 lint refuses the browser's own.
 
+The browser moves what a scroll moves. A box that follows page content stands where
+CSS puts it, by an anchor, a sticky offset, or a scroll timeline, and no scroll handler
+writes its position, which would trail the scroll by a frame. Code that runs on a
+scroll, a frame, or a repeated reading writes only what changed (`widget-elements.js`,
+above `keeps`): while a highlight holds a range, Chrome repaints the whole document for
+any write, so a write per scroll event makes every page with a quoted comment judder.
+`test_a_scroll_writes_only_what_it_changes` holds both over the corpus.
+
 Stylesheets apply in layers. `theme.css` holds page tokens, element styles,
 idioms, and CSS-only widgets, and each package theme follows it; shared shadow
 rules compose into `/shadow.css`, whose shared `.lf-ui` face comes before

@@ -2686,34 +2686,22 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
         current_alignment["label"], abs=2
     ), f"the viewport lens parted from the current title: {current_alignment}"
 
-    # The lens is the viewport's position, not a destination travelling toward it.
-    # Capture the first style turn after the scroll: a transition can finish at the
-    # right place while still trailing every intermediate reading.
-    page.evaluate(
-        """() => {
-          const rows = document.querySelector('.lf-toc-rows');
-          const lens = document.querySelector('.lf-toc-window');
-          window.lfTocLensFrame = null;
-          new MutationObserver((records, observer) => {
-            if (!records.some(record => record.attributeName === 'style')) return;
-            const rowBox = rows.getBoundingClientRect();
-            const start =
-              parseFloat(rows.style.getPropertyValue('--lf-toc-window-start'));
-            window.lfTocLensFrame = {
-              actual: lens.getBoundingClientRect().top,
-              expected: rowBox.top + start,
-            };
-            observer.disconnect();
-          }).observe(rows, {attributes: true, attributeFilter: ['style']});
-        }"""
+    # The lens is the viewport's position, not a destination travelling toward it: the
+    # scroll itself moves it, so the first frame after the scroll finds it beside the
+    # title it scrolled to.
+    lens_frame = verify.evaluate(
+        """node => new Promise((resolve) => {
+          document.querySelector('#verify')
+            .scrollIntoView({block: 'start', behavior: 'instant'});
+          requestAnimationFrame(() => resolve({
+            lens: node.closest('nav').querySelector('.lf-toc-window')
+              .getBoundingClientRect().top,
+            label: node.getBoundingClientRect().top,
+          }));
+        })"""
     )
-    page.locator("#verify").evaluate(
-        "node => node.scrollIntoView({block: 'start', behavior: 'instant'})"
-    )
+    assert lens_frame["lens"] == pytest.approx(lens_frame["label"], abs=2), lens_frame
     expect(verify).to_have_attribute("aria-current", "location")
-    page.wait_for_function("() => window.lfTocLensFrame !== null")
-    lens_frame = page.evaluate("window.lfTocLensFrame")
-    assert lens_frame["actual"] == pytest.approx(lens_frame["expected"], abs=1)
     lens_after = lens.bounding_box()
     assert lens_after is not None
     assert lens_after["y"] > lens_before["y"] + nav_box["height"] * 0.08

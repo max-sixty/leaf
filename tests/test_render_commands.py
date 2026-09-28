@@ -821,6 +821,8 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
                  before="{sources[plain]}" after="{sources[patched]}"></lf-shot>
                <lf-shot id="shot-quiet-same" alt="nothing"
                  before="{sources[plain]}" after="{sources[plain]}"></lf-shot>
+               <lf-shot id="shot-quiet-tint" alt="a slight tint"
+                 before="{sources[plain]}" after="{sources[tinted]}"></lf-shot>
                </main>""",
         ),
         media={source: data for data, source in sources.items()},
@@ -858,8 +860,10 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
     expect(quiet.locator(".lf-shotdiff").first).to_be_hidden()
     expect(quiet.locator(".lf-shotdelta")).to_have_text("1 changed area")
     expect(quiet.locator(".lf-shotdelta")).to_be_hidden()
-    expect(page.locator("#shot-quiet-same .lf-shotdelta")).to_have_text("identical")
-    expect(page.locator("#shot-quiet-same .lf-shotdelta")).to_be_visible()
+    for shot, reading in (("same", "identical"), ("tint", "only slight changes")):
+        delta = page.locator(f"#shot-quiet-{shot} .lf-shotdelta")
+        expect(delta).to_have_text(reading)
+        expect(delta).to_be_visible()
 
 
 def test_a_shot_refuses_a_pair_shot_at_two_widths(browser, serve):

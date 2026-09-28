@@ -28,7 +28,8 @@
  * box of its changed pixels, in the images' own pixels, and regions come in reading
  * order.
  *
- * A before/after widget outlines the regions over both frames of its pair, and
+ * A before/after widget states the reading and, when asked, outlines the regions over
+ * both frames of its pair, and
  * `leaf-dev stills` loads this module into its browser on its own and crops a changed
  * state to them, so the module imports nothing and touches no document. */
 

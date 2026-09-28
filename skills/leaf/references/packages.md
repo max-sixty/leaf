@@ -229,7 +229,7 @@ rest explains its detailed contract. An entry's `x-example` must validate and is
 markup an author queries with that entry.
 
 A `boolean` attribute is present or absent, as in HTML, so it names what its presence
-turns on, and the widget's default is its absence: `lf-diff collapsed`,
+means, and the widget's default is its absence: `lf-diff collapsed`,
 `lf-options multiple`, `lf-shot outlines`. A feature a page usually wants is still
 off until the author asks for it, and the guidance that routes to the widget says
 when to ask.

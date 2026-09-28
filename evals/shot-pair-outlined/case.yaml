@@ -1,6 +1,8 @@
-# Added with lf-shot's `outlines` flag, which a pair must ask for. Against the branch's
-# previous wording (7fc92c8bd), where outlines were on unless `no-outlines`, no base run
-# wrote `outlines` (0 of 3) and every candidate run did (3 of 3).
+# Added with lf-shot's `outlines`, which a pair must ask for. Against the PR's earlier
+# wording, where every pair drew outlines unless it set `no-outlines`, no base run
+# could write `outlines` (0 of 3) and every candidate run did (3 of 3); the judgment
+# passed in both arms. So it measures that the guidance names the attribute, which a
+# page now needs for its outlines.
 schema_version: '1.0'
 name: shot-pair-outlined
 description: "Source files and media: a pair whose change is local asks for `outlines`, so the page marks where it is."
@@ -39,7 +41,7 @@ graders:
   input_match: authoring-evidence
 - name: pair-outlined
   type: regex
-  pattern: <lf-shot\b(?=[^>]*\bbefore=["'][^"']*header-before\.png)(?=[^>]*\bafter=["'][^"']*header-after\.png)(?=[^>]*\soutlines(?:=""|\s|/?>))
+  pattern: <lf-shot\b(?=[^>]*\bbefore=["'][^"']*header-before\.png)(?=[^>]*\bafter=["'][^"']*header-after\.png)(?=(?:[^>"']|"[^"]*"|'[^']*')*\soutlines(?:=""|\s|/?>))
   flags: i
 - name: judgment
   type: llm

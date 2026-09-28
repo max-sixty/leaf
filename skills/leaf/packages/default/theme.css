@@ -1473,8 +1473,8 @@ lf-shot .lf-shotcap[aria-pressed="false"] {
    place, so the region reads on either side of the divider. The marks take the pair's
    own frame (natural width by the taller image's height), stand a little outside what
    changed rather than over it, and stop at the frame's edge, so a region that reaches
-   the edge still shows its outline there. The rail says what the outlines add up to,
-   including a change with no outline: throughout the image, or only slight. */
+   the edge still shows its outline there. The rail counts the outlines, and says so
+   when there is none to draw: identical, throughout the image, or only slight. */
 lf-shot .lf-shotdiff { position: absolute; top: 0; left: 0; width: 100%;
     aspect-ratio: var(--lf-shot-ratio); pointer-events: none; }
 lf-shot .lf-shotdiff > span { position: absolute;
@@ -1484,8 +1484,8 @@ lf-shot .lf-shotdiff > span { position: absolute;
     bottom: max(0px, calc(100% - var(--lf-shot-y) - var(--lf-shot-h) - 4px));
     border: 2px solid var(--warn); border-radius: 2px; }
 lf-shot .lf-shotdelta { font-size: var(--t-6); color: var(--muted); }
-/* A pair with nothing to point at is what a handoff most often gets wrong, so its
-   reading is the one the rail raises. */
+/* A pair that is identical, or changed only slightly, is what a handoff most often
+   describes wrong, so the rail raises those readings. */
 lf-shot .lf-shotdelta:is([data-lf-shot-delta="identical"], [data-lf-shot-delta="slight"]) {
     color: var(--warn-ink); font-weight: 650; }
 /* The outlines, and the count they make up, show where the pair asks for them. */

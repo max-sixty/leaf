@@ -12,11 +12,10 @@
  *
  * Once the page has presented, the widget compares the two images pixel for pixel
  * (`runtime/image-difference.js` owns what counts as a difference) and puts its
- * `describeDifference` between the rail labels. A pair with nothing to point at, which
- * is identical, only slightly changed, or changed throughout, says so on every pair, so
- * a reader of one side of the divider, or of a screenshot of the page, still learns it.
- * With `outlines`, the pair also outlines each region that changed over both frames,
- * and the rail counts them. `difference` is that reading, in the images' own pixels,
+ * `describeDifference` between the rail labels. Every pair says when it is identical,
+ * only slightly changed, or changed throughout, so a reader of one side of the divider,
+ * or of a screenshot of the page, still learns it. With `outlines`, the pair also
+ * outlines each region that changed over both frames, and the rail counts them. `difference` is that reading, in the images' own pixels,
  * or null for a pair the widget refused; a parent that hides the rail states it from
  * there.
  * Pairs compare one per frame, so a page of large captures does not hold input for the

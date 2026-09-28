@@ -134,8 +134,9 @@ same viewport, of the versions the page compares. Before writing the prose and
 Add `outlines`, and the pair outlines each region where its images differ and counts
 them on its rail. Leave it off where most outlines would mark what the pair is not
 about, such as live data that moved between captures you cannot retake, and say in
-the prose where to look. Either way, the rail reads "identical" or "only slight
-changes" when nothing moved far enough to point at, and "changed throughout" when most
-of the image changed. Where it reads "identical" or "only slight changes", or no
-outline stands where the prose puts the change, capture a case that shows the change,
-or say that nothing changed.
+the prose where to look. Either way, the rail reads "identical", "only slight
+changes" where no pixel moved far, or "changed throughout" where most of the image
+changed. Where it reads "identical", or no outline stands where the prose puts the
+change, capture a case that shows the change, or say that nothing changed. Where it
+reads "only slight changes", the reader will hardly see the change, so name it in the
+prose, or say that nothing but redrawing changed.

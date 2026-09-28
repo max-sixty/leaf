@@ -8208,6 +8208,83 @@ def test_a_pin_in_a_pane_scrolls_with_it_and_leaves_with_its_target(browser, ser
     expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
 
 
+FOOTER_ASK_PAGE = leaf_page(
+    "an Ask in a pane's footer",
+    """
+  <div id="ask-split">
+    <lf-pane id="ask-pane" label="Summary">
+      <div id="ask-body">
+        <p>The change, summarised in a paragraph long enough to read as one.</p>
+        <div style="height: 1200px"></div>
+        <lf-ask id="body-ask">
+          <h3>Which follow-up comes first?</h3>
+          <lf-options id="body-choice" choose>
+            <lf-option id="body-bench">Benchmark selected-row demand</lf-option>
+            <lf-option id="body-dryrun">Close the dry-run gap</lf-option>
+          </lf-options>
+        </lf-ask>
+        <div style="height: 1200px"></div>
+      </div>
+      <footer>
+        <lf-ask id="foot-ask">
+          <h3>Merge this revision?</h3>
+          <lf-options id="foot-choice" choose>
+            <lf-option id="foot-approve">Approve and merge</lf-option>
+            <lf-option id="foot-hold">Hold for the benchmark</lf-option>
+          </lf-options>
+        </lf-ask>
+      </footer>
+    </lf-pane>
+    <lf-pane id="ask-other" label="Notes"><div><p>Notes.</p></div></lf-pane>
+  </div>
+""",
+    head=regions_side_by_side("ask-split"),
+    layout="workspace",
+)
+
+
+def test_a_pin_keeps_clear_only_of_controls_the_user_can_see(browser, serve):
+    """A pin goes below a control of the page level with it rather than take its
+    presses. The controls were read at their whole boxes, so a body Ask's controls
+    scrolled behind the pane's footer, where nobody can see or press them, pushed the
+    footer Ask's marker below the heading it stands beside."""
+    page = open_page(browser, serve(FOOTER_ASK_PAGE))
+    resized(page, 1440, 900)
+    pane_posture(page, page.locator("#ask-pane"), "bounded")
+    # Scroll the body until its Ask's last control, at the Ask's right edge where a pin
+    # stands, is behind the footer Ask's heading, with the body Ask's heading in view.
+    page.evaluate(
+        """() => {
+          const body = document.getElementById('ask-body');
+          const control = [...document.querySelectorAll('#body-ask button')].at(-1)
+            .getBoundingClientRect();
+          const heading = document.querySelector('#foot-ask > h3').getBoundingClientRect();
+          body.scrollTop += control.top - heading.top - 2;
+        }"""
+    )
+    margins_laid_out(page)
+    expect(
+        page.locator('[data-lf-margin-for="body-ask"] .lf-margin-marker')
+    ).to_be_visible()
+    marker = page.locator('[data-lf-margin-for="foot-ask"] .lf-margin-marker')
+    expect(marker).to_be_visible()
+    tops = page.evaluate(
+        """() => {
+          const hidden = [...document.querySelectorAll('#body-ask button')].at(-1)
+            .getBoundingClientRect();
+          const foot = document.querySelector('#ask-pane > footer').getBoundingClientRect();
+          return {
+            hiddenTop: hidden.top, footTop: foot.top,
+            heading: document.querySelector('#foot-ask > h3').getBoundingClientRect().top,
+            marker: document.querySelector('[data-lf-margin-for="foot-ask"] .lf-margin-marker')
+              .getBoundingClientRect().top,
+          };
+        }"""
+    )
+    assert tops["hiddenTop"] > tops["footTop"], tops
+    assert tops["marker"] == pytest.approx(tops["heading"], abs=1), tops
+
+
 def test_a_row_follows_its_target_through_a_scroller_inside_a_shadow_tree(
     browser, serve
 ):

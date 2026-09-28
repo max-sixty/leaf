@@ -18,10 +18,12 @@
      route may override `line` and `label` for the case where a nearer scope shadows only
      its sibling binding.
    - `label` optionally overrides the compact keycap in the command's own scope. A keyless
-     row must declare one, unless it is a Decision: its key is the digit its Ask gives it,
-     and the command reference names it only under that digit, while the user stands in
-     the Ask. An Ask shows the resolved binding beside that separate action name, so an
-     inline hint always says what the user actually presses.
+     row must declare one, unless it is a Decision. One an Ask seats (it carries the
+     Ask's `bindingBadge`) is pressed by the digit its Ask gives it, and the command
+     reference names it only under that digit, while the user stands in the Ask; any
+     other falls back to its `decision` name there. An Ask shows the resolved binding
+     beside that separate action name, so an inline hint always says what the user
+     actually presses.
    - `control` is the visible element that activates the capability. `decision` is a
      non-empty action-name string or a function returning one; it includes that command in
      its containing Ask. The row may carry an existing `bindingBadge`. Routes may carry

@@ -57,10 +57,10 @@ export function keySequenceModel(
   });
 }
 
-export function keySequenceTemplate(model, { id = null } = {}) {
+export function keySequenceTemplate(model, { id = null, label = false } = {}) {
   return html`<span
     id=${id ?? nothing}
-    class="lf-binding-sequence"
+    class=${`lf-binding-sequence${label ? " lf-key-label" : ""}`}
     role="group"
     aria-label=${model.label}
     >${repeat(

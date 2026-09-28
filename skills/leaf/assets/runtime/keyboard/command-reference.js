@@ -277,14 +277,16 @@ function captureCommandReferenceCatalog() {
     for (const rowInfo of rows) {
       for (const { id, route } of rowInfo.presentations) {
         const chosen = preferred.get(id);
-        // A Decision a widget declares without a key of its own is pressed by the digit
-        // its Ask gives it, which exists only while the user stands in that Ask. There
-        // the Ask's route presents it under that digit; anywhere else it has no press to
-        // name, and the Ask's own row says what the digits do.
+        // A keyless Decision an Ask seats (it carries the Ask's binding badge) is pressed
+        // by the digit that Ask gives it, which exists only while the user stands in the
+        // Ask. There the Ask's route presents it under that digit; anywhere else it has
+        // no press to name, and the Ask's own row says what the digits do. Any other
+        // keyless Decision, a draft's Edit, keeps its row under its control's name.
         if (
           !route &&
           rowInfo.declared.length === 0 &&
-          rowInfo.row.decision !== undefined
+          rowInfo.row.decision !== undefined &&
+          rowInfo.row.bindingBadge
         )
           continue;
         if (
@@ -312,6 +314,7 @@ function captureCommandReferenceCatalog() {
           sectionTitle,
           order: sectionEntries.length,
           sequenceControl: Boolean(rowInfo.row.sequenceControl),
+          keyLabel: rowInfo.declared.length === 0 && rowInfo.row.decision !== undefined,
           steps: Object.freeze(steps),
           keySequence: keySequenceModel(steps, neutralStates(steps), spokenSteps),
           action,
@@ -552,7 +555,10 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
       ?hidden=${!shown}
     >
       <td role="gridcell">
-        ${keySequenceTemplate(entry.keySequence, { id: entry.keyId })}
+        ${keySequenceTemplate(entry.keySequence, {
+          id: entry.keyId,
+          label: entry.keyLabel,
+        })}
       </td>
       ${actionCell}
     </tr>

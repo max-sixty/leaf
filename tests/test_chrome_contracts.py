@@ -1079,6 +1079,34 @@ def test_the_version_being_read_spans_the_versions_menu(browser, serve):
     assert reading["font"] == reading["menuFont"], reading
 
 
+def test_a_refused_approval_says_why_to_the_keyboard_and_the_finger(browser, serve):
+    """Approval waits until every Ask is answered, and the control says so to whoever
+    reaches it. Natively disabled, it held its reason in `title` alone: Tab skipped it,
+    so a keyboard user never learned why, and a finger never sees a title. It stays in
+    the tab order, refused by `aria-disabled` and described by its reason, and a press
+    shows the reason in the status line rather than approving."""
+    html = SUGGESTION_PAGE.replace(
+        "<title>suggestions</title>",
+        '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
+    )
+    url = serve(html)
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    approval = page.locator(".lf-signoff")
+    reason = "Answer every Ask before approving this work"
+    expect(approval).to_have_attribute("aria-disabled", "true")
+    expect(approval).to_have_attribute("aria-description", reason)
+    expect(approval).to_be_disabled()
+    page.locator(".lf-banner-more").focus()
+    page.keyboard.press("Tab")
+    expect(approval).to_be_focused()
+    before = events_model.read_events(serve.page_dir)
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-bottom-status .lf-notice")).to_have_text(reason)
+    expect(approval).to_have_text("Approve version")
+    assert events_model.read_events(serve.page_dir) == before
+
+
 def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf):
     """The fixed menu and primary row keep one reading order at every width."""
     html = SUGGESTION_PAGE.replace(

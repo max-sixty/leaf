@@ -1207,7 +1207,8 @@ def test_an_interactive_export_paints_a_widget_owned_text_box(browser, serve, tm
     """A text box paints in the standing paint, which an export mounts without chrome.
 
     A choosable group builds its addition field offline too. Its placeholder, disabled
-    Add and empty-field flag are that paint's, and typing repaints the flag."""
+    Add and empty-field flag are that paint's; focus alone repaints the placeholder with
+    its send key, and typing repaints the flag."""
     serve(ASK_PAGE)
     interactive = tmp_path / "interactive-addition.html"
     result = CliRunner().invoke(
@@ -1229,6 +1230,10 @@ def test_an_interactive_export_paints_a_widget_owned_text_box(browser, serve, tm
     expect(add).to_have_attribute("aria-disabled", "true")
     expect(add).to_have_attribute("data-lf-empty", "")
     expect(add).to_be_hidden()
+    field.click()
+    expect(field).to_have_attribute(
+        "placeholder", re.compile(r"^Another option — add to select \S")
+    )
     write(field, "Portrait sketch")
     expect(add).not_to_have_attribute("data-lf-empty", "")
 

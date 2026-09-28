@@ -12,7 +12,7 @@ differ between the two stills of a state.
 A state is an example, a viewport and color scheme, and the input that brings the page
 there from a fresh load (`DRIVERS`): a margin card opened by pointer or by keyboard, a
 reply being drafted, the Threads panel open, a board card grabbed, a code block
-focused. `leaf-dev probe --do drive:NAME` runs the same input. The catalogue (`STATES`)
+focused, a workspace pane focused. `leaf-dev probe --do drive:NAME` runs the same input. The catalogue (`STATES`)
 covers states a user reaches by acting, not only the page at rest, because a change
 can move what one of those states draws: a padding moved for layout covered the ring
 of a thread the keyboard had focused, which no resting page shows. Add a state where a
@@ -124,6 +124,13 @@ def code_focused(page: Page) -> None:
     )
 
 
+def pane_focused(page: Page) -> None:
+    """A workspace pane's body focused by keyboard: a pane standing flush with the
+    workspace's own scrollport, which clipped a ring drawn outside the body."""
+    page.keyboard.press("Tab")
+    page.locator("#sort-source").focus()
+
+
 DRIVERS: dict[str, Callable[[Page], None]] = {
     drive.__name__.replace("_", "-"): drive
     for drive in (
@@ -135,6 +142,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         composer,
         card_grabbed,
         code_focused,
+        pane_focused,
     )
 }
 
@@ -164,6 +172,9 @@ STATES = (
     State("triage-grabbed", "triage-board", card_grabbed),
     State("walkthrough-code", "pr-walkthrough", code_focused),
     State("walkthrough-code-dark", "pr-walkthrough", code_focused, scheme="dark"),
+    State("sort", "rust-sort", at_rest),
+    State("sort-pane", "rust-sort", pane_focused),
+    State("sort-pane-dark", "rust-sort", pane_focused, scheme="dark"),
 )
 
 

@@ -10,11 +10,13 @@ import {
   indicate,
   inlineMarkdownFragment,
   loadMarkdown,
+  nextRender,
   offer,
   once,
   onMotionPreferenceChange,
   reducedMotion,
   registerVisualParts,
+  sizeObserver,
 } from "/runtime/widget-api.js";
 import {
   INPUTS,
@@ -91,6 +93,7 @@ customElements.define(
     #C = null;
     #themeWatch = null;
     #autoPlayTimer = 0;
+    #laidOut = 0;
 
     connectedCallback() {
       this.#resolvePalette();
@@ -127,10 +130,27 @@ customElements.define(
         attributes: true,
         attributeFilter: ["data-theme", "class", "style"],
       });
+      // The drawing is laid out at the stage's width (sort.js, `geometry`), so a pane
+      // that changes width lays it out again. The new layout changes the stage's height,
+      // so it waits for the rendering pass after this delivery rather than feeding the
+      // height back into it.
+      let relayout = 0;
+      const sized = sizeObserver(() => {
+        if (relayout || this.#svgWidth() === this.#laidOut) return;
+        relayout = nextRender(() => {
+          relayout = 0;
+          if (!this.isConnected) return;
+          this.#layout();
+          this.#paint();
+          this.parts?.update();
+        });
+      });
+      sized.observe(this.stage);
       this.#themeWatch = () => {
         scheme.removeEventListener("change", repaint);
         stopMotionWatch();
         observer.disconnect();
+        sized.disconnect();
       };
       this.#paint();
     }
@@ -164,8 +184,18 @@ customElements.define(
       this.#C = C;
     }
 
+    // The SVG's own width, which the drawing's units are pixels of.
+    #svgWidth() {
+      return Math.round(this.svg.getBoundingClientRect().width);
+    }
+
+    #layout() {
+      this.#laidOut = this.#svgWidth();
+      this.painter.layout(this.#laidOut);
+    }
+
     #build() {
-      const stage = document.createElement("div");
+      const stage = (this.stage = document.createElement("div"));
       stage.className = "sort-stage";
       this.svg = document.createElementNS(SVGNS, "svg");
       this.svg.setAttribute("role", "img");
@@ -283,6 +313,7 @@ customElements.define(
 
       this.addEventListener("keydown", (e) => this.#key(e));
       this.append(stage, this.narration, this.timeline, bar, inputs, this.stats);
+      this.#layout();
       this.#load();
     }
 

@@ -180,6 +180,12 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * In this file, because a widget declaring x-shadow builds its controls in a tree the
  * document's stylesheet does not reach, and a floor that stopped at the light DOM would
  * be a floor the newest kind of widget is the one to fall through. */
+/* Every keyboard target no rule rings, the page's own among them — a link, a summary, a
+   block the runtime lands the user on — wears the layer's band. At no weight, so each
+   rule that rings its own control still wins. Left to the browser these drew its 1px
+   auto ring flush against the words, beside the 2px band on every Leaf control. */
+:where(:focus-visible) { outline: var(--here-ring); --lf-here-ring: focus;
+  outline-offset: var(--here-ring-gap); }
 [data-lf-offer]:where(:not([data-lf-offer=""])) { cursor: pointer; }
 [data-lf-offer]:where(:not([data-lf-offer=""])):hover:where(:not([aria-disabled="true"], :disabled)) {
   box-shadow: inset 0 0 0 100px color-mix(in srgb, var(--ink) 7%, transparent); }

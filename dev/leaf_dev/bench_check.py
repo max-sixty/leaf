@@ -243,7 +243,7 @@ def bench_check(base_ref: str | None) -> None:
     """Time `page check --render`, base vs HEAD.
 
     Runs `leaf page check --render` on a few examples with BASE_REF's plugin and
-    HEAD's, with no model; BASE_REF defaults to the merge base with origin/main.
+    HEAD's, with no model; BASE_REF defaults to the merge base with main.
     Prints Markdown tables of each arm's fastest run per page: wall time, a phase
     breakdown, the render passes by stage, and CPU time; every sample and trace
     lands in .tmp/bench-check/.

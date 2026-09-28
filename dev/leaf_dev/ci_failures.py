@@ -5,7 +5,7 @@ the commit branched from `main`.
     uv run leaf-dev ci-failures --run RUN_ID
 
 A branch may land red only when every failure also fails on its merge base with
-`origin/main` under the same CI job, with the base SHA's own run as the control
+`main` under the same CI job, with the base SHA's own run as the control
 (`.claude/skills/developing-leaf/SKILL.md`, "Land a change"). This command makes that
 comparison for REF (default HEAD). The branch's reading is every `ci` run GitHub holds
 for REF's SHA, a pull request's included; the base's excludes pull-request runs, which
@@ -278,9 +278,7 @@ def report_alone(title: str, jobs: dict[str, Job]) -> None:
 def compare(sha: str, base: str, branch: dict[str, Job], based: dict[str, Job]) -> bool:
     """Print the comparison; return whether the branch may land."""
     names = list(dict.fromkeys([*branch, *based]))
-    click.echo(
-        f"branch {sha[:9]} vs base {base[:9]}, its merge base with origin/main\n"
-    )
+    click.echo(f"branch {sha[:9]} vs base {base[:9]}, its merge base with main\n")
     jobs = [(n, cell(branch.get(n)), cell(based.get(n))) for n in names]
     click.echo(table(("job", "branch", "base"), jobs))
 

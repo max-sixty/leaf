@@ -17,7 +17,7 @@ Every mutation is a patch, applied with `git apply`, whose context lines are the
 anchor: a patch whose context no longer matches refuses to apply, so a stale anchor
 stops the run, before the control, instead of reading as a blind test. The default
 mutation is the branch's change: `git diff HEAD BASE`, BASE being the merge base with
-`origin/main` or `--base` for a branch stacked on another, over every path but the
+`main` or `--base` for a branch stacked on another, over every path but the
 tests, the tooling they import (`tests/`, `dev/`), and the environment's manifests and
 locks, which stay HEAD's. Compiled bundles are committed, so the revert takes them back with
 their sources. `--flip` names patches instead, one mutation each, named by its file:
@@ -200,7 +200,7 @@ def mutate(scratch: Path, name: str, patch: bytes, out: Path) -> str | None:
 @click.option(
     "--base",
     help="Where the branch starts, for a branch stacked on another; "
-    "the merge base with origin/main by default.",
+    "the merge base with main by default.",
 )
 def bugback(
     selection: tuple[str, ...], flips: tuple[Path, ...], base: str | None

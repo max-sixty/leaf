@@ -69,6 +69,15 @@ export function threadReading(
   const kind = resolved ? "unresolve" : "resolve";
   const word = resolved ? "Reopen" : "Resolve";
   const label = resolved ? word : "Resolve thread";
+  const attention = threadAttention(thread);
+  const messages = turns(thread).map((message) =>
+    messageReading(message, {
+      panel,
+      nativeAuthored: panel && commands.nativeAuthored !== false,
+      reactions: reactionReading(thread, message, panel || surface === "outlet"),
+      workflows: message.workflows,
+    }),
+  );
   return Object.freeze({
     key: threadKey(thread),
     summary: threadSummary(thread),
@@ -86,7 +95,14 @@ export function threadReading(
     search,
     quote: panel ? quoteReading(thread, commands.anchors) : null,
     resolved,
-    attention: threadAttention(thread),
+    attention,
+    // A waiting thread's status is the stage of one message's workflow, which that
+    // message already draws in its own header. The summary repeats it only for the
+    // folded row, where no message shows; whose turn it is stays, since no message
+    // says that.
+    statusFolded:
+      attention?.kind === "waiting" &&
+      messages.some((message) => message.workflow?.id === attention.workflow?.id),
     resolvedBy:
       thread.resolved?.author === "agent"
         ? `✓ Resolved by ${thread.resolved.agent}`
@@ -96,16 +112,7 @@ export function threadReading(
     settlement: Object.freeze({ kind, word, label, pending: settling }),
     reply: !resolved,
     summaries: panel ? Object.freeze(thread.summaries) : Object.freeze([]),
-    messages: Object.freeze(
-      turns(thread).map((message) =>
-        messageReading(message, {
-          panel,
-          nativeAuthored: panel && commands.nativeAuthored !== false,
-          reactions: reactionReading(thread, message, panel || surface === "outlet"),
-          workflows: message.workflows,
-        }),
-      ),
-    ),
+    messages: Object.freeze(messages),
   });
 }
 
@@ -119,6 +126,10 @@ function navigationSummary(navigation, model) {
   const hasMeta = draft || status || model.unreadCount;
   // Until the agent names the thread, the title slot says so in words drawn apart from
   // any title; the theme sweeps a highlight through them while the naming is under way.
+  // The meta row digests a folded card. What the open card shows elsewhere is marked
+  // `data-lf-folded`: the draft stands in the reply box and the unread messages behind
+  // their boundary, so typing or an arriving reply doesn't grow the row and move the
+  // card under the reader.
   return html`<summary
     class="lf-thread-summary"
     title=${pendingTitle ? nothing : title}
@@ -127,12 +138,13 @@ function navigationSummary(navigation, model) {
       >${pendingTitle ? "Generating title" : title}</span
     >
     <span class=${`lf-thread-meta${hasMeta ? "" : " lf-empty"}`}>
-      ${draft ? html`<span class="lf-thread-draft">Draft</span>` : nothing}
+      ${draft ? html`<span class="lf-thread-draft" data-lf-folded>Draft</span>` : nothing}
       ${
         status
           ? html`<span
               class="lf-thread-status"
               data-lf-turn=${model.attention?.kind === "needs_user" ? "user" : nothing}
+              data-lf-folded=${model.statusFolded ? "" : nothing}
               title=${
                 model.attention?.secondary
                   ? `${status} · ${model.attention.secondary}`
@@ -146,6 +158,7 @@ function navigationSummary(navigation, model) {
         model.unreadCount
           ? html`<span
               class="lf-thread-unread"
+              data-lf-folded
               aria-label=${`${model.unreadCount} unread`}
               >${model.unreadCount} unread</span
             >`

@@ -3469,6 +3469,21 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_workflow).to_have_count(1)
     expect(other_workflow).to_have_count(1)
     expect(other_workflow).to_have_text("Sent")
+    # The panel keeps one thread open. A folded row names the stage, since it shows no
+    # message; the open one's message names it beside itself, so its summary does not
+    # say it a second time.
+    header_status = held_thread.locator(":scope > .lf-thread-summary .lf-thread-status")
+    held_summary = held_thread.locator(":scope > .lf-thread-summary")
+    expect(held_thread).to_have_js_property("open", True)
+    expect(header_status).to_have_text("Working")
+    expect(header_status).to_be_hidden()
+    other_thread.locator(":scope > .lf-thread-summary").click()
+    expect(held_thread).to_have_js_property("open", False)
+    expect(header_status).to_be_visible()
+    held_summary.click()
+    expect(held_thread).to_have_js_property("open", True)
+    expect(header_status).to_be_hidden()
+    expect(held_workflow).to_be_visible()
     # The move's state is metadata on the exact outgoing message, closing that row
     # rather than taking a full-width row of its own. Resolve settles the thread, not
     # the message, so it stands in the thread's corner and the row ends here.
@@ -3535,7 +3550,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # in the compact card. It does not invent an unasked message workflow.
     status("working", "re-running it against the rolling deploy", "--on", held)
     expect(held_workflow).to_have_count(0)
-    expect(held_thread.locator(".lf-thread-status")).to_have_text("Working")
+    expect(header_status).to_have_text("Working")
+    # No message carries this work, so the open card's summary still says it.
+    expect(header_status).to_be_visible()
     expect(held_thread.locator(":scope > .lf-msg-sending")).to_have_count(0)
     expect(workflows).to_have_count(1)
 

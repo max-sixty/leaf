@@ -1205,10 +1205,18 @@ lf-card { display: block; position: relative; background: var(--card);
    module, no var, no room, so paper and quoted boards, neither of which grows a grip,
    keep none; paper keeps the vars in the style attribute, which is why the rule asks
    the medium too. The float is generated rather than the grip itself floated, which
-   would have to come first in the card and so be read before its title. */
+   would have to come first in the card and so be read before its title.
+
+   Under a finger the grip is the aim floor tall and reaches past a one-line title. The
+   prose lines running on after the title wrap beside it, which is right, since its box
+   takes their presses; but a block that lays itself out on its own (a pre, a table) was
+   set beside the float for its whole height, 44px narrower than the card. So every
+   block after the card's first child clears the grip: it starts under the grip's box
+   and takes the card's width. An inline child ignores `clear`. */
 @media screen {
   lf-card::before { content: ""; float: right; inline-size: var(--lf-grip-room, 0px);
                     block-size: var(--lf-grip-block, 0px); margin-block-start: -10px; }
+  lf-card > :not(:first-child) { clear: right; }
 }
 lf-card:last-child { margin-bottom: 0; }
 lf-card > strong { display: block; font-weight: 600; line-height: 1.4; margin: 0 0 2px; }

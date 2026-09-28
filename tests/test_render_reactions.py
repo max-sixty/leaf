@@ -2354,6 +2354,18 @@ def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
     assert reading() == []
     assert tokens() == [], "a release off the list reacted"
 
+    # A press with a modifier held is the platform's (ctrl-click is the Mac's context
+    # menu): it reads no word, and a release on another choice reacts with nothing.
+    page.keyboard.down("Control")
+    page.mouse.move(**centre("keep"))
+    page.mouse.down()
+    assert reading() == []
+    page.mouse.move(**centre("change"))
+    page.mouse.up()
+    page.keyboard.up("Control")
+    assert reading() == []
+    assert tokens() == [], "a modified press reacted on its release"
+
     touch("touchStart", centre("clarify"))
     touch("touchEnd")
     expect(strip.locator('.lf-react[data-token="clarify"]')).to_have_attribute(

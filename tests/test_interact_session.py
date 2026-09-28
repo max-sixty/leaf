@@ -12340,7 +12340,9 @@ def test_session_end_does_not_start_uv_before_the_plugin_environment_exists(
     )
     package = project / "skills" / "leaf" / "scripts" / "leaf"
     package.parent.mkdir(parents=True)
-    package.symlink_to(PLUGIN_ROOT / "skills" / "leaf" / "scripts" / "leaf", target_is_directory=True)
+    package.symlink_to(
+        PLUGIN_ROOT / "skills" / "leaf" / "scripts" / "leaf", target_is_directory=True
+    )
     tools = tmp_path / "tools"
     tools.mkdir()
     uv = tools / "uv"
@@ -12431,15 +12433,21 @@ def test_cold_session_end_releases_a_claim_from_another_checkout(tmp_path, page_
     project = tmp_path / "cold-plugin"
     guard = project / "hooks" / "scripts" / "loop-guard.py"
     guard.parent.mkdir(parents=True)
-    guard.write_bytes((PLUGIN_ROOT / "hooks" / "scripts" / "loop-guard.py").read_bytes())
+    guard.write_bytes(
+        (PLUGIN_ROOT / "hooks" / "scripts" / "loop-guard.py").read_bytes()
+    )
     package = project / "skills" / "leaf" / "scripts" / "leaf"
     package.parent.mkdir(parents=True)
-    package.symlink_to(PLUGIN_ROOT / "skills" / "leaf" / "scripts" / "leaf", target_is_directory=True)
+    package.symlink_to(
+        PLUGIN_ROOT / "skills" / "leaf" / "scripts" / "leaf", target_is_directory=True
+    )
     record_claim(page_dir, id="cross-checkout")
 
     ended = subprocess.run(
         [sys.executable, str(guard)],
-        input=json.dumps({"hook_event_name": "SessionEnd", "session_id": "cross-checkout"}),
+        input=json.dumps(
+            {"hook_event_name": "SessionEnd", "session_id": "cross-checkout"}
+        ),
         env=os.environ | {"PATH": str(tmp_path / "no-uv")},
         capture_output=True,
         text=True,

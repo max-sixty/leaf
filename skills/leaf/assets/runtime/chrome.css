@@ -1502,9 +1502,20 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     max-height: var(--lf-thread-max-height,
       calc(100vh - var(--lf-banner-h) - 16px));
     box-sizing: border-box; overflow: hidden; scroll-padding-block: var(--focus-ring-room);
-    margin: 0; padding: 12px; border: 1px solid var(--border-2); border-radius: 10px;
+    margin: 0; padding: 12px calc(12px - var(--focus-ring-room));
+    border: 1px solid var(--border-2); border-radius: 10px;
     background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px var(--shade); }
   .lf-margin-preview:not([hidden]) { display: flex; flex-direction: column; }
+  /* The card is the thread's one frame. The thread fills it with no ground or ring of its
+     own, so the keyboard standing on the thread rings the card: the ring takes the
+     card's edge in place of its border, inset, since the card stands over the page and
+     nothing outside it is free. It used to ring and tint the thread 13px inside the
+     card's own border, a frame in a frame with the reply field a third box inside
+     that. The reply field keeps its box, since that is the thing typed into. The ring is
+     still the thread's (shadow.css names it page-thread); the card only carries it. */
+  .lf-margin-preview:has(.lf-page-thread:is(:focus-visible, .lf-focus-visible)) {
+    outline: var(--focus-ring); --lf-focus-ring: page-thread;
+    outline-offset: calc(-1 * var(--focus-ring-w)); }
   .lf-thread-transition { position: fixed; z-index: var(--lf-z-thread-transition); margin: 0;
     padding-inline: 12px; overflow: hidden; pointer-events: none;
     white-space: pre-wrap; }
@@ -1526,7 +1537,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      controls share one sticky metadata row. */
   .lf-margin-preview-list { display: grid; gap: 4px;
     min-height: 0; overflow-y: auto; overscroll-behavior: contain;
-    scroll-padding-block: var(--focus-ring-room); }
+    scroll-padding-block: var(--focus-ring-room);
+    /* The list clips to its padding box, so the controls ringing outward at the
+       thread's sides keep their room here; the card's inline padding gives it back. */
+    padding-inline: var(--focus-ring-room); }
   .lf-margin-thread { min-width: 0; padding-top: 10px; border-top: 1px solid var(--rule); }
   .lf-margin-thread:first-child { padding-top: 0; border-top: 0; }
   /* The thread's first message opens directly at the card edge. */
@@ -1534,14 +1548,18 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* Following messages keep their top margin; the sticky reply owns the final gap
      so its opaque background covers text scrolling beneath it. */
   .lf-margin-thread .lf-page-thread-msg { margin-bottom: 0; }
-  /* The reply uses the scroll area's width while its text shares the
-     thread column. The thread's foot padding moves into the pinned reply below. */
-  .lf-margin-thread .lf-page-thread { padding-inline: 12px; padding-bottom: 0; }
-  /* The reply surround shares the thread's opaque surface, including its focus
-     tint, so pinning the reply cannot introduce a separate background band. The surface
-     is a default the thread's own states paint over (shadow.css), so it stands in their
-     layer, where their selectors outrank it. */
-  @layer lf-base { :where(.lf-margin-thread) .lf-page-thread { background: var(--paper); } }
+  /* The thread fills the card. The reply field's box stands at the card's padding and
+     the thread's words at the field's own words, one inset in; the thread's foot
+     padding moves into the pinned reply below. */
+  .lf-margin-thread .lf-page-thread { padding-inline: var(--sp-2); padding-bottom: 0; }
+  /* The thread's surface is the card's paper whatever its focus, so pinning the reply
+     cannot introduce a separate background band, and the tint and inset ring the thread
+     wears elsewhere (shadow.css) give way to the card's ring above. */
+  .lf-margin-thread .lf-page-thread { background: var(--paper); }
+  .lf-margin-thread .lf-page-thread::after { content: none; }
+  @media (forced-colors: active) {
+    .lf-margin-thread .lf-page-thread:is(:focus-within, .lf-focus-within) { outline: none; }
+  }
   /* Pinned to the transcript's foot, the row keeps its controls' ring room as bottom
      padding (the compact ring's room, in this file's header), and with it the thread's
      own foot padding, so nothing lies under the row in flow: it stands on the

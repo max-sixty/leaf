@@ -1090,7 +1090,7 @@ lf-metric[direction="up-bad"][delta^="+"] > [data-lf-said="delta"]
  * following space. Long unbreakable runs (a path, a sha) still
  * break where they must; that is the page-wide bargain and no width buys it back.
  *
- * The grip's column is in the floor for the same reason it is in the card's padding: it
+ * The grip's width is in the floor because a card's title is set beside it (below): it
  * is room only where a grip hangs, so paper, copies and quoted boards floor a column at
  * the measure and its insets alone. */
 /* The board's minimum is every column at its floor and the gaps between them. A layout
@@ -1191,16 +1191,24 @@ lf-card { display: block; position: relative; background: var(--card);
           border: 1px solid var(--rule); border-radius: var(--r);
           padding: 12px var(--lf-card-inset); margin: 0 0 var(--sp-2);
           container-type: inline-size; --lf-block-frame: 1; }
-/* The column the grip hangs in, spent only where a grip hangs: the module measures its
-   own grip's box and states the room (--lf-grip-room, lf-board.js), the same answer the
-   pick column already is, so the ladder moving or a platform substituting a different
-   glyph re-measures itself. The number this replaces was 34px read out of a browser
-   once — and stated unconditionally, so paper and quoted boards, neither of which ever
-   grows a grip, carried a dead column beside every card. No module, no var, no room;
-   paper keeps the var in the style attribute, which is why the rule asks the medium
-   too. */
+/* The room the grip takes, spent only beside the grip: an empty float the grip's own
+   size stands in the card's top corner, so the lines level with the grip (the title's,
+   and on a finger's taller grip the first line after it) stop short of it, and what
+   runs below takes the card's whole width. It used to be a column down the card's full
+   height, which set a 188px card's prose at 136px under a 30px glyph. The float starts
+   where the grip does, 2px under the card's edge and so 10px above its 12px padding,
+   and its width keeps the card's inset between the words and the grip.
+
+   The module measures its own grip's box and states both sides of it (--lf-grip-room,
+   --lf-grip-block; lf-board.js), the same answer the pick column already is, so the
+   ladder moving or a platform substituting a different glyph re-measures itself. No
+   module, no var, no room, so paper and quoted boards, neither of which grows a grip,
+   keep none; paper keeps the vars in the style attribute, which is why the rule asks
+   the medium too. The float is generated rather than the grip itself floated, which
+   would have to come first in the card and so be read before its title. */
 @media screen {
- lf-card { padding-right: calc(var(--lf-card-inset) + var(--lf-grip-room, 0px)); }
+  lf-card::before { content: ""; float: right; inline-size: var(--lf-grip-room, 0px);
+                    block-size: var(--lf-grip-block, 0px); margin-block-start: -10px; }
 }
 lf-card:last-child { margin-bottom: 0; }
 lf-card > strong { display: block; font-weight: 600; line-height: 1.4; margin: 0 0 2px; }

@@ -2958,6 +2958,62 @@ def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve):
     assert render_gate_model.render_version(browser, url).failures == []
 
 
+FRAMED_TABLES_PAGE = leaf_page(
+    "Framed tables",
+    """
+<h1 id="t">Checks</h1>
+<table id="bare"><tr><th scope="row">Error rate</th><td><code>0.11%</code></td></tr></table>
+<section class="panel" id="checks">
+<h2>Checks</h2>
+<table id="framed"><thead><tr><th>Check</th><th>Observed</th></tr></thead>
+<tbody><tr><th scope="row">Error rate</th><td><code>0.11%</code> / below <code>0.50%</code></td></tr></tbody></table>
+</section>
+<section class="panel" id="wide-checks">
+<h2>Sessions</h2>
+<table id="wide-framed"><tr>{cells}</tr></table>
+</section>
+""".format(cells="".join(f"<td>value_number_{i}</td>" for i in range(10))),
+)
+
+
+def test_a_table_in_a_drawn_frame_fills_it_and_a_bare_one_keeps_to_its_content(
+    browser, serve
+):
+    """A table directly in a panel runs its rules to the panel's inner edge, where they
+    used to stop short and read as a table cut off; the same table in the column keeps
+    to what its columns hold. A table too wide for the panel still scrolls inside it.
+    Code in a cell is set relative to the cell's text rather than at the chip size."""
+    url = serve(FRAMED_TABLES_PAGE)
+    page = open_page(browser, url)
+    measured = page.evaluate(
+        """() => {
+        const inner = (box) => {
+            const r = box.getBoundingClientRect(), s = getComputedStyle(box);
+            return r.right - parseFloat(s.paddingRight) - parseFloat(s.borderRightWidth);
+        };
+        const rowEnd = (t) => t.querySelector('tr:last-child').getBoundingClientRect().right;
+        const bare = document.querySelector('#bare'), framed = document.querySelector('#framed');
+        const wide = document.querySelector('#wide-framed');
+        const cell = framed.querySelector('td'), code = cell.querySelector('code');
+        return {
+            framedShort: Math.round(inner(framed.parentElement) - rowEnd(framed)),
+            bareShort: Math.round(inner(bare.parentElement) - rowEnd(bare)),
+            wideScrolls: wide.scrollWidth - wide.clientWidth,
+            wideInside: Math.round(inner(wide.parentElement) - wide.getBoundingClientRect().right),
+            codeRatio: parseFloat(getComputedStyle(code).fontSize)
+                / parseFloat(getComputedStyle(cell).fontSize),
+        };
+    }"""
+    )
+    assert abs(measured["framedShort"]) <= 1, measured
+    assert measured["bareShort"] > 100, "the bare table fills its column"
+    assert measured["wideScrolls"] > 0 and measured["wideInside"] >= 0, measured
+    assert measured["codeRatio"] == pytest.approx(0.9, abs=0.01), measured
+    assert root_overflow(page) == 0
+    page.close()
+    assert render_gate_model.render_version(browser, url).failures == []
+
+
 def test_a_scrolling_table_keeps_its_caption_and_status_words_whole(browser, serve):
     """A table that scrolls its columns keeps its caption on the part of it on screen,
     where the caption used to run on past the scrollport; and a status tag in a narrow

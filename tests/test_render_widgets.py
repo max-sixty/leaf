@@ -3575,6 +3575,59 @@ def test_a_board_at_its_floor_scrolls_rather_than_breaking_a_card_s_words(
     )
 
 
+GRIPPED_CARD_PAGE = leaf_page(
+    "Gripped card",
+    """
+<h1 id="t">Release triage</h1>
+<lf-board id="gripped">
+  <lf-column id="col-a" label="Fix in 2.4.1">
+    <lf-card id="card-a"><strong>Webhook retries ignore the Retry-After header</strong>
+      Three partners rate limit us during their own deploys, and we back off on a fixed
+      schedule that ignores what they asked for.</lf-card>
+  </lf-column>
+  <lf-column id="col-b" label="Defer"></lf-column>
+  <lf-column id="col-c" label="Repro"></lf-column>
+</lf-board>
+""",
+    # Justified, so each full line ends where the card lets it rather than at a word.
+    head="<style>#card-a { text-align: justify; }</style>",
+)
+
+
+def test_only_a_card_s_title_clears_its_grip(browser, serve):
+    """The grip stands at the card's top corner and the lines beside it, the title's,
+    stop short of it; the prose below runs the card's whole width, where it used to be
+    set in a column that kept clear of the grip down the card's full height. No line
+    stands under the grip's box, so a press there is always the grip's."""
+    page = open_page(browser, serve(GRIPPED_CARD_PAGE))
+    measured = page.locator("#card-a").evaluate(
+        """(card) => {
+        const grip = card.querySelector(':scope > .lf-grip').getBoundingClientRect();
+        const range = document.createRange(), lines = [];
+        const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            if (node.parentElement.closest('.lf-grip') || !node.textContent.trim()) continue;
+            range.selectNodeContents(node);
+            for (const r of range.getClientRects())
+                lines.push({title: node.parentElement.localName === 'strong',
+                            top: r.top, bottom: r.bottom, right: r.right});
+        }
+        const beside = (l) => l.top < grip.bottom && l.bottom > grip.top;
+        return {
+            under: lines.filter((l) => beside(l) && l.right > grip.left).length,
+            titleBeside: lines.some((l) => l.title && beside(l)),
+            // Past the grip's left edge is the room the column held back.
+            prose: lines.filter((l) => !l.title && !beside(l)).slice(0, -1)
+                .map((l) => Math.round(l.right - grip.left)),
+        };
+    }"""
+    )
+    assert measured["titleBeside"], measured
+    assert measured["under"] == 0, measured
+    # Every full line of prose below the grip runs into the room beneath it.
+    assert measured["prose"] and all(d > 0 for d in measured["prose"]), measured
+
+
 def test_a_phone_board_gives_its_column_room_and_keeps_the_next_one_discoverable(
     browser, serve
 ):

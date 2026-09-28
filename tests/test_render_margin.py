@@ -771,6 +771,65 @@ def test_a_transient_margin_entry_label_avoids_the_next_margin_entry(browser, se
     )
 
 
+QUESTION_MARKERS_PAGE = leaf_page(
+    "Question markers",
+    """
+<h1 id="h">Two open questions</h1>
+<lf-ask id="short-ask"><h2>Where should sessions live?</h2>
+<lf-options id="short-choice" choose>
+  <lf-option id="short-a"><strong>Keep the store</strong></lf-option>
+  <lf-option id="short-b"><strong>Signed tokens</strong></lf-option>
+</lf-options></lf-ask>
+<p id="between">Between the two questions, a paragraph of ordinary prose.</p>
+<lf-ask id="long-ask"><h2>Should the nightly export keep writing one file per tenant,
+or roll every tenant into a single partitioned archive?</h2>
+<lf-options id="long-choice" choose>
+  <lf-option id="long-a"><strong>One file per tenant</strong></lf-option>
+  <lf-option id="long-b"><strong>One archive</strong></lf-option>
+</lf-options></lf-ask>
+""",
+)
+
+
+def test_an_ask_marker_s_label_is_its_question_on_one_line(browser, serve):
+    """Hovering an Ask's marker shows the Ask's question, where it used to show only
+    "Ask…", which the marker's glyph already says. The label is one line: a question
+    longer than the label's room is cut there, and the marker's accessible name goes on
+    past the cut."""
+    page = open_page(browser, serve(QUESTION_MARKERS_PAGE))
+    resized(page, 1440, 900)
+    read = """(marker) => {
+        const word = marker.querySelector('.lf-margin-entry-label-word');
+        const style = getComputedStyle(word);
+        return {text: word.textContent, name: marker.getAttribute('aria-label'),
+                lines: Math.round(word.getBoundingClientRect().height
+                                  / parseFloat(style.lineHeight)),
+                cut: word.scrollWidth > word.clientWidth,
+                ellipsis: style.textOverflow};
+    }"""
+    seen = {}
+    for ask in ("short-ask", "long-ask"):
+        marker = page.locator(f'.lf-margin-marker[data-lf-margin-for="{ask}"]')
+        if not marker.count():
+            marker = page.locator(
+                f'[data-lf-margin-for="{ask}"] .lf-margin-marker[data-lf-kinds~="ask"]'
+            )
+        marker.scroll_into_view_if_needed()
+        marker.hover()
+        expect(marker.locator(".lf-margin-entry-label")).to_be_visible()
+        seen[ask] = marker.evaluate(read)
+    question = page.locator("#long-ask h2").evaluate(
+        "h => h.textContent.replace(/\\s+/g, ' ').trim()"
+    )
+    assert seen["short-ask"]["text"] == "Where should sessions live?", seen
+    assert seen["short-ask"]["lines"] == 1 and not seen["short-ask"]["cut"], seen
+    assert seen["long-ask"]["text"] == question, seen
+    assert seen["long-ask"]["lines"] == 1 and seen["long-ask"]["cut"], seen
+    assert seen["long-ask"]["ellipsis"] == "ellipsis", seen
+    # Past where the label is cut, the name still has the question's words.
+    assert "roll every tenant" in seen["long-ask"]["name"], seen
+
+
 @pytest.mark.parametrize("width", [1440, 390])
 def test_dense_suggestion_labels_cover_no_neighboring_margin_entry(
     browser, serve, width
@@ -5333,12 +5392,13 @@ def test_the_margin_reply_pinned_to_the_card_foot_shows_its_whole_ring(browser, 
     assert standing_ring(page)["cuts"] == []
 
 
-def test_a_card_s_thread_ring_closes_under_its_reply_row(browser, serve):
-    """The thread the keyboard opens a card onto wears its ring on all four sides.
+def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):
+    """The card is the thread's one frame. The thread the keyboard opens a card onto
+    fills it with no tint and no ring of its own, and the card wears the ring, whole,
+    at its own edge. The reply field keeps its box, standing at the card's padding.
 
-    The reply row is pinned to the transcript's foot and paints the thread's surface,
-    so it stands over anything its thread draws beneath it, the thread's own inset
-    ring included.
+    It used to ring and tint the thread inside the card's border, a frame in a frame
+    with the reply field a third box inside that.
     """
     page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
     page.emulate_media(reduced_motion="reduce")
@@ -5352,10 +5412,35 @@ def test_a_card_s_thread_ring_closes_under_its_reply_row(browser, serve):
     assert thread.evaluate("node => node.matches(':focus-visible')")
     rendered(page)
     drawn = rings_drawn(page)
-    assert any(seen["focused"] and seen["here"] for seen in drawn), drawn
+    worn = [(seen["ring"], seen["who"].split(" ")[0]) for seen in drawn if seen["here"]]
+    assert worn == [("page-thread", "aside.lf-ui.lf-margin-preview")], drawn
     assert not (faults := ring_faults(drawn, "on a card the keyboard opened")), (
         "\n".join(faults)
     )
+    frame = page.locator(".lf-margin-preview").evaluate(
+        """(card) => {
+        const thread = card.querySelector('.lf-page-thread');
+        const words = thread.querySelector('.lf-page-thread-body');
+        const field = thread.querySelector('leaf-text');
+        const x = (node) => {
+            const box = node.getBoundingClientRect();
+            return [Math.round(box.left), Math.round(box.right)];
+        };
+        return {card: Math.round(card.getBoundingClientRect().left),
+                ground: getComputedStyle(thread).backgroundColor,
+                paper: getComputedStyle(card).backgroundColor,
+                words: x(words), field: x(field),
+                fieldBorder: getComputedStyle(field).borderTopStyle,
+                inset: Math.round(words.getBoundingClientRect().left
+                                  - card.getBoundingClientRect().left)};
+    }"""
+    )
+    assert frame["ground"] == frame["paper"], frame
+    assert frame["fieldBorder"] == "solid", frame
+    # The field's box at the card's border and padding, and the words one field
+    # inset in from it, where they used to stand inside a second frame at 25px.
+    assert frame["field"][0] - frame["card"] == 13, frame
+    assert frame["inset"] == 21, frame
 
 
 # Whether a message stands wholly between the transcript's top and the reply row pinned

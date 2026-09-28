@@ -1082,8 +1082,33 @@ img { aspect-ratio: attr(width type(<number>)) / attr(height type(<number>)); }
 table { display: block; overflow-x: auto; container-type: inline-size;
         border-collapse: collapse;
         font: var(--t-5)/1.5 var(--sans); margin: 18px 0; font-variant-numeric: tabular-nums; }
-/* A cell already supplies the identifier's frame and spacing. */
-:is(th, td) code:not(pre code) { padding: 0; background: none; font-size: var(--t-6); }
+/* A table standing in a drawn frame (a panel, a callout, a pane, a cell) fills it. The
+   frame's inner edge is a line the eye measures the rules against, so a table that
+   kept to its content there read as cut short: live-progress's Checks rules stopped
+   158px before the panel's edge. In the column the same shortfall is only the measure,
+   and the rule above keeps it, which is why `main`, the one frame that draws nothing,
+   hands the table back.
+
+   The grid is an anonymous box inside the block that scrolls, which no rule can size,
+   and a table box doesn't stretch as a flex or grid item. What it does do is grow to
+   its widest caption, so the frame asks through an empty generated one as wide as the
+   table's own box (100cqi). The automatic layout shares the leftover among the columns
+   in proportion to what each holds. A table too wide for the frame is already the
+   frame's width, so the caption changes nothing there and the columns still scroll.
+   Registered so the claim stays on the table and a table nested deeper in it asks its
+   own holder. */
+@property --lf-fills-frame { syntax: "<integer>"; inherits: false; initial-value: 0; }
+@container style(--lf-block-frame: 1) {
+  table { --lf-fills-frame: 1; }
+}
+main > table { --lf-fills-frame: 0; }
+@container style(--lf-fills-frame: 1) {
+  table::before { content: ""; display: table-caption; min-inline-size: 100cqi; }
+}
+/* A cell already supplies the identifier's frame and spacing. The size is relative to
+   the cell's own, so a name reads as a word of the row: at the chip size it stood
+   11.5px beside 14px values. */
+:is(th, td) code:not(pre code) { padding: 0; background: none; font-size: 0.9em; }
 /* The caption stands inside the box that scrolls the columns, at the columns' full
    width, so on a narrow window it ran past the scrollport and read "What the final
    revision demonstrates and what rem…". It keeps to the part of the table on screen
@@ -1762,7 +1787,8 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
 .lf-margin-entry > .lf-margin-entry-space { display: none; }
 .lf-margin-entry > .lf-margin-entry-label {
   position: absolute; z-index: 3; inset-block-start: calc(100% + 6px);
-  inset-inline-end: 0; display: block; width: max-content; max-width: 180px;
+  inset-inline-end: 0; display: block; width: max-content;
+  max-width: min(320px, 100vw - 8px);
   padding: 4px 7px; border-radius: 4px;
   background: var(--ink); color: var(--paper);
   font: 500 var(--t-6)/1.2 var(--sans); white-space: normal; overflow-wrap: anywhere;
@@ -1773,6 +1799,9 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
 }
 .lf-margin-entry-label-word,
 .lf-margin-entry-context { display: block; }
+/* The label is one line, cut where the tooltip's width runs out: most are a kind's
+   word, and an Ask's is its question, which the marker's accessible name also says. */
+.lf-margin-entry-label-word { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lf-margin-entry-context {
   margin-block-start: 2px; color: color-mix(in srgb, var(--paper) 72%, transparent);
   font-size: 10px; line-height: 1.25; font-weight: 450;
@@ -1784,6 +1813,11 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
   > .lf-margin-entry-label {
   opacity: 1; visibility: visible; transform: translateY(0);
   transition-delay: 90ms;
+}
+/* A reaction held under a press says its word at once, as a keyboard destination does
+   below (reactions.js, holdToRead). */
+.lf-margin-entry[data-lf-reading] > .lf-margin-entry-label {
+  opacity: 1; visibility: visible; transform: translateY(0); transition: none;
 }
 /* A keyboard destination says its label at once. Besides avoiding a needless delay for
    the user, this keeps a contribution that is rebuilt while the margin projection settles

@@ -105,6 +105,7 @@ import {
   optionsOffered,
   markerFace,
   readingFace,
+  readingLabel,
   readingState,
   readingBehavior,
   awaitingUser,
@@ -953,6 +954,9 @@ export function createMarginProjection({
         // The group this row stands in already names the Ask; the row says why it is
         // there, since these are the Asks the user owes.
         text: "Waiting on you",
+        // The marker's own label is the question, which says more than the kind its
+        // glyph already shows.
+        label: addressableLabel(target) || null,
         activate: () => {
           const standing = openAsks();
           const next = standing.find((candidate) => candidate.id === id);
@@ -1594,7 +1598,7 @@ export function createMarginProjection({
     const face = readingFace(choice);
     const behavior = readingBehavior(face);
     const count = choice.items.length;
-    const label = count > 1 ? `${face.label}s` : face.label;
+    const kind = count > 1 ? `${face.label}s` : face.label;
     const userContext =
       awaitingUser(choice.items) || unreadIn(choice.items)
         ? readingContext(choice)
@@ -1604,8 +1608,8 @@ export function createMarginProjection({
       marginEntry({
         key: `reading:${choice.key}`,
         icon: face.icon,
-        label,
-        accessibleLabel: `${label} for ${spokenSubject(entry.title)}${count > 1 ? `, ${count} items` : ""}${userContext ? `, ${userContext}` : ""}`,
+        label: readingLabel(choice),
+        accessibleLabel: `${kind} for ${spokenSubject(entry.title)}${count > 1 ? `, ${count} items` : ""}${userContext ? `, ${userContext}` : ""}`,
         context: readingContext(choice),
         behavior,
         rank: "reading",

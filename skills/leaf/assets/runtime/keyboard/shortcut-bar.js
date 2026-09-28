@@ -26,8 +26,8 @@
 
    The line is one row. Rows that do not fit leave it, the lowest-ranked first, so a
    narrow window keeps the leading hint and a sequence too long for the window keeps its
-   leading destinations. More and the current way out never leave: More's `?` opens the
-   reference, which lists every row the line had no room for. The shelf, which the user
+   leading destinations. More and the current way out never leave, and the reference
+   behind More lists every row the line had no room for. The shelf, which the user
    unfolds to read the rest of the register, holds two rows under the same trim.
 
    The line is the bottom band: one row at the stated `--lf-band-h` (theme.css), which the

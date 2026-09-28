@@ -1585,9 +1585,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
 
      The shortcut line is the band. It gives two contextual hints and the More control
      rendered from the register the dispatcher walks (see the module docstring). A
-     sequence shows as much of its live scope as one row holds; More unfolds the
-     remaining current register into a second row before it opens the complete
-     reference, which grows the line upward over the page as a temporary overlay and
+     sequence shows as much of its live scope as one row holds. More unfolds the
+     remaining current register into a two-row shelf before it opens the complete
+     reference; the shelf grows the line upward over the page as a temporary overlay and
      leaves the band's reservation where it was. Hints are the
      eye's copy of facts spoken elsewhere and stay aria-hidden; More is a real control.
      Useful transient state — a semantic walk's live ordinal, or a brief command or

@@ -2,8 +2,10 @@
  *
  * This view owns visual comment proxies, standing reaction controls, and message
  * fragment state. The dedicated anchor-note projection owns accessible comment notes.
- * Visual proxies are keyed Lit controls inside stable authored-target holders; their
- * holder placement remains mechanical page state. A standing reaction first reveals
+ * Visual proxies are keyed Lit controls, one group per drawing's seat, standing on the
+ * details shelf with the seat naming the group as its details (details-shelf.js). A
+ * screen reader reaches them from the drawing; a keyboard reaches the drawing and each
+ * declared part through the target chooser (`s`). A standing reaction first reveals
  * its dedicated removal action; only that action withdraws the reaction. Commands enter
  * only through the constructor.
  */
@@ -12,6 +14,7 @@ import { nextRender } from "./rendering.js";
 import { holdFocus } from "./focus.js";
 import { sameAnchor } from "./anchor-coordinate.js";
 import { createAnchorNoteProjection } from "./anchor-note-view.js";
+import { shelve, unshelve } from "./details-shelf.js";
 import {
   html,
   nothing,
@@ -33,7 +36,7 @@ import { pageQueryAll, pageText } from "./passages.js";
 import { registry } from "./registry.js";
 import { shadowHost, upFrom } from "./shadow.js";
 import { targetElement, targetParts } from "./resolved-target.js";
-import { keepsText, offer, reveal } from "./widget-elements.js";
+import { keeps, keepsText, offer, reveal } from "./widget-elements.js";
 import { retainUserIntent } from "./user-intent.js";
 
 const MSG_REF = '.lf-msg-body a[href^="#"]';
@@ -76,8 +79,9 @@ export function createAnchorControls({
       sameAnchor(control.lfAnchor, anchor),
     ) ?? null;
 
-  // A proxy sits after the outer disclosure that controls its visibility. Shadow
-  // renderers share their host so sibling holders do not reorder on each paint.
+  // A proxy group is named by the outer disclosure that controls its drawing's
+  // visibility, so a screen reader meets it while the drawing is folded away. Shadow
+  // renderers share their host so sibling groups do not reorder on each paint.
   function visualActionSeat(candidate) {
     let seat = shadowHost(candidate.getRootNode()) ?? candidate;
     for (let current = seat; current; current = upFrom(current))
@@ -146,6 +150,7 @@ export function createAnchorControls({
       class="lf-visual-action lf-quiet lf-ui"
       data-lf-gen="1"
       data-lf-offer="button"
+      tabindex="-1"
       .lfAnchor=${anchor}
       .textContent=${`Respond to ${label}`}
       @focus=${focusVisualAction}
@@ -158,24 +163,25 @@ export function createAnchorControls({
     for (const [seat, targets] of groups) {
       if (!targets.length) continue;
       let holder = visualActionHolders.get(seat);
-      if (!holder?.isConnected) {
-        if (holder) renderTemplate(nothing, holder);
-        holder = offer("span", "lf-visual-actions");
+      if (!holder) {
+        holder = offer("div", "lf-visual-actions");
+        holder.setAttribute("role", "group");
         visualActionHolders.set(seat, holder);
       }
       kept.add(seat);
       const restoreFocus = holdFocus(holder);
+      keeps(holder, "aria-label", `Responses to ${targets[0].label}`);
       renderTemplate(
         html`${repeat(targets, ({ key }) => key, visualActionTemplate)}`,
         holder,
       );
-      if (seat.nextSibling !== holder) seat.after(holder);
+      shelve(seat, holder);
       restoreFocus?.();
     }
     for (const [seat, holder] of visualActionHolders)
       if (!kept.has(seat)) {
         renderTemplate(nothing, holder);
-        holder.remove();
+        unshelve(seat, holder);
         visualActionHolders.delete(seat);
       }
   }

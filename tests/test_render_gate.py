@@ -2474,7 +2474,10 @@ def test_page_fixture_renders(browser, serve, source):
 
     It also reads the theme's frame trim, which the gate leaves to the suite: every box
     a shipped theme or example frames declares its frame, and a row at a frame's edge
-    holds it, so no box shows more inset than it draws."""
+    holds it, so no box shows more inset than it draws.
+
+    And nothing the runtime adds stands among the elements the page wrote, where it
+    would change which child the page's own rules find first, last, or next."""
     url = serve(source)
     failures = render_gate_model.render_version(browser, url).failures
     assert failures == [], "\n".join(failures)
@@ -2487,6 +2490,8 @@ def test_page_fixture_renders(browser, serve, source):
         if not finding["chrome"]
     ]
     assert framing == [], framing
+    stray = render_checks_model.evaluate_probe(page, "apparatusAmongAuthored")
+    assert stray == [], stray
 
 
 def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):

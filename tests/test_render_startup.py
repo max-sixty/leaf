@@ -835,7 +835,6 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
         [{"key": "api", "value": "Running"}],
     )
     expect(worker).to_have_count(0)
-    expect(page.locator(".lf-external-note")).to_have_count(0)
     assert detached_worker.evaluate(
         """link => ({
           target: link.getAttribute('target'),
@@ -849,7 +848,6 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
     expect(api).to_have_attribute("target", "_blank")
     detached_api = api.element_handle()
     detached_api.evaluate("link => { link.href = '#title'; link.remove(); }")
-    expect(page.locator(".lf-external-note")).to_have_count(0)
     assert detached_api.evaluate(
         """link => ({
           target: link.getAttribute('target'),

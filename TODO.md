@@ -199,20 +199,6 @@ and its chrome coordinate.
   explains who owes the next move. Keep explicit agent status available when the
   Ask alone does not explain the wait.
 
-### Shared definitions
-
-- **Keep the rest of the runtime's apparatus out of authored structure.** Two
-  generated elements still stand among the page's own: `anchor-controls.js` puts a
-  `span.lf-visual-actions` after each drawing that takes visual comments, and
-  `presentation.js` puts a hidden `span.lf-external-note` after each external link.
-  Each changes which of its parent's children is last and what follows the drawing
-  or link, so page rules such as `:last-child` or `svg + p` stop matching. The
-  external note can move to the chrome and be named through
-  `ariaDescribedByElements`, as the comment note is named through
-  `ariaDetailsElements`. The visual actions are Tab stops placed after their drawing
-  so Tab reaches them there, so they need a keyboard route that does not depend on
-  where they stand in the document.
-
 ## Etc
 
 Revisit these when their stated trigger becomes real; they are not an active queue.

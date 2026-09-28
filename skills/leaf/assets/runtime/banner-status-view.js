@@ -5,7 +5,7 @@
  * publication layouts; no outside code writes or reparents anything inside it.
  */
 import { html, nothing, render } from "../vendor/browser-runtime.js";
-import { el } from "./widget-elements.js";
+import { el, keeps } from "./widget-elements.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-banner-status";
@@ -63,9 +63,9 @@ class BannerStatusView extends HTMLElement {
     if (model.publication && this.#detail.matches(":popover-open"))
       this.#detail.hidePopover();
 
-    this.#dot.className = "lf-dot" + (model.tone ? " " + model.tone : "");
-    this.#button.title = model.explanation;
-    this.#text.title = model.explanation;
+    keeps(this.#dot, "class", "lf-dot" + (model.tone ? " " + model.tone : ""));
+    keeps(this.#button, "title", model.explanation);
+    keeps(this.#text, "title", model.explanation);
     render(model.explanation, this.#detail);
 
     if (model.publication) {
@@ -75,15 +75,14 @@ class BannerStatusView extends HTMLElement {
       render(nothing, this.#button);
       render(html`${this.#dot}${this.#text}${this.#detail}`, this);
       render(
-        html`<span class="lf-publication-copy">${model.publication.copy}</span>${
-            model.publication.examplesUrl
-              ? html`<a
-                  class="lf-publication-link"
-                  href=${model.publication.examplesUrl}
-                  >${model.publication.examples + " "}</a
-                >`
-              : nothing
-          }<a class="lf-publication-install" href=${model.publication.installUrl}
+        html`<span class="lf-publication-copy">${model.publication.copy}</span>${model
+            .publication.examplesUrl
+            ? html`<a class="lf-publication-link" href=${model.publication.examplesUrl}
+                >${model.publication.examples + " "}</a
+              >`
+            : nothing}<a
+            class="lf-publication-install"
+            href=${model.publication.installUrl}
             >${model.publication.install}</a
           >`,
         this.#text,

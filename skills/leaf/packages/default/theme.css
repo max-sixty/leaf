@@ -1636,12 +1636,11 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
       lf-toc .lf-toc-rows::before { content: ""; position: absolute;
                                     z-index: 0; top: 0; bottom: 0; left: 0; width: 1px;
                                     background: var(--border-2); }
+      /* One pixel tall, scaled to the lens's length by the widget's scroll-driven
+       * animation, which the compositor runs. */
       lf-toc .lf-toc-window { display: block; position: absolute; z-index: 1;
-                              top: var(--lf-toc-window-start, 0%);
-                              left: 0; width: 1px;
-                              height: var(--lf-toc-window-size, 12%);
-                              min-height: 14px; border-radius: 2px;
-                              background: var(--ink-2); }
+                              top: 0; left: 0; width: 1px; height: 1px;
+                              transform-origin: top; background: var(--ink-2); }
       /* A row is a span of the spine, and its link hangs from the row's top and may run
        * past the row's foot when rows are dense. The row takes no presses, so the next
        * row's span never stands over that link: the link is the only thing here to

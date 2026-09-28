@@ -64,6 +64,7 @@ from render_harness import (
     resized,
     round_trip,
     scroll_settled,
+    scroll_writes,
     select,
     sending,
     stamp_page,
@@ -7849,31 +7850,6 @@ QUOTED_ON_ASK = {
 }
 
 
-def scroll_writes(page):
-    """Scroll the page up and back down by a few small steps, off the page's controls,
-    and return each DOM write the scroll caused."""
-    # Off the page's controls, so the scroll brings nothing new under the pointer.
-    page.mouse.move(2, 300)
-    rendered(page)
-    page.evaluate(
-        """() => {
-          window.lfWrites = [];
-          new MutationObserver((records) => window.lfWrites.push(...records.map(
-            (r) => `${r.type} ${r.attributeName ?? ""} on ${r.target.nodeName}` +
-              ` ${r.target.className}`,
-          ))).observe(document, {
-            subtree: true, attributes: true, childList: true, characterData: true,
-          });
-        }"""
-    )
-    start = page.evaluate("() => scrollY")
-    for step in (-20, -20, 20, 20, 20):
-        page.evaluate("step => scrollBy(0, step)", step)
-        rendered(page)
-    assert page.evaluate("() => scrollY") == start + 20
-    return page.evaluate("() => window.lfWrites")
-
-
 def test_a_scroll_that_carries_the_card_writes_nothing(browser, serve):
     """A scroll the card rides with its cluster leaves the page's DOM as it was: the
     card, its target's trace, the marks, and the Ask's binding badges stand in the plane
@@ -7893,7 +7869,7 @@ def test_a_scroll_that_carries_the_card_writes_nothing(browser, serve):
       document.querySelector('.lf-margin-preview').getBoundingClientRect().top -
       document.querySelector('[data-lf-margin-for="bracket"]').getBoundingClientRect().top"""
     before = page.evaluate(offset)
-    writes = scroll_writes(page)
+    writes = scroll_writes(page, (-20, -20, 20, 20, 20))
     assert writes == [], writes
     assert page.evaluate(offset) == pytest.approx(before, abs=0.5)
 
@@ -7916,7 +7892,7 @@ def test_a_scroll_that_carries_the_response_bar_writes_nothing(browser, serve):
     offset = """() => document.querySelector('.lf-fab-bar').getBoundingClientRect().top -
       document.querySelector('#heater-p').getBoundingClientRect().top"""
     before = page.evaluate(offset)
-    writes = scroll_writes(page)
+    writes = scroll_writes(page, (-20, -20, 20, 20, 20))
     assert writes == [], writes
     assert page.evaluate(offset) == pytest.approx(before, abs=0.5)
 

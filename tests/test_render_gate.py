@@ -24,7 +24,7 @@ from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import service as service_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 from leaf.validation import compatibility as validation_model
@@ -103,7 +103,9 @@ from render_harness import (
     plant_quiet_word,
     primed,
     resized,
+    restless_writes,
     root_overflow,
+    scroll_writes,
     take_browser_errors,
     write,
 )
@@ -2492,6 +2494,45 @@ def test_page_fixture_renders(browser, serve, source):
     assert framing == [], framing
     stray = render_checks_model.evaluate_probe(page, "apparatusAmongAuthored")
     assert stray == [], stray
+
+
+# The page's longest scroller, the one its reader spends the scroll in.
+READING_SCROLLER = (
+    "[document.scrollingElement, ...document.querySelectorAll('*')]"
+    ".filter((el) => el === document.scrollingElement ||"
+    " /auto|scroll/.test(getComputedStyle(el).overflowY))"
+    ".sort((a, b) => (b.scrollHeight - b.clientHeight) - (a.scrollHeight - a.clientHeight))[0]"
+)
+# Eight small steps down and back, from a third of the way in.
+SCROLL_PASS = (30,) * 8 + (-30,) * 8
+
+
+@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
+def test_a_scroll_writes_only_what_it_changes(browser, serve, source):
+    """Scrolling a page writes to its DOM only where the scroll changed a state: which
+    section is current, which row a key reaches. Nothing is rewritten with the value it
+    already held, and nothing is placed from scroll events, since what follows the
+    scroll is laid out by the browser, which carries it with the scroll itself.
+
+    Every write costs Chrome a repaint of the whole document while a highlight holds a
+    range, which every page with a quoted comment does, so a write on every scroll event
+    makes the scroll judder. The pass runs twice and the second is read: the first is
+    where the pass's own arrivals happen, such as a margin row laid out as it comes
+    into view."""
+    page = open_page(browser, serve(source))
+    reach = page.evaluate(
+        f"() => {{ const s = {READING_SCROLLER}; return s.scrollHeight - s.clientHeight; }}"
+    )
+    # From a third of the way in, the pass must reach its depth before the page ends.
+    if reach < 1.5 * sum(step for step in SCROLL_PASS if step > 0):
+        pytest.skip("nothing on this page scrolls as far as the pass goes")
+    page.evaluate(
+        f"reach => {{ {READING_SCROLLER}.scrollTop = Math.round(reach / 3); }}", reach
+    )
+    rendered(page)
+    scroll_writes(page, SCROLL_PASS, READING_SCROLLER)
+    restless = restless_writes(scroll_writes(page, SCROLL_PASS, READING_SCROLLER))
+    assert restless == [], "\n".join(restless)
 
 
 def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):

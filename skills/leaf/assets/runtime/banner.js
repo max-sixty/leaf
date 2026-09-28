@@ -1,7 +1,8 @@
 /* This module owns banner wording, tone, tab-icon paint, and announcing a status kind
  * that has changed. */
+import { html, nothing, render } from "../vendor/browser-runtime.js";
 import { JUST_NOW, ago, clocked } from "./presence.js";
-import { el, offer, reserve } from "./widget-elements.js";
+import { el, keeps, keepsText, offer, reserve } from "./widget-elements.js";
 import { runtime, runtimeResource } from "./context.js";
 import {
   BANNER_CONTROL_RANK,
@@ -398,18 +399,23 @@ function renderLayerReference(state) {
   layerReferenceElementCopy.value = layerDiagnostics;
   const named = `Leaf ${identity}${age ? ` · ${age}` : ""}`;
   layerReferenceElementCopy.copyLabel = `${named} · copy version`;
-  layerReferenceElement.replaceChildren(
-    "Leaf ",
-    el("code", "lf-layer-version", identity),
-    ...(age ? [` · ${age}`] : []),
+  render(
+    html`Leaf <code class="lf-layer-version">${identity}</code>${age
+        ? ` · ${age}`
+        : nothing}`,
+    layerReferenceElement,
   );
-  layerReferenceElement.title = [
-    ...dateLines,
-    producer.dirty
-      ? "+ means this layer includes uncommitted changes · copy diagnostics"
-      : "Copy Leaf layer version and diagnostics",
-  ].join("\n");
-  layerReferenceElement.setAttribute("aria-label", `${named} · copy version`);
+  keeps(
+    layerReferenceElement,
+    "title",
+    [
+      ...dateLines,
+      producer.dirty
+        ? "+ means this layer includes uncommitted changes · copy diagnostics"
+        : "Copy Leaf layer version and diagnostics",
+    ].join("\n"),
+  );
+  keeps(layerReferenceElement, "aria-label", `${named} · copy version`);
 }
 // Status sentences for an unreachable server or a state the page cannot apply.
 const OFFLINE_LINE =
@@ -525,12 +531,13 @@ function renderSessionReference() {
   }
   sessionReferenceElementCopy.value = runtime.sessionReference;
   sessionReferenceElementCopy.copyLabel = `${sessionReferenceLabel} · copy reference`;
-  sessionReferenceElement.textContent = sessionReferenceLabel;
-  sessionReferenceElement.setAttribute(
+  keepsText(sessionReferenceElement, sessionReferenceLabel);
+  keeps(
+    sessionReferenceElement,
     "aria-label",
     `${sessionReferenceLabel} · copy reference`,
   );
-  sessionReferenceElement.title = `${sessionReferenceLabel} · copy reference`;
+  keeps(sessionReferenceElement, "title", `${sessionReferenceLabel} · copy reference`);
 }
 
 function renderStatusNow(state) {

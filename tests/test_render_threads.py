@@ -7513,9 +7513,10 @@ def test_a_turn_arriving_leaves_a_user_who_scrolled_away_from_their_box_reading(
 def test_a_wheel_during_a_resolution_fold_outranks_the_landing_after_it(browser, serve):
     """The landing of the next title waits for the fold, and a user who scrolls the
     list meanwhile has taken it somewhere else: the deferred landing pulled the list
-    back toward the title once the fold ended."""
+    back toward the title once the fold ended. Enough threads follow that the list's
+    end doesn't clamp the wheeled position as the fold shrinks it."""
     url = serve(PANEL_PAGE)
-    roots = seed_panel_threads(serve.page_dir, 8, long_index=3)
+    roots = seed_panel_threads(serve.page_dir, 12, long_index=3)
     page = open_page(browser, url, init_script=HOLD_MOTION)
     open_threads_list(page, 800, 520)
     title = page.locator(f'.lf-thread[data-id="{roots[3]}"] > .lf-thread-summary')
@@ -7536,6 +7537,7 @@ def test_a_wheel_during_a_resolution_fold_outranks_the_landing_after_it(browser,
     rendered(page)
     scroll_settled(page, ".lf-threads")
     expect(following).to_be_focused()
+    assert threads.evaluate("list => list.scrollHeight - list.clientHeight") > wheeled
     assert threads.evaluate("list => list.scrollTop") == pytest.approx(wheeled, abs=2)
 
 

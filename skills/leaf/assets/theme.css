@@ -1220,6 +1220,10 @@ section.panel > :last-child { margin-bottom: 0; }
 aside.sidebar { display: flow-root; margin: var(--sp-4) 0 30px; }
 aside.sidebar > :first-child { margin-top: 0; }
 aside.sidebar > :last-child { margin-bottom: 0; }
+/* An empty map-only slot is already in its eventual margin posture: no margin
+ * and no formatting context separating the blocks on either side of it. */
+main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has(> lf-toc:only-child:empty) {
+  display: block; margin-block: 0; }
 main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; }
 main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-resident: sidebar; }
 main.layout-column aside.sidenote { --lf-resident: note; }

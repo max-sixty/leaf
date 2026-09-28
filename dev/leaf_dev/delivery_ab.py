@@ -585,11 +585,11 @@ def delivery_ab(base_ref: str | None) -> None:
     """Compare how an agent answers comments.
 
     Compares how a Claude Code agent handles comments on a Leaf page it serves,
-    BASE_REF's plugin against HEAD's; BASE_REF defaults to the merge base with main.
-    Each round runs a live `claude -p` session per arm and case, about a dollar
-    each, and prints per comment how it reached the agent, how long each step took,
-    and what the page showed meanwhile; every stream and page log lands in
-    .tmp/delivery-ab/.
+    BASE_REF's plugin against HEAD's; BASE_REF defaults to the merge base with
+    origin/main. Each round runs a live `claude -p` session per arm and case, about
+    a dollar each, and prints per comment how it reached the agent, how long each
+    step took, and what the page showed meanwhile; every stream and page log lands
+    in .tmp/delivery-ab/.
     """
     with tempfile.TemporaryDirectory() as built:
         arms, commits = build_pair(base_ref, Path(built))

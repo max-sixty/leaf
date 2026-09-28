@@ -580,14 +580,6 @@ export function frame(film, t) {
 // Paint: frame → SVG. Colours come from the page's theme, resolved by the caller.
 
 const SVGNS = "http://www.w3.org/2000/svg";
-export const W = 1080;
-export const H = 560;
-const X0 = 34;
-const LANE_W = 700;
-const BASE = 246;
-const SCRATCH = 512;
-const MAX_H = 192;
-const STACK_X = 772;
 
 const el = (tag, attrs = {}, parent) => {
   const node = document.createElementNS(SVGNS, tag);
@@ -604,26 +596,85 @@ const CLAUSES = [
   { key: "inv3", text: "runs[n-4].len <= runs[n-3].len + runs[n-2].len", needs: 4 },
 ];
 
+// The drawing is laid out in the stage's own pixels, one viewBox unit to a CSS pixel:
+// the lanes stretch sideways with the pane while every height and every label keeps its
+// size, so the labels read at TYPE at any width. Under the lanes, the run stack stands
+// beside the collapse() clauses wherever the clauses fit beside it, a long clause
+// breaking after its `<=`, and there the stage keeps one height; in a narrower stage the
+// clauses stand under the stack at the full width.
+const TYPE = 12;
+const LINE = 14;
+// A monospace glyph's advance, in ems, which is what a line of code is measured by.
+const MONO_EM = 0.6;
+const monoWidth = (chars) => chars * TYPE * MONO_EM;
+const X0 = 20;
+const GAP = 20;
+const STACK_W = 124;
+const STACK_ROWS = 4;
+const ROW_H = 26;
+// The longest verdict a clause prints under itself: "not evaluated   40 <= 20 + 20".
+const VERDICT_CHARS = 30;
+
+// A clause's lines within `width`: whole, or broken after its comparison.
+function clauseLines(text, width) {
+  if (monoWidth(text.length) <= width) return [text];
+  const at = text.indexOf(" <= ") + 4;
+  return [text.slice(0, at - 1), `  ${text.slice(at)}`];
+}
+
+const widest = (width) =>
+  Math.max(
+    monoWidth(VERDICT_CHARS),
+    ...CLAUSES.flatMap((c) =>
+      clauseLines(c.text, width).map((l) => monoWidth(l.length)),
+    ),
+  );
+
+function geometry(width) {
+  const W = Math.max(280, Math.round(width));
+  const g = {
+    W,
+    laneW: W - 2 * X0,
+    vLabel: 13,
+    vPtr: 39,
+    top: 41,
+    base: 101,
+    maxH: 50,
+    hitTop: 134,
+    sLabel: 147,
+    sPtr: 173,
+    scratch: 235,
+  };
+  const title = g.scratch + 22;
+  g.stack = { x: X0, title, top: title + 10 };
+  const besideX = X0 + STACK_W + GAP;
+  const room = W - X0 - besideX;
+  const clauses =
+    room >= widest(room)
+      ? { x: besideX, title, width: room }
+      : { x: X0, title: g.stack.top + STACK_ROWS * ROW_H + 16, width: g.laneW };
+  let y = clauses.title + 4;
+  clauses.rows = CLAUSES.map((c) => {
+    const lines = clauseLines(c.text, clauses.width);
+    const top = y;
+    y += (lines.length + 1) * LINE + 3;
+    return { lines, top, bottom: y };
+  });
+  g.clauses = clauses;
+  g.H = y + 8;
+  return g;
+}
+
 export class Painter {
   constructor(svg, n) {
     this.svg = svg;
     this.n = n;
-    this.slot = LANE_W / n;
-    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
-    this.bg = el("rect", { width: W, height: H }, svg);
+    this.bg = el("rect", {}, svg);
     this.labels = el("g", {}, svg);
-    this.laneV = el("text", { x: X0, y: 26 }, this.labels);
-    this.laneS = el("text", { x: X0, y: 312 }, this.labels);
-    this.baseV = el(
-      "line",
-      { x1: X0 - 4, x2: X0 + LANE_W + 4, y1: BASE + 0.5, y2: BASE + 0.5 },
-      svg,
-    );
-    this.baseS = el(
-      "line",
-      { x1: X0 - 4, x2: X0 + LANE_W + 4, y1: SCRATCH + 0.5, y2: SCRATCH + 0.5 },
-      svg,
-    );
+    this.laneV = el("text", {}, this.labels);
+    this.laneS = el("text", {}, this.labels);
+    this.baseV = el("line", {}, svg);
+    this.baseS = el("line", {}, svg);
     this.winG = el("g", {}, svg);
     this.holes = el("g", {}, svg);
     this.bars = el("g", {}, svg);
@@ -637,38 +688,14 @@ export class Painter {
     // stack, and each collapse() clause, drawn idle when no collapse is being checked.
     this.hits = el("g", {}, svg);
     this.partEls = new Map();
-    for (let s = 0; s < n; s++)
-      this.#part(
-        `v:${s}`,
-        `v[${s}]`,
-        el(
-          "rect",
-          {
-            x: X0 + s * this.slot,
-            y: 34,
-            width: this.slot,
-            height: BASE + 30 - 34,
-            fill: "#000",
-            "fill-opacity": 0,
-          },
-          this.hits,
-        ),
-      );
-    this.#part(
+    const hit = () => el("rect", { fill: "#000", "fill-opacity": 0 }, this.hits);
+    this.slotHits = Array.from({ length: n }, (_, s) =>
+      this.#part(`v:${s}`, `v[${s}]`, hit()),
+    );
+    this.scratchHit = this.#part(
       "lane:scratch",
       "the scratch lane (buf and tmp)",
-      el(
-        "rect",
-        {
-          x: X0 - 4,
-          y: 300,
-          width: LANE_W + 8,
-          height: SCRATCH - 300 + 6,
-          fill: "#000",
-          "fill-opacity": 0,
-        },
-        this.hits,
-      ),
+      hit(),
     );
     this.#part("stack:all", "the run stack", this.stack);
     this.checkEls = {};
@@ -689,6 +716,32 @@ export class Painter {
     }
   }
 
+  // Lay the drawing out for a stage `width` pixels wide: the lanes, their labels and
+  // the parts that stand still; each paint places the rest.
+  layout(width) {
+    const G = (this.G = geometry(width));
+    this.slot = G.laneW / this.n;
+    const set = (node, attrs) => {
+      for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+    };
+    set(this.svg, { viewBox: `0 0 ${G.W} ${G.H}` });
+    set(this.bg, { width: G.W, height: G.H });
+    set(this.laneV, { x: X0, y: G.vLabel });
+    set(this.laneS, { x: X0, y: G.sLabel });
+    const across = { x1: X0 - 4, x2: X0 + G.laneW + 4 };
+    set(this.baseV, { ...across, y1: G.base + 0.5, y2: G.base + 0.5 });
+    set(this.baseS, { ...across, y1: G.scratch + 0.5, y2: G.scratch + 0.5 });
+    this.slotHits.forEach((node, s) =>
+      set(node, { x: this.x(s), y: G.top, width: this.slot, height: G.hitTop - G.top }),
+    );
+    set(this.scratchHit, {
+      x: X0 - 4,
+      y: G.hitTop,
+      width: G.laneW + 8,
+      height: G.scratch - G.hitTop + 6,
+    });
+  }
+
   x(slot) {
     return X0 + slot * this.slot;
   }
@@ -696,6 +749,7 @@ export class Painter {
   #part(id, label, element) {
     element.dataset.part = id;
     this.partEls.set(id, { id, element, label });
+    return element;
   }
 
   parts() {
@@ -704,6 +758,7 @@ export class Painter {
 
   paint(film, fr, C) {
     const { step } = fr;
+    const G = this.G;
     const w = this.slot - 3;
     this.bg.setAttribute("fill", C.card);
     for (const line of [this.baseV, this.baseS]) line.setAttribute("stroke", C.rule);
@@ -719,7 +774,7 @@ export class Painter {
       node.textContent = text;
       node.setAttribute("fill", C.muted);
       node.setAttribute("font-family", C.sans);
-      node.setAttribute("font-size", 13);
+      node.setAttribute("font-size", TYPE);
     }
 
     // Which run on the stack (or the run being scanned) each slot belongs to.
@@ -737,14 +792,14 @@ export class Painter {
       const rect = g.firstChild;
       const pos = (pl) => ({
         x: this.x(pl.slot) + 1.5,
-        base: pl.lane === "v" ? BASE : SCRATCH,
+        base: pl.lane === "v" ? G.base : G.scratch,
       });
       const A = pos(e.from ?? e.to);
       const B = pos(e.to);
       // A move between lanes arcs slightly so crossings read as a hand-off.
       const px = A.x + (B.x - A.x) * e.p;
       const pb = A.base + (B.base - A.base) * e.p;
-      const h = 10 + (e.value / this.n) * MAX_H;
+      const h = 10 + (e.value / this.n) * G.maxH;
       rect.setAttribute("x", px);
       rect.setAttribute("y", pb - h);
       rect.setAttribute("width", w);
@@ -788,7 +843,7 @@ export class Painter {
         "rect",
         {
           x: this.x(s) + 1.5,
-          y: BASE - 18,
+          y: G.base - 18,
           width: w,
           height: 18,
           rx: 2,
@@ -816,22 +871,22 @@ export class Painter {
         this.winG,
       );
     if (step.win) {
-      band(step.win.lo, step.win.hi, C.accentTint, 34, BASE + 2);
+      band(step.win.lo, step.win.hi, C.accentTint, G.top, G.base + 2);
       const mx = this.x(step.win.mid) - 1;
       el(
         "line",
         {
           x1: mx,
           x2: mx,
-          y1: 34,
-          y2: BASE + 2,
+          y1: G.top,
+          y2: G.base + 2,
           stroke: C.accent,
           "stroke-dasharray": "4 3",
         },
         this.winG,
       );
     } else if (step.focus)
-      band(step.focus.start, step.focus.end, C.field, 34, BASE + 2);
+      band(step.focus.start, step.focus.end, C.field, G.top, G.base + 2);
     if (step.tmp || step.buf.some((b) => b !== null) || step.kind === "choose") {
       const from = step.tmp ? step.tmp.at : step.bufAt;
       const len = step.tmp ? 1 : step.buf.length;
@@ -840,13 +895,15 @@ export class Painter {
           step.bufAt,
           step.bufAt + Math.min(step.win.mid - step.win.lo, step.win.hi - step.win.mid),
           C.field,
-          300 + 20,
-          SCRATCH + 2,
+          G.sPtr + 2,
+          G.scratch + 2,
         );
-      else if (step.tmp) band(from, from + len, C.warnTint, 320, SCRATCH + 2);
+      else if (step.tmp) band(from, from + len, C.warnTint, G.sPtr + 2, G.scratch + 2);
     }
 
-    // Runs on the stack, bracketed under the slice with their stack index.
+    // Runs on the stack, bracketed under the slice with their stack index where every
+    // bracket is wide enough to hold its own, and with their length alone where one is
+    // not: the stack under the lanes names each run by its colour.
     this.runsG.replaceChildren();
     const bracket = (start, len, col, label, y) => {
       const x1 = this.x(start) + 1;
@@ -869,14 +926,24 @@ export class Painter {
           "text-anchor": "middle",
           fill: col,
           "font-family": C.mono,
-          "font-size": 11,
+          "font-size": TYPE,
         },
         this.runsG,
       );
       t.textContent = label;
     };
+    const named = (k, r) => `runs[${k}] · ${r.len}`;
+    const naming = step.runs.every(
+      (r, k) => monoWidth(named(k, r).length) <= r.len * this.slot - 3,
+    );
     step.runs.forEach((r, k) =>
-      bracket(r.start, r.len, runTone(k), `runs[${k}] · ${r.len}`, BASE + 16),
+      bracket(
+        r.start,
+        r.len,
+        runTone(k),
+        naming ? named(k, r) : `${r.len}`,
+        G.base + 14,
+      ),
     );
     if (step.focus && !done)
       bracket(
@@ -884,36 +951,52 @@ export class Painter {
         step.focus.end - step.focus.start,
         C.ink2,
         `${step.focus.end - step.focus.start}`,
-        BASE + 16,
+        G.base + 14,
       );
 
-    // Merge pointers.
+    // Merge pointers, each a mark over its slot with its name in the row above. Names
+    // closer than their width in one lane stand apart, in slot order, within the lane.
     this.ptrs.replaceChildren();
-    if (step.ptr) {
-      for (const [name, pl] of Object.entries(step.ptr)) {
-        const slot = pl.lane === "buf" ? step.bufAt + pl.idx : pl.idx;
-        if (slot < 0 || slot >= this.n) continue;
-        const cx = this.x(slot) + this.slot / 2;
-        const y = pl.lane === "v" ? 30 : 318 + 12;
-        const col = name === "out" ? C.ok : C.ink2;
-        el(
-          "path",
-          { d: `M${cx - 5},${y - 8} L${cx + 5},${y - 8} L${cx},${y} z`, fill: col },
-          this.ptrs,
-        );
+    const names = { v: [], buf: [] };
+    for (const [name, pl] of Object.entries(step.ptr ?? {})) {
+      const slot = pl.lane === "buf" ? step.bufAt + pl.idx : pl.idx;
+      if (slot < 0 || slot >= this.n) continue;
+      const cx = this.x(slot) + this.slot / 2;
+      const y = pl.lane === "v" ? G.vPtr : G.sPtr;
+      const col = name === "out" ? C.ok : C.ink2;
+      el(
+        "path",
+        { d: `M${cx - 5},${y - 8} L${cx + 5},${y - 8} L${cx},${y} z`, fill: col },
+        this.ptrs,
+      );
+      names[pl.lane === "v" ? "v" : "buf"].push({ name, cx, y: y - 12, col });
+    }
+    for (const lane of Object.values(names)) {
+      lane.sort((a, b) => a.cx - b.cx);
+      let right = -Infinity;
+      for (const p of lane) {
+        p.w = monoWidth(p.name.length);
+        p.x = Math.max(p.cx - p.w / 2, right + 6);
+        right = p.x + p.w;
+      }
+      let left = X0 + G.laneW;
+      for (const p of lane.toReversed()) {
+        p.x = Math.max(X0, Math.min(p.x, left - p.w));
+        left = p.x - 6;
+      }
+      for (const p of lane) {
         const t = el(
           "text",
           {
-            x: cx,
-            y: y - 12,
-            "text-anchor": "middle",
-            fill: col,
+            x: p.x,
+            y: p.y,
+            fill: p.col,
             "font-family": C.mono,
-            "font-size": 11,
+            "font-size": TYPE,
           },
           this.ptrs,
         );
-        t.textContent = name;
+        t.textContent = p.name;
       }
     }
 
@@ -922,12 +1005,13 @@ export class Painter {
 
   // The run stack, bottom to top, and the collapse() clauses that decide whether to merge.
   #paintStack(step, C, runTone) {
+    const { stack: S, clauses: K } = this.G;
     const g = this.stack;
     g.replaceChildren();
     const text = (x, y, s, attrs = {}) => {
       const t = el(
         "text",
-        { x, y, fill: C.ink, "font-family": C.sans, "font-size": 13, ...attrs },
+        { x, y, fill: C.ink, "font-family": C.sans, "font-size": TYPE, ...attrs },
         g,
       );
       t.textContent = s;
@@ -937,18 +1021,16 @@ export class Painter {
     el(
       "rect",
       {
-        x: STACK_X - 6,
-        y: 10,
-        width: 292,
-        height: 276,
+        x: S.x - 6,
+        y: S.title - LINE,
+        width: STACK_W + 12,
+        height: S.top + STACK_ROWS * ROW_H - (S.title - LINE),
         fill: "#000",
         "fill-opacity": 0,
       },
       g,
     );
-    text(STACK_X, 26, "runs — the stack, top first", { fill: C.muted });
-    const rowH = 30;
-    const top = 44;
+    text(S.x, S.title, "runs, top first", { fill: C.muted });
     const pick = step.checks?.r;
     const merging = step.win
       ? new Set(
@@ -962,17 +1044,17 @@ export class Painter {
       : new Set();
     for (let i = k - 1; i >= 0; i--) {
       const r = step.runs[i];
-      const y = top + (k - 1 - i) * rowH;
+      const y = S.top + (k - 1 - i) * ROW_H;
       const hot =
         merging.has(i) ||
         (pick !== null && pick !== undefined && (i === pick || i === pick + 1));
       el(
         "rect",
         {
-          x: STACK_X,
+          x: S.x,
           y,
-          width: 280,
-          height: rowH - 6,
+          width: STACK_W,
+          height: ROW_H - 6,
           rx: 4,
           fill: hot ? C.accentTint : C.field,
           stroke: hot ? C.accent : C.rule,
@@ -982,49 +1064,39 @@ export class Painter {
       el(
         "rect",
         {
-          x: STACK_X,
-          y: y + rowH - 9,
-          width: (280 * r.len) / this.n,
+          x: S.x,
+          y: y + ROW_H - 9,
+          width: (STACK_W * r.len) / this.n,
           height: 3,
           fill: runTone(i),
         },
         g,
       );
-      text(STACK_X + 8, y + 16, `runs[${i}]`, {
+      text(S.x + 8, y + 13, `runs[${i}]`, { "font-family": C.mono, fill: runTone(i) });
+      text(S.x + STACK_W - 8, y + 13, `len ${r.len}`, {
         "font-family": C.mono,
-        "font-size": 12,
-        fill: runTone(i),
-      });
-      text(STACK_X + 272, y + 16, `len ${r.len}`, {
-        "font-family": C.mono,
-        "font-size": 12,
         "text-anchor": "end",
         fill: C.ink2,
       });
     }
-    if (!k) text(STACK_X, top + 16, "empty", { fill: C.muted, "font-style": "italic" });
+    if (!k) text(S.x, S.top + 13, "empty", { fill: C.muted, "font-style": "italic" });
 
     // The collapse() clauses, always drawn: idle between checks, and during one each
     // clause says whether it held, or that `||` never reached it.
     const list = step.checks?.list ?? [];
-    let y = 304;
-    text(STACK_X, y, "collapse(): merge when a clause is true", {
-      fill: C.muted,
-      "font-size": 12,
-    });
-    y += 8;
-    for (const clause of CLAUSES) {
-      y += 38;
+    text(K.x, K.title, "collapse(): merge when a clause is true", { fill: C.muted });
+    CLAUSES.forEach((clause, i) => {
+      const { lines, top, bottom } = K.rows[i];
       const c = list.find((c) => c.line === `c-${clause.key}`);
       const cg = this.checkEls[clause.key];
       cg.replaceChildren();
       el(
         "rect",
         {
-          x: STACK_X - 6,
-          y: y - 30,
-          width: 300,
-          height: 36,
+          x: K.x - 6,
+          y: top + 2,
+          width: K.width + 6,
+          height: bottom - top - 1,
           fill: "#000",
           "fill-opacity": 0,
         },
@@ -1034,18 +1106,24 @@ export class Painter {
       const t1 = el(
         "text",
         {
-          x: STACK_X,
-          y: y - 16,
           fill: c?.evaluated ? C.ink2 : C.faint,
           "font-family": C.mono,
-          "font-size": 10.5,
+          "font-size": TYPE,
         },
         cg,
       );
-      t1.textContent = clause.text;
+      lines.forEach((line, n) =>
+        el("tspan", { x: K.x, y: top + (n + 1) * LINE }, t1).append(line),
+      );
       const t2 = el(
         "text",
-        { x: STACK_X, y, fill: col, "font-family": C.mono, "font-size": 11 },
+        {
+          x: K.x,
+          y: top + (lines.length + 1) * LINE,
+          fill: col,
+          "font-family": C.mono,
+          "font-size": TYPE,
+        },
         cg,
       );
       t2.textContent = !c
@@ -1053,7 +1131,7 @@ export class Painter {
           ? `not checked: needs ${clause.needs} runs`
           : "·"
         : `${c.evaluated ? (c.fires ? "true → merge" : "false") : "not evaluated"}   ${c.detail}`;
-    }
+    });
   }
 }
 

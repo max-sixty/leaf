@@ -240,6 +240,50 @@ def test_the_render_gate_fails_a_wide_page_that_scrolls_sideways_only_between_vi
     assert reading.advice == []
 
 
+def _pane_regions(columns: str, stacks_below: int) -> str:
+    return leaf_page(
+        "pane regions",
+        """
+  <header><h1>Alerts</h1></header>
+  <div id="regions">
+    <lf-pane id="queue" label="Queue"><div><p>Three alerts wait.</p></div></lf-pane>
+    <lf-pane id="alert" label="Alert"><div><p>Disk pressure on db-2.</p></div></lf-pane>
+  </div>
+""",
+        head=f"""<style>
+#regions {{ display: grid; grid-template-columns: {columns}; gap: var(--sp-4); }}
+@media (width < {stacks_below}px) {{ #regions {{ grid-template-columns: 1fr; }} }}
+</style>""",
+        layout="workspace",
+    )
+
+
+@pytest.mark.parametrize(
+    ("columns", "stacks_below", "stacked"),
+    [("1fr 2fr", 900, "720–880px"), ("1fr 2fr", 720, None), ("1fr", 900, None)],
+    ids=["stacks-early", "stacks-where-the-layout-flows", "rows-at-every-width"],
+)
+def test_a_workspace_stacks_its_panes_only_where_the_layout_stops_holding_it(
+    browser, serve, columns, stacks_below, stacked
+):
+    """Held, a workspace shares one window's height among its panes, so panes that stand
+    side by side in a wide window and stack while the window is still held each get a
+    slice of it. Stacking where the Layout lets the page scroll passes, and so does a
+    body of rows at every width, which was built to share the height."""
+    reading = render_gate_model.render_version(
+        browser, serve(_pane_regions(columns, stacks_below), packages=())
+    )
+
+    if stacked is None:
+        assert reading.failures == []
+    else:
+        (failure,) = reading.failures
+        assert failure.startswith(
+            f"at {stacked} wide, <div id=regions> stacks its panes in one column "
+            "while the workspace holds the window"
+        ), failure
+
+
 # Four drawings in the idiom. The first is drawn wider than the column holds, so the fit
 # takes its 11px labels to under half. The second is fitted by the same fraction, and its
 # 28px labels survive it. The third keeps its natural size, with the theme's 9px step

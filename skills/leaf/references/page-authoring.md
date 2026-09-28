@@ -206,8 +206,11 @@ log beside the chart it explains, which the page's `<style>` places:
 
 ```css
 #regions { display: grid; grid-template-columns: minmax(16rem, 1fr) 2fr; gap: var(--sp-4); }
-@media (width < 900px) { #regions { grid-template-columns: 1fr; } }
+@media (width < 720px) { #regions { grid-template-columns: 1fr; } }
 ```
+
+Stack the panes below 720px, where the Layout lets the page scroll: panes stacked in a
+wider window still share its one height, and `page check --render` refuses them.
 
 A queue whose items open one at a time beside it, such as tickets, cases or findings to
 decide, is one `lf-tabs list="side"` as the body: its list is the queue and each item an

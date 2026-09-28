@@ -3,13 +3,13 @@
   <head>
     <title>Release review queue</title>
     <style>
-      /* The regions side by side, stacked in a narrow window. */
+      /* The regions side by side, stacked where the workspace flows. */
       #review-regions {
         display: grid;
         grid-template-columns: minmax(16rem, 1fr) 2fr;
         gap: var(--sp-4);
       }
-      @media (width < 900px) {
+      @media (width < 720px) {
         #review-regions {
           grid-template-columns: 1fr;
         }

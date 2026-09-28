@@ -19,8 +19,9 @@ bands, the reading measure as typography, and each widget's contract to fill the
 it is given, declare the minimum it needs, and never let its content size its holder.
 
 Nothing Leaf draws at run time moves the page's content. A margin row stands in the
-free room measured beside its target, in a rail the page declares, or as a pin
-inside its target's corner.
+free room measured beside its target, in a rail the page declares, or as a pin by
+its target: in room found where it covers no words (`pinSpot`), and otherwise inside
+its target's corner.
 
 The rail and a pin are different kinds. The rail is room: a strip beside the column,
 which the column may move over to leave (`settleResidency`) but never narrows or

@@ -8098,6 +8098,64 @@ def test_a_pin_on_one_shape_of_a_drawing_stands_on_that_shape(browser, serve):
         assert row_box["y"] == pytest.approx(shape["y"], abs=8), (name, row_box, shape)
 
 
+def test_a_pin_stands_after_its_run_of_text_rather_than_over_it(browser, serve):
+    """A pin is an overlay, so it finds room rather than making it: a suggestion's
+    Accept and Reject stood inside the corner of its run and covered the words being
+    decided. With the end of the run's last line free, they stand there, level with that
+    line, over none of the paragraph's words."""
+    source = leaf_page(
+        "a suggestion's pin",
+        '<h1 id="t">Notes</h1><p id="p">The status column is the '
+        '<lf-suggestion id="s"><lf-old>release\'s only visual change</lf-old>'
+        "<lf-new>only change to the run list</lf-new></lf-suggestion>.</p>"
+        "<p>The next paragraph starts a new subject.</p>",
+        layout="wide",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    row = page.locator('.lf-margin-cluster[data-lf-margin-for="s"]')
+    expect(row).to_have_attribute("data-lf-place", "pin")
+    reading = page.evaluate(
+        """() => {
+          const edges = ({left, top, right, bottom}) => ({left, top, right, bottom});
+          const words = [];
+          for (const node of document.querySelectorAll('#p, #p *'))
+            for (const text of node.childNodes)
+              if (text.nodeType === Node.TEXT_NODE && text.data.trim()) {
+                const range = document.createRange();
+                range.selectNodeContents(text);
+                words.push(...[...range.getClientRects()]
+                  .filter((box) => box.width > 2 && box.height > 2).map(edges));
+              }
+          const entries = [...document.querySelectorAll(
+            '[data-lf-margin-for="s"] .lf-margin-entry')]
+            .filter((entry) => entry.checkVisibility())
+            .map((entry) => edges(entry.getBoundingClientRect()));
+          return {words, entries,
+            run: edges([...document.getElementById('s').getClientRects()].at(-1))};
+        }"""
+    )
+    run = reading["run"]
+    # Accept and Reject.
+    assert len(reading["entries"]) == 2, reading["entries"]
+    for entry in reading["entries"]:
+        covered = [
+            word
+            for word in reading["words"]
+            if word["left"] < entry["right"]
+            and entry["left"] < word["right"]
+            and word["top"] < entry["bottom"]
+            and entry["top"] < word["bottom"]
+        ]
+        assert not covered, (entry, covered)
+        assert entry["left"] >= run["right"], (entry, run)
+        assert entry["top"] < run["bottom"] and run["top"] < entry["bottom"], (
+            entry,
+            run,
+        )
+
+
 def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
     """A `display: contents` target anchors through its first shown part, but its pin
     stands at the corner of every part together, and shows while they do."""

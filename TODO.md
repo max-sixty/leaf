@@ -97,16 +97,15 @@ and its chrome coordinate.
   `--layout-columns: 3fr 2fr`, stacking below 720px, would carry it. A bounded box of
   panes outside a workspace also restates the Layout's pane scrolling (the feature
   gallery), which could key on `--lf-full-height` instead.
-- **Place markers so they cover less without losing what they track.** Where no rail
-  stands, a marker pins inside its block's top-right corner and covers the end of the
-  block's first line. On a 390px phone an Ask's pin covers the end of its question's
-  heading, and a blind judge named that in 24 of 34 arrangement-eval judgments. A
-  marker is an overlay, so the answer cannot reserve room, pad a block, or move text
-  when a marker comes or goes (`skills/leaf/assets/AGENTS.md`, "Space and
-  scrolling"). A better place must still sit at its own target and not a neighbour's,
-  hold still as the page scrolls and reflows, stay off the block's controls, and work
-  where the target is inside a pane that scrolls on its own. Hiding the annotations
-  (`o`, or Hide annotations in More under a finger) stays the escape.
+- **Seat a suggestion's pair of pins on a phone.** A pin now takes room beside its
+  target that covers no words (`pinSpot`), which clears single markers on most pages,
+  but under a finger Accept and Reject together are a 96×44px pair: that needs a line
+  ending 100px short on the run's last line and 44px from that line to the next block.
+  At 390px, 5 of the 7 shipped suggestions find no such room and stay over their words;
+  one 44px marker would find room for 3 of those 5. Folding the pair into one marker
+  that opens Accept and Reject, only where the pair has no room, is the nearest design;
+  it costs a second tap. Hiding the annotations (`o`, or Hide annotations in More under
+  a finger) stays the escape.
 - **Give a declared rail a floor.** `data-rail="right"` makes the shell give up the
   rail's width at every width, so on a phone it leaves a 295px column. The margin pass
   admits residents by measuring the room they leave (`settleResidency`), which a rail

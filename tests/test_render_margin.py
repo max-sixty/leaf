@@ -7788,6 +7788,42 @@ def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve, widt
     ), (before, after)
 
 
+def test_a_card_under_a_containing_block_stands_beside_its_cluster(browser, serve):
+    """The card's rule is worked out in client coordinates, and Floating UI carries it
+    into the card's positioning space. A transformed ancestor is a containing block for
+    the fixed card, so a spot written as a client coordinate would stand off by the
+    transform; carried across, the card stays where the rule put it."""
+    page = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
+    resized(page, 1920, 900)
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
+    marker.evaluate(
+        "node => node.scrollIntoView({block: 'center', behavior: 'instant'})"
+    )
+    marker.click()
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_attribute("data-lf-thread-placement", "right")
+    offset = """() => {
+      const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+      const controls = document.querySelector('.lf-margin-marker[data-lf-kinds="comment"]')
+        .closest('[data-lf-margin-for]').getBoundingClientRect();
+      return {left: card.left - controls.left, top: card.top - controls.top};
+    }"""
+    before = page.evaluate(offset)
+    page.evaluate(
+        """() => {
+          const card = document.querySelector('.lf-margin-preview');
+          const block = document.createElement('div');
+          block.style.transform = 'translate(30px, 40px)';
+          card.before(block);
+          block.append(card);
+        }"""
+    )
+    page.evaluate("() => dispatchEvent(new Event('resize'))")
+    rendered(page)
+    after = page.evaluate(offset)
+    assert after == pytest.approx(before, abs=0.5), (before, after)
+
+
 def test_a_live_version_keeps_the_user_on_the_same_margin_location(browser, serve):
     """Replacing authored main must not discard focus held by retained map chrome."""
     version_url = serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])

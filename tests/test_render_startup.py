@@ -2193,49 +2193,74 @@ def test_diagrams_load_one_renderer_bundle_when_they_draw(browser, serve):
     assert [p for p in asked if "mermaid" in p] == ["/vendor/agentic-mermaid.esm.js"]
 
 
-def test_floating_ui_loads_only_when_a_user_opens_a_response(browser, serve):
-    """Pages that receive no response do not pay for its positioning engine."""
-    context = browser.new_context(viewport={"width": 1280, "height": 800})
-    asked = _asked(context)
-    page = open_page(browser, serve(FEATURE_GALLERY), context=context)
+def test_floating_ui_loads_after_the_page_presents(browser, serve):
+    """The positioning engine stays off the presentation path and arrives after it.
 
-    assert not [path for path in asked if "floating-ui" in path]
-    page.locator("#bg-react-ok").click(modifiers=["Alt"])
-    expect(page.locator(".lf-fab-input")).to_be_visible()
-    assert [path for path in asked if "floating-ui" in path] == [
-        "/vendor/floating-ui.esm.js"
-    ]
+    The thread card and the comment box both place through it, so it loads once the page
+    has presented rather than on the first response, and neither surface waits on a
+    fetch when the user first opens one. Held, it keeps the page from reading as arrived
+    but not from presenting."""
+    context = browser.new_context(viewport={"width": 1280, "height": 800})
+    held = []
+    released = False
+
+    def hold(route):
+        if released:
+            route.continue_()
+        else:
+            held.append(route)
+
+    context.route("**/vendor/floating-ui.esm.js", hold)
+    try:
+        page = open_page(
+            browser, serve(FEATURE_GALLERY), context=context, upgraded=False
+        )
+        wait_until_ready(page, through="presented")
+        holding(page, held, 1, "the positioning module")
+        assert (
+            page.evaluate(
+                "() => document.querySelector('script[data-lf-entry]').lfReadiness(null)"
+            )
+            == "arrived"
+        )
+    finally:
+        # The gallery's live samples are pages of their own, each fetching it too.
+        released = True
+        while held:
+            held.pop().continue_()
+    wait_until_ready(page)
 
 
 def test_comment_focus_waits_for_the_lazy_placement_module(browser, serve):
-    """Comment entered from an already-selected passage keeps its focus request while
-    the positioning dependency loads, rather than focusing a still-hidden text box."""
-    page = open_page(browser, serve(LONG_PAGE))
+    """Comment entered before the positioning dependency has arrived keeps its focus
+    request while it loads, rather than focusing a still-hidden text box."""
+    context = browser.new_context(viewport={"width": 1280, "height": 800})
     held = []
-    page.route("**/vendor/floating-ui.esm.js", lambda route: held.append(route))
+    context.route("**/vendor/floating-ui.esm.js", lambda route: held.append(route))
+    page = open_page(browser, serve(LONG_PAGE), context=context, upgraded=False)
     field = page.locator(".lf-fab-input")
     try:
+        wait_until_ready(page, through="presented")
+        holding(page, held, 1, "the response placement module")
         box = page.locator("#p10").bounding_box()
         select(
             page,
             (box["x"] + 4, box["y"] + 6),
             (box["x"] + 150, box["y"] + 6),
         )
-        holding(page, held, 1, "the response placement module")
         page.keyboard.press("c")
         expect(field).to_be_hidden()
         assert page.evaluate("() => document.activeElement === document.body")
         assert page.evaluate("() => getSelection().toString().length > 0")
 
         held.pop(0).continue_()
-        page.unroute("**/vendor/floating-ui.esm.js")
         expect(field).to_be_visible()
         expect(field).to_be_focused()
         assert page.evaluate("() => getSelection().toString()") == ""
     finally:
         for route in held:
             route.continue_()
-        page.unroute_all(behavior="wait")
+        context.unroute_all(behavior="wait")
 
 
 def test_an_unavailable_floating_ui_module_withdraws_the_response(browser, serve):

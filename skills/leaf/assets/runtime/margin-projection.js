@@ -25,19 +25,20 @@
    where it stands: right of its target, across the rail and over the cluster where the
    card's measure needs it, when that room takes the card's minimum measure, otherwise
    under or over the cluster with its right edge on the visible edge, so it crosses the
-   column by no more than that room's shortfall. The card
-   keeps its height in every case; one too tall for its spot slides across its cluster
-   rather than shrinking. This module supplies the visible boundary — the reading region
-   or the viewport under the banner and over the bottom chrome — measures the card, and
-   clips it to the part of the window the page shows, so a card leaving with its cluster
-   passes under the chrome rather than over it. The card contains the complete inline
-   thread view; the Threads panel remains the complete index and takes over when already
-   open. Once placed, the card keeps its side and holds one edge at its distance from the
-   cluster (the geometry's `hold`): its foot, and the editor pinned to it, while the
-   reply has focus or draft text, and its top while the thread is read, whatever the
-   draft, an arriving turn, or a send does to its height. Opening it on another cluster
-   lets it choose its spot afresh. A scroll never closes it: the card leaves with its
-   cluster and comes back with it.
+   column by no more than that room's shortfall. The card keeps its height in every
+   case; one too tall for its spot slides across its cluster rather than shrinking. This
+   module supplies the visible boundary — the reading region or the viewport under the
+   banner and over the bottom chrome — measures the card, and clips it to the part of
+   the window the page shows, so a card leaving with its cluster passes under the chrome
+   rather than over it. Floating UI (floating.js) carries the spot into the card's
+   positioning space and follows what moves the cluster. The card contains the complete
+   inline thread view; the Threads panel remains the complete index and takes over when
+   already open. Once placed, the card keeps its side and holds one edge at its distance
+   from the cluster (the geometry's `hold`): its foot, and the editor pinned to it,
+   while the reply has focus or draft text, and its top while the thread is read,
+   whatever the draft, an arriving turn, or a send does to its height. Opening it on
+   another cluster lets it choose its spot afresh. A scroll never closes it: the card
+   leaves with its cluster and comes back with it.
 
    The reply editor grows with its words until the card fills the room from its held
    edge to the boundary, and the transcript above it gives up its room to that growth
@@ -69,7 +70,7 @@
    Boot supplies version, map, travel, and semantic thread-render capabilities.
    mount hands the layer to the layout and binds the lifecycle after those owners exist; every
    later render reads the same bound capabilities, including event-driven repaints. */
-import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
+import { cancelRender, nextRender } from "./rendering.js";
 import { labelWords, spokenSubject } from "./margin-entry-model.js";
 import {
   mountMarginLayer,
@@ -175,6 +176,7 @@ import {
 import { coarsePointer } from "./pointer.js";
 import { threadCardGeometry } from "./thread-card-geometry.js";
 import { shownWindow } from "./geometry.js";
+import { floatingPlacement, floatingUi } from "./floating.js";
 import { placeKeeper } from "./user-place.js";
 import {
   isLiveWorkflow,
@@ -622,15 +624,23 @@ export function createMarginProjection({
   }
   const threadPreviewPositioned = () =>
     new Promise((resolve) => previewPositionWaiters.push(resolve));
-  // Placement is synchronous, so a card that can be placed is placed now. One that
-  // cannot yet — its owner not connected, no
-  // room — is answered by the placement a later frame lands, or by the close that
-  // abandons it.
-  const placedThreadPreview = () =>
-    placeThreadPreview() ? Promise.resolve(true) : threadPreviewPositioned();
+  // A placement lands in the microtasks after it starts, before the frame paints. One
+  // that cannot land yet — its owner not connected, no room — is answered by a later
+  // placement, or by the close that abandons it.
+  const placedThreadPreview = () => {
+    placeThreadPreview();
+    return threadPreviewPositioned();
+  };
+  // Floating UI follows what moves the card's cluster: its target's scroll containers,
+  // the window and visual viewport, and the target and card changing size or moving.
+  const previewPlacement = floatingPlacement({
+    floating: preview,
+    update: () => scheduleThreadPreviewPosition(),
+  });
   function resetThreadPreviewPosition() {
     cancelRender(previewPositionFrame);
     previewPositionFrame = 0;
+    previewPlacement.stop();
     previewHold = null;
     previewAway = false;
     delete preview.dataset.lfThreadPlacement;
@@ -711,61 +721,97 @@ export function createMarginProjection({
     }
   }
 
+  // The row the card hangs from. A row the rail has no room for is withheld and has no
+  // box. A card placed against that empty box stood in the boundary's corner over the
+  // words the user pressed, and had never been beside its cluster for a scroll to carry
+  // it away from. It stands by the row's target instead. A row whose target is not shown
+  // is withheld too, and that target has no box to stand by either.
   function threadCardCluster() {
-    // A row the rail has no room for is withheld and has no box. A card placed against
-    // that empty box stood in the boundary's corner over the words the user pressed,
-    // and had never been beside its cluster for a scroll to carry it away from.
-    // It stands by the row's target instead. A row whose target is not shown is withheld
-    // too, and that target has no box to stand by either.
     const row =
       previewMarginEntry.closest("[data-lf-margin-for]") ?? previewMarginEntry;
-    return (
-      row.checkVisibility() ? row : (targetFor(previewEntry) ?? row)
-    ).getBoundingClientRect();
+    return row.checkVisibility() ? row : (targetFor(previewEntry) ?? row);
+  }
+  // Where the card stands is thread-card-geometry.js's rule, worked out in client
+  // coordinates. Floating UI carries the answer into the card's positioning space by the
+  // distance it measured between the cluster's client box and its box there.
+  function threadCardMiddleware(cluster, target) {
+    return {
+      name: "threadCard",
+      fn({ rects }) {
+        const boundary = threadCardBoundary(target);
+        if (!boundary.width || !boundary.height) return {};
+        const replyEditor = previewList.querySelector(REPLY_BOX);
+        // Drafting is standing anywhere in the reply's row, Send included: a pressed Send
+        // keeps its focus while the send empties the box, and the card must not move then.
+        const drafting =
+          replyEditor?.checkVisibility() &&
+          (replyEditor.closest(".lf-say").contains(document.activeElement) ||
+            replyEditor.value !== "");
+        const clusterBox = cluster.getBoundingClientRect();
+        const style = getComputedStyle(preview);
+        const geometry = threadCardGeometry({
+          cluster: clusterBox,
+          target: target?.getBoundingClientRect() ?? null,
+          boundary,
+          scrollport: threadCardBoundary(target, { viewport: "layout" }),
+          gap: CARD_GAP,
+          minWidth: parseFloat(style.getPropertyValue("--thread-card-min")),
+          preferredWidth: parseFloat(style.getPropertyValue("--thread-card")),
+          heightAt: measureThreadCard,
+          edge: drafting ? "foot" : "top",
+          hold: previewHold,
+        });
+        return {
+          x: geometry.x + rects.reference.x - clusterBox.x,
+          y: geometry.y + rects.reference.y - clusterBox.y,
+          data: { geometry, drafting, shown: threadCardBoundary(target, { gap: 0 }) },
+        };
+      },
+    };
   }
   function placeThreadPreview() {
     if (!previewOpen() || !previewMarginEntry?.isConnected) return false;
-    const replyEditor = previewList.querySelector(REPLY_BOX);
-    // Drafting is standing anywhere in the reply's row, Send included: a pressed Send
-    // keeps its focus while the send empties the box, and the card must not move then.
-    const drafting =
-      replyEditor?.checkVisibility() &&
-      (replyEditor.closest(".lf-say").contains(document.activeElement) ||
-        replyEditor.value !== "");
-    const cluster = threadCardCluster();
-    const target = targetFor(previewEntry);
-    const boundary = threadCardBoundary(target);
-    if (!boundary.width || !boundary.height) return false;
-    const style = getComputedStyle(preview);
-    const geometry = threadCardGeometry({
-      cluster,
-      target: target?.getBoundingClientRect() ?? null,
-      boundary,
-      scrollport: threadCardBoundary(target, { viewport: "layout" }),
-      gap: CARD_GAP,
-      minWidth: parseFloat(style.getPropertyValue("--thread-card-min")),
-      preferredWidth: parseFloat(style.getPropertyValue("--thread-card")),
-      heightAt: measureThreadCard,
-      edge: drafting ? "foot" : "top",
-      hold: previewHold,
-    });
-    previewHold = geometry.hold;
-    previewAway = geometry.away;
-    preview.style.left = `${geometry.x}px`;
-    // A card held by its foot writes its foot, so growth before the next placement
-    // moves its top.
-    preview.style.top = `${geometry.y + (drafting ? geometry.height : 0)}px`;
-    // Leaving with its cluster, the card passes under the chrome rather than over it.
-    const shown = threadCardBoundary(target, { gap: 0 });
-    preview.style.clipPath = `inset(${shown.top - geometry.y}px ${
-      geometry.x + geometry.width - shown.right
-    }px ${geometry.y + geometry.height - shown.bottom}px ${shown.left - geometry.x}px)`;
-    preview.dataset.lfThreadPlacement = geometry.placement;
-    if (drafting) preview.dataset.lfThreadHeld = "";
-    else delete preview.dataset.lfThreadHeld;
-    preview.style.removeProperty("opacity");
-    preview.style.removeProperty("pointer-events");
-    answerThreadPreviewPosition(true);
+    const placement = previewPlacement.begin();
+    const stillCurrent = () =>
+      previewPlacement.current(placement) &&
+      previewOpen() &&
+      previewMarginEntry?.isConnected;
+    void floatingUi()
+      .then(({ autoUpdate, computePosition }) => {
+        if (!stillCurrent()) return null;
+        const cluster = threadCardCluster();
+        const target = targetFor(previewEntry);
+        const reference = {
+          contextElement: target ?? cluster,
+          getBoundingClientRect: () => cluster.getBoundingClientRect(),
+        };
+        previewPlacement.watch(target ?? cluster, reference, autoUpdate);
+        return computePosition(reference, preview, {
+          strategy: "fixed",
+          middleware: [threadCardMiddleware(cluster, target)],
+        });
+      })
+      .then((position) => {
+        const placed = position?.middlewareData.threadCard;
+        if (!placed?.geometry || !stillCurrent()) return;
+        const { geometry, drafting, shown } = placed;
+        previewHold = geometry.hold;
+        previewAway = geometry.away;
+        preview.style.left = `${position.x}px`;
+        // A card held by its foot writes its foot, so growth before the next placement
+        // moves its top.
+        preview.style.top = `${position.y + (drafting ? geometry.height : 0)}px`;
+        // Leaving with its cluster, the card passes under the chrome rather than over it.
+        preview.style.clipPath = `inset(${shown.top - geometry.y}px ${
+          geometry.x + geometry.width - shown.right
+        }px ${geometry.y + geometry.height - shown.bottom}px ${shown.left - geometry.x}px)`;
+        preview.dataset.lfThreadPlacement = geometry.placement;
+        if (drafting) preview.dataset.lfThreadHeld = "";
+        else delete preview.dataset.lfThreadHeld;
+        preview.style.removeProperty("opacity");
+        preview.style.removeProperty("pointer-events");
+        answerThreadPreviewPosition(true);
+      });
     return true;
   }
   function scheduleThreadPreviewPosition() {
@@ -2793,7 +2839,6 @@ export function createMarginProjection({
       )
         scheduleThreadPreviewPosition();
     });
-    sizeObserver(() => scheduleThreadPreviewPosition()).observe(preview);
     // The user still stands in a card a scroll carried away with its cluster, and a key
     // pressed there first brings the cluster back, as a browser brings a focused field
     // back into view for typing.
@@ -2842,27 +2887,16 @@ export function createMarginProjection({
       { capture: true },
     );
     watchMarginContributions(renderMargin);
-    document.addEventListener(
-      "scroll",
-      (event) => {
-        scheduleRoving();
-        if (!preview.contains(event.target)) scheduleThreadPreviewPosition();
-      },
-      { capture: true, passive: true },
-    );
+    document.addEventListener("scroll", () => scheduleRoving(), {
+      capture: true,
+      passive: true,
+    });
     window.addEventListener("resize", () => {
       // A window of another size is not a scroll: the card stands in it until its
       // cluster has been seen there (thread-card-geometry.js, `seen`).
       if (previewHold) previewHold = { ...previewHold, seen: false };
-      scheduleThreadPreviewPosition();
       scheduleWidthRender();
     });
-    // Pinch zoom and a software keyboard move or shrink the visible viewport the card
-    // stands in without resizing the window.
-    for (const type of ["resize", "scroll"])
-      window.visualViewport.addEventListener(type, () =>
-        scheduleThreadPreviewPosition(),
-      );
     renderMargin();
     chromeRoot.append(nav, preview);
     if (!previewRegionMounted) {

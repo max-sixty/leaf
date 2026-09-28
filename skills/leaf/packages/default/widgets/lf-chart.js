@@ -121,16 +121,8 @@ function readAxis(labels) {
   const times = labels.map((label) => (ISO_TIME.test(label) ? new Date(label) : null));
   // Date is also the check: a label shaped like a month that names none, such as 2021-22
   // (a winter, on a chart of winters), is an Invalid Date and leaves the column a category.
-  if (times.every((time) => time && !Number.isNaN(+time))) {
-    // Two labels can name one instant, 2026-06 and 2026-06-01, which would draw two rows
-    // at one x: the refusal readTable gives two rows that share a label.
-    const twice = times.findIndex(
-      (time, i) => times.findIndex((t) => +t === +time) !== i,
-    );
-    if (twice >= 0)
-      throw new Error(`${labels[twice]} names an instant another row already names`);
+  if (times.every((time) => time && !Number.isNaN(+time)))
     return { type: "utc", values: times };
-  }
   const numbers = labels.map(Number);
   if (numbers.every(Number.isFinite)) return { type: "linear", values: numbers };
   return { type: "band", values: labels };
@@ -387,6 +379,16 @@ function build(Plot, { kind, table, axis, label, width, font, line, grow, held }
         Plot.ruleY([0]),
       ],
     });
+  }
+
+  // A continuous axis puts each row at its value, so two labels with one value, such as
+  // 2026-06 and 2026-06-01, or 1 and 1.0, would draw two rows at one x: the refusal
+  // readTable gives two rows that share a label. A bar keeps a slot per label, so only
+  // a line or a scatter reaches this.
+  if (axis.type !== "band") {
+    const at = axis.values.map(Number);
+    const twice = at.findIndex((x, i) => at.indexOf(x) !== i);
+    if (twice >= 0) throw new Error(`${labels[twice]} is the same x as another row`);
   }
 
   const marginLeft = Math.round(room(drawn)) + 14 + grow.left;

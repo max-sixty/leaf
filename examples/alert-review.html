@@ -14,13 +14,13 @@
         border-top: 1px solid var(--rule);
         --lf-block-frame: 1;
       }
-      /* The queue beside its detail, stacked in a narrow window. */
+      /* The queue beside its detail, stacked where the workspace flows. */
       #ar-regions {
         display: grid;
         grid-template-columns: minmax(16rem, 1fr) 2fr;
         gap: var(--sp-4);
       }
-      @media (width < 900px) {
+      @media (width < 720px) {
         #ar-regions {
           grid-template-columns: 1fr;
         }

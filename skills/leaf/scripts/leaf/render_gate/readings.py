@@ -489,6 +489,7 @@ def sweep(page, viewports, open_tags) -> list[tuple[int, dict]]:
                     "misplaced": evaluate_probe(page, "misplacedBoxes"),
                     "margin": page.evaluate(MARGIN_READING),
                     "arrangement": evaluate_probe(page, "arrangedBoxes", open_tags),
+                    "panes": evaluate_probe(page, "heldPanes"),
                 },
             )
         )
@@ -516,6 +517,38 @@ def arrangement_changes(readings) -> list[tuple[int, str, str]]:
             )
             changes.append((high, moved[0], said))
     return changes
+
+
+def stacked_panes(readings) -> list[str]:
+    """Each workspace body that stacks its panes in one column while the Layout still
+    holds the window, at the swept widths it does so.
+
+    A held workspace shares one window's height among its panes, so panes stacked there
+    each get a slice of it: three at 800x768 left one a 28px body. A body whose panes
+    stand in one column at every width is a design of rows, and is not in question; one
+    that stands them side by side in a wider window stacks them too early, and should
+    stack only where the Layout stops holding the window."""
+    wide = {}
+    stacked = {}
+    for width, reading in readings:
+        for body in reading["panes"]:
+            if not body["held"]:
+                continue
+            at = body["at"]
+            if body["beside"] > 1:
+                wide[at] = True
+            elif wide.get(at):
+                stacked.setdefault(at, []).append(width)
+    found = []
+    for at, widths in stacked.items():
+        low, high = min(widths), max(widths)
+        span = f"{low}px" if low == high else f"{low}–{high}px"
+        found.append(
+            f"at {span} wide, {at} stacks its panes in one column while the workspace "
+            "holds the window, so they share one window's height; stack them only "
+            "where the Layout stops holding it (page-authoring.md, A workspace)"
+        )
+    return found
 
 
 def margin_changes(page, readings, height: int) -> list[int]:

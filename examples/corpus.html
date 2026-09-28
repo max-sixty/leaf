@@ -979,13 +979,13 @@
         border-top: 1px solid var(--rule);
         --lf-block-frame: 1;
       }
-      /* The queue beside its detail, stacked in a narrow window. */
+      /* The queue beside its detail, stacked where the workspace flows. */
       #ar-regions {
         display: grid;
         grid-template-columns: minmax(16rem, 1fr) 2fr;
         gap: var(--sp-4);
       }
-      @media (width < 900px) {
+      @media (width < 720px) {
         #ar-regions {
           grid-template-columns: 1fr;
         }
@@ -1410,13 +1410,13 @@
     </script>
 <!-- current-proposed-comparison.html authored styles -->
 <style>
-      /* The regions side by side, stacked in a narrow window. */
+      /* The regions side by side, stacked where the workspace flows. */
       #comparison-regions {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: var(--sp-4);
       }
-      @media (width < 900px) {
+      @media (width < 720px) {
         #comparison-regions {
           grid-template-columns: 1fr;
         }
@@ -1424,13 +1424,13 @@
     </style>
 <!-- review-queue.html authored styles -->
 <style>
-      /* The regions side by side, stacked in a narrow window. */
+      /* The regions side by side, stacked where the workspace flows. */
       #review-regions {
         display: grid;
         grid-template-columns: minmax(16rem, 1fr) 2fr;
         gap: var(--sp-4);
       }
-      @media (width < 900px) {
+      @media (width < 720px) {
         #review-regions {
           grid-template-columns: 1fr;
         }

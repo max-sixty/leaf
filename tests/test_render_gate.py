@@ -2909,6 +2909,43 @@ def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve):
     assert render_gate_model.render_version(browser, url).failures == []
 
 
+def test_a_scrolling_table_keeps_its_caption_and_status_words_whole(browser, serve):
+    """A table that scrolls its columns keeps its caption on the part of it on screen,
+    where the caption used to run on past the scrollport; and a status tag in a narrow
+    column holds its word, where `overflow-wrap: anywhere` let the table's automatic
+    layout squeeze "passed" to "pas" over "sed"."""
+    caption = "What the final revision demonstrates and what remains to be measured"
+    source = WIDE_TABLE_PAGE.replace(
+        '<table id="sessions">', f'<table id="sessions"><caption>{caption}</caption>'
+    ).replace(
+        "</table>",
+        "</table><table id='statuses'><tr><td><span class='tag ok'>passed</span></td>"
+        "<td>" + "The replay covers every legacy export and the importer's output. " * 3
+        + "</td></tr></table>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 360, 740)
+    table = page.locator("#sessions")
+    read = """t => {
+      const box = t.getBoundingClientRect(), cap = t.caption.getBoundingClientRect();
+      const tag = document.querySelector('#statuses .tag');
+      return {scrolls: t.scrollWidth - t.clientWidth,
+              inside: cap.left >= box.left - 1 && cap.right <= box.right + 1,
+              tagLines: Math.round(tag.getBoundingClientRect().height
+                / parseFloat(getComputedStyle(tag).lineHeight))};
+    }"""
+    measured = table.evaluate(read)
+    assert measured["scrolls"] > 0, "this table fits, so it proves nothing"
+    assert measured["inside"] and measured["tagLines"] == 1, measured
+    table.evaluate("t => { t.scrollLeft = t.scrollWidth; }")
+    page.wait_for_function(
+        """() => { const t = document.querySelector('#sessions');
+                   const box = t.getBoundingClientRect(), cap = t.caption.getBoundingClientRect();
+                   return t.scrollLeft > 0 && cap.left >= box.left - 1
+                     && cap.right <= box.right + 1; }"""
+    )
+
+
 def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, serve):
     """The theme's second case, reached by a table that used to fall through to the
     third: a column of test names beside a column of prose. A name is one word to

@@ -1064,12 +1064,17 @@ img { aspect-ratio: attr(width type(<number>)) / attr(height type(<number>)); }
  * lf-board already make, and the reason not to write a print rule undoing this
  * one. */
 /* A table scrolls its own columns, so, like `pre`, its rows never size what holds it. */
-table { display: block; overflow-x: auto; contain: inline-size; border-collapse: collapse;
+table { display: block; overflow-x: auto; container-type: inline-size;
+        border-collapse: collapse;
         font: var(--t-5)/1.5 var(--sans); margin: 18px 0; font-variant-numeric: tabular-nums; }
 /* A cell already supplies the identifier's frame and spacing. */
 :is(th, td) code:not(pre code) { padding: 0; background: none; font-size: var(--t-6); }
+/* The caption stands inside the box that scrolls the columns, at the columns' full
+   width, so on a narrow window it ran past the scrollport and read "What the final
+   revision demonstrates and what rem…". It keeps to the part of the table on screen
+   (the table is its own inline-size container) and stays there as the columns scroll. */
 caption { text-align: left; font-size: var(--t-6); color: var(--muted);
-          margin-bottom: 6px; }
+          margin-bottom: 6px; position: sticky; left: 0; max-inline-size: 100cqi; }
 th, td { text-align: left; padding: 8px 14px; border-bottom: 1px solid var(--rule);
          vertical-align: top; --lf-block-frame: 1; }
 /* The padding is a gutter, and the columns at the two ends have no neighbour to
@@ -1141,11 +1146,13 @@ dd { margin: 0 0 8px 0; }
  * layer's chips read, so a band of chips and an inline .tag stand the same height —
  * they drifted four pixels apart once, when the inline label padded itself and
  * nobody had decided that. A wearer keeps only where it sits, and a tint of its
- * own where the tint is the point. */
+ * own where the tint is the point. A long word breaks only where it would overflow
+ * (break-word): `anywhere` also made each letter a place the chip could shrink to, so
+ * a table's automatic layout squeezed a status column down to "pas" over "sed". */
 .tag {
   display: inline-block; font-size: var(--t-6); line-height: var(--chip-lh);
   padding: var(--chip-pad);
-  box-sizing: border-box; max-width: 100%; overflow-wrap: anywhere;
+  box-sizing: border-box; max-width: 100%; overflow-wrap: break-word;
   border-radius: var(--chip-r); background: var(--chip); color: var(--ink-2); }
 
 /* A row of chips a widget writes, and the chips in it, in the face above. lf-milestone
@@ -1154,7 +1161,7 @@ dd { margin: 0 0 8px 0; }
 .lf-chips span {
   display: inline-block; font-size: var(--t-6); line-height: var(--chip-lh);
   padding: var(--chip-pad);
-  box-sizing: border-box; max-width: 100%; overflow-wrap: anywhere;
+  box-sizing: border-box; max-width: 100%; overflow-wrap: break-word;
   border-radius: var(--chip-r); background: var(--chip); color: var(--ink-2); }
 /* The block something is about (§): an option row's `for`, which lf-options writes,
  * and an agent's section, which lf-agent does. It points; it never supplies the row's words, so it

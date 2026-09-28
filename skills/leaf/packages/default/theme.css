@@ -101,7 +101,7 @@ lf-chip {
 lf-chip {
   display: inline-block; font-size: var(--t-6); line-height: var(--chip-lh);
   padding: var(--chip-pad);
-  box-sizing: border-box; max-width: 100%; overflow-wrap: anywhere;
+  box-sizing: border-box; max-width: 100%; overflow-wrap: break-word;
   border-radius: var(--chip-r); background: var(--chip); color: var(--ink-2); }
 
 /* Titled alternatives carry an argument and keep the document's serif. Compact

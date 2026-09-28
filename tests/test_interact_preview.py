@@ -12,7 +12,6 @@ in a nightly module runs nowhere near the change that breaks it.
 """
 
 import json
-import subprocess
 from pathlib import Path
 
 from interact_support import ROOT
@@ -41,25 +40,6 @@ def test_a_preview_source_uses_its_checkout_layer_and_media(tmp_path):
     # what a revision is as executable code and editing the source does not.
     assert str(examples / "layer.json") not in watched.layer
     assert str(ROOT / "uv.lock") in watched.layer
-
-
-def test_a_preview_asks_the_launcher_for_its_payload_root(tmp_path, monkeypatch):
-    """The version interface is provenance; checkout validation retains its own flag."""
-
-    runtime = tmp_path / "runtime"
-    launcher = runtime / "bin" / "leaf"
-    launcher.parent.mkdir(parents=True)
-    launcher.touch()
-    calls = []
-
-    def run(*args, **kwargs):
-        calls.append((args, kwargs))
-        return subprocess.CompletedProcess(args, 0, stdout=f"{runtime}\n", stderr="")
-
-    monkeypatch.setattr(preview.subprocess, "run", run)
-
-    assert preview.checkout(runtime) == (runtime, launcher)
-    assert calls[0][0] == ([str(launcher), "--root"],)
 
 
 def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():

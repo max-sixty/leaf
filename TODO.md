@@ -21,8 +21,10 @@ has tried; settle that before building it.
   carrier (leaf.page and `leaf codex start`) title a thread from its opening
   message in about 3 s (`thread_titles`). A Codex task Leaf reaches through `codex
   queue` still titles on the agent's reply; give it the same request, through
-  `codex exec`. A request at admission, as Claude Code's is, would serve every
-  harness once the page server can reach each one's model.
+  `codex exec`. Worktrunk's `codex exec` command took 3.7–5 s and about 13k input
+  tokens per title here, and it leaves the user's MCP servers on, which the App
+  Server request turns off by name. A request at admission, as Claude Code's is,
+  would serve every harness once the page server can reach each one's model.
 - **Keep a long Thread's standing visible.** Let the agent maintain one line at the
   head of a Thread saying what is decided and what remains open, so a user
   returning to a long discussion knows where it stands before reading it. Decide

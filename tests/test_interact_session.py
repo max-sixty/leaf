@@ -1565,12 +1565,62 @@ def test_a_comment_on_a_claude_code_page_is_named_as_it_arrives(
     assert (title["agent"], title["session"]) == ("Claude", "s1")
 
     [call] = [json.loads(line) for line in record.read_text().splitlines()]
-    argv = call["argv"]
-    assert argv[argv.index("--model") + 1] == "haiku"
-    assert argv[argv.index("--tools") + 1] == ""
-    assert "--safe-mode" in argv
     assert "Why does the export take a minute?" in call["stdin"]
     assert "CLAUDE_CODE_SESSION_ID" not in call["env"]
+    assert call["env"]["MAX_THINKING_TOKENS"] == "0"
+
+
+def test_both_hosts_are_asked_for_a_title_in_the_same_words(
+    page_dir, app_server, tmp_path, monkeypatch, snapshot
+):
+    """Claude Code's `claude -p` and an App Server carrier are sent the same system
+    prompt, request and answer schema; the snapshot is that request, verbatim."""
+    comment = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "text": "Why does the export take a minute?",
+            "anchor": {"section": None, "quote": "Export runs nightly"},
+        },
+    )
+    request = thread_titles.title_request(page_dir, comment["id"])
+
+    programs = tmp_path / "programs"
+    programs.mkdir()
+    claude = programs / "claude"
+    claude.write_text(TITLING_CLAUDE.format(python=sys.executable))
+    claude.chmod(0o755)
+    record = tmp_path / "claude-calls.jsonl"
+    monkeypatch.setenv("TITLING_RECORD", str(record))
+    monkeypatch.setenv("PATH", f"{programs}{os.pathsep}{os.environ['PATH']}")
+    thread_titles.claude_code_title(request, page_dir)
+    [call] = [json.loads(line) for line in record.read_text().splitlines()]
+    argv = call["argv"]
+    system_prompt = argv[argv.index("--system-prompt") + 1]
+    schema = json.loads(argv[argv.index("--json-schema") + 1])
+
+    endpoint, received = titling_app_server(app_server, '{"title": "Export speed"}')
+    thread_titles.app_server_title(endpoint, None)(request, page_dir)
+    [start] = [m for m in received if m.get("method") == "thread/start"]
+    [turn] = [m for m in received if m.get("method") == "turn/start"]
+    assert start["params"]["baseInstructions"] == system_prompt
+    assert turn["params"]["input"] == [{"type": "text", "text": call["stdin"]}]
+    assert turn["params"]["outputSchema"] == schema
+
+    placeholders = {system_prompt: "<system_prompt>", json.dumps(schema): "<schema>"}
+    snapshot.check(
+        yaml_document(
+            "What Claude Code's page server runs, and what it and an App Server "
+            "carrier send, for a\nthread opened on a passage.",
+            {
+                "command": ["claude", *(placeholders.get(a, a) for a in argv)],
+                "system_prompt": Prose(system_prompt),
+                "request": Prose(call["stdin"]),
+                "schema": schema,
+            },
+        )
+    )
 
 
 @pytest.fixture

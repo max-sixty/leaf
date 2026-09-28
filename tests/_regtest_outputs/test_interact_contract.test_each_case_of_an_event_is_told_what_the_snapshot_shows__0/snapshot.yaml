@@ -80,7 +80,8 @@
 #        when: {"required": ["thread", "answer"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}, "answer": {"properties": {"kind": {"const": "reply"}}}}}
 #        text: This event's thread has no title yet: name it by adding `--title "<a
 #              few words>"` to the reply that answers it, so the thread panel lists
-#              its subject rather than its opening words.
+#              its subject rather than its opening words. If Leaf has named it from
+#              its opening message by then, that name stands.
 #      clause 6, does not apply:
 #        when: {"required": ["token"]}
 #        text: A reaction is a mark, not a question. Read the token and the `means`
@@ -155,7 +156,7 @@
 #              }
 #            ],
 #            "handling": {
-#              "h1": "This event's thread has no title yet: name it by adding `--title \"<a few words>\"` to the reply that answers it, so the thread panel lists its subject rather than its opening words.",
+#              "h1": "This event's thread has no title yet: name it by adding `--title \"<a few words>\"` to the reply that answers it, so the thread panel lists its subject rather than its opening words. If Leaf has named it from its opening message by then, that name stands.",
 #              "h2": "When the event asks for work, name that work before any other, including reading the source it concerns: `leaf status <page> working \"<the work, in a line>\" --on <address>`, where `<address>` is the event's `answer.to`. The move then reads Working, and the line stands beside the thread and in the banner until you answer. Do the work and put its result on the page, with whatever shows it (captures, a figure, the numbers), then answer with `leaf thread reply <page> --for <event-id>`: what changed, in a sentence or two, linking the section that shows it. When the event asks for no work, as a question may not, answer it with that reply at once. The page carries the work, and the thread only the conversation about it. `leaf thread reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something.",
 #              "h3": "Your reply renders as Markdown, so show code or markup in a fenced block."
 #            },
@@ -236,7 +237,8 @@
 #            text: >-
 #              This event's thread has no title yet: name it by adding `--title "<a few
 #              words>"` to the reply that answers it, so the thread panel lists its subject
-#              rather than its opening words.
+#              rather than its opening words. If Leaf has named it from its opening message
+#              by then, that name stands.
 #          - text: >-
 #              When the event asks for work, name that work before any other, including
 #              reading the source it concerns: `leaf status <page> working "<the work,
@@ -272,7 +274,8 @@ comment:
       text: >-
         This event's thread has no title yet: name it by adding `--title "<a few
         words>"` to the reply that answers it, so the thread panel lists its subject
-        rather than its opening words.
+        rather than its opening words. If Leaf has named it from its opening message
+        by then, that name stands.
     - text: >-
         When the event asks for work, name that work before any other, including
         reading the source it concerns: `leaf status <page> working "<the work,
@@ -515,7 +518,8 @@ reply in an untitled thread:
       text: >-
         This event's thread has no title yet: name it by adding `--title "<a few
         words>"` to the reply that answers it, so the thread panel lists its subject
-        rather than its opening words.
+        rather than its opening words. If Leaf has named it from its opening message
+        by then, that name stands.
     - text: >-
         When the event asks for work, name that work before any other, including
         reading the source it concerns: `leaf status <page> working "<the work,

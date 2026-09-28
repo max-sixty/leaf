@@ -8348,6 +8348,32 @@ def test_o_hides_what_is_drawn_over_the_page_and_moves_nothing(browser, serve):
     assert page.evaluate(wash) == ""
 
 
+def test_a_pin_unfolds_from_the_seat_it_was_pressed_in(browser, serve):
+    """Unfolding a pin's options widens it, and a pin seated afresh at that width could
+    move the control under the press: at 390px a reaction pin reseated 24px to the
+    right as it unfolded. The pin the user holds keeps its seat and grows leftward."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(FEATURE_GALLERY), context=context)
+    margins_laid_out(page)
+    reaction = page.get_by_role("button", name="keep reaction actions", exact=True)
+    cluster = page.locator(".lf-margin-cluster").filter(has=reaction)
+    expect(cluster).to_have_attribute("data-lf-place", "pin")
+    reaction.scroll_into_view_if_needed()
+    margins_laid_out(page)
+    before = cluster.bounding_box()
+    reaction.tap()
+    expect(reaction).to_have_attribute("aria-expanded", "true")
+    margins_laid_out(page)
+    after = cluster.bounding_box()
+    assert after["width"] > before["width"], (before, after)
+    assert after["x"] + after["width"] == pytest.approx(
+        before["x"] + before["width"], abs=1
+    ), (before, after)
+    assert after["y"] == pytest.approx(before["y"], abs=1), (before, after)
+
+
 def test_a_finger_hides_the_annotations_from_the_banner(browser, serve):
     """A phone has no `o` to press, so the banner's More holds the same toggle: the pin
     goes, no box of the page moves, and the control's word turns to the way back."""
@@ -8474,6 +8500,88 @@ def test_a_pin_in_a_pane_scrolls_with_it_and_leaves_with_its_target(browser, ser
     expect(row).to_have_class(re.compile(r"\blf-withheld\b"))
     page.locator("#pin-pane > div").evaluate("body => { body.scrollTop = 0; }")
     expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
+
+
+_PARAGRAPH = (
+    "<p>The export writes one file per tenant each night, and the archive would roll"
+    " every tenant into a partitioned bundle that the reader opens lazily by key"
+    " range.</p>"
+)
+SEATED_PANE_PAGE = leaf_page(
+    "an Ask seated in a pane",
+    '<header><h1 id="t">Pane pins</h1></header><div id="seat-panes">'
+    '<lf-pane id="seat-pane" label="Left"><div>'
+    + _PARAGRAPH
+    * 2
+    + '<lf-ask id="seat-ask"><h3>Should the nightly export keep writing one file per'
+    " tenant or roll every tenant up into one archive tonight</h3>"
+    '<lf-options id="seat-choice" choose>'
+    '<lf-option id="sa"><strong>One file per tenant</strong></lf-option>'
+    '<lf-option id="sb"><strong>One archive</strong></lf-option>'
+    "</lf-options></lf-ask>" + _PARAGRAPH * 8 + "</div></lf-pane>"
+    '<lf-pane id="seat-beside" label="Right"><div><p>A short pane beside it.</p></div>'
+    "</lf-pane></div>",
+    head="<style>#seat-panes { display: grid; grid-template-columns: 1fr 1fr;"
+    " gap: var(--sp-4); } lf-ask h3 { text-align: justify; }</style>",
+    layout="workspace",
+)
+
+
+def test_a_pin_in_a_pane_takes_one_seat_at_every_scroll(browser, serve):
+    """A pin whose corner covers words is seated beside its target, and in a pane that
+    seat is found in the pane's whole content, not the part it shows: seated against the
+    shown part and the pane header's controls, the same Ask's pin stood 28px above its
+    heading at one scroll and 55px down inside the Ask at another. Seated outside its
+    target, a pin can leave the pane while its target is still in view, so it is
+    withheld by where it stands rather than by where its target does."""
+    page = open_page(browser, serve(SEATED_PANE_PAGE))
+    resized(page, 1024, 600)
+    body = page.locator("#seat-pane > div")
+    pane_posture(page, page.locator("#seat-pane"), "bounded")
+    row = page.locator('.lf-margin-lane > [data-lf-margin-for="seat-ask"]')
+    expect(row).to_have_attribute("data-lf-place", "pin")
+
+    def seat_at(gap):
+        """The pin's offset from its Ask, laid out with the Ask `gap` below the pane's
+        top, and where the pin's top stands against that top."""
+        body.evaluate(
+            """(body, gap) => {
+              const ask = document.getElementById('seat-ask');
+              body.scrollTop += ask.getBoundingClientRect().top
+                - body.getBoundingClientRect().top - gap;
+            }""",
+            gap,
+        )
+        margins_laid_out(page)
+        # Anchor positioning takes a scroll's offset at the next frame.
+        return page.evaluate(
+            """async () => {
+              await new Promise((done) =>
+                requestAnimationFrame(() => requestAnimationFrame(done)));
+              const row = document.querySelector('[data-lf-margin-for="seat-ask"]');
+              const ask = document.getElementById('seat-ask').getBoundingClientRect();
+              const pane = document.querySelector('#seat-pane > div')
+                .getBoundingClientRect();
+              const pin = row.getBoundingClientRect();
+              return {
+                withheld: row.classList.contains('lf-withheld'),
+                dx: Math.round(pin.right - ask.right),
+                dy: Math.round(pin.top - ask.top),
+                above: Math.round(pane.top - pin.top),
+              };
+            }"""
+        )
+
+    far = seat_at(160)
+    assert not far["withheld"], far
+    near = seat_at(40)
+    assert (near["dx"], near["dy"]) == (far["dx"], far["dy"]), (far, near)
+    # Scrolled to the pane's top, the Ask's heading is in view, and the pin either stands
+    # inside the pane at its seat or is withheld; it never stands above the pane.
+    top = seat_at(2)
+    assert top["withheld"] or (
+        (top["dx"], top["dy"]) == (far["dx"], far["dy"]) and top["above"] <= 1
+    ), (far, top)
 
 
 FOOTER_ASK_PAGE = leaf_page(

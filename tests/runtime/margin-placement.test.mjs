@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { packRows, pinSpot, rowPosture } from "/runtime/margin-placement.js";
+import { packRows, pinSpot, rowPosture, seatRows } from "/runtime/margin-placement.js";
 
 const posture = (blockRight, over = {}) =>
   rowPosture({
@@ -145,4 +145,46 @@ test("another block counts whole, so a pin with no room of its own stays home", 
     spot([...words, below, box(24, 40, 366, 90)]),
     box(318, 100, 362, 144),
   );
+});
+
+// Two pins by the same run: `first` the more important, `second` below it in packing.
+const seat = box(284, 115.5, 328, 159.5);
+const pin = (key, priority, held = null) => ({
+  key,
+  priority,
+  held,
+  rect: box(318, 100, 362, 144),
+  seat,
+  parts: [box(160, 100, 366, 121), box(24, 127, 280, 148)],
+  cover: [words[1], box(24, 178, 366, 260)],
+  bounds: box(4, -Infinity, 386, Infinity),
+});
+const overlap = (a, b) =>
+  a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+
+test("pins are seated the more important first, each clear of those before it", () => {
+  const seats = seatRows([pin("second", 10), pin("first", 0)], { reach: 12, gap: 4 });
+  assert.deepEqual(seats.get("first"), seat);
+  assert.ok(!overlap(seats.get("second"), seat), seats);
+});
+
+test("a held pin keeps its seat, and a more important pin takes other room", () => {
+  // `second` is under the pointer, at the seat `first` would otherwise take.
+  const seats = seatRows([pin("second", 10, seat), pin("first", 0)], {
+    reach: 12,
+    gap: 4,
+  });
+  assert.deepEqual(seats.get("second"), seat);
+  assert.ok(!overlap(seats.get("first"), seat), seats);
+});
+
+test("a held row is packed first, so nothing pushes it from under the press", () => {
+  const pushes = packRows(
+    [
+      { key: "first", rect: rect(1079, 100), priority: 0 },
+      { key: "held", rect: rect(1079, 110), priority: 10, held: true },
+    ],
+    4,
+  );
+  assert.deepEqual(Object.fromEntries(pushes), { held: 0, first: 46 });
 });

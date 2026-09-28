@@ -38,8 +38,10 @@ export function rowPosture({
 // may not stand on and that never move — the page's own controls under a pin, such as a
 // card's grip — so a pin level with one goes below it rather than taking its presses.
 //
-// Each row is `{ key, rect, priority }`, its rect the one it takes with no push. The answer
-// maps each key to its push.
+// Each row is `{ key, rect, priority, held }`, its rect the one it takes with no push. A
+// row the user holds, under the pointer or with focus in it, comes before every other
+// (`inSeatingOrder`), so no row pushes it out from under the press. The answer maps each
+// key to its push.
 export function packRows(rows, gap, fixed = []) {
   const placed = fixed.map(({ left, right, top, bottom }) => ({
     left,
@@ -48,9 +50,7 @@ export function packRows(rows, gap, fixed = []) {
     bottom,
   }));
   const pushes = new Map();
-  const order = [...rows].sort(
-    (a, b) => a.priority - b.priority || a.rect.top - b.rect.top,
-  );
+  const order = inSeatingOrder(rows);
   for (const { key, rect, priority } of order) {
     const height = rect.bottom - rect.top;
     let top = rect.top;
@@ -72,6 +72,47 @@ export function packRows(rows, gap, fixed = []) {
   return pushes;
 }
 
+// The order rows take their places in: held rows first, then the more important, then
+// from the top.
+const inSeatingOrder = (rows) =>
+  [...rows].sort(
+    (a, b) =>
+      Number(Boolean(b.held)) - Number(Boolean(a.held)) ||
+      a.priority - b.priority ||
+      a.rect.top - b.rect.top,
+  );
+
+// Where every pin stands, in seating order, so a pin seated first is one the next keeps
+// off (`pinSpot`). A held pin keeps the rect it holds: unfolding its options widens it,
+// and a seat taken again at that width could move the control the user is pressing. It is
+// seated first, so no other pin takes its room. A pin with no `parts` to read around,
+// such as one inside a shadow tree, stands at its home.
+//
+// Each pin is `{ key, rect, priority, held, seat, parts, cover, bounds }`, `rect` its
+// home and `held` the rect it holds or null. The answer maps each key to its seat.
+export function seatRows(pins, { reach, gap }) {
+  const seats = new Map();
+  const seated = [];
+  for (const pin of inSeatingOrder(pins)) {
+    const rect =
+      pin.held ??
+      (pin.parts?.length
+        ? pinSpot({
+            seat: pin.seat,
+            home: pin.rect,
+            parts: pin.parts,
+            cover: [...pin.cover, ...seated],
+            bounds: pin.bounds,
+            reach,
+            gap,
+          })
+        : pin.rect);
+    seats.set(pin.key, rect);
+    seated.push(rect);
+  }
+  return seats;
+}
+
 // Where a pin stands. A pin has a seat: right after the end of a run of text, where a
 // reader finishes it, or inside the top-right corner of a block. It takes that seat
 // wherever the seat covers nothing. Where the seat would cover words, a control, another
@@ -83,9 +124,10 @@ export function packRows(rows, gap, fixed = []) {
 //
 // `parts` are the boxes of the target, one per line for a run of text. `cover` is what
 // the pin may not stand on; another block counts whole, since a pin anywhere on it, even
-// over its empty end, reads as that block's. `bounds` is the box the pin must stay inside
-// (the window across, or what a pane shows), `reach` how far from the nearest part it may
-// stand, and `gap` the clearance kept from what it avoids.
+// over its empty end, reads as that block's. `bounds` is the box the pin must stay inside:
+// the window across, or the whole content of the pane that scrolls it, never the part the
+// pane shows, which would seat the same page differently at each scroll. `reach` is how
+// far from the nearest part it may stand, and `gap` the clearance kept from what it avoids.
 export function pinSpot({ seat, home, parts, cover, bounds, reach, gap }) {
   const width = seat.right - seat.left;
   const height = seat.bottom - seat.top;

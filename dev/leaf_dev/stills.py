@@ -126,6 +126,12 @@ def code_focused(page: Page) -> None:
     )
 
 
+def go_to(page: Page) -> None:
+    """The Go-to sequence armed from the keyboard, its destinations on the line."""
+    page.keyboard.press("g")
+    page.wait_for_function("() => document.body.hasAttribute('data-lf-go-to-active')")
+
+
 DRIVERS: dict[str, Callable[[Page], None]] = {
     drive.__name__.replace("_", "-"): drive
     for drive in (
@@ -138,6 +144,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         composer,
         card_grabbed,
         code_focused,
+        go_to,
     )
 }
 
@@ -162,6 +169,8 @@ STATES = (
     State("plan-card-beside", "review-a-plan", card_by_pointer, viewport=BESIDE),
     State("plan-panel", "review-a-plan", threads_panel),
     State("plan-panel-beside", "review-a-plan", threads_panel, viewport=BESIDE),
+    State("plan-go-to", "review-a-plan", go_to, viewport=(1024, 768)),
+    State("plan-narrow", "review-a-plan", at_rest, viewport=(360, 740)),
     # Last on its page, since the reply it sends stays in the log.
     State("plan-panel-sent", "review-a-plan", panel_reply_sent),
     State("triage", "triage-board", at_rest),

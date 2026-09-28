@@ -60,6 +60,7 @@ from leaf import activity as activity_model
 from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import codex_adapter as codex_adapter_model
+from leaf import codex_titles
 from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
@@ -1336,6 +1337,180 @@ def app_server():
     for server, worker in reversed(serving):
         server.shutdown()
         worker.join(timeout=5)
+
+
+def titling_app_server(app_server, answer: str) -> tuple[str, list[dict]]:
+    """An App Server that answers each titling thread with `answer`."""
+    received = []
+
+    def handle(socket):
+        for raw in socket:
+            message = json.loads(raw)
+            received.append(message)
+            method = message.get("method")
+            if method == "initialize":
+                socket.send(json.dumps({"id": message["id"], "result": {}}))
+            elif method == "config/read":
+                servers = {"docs": {"command": "docs-server", "enabled": True}}
+                config = {"config": {"mcp_servers": servers}}
+                socket.send(json.dumps({"id": message["id"], "result": config}))
+            elif method == "thread/start":
+                thread = {"thread": {"id": "title-thread"}}
+                socket.send(json.dumps({"id": message["id"], "result": thread}))
+            elif method == "turn/start":
+                socket.send(
+                    json.dumps({"id": message["id"], "result": {"turn": {"id": "t"}}})
+                )
+                for notification in (
+                    {
+                        "method": "item/completed",
+                        "params": {
+                            "threadId": "title-thread",
+                            "item": {"type": "agentMessage", "text": answer},
+                        },
+                    },
+                    {
+                        "method": "turn/completed",
+                        "params": {
+                            "threadId": "title-thread",
+                            "turn": {"id": "t", "status": "completed"},
+                        },
+                    },
+                ):
+                    socket.send(json.dumps(notification))
+
+    return app_server(handle), received
+
+
+def test_an_app_server_turn_names_the_untitled_thread_it_answers(page_dir, app_server):
+    """A turn over App Server writes its reply with its own messages, so it has no
+    `--title` to name the thread with; the carrier names it beside the turn, from
+    the opening message and the passage it is on, and the delivery does not ask the
+    turn to."""
+    comment = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "text": "Why does the export take a minute?",
+            "anchor": {"section": None, "quote": "Export runs nightly"},
+        },
+    )
+    prepared = codex_model.prepare_codex_delivery(
+        page_dir,
+        host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
+    )
+    [batch] = prepared.payload["batches"]
+    [delivered] = batch["events"]
+    assert delivered["answer"]["kind"] == "turn"
+    assert not any("title" in text for text in batch["handling"].values())
+
+    endpoint, received = titling_app_server(app_server, '{"title": "Export speed"}')
+    records = []
+    codex_titles.name_untitled_threads(
+        endpoint,
+        prepared.payload,
+        "hosted-thread",
+        "light-model",
+        lambda event, **fields: records.append((event, fields)),
+    )
+    wait_for(lambda: records, bool, failure="the title was never generated")
+
+    [(event, fields)] = records
+    assert (event, fields["written"]) == ("thread_title_generated", True)
+    [title] = [
+        e for e in events_model.read_events(page_dir) if e["kind"] == "thread_title"
+    ]
+    assert (title["thread"], title["title"]) == (comment["id"], "Export speed")
+    assert (title["agent"], title["session"]) == ("Leaf guide", "hosted-thread")
+    [start] = [m for m in received if m.get("method") == "thread/start"]
+    assert start["params"]["ephemeral"] is True
+    assert start["params"]["model"] == "light-model"
+    # The user's MCP servers would start with the thread and list their tools to it.
+    assert start["params"]["config"]["mcp_servers"] == {"docs": {"enabled": False}}
+    # Both read the page's directory, so a project's own servers are among them.
+    [read] = [m for m in received if m.get("method") == "config/read"]
+    assert read["params"]["cwd"] == start["params"]["cwd"]
+    assert Path(start["params"]["cwd"]).resolve() == page_dir.resolve()
+    [turn] = [m for m in received if m.get("method") == "turn/start"]
+    [text] = turn["params"]["input"]
+    assert "Why does the export take a minute?" in text["text"]
+    assert "Export runs nightly" in text["text"]
+
+
+def test_a_title_is_drawn_from_the_opening_message_not_the_latest(page_dir, app_server):
+    """The turn answers the thread's latest message, which may be an afterthought;
+    the title comes from the message that opened it."""
+    comment = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "Why is the export slow?"},
+    )
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": comment["id"],
+            "text": "also, thanks",
+        },
+    )
+    prepared = codex_model.prepare_codex_delivery(
+        page_dir,
+        host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
+    )
+    endpoint, received = titling_app_server(app_server, '{"title": "Export speed"}')
+    records = []
+    codex_titles.name_untitled_threads(
+        endpoint,
+        prepared.payload,
+        "hosted-thread",
+        None,
+        lambda event, **fields: records.append((event, fields)),
+    )
+    wait_for(lambda: records, bool, failure="the title was never generated")
+
+    [turn] = [m for m in received if m.get("method") == "turn/start"]
+    [text] = turn["params"]["input"]
+    assert text["text"] == "Why is the export slow?"
+
+
+def test_a_generated_title_yields_to_one_the_agent_wrote_first(page_dir, app_server):
+    comment = events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "Tighten the intro"}
+    )
+    prepared = codex_model.prepare_codex_delivery(
+        page_dir,
+        host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
+    )
+    append_command(
+        page_dir,
+        {
+            "kind": "thread_title",
+            "author": "agent",
+            "agent": "Leaf guide",
+            "session": "hosted-thread",
+            "thread": comment["id"],
+            "title": "Intro",
+        },
+    )
+    endpoint, _ = titling_app_server(app_server, '{"title": "Shorter intro"}')
+    records = []
+    codex_titles.name_untitled_threads(
+        endpoint,
+        prepared.payload,
+        "hosted-thread",
+        None,
+        lambda event, **fields: records.append((event, fields)),
+    )
+    wait_for(lambda: records, bool, failure="the title was never generated")
+
+    assert records[0][1]["written"] is False
+    titles = [
+        e["title"]
+        for e in events_model.read_events(page_dir)
+        if e["kind"] == "thread_title"
+    ]
+    assert titles == ["Intro"]
 
 
 @pytest.fixture

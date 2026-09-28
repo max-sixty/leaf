@@ -69,6 +69,33 @@ from .thread import (
 )
 
 START_TIMEOUT = 20
+# The `config` of a thread Leaf starts, less what Codex loads by default and no such
+# thread uses: the skills list, plugin and app suggestions, other agents, memories,
+# browser and computer use, image generation and web search. Each is context the
+# model reads on every request, and web search reaches the network the hosted task
+# is told to stay off.
+LEAF_THREAD_CONFIG = {
+    "features": {
+        feature: False
+        for feature in (
+            "apps",
+            "browser_use",
+            "computer_use",
+            "goals",
+            "image_generation",
+            "in_app_browser",
+            "memories",
+            "multi_agent",
+            "plugins",
+            "skill_mcp_dependency_install",
+            "skill_search",
+            "tool_suggest",
+            "workspace_dependencies",
+        )
+    },
+    "skills": {"include_instructions": False},
+    "web_search": "disabled",
+}
 # A collecting record holds captured events in the delivery's own shape, so the
 # version moves with it; a record of another version is dropped, and the events
 # its page has not acknowledged are captured afresh.

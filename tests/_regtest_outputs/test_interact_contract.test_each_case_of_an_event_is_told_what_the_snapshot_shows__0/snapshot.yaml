@@ -77,7 +77,7 @@
 #              to raise, as the Leaf skill's "Improve Leaf through use" says. The
 #              stamped version that carries the fix is the result the reply reports.
 #      clause 5, applies:
-#        when: {"required": ["thread"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}}, "not": {"required": ["token"]}}
+#        when: {"required": ["thread", "answer"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}, "answer": {"properties": {"kind": {"const": "reply"}}}}}
 #        text: This event's thread has no title yet: name it by adding `--title "<a
 #              few words>"` to the reply that answers it, so the thread panel lists
 #              its subject rather than its opening words.
@@ -232,7 +232,7 @@
 #          answer:
 #            kind: reply
 #        told:
-#          - when: {"required": ["thread"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}}, "not": {"required": ["token"]}}
+#          - when: {"required": ["thread", "answer"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}, "answer": {"properties": {"kind": {"const": "reply"}}}}}
 #            text: >-
 #              This event's thread has no title yet: name it by adding `--title "<a few
 #              words>"` to the reply that answers it, so the thread panel lists its subject
@@ -268,7 +268,7 @@ comment:
     answer:
       kind: reply
   told:
-    - when: {"required": ["thread"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}}, "not": {"required": ["token"]}}
+    - when: {"required": ["thread", "answer"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}, "answer": {"properties": {"kind": {"const": "reply"}}}}}
       text: >-
         This event's thread has no title yet: name it by adding `--title "<a few
         words>"` to the reply that answers it, so the thread panel lists its subject
@@ -300,11 +300,6 @@ comment over App Server:
     answer:
       kind: turn
   told:
-    - when: {"required": ["thread"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}}, "not": {"required": ["token"]}}
-      text: >-
-        This event's thread has no title yet: name it by adding `--title "<a few
-        words>"` to the reply that answers it, so the thread panel lists its subject
-        rather than its opening words.
     - text: >-
         Your turn's first and final messages are the reply, and `leaf thread reply`
         refuses this event. Before your first tool call, open with a short message
@@ -516,7 +511,7 @@ reply in an untitled thread:
       text: >-
         The user answered in a thread; the batch's `threads` carries the thread's
         context, and `leaf page state <page> <thread-id>` reads its history in pages.
-    - when: {"required": ["thread"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}}, "not": {"required": ["token"]}}
+    - when: {"required": ["thread", "answer"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}, "answer": {"properties": {"kind": {"const": "reply"}}}}}
       text: >-
         This event's thread has no title yet: name it by adding `--title "<a few
         words>"` to the reply that answers it, so the thread panel lists its subject

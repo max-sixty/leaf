@@ -7805,6 +7805,60 @@ def test_accordion_keyboard_travel_keeps_drafts_and_respects_narrowing(browser, 
     assert not take_browser_errors(page)
 
 
+def test_an_answer_without_a_title_leaves_the_opening_words(browser, serve):
+    """A thread waits for its title only while it waits on the agent: an answer that
+    names nothing leaves the row on the opening words rather than on a placeholder
+    nothing will replace."""
+    url = serve(PANEL_PAGE)
+    opening = "Which room is the workshop in?"
+    root = panel_comment(serve.page_dir, opening, {"section": "h-how"})
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    topic = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"] .lf-thread-topic')
+    expect(topic).to_have_text("Generating title")
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "parent": root,
+            "responds": root,
+            "text": "The terrace room.",
+        },
+    )
+    told(page)
+    expect(topic).to_have_text(opening)
+    expect(topic).not_to_have_attribute("data-lf-pending-title", "")
+    assert not take_browser_errors(page)
+
+
+def test_a_thread_nobody_picked_up_reads_its_opening_words(browser, serve):
+    """A comment no agent has picked up past the pickup grace has nothing naming
+    it, so its row reads the comment rather than a placeholder."""
+    url = serve(PANEL_PAGE)
+    opening = "Is the workshop room accessible?"
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": opening,
+            "ts": "2026-01-01T09:00:00-08:00",
+        },
+    )["id"]
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    expect(thread.locator(".lf-thread-status")).to_have_text("Waiting for pickup")
+    expect(thread.locator(".lf-thread-topic")).to_have_text(opening)
+    assert not take_browser_errors(page)
+
+
 def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
     url = serve(PANEL_PAGE)
     opening = "I was wondering which space would be easier for everyone to find."

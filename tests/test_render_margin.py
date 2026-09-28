@@ -4069,6 +4069,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     expect(marker).to_have_attribute("aria-label", re.compile(r"^Waiting for pickup,"))
     assert_status("Waiting for pickup", "3m ago")
 
+    # Pickup belongs to an active agent turn; an unclaimed pickup is stale work.
+    record_claim(page_dir)
     with service_model.PageTransaction(page_dir) as transaction:
         delivery_model.record_pickup(transaction, [logged_action])
     told(page)

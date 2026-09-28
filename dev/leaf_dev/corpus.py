@@ -13,6 +13,7 @@ corpus's own page directory, so its markup still names a declared element there.
 
 import json
 import re
+import shutil
 import sys
 
 import click
@@ -101,7 +102,7 @@ FOOT = """\
 """
 
 
-def composed_data() -> dict:
+def build_data() -> dict:
     """Compose every example's captures and current values into one companion."""
     sources = {}
     captures = {}
@@ -112,10 +113,7 @@ def composed_data() -> dict:
         document = json.loads(companion.read_text(encoding="utf-8"))
         for name, spec in document.pop("$captures", {}).items():
             capture_file = (source.parent / spec["file"]).resolve()
-            try:
-                relative_file = capture_file.relative_to(EXAMPLES_DIR.resolve())
-            except ValueError:
-                sys.exit(f"{source.name}: data capture {name!r} is outside examples/")
+            relative_file = capture_file.relative_to(EXAMPLES_DIR.resolve())
             corpus_spec = {**spec, "file": relative_file.as_posix()}
             if name in captures:
                 if captures[name] != corpus_spec:
@@ -222,11 +220,6 @@ def build_page() -> dict[str, bytes]:
     return {"registry.json": registry.encode(), **files}
 
 
-def build_data() -> dict:
-    """Compose the package sources needed by the examples embedded in the corpus."""
-    return composed_data()
-
-
 def build_events() -> str:
     """Carry the threads embedded samples explicitly depend on.
 
@@ -277,10 +270,7 @@ def corpus() -> None:
         encoding="utf-8",
     )
     CORPUS_EVENTS.write_text(build_events(), encoding="utf-8")
-    for old in (
-        sorted(CORPUS_PAGE.rglob("*"), reverse=True) if CORPUS_PAGE.exists() else []
-    ):
-        old.unlink() if old.is_file() else old.rmdir()
+    shutil.rmtree(CORPUS_PAGE, ignore_errors=True)
     for name, data in build_page().items():
         (CORPUS_PAGE / name).parent.mkdir(parents=True, exist_ok=True)
         (CORPUS_PAGE / name).write_bytes(data)

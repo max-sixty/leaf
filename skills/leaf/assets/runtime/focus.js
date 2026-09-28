@@ -316,7 +316,7 @@ export function controlNavigationKeys(node) {
 // letting go asks the covering surface before the page.
 //
 // Two readings, not one. The surface is the whole of what covers, and answers whether the
-// user is already somewhere inside it — a tray's close button, the panel's find box —
+// user is already somewhere inside it — a drawer's close button, the panel's find box —
 // where nothing is owed them. The landing is the one place within it that takes a user
 // who is nowhere. Both are the modality's, which is the thing that inerted the page: a
 // layout predicate of its own would be a second answer, disagreeing with it across a
@@ -367,10 +367,10 @@ export function letGo() {
 }
 
 // Handing the user back when a layer closes with them inside it. The closer names where,
-// most particular first — the control whose press opened the layer, the proxy the
-// layer's subject has on the page, the door a folded shelf shows in a control's place —
-// and the user lands on the first that takes focus. The page's body is nowhere: an
-// opener read while nothing held focus names no place to return to.
+// most particular first — the control whose press opened the layer, the proxy the layer's
+// subject has on the page, the door a folded toolbar shows in a control's place — and the
+// user lands on the first that takes focus. The page's body is nowhere: an opener read
+// while nothing held focus names no place to return to.
 //
 // A destination still in the document may not take focus yet: reconciliation can
 // replace a control in the same task, and the paint the close asked for may still hold

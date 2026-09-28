@@ -17,7 +17,7 @@ from render_cases_layout import (
 from render_harness import (
     CORPUS_SOURCES,
     consume_browser_errors,
-    holds_the_window,
+    fills_the_window,
     leaf_page,
     open_page,
     resized,
@@ -98,13 +98,13 @@ def go_to(page, target, kind="Control"):
 def comment_on_target(page, target):
     """Choose one rendered datum through Leaf's keyboard target map."""
     page.keyboard.press("s")
-    hints = page.locator(".lf-target-chooser-hint[data-lf-hint-code]")
+    hints = page.locator(".lf-target-picker-hint[data-lf-hint-code]")
     expect(hints.first).to_be_visible()
     code = target.evaluate(
         """target => {
           const at = target.getBoundingClientRect();
           const chips = [...document.querySelectorAll(
-            '.lf-target-chooser-hint[data-lf-hint-code]')];
+            '.lf-target-picker-hint[data-lf-hint-code]')];
           return chips.map(chip => {
             const box = chip.getBoundingClientRect();
             return {code: chip.dataset.lfHintCode,
@@ -112,7 +112,7 @@ def comment_on_target(page, target):
           }).sort((a, b) => a.distance - b.distance)[0]?.code ?? null;
         }"""
     )
-    assert code, "the rendered datum had no target-chooser hint"
+    assert code, "the rendered datum had no target-picker hint"
     page.keyboard.type(code)
 
 
@@ -356,7 +356,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     response = user.context.request.get(f"{target_base}v1.html")
     assert response.status == 403
     widget = user.locator("#journey")
-    holds_the_window(user, widget, True)
+    fills_the_window(user, widget, True)
     first = widget.locator('[data-lf-datum="open-release-list"]')
     second = widget.locator('[data-lf-datum="follow-release-link"]')
     first_images = first.locator("lf-shot img")
@@ -423,7 +423,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     expect(field).to_be_focused()
     user.keyboard.type("Restore Back to releases")
     resized(user, 390, 760)
-    holds_the_window(user, widget, False)
+    fills_the_window(user, widget, False)
     expect(field).to_have_js_property("value", "Restore Back to releases")
     assert_keyboard_focus(user, field)
     field.evaluate("node => node.setSelectionRange(8, 12, 'backward')")
@@ -462,7 +462,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     assert_keyboard_focus(user, field)
 
     resized(user, 1366, 768)
-    holds_the_window(user, widget, True)
+    fills_the_window(user, widget, True)
     expect(field).to_have_js_property("value", "Restore Back to releases")
     assert_keyboard_focus(user, field)
     user.keyboard.press("Escape")

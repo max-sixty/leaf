@@ -15,7 +15,7 @@ file there would count as activity on the page.
 
 A screen is the window as the reader sees it, fixed chrome included, scrolled by most
 of a window at a time, because the document is the page's scroller and a full-page
-capture would draw the banner and band in the wrong places."""
+capture would draw the banner and bottom bar in the wrong places."""
 
 import hashlib
 import shutil

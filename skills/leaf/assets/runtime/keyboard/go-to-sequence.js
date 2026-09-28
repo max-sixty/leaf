@@ -50,7 +50,7 @@
    so its ordinary Escape rung remains the route back.
 
    A destination declares no way back. `g T`, `g A` and `g L` may exchange a standing
-   panel or tray for another, and the surface the user ends in owns the one step that
+   panel or drawer for another, and the surface the user ends in owns the one step that
    takes it off again — the same step whichever door opened it, and the same for a
    surface they already had. Exchanging one for another is lateral, so the one replaced
    is not put back; the user reaches it the way they reached it the first time.
@@ -78,14 +78,14 @@ import { announce, notice } from "../notifications.js";
 import { retainUserIntent } from "../user-intent.js";
 import { closestAcross, pageQueryAll } from "../passages.js";
 import {
-  currentTray,
+  currentDrawer,
   askRows,
   asksOffered,
   asksPanel,
   asksBtn,
   othersBtn,
   othersPanel,
-} from "../trays.js";
+} from "../drawers.js";
 import { mapButton } from "../page-map-dialog.js";
 
 import { claimsEsc, focused, saying } from "./scopes.js";
@@ -104,7 +104,7 @@ export function createGoToSequence({
   hintChrome,
   directDestinations,
   setPanel,
-  setOpenTray,
+  setOpenDrawer,
   scrollToElement,
   leavesOffered,
   othersLinks,
@@ -236,35 +236,38 @@ export function createGoToSequence({
       toggle: true,
     },
     {
-      id: "navigation.tray.asks",
+      id: "navigation.drawer.asks",
       key: "Shift+a",
       does: () =>
-        currentTray() === "asks" ? "Close the Asks tray" : "Go to the Asks tray",
-      line: () => (currentTray() === "asks" ? "close Asks tray" : "Asks tray"),
+        currentDrawer() === "asks" ? "Close the Asks drawer" : "Go to the Asks drawer",
+      line: () => (currentDrawer() === "asks" ? "close Asks drawer" : "Asks drawer"),
       control: () => asksBtn,
       when: (...args) => asksOffered(...args),
       go: () => {
-        setOpenTray("asks");
+        setOpenDrawer("asks");
         (askRows()[0] ?? asksPanel).focus({ preventScroll: true });
       },
-      active: () => currentTray() === "asks",
-      close: () => setOpenTray(null),
+      active: () => currentDrawer() === "asks",
+      close: () => setOpenDrawer(null),
       toggle: true,
     },
     {
-      id: "navigation.tray.leaves",
+      id: "navigation.drawer.leaves",
       key: "Shift+l",
       does: () =>
-        currentTray() === "leaves" ? "Close the Leaves tray" : "Go to the Leaves tray",
-      line: () => (currentTray() === "leaves" ? "close Leaves tray" : "Leaves tray"),
+        currentDrawer() === "leaves"
+          ? "Close the Leaves drawer"
+          : "Go to the Leaves drawer",
+      line: () =>
+        currentDrawer() === "leaves" ? "close Leaves drawer" : "Leaves drawer",
       control: () => othersBtn,
       when: (...args) => leavesOffered(...args),
       go: () => {
-        setOpenTray("leaves");
+        setOpenDrawer("leaves");
         (othersLinks()[0] ?? othersPanel).focus({ preventScroll: true });
       },
-      active: () => currentTray() === "leaves",
-      close: () => setOpenTray(null),
+      active: () => currentDrawer() === "leaves",
+      close: () => setOpenDrawer(null),
       toggle: true,
     },
     {

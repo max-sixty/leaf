@@ -114,10 +114,10 @@ def arrival_findings(browser, url):
     write and cannot fix.
 
     What it reads: a fresh context holds nothing, so every other reading in the suite
-    is of a first visit — the thread panel shut, no tray standing, design mode off —
+    is of a first visit — the thread panel shut, no drawer standing, design mode off —
     and each of those is something a user turns on once and gets back on every load
     afterwards. That left the restores as the one road onto a page with nothing
-    watching it, and a tray someone had left standing came up as a ReferenceError
+    watching it, and a drawer someone had left standing came up as a ReferenceError
     instead of a page: it was put up by code running while the runtime was still
     evaluating, which could reach almost nothing. It reached the user, who reported
     it.
@@ -204,7 +204,7 @@ def motions(events):
     that never ends never arrived anywhere. An unbounded iteration count cannot cross
     JSON, so the browser omits it, and that omission is the reading.
 
-    A target is a backend node id, and the same tray over two loads is two of them,
+    A target is a backend node id, and the same drawer over two loads is two of them,
     so an id cannot say whether the second load moved what the first one did. The kind
     of motion, the property or keyframes it plays and how long it runs are one string
     whichever load painted it, and that is the key. The id rides along beside it for
@@ -536,11 +536,11 @@ SCROLLED_CONTAINER = LONG_PAGE.replace(
 # it is held to, and the numbers the runtime holds it to. Two records rather than two
 # tests, because the whole claim of `drawnEdge` is that the two are one piece of furniture
 # reflected — a reading written for the panel alone would go on passing on the day the
-# tray's edge stopped working, and the tray's edge exists precisely because the panel's
+# drawer's edge stopped working, and the drawer's edge exists precisely because the panel's
 # did not have to be written a second time.
 #
-# `html` is a call rather than the markup, because the page the trays need is declared
-# with the other tray readings a long way below here, and a parametrize list is read at
+# `html` is a call rather than the markup, because the page the drawers need is declared
+# with the other drawer readings a long way below here, and a parametrize list is read at
 # import. `squeeze` is the
 # window that has no room for what the user chose and the width the region stands at
 # there, which is the window itself on either side.
@@ -557,13 +557,13 @@ EDGES = [
         squeeze=(500, 500),
     ),
     SimpleNamespace(
-        name="trays",
+        name="drawers",
         html=lambda: ASKS_PAGE,
         comments=0,
         stand=lambda page: banner_control(page, ".lf-asks").click(),
         region=".lf-asks-panel",
         side="left",
-        store="lf-tray-slot-width",
+        store="lf-drawer-slot-width",
         wide=300,
         squeeze=(400, 400),
     ),
@@ -571,7 +571,7 @@ EDGES = [
 EDGE_IDS = [edge.name for edge in EDGES]
 
 
-# One Ask, so a page offers the Asks tray.
+# One Ask, so a page offers the Asks drawer.
 ONE_ASK = (
     '<lf-ask id="go-decision"><h2>Ship it?</h2>'
     '<lf-options id="go" choose>'
@@ -590,14 +590,14 @@ def with_one_ask(html):
 
 
 def toggle_asks(page, open=True):
-    """Open or close the Asks tray from its banner control and wait for it to stand."""
+    """Open or close the Asks drawer from its banner control and wait for it to stand."""
     banner_control(page, ".lf-asks").click()
-    tray = expect(page.locator(".lf-asks-panel"))
+    drawer = expect(page.locator(".lf-asks-panel"))
     opened = re.compile(r"\bopen\b")
     if open:
-        tray.to_have_class(opened)
+        drawer.to_have_class(opened)
     else:
-        tray.not_to_have_class(opened)
+        drawer.not_to_have_class(opened)
 
 
 def edge_settled(page, edge):
@@ -828,10 +828,10 @@ def unfolded_button(control):
 # The banner's controls in their one ranked order: fixed secondary menu seats followed
 # by the primary row. The door itself and controls the page has taken away are omitted.
 BANNER_ORDER = """() => {
-  const shelf = document.querySelector('.lf-banner-actions');
+  const toolbar = document.querySelector('.lf-banner-actions');
   const menu = document.querySelector('.lf-banner-menu');
   const more = document.querySelector('.lf-banner-more');
-  return [...menu.children, ...shelf.children]
+  return [...menu.children, ...toolbar.children]
     .filter(control => control !== more &&
             getComputedStyle(control).display !== 'none' &&
             getComputedStyle(control).visibility !== 'hidden')
@@ -1217,7 +1217,7 @@ def live_leaf(tmp_path, monkeypatch):
     a real handler, and written down under the state home the way `server run` writes
     it — which is the whole of how one page learns another exists. Each claims to be
     working, freshly, so its row has a judged state to show. A factory rather than one
-    fixture, because a tray is a list and a walk down it needs somewhere to walk to."""
+    fixture, because a drawer is a list and a walk down it needs somewhere to walk to."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
     servers = ExitStack()
     held = []
@@ -1239,7 +1239,7 @@ def live_leaf(tmp_path, monkeypatch):
                 "ts": events_model.now_iso(),
             },
         )
-        # A live leaf has a session behind it, and what the tray's hover says about a
+        # A live leaf has a session behind it, and what the drawer's hover says about a
         # page is the work that session is doing it for — so the fixture's pages come
         # out of somewhere nameable rather than out of nowhere.
         record_claim(
@@ -1281,12 +1281,12 @@ def other_leaf(live_leaf):
 
 
 # Twenty-four things waiting, which is more than any shipped example asks and the point: the
-# room a list reserves at its foot is invisible until the list is longer than the tray.
+# room a list reserves at its foot is invisible until the list is longer than the drawer.
 MANY_ASKS_PAGE = leaf_page(
     "many decisions",
     """
 <h1>Many decisions</h1>
-<p>A tray long enough to scroll.</p>
+<p>A drawer long enough to scroll.</p>
 <lf-tasks id="plan">
 """
     + "\n".join(
@@ -1536,11 +1536,11 @@ DEEP_FOCUS = """() => {
 }"""
 
 
-# The here ring where a box casts it as a shadow rather than drawing it as an outline,
+# The focus ring where a box casts it as a shadow rather than drawing it as an outline,
 # and how far past its edge that band reaches. Two rules in the layer draw it that way —
 # the anchored response bar, which writes `outline: none` so its states keep one
 # silhouette, and the target hint the keyboard is browsing, a chip in a layer nothing can
-# focus — and to a user they are the same band as every other ring (--here-shadow,
+# focus — and to a user they are the same band as every other ring (--focus-shadow,
 # theme.css).
 #
 # What makes it that band rather than the layer's other shadows: no offsets, no blur, and
@@ -1555,7 +1555,7 @@ DEEP_FOCUS = """() => {
 # accent a rule laid down is not part of the question — the bar carries an accent border
 # as well and wants less of it than a chip standing over the page's own words.
 HERE_SHADOW = r"""(cs, accent, mixed) => {
-  const w = parseFloat(cs.getPropertyValue('--here-ring-w')) || 0;
+  const w = parseFloat(cs.getPropertyValue('--focus-ring-w')) || 0;
   if (!w) return 0;
   // Split on the commas between layers, not on the ones inside `rgba(...)`.
   for (const layer of cs.boxShadow.split(/,(?![^(]*\))/)) {
@@ -1600,8 +1600,8 @@ ACCENT_SWATCH = r"""() => {
 }"""
 
 
-# Every rule in the page's composed layer that draws the here ring, under the name that
-# rule gives it (--lf-here-ring, theme.css). This is the population the corpus floor
+# Every rule in the page's composed layer that draws the focus ring, under the name that
+# rule gives it (--lf-focus-ring, theme.css). This is the population the corpus floor
 # divides by; the sweep below answers for what is painted.
 #
 # Flat, because nothing re-runs a selector any more. The reading this replaced resolved
@@ -1610,13 +1610,13 @@ ACCENT_SWATCH = r"""() => {
 # exactly like a rule nothing on the page matched. theme.css carries why that went.
 #
 # What it cannot see is a rule drawing the ring some other way — as longhands, or as
-# `2px solid var(--accent)` written out. "Draws the here ring" is not decidable from a
+# `2px solid var(--accent)` written out. "Draws the focus ring" is not decidable from a
 # declaration's text, and this asks the one question that is: does the value name the
 # layer's own token. The paint is where the rest is decidable, and the floor reads both,
 # so a ring the layer draws without saying so is caught there rather than excused here.
 #
-# Two tokens, because the band has two carriers. `--here-ring` is the outline the great
-# majority of the rules draw; `--here-shadow` is the same band cast as a shadow, for the
+# Two tokens, because the band has two carriers. `--focus-ring` is the outline the great
+# majority of the rules draw; `--focus-shadow` is the same band cast as a shadow, for the
 # boxes that cannot spend an outline on it. Asking for the token and not for the shape
 # is what keeps the status dots out: a milestone's active dot is `0 0 0 3px` of the
 # accent and is not a ring, and no reading of a declaration could tell the two apart by
@@ -1642,10 +1642,10 @@ RING_NAMES = """() => {
         // `&:has(> lf-option > .lf-pick:is(:focus-visible, .lf-focus-visible))`
         // and nothing else, which names no rule anybody can find.
         if (rule.style
-            && (rule.style.getPropertyValue('outline').includes('--here-ring)')
+            && (rule.style.getPropertyValue('outline').includes('--focus-ring)')
                 || rule.style.getPropertyValue('box-shadow')
-                     .includes('--here-shadow)'))) {
-          const name = rule.style.getPropertyValue('--lf-here-ring').trim();
+                     .includes('--focus-shadow)'))) {
+          const name = rule.style.getPropertyValue('--lf-focus-ring').trim();
           const own = rule.selectorText;
           const up = rule.parentRule?.selectorText;
           const said = own && up ? `${up} { ${own}` : (own ?? up ?? '(a declaration)');
@@ -1669,7 +1669,7 @@ RING_NAMES = """() => {
 }"""
 
 
-# Every here ring the page is showing right now, and what is wrong with each.
+# Every focus ring the page is showing right now, and what is wrong with each.
 #
 # Asked of every box painting one, rather than of the focused one.
 # The two are not the same set: three rules draw the ring on something other than the
@@ -1703,8 +1703,8 @@ RINGS_DRAWN = f"""async () => {{
   // The band this box casts as a shadow, where it draws one, in the width it draws it
   // at. Its own comment carries what makes a shadow that band rather than a lift.
   const hereShadow = (cs) => ({HERE_SHADOW})(cs, accent, mixed);
-  // Whether the outline on this element is the layer's ring: `--here-ring` is
-  // `var(--here-ring-w) solid var(--accent)`, so style, width and colour are all what
+  // Whether the outline on this element is the layer's ring: `--focus-ring` is
+  // `var(--focus-ring-w) solid var(--accent)`, so style, width and colour are all what
   // the element computes them to.
   //
   // Element feedback now deliberately shares the ring's weight and accent while the
@@ -1722,16 +1722,16 @@ RINGS_DRAWN = f"""async () => {{
   // way. Left out, the bar's own controls came back wearing `pressable` — the name of
   // the floor rule whose outline this one takes away — and the hint's band went
   // unmeasured wherever it stood.
-  // Which here ring this is, where a rule said. An unset registered property and an
+  // Which focus ring this is, where a rule said. An unset registered property and an
   // unregistered one both answer `none` and neither is a name, so both come back empty.
   const ringName = (cs) => {{
-    const n = cs.getPropertyValue('--lf-here-ring').trim();
+    const n = cs.getPropertyValue('--lf-focus-ring').trim();
     return n === 'none' ? '' : n;
   }};
   const focused = ({DEEP_FOCUS})();
-  const isHereRing = (el, cs) =>
+  const isFocusRing = (el, cs) =>
     (cs.outlineStyle === 'solid'
-     && cs.outlineWidth === cs.getPropertyValue('--here-ring-w').trim()
+     && cs.outlineWidth === cs.getPropertyValue('--focus-ring-w').trim()
      && cs.outlineColor === accent
      && (el === focused
          || !el.matches(':is(.lf-mark-el, .lf-react-el)')
@@ -1756,9 +1756,9 @@ RINGS_DRAWN = f"""async () => {{
     for (const el of root.querySelectorAll('*')) {{
       if (el.shadowRoot) roots.push(el.shadowRoot);
       const cs = getComputedStyle(el);
-      if (isHereRing(el, cs)) claimed.push({{ el, cs, name: ringName(cs) }});
+      if (isFocusRing(el, cs)) claimed.push({{ el, cs, name: ringName(cs) }});
       const after = getComputedStyle(el, '::after');
-      if (after.content !== 'none' && isHereRing(el, after))
+      if (after.content !== 'none' && isFocusRing(el, after))
         claimed.push({{ el, cs: after, name: ringName(after), pseudo: true }});
     }}
   if (focused && focused !== document.body && focused !== document.documentElement
@@ -1967,7 +1967,7 @@ RINGS_DRAWN = f"""async () => {{
         // which is a fact about where the control was put rather than about the ring being
         // drawn outside its box. The claim worth making is the other one: where the control
         // can be seen, so can the ring that names it. Stated without a case on purpose —
-        // the one this was written for was the tray's edge handle running the whole height
+        // the one this was written for was the drawer's edge handle running the whole height
         // of the window under the banner, which stopped being true in 3a8f16f0, the commit
         // that added this comment and the handle's top inset together.
         //
@@ -2068,7 +2068,7 @@ RINGS_DRAWN = f"""async () => {{
     }}
     answers.push({{
       who: named(el),
-      here: isHereRing(el, cs),
+      here: isFocusRing(el, cs),
       ring: name,
       focused: el === focused,
       sample: el === focused || holds(el, focused)
@@ -2094,7 +2094,7 @@ COVERED_TOP = """() => {
 
 
 def rings_drawn(page):
-    """Every here ring the page is drawing, each with what is wrong with it."""
+    """Every focus ring the page is drawing, each with what is wrong with it."""
     return page.evaluate(RINGS_DRAWN)
 
 

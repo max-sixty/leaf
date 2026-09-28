@@ -71,7 +71,7 @@ export function mountApplication(dependencies) {
   const engagement = dependencies.createEngagement({
     hasPending,
     fabAnchorAt: dependencies.activeActionAnchor,
-    targetChooserOpen: dependencies.targetChooserOpen,
+    targetPickerOpen: dependencies.targetPickerOpen,
     pageComposerDrawing: dependencies.pageComposerDrawing,
   });
   let threadPresenter;

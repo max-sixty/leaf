@@ -117,7 +117,7 @@ export function createDrawingController({
   openAnchoredDrawing,
   openPageDrawing,
   setDesignMode,
-  closeTargetChooser,
+  closeTargetPicker,
   closeReactionMode,
   banner,
   announce,
@@ -148,7 +148,7 @@ export function createDrawingController({
     on = Boolean(on);
     if (on) {
       setDesignMode(false, { spoken: false });
-      closeTargetChooser();
+      closeTargetPicker();
       closeReactionMode();
     }
     drawModeOn = on;

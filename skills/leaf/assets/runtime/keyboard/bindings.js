@@ -593,7 +593,7 @@ export function checked(rows, where) {
 // was invisible: the key worked and the page under-promised it.
 //
 // A link is the case that keeps this honest. Enter follows an <a> and Space scrolls the
-// page, so the leaves tray binds Enter alone and is right to — the shared fact is what a
+// page, so the leaves drawer binds Enter alone and is right to — the shared fact is what a
 // button answers, not what a control does.
 export const PRESS = ["Enter", " "];
 

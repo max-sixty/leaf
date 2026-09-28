@@ -50,8 +50,8 @@ and the others import it; a script under `scripts/` imports it too.
   time in this working tree: main-thread tasks up to the painted frame, forced style
   recalculations and the writes that invalidated them, and JS by function.
 - `leaf-dev bench-check [BASE_REF]` times `leaf page check --render` on a few
-  examples, base plugin against HEAD's, with no model: wall time and a phase
-  breakdown traced by `tracer/traced_leaf.py`.
+  examples, base plugin against HEAD's, with no model, and prints each arm's wall
+  time.
 - `leaf-dev delivery-ab [BASE_REF]` compares how a live Claude Code agent handles a
   comment through `leaf wait`, and what the page shows meanwhile, between a base plugin
   and HEAD's. Its children cost about a dollar each.

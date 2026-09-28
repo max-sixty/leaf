@@ -779,6 +779,38 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_users_focus(browser, s
     )
 
 
+@pytest.mark.parametrize("scheme", ["light", "dark"])
+def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve, scheme):
+    """The response bar casts its here ring as a shadow, and cast it at a quarter of
+    the accent: a faint 2px halo, all but invisible in dark, where every other control
+    the keyboard stands on wears the solid band. The shadow is the band's own token,
+    ink and all, so the two carriers cannot drift apart."""
+    page = open_page(browser, serve(PANEL_PAGE), color_scheme=scheme)
+    select_paragraph(page, "#how-cap")
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.keyboard.press("c")
+    page.keyboard.press("Tab")
+    suggest = (
+        page.locator(".lf-fab-bar")
+        .get_by_role("button", name="Suggest", exact=True)
+        .last
+    )
+    expect(suggest).to_be_focused()
+    ring = suggest.evaluate("""node => {
+      const ink = document.createElement('span');
+      ink.style.color = 'var(--accent)';
+      node.append(ink);
+      const accent = getComputedStyle(ink).color;
+      ink.remove();
+      const band = getComputedStyle(document.documentElement)
+        .getPropertyValue('--here-ring-w').trim();
+      return {shadow: getComputedStyle(node).boxShadow, accent, band};
+    }""")
+    assert ring["shadow"].startswith(f"{ring['accent']} 0px 0px 0px {ring['band']}"), (
+        ring
+    )
+
+
 def test_the_response_choices_hold_one_row_beside_the_panel(browser, serve):
     """A side is chosen for the field and its More press, narrower than Suggest and six
     reactions at rest. Beside the open Threads panel at 1024px the bar had 256px for

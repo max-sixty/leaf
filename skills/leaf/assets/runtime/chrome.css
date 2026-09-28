@@ -1233,8 +1233,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-response-control:is(:focus, :focus-visible, .lf-focus, .lf-focus-visible) {
     outline: none; --lf-here-ring: response-control;
     border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
-    box-shadow: var(--here-shadow) color-mix(in srgb, var(--accent) 25%, transparent),
-      0 2px 8px var(--shade); }
+    box-shadow: var(--here-shadow), 0 2px 8px var(--shade); }
   /* The field takes the size its words want. A short note is one line; a
      longer one widens to a readable measure before it wraps, then grows along the edge
      placement attached and scrolls past the room placement gave the field
@@ -1736,7 +1735,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      it wears the layer's band — cast as a shadow, since a chip in a layer nothing can
      focus has no outline state to hang it on. */
   :is(.lf-target-chooser-hints, .lf-go-to-hints) > .lf-key-hint.lf-current { font-weight: 700;
-    --lf-here-ring: target-hint; box-shadow: var(--here-shadow) var(--accent); }
+    --lf-here-ring: target-hint; box-shadow: var(--here-shadow); }
   /* Search has one active result, painted as a quiet wash rather than a second native
      selection. The real Selection is made only on Enter, when the ordinary comment
      surface takes over. One inset line survives over both light and dark authored fills

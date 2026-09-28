@@ -936,7 +936,8 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
             assert box["left"] >= 0 and box["right"] <= width, (
                 f"{selector} is outside the first {width}px view: {box}"
             )
-        if width <= 840:
+        # The narrow face a phone held upright wears: forty-pixel controls.
+        if width <= 480:
             assert boxes[".lf-threads-toggle"]["height"] >= 40
             assert boxes[".lf-signoff"]["height"] >= 40
         assert root_overflow(page) == 0, (
@@ -1892,6 +1893,62 @@ def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other
     page.keyboard.press("Escape")
     expect(page.locator(".lf-banner-menu")).to_be_hidden()
     expect(more).to_have_attribute("aria-expanded", "false")
+
+
+# Where the banner's two parts stand, and how much of the window it takes from the page.
+BANNER_ROWS = """() => {
+  const box = (selector) => document.querySelector(selector).getBoundingClientRect();
+  const banner = box('.lf-banner'), status = box('.lf-banner-status'),
+        actions = box('.lf-banner-actions');
+  return {wrapped: actions.top >= status.bottom - 1,
+          rows: document.documentElement.dataset.lfBannerRows,
+          height: banner.height, bannerBottom: banner.bottom,
+          actionsBottom: actions.bottom,
+          main: document.querySelector('body > main').getBoundingClientRect().top};
+}"""
+
+
+@pytest.mark.parametrize(
+    ("width", "touch", "signoff", "wrapped"),
+    [
+        # A landscape phone holds the status beside Threads, and beside Approval too.
+        (740, True, False, False),
+        (740, True, True, False),
+        # One window, two banners: the run that asks for sign-off leaves the status less
+        # than its floor there, and only that one wraps.
+        (600, False, False, False),
+        (600, False, True, True),
+        (390, True, False, True),
+    ],
+)
+def test_the_banner_wraps_by_what_it_holds(
+    browser, serve, width, touch, signoff, wrapped
+):
+    """The banner takes a second row only where its control run would leave the status
+    less than its floor, which is a fact about what it holds rather than the window: a
+    landscape phone has one row, as a desk window does, and at one width a page asking
+    for sign-off wraps where a page without it does not. The page starts under whatever
+    the banner drew, and the run stays inside it."""
+    html = SUGGESTION_PAGE
+    if signoff:
+        html = html.replace(
+            "<title>suggestions</title>",
+            '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
+        )
+    context = browser.new_context(
+        viewport={"width": width, "height": 800}, has_touch=touch, is_mobile=touch
+    )
+    page = open_page(browser, serve(html), context=context)
+    page_at_rest(page)
+    read = page.evaluate(BANNER_ROWS)
+    assert read["wrapped"] == wrapped, read
+    assert read["rows"] == ("2" if wrapped else "1"), read
+    row = 53 if touch else 52 if width <= 480 else 42
+    assert read["height"] == pytest.approx(row + (36 if wrapped else 0), abs=1), read
+    assert read["actionsBottom"] <= read["bannerBottom"] + 0.5, read
+    assert read["main"] == pytest.approx(read["bannerBottom"], abs=1), (
+        f"the document's head does not follow the rows the banner drew: {read}"
+    )
 
 
 def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(

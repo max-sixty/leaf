@@ -468,27 +468,37 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     border: 0; border-radius: 0 !important; background: none; }
   .lf-target-trace-shape {
     display: block; width: 100%; height: 100%; overflow: hidden; }
+  /* The banner wraps by what it holds. The status and the control run share one line
+     while the run leaves the status its floor, a readable start of the sentence; where
+     it doesn't, the run takes a second line of its own, starting at the left. The
+     browser's wrap decides that from the run's reserved widths, so no window width
+     stands in for it, and banner.js reports the answer on the root, where the theme's
+     --lf-banner-h reads it. Each line is a stated height, the status's 36px and the
+     run's --lf-banner-row, so the banner's own height is its lines and always the one
+     the token states for the rows it drew; the token follows a wrap a frame later. */
   .lf-banner { --lf-banner-gap: 10px; --lf-status-floor: 24ch;
-    position: fixed; top: 0; left: 0; right: 0; z-index: var(--lf-z-banner); height: var(--lf-banner-h);
-    display: flex;
-    align-items: center; gap: var(--lf-banner-gap);
+    --lf-status-inset-left: 0px; --lf-status-inset-right: 0px;
+    position: fixed; top: 0; left: 0; right: 0; z-index: var(--lf-z-banner);
+    display: flex; flex-wrap: wrap; align-content: flex-start;
+    align-items: center; column-gap: var(--lf-banner-gap); row-gap: 0;
     padding: var(--lf-safe-top) calc(14px + var(--lf-safe-right)) 0
       calc(14px + var(--lf-safe-left));
     background: var(--veil); backdrop-filter: blur(6px); border-bottom: 1px solid var(--rule); }
   .lf-banner-status, .lf-banner-actions { display: flex; align-items: center;
     gap: var(--lf-banner-gap); }
-  /* The sentence's room is whatever the controls leave, with a floor of its own below
-     that, which is what the shelf's cap on the next rule states from the other end. The
-     room is the box that stands still; the press inside it (.lf-status-button) is as
-     wide as its words and grows rightward into the room as its sentence does, so a
-     status ageing from "is working" to "last checked in" moves nothing beside it. */
-  .lf-banner-status { flex: 1 1 auto; min-width: 0; }
-  /* Keep a readable start of the status sentence beside the shelf's fixed primary
-     controls. The reservation is independent of changing status copy, so updates
-     cannot move controls under the user's pointer. */
-  .lf-banner-actions { flex: 0 0 auto; min-width: 0;
-    max-width: calc(100% - var(--lf-status-floor) - var(--lf-mark-w)
-      - 2 * var(--lf-banner-gap));
+  /* The sentence's room is whatever the controls leave, and never less than its floor:
+     the basis is the floor, so a run that would leave less wraps instead. The room is
+     the box that stands still; the press inside it (.lf-status-button) is as wide as its
+     words and grows rightward into the room as its sentence does, so a status ageing
+     from "is working" to "last checked in" moves nothing beside it. */
+  .lf-banner-status { flex: 1 1 calc(var(--lf-status-floor) + var(--lf-mark-w)
+      + var(--lf-banner-gap) + var(--lf-status-inset-left) + var(--lf-status-inset-right));
+    min-width: 0; height: 36px;
+    padding: 0 var(--lf-status-inset-right) 0 var(--lf-status-inset-left); }
+  /* The run's reserved widths are its basis, so an asynchronous count or a status
+     sentence never changes where it wraps. */
+  .lf-banner-actions { flex: 0 0 auto; min-width: 0; max-width: 100%;
+    min-height: calc(var(--lf-banner-row) - 1px);
     justify-content: safe flex-end; overflow: hidden;
     padding: 4px 5px; }
   /* A primary control keeps its words at every width. A flex item's default minimum is
@@ -1706,8 +1716,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   html[data-lf-contained] :scope {
     .lf-banner-status, .lf-shortcut-bar { display: none; }
     .lf-bottom-status { bottom: calc(14px + var(--lf-safe-bottom)); translate: none; }
-    .lf-banner { grid-template-rows: minmax(0, 1fr); }
-    .lf-banner-actions { grid-row: 1; }
   }
   .lf-shortcut-bar .lf-shortcut { display: inline-flex; gap: 5px; align-items: baseline; }
   .lf-shortcut-bar .lf-shortcut[hidden] { display: none; }
@@ -1814,21 +1822,22 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     padding: 1px 6px; border-radius: 3px; font-size: var(--t-6); line-height: 1.5;
     background: var(--accent); color: var(--paper); }
   .lf-inspect.lf-shown { display: block; }
-  /* On a phone the banner is a status line with its fixed primary controls under it,
-     not a cropped desktop row. The status gets the first line to itself, and the same
-     More, Approval, and Threads seats remain in the same order at every width.
+  /* A phone held upright is narrower than the run in its desk face, so there the run
+     wears a narrow one: the banner gives up its inset, which the status keeps for its
+     own line, and each control keeps only a sliver of padding. The same More, Approval,
+     and Threads seats remain in the same order at every width. This face is the
+     window's, not the rows': a face that followed the wrap would change the widths the
+     wrap is decided from.
 
      The status keeps to one line in its own 36px row. Two would be a row that changes
      height as a sentence ages, which moves every control under it for no gesture; the
      complete status remains available in its hover title at every width. */
-  @media screen and (width <= 840px) {
-    .lf-banner { display: grid; grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: 36px minmax(0, 1fr); gap: 0;
-      padding: var(--lf-safe-top) 0 0; }
-    .lf-banner-status { grid-row: 1; padding: 0 calc(14px + var(--lf-safe-right)) 0
-        calc(14px + var(--lf-safe-left)); gap: 9px; }
-    .lf-banner-actions { grid-row: 2; width: 100%; max-width: 100%; min-width: 0;
-      justify-content: flex-start;
+  @media screen and (width <= 480px) {
+    .lf-banner { padding: var(--lf-safe-top) 0 0;
+      --lf-status-inset-left: calc(14px + var(--lf-safe-left));
+      --lf-status-inset-right: calc(14px + var(--lf-safe-right)); }
+    .lf-banner-status { gap: 9px; }
+    .lf-banner-actions {
       padding: 4px calc(3px + var(--lf-safe-right)) 4px
         calc(3px + var(--lf-safe-left)); gap: 3px; }
     /* A row-wide display states the box of every control it reaches, including the
@@ -1837,19 +1846,19 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
        Centring is for the controls that are there. */
     .lf-banner-actions > .lf-btn:not([hidden]) { display: inline-flex;
       align-items: center; justify-content: center; }
-    /* Forty on the covering row, or the aim floor where a finger raises that past
+    /* Forty on the narrow row, or the aim floor where a finger raises that past
        forty: this rule outranks the shared floor (shadow.css) by weight, so it has to
        carry the floor itself or a touch shelf loses four pixels.
        It states both axes for the same reason, and the band is the shared control's. */
     .lf-banner-actions > .lf-btn { min-height: max(40px, var(--aim-floor)); padding: 4px 2px; }
-    .lf-banner-menu { right: auto;
-      left: max(calc(8px + var(--lf-safe-left)), anchor(left)); }
-    /* The control run starts at the left on this two-row banner. Keep its menu under
-       the same door; pinning the menu to the viewport's right made it appear to belong
-       to Threads after the Versions door wrapped to the left. Its viewport max-width
-       above still keeps the far edge inside the phone. */
-    .lf-version-menu { right: auto;
-      left: max(calc(8px + var(--lf-safe-left)), anchor(left)); }
+  }
+  /* The control run starts at the left once it has a line of its own. Keep each menu
+     under the same door; pinning the menu to the viewport's right made it appear to
+     belong to Threads after the Versions door wrapped to the left. Its viewport
+     max-width above still keeps the far edge inside the phone. */
+  html[data-lf-banner-rows="2"] :scope :is(.lf-banner-menu, .lf-version-menu) {
+    right: auto; left: max(calc(8px + var(--lf-safe-left)), anchor(left)); }
+  @media screen and (width <= 840px) {
     /* The sheet the Map opens in stands over the whole window and is sized to it, so
        its compact shape belongs to the banner overflow rather than to the rail: it asks
        the window, and this is the block that asks it. */

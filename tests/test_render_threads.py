@@ -7523,7 +7523,9 @@ def test_a_wheel_during_a_resolution_fold_outranks_the_landing_after_it(browser,
     url = serve(PANEL_PAGE)
     roots = seed_panel_threads(serve.page_dir, 8, long_index=3)
     page = open_page(browser, url, init_script=HOLD_MOTION)
-    open_threads_list(page, 800, 520)
+    # Short enough that the wheel stops short of the list's end once the fold has shrunk
+    # it, so a clamp at the end cannot stand in for the landing this is about.
+    open_threads_list(page, 800, 474)
     title = page.locator(f'.lf-thread[data-id="{roots[3]}"] > .lf-thread-summary')
     title.click()
     rendered(page)

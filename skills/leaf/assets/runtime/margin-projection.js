@@ -664,11 +664,13 @@ export function createMarginProjection({
   // with every scroll. A card short of both the cap it wears and the new one renders the
   // same under either, and every write during a scroll costs a repaint
   // (widget-elements.js, `keeps`), so such a card keeps the cap it wears. Growth that
-  // reaches a cap resizes the card, and the placement that answers takes the new one.
+  // reaches a cap resizes the card, and the placement that answers takes the new one; a
+  // kept cap larger than the room lets that growth stand past the boundary for the one
+  // frame before it. Both are in the card's positioning space, as offsetHeight is.
   function measureThreadCard(width, cap) {
     preview.style.setProperty("--lf-thread-width", `${width}px`);
     const worn = parseFloat(preview.style.getPropertyValue("--lf-thread-max-height"));
-    const height = preview.getBoundingClientRect().height;
+    const height = preview.offsetHeight;
     if (!(height < worn - 0.5 && height < cap - 0.5))
       preview.style.setProperty("--lf-thread-max-height", `${cap}px`);
     fitThreadCardEditors();

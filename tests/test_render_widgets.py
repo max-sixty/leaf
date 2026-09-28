@@ -7806,7 +7806,7 @@ def test_ask_binding_badges_do_not_cover_their_key_line(browser, serve):
             line: read(document.querySelector('.lf-shortcut-bar')),
             chips: [...document.querySelectorAll(
               '.lf-ask-binding-badges > .lf-ask-binding-badge, [data-lf-ask-binding-badge]'
-            )].map(read),
+            )].filter(node => node.checkVisibility({visibilityProperty: true})).map(read),
           };
         }"""
     )

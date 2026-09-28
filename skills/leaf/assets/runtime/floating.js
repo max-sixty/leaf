@@ -1,7 +1,7 @@
 /* Floating UI for the page's floating surfaces: the response bar (composing/surface.js)
    and the inline thread card (margin-projection.js).
 
-   Each places a fixed box beside something on the page, and each leaves the browser's
+   Each places a box beside something on the page, and each leaves the browser's
    coordinate spaces to Floating UI. `computePosition` maps what the box stands against
    into the box's own positioning space: a containing block, a frame, or WebKit's
    visual-viewport offset for a fixed box under pinch zoom. `autoUpdate`
@@ -17,9 +17,9 @@
    A box stands in the plane a scroll carries it with, which is the surface's answer to
    name: the `page`'s, where it stands beside what it is about, or the `window`'s, where
    the visible boundary holds it in. The box is absolutely positioned in the first and
-   fixed in the second (`data-lf-plane`), so the compositor carries it through every
-   scroll that keeps its plane, in step with the words, and a placement that follows
-   that scroll writes nothing. Placed in script from the window's plane, the box trailed
+   fixed in the second (`data-lf-plane`), so, under no transformed ancestor, the
+   compositor carries it through every scroll that keeps its plane, in step with the
+   words, and a placement that follows that scroll writes nothing. Placed in script from the window's plane, the box trailed
    the words by a frame through every scroll. `position` places the box in its present
    plane and, where the answer names the other one, places it again there.
 

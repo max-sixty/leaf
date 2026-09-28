@@ -666,10 +666,13 @@ export function createAskView({
     // it must be visible on top; otherwise the ordinary core chip carries the same route.
     const worn = new Set();
     for (const { binding, control, bindingBadge } of routes) {
+      // A control the window does not show cannot show its face either, and wearing
+      // the face only to measure it away would write it twice on every scroll.
       if (
         covered(control) ||
         !bindingBadge?.isConnected ||
-        bindingBadgeClaims.get(bindingBadge) !== 1
+        bindingBadgeClaims.get(bindingBadge) !== 1 ||
+        !placement.visibleBounds(control)
       )
         continue;
       if (!wornBindingBadges.has(bindingBadge))

@@ -1181,12 +1181,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-resolved-by { color: var(--muted); }
   .lf-general { padding: 12px 16px; border-top: 1px solid var(--rule); }
   .lf-system { color: var(--ok); margin: 8px 0; }
-  /* The two floats that point at the page live in the document's coordinate space
-     (absolute against the initial containing block), because what they point at does:
-     a composer that held its viewport spot while the page scrolled sat pinned over
-     whatever arrived under it, no longer beside the item it was about. Everything
-     else here is the viewport's own chrome and stays fixed. Below the banner's
-     9000, so a float scrolled to the top slides under the bar, not over it. */
+  /* The two floats that point at the page, the response bar and the thread card, stand
+     in the document's coordinate space (absolute against the initial containing block)
+     because what they point at does, and in the window's only while the visible
+     boundary holds them in (floating.js): a composer that held its viewport spot while
+     the page scrolled sat pinned over whatever arrived under it, no longer beside the
+     item it was about. Everything else here is the viewport's own chrome and stays
+     fixed. Below the banner's 9000, so a float scrolled to the top slides under the bar,
+     not over it. */
   /* The 💬 stands out on the page, beside the user's own words and in the same
      margin a change's ✓ Accept hangs in — often on the same line, which is how the
      two came to be compared. It used to answer that comparison badly: a solid accent

@@ -561,10 +561,18 @@ function clipped(box, item, clips, held, inWindow = true) {
         }),
       );
     }
-    const windowBand = a === a.ownerDocument?.scrollingElement && !c.headers.length;
-    if ((held || a !== item) && c.band && (inWindow || !windowBand)) {
-      const band = c.headers.length ? bandLess(c.band, c.headers, item) : c.band;
+    if ((held || a !== item) && c.band) {
+      let band = c.headers.length ? bandLess(c.band, c.headers, item) : c.band;
       if (!band) return null;
+      // In the page's plane the root's band is the window, which cuts nothing there;
+      // only a header stuck over one of its edges does.
+      if (!inWindow && a === a.ownerDocument?.scrollingElement)
+        band = {
+          left: band.left > c.band.left ? band.left : -Infinity,
+          top: band.top > c.band.top ? band.top : -Infinity,
+          right: band.right < c.band.right ? band.right : Infinity,
+          bottom: band.bottom < c.band.bottom ? band.bottom : Infinity,
+        };
       left = Math.max(left, band.left);
       top = Math.max(top, band.top);
       right = Math.min(right, band.right);

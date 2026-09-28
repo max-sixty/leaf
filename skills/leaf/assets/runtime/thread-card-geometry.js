@@ -66,7 +66,7 @@
    The inputs are client rectangles and lengths and the module reads no DOM, so the rule
    is arithmetic a test can state. `heightAt(width, cap)` is the one measurement: the
    card's rendered height at that width under that height cap, which the caller reads
-   from the live card, leaving the card wearing both. */
+   from the live card under that width and cap. */
 
 import { clamp } from "./rect.js";
 

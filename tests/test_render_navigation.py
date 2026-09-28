@@ -24,6 +24,8 @@ from render_cases_layout import (
     banner_control,
     in_threads_scrollport,
     page_at_rest,
+    ring_faults,
+    rings_drawn,
 )
 from render_cases_navigation import (
     ADDRESSED_PAGE,
@@ -210,6 +212,23 @@ def test_a_click_on_a_panes_words_makes_it_the_subject_of_every_scroll_key(
     page.locator("#left-head").focus()
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body")
+
+
+def test_a_pane_bodys_ring_is_drawn_whole_against_the_workspace_edges(browser, serve):
+    """A pane body with nothing in it to Tab to is a stop of its own (reach.js), and the
+    layer's ring stands outside the box it names. Panes stand flush with the scrollport
+    of the workspace body that holds them, so that ring lost its right and bottom sides
+    to the scrollport's edge and ran over the pane's header rule at the top."""
+    page = open_page(browser, serve(READING_REGIONS_PAGE))
+    resized(page, 1440, 900)
+    pane_posture(page, page.locator("#left-reading"), "bounded")
+    page.locator("#left-head").focus()
+    page.keyboard.press("Tab")
+    body = page.locator("#left-reading > :not(header, footer)")
+    expect(body).to_be_focused()
+    drawn = rings_drawn(page)
+    assert drawn, "the focused pane body wears no ring"
+    assert not ring_faults(drawn, "the focused pane body")
 
 
 def test_covering_panel_keeps_focus_on_a_nested_reading_region(browser, serve):

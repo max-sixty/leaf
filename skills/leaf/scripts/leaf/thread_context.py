@@ -72,15 +72,20 @@ def thread_message(events: list, thread: str, name: str) -> str:
 
 
 def id_subject(
-    events: list, page_widgets: set[str], thread_by_widget: dict, name: str
+    events: list,
+    page_widgets: set[str],
+    thread_by_widget: dict,
+    within: dict,
+    name: str,
 ) -> dict | None:
     """The subject any id a command takes names: `{"kind": "widget", "id"}` for a
     widget on the page, `{"kind": "thread", "id"}` for a thread. None where it names
     neither.
 
     A thread is named by its own id, any message in it, a widget frozen into its
-    markup, or any other event it holds. An event on a page widget, a move or a
-    worker's report, names that widget. A page id cannot collide with any of these:
+    markup, or any other event whose history it is part of
+    (`thread_memberships`). An event on a page widget, a move or a worker's report,
+    names that widget, and an undo names what the gesture it withdraws named. A page id cannot collide with any of these:
     `validation.markup.id_errors` refuses an authored id in the shape the log mints,
     and message markup and versions refuse each other's ids."""
     if name in page_widgets:
@@ -93,9 +98,12 @@ def id_subject(
             return None
         if event.get("widget") in page_widgets:
             return {"kind": "widget", "id": event["widget"]}
-        thread = next(
-            (t for t in event_threads(event, names, thread_by_widget) if t), None
-        )
+        if event["kind"] == "undo":
+            return id_subject(
+                events, page_widgets, thread_by_widget, within, event["undoes"]
+            )
+        memberships = thread_memberships(events, names, thread_by_widget, within)
+        thread = next(iter(memberships[name]), None)
     return {"kind": "thread", "id": thread} if thread is not None else None
 
 

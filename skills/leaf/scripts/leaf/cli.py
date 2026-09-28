@@ -722,8 +722,9 @@ def _title_option(command):
 
 
 def _titled(page_dir: Path, title: str | None) -> None:
-    """Refuse a title before its command posts anything, so one refused does not
-    leave the message posted and the thread unnamed."""
+    """Refuse a title admission would refuse before its command posts anything.
+    Past this the title can fail only with the page itself, and then the message
+    stands, already printed, for the refusal that follows it to be read against."""
     from leaf.thread import title_refusal
 
     if title is not None and (refusal := title_refusal(page_dir, title)):
@@ -761,10 +762,9 @@ def thread_open(
     page_dir = resolve_dir(dir)
     _titled(page_dir, title)
     accepted = cmd_comment(page_dir, quote, section, part, text, markup)
-    _print_records(
-        accepted,
-        *([cmd_title(page_dir, accepted["id"], title)] if title is not None else []),
-    )
+    _print_records(accepted)
+    if title is not None:
+        _print_records(cmd_title(page_dir, accepted["id"], title))
 
 
 @thread.command("reply", short_help="Reply to a thread as the agent.")
@@ -833,10 +833,9 @@ def thread_reply(
         detach=detach,
         validate_source=True,
     )
-    _print_records(
-        accepted,
-        *([cmd_title(page_dir, accepted["id"], title)] if title is not None else []),
-    )
+    _print_records(accepted)
+    if title is not None:
+        _print_records(cmd_title(page_dir, accepted["id"], title))
 
 
 @thread.command("edit", short_help="Edit a message's text, or its thread's title.")

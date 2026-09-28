@@ -105,7 +105,7 @@ def page_subject(page_dir: Path, events: list, name: str) -> dict | None:
     froze. Every command that takes an id reads it here, so each resolves it alike."""
     revision = latest_revision(page_dir)
     if revision is None:
-        return id_subject(events, set(), {}, name)
+        return id_subject(events, set(), {}, {}, name)
     registry = require_registry(page_dir)
     return id_subject(
         events,
@@ -115,6 +115,7 @@ def page_subject(page_dir: Path, events: list, name: str) -> dict | None:
             if rec["tag"] in registry
         },
         frozen_thread_reading(events, registry).thread_by_widget,
+        read_revision(page_dir, revision).enclosing,
         name,
     )
 

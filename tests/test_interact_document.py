@@ -2642,7 +2642,21 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
             "thread", "edit", "t-ask", "--title", "Store"
         ).output.splitlines()
     ]
-    for name in ("t-ask", opened["id"], renamed["id"]):
+    picked = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": files_model.latest_revision(page_dir),
+            "widget": "t-store",
+            "action": "choose",
+            "detail": {"options": ["t-sqlite"]},
+        },
+    )
+    undone = events_model.append_event(
+        page_dir, {"kind": "undo", "author": "user", "undoes": picked["id"]}
+    )
+    for name in ("t-ask", opened["id"], renamed["id"], picked["id"], undone["id"]):
         read = run("page", "state", name)
         assert read.exit_code == 0, read.output
         assert json.loads(read.output)["thread"]["id"] == opened["id"]

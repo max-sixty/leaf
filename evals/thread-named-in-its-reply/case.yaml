@@ -1,3 +1,6 @@
+# Added with `--title` on `thread reply` and `page state <page> <id>` for a thread's
+# history (#1374). Base at 69bee09a8 ran a separate `leaf thread title` (0 of 3);
+# the change 3 of 3. No other case fell across all 16 run at once, x3 per arm.
 schema_version: '1.0'
 name: thread-named-in-its-reply
 description: "Threads reference: an untitled thread is named by `--title` on the reply that answers it, and a long thread's elided middle is read with `leaf page state <page> <thread-id>`."

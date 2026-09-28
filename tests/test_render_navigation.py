@@ -919,9 +919,12 @@ def test_the_ask_walk_lands_an_ask_in_a_bounded_log_at_the_log_top(browser, serv
     scroll_settled(page)
     after = page.evaluate("() => document.scrollingElement.scrollTop")
     assert after == pytest.approx(before, abs=1), f"the page moved {after - before}px"
+    # At the log's top, less the room the Ask's ring takes above it.
     landed = page.evaluate(
-        """() => document.getElementById('q').getBoundingClientRect().top
-          - document.getElementById('log').getBoundingClientRect().top"""
+        """() => { const q = document.getElementById('q');
+          return q.getBoundingClientRect().top
+            - document.getElementById('log').getBoundingClientRect().top
+            - parseFloat(getComputedStyle(q).scrollMarginTop); }"""
     )
     assert landed == pytest.approx(0, abs=2), f"the Ask landed {landed}px down the log"
 

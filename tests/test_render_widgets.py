@@ -7201,13 +7201,16 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
         """() => {
           const ask = document.getElementById('storage-decision').getBoundingClientRect();
           const options = document.getElementById('storage-options').getBoundingClientRect();
-          const clear = parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop);
+          // Below the banner, and the room the Ask's ring takes above it.
+          const clear = parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)
+            + parseFloat(getComputedStyle(document.getElementById('storage-decision'))
+              .scrollMarginTop);
           return {ask: ask.top, options: options.top, clear};
         }"""
     )
     assert abs(landed["ask"] - landed["clear"]) <= 2, (
-        f"the Ask starts at {landed['ask']:.1f}px instead of below the banner at "
-        f"{landed['clear']:.1f}px"
+        f"the Ask starts at {landed['ask']:.1f}px instead of below the banner and its "
+        f"ring's room at {landed['clear']:.1f}px"
     )
     assert landed["options"] > landed["ask"] + 100, (
         "the arrival did not leave the Ask's context above its options"

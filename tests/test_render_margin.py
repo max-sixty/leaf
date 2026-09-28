@@ -1157,7 +1157,7 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
           return {
             controls: controls.map((control) => {
               const box = control.getBoundingClientRect();
-              return {x: box.left, y: box.top, bottom: box.bottom};
+              return {x: box.left, right: box.right, y: box.top, bottom: box.bottom};
             }),
             foot: Math.min(innerHeight, ...[...document.querySelectorAll(
               '.lf-shortcut-bar, .lf-bottom-status'
@@ -1174,9 +1174,17 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
     for control in geometry["controls"]:
         assert 0 < control["y"] < control["bottom"] <= geometry["foot"], geometry
     assert len(geometry["chips"]) == 2, geometry
+    # Each chip hangs off its own control's upper corner, the left one unless that would
+    # lay it over the control beside it: the pair stand 4px apart, so the second's digit
+    # takes its right corner.
     for control, chip in zip(geometry["controls"], geometry["chips"], strict=True):
-        assert abs(control["x"] - chip["x"]) <= 2, geometry
         assert abs(control["y"] - chip["y"]) <= 2, geometry
+        assert min(
+            abs(control["x"] - chip["x"]), abs(control["right"] - chip["x"])
+        ) <= 2, geometry
+    first, second = geometry["chips"]
+    assert abs(first["x"] - geometry["controls"][0]["x"]) <= 2, geometry
+    assert abs(second["x"] - geometry["controls"][1]["right"]) <= 2, geometry
 
 
 def test_the_standing_ask_marks_its_selected_margin_reading(browser, serve):

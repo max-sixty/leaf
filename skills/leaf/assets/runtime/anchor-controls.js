@@ -79,7 +79,7 @@ export function createAnchorControls({
   // A proxy sits after the outer disclosure that controls its visibility. Shadow
   // renderers share their host so sibling holders do not reorder on each paint.
   function visualActionSeat(candidate) {
-    let seat = shadowHost(candidate) ?? candidate;
+    let seat = shadowHost(candidate.getRootNode()) ?? candidate;
     for (let current = seat; current; current = upFrom(current))
       if (current.matches?.("details")) seat = current;
     return seat;

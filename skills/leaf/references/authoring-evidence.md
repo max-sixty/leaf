@@ -123,7 +123,7 @@ collapsed or share a compact frame with alternatives. A bound `lf-diff` keeps on
 element, supplies its text. Add `collapsed` to a large diff so each file starts closed;
 a comment or navigation target still opens the file that owns its line.
 
-Run `leaf page media <page> <file>…` and use the printed `/media/…` path for
+Run `leaf page media <page> <file>…` and use each printed `/media/…` `path` for
 images. Never inline image bytes. Put invented examples inside `lf-sample` and
 make them visibly fictional. Render tickets, source locations, and URLs as real
 links.

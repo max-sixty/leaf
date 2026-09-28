@@ -123,13 +123,11 @@ import {
   shownRegionBounds,
 } from "../reading-regions.js";
 import { moveScrollerBy } from "../scrolling.js";
+import { floatingPlacement, floatingUi } from "../floating.js";
 
 // The two routes to one Comment capability: the page's own, and the Threads list's local
 // one. The destination box's placeholder names whichever of them dispatch would answer.
 const COMMENT_COMMANDS = ["comment.create", "comment.write"];
-
-let floatingUiModule = null;
-const floatingUi = () => (floatingUiModule ??= import("/vendor/floating-ui.esm.js"));
 
 export function createResponseSurface({
   panelElements: { generalInput, panel, threadsBox },
@@ -195,10 +193,11 @@ export function createResponseSurface({
   let fabPlacementInput = null;
   let fabMinimumWidth = null;
   let fabMinimumComposer = null;
-  let fabPositionEpoch = 0;
   let fabPositionFrame = 0;
-  let fabPositionCleanup = null;
-  let fabPositionTarget = null;
+  const fabPosition = floatingPlacement({
+    floating: fabBar,
+    update: () => scheduleFabPosition(),
+  });
   let fabContentHeight = null;
   let fabPositionWaiters = [];
   const fabFocused = () => (fabInlineOutlet ? focused() : document.activeElement);
@@ -243,12 +242,9 @@ export function createResponseSurface({
   // take them out of the list — one answer drains it — and tell a user waiting to be
   // put in the field that the bar has no position, in the middle of giving it one.
   function stopFabPositioning({ reset = false, repositioning = false } = {}) {
-    fabPositionEpoch += 1;
+    fabPosition.stop();
     cancelRender(fabPositionFrame);
     fabPositionFrame = 0;
-    fabPositionCleanup?.();
-    fabPositionCleanup = null;
-    fabPositionTarget = null;
     fabContentHeight = null;
     if (!reset) return;
     if (!repositioning) answerFabPosition(false);
@@ -330,15 +326,12 @@ export function createResponseSurface({
   }
 
   function watchFabPosition(target, autoUpdate) {
-    if (target === fabPositionTarget) return;
-    fabPositionCleanup?.();
-    fabPositionTarget = target;
     const reference = {
       contextElement: target,
       getBoundingClientRect: () =>
         anchorBox(fabAnchor) ?? target.getBoundingClientRect(),
     };
-    fabPositionCleanup = autoUpdate(reference, fabBar, scheduleFabPosition);
+    fabPosition.watch(target, reference, autoUpdate);
   }
   // Whether a resolution is one this document can still put a box beside, which is not the
   // same question as whether it is on screen. Quoted words that resolve to segments stand
@@ -576,9 +569,9 @@ export function createResponseSurface({
       getBoundingClientRect: () => keepClear,
     };
     const overflow = { boundary: [], rootBoundary: boundary, padding: 0 };
-    const epoch = ++fabPositionEpoch;
+    const epoch = fabPosition.begin();
     const initial = fabPlacement === null;
-    const stillCurrent = () => epoch === fabPositionEpoch && fabAnchor && fabFloating;
+    const stillCurrent = () => fabPosition.current(epoch) && fabAnchor && fabFloating;
     const sideTop = (height) =>
       fabSideFootOffset === null
         ? target.top - 6
@@ -1406,9 +1399,11 @@ export function createResponseSurface({
       // extension both arrive here having just taken some without moving it at all.
       const words = pageSelection();
       if (words && words.toString() !== wordsAtPress) return;
-      // A plain click comments on the block it landed in.
+      // A plain click comments on the block it landed in. Read where it landed rather than
+      // at a widget host, since a Leaf surface the widget seats in its shadow tree answers
+      // for itself (design.js).
       if (designModeActive()) {
-        const target = designTarget(ev.target);
+        const target = designTarget(ev.composedPath()[0]);
         if (target) openOnDesign(target);
         return;
       }

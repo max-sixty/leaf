@@ -2,6 +2,7 @@
 
 import contextlib
 import errno
+import json
 import logging
 import secrets
 import socket
@@ -230,7 +231,7 @@ def cmd_serve_temporary(page_dir: Path) -> None:
     """Run the process-owned page server used by browser automation."""
     require_cross_process_locking()
     server = TemporaryPageServer(page_dir)
-    print(server.url, flush=True)
+    print(json.dumps({"url": server.url}), flush=True)
     print(TEMPORARY_SERVER_NOTE, file=sys.stderr, flush=True)
     server.run()
 
@@ -299,7 +300,7 @@ def _announce_server(page_dir: Path, url: str, handshake: Handshake | None) -> b
     order a reader of its streams takes them."""
     if handshake is not None:
         return handshake.announce({"url": url})
-    print(url, flush=True)
+    print(json.dumps({"url": url}), flush=True)
     print(startup_note(page_dir), file=sys.stderr, flush=True)
     return True
 
@@ -487,8 +488,9 @@ def claim_and_start(
         return start_server(page_dir, host, standing)
 
 
-def cmd_stop(page_dir: Path, restart: str | None = None) -> str:
-    """Disable the desired service and wait until its process lease is released.
+def cmd_stop(page_dir: Path, restart: str | None = None) -> bool:
+    """Disable the desired service, wait until its process lease is released, and
+    say whether a server was running.
 
     The barrier is taking the lease under the page lock, without waiting:
     held together, they keep a new start out of the gap between the old server's
@@ -526,7 +528,7 @@ def cmd_stop(page_dir: Path, restart: str | None = None) -> str:
             lease = take_lease(page_dir / SERVER_LOCK)
             if lease is not None:
                 release_lease(lease)
-                return "stopped server" if stopped else "no server running"
+                return stopped
         stopped = True
         time.sleep(0.05)
 

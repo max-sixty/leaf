@@ -232,6 +232,14 @@ export const DATUM = "[data-lf-projection][data-lf-datum]";
 // the document, so a node inside a widget's shadow tree can only reach it by leaving the
 // tree, and a widget staged inside a reply would otherwise read as page content.
 export const inChrome = (node) => Boolean(node && closestAcross(node, ".lf-chrome"));
+// The Leaf surface a node stands in, wherever it is seated: the chrome root, or a
+// surface of the runtime's own that its owner seats inside page content — the response
+// bar in a widget's outlet, a thread a widget places beside its lines. Each such surface
+// marks itself `data-lf-runtime`, so the reading travels with the node rather than with
+// the place it stands. A press mode that comments on or chooses the page leaves these
+// working.
+export const leafSurface = (node) =>
+  node ? closestAcross(node, ".lf-chrome, [data-lf-runtime]") : null;
 // The two together, which is what an affordance acting on where the pointer or the caret
 // is actually needs: the page's own words, as against the layer over them and as against
 // the apparatus inside them. Either half alone leaves a hole, and the hole `.lf-ui` left
@@ -241,14 +249,6 @@ export const inChrome = (node) => Boolean(node && closestAcross(node, ".lf-chrom
 // log, naming a section no version holds. `leaf thread open --section` refuses exactly that
 // from the file side, and file capture is the reading that is supposed to promise less.
 export const pageWords = (node) => Boolean(node) && !inChrome(node) && !inUi(node);
-// The runtime's own parts, as against everything else standing in its layer. Its parts
-// wear its id namespace — `lf-composer-quote`, which authored markup may not take — and
-// a widget an agent sent stands in the layer wearing an id of its own, no part of it.
-// `inChrome` answers which document an element is in, and it was standing in for this
-// question too: a design comment on a question asked in a reply was filed under the
-// runtime's own buttons and named "ps ask", where the same widget on the page reads
-// "lf-options · ps-decision".
-export const layerPart = (el) => inChrome(el) && el.id.startsWith("lf-");
 // The two readings, each one predicate over a text node and named for the question it
 // answers. Anchoring reads what the user can point at: not the runtime's own words —
 // `inUi`, which a declared label answers for itself — and nothing behind a wall no label
@@ -276,7 +276,7 @@ export const layerPart = (el) => inChrome(el) && el.id.startsWith("lf-");
 // being broken, which is the one thing it isn't.
 export const elementOver = (n) => {
   if (n.parentElement) return n.parentElement;
-  const host = shadowHost(n);
+  const host = shadowHost(n.getRootNode());
   const at = host
     ? `<${host.localName}${host.id ? ` id="${host.id}"` : ""}>`
     : "a module";
@@ -504,11 +504,12 @@ function walk(root, onText, skip = null) {
   // A declared tree handed in as the root reads where its host stands, its tree-local
   // facts starting over as they do when the walk crosses into it; the document starts
   // with nothing over it.
+  const host = shadowHost(root);
   const start =
     root.nodeType === Node.ELEMENT_NODE
       ? contextAt(root, frame, retired)
-      : root.host
-        ? crossed(contextAt(root.host, frame, retired))
+      : host
+        ? crossed(contextAt(host, frame, retired))
         : NO_CONTEXT;
   visit(root, start);
 }
@@ -539,7 +540,7 @@ export function closestAcross(node, selector) {
   while (el) {
     const hit = el.closest(selector);
     if (hit) return hit;
-    el = shadowHost(el);
+    el = shadowHost(el.getRootNode());
   }
   return null;
 }

@@ -52,25 +52,59 @@ def sample_events(
     ]
 
 
-def thread_address(events: list, name: str) -> tuple[str, str] | None:
-    """The thread `name` reaches, and the message an event written into it names.
+def thread_message(events: list, thread: str, name: str) -> str:
+    """The message an event written into `thread` names, when `name` reached it.
 
-    `name` is the thread's own id or the id of any message in it, which is how every
-    command that addresses a thread takes it. The message is `name` itself, except
-    where `name` is a thread whose opening comment the log lost: that id names no
-    event, so the thread is addressed through the first message it still holds, as
-    the panel answers it. None where `name` reaches no thread."""
+    `name` itself where it is a message of the thread. Otherwise the thread through
+    its opening comment, or, where the log lost that comment, through the first
+    message the thread still holds, as the panel answers it."""
     names = thread_names(events)
-    thread = names.get(name)
-    if thread is None:
-        return None
-    if name != thread or any(event["id"] == name for event in events):
-        return thread, name
-    return thread, next(
+    logged = {event["id"] for event in events}
+    if names.get(name) == thread and name in logged:
+        return name
+    if thread in logged:
+        return thread
+    return next(
         message
         for message, owner in names.items()
-        if owner == thread and message != name
+        if owner == thread and message != thread
     )
+
+
+def id_subject(
+    events: list,
+    page_widgets: set[str],
+    thread_by_widget: dict,
+    within: dict,
+    name: str,
+) -> dict | None:
+    """The subject any id a command takes names: `{"kind": "widget", "id"}` for a
+    widget on the page, `{"kind": "thread", "id"}` for a thread. None where it names
+    neither.
+
+    A thread is named by its own id, any message in it, a widget frozen into its
+    markup, or any other event whose history it is part of
+    (`thread_memberships`). An event on a page widget, a move or a worker's report,
+    names that widget, and an undo names what the gesture it withdraws named. A page id cannot collide with any of these:
+    `validation.markup.id_errors` refuses an authored id in the shape the log mints,
+    and message markup and versions refuse each other's ids."""
+    if name in page_widgets:
+        return {"kind": "widget", "id": name}
+    names = thread_names(events)
+    thread = names.get(name) or thread_by_widget.get(name)
+    if thread is None:
+        event = next((event for event in events if event["id"] == name), None)
+        if event is None:
+            return None
+        if event.get("widget") in page_widgets:
+            return {"kind": "widget", "id": event["widget"]}
+        if event["kind"] == "undo":
+            return id_subject(
+                events, page_widgets, thread_by_widget, within, event["undoes"]
+            )
+        memberships = thread_memberships(events, names, thread_by_widget, within)
+        thread = next(iter(memberships[name]), None)
+    return {"kind": "thread", "id": thread} if thread is not None else None
 
 
 def thread_names(events: list) -> dict:
@@ -196,7 +230,7 @@ def thread_memberships(
     supersedes its earlier answer, an undo inherits the gesture's membership, and
     a version note can retract what an answer rested on.
 
-    This is the shared join for exact event selection and wait delivery. Current
+    This is the shared join for wait delivery and sampled thread closures. Current
     resolution still comes from `build_threads`; membership says which raw
     records explain that fold rather than becoming another state projection.
     Read state and the history feed read the direct relation, `event_threads`:
@@ -255,8 +289,8 @@ MESSAGE_FIELDS = (
 
 # How much of one thread a wait digest carries: the message that opened it,
 # because it holds the question the thread is about, and the most recent, being
-# what a new one answers. `leaf page events --thread` selects the exchange whole when
-# a reader needs the middle.
+# what a new one answers. `leaf page state <page> <thread>` pages through the
+# exchange when a reader needs the middle.
 #
 # The bound is the point. A delivery reprints the entire thread every time,
 # because the agent it is for may hold none of it — so unbounded, the header
@@ -297,7 +331,7 @@ def thread_digest(
     exchange its own events land in without printing them twice. `pin` keeps a
     message the bound would otherwise drop. `elided` says how many went, so a
     reader can tell a short thread from a shortened one and knows to
-    read the exact records with `leaf page events --thread`."""
+    page through the rest with `leaf page state <page> <thread> --after`."""
     kept = [m for m in thread["msgs"] if m["seq"] not in omit]
     shown = ends_kept(kept, pin)
     return {

@@ -906,8 +906,9 @@ def cmd_codex_start(
     page_dir: Path,
     codex_path: str | None = None,
     app_server: str | None = None,
-) -> str:
-    """Claim PAGE and start one detached delivery carrier for this task."""
+) -> dict:
+    """Claim PAGE and start one detached delivery carrier for this task, or find
+    the one already running; return which, with its task and transport."""
     harness = session_harness()
     if harness is None or harness.name != CodexHarness.name:
         raise RuntimeError("`leaf codex start` must run inside a Codex task")
@@ -927,12 +928,10 @@ def cmd_codex_start(
             if app_server is not None and app_server != running:
                 raise RuntimeError(
                     f"Codex delivery is already active for task {session_id}"
-                    f"{_transport(running)}, not through App Server {app_server}"
+                    + (f" through App Server {running}" if running else "")
+                    + f", not through App Server {app_server}"
                 )
-            return (
-                f"Codex delivery is already active for task {session_id}"
-                f"{_transport(running)}"
-            )
+            return {"task": session_id, "app_server": running, "started": False}
         start_detached(
             [
                 "codex",
@@ -946,7 +945,7 @@ def cmd_codex_start(
             cwd=state_home(),
             timeout=START_TIMEOUT,
         )
-    return f"Codex delivery started for task {session_id}{_transport(app_server)}"
+    return {"task": session_id, "app_server": app_server, "started": True}
 
 
 def _running_adapter(session_id: str) -> dict | None:
@@ -960,12 +959,6 @@ def _running_adapter(session_id: str) -> dict | None:
         return json.loads(adapter_lease_path(session_id).read_text())
     except FileNotFoundError:
         return None
-
-
-def _transport(app_server: str | None) -> str:
-    """How `leaf codex start` names a transport: the App Server's endpoint, or
-    nothing for the queue, which is how the host contracts tell the two apart."""
-    return f" through App Server {app_server}" if app_server else ""
 
 
 def _wait_for_app_server(path: Path, process: subprocess.Popen, log) -> None:

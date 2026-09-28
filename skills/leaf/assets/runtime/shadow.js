@@ -21,21 +21,17 @@ export const shadowRootsIn = (root) =>
     .map((host) => host.shadowRoot)
     .filter(Boolean);
 export const pageShadowRoots = () => shadowRootsIn(document);
+// A document may expose a `host` value of its own; only a ShadowRoot's host is
+// a node in the composed tree.
+export const shadowHost = (root) => (root instanceof ShadowRoot ? root.host : null);
 // The parent, crossing a shadow root's boundary on the way up: the ordinary parent within
 // a tree, and the host where a tree runs out. It is the one walk every reading that
 // climbs out of a widget takes. Every question the runtime asks about where a node sits —
 // which section, which block, which passage cell, whether it is chrome — is asked of the
 // page, and a climb that stops at a shadow root answers about the widget's own markup
 // instead.
-export const upFrom = (node) => node?.parentElement ?? (node && shadowHost(node));
-// The element whose shadow tree holds `node`, or null where the tree it stands in is a
-// document or a detached subtree. The root of a detached subtree is an element, and an
-// `<a>` answers `host` with its URL's host name, which a climb then took for a node.
-// Asked by node type, so a shadow root in a sample's frame answers too.
-export const shadowHost = (node) => {
-  const root = node.getRootNode();
-  return root.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? (root.host ?? null) : null;
-};
+export const upFrom = (node) =>
+  node?.parentElement ?? shadowHost(node?.getRootNode()) ?? null;
 // The same step through the tree as rendered: a node slotted into a shadow tree renders
 // inside its slot, so the slot is where it is scrolled and ordered, not its light parent.
 export const renderedParent = (node) => node?.assignedSlot ?? upFrom(node);
@@ -51,7 +47,7 @@ export const renderedParent = (node) => node?.assignedSlot ?? upFrom(node);
 // narrowing a search to that section threw away every candidate inside it and the
 // passage resolved to nothing — the anchor captured, the mark never painted.
 export const under = (node, root) => {
-  for (let a = node; a; a = a.parentNode ?? a.host ?? null) if (a === root) return true;
+  for (let a = node; a; a = a.parentNode ?? shadowHost(a)) if (a === root) return true;
   return false;
 };
 
@@ -62,7 +58,7 @@ export const under = (node, root) => {
 // questions, which the platform answers only within one tree, are asked of this.
 export const hostIn = (node, root) => {
   let at = node;
-  while (at && at.getRootNode() !== root) at = shadowHost(at);
+  while (at && at.getRootNode() !== root) at = shadowHost(at.getRootNode());
   return at;
 };
 

@@ -248,7 +248,7 @@ user's. Filter Observability by the public session reference, route, browser, or
 `loadId`.
 
 The deployed site answers that beacon at the edge, so the container never sees it. A site
-served straight from `server.py` — the test suite, a local preview — has no edge in front
+served straight from `leaf_website` — the test suite, a local preview — has no edge in front
 of it, so the adapter acknowledges the report itself and keeps no record of it. Startup
 profiles exist only for the deployed release.
 

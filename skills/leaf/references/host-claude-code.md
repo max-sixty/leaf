@@ -11,8 +11,8 @@ The skill directory's `../../bin/leaf` launcher resolves to
 leaf server start <page>
 ```
 
-It prints the page's keyed URL on stdout and returns. Hand that exact string
-back. `leaf server run` prints the same URL but never exits, so nothing it says
+It prints `{"url": ...}`, the page's keyed URL, on stdout and returns. Hand that
+exact URL back. `leaf server run` prints the same but never exits, so nothing it says
 reaches you and there is no turn to end. `references/serving-pages.md` owns the
 key, the address it binds, and a URL the user cannot reach.
 

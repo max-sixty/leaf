@@ -1620,8 +1620,8 @@ def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body")
 
 
-def test_a_thread_walk_card_keeps_its_margin_until_its_anchor_leaves(browser, serve):
-    """A contextual thread has one side and only lives while its anchor is visible."""
+def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
+    """A contextual thread has one side, and leaves and returns with its anchor."""
     page = open_page(browser, live_url(serve(FEATURE_GALLERY)))
     page.emulate_media(reduced_motion="reduce")
     resized(page, 1440, 900)
@@ -1655,17 +1655,37 @@ def test_a_thread_walk_card_keeps_its_margin_until_its_anchor_leaves(browser, se
     expect(card).to_be_visible()
     expect(card).to_have_attribute("data-lf-thread-placement", "right")
 
+    # Scrolled away, the card leaves with its anchor rather than closing, and scrolled
+    # back it stands where it stood, with the user still in it.
+    rendered(page)
+    placed = card.evaluate("node => node.getBoundingClientRect().top")
+    before = page.evaluate("() => document.scrollingElement.scrollTop")
     page.evaluate("() => scrollTo(0, document.scrollingElement.scrollHeight)")
-    expect(card).to_be_hidden()
-
-    marker = page.locator(
-        '.lf-margin-marker[data-lf-kinds~="comment"]:not([hidden])'
-    ).first
-    marker.scroll_into_view_if_needed()
-    marker.click()
-    expect(card).to_be_visible()
-    page.evaluate("() => scrollTo(0, 0)")
-    expect(card).to_be_hidden()
+    rendered(page)
+    assert card.evaluate(
+        "node => node.getBoundingClientRect().bottom"
+        " <= document.querySelector('.lf-banner').getBoundingClientRect().bottom"
+    )
+    page.evaluate("top => scrollTo(0, top)", before)
+    rendered(page)
+    assert card.evaluate("node => node.getBoundingClientRect().top") == pytest.approx(
+        placed, abs=0.5
+    )
+    expect(
+        card.locator('.lf-page-thread[data-thread="72e031c5bf0d485ba9054628e09869d4"]')
+    ).to_be_focused()
+    # A key pressed in a card scrolled away brings its cluster, and the card, back.
+    page.evaluate("() => scrollTo(0, document.scrollingElement.scrollHeight)")
+    rendered(page)
+    page.keyboard.press("c")
+    expect(card.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
+    page.wait_for_function(
+        """() => {
+          const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+          const head = document.querySelector('.lf-banner').getBoundingClientRect().bottom;
+          return card.top >= head && card.bottom <= innerHeight;
+        }"""
+    )
 
 
 def test_a_pane_frame_comment_preview_is_not_confined_to_its_body(browser, serve):

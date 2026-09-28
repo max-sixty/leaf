@@ -1,3 +1,5 @@
+# Added with package Thread views (#1288). The change passed 2 of 3; the third run's
+# final answer was an unrelated notice. Base result not recorded.
 schema_version: '1.0'
 name: thread-widget-mirrors
 description: "A package widget can render core Thread conversations in independent filtered views without taking their page placement."

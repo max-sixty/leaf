@@ -132,8 +132,8 @@ and Codex install the tracked tree whole.
 - `dev/`: the `leaf_dev` package those scripts share, and the `leaf-dev` commands
   that probe, screenshot, and compare versions of Leaf;
 - `worker/`: the Cloudflare Worker behind <https://leaf.page/>, which routes each
-  example to the Python server in a per-user container; `worker/README.md` names
-  its tokens and how an unattended agent loads one;
+  example to the Python server (the `leaf_website` package) in a per-user container;
+  `worker/README.md` names its tokens and how an unattended agent loads one;
 - `docs/`: the site's own pages, each a Leaf source, so changing what the site
   says is a page edit;
 - `TODO.md`: the ordered priority list;
@@ -282,7 +282,7 @@ Before finishing a feature:
   other references point at that section by name. Shipped guidance sets goals
   for the user's experience and names the surface they read on; it leaves
   format and phrasing to the agent. Score the change with `evals/` before and
-  after, and add a case for the behavior it targets (`evals/README.md`).
+  after (`/developing-leaf`, "Score a guidance change").
 
 `uv run pytest tests` and `npm run test:runtime` are the everyday gate
 (`tests/AGENTS.md`). Two TypeScript trees, `worker/src/` and `build/browser/`, and

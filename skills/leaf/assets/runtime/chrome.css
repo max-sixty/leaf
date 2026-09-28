@@ -1438,13 +1438,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-command-reference-command[data-lf-available="false"] { color: var(--muted); }
   .lf-page-map-toggle { display: none; }
   /* margin-projection.js writes the width and height cap thread-card-geometry.js
-     measured the card under; these are the fallbacks for a card no placement has
-     measured yet. The card itself never scrolls: its thread list does, in every
+     measured the card under, in the card's own positioning space, which a scaled
+     ancestor makes other than the viewport's; these are the fallbacks for a card no
+     placement has measured yet, so only they are held to the viewport. The card itself never scrolls: its thread list does, in every
      posture and before the first open, so the list is the preview's one reading
      scroller (reading-regions.js reads posture off that list's overflow). */
   .lf-margin-preview { position: fixed; inset: 0 auto auto 0;
     z-index: var(--lf-z-margin-preview);
-    width: min(var(--lf-thread-width, var(--thread-card)), calc(100vw - 16px));
+    width: var(--lf-thread-width, min(var(--thread-card), calc(100vw - 16px)));
     max-height: var(--lf-thread-max-height,
       calc(100vh - var(--lf-banner-h) - 16px));
     box-sizing: border-box; overflow: hidden; scroll-padding-block: var(--here-ring-room);
@@ -1499,7 +1500,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     background: inherit; }
   .lf-margin-thread .lf-say leaf-text { padding-inline-start: 7px; }
   .lf-margin-thread .lf-say leaf-text { min-width: 0;
-    max-height: min(50vh, var(--lf-thread-editor-room, 50vh)); }
+    max-height: var(--lf-thread-editor-room, 50vh); }
   .lf-margin-preview .lf-thread-root-meta { position: sticky; z-index: 2;
     top: 0; background: var(--paper);
     align-items: center; gap: 4px; min-height: max(28px, var(--aim-floor));

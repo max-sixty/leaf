@@ -3,7 +3,7 @@
 import { spell } from "../keyboard/bindings.js";
 import { pageCommand } from "../keyboard/register.js";
 import { pointerAt, pressIsKeyboardActivation } from "../pointer.js";
-import { elementFromPointAcross, inChrome } from "../passages.js";
+import { elementFromPointAcross, inChrome, leafSurface } from "../passages.js";
 import { aimTargetAt } from "../anchor-resolution.js";
 
 // While ⌥ is held the page shows what a click would take — the item under
@@ -132,7 +132,10 @@ export function createAim({
     // under way when the key goes down keeps the events it is waiting for, and one that
     // ends after the aim's own press can still be ended.
     if (ev.type === "pointerdown") {
-      const designTarget = designMode.press(ev.target);
+      // The node pressed, not the widget host a shadow tree retargets it to: a Leaf
+      // surface a widget seats in its own shadow tree is only visible from inside.
+      const pressed = ev.composedPath()[0];
+      const designTarget = designMode.press(pressed);
       const aim =
         aimIsAvailable() && ev.getModifierState(AIM.modifier) && onPage(ev.target);
       // The item the outline is naming, through the reading that named it (aimedTarget,
@@ -142,11 +145,11 @@ export function createAim({
       // builds its own, and where two boxes share an edge — every cell of a joined group,
       // which butt with no gap between them — nothing makes the two tie-break the same way.
       // A user ⌥-pressing on that seam was outlined one option and commented on the next.
-      const choosing = targetChooser.active() && !inChrome(ev.target);
+      const choosing = targetChooser.active() && !leafSurface(pressed);
       claimedPress = choosing
-        ? { chooser: aimTargetAt(ev.composedPath()[0]) }
+        ? { chooser: aimTargetAt(pressed) }
         : designTarget
-          ? { designMode: designMode.target(ev.target) }
+          ? { designMode: designMode.target(pressed) }
           : aim
             ? { aim: aimedTarget() }
             : null;

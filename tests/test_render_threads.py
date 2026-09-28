@@ -182,7 +182,6 @@ def summarize_thread(page_dir, first, last, text):
             last,
             "--text",
             text,
-            "--json",
         ],
     )
     assert result.exit_code == 0, result.output
@@ -7720,10 +7719,10 @@ def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
             cli_model.cli,
             [
                 "thread",
-                "title",
+                "edit",
                 str(serve.page_dir),
                 root,
-                "--text",
+                "--title",
                 title,
             ],
         )

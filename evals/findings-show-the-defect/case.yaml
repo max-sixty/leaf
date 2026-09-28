@@ -1,3 +1,6 @@
+# From session 78ca368e's review page, which came back mostly prose. Main passed it
+# 3 of 3 at 31373c873; the session's failure was fixed in SKILL.md step 3, which a
+# cold case can't reach, so it has not told two wordings apart.
 schema_version: '1.0'
 name: findings-show-the-defect
 description: "Draw the subject: a finding about a visible defect shows its screenshot, even after chat already described it."

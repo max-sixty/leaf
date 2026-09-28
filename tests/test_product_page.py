@@ -1,7 +1,6 @@
 """The product pages are Leaf documents using the site's composed vocabulary."""
 
 import html
-import importlib.util
 import json
 import re
 import shlex
@@ -23,6 +22,7 @@ from leaf.registry.contract import event_clauses
 from leaf.registry.storage import active_registry
 from leaf.structure import SourceDocument
 from leaf.validation import compatibility as validation_model
+from leaf_dev import record_demo
 from PIL import Image
 
 ROOT = Path(__file__).parent.parent
@@ -31,12 +31,6 @@ DEFAULT_PACKAGE = ROOT / "skills" / "leaf" / "packages" / "default"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
-
-_record_demo_spec = importlib.util.spec_from_file_location(
-    "record_demo", ROOT / "scripts" / "record-demo.py"
-)
-record_demo = importlib.util.module_from_spec(_record_demo_spec)
-_record_demo_spec.loader.exec_module(record_demo)
 
 
 def test_kernel_event_contracts_declare_closed_records():
@@ -193,9 +187,9 @@ def test_how_it_works_quotes_the_real_check_and_stamp_lines(page_dir):
     """Both lines the transcript shows an agent, taken from the commands themselves.
 
     A shown line is a promise about what the user will see. The changelog is the
-    page's own, so the stamp line is generated here with the transcript's text
-    rather than pattern-matched — a renamed field or a changed separator has to be
-    written into the page before this passes again.
+    page's own, so the stamp record is generated here with the transcript's text and
+    compared field by field: a renamed or added field has to be written into the page
+    before this passes again. Only the record's identity and time differ per run.
     """
     checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert checked.exit_code == 0, checked.output
@@ -211,7 +205,15 @@ def test_how_it_works_quotes_the_real_check_and_stamp_lines(page_dir):
 
     transcript = html.unescape((DOCS / "how-it-works.html").read_text())
     assert success in transcript
-    assert stamped.output.strip() in transcript
+    lines = transcript.splitlines()
+    command = next(i for i, line in enumerate(lines) if "$ leaf page stamp" in line)
+    shown = json.loads(lines[command + 1])
+    record = json.loads(stamped.output)
+    assert shown.keys() == record.keys()
+    per_run = {"id", "ts", "session", "agent"}
+    assert {k: v for k, v in shown.items() if k not in per_run} == {
+        k: v for k, v in record.items() if k not in per_run
+    }
 
 
 def test_how_it_works_delivery_has_the_shape_a_real_delivery_has(page_dir):
@@ -554,14 +556,14 @@ def test_demo_recording_drives_the_browser_journey(tmp_path):
     # same nothing. This is `open_page`'s complaint about "Failed to load
     # resource" one file over — carry what failed into the failure.
     recorded = subprocess.run(
-        [sys.executable, ROOT / "scripts" / "record-demo.py", "--output", output],
+        [sys.executable, "-m", "leaf_dev", "record-demo", "--output", output],
         capture_output=True,
         text=True,
         check=False,
     )
 
     assert recorded.returncode == 0, (
-        f"record-demo.py exited {recorded.returncode}\n"
+        f"leaf-dev record-demo exited {recorded.returncode}\n"
         f"{recorded.stdout}{recorded.stderr}".rstrip()
     )
     assert recorded.stdout.strip() == f"Recorded {output}"

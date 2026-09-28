@@ -27,8 +27,8 @@ ANSWER_KINDS = ("reply", "turn", "markup")
 # The answer kinds that post a message in a thread.
 THREAD_ANSWER_KINDS = frozenset({"reply", "turn"})
 ANSWER_ASK_INSTRUCTION = (
-    "Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with "
-    "`leaf thread read <page> <id>`."
+    "Each move takes the answer named for it. Read current obligations with "
+    "`leaf page state <page>` and thread history with `leaf page state <page> <id>`."
 )
 WAIT_BATCH_OUTPUT_INSTRUCTION = (
     "Print one page's complete ordered batch, thread context, and response "
@@ -46,6 +46,10 @@ WIDGET_NAME_RULE = (
     f"letters and digits, such as `lf-merge-film` ({WIDGET_NAME})"
 )
 ELEMENT_ID = r"[a-z0-9][a-z0-9-]*"
+# An id the log mints for an event. Page ids and event ids are one address space:
+# a command's ID is a widget or a message, whichever the page holds, so an authored
+# id may not take this shape (`validation.markup.id_errors`).
+EVENT_ID = r"[0-9a-f]{8}"
 DATA_SOURCE_NAME = HTML_NAME
 DATA_CONTRACT_NAME = r"[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*"
 # The record forms one vocabulary of declared state draws on ($state in the
@@ -407,6 +411,27 @@ ATTRIBUTE_KEYS = (
     "x-says",
     "x-tone",
 )
+# The declarations a stylesheet reads, each painted on the element as `paint`: the room
+# it takes (x-space), whether it sets inline among words (x-inline), quotes what it holds
+# (x-exhibit), holds its own height (x-bound), and the reading structure it supplies
+# (x-reading-role). A stylesheet cannot read the registry, so each is painted where a
+# selector can ask. `authored` is the attribute an occurrence writes to override its
+# tag's declaration. `message` says whether the mark holds in a thread's message too:
+# each is the element's own fact wherever it renders, except the room, which is the
+# document's to hand out; a message renders in the panel, whose width bounds it.
+#
+# Delivery paints a page's document from this (`revision_delivery.mark_declared`).
+# Composition stamps it into the vocabulary as `$marks` (`registry.layer.
+# stamp_composition`), from which the runtime paints a message it renders and tells the
+# paint from the author's attributes (`isPagePaint`). The paint names are also the
+# theme's contract: the stylesheets that read them spell them out.
+DECLARED_MARKS = {
+    "x-space": {"paint": "data-lf-space", "authored": "data-width", "message": False},
+    "x-inline": {"paint": "data-lf-inline", "message": True},
+    "x-exhibit": {"paint": "data-lf-exhibit", "message": True},
+    "x-bound": {"paint": "data-lf-bound", "authored": "data-bound", "message": True},
+    "x-reading-role": {"paint": "data-lf-reading-role", "message": True},
+}
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent.parent
 PLUGIN_ROOT = SKILL_ROOT.parent.parent
@@ -489,7 +514,7 @@ VERSION_NAME = r"v(?P<version>[1-9][0-9]*)"
 # media it adds, the revisions it activates, the versions it stamps). The website
 # adapter routes exactly these and those files to a page, and so does the Worker in
 # front of it, which reads the layer and session kinds from the site manifest
-# `scripts/site.py` writes: a static miss under a session directory is a file the
+# `leaf-dev site` writes: a static miss under a session directory is a file the
 # page's container has. `api` is the page server's protocol prefix, which the Worker
 # names with the endpoints under it.
 SESSION_ROUTE_DIRS = (MEDIA_DIR, "revisions", "versions")

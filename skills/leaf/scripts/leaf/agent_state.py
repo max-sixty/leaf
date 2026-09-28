@@ -6,6 +6,7 @@ from pathlib import Path
 from .construction import constructed_content
 from .data import data_errors
 from .data_contracts import measurement_lag_entries, page_data_binding_inventory
+from .delivery import current_responses
 from .document_reading import DocumentReading
 from .events import bare_reaction, is_reaction
 from .files import revision_path
@@ -13,12 +14,17 @@ from .passages import page_passages
 from .projection import FrozenThreadReading, retirement_outcomes
 from .registry.reactions import described
 from .registry.storage import layer_metadata, require_registry
+from .revision_artifact import active_enclosing
 from .revisioning import activate_source
 from .schema import DATA_DIR, DATA_FILE
 from .served_state.page import read_served_page
 from .server import running_server
 from .service import PageTransaction, unacknowledged
-from .thread import thread_named
+from .validation.admission import logged_id
+from .work import page_subject
+
+# How many of a thread's messages one `page state PAGE THREAD` prints by default.
+HISTORY_LIMIT = 50
 
 
 def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
@@ -40,28 +46,23 @@ def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
     }
 
 
-def cmd_page_state(page_dir: Path) -> None:
-    """Print the agent-side state from one transaction-consistent snapshot."""
-    with PageTransaction(page_dir) as page:
-        activation = activate_source(page_dir)
-        _write_page_state(page_dir, page.events, activation.error)
-
-
-def cmd_thread_read(
+def cmd_page_state(
     page_dir: Path,
-    thread: str,
+    target: str | None = None,
     *,
-    after: int = 0,
-    limit: int = 50,
+    after: int | None = None,
+    limit: int | None = None,
 ) -> None:
-    """Print the current thread `thread` reaches and one bounded history page."""
+    """Print the agent-side state from one transaction-consistent snapshot: the
+    page's, or the part `target` names — a thread with a page of its history, or a
+    widget."""
     with PageTransaction(page_dir) as page:
         activation = activate_source(page_dir)
         _write_page_state(
             page_dir,
             page.events,
             activation.error,
-            thread_id=thread_named(page_dir, page.events, thread),
+            target=target,
             after=after,
             limit=limit,
         )
@@ -109,8 +110,8 @@ def _base_state(
         "data_bindings": page_data_binding_inventory(page_dir, registry, events),
         "measurement_lag": [],
         "asks": [],
-        # Current semantic facts only. Exact raw history belongs to
-        # `page events --thread`; keeping its sequence list here would make this
+        # Current semantic facts only. A thread's history belongs to
+        # `page state PAGE THREAD`; keeping its sequence list here would make this
         # default snapshot grow with every thread turn. A reaction nobody
         # has replied to opened no thread: it is paint on the page and
         # stands under `reactions` below.
@@ -216,14 +217,61 @@ def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
     )
 
 
+def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> dict:
+    """The page reading narrowed to one widget on the page and what it holds: its
+    element, the moves and reports standing on it or on anything inside it, the Asks
+    and workflows there, and the updates aimed at them. An Ask names the choice that
+    answers it, so narrowing to the Ask carries the pick standing on that choice."""
+
+    def inside(element: str | None) -> bool:
+        return element is not None and widget in enclosing.get(element, ())
+
+    workflows = [
+        item
+        for item in state["workflows"]
+        if item["subject"]["kind"] == "widget" and inside(item["subject"]["id"])
+    ]
+    obligations = set(state["activity"]["obligations"])
+    return {
+        "page": str(page_dir),
+        "widget": next(
+            element
+            for element in state["elements"]
+            if element["id"] == widget and element["thread"] is None
+        ),
+        "state": [
+            reading
+            for reading in state["state"]
+            if reading["thread"] is None
+            and (inside(reading["widget"]) or inside(reading["unit"]))
+        ],
+        "asks": [
+            ask
+            for ask in state["asks"]
+            if ask["thread"] is None and (inside(ask["id"]) or inside(ask["source"]))
+        ],
+        "updates": [
+            update
+            for update in state["updates"]
+            if update["target"]["kind"] == "widget" and inside(update["target"]["id"])
+        ],
+        "activity": {
+            "obligations": [
+                item["id"] for item in workflows if item["id"] in obligations
+            ],
+        },
+        "workflows": workflows,
+    }
+
+
 def _write_page_state(
     page_dir: Path,
     events: list,
     source_error: str | None = None,
     *,
-    thread_id: str | None = None,
+    target: str | None = None,
     after: int = 0,
-    limit: int = 50,
+    limit: int | None = None,
 ) -> None:
     """Where the page stands, as one JSON object — the agent-facing projection
     beside the browser projection in /api/state. A session picking a page up needs
@@ -308,13 +356,31 @@ def _write_page_state(
             thread["unread"] = [
                 item["message"] for item in served_threads[thread["id"]]["unread"]
             ]
-    if thread_id is not None:
+    subject = None
+    if target is not None:
+        subject = page_subject(page_dir, events, target)
+        if subject is None:
+            held = logged_id(events, target, current_responses(page_dir, events))
+            raise SystemExit(
+                f"{target!r} names no thread or widget on this page"
+                + (f"; {held}" if held else "")
+            )
+    if subject is not None and subject["kind"] == "widget":
+        if after is not None or limit is not None:
+            raise SystemExit(
+                f"{target!r} is a widget; --after and --limit page a thread"
+            )
+        state = _widget_state(
+            state, page_dir, subject["id"], active_enclosing(page_dir)
+        )
+    elif subject is not None:
+        thread_id = subject["id"]
         selected = next(
             (thread for thread in state["threads"] if thread["id"] == thread_id),
             None,
         )
         if selected is None:
-            raise SystemExit(f"unknown thread {thread_id!r}")
+            raise SystemExit(f"{target!r} names no thread or widget on this page")
         # A thread is listed only where the page has a document, so the readings
         # stand here.
         thread_reading = reading.thread
@@ -342,6 +408,8 @@ def _write_page_state(
             "thread": thread_id,
             "vocabulary": str(page_dir / "registry.json"),
         }
+        after = after or 0
+        limit = limit or HISTORY_LIMIT
         matching = [
             event
             for event in reading.threads[thread_id]["msgs"]

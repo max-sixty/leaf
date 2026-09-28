@@ -10,18 +10,20 @@ checkout's example with the arm's own launcher (`leaf_dev.harness.build_source`,
 times, alternating arms within each round so drift in machine load falls on both. One
 untimed run per arm warms the environment, Chrome and the OS file cache first.
 
-Wall time is the child process's, launcher included. Phase times come from inside
-the same child: its `PYTHONPATH` starts with `tracer/` beside this module, so Python
-loads that directory's `sitecustomize.py` at startup, which records through
-`sys.monitoring` the start and end of each function FUNCTIONS names, so the check's
-own code runs unchanged. `phases` turns those spans into rows: startup, markup
-validation, the plain check's page-code run, server and driver start, browser launch,
-each render pass (viewport x color scheme), the once-per-version width sweep, a
-confirming attempt, browser close and teardown. A second
-table splits the passes by stage, and one row sums the frame waits the gate polls
-for across the whole run. A third gives the CPU seconds of the leaf process and of
-the driver and browser it reaped, which is what load from other processes competes
-with. Rows are each arm's fastest run (`table` says why).
+Wall time is the child process's, launcher included. The child runs the command
+`bin/leaf` runs, `uv run -q --no-dev --project ARM python`, with
+`tracer/traced_leaf.py` in place of `-m leaf`: that script records through
+`sys.monitoring` the start and end of each function FUNCTIONS names and then runs
+`leaf` as `-m leaf` would, so the check's own code runs unchanged and phase times come
+from inside the same child. The wall leaves out only the `/bin/sh` that `bin/leaf`
+execs uv from. `phases` turns those spans into rows: startup, markup validation, the
+plain check's page-code run, server and driver start, browser launch, each render
+pass (viewport x color scheme), the once-per-version width sweep, a confirming
+attempt, browser close and teardown. A second table splits the passes by stage, and
+one row sums the frame waits the gate polls for across the whole run. A third gives
+the CPU seconds of the leaf process and of the driver and browser it reaped, which is
+what load from other processes competes with. Rows are each arm's fastest run
+(`table` says why).
 
 The report goes to stdout as Markdown, with the load average before and after
 (`leaf_dev.harness.load_average`); every sample, trace and each arm's commit lands in
@@ -48,7 +50,6 @@ Known limits:
 """
 
 import json
-import os
 import shutil
 import statistics
 import subprocess
@@ -61,7 +62,7 @@ from leaf_dev import ROOT
 from leaf_dev.harness import build_pair, build_source, environment, load_average
 
 OUT = ROOT / ".tmp" / "bench-check"
-TRACER = Path(__file__).with_name("tracer")
+TRACER = Path(__file__).with_name("tracer") / "traced_leaf.py"
 RUNS = 3
 # The page an agent turn was measured on, a page with its own module code (so the
 # plain check's page-code run happens too), and the heaviest page, the render corpus.
@@ -89,25 +90,21 @@ FUNCTIONS = {
 
 
 def run_check(arm: Path, state: Path, page: Path, trace: Path) -> dict:
-    """One `page check --render` by the arm's launcher, traced."""
-    env = environment(
-        XDG_STATE_HOME=str(state),
-        LEAF_BENCH_TRACE=str(trace),
-        LEAF_BENCH_FUNCTIONS=json.dumps(FUNCTIONS),
-        PYTHONPATH=os.pathsep.join(
-            filter(None, [str(TRACER), os.environ.get("PYTHONPATH")])
-        ),
-    )
+    """One `page check --render` in the arm's environment, as its launcher runs it,
+    traced."""
     trace.unlink(missing_ok=True)
     spawned = time.time()
     started = time.perf_counter()
     proc = subprocess.run(
-        [str(arm / "bin/leaf"), "page", "check", str(page), "--render"],
+        [
+            "uv", "run", "-q", "--no-dev", "--project", str(arm), "python", str(TRACER),
+            str(trace), json.dumps(FUNCTIONS), "page", "check", str(page), "--render",
+        ],
         capture_output=True,
         text=True,
-        env=env,
+        env=environment(XDG_STATE_HOME=str(state)),
         check=False,
-    )
+    )  # fmt: skip
     wall = time.perf_counter() - started
     if not trace.exists():
         raise click.ClickException(
@@ -246,8 +243,8 @@ def bench_check(base_ref: str | None) -> None:
     """Time `page check --render`, base vs HEAD.
 
     Runs `leaf page check --render` on a few examples with BASE_REF's plugin and
-    HEAD's, with no model; BASE_REF defaults to the merge base with main. Prints
-    Markdown tables of each arm's fastest run per page: wall time, a phase
+    HEAD's, with no model; BASE_REF defaults to the merge base with main.
+    Prints Markdown tables of each arm's fastest run per page: wall time, a phase
     breakdown, the render passes by stage, and CPU time; every sample and trace
     lands in .tmp/bench-check/.
     """

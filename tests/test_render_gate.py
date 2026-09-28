@@ -44,6 +44,7 @@ from render_cases_layout import (
     EDGE_IDS,
     EDGES,
     FLOATING_PAGE,
+    HIDDEN_SCROLLERS,
     IDENTIFIERS_IN_CODE_PAGE,
     LINKED_CELLS_PAGE,
     LOOSE_SCROLLER_PAGE,
@@ -3205,6 +3206,32 @@ def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
     assert all(
         d == {"scrolls": "auto", "marked": True, "position": "relative"} for d in diffed
     ), f"the mark did not reach the diff's lines: {diffed}"
+
+
+@pytest.mark.parametrize("shape", HIDDEN_SCROLLERS)
+def test_a_hidden_scroller_is_reached_once_it_is_shown(browser, serve, shape):
+    """Reach leaves content the browser skips unasked, since asking about any box in
+    it forces the browser to style the whole of it, and sweeps it once it is drawn.
+    So a scrolling box in a closed disclosure or a tab not chosen carries nothing of
+    reach's until it is shown — the holds mark would say it had been read — and once
+    shown it owes what reach owes any overflowing box: a tab stop, the holds mark,
+    and the sideways paint."""
+    html, show = HIDDEN_SCROLLERS[shape]
+    page = open_page(browser, serve(html))
+    box = page.locator("#unfolded")
+    assert box.evaluate("(box) => box.hasAttribute('data-lf-holds')") is False, (
+        "reach read a box in skipped content"
+    )
+    show(page)
+    expect(box).to_have_attribute("data-lf-holds", "1")
+    reached = box.evaluate(
+        """(box) => ({
+            scrolls: box.scrollWidth > box.clientWidth,
+            tab: box.tabIndex,
+            sideways: box.hasAttribute('data-lf-scroll-direction'),
+        })"""
+    )
+    assert reached == {"scrolls": True, "tab": 0, "sideways": True}, reached
 
 
 def test_the_render_gate_reports_content_set_past_the_column(browser, serve):

@@ -289,16 +289,15 @@ def _write_source(page_dir: Path, source: str, value) -> dict:
         return read_source(page_dir, source, contract, registry)
 
 
-def _report_write(verb: str, source: str, reading: dict) -> None:
-    click.echo(
-        f"{verb} data source {source!r} at revision {reading['revision']}, "
-        f"updated {reading['updated']}"
-    )
+def _report_write(source: str, reading: dict) -> None:
+    """The written source's reading, less the value the writer just handed in."""
+    reading = {key: item for key, item in reading.items() if key != "value"}
+    click.echo(json.dumps({"source": source, **reading}, ensure_ascii=False))
 
 
 def cmd_data_set(page_dir: Path, source: str, value) -> None:
     """Validate and atomically replace one source's complete current value."""
-    _report_write("set", source, _write_source(page_dir, source, value))
+    _report_write(source, _write_source(page_dir, source, value))
 
 
 def cmd_data_clear(page_dir: Path, source: str) -> None:
@@ -308,7 +307,7 @@ def cmd_data_clear(page_dir: Path, source: str) -> None:
     with PageTransaction(page_dir):
         try:
             source_file(page_dir, source).unlink()
+            cleared = True
         except FileNotFoundError:
-            click.echo(f"data source {source!r} is already clear")
-            return
-    click.echo(f"cleared data source {source!r}")
+            cleared = False
+    click.echo(json.dumps({"source": source, "cleared": cleared}))

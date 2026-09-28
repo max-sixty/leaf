@@ -910,7 +910,6 @@ def test_agent_messages_preserve_a_single_space(page_dir):
             root["id"],
             "--text",
             " ",
-            "--json",
         ],
     )
     assert replied.exit_code == 0, replied.output
@@ -1127,7 +1126,6 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
         [
             "thread",
             "reply",
-            "--json",
             str(page_dir),
             "--for",
             user["id"],
@@ -1153,7 +1151,6 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
                 message["id"],
                 "--text",
                 text,
-                "--json",
             ],
         )
         assert result.exit_code == 0, result.output
@@ -1182,16 +1179,14 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
         set(thread) == {"id", "title", "anchor", "detached_from", "resolved", "unread"}
         for thread in state["threads"]
     )
-    expected = {
-        root["id"]: [root["id"], revisions[0]["id"], revisions[1]["id"]],
-        user["id"]: [user["id"], reply["id"], revisions[2]["id"]],
-    }
+    expected = {root["id"]: [root["id"]], user["id"]: [user["id"], reply["id"]]}
     for thread, ids in expected.items():
         selected = CliRunner().invoke(
-            cli_model.cli, ["page", "events", str(page_dir), "--thread", thread]
+            cli_model.cli, ["page", "state", str(page_dir), thread]
         )
         assert selected.exit_code == 0, selected.output
-        assert [json.loads(line)["id"] for line in selected.output.splitlines()] == ids
+        content = json.loads(selected.output)["content"]
+        assert [message["message"] for message in content] == ids
 
     transcript = CliRunner().invoke(
         cli_model.cli, ["page", "transcript", str(page_dir)]
@@ -1548,7 +1543,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
     event's `markup` goes through `leaf thread reply`, which validates it and then freezes
     it in an append-only log, so that door is the last moment anything about it can
     be fixed. An example's companion log is neither: it is written into the
-    repository by hand, and from there `scripts/site.py` publishes it to
+    repository by hand, and from there `leaf-dev site` publishes it to
     leaf.page, `serve` lays it into every browser sweep, and `scripts/preview.py`
     serves it live. `page check` reads such a log only for ids colliding
     with the version's.
@@ -1640,10 +1635,10 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
     state = state_json(page_dir)
     assert [t["id"] for t in state["threads"]] == [answered["id"]]
     selected = CliRunner().invoke(
-        cli_model.cli, ["page", "events", str(page_dir), "--thread", answered["id"]]
+        cli_model.cli, ["page", "state", str(page_dir), answered["id"]]
     )
     assert selected.exit_code == 0, selected.output
-    assert [json.loads(line)["id"] for line in selected.output.splitlines()] == [
+    assert [m["message"] for m in json.loads(selected.output)["content"]] == [
         answered["id"],
         reply["id"],
     ]
@@ -1681,12 +1676,11 @@ def test_an_agent_names_and_renames_a_thread_without_changing_its_speech(
             cli_model.cli,
             [
                 "thread",
-                "title",
+                "edit",
                 str(page_dir),
                 root["id"],
-                "--text",
+                "--title",
                 title,
-                "--json",
             ],
         )
         assert result.exit_code == 0, result.output
@@ -1700,19 +1694,12 @@ def test_an_agent_names_and_renames_a_thread_without_changing_its_speech(
 
     selected = runner.invoke(
         cli_model.cli,
-        [
-            "page",
-            "events",
-            str(page_dir),
-            "--thread",
-            root["id"],
-        ],
+        ["page", "state", str(page_dir), root["id"]],
     )
     assert selected.exit_code == 0, selected.output
-    assert [json.loads(line)["id"] for line in selected.output.splitlines()] == [
-        root["id"],
-        *(title["id"] for title in titles),
-    ]
+    reading = json.loads(selected.output)
+    assert [m["message"] for m in reading["content"]] == [root["id"]]
+    assert reading["thread"]["title"] == "Terrace accessibility"
     assert [(event["kind"], event["thread"], event["title"]) for event in titles] == [
         ("thread_title", root["id"], "Workshop venue"),
         ("thread_title", root["id"], "Terrace accessibility"),

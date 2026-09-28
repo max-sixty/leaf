@@ -81,9 +81,9 @@ anchor, closure state, earlier messages, and standing gestures on sent widgets.
 A newly opened thread still carries its metadata; messages already in the
 batch are omitted from its history. A long thread includes
 its opening and most recent messages, with `elided` counting omitted records.
-Use `leaf thread read <page> <thread-id>` for an exact, bounded
-current reading and paginate with `--after`; use `leaf page events <page>
---thread <thread-id>` only for raw-log diagnostics. `leaf page transcript
+Use `leaf page state <page> <thread-id>` for an exact, bounded
+current reading and paginate with `--after`; use `leaf page events <page>`
+only for raw-log diagnostics. `leaf page transcript
 <page>` is the human-facing Markdown export.
 
 Long-thread context may include `summary_hint`, naming a contiguous message range to

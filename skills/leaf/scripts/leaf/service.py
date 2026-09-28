@@ -388,8 +388,9 @@ class PageTransaction:
         detail: str,
         *,
         work: dict | None = None,
-    ) -> None:
-        """Write the page declaration and any typed local evidence it renews.
+    ) -> dict:
+        """Write the page declaration and any typed local evidence it renews, and
+        return it as written.
 
         A local line is the same sentence read at a second seat: the page's one
         line says what the agent is doing, and a typed subject says so where the
@@ -427,6 +428,7 @@ class PageTransaction:
         if claims:
             status["work"] = claims
         write_json(self.page_dir / STATUS_FILE, status)
+        return status
 
     def voice(self) -> dict:
         """Who a line written on this page speaks as: the posting session where

@@ -1,3 +1,7 @@
+# Added with a sidebar's track as its aside (#1363). Base at ec9572b46 put the summary
+# in a last `div` (0 of 3); the change put it in an `aside` before the body (2 of 3).
+# Rewritten to a code review's verdict and file list, it also fails a stuck `aside`:
+# base at eee4a2d6d 0 of 3, the change 3 of 3.
 schema_version: '1.0'
 name: sidebar-track-is-its-aside
 description: "A sidebar page: its track is the Layout's `aside`, written where a reader of the stacked page needs it, so a code review's verdict and the list of what it covers come before the body on a phone."

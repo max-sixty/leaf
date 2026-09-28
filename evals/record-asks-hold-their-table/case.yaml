@@ -1,3 +1,5 @@
+# Sibling of record-asks-hold-their-premise (#1322) for a table and a log excerpt.
+# Base at 64186bcb9 0 of 3, the change 3 of 3.
 schema_version: '1.0'
 name: record-asks-hold-their-table
 description: "Asks: on a record page, an Ask that turns on a measurement holds the measured table inside the lf-ask, and long backing follows it."

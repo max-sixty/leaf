@@ -200,6 +200,47 @@ report a compatibility refusal rather than falling back to the installed plugin.
 A page that explains how a Leaf interface behaves lets the user operate it
 (`references/sample-explainers.md`).
 
+## Score a guidance change
+
+Each `evals/<case>/case.yaml` is a moment in a session that `claude plugin eval`
+hands a headless Claude Code, with this checkout as its only plugin, so the child
+loads `leaf:leaf` and reads the references as a real session does. Score a change to
+`skills/leaf/` on the cases it bears on:
+
+```bash
+uv run leaf-dev guidance-ab [CASE]... [--base REF] [--runs N]
+```
+
+It runs the cases on the base's guidance (the merge base with `origin/main` by
+default) and the working tree's at once, and prints each case's passes per arm and the
+cost. It passes `--allow-tools Skill Read`, without which the child's `dontAsk` mode denies
+the skill and the references and every run answers with no guidance, while
+`loads-leaf` still passes on the attempt. So every case also grades that the child
+read the reference it tests, and a run that fails that check measured nothing.
+
+Grow the suite slowly, toward a modest set of cases that each tell two wordings
+apart; several older cases predate this rule, and their comments say where they
+stand. Measure with whatever scenarios and guardrails the change needs, then add a
+case only if it pins a clause no existing case pins and it separated two arms you ran:
+the base failed most runs and the change passed every run, or a blunter draft failed
+a guardrail the change passes. That is usually one case per problem, and rarely more
+than two. A case both arms passed goes in the commit message, not the suite. The
+comment above `schema_version` says where the case came from and what it measured;
+`description` names the clause it pins, and `tags` its area.
+
+A prompt ends by asking for the HTML in the reply, since the child has no page
+directory. It cannot search the plugin either, so it answers from the references
+without the registry. The prompt never states the behavior under test. Grade a fixed
+form with a `regex` grader, and a judgment with an `llm` grader whose `criteria`
+state the passing reading without requiring particular wording.
+
+Run cold, a case that states the situation plainly usually passes on both arms: the
+failing session had its own earlier turns or a competing instruction pulling the
+other way, so paste those into the prompt. A rule that loses only to a long
+session's context needs a replay of that session instead.
+`notes/usability-eval/harness.py` runs cases that need a page directory and `leaf`.
+No grader has been checked against a person's judgment, so a pass is weak evidence.
+
 ## Refresh the public catalog stills
 
 When a change adds or removes a worked example or changes its first viewport,

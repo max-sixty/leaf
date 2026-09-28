@@ -1,3 +1,5 @@
+# Added with the one-row workspace header (#1301). Base at cd1d37b0d 0 of 3 (one run
+# put a lede in the header), the change 3 of 3.
 schema_version: '1.0'
 name: workspace-header-is-one-row
 description: "Writing a workspace: its header takes the window's height before the panes do, so it holds the title and the page's status and nothing a pane could hold."

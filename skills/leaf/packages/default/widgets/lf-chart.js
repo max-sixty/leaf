@@ -199,6 +199,9 @@ const barDomain = (values) => {
  * that never changes gives Plot a domain of [500, 500], whose one tick it writes as
  * 500.000000 because six decimal places is what it takes to tell that domain apart from
  * itself. A line through the middle of a plain span says the true thing — nothing moved. */
+// Room a dot keeps from the frame's edges: its 3.2px radius and a little air.
+const DOT_ROOM = 6;
+
 const spread = (values) => {
   const [lo, hi] = [Math.min(...values), Math.max(...values)];
   if (lo !== hi) return undefined; // the ordinary case: Plot reads the extent itself
@@ -433,8 +436,18 @@ function build(Plot, { kind, table, axis, label, width, font, line, grow, held }
       // a dated x included, where the dates say which day and not which measurement.
       marginBottom: line + 16 + line + grow.bottom,
       marginLeft,
-      x: { ...x, label: xName, grid: true, nice: true, domain: spread(axis.values) },
-      y: { ...y, domain: spread(drawn) },
+      // A dot is a disc, not a line's vertex: at the extent's own value it sat centred
+      // on the axis, half of it under the frame. Both scales round out to ticks and
+      // keep a dot's width clear of each edge.
+      x: {
+        ...x,
+        label: xName,
+        grid: true,
+        nice: true,
+        inset: DOT_ROOM,
+        domain: spread(axis.values),
+      },
+      y: { ...y, nice: true, inset: DOT_ROOM, domain: spread(drawn) },
       marks: series.map((s, i) =>
         Plot.dot(
           points(s),

@@ -1427,6 +1427,10 @@ def test_an_app_server_turn_names_the_untitled_thread_it_answers(page_dir, app_s
     assert start["params"]["model"] == "light-model"
     # The user's MCP servers would start with the thread and list their tools to it.
     assert start["params"]["config"]["mcp_servers"] == {"docs": {"enabled": False}}
+    # Both read the page's directory, so a project's own servers are among them.
+    [read] = [m for m in received if m.get("method") == "config/read"]
+    assert read["params"]["cwd"] == start["params"]["cwd"]
+    assert Path(start["params"]["cwd"]).resolve() == page_dir.resolve()
     [turn] = [m for m in received if m.get("method") == "turn/start"]
     [text] = turn["params"]["input"]
     assert "Why does the export take a minute?" in text["text"]

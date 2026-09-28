@@ -74,9 +74,13 @@ export function threadReading(
     key: threadKey(thread),
     summary: threadSummary(thread),
     // A title comes from the agent's answer or beside it, so an untitled thread
-    // waits for one only while it waits on the agent; after that it reads its
+    // waits for one only while the agent's work on it is under way. A turn that
+    // ended, stalled or was never picked up sends none, and the thread reads its
     // opening words.
-    titlePending: thread.title == null && attention?.kind === "waiting",
+    titlePending:
+      thread.title == null &&
+      thread.attention?.kind === "waiting" &&
+      thread.attention.reason === "workflow",
     unreadCount: thread.unread.length,
     id: thread.id,
     // The message a reply or settlement addresses, which is not the thread's id where

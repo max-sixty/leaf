@@ -110,9 +110,9 @@ def title_subject(page_dir: Path, thread_id: str) -> str:
     return "\n\n".join(parts)
 
 
-def generate_title(endpoint: str, subject: str, model: str | None) -> dict:
-    """Ask one ephemeral App Server thread for a title; `model` None takes the
-    server's configured model. Returns the title with the request's measure."""
+def generate_title(endpoint: str, subject: str, model: str | None, cwd: Path) -> dict:
+    """Ask one ephemeral App Server thread in `cwd` for a title; `model` None takes
+    the server's configured model. Returns the title with the request's measure."""
     started = time.monotonic()
     socket = app_server_connect(endpoint)
     try:
@@ -120,9 +120,12 @@ def generate_title(endpoint: str, subject: str, model: str | None) -> dict:
         app_server_handshake(
             socket, next(request_ids), "leaf-thread-titles", "Leaf thread titles"
         )
-        # A thread starts every MCP server the user configured, and an override
-        # replacing the table leaves them standing, so each is turned off by name.
-        configured = app_server_request(socket, "config/read", next(request_ids), {})
+        # A thread starts every MCP server the user configured, its project's
+        # included, and an override replacing the table leaves them standing, so
+        # each is turned off by name, read from the directory the thread runs in.
+        configured = app_server_request(
+            socket, "config/read", next(request_ids), {"cwd": str(cwd)}
+        )
         servers = configured["config"].get("mcp_servers") or {}
         thread = app_server_request(
             socket,
@@ -130,6 +133,7 @@ def generate_title(endpoint: str, subject: str, model: str | None) -> dict:
             next(request_ids),
             {
                 **({"model": model} if model else {}),
+                "cwd": str(cwd),
                 "ephemeral": True,
                 "approvalPolicy": "never",
                 "sandbox": "read-only",
@@ -215,7 +219,7 @@ def _name_thread(
         if not subject:
             record("thread_title_skipped", thread=thread)
             return
-        reading = generate_title(endpoint, subject, model)
+        reading = generate_title(endpoint, subject, model, page_dir)
         written = write_title(page_dir, thread, reading.pop("title"), session_id)
     # A refusal's words can quote the title, which is drawn from the user's.
     except EventRefused as error:

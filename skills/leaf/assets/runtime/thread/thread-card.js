@@ -695,9 +695,12 @@ export class ThreadView {
         return Boolean(destination);
       },
       // The filter the reopen cleared goes back with the thread, while Threads is open.
-      reverse: async (may = mayRestore) => {
-        if (!mayLand.available()) return;
-        const restoreFocus = may();
+      // An undo's intent governs the whole reversal, so a later input wins over both
+      // halves. A refusal has none: the narrowing's own guard decides the filter, and
+      // the landing's decides the focus.
+      reverse: async (may = null) => {
+        if (!mayLand.available() || (may && !may())) return;
+        const restoreFocus = (may ?? mayRestore)();
         await narrowing.restore(async () => {
           if (restoreFocus)
             await travel.showThread(this.#model.id, { focus: "thread" });

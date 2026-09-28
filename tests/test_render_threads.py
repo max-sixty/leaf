@@ -1064,6 +1064,23 @@ def test_z_takes_a_reopen_back_to_the_resolved_list_it_came_from(browser, serve)
     expect(resolved_filter).to_have_attribute("aria-pressed", "true")
     expect(card.locator(":scope > .lf-thread-summary")).to_be_focused()
 
+    # A later input wins over the whole return, the filter as well as the focus.
+    with sending(page, "the second reopen"):
+        page.keyboard.press("r")
+    round_trip(page)
+    page.keyboard.press("Escape")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
+    page.keyboard.press("z")
+    holding(page, held, 1, "the undo")
+    page.locator("#t").click()
+    held.pop().continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(resolved_filter).to_have_attribute("aria-pressed", "false")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 0")
+
 
 @pytest.mark.parametrize("gesture", ["resolve", "reopen"])
 def test_z_opens_no_surface_the_user_closed_after_settling(browser, serve, gesture):

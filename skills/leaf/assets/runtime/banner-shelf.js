@@ -285,13 +285,6 @@ export function bannerControlDoor(control) {
   return menu?.lfInvoker?.checkVisibility() ? menu.lfInvoker : null;
 }
 
-// The gesture step a node stands in, if any. It is the user's own next move rather than a
-// part of the chrome to remark on, so Design mode lets a press on it through.
-export const gestureStepAt = (node) =>
-  [...controls.values()].find(
-    (entry) => entry.seat === "gesture" && entry.control.contains(node),
-  )?.control ?? null;
-
 export function dismissBannerControls() {
   if (overflowMenu.matches(":popover-open")) overflowMenu.hidePopover();
 }

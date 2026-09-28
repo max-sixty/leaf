@@ -1304,28 +1304,28 @@ def test_server_round_trip(server, page_dir):
     assert status == 200
     moved = event_model.read_events(page_dir)[-1]
     assert moved["author"] == "user" and moved["detail"]["to"] == "col-doing"
-    # A design comment is anchored on a runtime part the version never holds, naming
-    # the control the press landed on. The door takes its design intent as posted, and
-    # the transcript says which kind of comment it was.
+    # A design comment names the control the press landed on beside the widget it is
+    # about. The door takes its design intent as posted, and the transcript says which
+    # kind of comment it was.
     status, _ = fetch(
         f"{server}/api/event",
         data=json.dumps(
             {
                 "kind": "comment",
                 "revision": 2,
-                "text": "the button reads dim",
+                "text": "the grip reads dim",
                 "about": "design",
-                "anchor": {"section": "lf-banner", "part": "Threads"},
+                "anchor": {"section": "feeder-board", "part": "grip"},
             }
         ).encode(),
     )
     assert status == 200
     design = event_model.read_events(page_dir)[-1]
-    assert design["about"] == "design" and design["anchor"]["part"] == "Threads"
+    assert design["about"] == "design" and design["anchor"]["part"] == "grip"
     transcript = CliRunner().invoke(
         cli_model.cli, ["page", "transcript", str(page_dir)]
     )
-    assert "> § lf-banner · Threads  — about the design" in transcript.output
+    assert "> § feeder-board · grip  — about the design" in transcript.output
     drawing = {
         "format": "leaf-drawing/2",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],

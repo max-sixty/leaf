@@ -50,6 +50,7 @@ import { textField } from "./text-field.js";
 // One affordance, raised only where the user has already pointed: a native text
 // selection or an explicit Comment target gesture on an item or visual part.
 export const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");
+fabBar.dataset.lfRuntime = ""; // Leaf's own when seated in a widget (passages.js, leafSurface)
 fabBar.setAttribute("role", "group");
 fabBar.setAttribute("aria-label", "Respond");
 export const fabInput = textField();

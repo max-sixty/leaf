@@ -69,10 +69,14 @@ export function threadReading(
   const kind = resolved ? "unresolve" : "resolve";
   const word = resolved ? "Reopen" : "Resolve";
   const label = resolved ? word : "Resolve thread";
+  const attention = threadAttention(thread);
   return Object.freeze({
     key: threadKey(thread),
     summary: threadSummary(thread),
-    titlePending: thread.title == null,
+    // A title comes from the agent's answer or beside it, so an untitled thread
+    // waits for one only while it waits on the agent; after that it reads its
+    // opening words.
+    titlePending: thread.title == null && attention?.kind === "waiting",
     unreadCount: thread.unread.length,
     id: thread.id,
     // The message a reply or settlement addresses, which is not the thread's id where
@@ -86,7 +90,7 @@ export function threadReading(
     search,
     quote: panel ? quoteReading(thread, commands.anchors) : null,
     resolved,
-    attention: threadAttention(thread),
+    attention,
     resolvedBy:
       thread.resolved?.author === "agent"
         ? `✓ Resolved by ${thread.resolved.agent}`
@@ -117,8 +121,8 @@ function navigationSummary(navigation, model) {
   const status = model.resolved ? "Resolved" : model.attention?.label || "";
   const draft = Boolean(loadDraft("reply:" + model.key));
   const hasMeta = draft || status || model.unreadCount;
-  // Until the agent names the thread, the title slot says so in words drawn apart from
-  // any title; the theme sweeps a highlight through them while the naming is under way.
+  // While a title is on its way, the title slot says so in words drawn apart from any
+  // title; the theme sweeps a highlight through them while the naming is under way.
   return html`<summary
     class="lf-thread-summary"
     title=${pendingTitle ? nothing : title}

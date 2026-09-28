@@ -1427,6 +1427,42 @@ def test_an_app_server_turn_names_the_untitled_thread_it_answers(page_dir, app_s
     assert "Export runs nightly" in text["text"]
 
 
+def test_a_title_is_drawn_from_the_opening_message_not_the_latest(page_dir, app_server):
+    """The turn answers the thread's latest message, which may be an afterthought;
+    the title comes from the message that opened it."""
+    comment = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "Why is the export slow?"},
+    )
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": comment["id"],
+            "text": "also, thanks",
+        },
+    )
+    prepared = codex_model.prepare_codex_delivery(
+        page_dir,
+        host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
+    )
+    endpoint, received = titling_app_server(app_server, '{"title": "Export speed"}')
+    records = []
+    codex_titles.name_untitled_threads(
+        endpoint,
+        prepared.payload,
+        "hosted-thread",
+        None,
+        lambda event, **fields: records.append((event, fields)),
+    )
+    wait_for(lambda: records, bool, failure="the title was never generated")
+
+    [turn] = [m for m in received if m.get("method") == "turn/start"]
+    [text] = turn["params"]["input"]
+    assert text["text"] == "Why is the export slow?"
+
+
 def test_a_generated_title_yields_to_one_the_agent_wrote_first(page_dir, app_server):
     comment = events_model.append_event(
         page_dir, {"kind": "comment", "author": "user", "text": "Tighten the intro"}

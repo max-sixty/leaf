@@ -8,18 +8,16 @@ instead, so it has no command to put a title on, and the thread panel would read
 a turn names those threads itself, through `name_untitled_threads`, once per
 delivery.
 
-Each title is one ephemeral App Server thread whose whole context is the message
-that opened the thread and a one-line instruction: none of the task's transcript,
-and none of Codex's tools or the context it loads by default (`TITLE_CONFIG`). It
-runs on its own connection beside the delivery's turn and never delays it. On
-leaf.page's Codex and model (0.153.4, `gpt-5.6-luna` at low effort) a request
-reads about 1,900 input tokens, writes about 18, and answers in 3 s at the median,
-2.5–9 s across nine requests; Codex's defaults took it to 13,000–15,000 input
-tokens.
+Each title is one ephemeral App Server thread whose whole context is the thread's
+first spoken message, the passage it is on, and a one-line instruction: none of the
+task's transcript, and none of Codex's tools or the context it loads by default
+(`TITLE_CONFIG`). It runs on its own connection beside the delivery's turn and never
+delays it.
 
 The title is written as the session that holds the page's claim, and only while
 the thread is still untitled, so an agent that named it first keeps its name. A
-request that fails leaves the thread untitled and tells the carrier's `record`.
+request that fails or finds no words leaves the thread untitled and tells the
+carrier's `record`.
 """
 
 import json
@@ -35,7 +33,11 @@ from .codex import (
     app_server_request,
 )
 from .event_contracts import append_admitted
+from .event_log import EventRefused
+from .events import build_threads, spoken_turns
+from .revision_artifact import active_enclosing
 from .service import PageTransaction
+from .thread import title_event
 
 INSTRUCTIONS = (
     "You name discussion threads, and do nothing else. The user sends the message "
@@ -78,37 +80,33 @@ TITLE_CONFIG = {
 Record = Callable[..., None]
 
 
-def untitled_threads(payload: dict) -> list[tuple[Path, str, str]]:
-    """Each untitled thread the delivery's turn answers, as (page, thread, subject).
-
-    A batch's thread digest leaves out the batch's own messages, so a thread the
-    batch opens has no earlier message and its subject is the event's own words.
-    """
+def untitled_threads(payload: dict) -> list[tuple[Path, str]]:
+    """Each untitled thread the delivery's turn answers, as (page, thread)."""
     found = []
     for batch in payload["batches"]:
-        digests = {thread["id"]: thread for thread in batch["threads"]}
+        titles = {thread["id"]: thread["title"] for thread in batch["threads"]}
         for event in batch["events"]:
             if event.get("answer", {}).get("kind") != "turn":
                 continue
-            for thread_id in event["threads"]:
-                digest = digests.get(thread_id)
-                if digest is None or digest["title"] is not None:
-                    continue
-                if any(thread_id == named for _, named, _ in found):
-                    continue
-                opening = digest["messages"][0] if digest["messages"] else event
-                if subject := _subject(opening, digest["anchor"]):
-                    found.append((Path(batch["page"]), thread_id, subject))
+            for thread in event["threads"]:
+                named = (Path(batch["page"]), thread)
+                if thread in titles and titles[thread] is None and named not in found:
+                    found.append(named)
     return found
 
 
-def _subject(message: dict, anchor: dict | None) -> str:
-    """The words a title is drawn from: the message, and the passage it is on."""
+def title_subject(page_dir: Path, thread_id: str) -> str:
+    """The words a title is drawn from: the thread's first spoken message, and the
+    passage the thread is on. Empty when it has neither, as a thread a drawing opened
+    and nobody has written in yet."""
+    with PageTransaction(page_dir) as page:
+        events = page.events
+    thread = build_threads(events, active_enclosing(page_dir))[thread_id]
     parts = []
-    if anchor and anchor.get("quote"):
-        parts.append(f"It comments on this passage: “{anchor['quote']}”")
-    if message.get("text"):
-        parts.append(message["text"])
+    if quote := (thread["anchor"] or {}).get("quote"):
+        parts.append(f"It comments on this passage: “{quote}”")
+    if opening := next((m for m in spoken_turns(thread) if m.get("text")), None):
+        parts.append(opening["text"])
     return "\n\n".join(parts)
 
 
@@ -192,17 +190,8 @@ def write_title(page_dir: Path, thread: str, title: str, session_id: str) -> boo
             for event in page.events
         ):
             return False
-        append_admitted(
-            page,
-            {
-                "kind": "thread_title",
-                "author": "agent",
-                "agent": claim["agent"],
-                "session": claim["id"],
-                "thread": thread,
-                "title": title,
-            },
-        )
+        identity = {"agent": claim["agent"], "session": claim["id"]}
+        append_admitted(page, title_event(thread, title, identity))
         return True
 
 
@@ -210,22 +199,29 @@ def _name_thread(
     endpoint: str,
     page_dir: Path,
     thread: str,
-    subject: str,
     session_id: str,
     model: str | None,
     record: Record,
 ) -> None:
     try:
+        subject = title_subject(page_dir, thread)
+        if not subject:
+            record("thread_title_skipped", thread=thread)
+            return
         reading = generate_title(endpoint, subject, model)
         written = write_title(page_dir, thread, reading.pop("title"), session_id)
+    # A refusal's words can quote the title, which is drawn from the user's.
+    except EventRefused as error:
+        record("thread_title_failed", thread=thread, error=type(error).__name__)
+        return
     # Every class, because this thread's only way to report is `record`: a failure
-    # here leaves the thread on its placeholder, and nothing else would say why.
+    # here leaves the thread untitled, and nothing else would say why.
     except Exception as error:  # noqa: BLE001 - reported, never raised
         record(
             "thread_title_failed",
             thread=thread,
-            errorType=type(error).__name__,
-            detail=str(error)[:500],
+            error=type(error).__name__,
+            detail=str(error)[-500:],
         )
         return
     record("thread_title_generated", thread=thread, written=written, **reading)
@@ -240,10 +236,10 @@ def name_untitled_threads(
 ) -> None:
     """Start naming each untitled thread the delivery's turn answers, one daemon
     thread apiece, and return at once."""
-    for page_dir, thread, subject in untitled_threads(payload):
+    for page_dir, thread in untitled_threads(payload):
         threading.Thread(
             target=_name_thread,
-            args=(endpoint, page_dir, thread, subject, session_id, model, record),
+            args=(endpoint, page_dir, thread, session_id, model, record),
             name="leaf-thread-title",
             daemon=True,
         ).start()

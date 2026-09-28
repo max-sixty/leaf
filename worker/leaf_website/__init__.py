@@ -970,9 +970,6 @@ class WebsiteCodexHost:
             for event in batch["events"]
         )
         log_agent("turn_start_started", **agent_event_fields(prepared_events))
-        name_untitled_threads(
-            self.endpoint, prepared.payload, thread_id, HOSTED_MODEL, log_agent
-        )
         reply_target = stream_reply_target(prepared.payload)
         try:
             turn_id = start_app_server_delivery(
@@ -1000,6 +997,9 @@ class WebsiteCodexHost:
             **agent_event_fields(prepared_events),
             turnId=turn_id,
             durationMs=round((time.monotonic() - started) * 1000),
+        )
+        name_untitled_threads(
+            self.endpoint, prepared.payload, thread_id, HOSTED_MODEL, log_agent
         )
         # App Server answered for the turn it made from this delivery, so the follower
         # knows which turn is its own before it reads anything. The answer names a turn

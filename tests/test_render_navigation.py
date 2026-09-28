@@ -2417,7 +2417,7 @@ def test_the_ask_walk_position_shares_the_shortcut_line(browser, serve):
         expect(position).to_have_text(f"Ask {index} of 4 open")
     expect(position).not_to_have_attribute("data-lf-boundary", "")
     status = page.locator(".lf-bottom-status")
-    ordinary = status.evaluate("node => getComputedStyle(node).backgroundColor")
+    ordinary = status.evaluate("node => getComputedStyle(node).color")
     page.keyboard.press("a")
     expect(position).to_have_text("Ask 4 of 4 open")
     expect(position).to_have_attribute("data-lf-boundary", "")
@@ -2425,7 +2425,8 @@ def test_the_ask_walk_position_shares_the_shortcut_line(browser, serve):
         status.evaluate("node => node.getBoundingClientRect().left")
         == geometry["status"]["left"]
     )
-    assert status.evaluate("node => getComputedStyle(node).backgroundColor") != ordinary
+    # The end of the walk is news, ink where the resting line is muted.
+    assert status.evaluate("node => getComputedStyle(node).color") != ordinary
     assert (
         position.evaluate("node => getComputedStyle(node).backgroundColor")
         == geometry["face"]["positionBackground"]
@@ -3094,12 +3095,12 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     assert preview_room["previewBottom"] <= preview_room["statusTop"], preview_room
 
     status = page.locator(".lf-bottom-status")
-    ordinary = status.evaluate("node => getComputedStyle(node).backgroundColor")
+    ordinary = status.evaluate("node => getComputedStyle(node).color")
     page.keyboard.press("t")
     expect(second).to_be_focused()
     expect(position).to_have_text("Thread 2 of 2")
     expect(position).to_have_attribute("data-lf-boundary", "")
-    assert status.evaluate("node => getComputedStyle(node).backgroundColor") != ordinary
+    assert status.evaluate("node => getComputedStyle(node).color") != ordinary
     expect(position).not_to_have_attribute("data-lf-boundary", "")
 
     page.keyboard.press("Shift+t")

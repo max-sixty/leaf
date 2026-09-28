@@ -1686,8 +1686,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
       > .lf-walk-position:not([hidden]), > .lf-notice.show)) { display: none; }
   .lf-walk-position { font-variant-numeric: tabular-nums; }
   .lf-go-to-status { white-space: normal; }
+  /* News in the status (a notice, or a walk arriving at its end) is ink where the
+     resting line is muted, on the same card ground and hairline: status text, which
+     takes no press. A filled accent pill read as a primary button. */
   .lf-bottom-status:has(> .lf-walk-position[data-lf-boundary], > .lf-notice.show) {
-    border-color: var(--accent); background: var(--accent); color: var(--card); }
+    color: var(--ink); }
   .lf-walk-position[hidden] { display: none; }
   .lf-notice { display: none; color: inherit; font-size: inherit; line-height: inherit;
     white-space: normal; min-width: 0; }

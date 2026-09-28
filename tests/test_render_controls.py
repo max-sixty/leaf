@@ -2905,7 +2905,11 @@ def test_a_recorded_move_is_acknowledged_in_the_status_and_nowhere_else(browser,
     """The page has one place for brief news. A gesture's acknowledgement used to arrive
     as both a banner count and a toast in the opposite corner. The bottom status says it
     now: "Moved to Done — sent" stands in for the line's own words while it lasts, the
-    live region hears the same sentence, and the line's words return when it fades."""
+    live region hears the same sentence, and the line's words return when it fades.
+
+    The notice is status text, which takes no press, so it wears the status's own card
+    ground and hairline in ink. It was a filled accent pill, which read as a primary
+    button."""
     page = open_page(browser, serve(BOARD_PAGE))
     board = page.locator("#sprint")
     status = page.locator(".lf-status-text")
@@ -2919,6 +2923,15 @@ def test_a_recorded_move_is_acknowledged_in_the_status_and_nowhere_else(browser,
     page.keyboard.press("Enter")
     expect(notice).to_have_text("Moved to Done — sent")
     expect(notice).to_be_visible()
+    face = page.locator(".lf-bottom-status").evaluate(
+        "box => { const s = getComputedStyle(box);"
+        " return {ink: s.color, ground: s.backgroundColor, edge: s.borderTopColor}; }"
+    )
+    assert face == {
+        "ink": token_colour(page, "--ink"),
+        "ground": token_colour(page, "--card"),
+        "edge": token_colour(page, "--rule"),
+    }, f"the notice is not quiet status text: {face}"
     expect(status).to_be_visible()
     expect(page.locator(".lf-live")).to_have_text("Moved to Done — sent")
     assert page.locator(".lf-toast").count() == 0, "a second surface says the news"

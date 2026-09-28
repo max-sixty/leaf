@@ -84,7 +84,6 @@ def read_served_page(
     readings_override: dict[int, SourceReading] | None = None,
     data_override: dict | None = None,
     versions_override: list[dict] | tuple[dict, ...] | None = None,
-    stored_status: dict | None = None,
     presence_override: dict | None = None,
     live_stream_override: dict | None = None,
     now_override: str | None = None,
@@ -95,9 +94,7 @@ def read_served_page(
     else:
         active = active_descriptor(page_dir, events)
     if presence_override is None:
-        present, live_stream = presence_with_activity(
-            page_dir, events, stored_status=stored_status
-        )
+        present, live_stream = presence_with_activity(page_dir, events)
     else:
         present = presence_override
         live_stream = live_stream_override

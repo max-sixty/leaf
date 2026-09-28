@@ -47,7 +47,7 @@ from .schema import (
     SERVER_LOCK,
     STATUS_FILE,
 )
-from .service import PageTransaction, claim_path
+from .service import PageTransaction, claim_path, read_status
 from .structure import SourceDocument
 from .validation.compatibility import candidate_vocabulary_gaps
 from .validation.source import check_source
@@ -273,7 +273,7 @@ def _refuse_untargeted_work(page_dir: Path, events: list[dict], incoming: dict) 
         document,
         page.projection,
         events,
-        read_json(page_dir / STATUS_FILE) or {},
+        read_status(page_dir),
         incoming,
     )
     if untargeted:

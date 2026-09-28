@@ -22,7 +22,6 @@ from .machine import state_home
 from .revision_artifact import read_revision
 from .schema import (
     INTERACTIONS_FILE,
-    STATUS_FILE,
     UNNAMED_AGENT,
     VIEWED_FILE,
     WAITER_LOCK,
@@ -34,6 +33,7 @@ from .service import (
     claim_records,
     claim_update_sources,
     page_claim,
+    read_status,
     unacknowledged,
 )
 
@@ -235,8 +235,6 @@ def live_facts(page_dir: Path, claim: dict | None) -> dict:
 def presence_with_activity(
     page_dir: Path,
     events: list,
-    *,
-    stored_status: dict | None = None,
 ) -> tuple[dict, dict | None]:
     """Gather public presence and server-only live activity as separate values.
 
@@ -250,8 +248,7 @@ def presence_with_activity(
     claim-against-proof judgment reads the same fields whichever page it judges,
     and the tray's account of a neighbour is the account this page gives of
     itself."""
-    if stored_status is None:
-        stored_status = read_json(page_dir / STATUS_FILE)
+    stored_status = read_status(page_dir)
     status = {
         key: value
         for key, value in stored_status.items()

@@ -26,12 +26,10 @@ from .delivery import (
     record_pickup,
 )
 from .event_log import read_events
-from .files import read_json
 from .host import Harness, claim_harness
 from .schema import (
     ANSWER_ASK_INSTRUCTION,
     PREVIEW_FILE,
-    STATUS_FILE,
 )
 from .served_state.page import full_state
 from .service import (
@@ -69,8 +67,7 @@ def unattended_pages(
         page_reasons = []
         try:
             events = read_events(page_dir)
-            status = read_json(page_dir / STATUS_FILE)
-            state = full_state(page_dir, events, stored_status=status)
+            state = full_state(page_dir, events)
         except FileNotFoundError:
             continue
         discovered = page_claim(page_dir)

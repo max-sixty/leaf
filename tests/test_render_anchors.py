@@ -8,6 +8,7 @@ from html import escape
 import pytest
 from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
+from interact_support import record_claim
 from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -5097,6 +5098,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(panel_status).to_have_text("Sent")
     inline_status.evaluate("node => { node.dataset.identityProbe = 'inline'; }")
     panel_status.evaluate("node => { node.dataset.identityProbe = 'panel'; }")
+    record_claim(serve.page_dir)
     with service_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, [root])
     told(page)

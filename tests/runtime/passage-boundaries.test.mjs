@@ -30,6 +30,7 @@ import {
   says,
   watchPassageRoot,
 } from "/runtime/passages.js";
+import { upFrom } from "/runtime/shadow.js";
 
 test("no node means no passage location, rather than a runtime error", () => {
   assert.equal(closestAcross(null, "main"), null);
@@ -53,6 +54,32 @@ test("a document host value does not become a shadow-tree ancestor", () => {
   } finally {
     delete document.host;
   }
+});
+
+// A detached subtree's root is an element, and an <a> or <area> has a `host` of its own:
+// its URL's. The Leaves tray's other-page rows are such links, and the reading watcher
+// climbs from the one a removal record names once it has left.
+test("a detached link's URL host is not a shadow-tree ancestor", () => {
+  document.body.innerHTML =
+    '<main><a href="http://127.0.0.1:44276/other"><span>Row</span></a></main>';
+  const link = document.querySelector("a");
+  const inside = link.querySelector("span");
+  link.remove();
+  assert.equal(link.host, "127.0.0.1:44276", "the case needs a link with a host");
+  assert.equal(upFrom(link), null);
+  assert.equal(closestAcross(inside, "main"), null);
+});
+
+test("a link leaving the page after losing its words is a change the reading takes", () => {
+  document.body.innerHTML =
+    '<main><p>Kept</p><a href="http://127.0.0.1:44276/other"><span>Row</span></a></main>';
+  assert.equal(pageText().raw.includes("Row"), true);
+  // One step, as a re-render takes it: the row is emptied and removed before the
+  // watcher reads either record, so the first names a link already detached.
+  const link = document.querySelector("a");
+  link.firstChild.remove();
+  link.remove();
+  assert.equal(pageText().raw, "Kept");
 });
 
 test("a node in a declared tree stands where its host stands", () => {

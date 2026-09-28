@@ -180,7 +180,7 @@ import {
   threadAttention,
   workflowLabel,
 } from "./thread/workflow.js";
-import { renderedParent, under } from "./shadow.js";
+import { renderedParent, shadowHost, under } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
 
 // A margin card's reply box.
@@ -216,12 +216,12 @@ export function createMarginProjection({
       .trim();
 
   function targetPath(target) {
-    const root = target.getRootNode();
+    const host = shadowHost(target.getRootNode());
     // IDs and sibling paths are scoped to a shadow root. Prefix them with the host's
     // own stable path so two instances of the same shadow template stay distinct,
     // while a live-version replacement at the same authored coordinate can still
     // retain its marker and preview focus.
-    const prefix = root instanceof ShadowRoot ? `${targetPath(root.host)}/shadow/` : "";
+    const prefix = host ? `${targetPath(host)}/shadow/` : "";
     if (target.id) return `${prefix}id:${target.id}`;
     const steps = [];
     for (let node = target; node;) {

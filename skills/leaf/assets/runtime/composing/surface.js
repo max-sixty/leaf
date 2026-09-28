@@ -107,7 +107,7 @@ import {
 import { repaint } from "../repaint.js";
 import { handBack, holdFocus, letGo, takesLetters } from "../focus.js";
 import { focused } from "../keyboard/scopes.js";
-import { under } from "../shadow.js";
+import { shadowHost, under } from "../shadow.js";
 import { heldAsk } from "../standing-target.js";
 
 import { coarsePointer, pointerAt } from "../pointer.js";
@@ -832,8 +832,7 @@ export function createResponseSurface({
     if (!anchor.quote) return targetElement(found);
     const place = targetPlace(found);
     if (!place) return null;
-    const root = place.getRootNode();
-    return root instanceof ShadowRoot ? root.host : place;
+    return shadowHost(place.getRootNode()) ?? place;
   };
   const fabTargetAt = () => anchorTargetAt(fabAnchor);
   const fabReturnTo = () => returnDestination(fabAnchor, fabOrigin);

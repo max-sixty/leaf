@@ -12133,3 +12133,23 @@ def test_an_ask_landed_in_a_pane_keeps_its_ring_inside_the_pane(browser, serve):
         }"""
     )
     assert reading["ringTop"] >= reading["paneTop"] - 0.5, reading
+
+
+def test_a_page_element_named_host_leaves_the_keyboard_climb_at_the_document(
+    browser, serve
+):
+    """A document names its `<form name="host">` as `document.host`. The climb that
+    measures how far a scope's root stands above the focused control took any `host` it
+    met for a shadow host, so past the document it walked back into the page and around
+    again, for good, as soon as the open panel's Escape step stood outside the focus."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page("Named host", '<form name="host"></form><p>Words to read.</p>')
+        ),
+    )
+    assert page.evaluate("document.host instanceof HTMLFormElement")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)

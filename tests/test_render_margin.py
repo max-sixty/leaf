@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import pytest
 from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
+from interact_support import record_claim
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
@@ -3516,6 +3517,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
       return result;
     }""")
 
+    record_claim(serve.page_dir)
     with service_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, roots)
     told(page)
@@ -3783,6 +3785,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(browser, serve):
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     ]
+    record_claim(serve.page_dir)
     with service_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, roots)
     told(page)

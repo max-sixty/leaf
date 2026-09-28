@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from interact_support import append_command
+from interact_support import append_command, record_claim
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
@@ -2753,6 +2753,7 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
     status = message.locator(":scope > .lf-msg-head .lf-msg-sending")
     expect(page.locator("#rp-live > .lf-msg-sending")).to_have_count(0)
     expect(status).to_have_text("Sent")
+    record_claim(d)
     with service_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(transaction, actions)
     told(page)

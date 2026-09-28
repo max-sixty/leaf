@@ -4615,6 +4615,20 @@ def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
             assert onward.status == 200
 
 
+def test_a_claimed_page_without_a_declaration_serves_its_state(page_dir, server):
+    """A claimed page whose agent has declared nothing yet, such as a copy served
+    before any `leaf status`, answers `/api/state` as a page waiting on its
+    user."""
+    publish(page_dir)
+    service_model.claim_page(page_dir)
+    (page_dir / schema_model.STATUS_FILE).unlink()
+
+    status, raw = fetch(f"{server}/api/state")
+
+    assert status == 200, raw
+    assert json.loads(raw)["status"] == {"state": "waiting", "detail": "", "after": 0}
+
+
 def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     """`others` on /api/state is every page a live server holds up, found through
     both places pages are written down — the conventional pages/ home and the

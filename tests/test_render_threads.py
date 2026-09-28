@@ -7516,6 +7516,123 @@ def test_a_turn_arriving_leaves_a_user_who_scrolled_away_from_their_box_reading(
     assert after == pytest.approx(before, abs=1), f"the page moved {after - before}px"
 
 
+def test_a_reply_box_whose_thread_leaves_the_diff_takes_the_user_to_its_card(
+    browser, serve
+):
+    """A new patch takes each thread off the diff to the margin, since its anchor
+    names the patch it was written on, and the reply box the user was typing in went
+    with it: focus fell to the page, and the next letters ran page commands. The
+    user follows the thread to its margin card, typing on in the same draft at the
+    same caret, and no task between the two finds them on the page."""
+    url, root = seated_thread(serve, "diff", 2)
+    page = open_page(browser, url)
+    inline = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    box = inline.locator(":scope > .lf-say leaf-text")
+    box.scroll_into_view_if_needed()
+    write(box, "Half a thought")
+    box.evaluate("box => box.setSelectionRange(4, 4)")
+    # Whether the page, at any task after the box leaves, holds the user nowhere: a
+    # key arriving then would run as a page command.
+    page.evaluate(
+        """() => {
+          window.__strandedAt = [];
+          document.addEventListener('focusout', () => setTimeout(() => {
+            if (document.activeElement === document.body)
+              window.__strandedAt.push(performance.now());
+          }), true);
+        }"""
+    )
+    data_model.cmd_data_set(
+        serve.page_dir, "review-patch", SEAT_DIFF + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
+    )
+    told(page)
+    expect(inline).to_have_count(0)
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    reply = card.locator(":scope > .lf-say leaf-text")
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", "Half a thought")
+    assert reply.evaluate("box => [box.selectionStart, box.selectionEnd]") == [4, 4]
+    assert page.evaluate("() => window.__strandedAt") == []
+    page.keyboard.type(" tr")
+    expect(reply).to_have_js_property("value", "Half tr a thought")
+    expect(reply).to_be_focused()
+
+
+def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
+    browser, serve
+):
+    """A resolved thread has no reply box, and its card lands the user on it. Carrying
+    the box on from there opened Threads to look for one and took the user into the
+    panel: the card's own landing is the newer word, and a thread with nowhere to reply
+    is put up nowhere."""
+    url, root = seated_thread(serve, "task", 2)
+    page = open_page(browser, url)
+    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    box = thread.locator(":scope > .lf-say leaf-text")
+    box.scroll_into_view_if_needed()
+    write(box, "Half a thought")
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": root},
+    )
+    told(page)
+    rendered(page)
+    expect(thread).to_be_focused()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+
+
+def test_a_comment_being_written_on_a_diff_line_stays_in_hand_across_a_new_patch(
+    browser, serve
+):
+    """The same drop one surface over: the comment box a diff seats on a line went
+    with the rebuilt diff, and the user was left on the page. The draft stays about
+    the patch it was written on, so the composer returns beside the diff and the user
+    goes on typing in it at the same caret."""
+    url = serve(
+        leaf_page(
+            "diff",
+            f'<h1 id="title">Review</h1>{SEAT_FILLER}<lf-diff id="patch" '
+            f'source="review-patch"><pre></pre></lf-diff>{SEAT_FILLER}',
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+    page = open_page(browser, url)
+    line = page.locator(
+        'lf-diff [data-line-type="change-addition"][data-lf-datum=\'["app.py","new",1]\']'
+    )
+    line.scroll_into_view_if_needed()
+    line.hover()
+    page.get_by_role(
+        "button", name="Comment on app.py · new line 1", exact=True
+    ).click()
+    box = page.locator(".lf-fab-input")
+    expect(page.locator("lf-diff .lf-diff-thread-outlet .lf-fab-input")).to_be_focused()
+    write(box, "Half a thought")
+    box.evaluate("box => box.setSelectionRange(4, 4)")
+    # Whether the page, at any task after the box leaves, holds the user nowhere: a
+    # key arriving then would run as a page command.
+    page.evaluate(
+        """() => {
+          window.__strandedAt = [];
+          document.addEventListener('focusout', () => setTimeout(() => {
+            if (document.activeElement === document.body)
+              window.__strandedAt.push(performance.now());
+          }), true);
+        }"""
+    )
+    data_model.cmd_data_set(
+        serve.page_dir, "review-patch", SEAT_DIFF + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
+    )
+    told(page)
+    expect(box).to_be_focused()
+    expect(box).to_have_js_property("value", "Half a thought")
+    assert box.evaluate("box => [box.selectionStart, box.selectionEnd]") == [4, 4]
+    assert page.evaluate("() => window.__strandedAt") == []
+    page.keyboard.type(" tr")
+    expect(box).to_have_js_property("value", "Half tr a thought")
+    expect(box).to_be_focused()
+
+
 def test_a_wheel_during_a_resolution_fold_outranks_the_landing_after_it(browser, serve):
     """The landing of the next title waits for the fold, and a user who scrolls the
     list meanwhile has taken it somewhere else: the deferred landing pulled the list

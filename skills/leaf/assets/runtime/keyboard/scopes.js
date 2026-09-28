@@ -27,7 +27,7 @@ import {
   word,
 } from "./bindings.js";
 import { deepFocus } from "../focus.js";
-import { shadowHost, upFrom } from "../shadow.js";
+import { hostIn, upFrom } from "../shadow.js";
 import { repaint } from "../repaint.js";
 
 // The scopes still owed a first paint. A declaration joins here and `reflectShortcuts`
@@ -461,16 +461,7 @@ export const focused = () => {
 // Document readings want the host of a control staged in a shadow tree. Retarget the
 // logical reading every time, so a label transaction and an ordinary shadow focus take
 // the same path and no painted surface invents its own exception.
-export const documentFocused = () => {
-  let held = focused();
-  for (
-    let host = shadowHost(held?.getRootNode());
-    host;
-    host = shadowHost(held.getRootNode())
-  )
-    held = host;
-  return held;
-};
+export const documentFocused = () => hostIn(focused(), document);
 export const recoveredLabelFocus = (event) => recoveredLabelKeys.get(event);
 
 // The element scopes covering a node, innermost first — the climb crosses a shadow

@@ -10413,14 +10413,25 @@ def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
         f"the landed row's ring runs under its file's pinned header: {row_ring}"
     )
     # The pane's body is a Tab stop because it scrolls, and it fills its pane, so its
-    # band has to stay inside the pane too: outset, the workspace body clipped its right
-    # and lower runs.
+    # band stays inside the pane: the pane draws it inset over the body's cell
+    # (theme.css), where outset on the body the workspace body clipped its right and
+    # lower runs.
     page.evaluate("() => document.querySelector('lf-diff').focus()")
     host_ring = page.evaluate(
-        f"() => ({_RING_WITHIN})(document.querySelector('lf-diff'),"
-        " document.querySelector('lf-pane'))"
+        """() => {
+          const host = document.querySelector('lf-diff');
+          const pane = host.closest('[data-lf-reading-role="pane"]');
+          const band = getComputedStyle(pane, '::after');
+          return { focus: host.matches(':focus-visible'),
+                   own: getComputedStyle(host).outlineStyle,
+                   band: [band.outlineStyle, band.outlineWidth,
+                          parseFloat(band.outlineOffset) + parseFloat(band.outlineWidth)] };
+        }"""
     )
-    assert host_ring["drawn"] and all(host_ring["inside"].values()), host_ring
+    assert host_ring["focus"] and host_ring["own"] == "none", host_ring
+    assert host_ring["band"][:2] == ["solid", "2px"] and host_ring["band"][2] <= 0, (
+        host_ring
+    )
 
 
 # Where an element's focus band falls, from its computed outline, and whether that box

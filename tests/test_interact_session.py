@@ -12324,6 +12324,70 @@ def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tm
     )
 
 
+def test_session_end_does_not_start_uv_before_the_plugin_environment_exists(tmp_path):
+    """An untouched session can end before this plugin copy has run any Leaf code.
+
+    The host gives SessionEnd three seconds; syncing a fresh environment can exceed
+    that on a network home. A cold exit has no claim from this install to release.
+    """
+    project = tmp_path / "plugin"
+    guard = project / "hooks" / "scripts" / "loop-guard.py"
+    guard.parent.mkdir(parents=True)
+    guard.write_bytes(
+        (PLUGIN_ROOT / "hooks" / "scripts" / "loop-guard.py").read_bytes()
+    )
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    uv = tools / "uv"
+    uv.write_text("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$UV_CALLED\"\n")
+    uv.chmod(0o755)
+    called = tmp_path / "uv-called"
+    env = {k: v for k, v in os.environ.items() if k != "UV_PROJECT_ENVIRONMENT"} | {
+        "PATH": f"{tools}:{os.environ['PATH']}",
+        "UV_CALLED": str(called),
+    }
+    payload = json.dumps({"hook_event_name": "SessionEnd", "session_id": "unused"})
+
+    cold = subprocess.run(
+        [sys.executable, str(guard)],
+        input=payload,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=3,
+        check=False,
+    )
+    assert (cold.returncode, cold.stdout, cold.stderr) == (0, "", "")
+    assert not called.exists()
+
+    custom = subprocess.run(
+        [sys.executable, str(guard)],
+        input=payload,
+        env=env | {"UV_PROJECT_ENVIRONMENT": str(tmp_path / "another-environment")},
+        capture_output=True,
+        text=True,
+        timeout=3,
+        check=False,
+    )
+    assert (custom.returncode, custom.stdout, custom.stderr) == (0, "", "")
+    assert not called.exists()
+
+    installed = project / ".venv" / "bin" / "leaf"
+    installed.parent.mkdir(parents=True)
+    installed.touch()
+    warm = subprocess.run(
+        [sys.executable, str(guard)],
+        input=payload,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=3,
+        check=False,
+    )
+    assert (warm.returncode, warm.stdout, warm.stderr) == (0, "", "")
+    assert "--no-sync" in called.read_text().splitlines()
+
+
 def test_a_hook_in_a_session_holding_no_page_imports_no_page_reading_or_server():
     """A host runs Leaf's hooks at every turn of every session the plugin is
     installed in, and most hold no page. Each waits on `import leaf.hooks`, so

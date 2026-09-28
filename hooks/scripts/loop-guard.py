@@ -39,6 +39,8 @@ never needs the browser the launcher's two special cases supply. `--no-dev`
 matches the launcher: the dev group is the suite's, not a host's.
 """
 
+import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -48,9 +50,24 @@ PROJECT = Path(__file__).resolve().parents[2]
 
 def main() -> None:
     try:
+        payload = sys.stdin.read()
+        event = json.loads(payload).get("hook_event_name")
+        environment = Path(os.environ.get("UV_PROJECT_ENVIRONMENT") or PROJECT / ".venv")
+        if not environment.is_absolute():
+            environment = PROJECT / environment
+        # A session that never ran this plugin cannot hold a claim created by it.
+        # In particular, SessionEnd must not install the CLI under the host's
+        # three-second deadline just to learn that there is no work.
+        if event == "SessionEnd" and not (environment / "bin" / "leaf").exists():
+            return
+        command = ["uv", "run", "-q", "--no-dev"]
+        if event == "SessionEnd":
+            # A stale environment should fail open instead of syncing until the
+            # host cancels this short-lived hook.
+            command.append("--no-sync")
         answer = subprocess.run(
-            ["uv", "run", "-q", "--no-dev", "--project", str(PROJECT), "leaf", "hook"],
-            input=sys.stdin.read(),
+            [*command, "--project", str(PROJECT), "leaf", "hook"],
+            input=payload,
             capture_output=True,
             text=True,
             timeout=15,

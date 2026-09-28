@@ -64,8 +64,8 @@ other page files and the external state listed below.
 
 - `interactions.jsonl` — diagnostic JSON-lines trace of server requests and browser
   interactions, including refused requests. It is separate from `events.jsonl` and
-  never enters page state or acknowledgement. `leaf page interactions PAGE --follow`
-  reads it. The server appends request method, path without query, status, and
+  never enters page state or acknowledgement, and no command reads it: a reader
+  follows the file itself (`tail -F`). The server appends request method, path without query, status, and
   duration; `/api/interaction` appends browser batches with a session id, scoped
   page address, and server receipt time. Sample activity remains in its parent
   page's trace. The diagnostic file changes neither page/source reading nor
@@ -153,8 +153,10 @@ verb with the detail it carries, so where the two differ the page shows the move
 `data_bindings` names each bound source and the widgets that read it, and
 `data/<source>.json` holds its value.
 
-`leaf thread read <page> <id>` reads one thread's current messages, with bounded
-history selected by `--after` and `--limit`, and each message's frozen markup under
+`leaf page state <page> <id>` narrows the reading to what `<id>` names. A message,
+or a widget frozen into one, names its thread: the reading is that thread's current
+messages, with bounded history selected by `--after` and `--limit`, and each
+message's frozen markup under
 `content` (`construction.py`), since that markup has no file of its own. An authored
 node keeps its `tag`, effective `attrs` and `content`, and `source` line and column; a
 standing event supplies its exact `state` and origin, and `authored` preserves the
@@ -162,9 +164,13 @@ input it replaced. Widget `inputs` join each binding to its source's current val
 contract, source id and revision, or to the `error` a failing value reads as;
 contracts with a deferred record field expose the manifest plus the value file and
 its revision for their payload. The reading's `content_source` names the thread and
-vocabulary file. Default `page state` thread entries stay compact. Raw diagnostic
-history belongs to `leaf page events --thread`, and the page's `registry.json` owns the
-vocabulary.
+vocabulary file. A widget on the page names itself: the reading is its `widget`
+element, the `state` and `updates` standing on it, the `asks` it holds or answers,
+and the `workflows` it is the subject of, with their `activity` obligations. Page ids
+and event ids share one address space, which is why `page check` refuses an authored
+id shaped like an event id. Default `page state` thread entries stay compact. Raw
+diagnostic history belongs to `leaf page events`, and the page's `registry.json` owns
+the vocabulary.
 
 Immutable deliveries live outside page directories at
 `<state-home>/deliveries/<id>.json`, because one envelope can contain complete

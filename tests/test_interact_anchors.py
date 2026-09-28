@@ -21,6 +21,7 @@ from interact_support import (
     stamp,
     state_json,
     suggested,
+    thread_records,
 )
 from leaf import cli as cli_model
 from leaf import event_contracts as event_contracts_model
@@ -520,7 +521,6 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
         [
             "thread",
             "reply",
-            "--json",
             str(page_dir),
             root["id"],
             "--section",
@@ -610,7 +610,6 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
         [
             "thread",
             "reply",
-            "--json",
             str(page_dir),
             root["id"],
             "--detach",
@@ -721,7 +720,6 @@ def test_a_withdrawn_reaction_root_can_still_be_moved_but_not_detached(page_dir)
         [
             "thread",
             "reply",
-            "--json",
             str(page_dir),
             root["id"],
             "--section",
@@ -893,7 +891,6 @@ def test_a_detached_thread_releases_the_visual_part_it_left(page_dir):
         [
             "thread",
             "reply",
-            "--json",
             str(page_dir),
             root["id"],
             "--detach",
@@ -1483,7 +1480,6 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
             [
                 "thread",
                 "reply",
-                "--json",
                 str(page_dir),
                 "--for",
                 root["id"],
@@ -1496,7 +1492,7 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "resolve", "--json", str(page_dir), answer["id"]],
+        ["thread", "resolve", str(page_dir), answer["id"]],
     )
     assert result.exit_code == 0, result.output
     event = json.loads(result.output)
@@ -1545,11 +1541,7 @@ def test_unresolve_reopens_a_thread_in_agent_readings(page_dir):
 
     thread = state_json(page_dir)["threads"][0]
     assert thread["resolved"] is None
-    history = CliRunner().invoke(
-        cli_model.cli, ["page", "events", str(page_dir), "--thread", root["id"]]
-    )
-    assert history.exit_code == 0, history.output
-    assert [json.loads(line)["id"] for line in history.output.splitlines()] == [
+    assert thread_records(page_dir, root["id"]) == [
         root["id"],
         resolved["id"],
         reopened["id"],

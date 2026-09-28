@@ -187,9 +187,9 @@ def test_how_it_works_quotes_the_real_check_and_stamp_lines(page_dir):
     """Both lines the transcript shows an agent, taken from the commands themselves.
 
     A shown line is a promise about what the user will see. The changelog is the
-    page's own, so the stamp line is generated here with the transcript's text
-    rather than pattern-matched — a renamed field or a changed separator has to be
-    written into the page before this passes again.
+    page's own, so the stamp record is generated here with the transcript's text and
+    compared field by field: a renamed or added field has to be written into the page
+    before this passes again. Only the record's identity and time differ per run.
     """
     checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert checked.exit_code == 0, checked.output
@@ -205,7 +205,15 @@ def test_how_it_works_quotes_the_real_check_and_stamp_lines(page_dir):
 
     transcript = html.unescape((DOCS / "how-it-works.html").read_text())
     assert success in transcript
-    assert stamped.output.strip() in transcript
+    lines = transcript.splitlines()
+    command = next(i for i, line in enumerate(lines) if "$ leaf page stamp" in line)
+    shown = json.loads(lines[command + 1])
+    record = json.loads(stamped.output)
+    assert shown.keys() == record.keys()
+    per_run = {"id", "ts", "session", "agent"}
+    assert {k: v for k, v in shown.items() if k not in per_run} == {
+        k: v for k, v in record.items() if k not in per_run
+    }
 
 
 def test_how_it_works_delivery_has_the_shape_a_real_delivery_has(page_dir):

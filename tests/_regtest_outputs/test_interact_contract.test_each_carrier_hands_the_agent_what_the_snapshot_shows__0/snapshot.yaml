@@ -102,8 +102,8 @@ leaf wait:
             actions: []
         handling:
           h1: >-
-            This event's thread has no title yet: name it with `leaf thread title
-            <page> <thread-id> --text "<a few words>"`, so the thread panel lists
+            This event's thread has no title yet: name it by adding `--title "<a
+            few words>"` to the reply that answers it, so the thread panel lists
             its subject rather than its opening words.
           h2: >-
             When the event asks for work, name that work before any other, including
@@ -177,8 +177,8 @@ Claude Code hook:
               actions: []
           handling:
             h1: >-
-              This event's thread has no title yet: name it with `leaf thread title
-              <page> <thread-id> --text "<a few words>"`, so the thread panel lists
+              This event's thread has no title yet: name it by adding `--title "<a
+              few words>"` to the reply that answers it, so the thread panel lists
               its subject rather than its opening words.
             h2: >-
               When the event asks for work, name that work before any other, including
@@ -254,8 +254,8 @@ Codex queue:
             actions: []
         handling:
           h1: >-
-            This event's thread has no title yet: name it with `leaf thread title
-            <page> <thread-id> --text "<a few words>"`, so the thread panel lists
+            This event's thread has no title yet: name it by adding `--title "<a
+            few words>"` to the reply that answers it, so the thread panel lists
             its subject rather than its opening words.
           h2: >-
             When the event asks for work, name that work before any other, including
@@ -329,9 +329,9 @@ Codex App Server:
                 actions: []
             handling:
               h1: >-
-                This event's thread has no title yet: name it with `leaf thread
-                title <page> <thread-id> --text "<a few words>"`, so the thread
-                panel lists its subject rather than its opening words.
+                This event's thread has no title yet: name it by adding `--title
+                "<a few words>"` to the reply that answers it, so the thread panel
+                lists its subject rather than its opening words.
               h2: >-
                 Your turn's first and final messages are the reply, and `leaf thread
                 reply` refuses this event. Before your first tool call, open with

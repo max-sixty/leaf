@@ -720,7 +720,6 @@ def test_a_written_anchor_keeps_its_copy_when_the_page_grows_another(browser, se
         [
             "thread",
             "open",
-            "--json",
             str(d),
             "--quote",
             "The version stamp never lands",
@@ -2574,6 +2573,62 @@ def test_a_widget_in_a_reply_is_still_set_among_the_words(browser, serve):
         "block",
         "flow-root",
     ), f"the stacking rule never reached the panel at all: {forms['rp-argued']}"
+
+
+def test_a_message_carries_the_marks_a_page_would_except_its_room(browser, serve):
+    """A message's markup renders in the panel and never passes through delivery, so the
+    runtime paints its marks as it renders them, and paints what delivery would paint on
+    the same markup on a page: a quoted sample is an exhibit, a chip sets among words,
+    and an occurrence's own `data-bound` holds its height. The room is the one mark left
+    behind, even where an occurrence asks for it with `data-width`: it is the page's to
+    give, and the panel's width bounds a message."""
+    url = serve(REPLY_HOST_PAGE)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-log",
+            "author": "user",
+            "revision": 1,
+            "text": "What did the old copy say?",
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "id": "r-log",
+            "author": "agent",
+            "parent": "c-log",
+            "revision": 1,
+            "text": "Here it is, with the log:",
+            "markup": '<lf-sample id="rp-quoted" label="the old copy">'
+            "<p>Sessions <lf-chip>draft</lf-chip> live in Redis.</p></lf-sample>"
+            '<pre id="rp-log" data-bound="end">one\ntwo\nthree</pre>'
+            '<section id="rp-room" data-width="wide"><p>Wide on a page.</p></section>',
+        },
+    )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").first.click()
+    panel_settled(page)
+    expect(page.locator("#rp-quoted")).to_be_visible()
+
+    marks = page.evaluate("""() => Object.fromEntries(
+        [['sample', '#rp-quoted'], ['chip', '#rp-quoted lf-chip'], ['log', '#rp-log'],
+         ['room', '#rp-room']].map(([name, selector]) => {
+            const el = document.querySelector(selector);
+            return [name, Object.fromEntries(
+                ['data-lf-exhibit', 'data-lf-inline', 'data-lf-bound', 'data-lf-space']
+                    .filter(attr => el.hasAttribute(attr))
+                    .map(attr => [attr, el.getAttribute(attr)]))];
+        }))""")
+    assert marks == {
+        "sample": {"data-lf-exhibit": ""},
+        "chip": {"data-lf-inline": ""},
+        "log": {"data-lf-bound": "end"},
+        "room": {},
+    }, marks
 
 
 def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):

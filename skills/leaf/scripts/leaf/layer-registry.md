@@ -68,12 +68,17 @@ interrupted load. Source files and standalone exports carry no startup superviso
 `registry.json` remains the source of truth for the current custom vocabulary and
 its explanations; this contract does not mirror that inventory.
 
-Each composition that ends in a vocabulary also writes one fact the declarations
-imply: `$decisions`, the deciding x-state verb of every widget that has one and the
-member tags each of its outcomes retires (`registry/state.py`, `stamp_decisions`).
-`page init` stamps it into the layer, and a page's composition stamps it again over
-the page's own declarations, overwriting any declared `$decisions`. The browser reads
-it rather than walking `x-state` and `x-retired-when` a second time.
+Each composition that ends in a vocabulary also writes two facts for the browser to
+read rather than derive (`registry/layer.py`, `stamp_composition`): `$decisions`, the
+deciding x-state verb of every widget that has one and the member tags each of its
+outcomes retires, which the declarations imply; and `$marks`, the declarations a
+stylesheet reads, each with the attribute it is painted as, the attribute an
+occurrence overrides it with, and whether it holds in a thread's message
+(`schema.py`, `DECLARED_MARKS`). `page init` stamps them into the layer, and a page's
+composition stamps them again over the page's own declarations, overwriting any
+declared `$decisions` or `$marks`. The browser reads the first rather than walking
+`x-state` and `x-retired-when` a second time, and paints a message's marks from the
+second, which delivery paints into a page's document from the same table.
 
 The append transaction records the fold unit and direct dependencies in an action or
 report's `meaning`. Identity-bearing detail fields come from the declared fold unit

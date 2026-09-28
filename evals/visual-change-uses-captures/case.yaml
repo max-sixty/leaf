@@ -1,3 +1,5 @@
+# From session 78ca368e. A rewording of "Draw the subject" drew an SVG of the Save
+# button beside its captures in 2 of 3 runs and was reverted; main passed 3 of 3.
 schema_version: '1.0'
 name: visual-change-uses-captures
 description: "Draw the subject, guardrail: a visible change with before/after captures shows the captures and draws nothing beside them."

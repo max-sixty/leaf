@@ -1,3 +1,7 @@
+# Added with where a sidebar page stacks (#1363). Base at 4d8d08eca rebuilt the
+# sidebar as its own grid to keep the track beside the body at 900px (0 of 3); the
+# change 3 of 3. Later made to fail a sticky track: base at eee4a2d6d stuck the
+# `aside` itself (0 of 3), the change 3 of 3.
 schema_version: '1.0'
 name: sidebar-page-at-900px
 description: "A sidebar page read at 900px: the Layout already keeps its track beside the body there, so the page leaves the Layout's widths alone, and a short track that stays in view sticks at `--lf-top`, below the banner, inside a track stretched to the body's height, so it never sticks over the body where the two stack."

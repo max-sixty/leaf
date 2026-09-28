@@ -43,8 +43,8 @@ delivered at prompt:
             actions: []
         handling:
           h1: >-
-            This event's thread has no title yet: name it with `leaf thread title
-            <page> <thread-id> --text "<a few words>"`, so the thread panel lists
+            This event's thread has no title yet: name it by adding `--title "<a
+            few words>"` to the reply that answers it, so the thread panel lists
             its subject rather than its opening words.
           h2: >-
             When the event asks for work, name that work before any other, including
@@ -93,14 +93,24 @@ acknowledged at stop:
     Leaf needs attention:
     - <page>: 1 acknowledged user move with no answer (`leaf thread reply <page> --for event-2`).
 
-    Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf thread read <page> <id>`.
+    Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf page state <page> <id>`.
 
 idle before answer:
   exit: 1
   output: |
-    1 acknowledged user move with no answer (`leaf thread reply <page> --for event-2`); answer before idling. Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf thread read <page> <id>`.
+    1 acknowledged user move with no answer (`leaf thread reply <page> --for event-2`); answer before idling. Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf page state <page> <id>`.
 
-answer: |
-  replied in event-2
+answer:
+  kind: reply
+  author: agent
+  agent: Claude
+  session: s1
+  parent: event-2
+  text: >-
+    I will add the camera first.
+  responds: event-2
+  id: event-4
+  ts: <time>
+  seq: 4
 
 answered at stop: null

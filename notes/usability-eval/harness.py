@@ -565,7 +565,7 @@ def build_constructs(run: Run, page: Path) -> None:
     measured = run.leaf(
         "data", "set", str(page), "checkout-p95", input_text="184", check=True
     ).stdout
-    at = re.search(r"updated (\S+)", measured)[1]
+    at = json.loads(measured)["updated"]
     (page / "index.html").write_text(re.sub(r'\bat="[^"]*"', f'at="{at}"', template))
     run.leaf("page", "stamp", str(page), "--text", "Release 4.2 review", check=True)
     run.leaf("status", str(page), "waiting", "Edit the release note", check=True)
@@ -913,9 +913,10 @@ def run_batch(arms: str, batch: str, rounds: int, cases: tuple[str, ...], start:
 # first, so `output_bytes` is a rough split.
 BASH_KINDS = {
     "reference": r"references/|SKILL\.md",
+    # A thread's or widget's reading: `page state PAGE ID`.
+    "page state ID": r"\bpage state\s+\S+\s+[^-\s|;&>]",
     "page state": r"\bpage state\b",
     "events": r"\bpage events\b",
-    "thread read": r"\bthread read\b",
     "transcript": r"\btranscript\b",
     "page check": r"\bpage check\b",
     "page stamp": r"\bpage stamp\b",

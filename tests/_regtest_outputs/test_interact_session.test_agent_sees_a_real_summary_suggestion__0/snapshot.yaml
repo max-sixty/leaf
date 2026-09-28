@@ -67,12 +67,12 @@ delivery:
       handling:
         h1: >-
           The user answered in a thread; the batch's `threads` carries the thread's
-          context, and `leaf thread read <page> <thread-id>` reads its history in
+          context, and `leaf page state <page> <thread-id>` reads its history in
           pages.
         h2: >-
-          This event's thread has no title yet: name it with `leaf thread title
-          <page> <thread-id> --text "<a few words>"`, so the thread panel lists
-          its subject rather than its opening words.
+          This event's thread has no title yet: name it by adding `--title "<a few
+          words>"` to the reply that answers it, so the thread panel lists its subject
+          rather than its opening words.
         h3: >-
           This event's thread has grown long, and its entry in the batch's `threads`
           carries a `summary_hint`. Once you have replied, read the messages from

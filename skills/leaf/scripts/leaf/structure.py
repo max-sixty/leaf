@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 
 import turbohtml
 
-from .schema import MEDIA_DIR
+from .schema import EVENT_ID, MEDIA_DIR
 
 DELIVERY_ENCODING_META = '<meta charset="utf-8" data-lf-runtime>'
 UTF8_BOM = "\ufeff"
@@ -772,6 +772,11 @@ class SourceDocument:
     def reserved_ids(self) -> list:
         """Ids that trespass on the runtime's own namespace (see id_errors)."""
         return sorted({i for i in self.all_ids if i.startswith("lf-")})
+
+    @property
+    def event_shaped_ids(self) -> list:
+        """Ids in the log's own event-id shape (see id_errors)."""
+        return sorted({i for i in self.all_ids if re.fullmatch(EVENT_ID, i)})
 
     @property
     def spaced_ids(self) -> list:

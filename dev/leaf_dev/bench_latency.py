@@ -499,7 +499,7 @@ def served(browser: Browser, arm: str, arm_dir: Path, source: str, scratch: Path
     thread = json.loads(
         leaf(
             "thread", "open", str(page_dir), "--section", PASSAGE, "--quote", QUOTE,
-            "--text", "Bench thread.", "--json",
+            "--text", "Bench thread.",
         ).stdout
     )["id"]  # fmt: skip
     with serving(arm_dir, state, page_dir) as address:
@@ -582,9 +582,9 @@ def bench_latency(base_ref: str | None) -> None:
 
     Times a page's answer to a gesture, an agent write, and a revision, on two
     pages, taking turns between BASE_REF's runtime and HEAD's; BASE_REF defaults to
-    the merge base with main. Prints a table of median [min-max] milliseconds to the
-    painted frame, with the requests and bytes each caused, and each objective a
-    transition missed; every run lands in .tmp/bench-latency/.
+    the merge base with origin/main. Prints a table of median [min-max] milliseconds
+    to the painted frame, with the requests and bytes each caused, and each
+    objective a transition missed; every run lands in .tmp/bench-latency/.
     """
     load_before = load_average()
     results = []

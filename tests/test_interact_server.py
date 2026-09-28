@@ -41,6 +41,7 @@ from interact_support import (
     read_page_data,
     record_claim,
     running_http_server,
+    thread_records,
     vendored_by_another_leaf,
     wait_for,
 )
@@ -109,7 +110,12 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
     )
     assert fetch(f"{server}/missing")[0] == 404
 
-    rows = [json.loads(line) for line in interaction_model.lines(page_dir)]
+    rows = [
+        json.loads(line)
+        for line in (page_dir / interaction_model.INTERACTIONS_FILE)
+        .read_text()
+        .splitlines()
+    ]
     client = [row for row in rows if row["source"] == "client"]
     assert len(client) == 2
     assert [(row["session"], row["type"]) for row in client] == [
@@ -127,9 +133,6 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
     }
     assert all("?" not in row["path"] and row["durationMs"] >= 0 for row in server_rows)
     assert fetch(f"{server}/interactions.jsonl")[0] == 404
-    result = CliRunner().invoke(cli_model.cli, ["page", "interactions", str(page_dir)])
-    assert result.exit_code == 0, result.output
-    assert result.output.splitlines() == list(interaction_model.lines(page_dir))
 
 
 def test_diagnostic_write_failure_does_not_change_the_http_answer(
@@ -143,18 +146,6 @@ def test_diagnostic_write_failure_does_not_change_the_http_answer(
         status, body = fetch(f"{preview.origin}/api/state")
     assert status == 200
     assert "events" in json.loads(body)
-
-
-def test_interaction_follow_reads_a_replaced_trace(page_dir):
-    trace = page_dir / interaction_model.INTERACTIONS_FILE
-    trace.write_text('{"old":"longer record"}\n')
-    following = interaction_model.lines(page_dir, follow=True)
-    assert next(following) == '{"old":"longer record"}'
-    replacement = page_dir / "replacement.jsonl"
-    replacement.write_text('{"new":1}\n')
-    os.replace(replacement, trace)
-    assert next(following) == '{"new":1}'
-    following.close()
 
 
 def test_interaction_trace_is_writable_from_a_read_only_page_preview(page_dir):
@@ -178,7 +169,10 @@ def test_interaction_trace_is_writable_from_a_read_only_page_preview(page_dir):
     assert event_model.read_events(page_dir) == before
     assert any(
         row["source"] == "client" and row["session"] == "preview"
-        for row in map(json.loads, interaction_model.lines(page_dir))
+        for row in map(
+            json.loads,
+            (page_dir / interaction_model.INTERACTIONS_FILE).read_text().splitlines(),
+        )
     )
 
 
@@ -317,7 +311,10 @@ def test_samples_use_captured_resources_and_independent_event_logs(server, page_
         row["source"] == "client"
         and row["session"] == "child-tab"
         and row["page"] == child.removeprefix(server)
-        for row in map(json.loads, interaction_model.lines(page_dir))
+        for row in map(
+            json.loads,
+            (page_dir / interaction_model.INTERACTIONS_FILE).read_text().splitlines(),
+        )
     )
 
 
@@ -1092,7 +1089,7 @@ def test_a_stamped_restatement_remains_the_valid_live_source(server, page_dir):
     (page_dir / "index.html").write_text(baseline)
     first = CliRunner().invoke(
         cli_model.cli,
-        ["page", "stamp", "--json", str(page_dir), "--text", "baseline"],
+        ["page", "stamp", str(page_dir), "--text", "baseline"],
     )
     assert first.exit_code == 0, first.output
     first_revision = json.loads(first.output)["revision"]
@@ -1116,7 +1113,7 @@ def test_a_stamped_restatement_remains_the_valid_live_source(server, page_dir):
     )
     second = CliRunner().invoke(
         cli_model.cli,
-        ["page", "stamp", "--json", str(page_dir), "--text", "corrected"],
+        ["page", "stamp", str(page_dir), "--text", "corrected"],
     )
     assert second.exit_code == 0, second.output
     stamped = json.loads(second.output)
@@ -4206,7 +4203,7 @@ def test_a_stop_ends_a_server_whose_caller_left_while_it_announced(page_dir, spa
     finally:
         caller.close()
     stopping.join(timeout=30)
-    assert stopped == ["stopped server"]
+    assert stopped == [True]
     assert child.wait(timeout=10) is not None
     assert not json.loads(service.read_text())["enabled"]
 
@@ -4273,7 +4270,7 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
         assert hosting_model.start_server(page_dir, standing=True)
         resume.set()
         stopping.join(timeout=3)
-        assert stopped == ["stopped server"]
+        assert stopped == [True]
     finally:
         resume.set()
         files_model.write_json(
@@ -5125,13 +5122,13 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
         for element in closed_reading["elements"]
         if element["thread"] == "c-lost"
     ] == [element["id"] for element in orphan_elements]
+    assert thread_records(page_dir, "c-lost") == ["r-kept", closed["id"]]
     history = CliRunner().invoke(
-        cli_model.cli, ["page", "events", str(page_dir), "--thread", "c-lost"]
+        cli_model.cli, ["page", "state", str(page_dir), "c-lost"]
     )
     assert history.exit_code == 0, history.output
-    records = [json.loads(line) for line in history.output.splitlines()]
-    assert [record["id"] for record in records] == ["r-kept", closed["id"]]
-    assert records[0]["text"] == "the answer that survived it"
+    [kept] = json.loads(history.output)["content"]
+    assert (kept["message"], kept["text"]) == ("r-kept", "the answer that survived it")
 
     # The history feed names the thread each row was made in, with the words of the
     # first message it still holds.
@@ -5149,7 +5146,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     # first message the thread still holds, since the id names no event.
     replied = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", "--json", str(page_dir), "c-lost", "--text", "Retrying."],
+        ["thread", "reply", str(page_dir), "c-lost", "--text", "Retrying."],
     )
     assert replied.exit_code == 0, replied.output
     assert json.loads(replied.output)["parent"] == "r-kept"
@@ -5157,4 +5154,4 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
         cli_model.cli, ["thread", "resolve", str(page_dir), "c-lost"]
     )
     assert resolved.exit_code == 0, resolved.output
-    assert resolved.output == "resolved c-lost\n"
+    assert json.loads(resolved.output)["parent"] == "r-kept"

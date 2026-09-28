@@ -2739,7 +2739,6 @@ def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser,
         [
             "thread",
             "reply",
-            "--json",
             str(d),
             "--for",
             root["id"],

@@ -523,6 +523,9 @@ export function createAskView({
           command,
         ),
     );
+  // Away from every Ask the row still stands in the command reference, as the range the
+  // digits take once the user stands in one, since that is where a question's options
+  // are pressed by number; the widgets' own Decision rows have no key of their own there.
   const actionRow = {
     id: "ask.activate-nth",
     touch: false,
@@ -530,14 +533,21 @@ export function createAskView({
     routes: actionRoutes,
     label: () => {
       const count = actionRoutes().length;
+      if (!count) return `1–${MAX_ASK_ACTIONS}`;
       return count > 1 ? `1–${count}` : "1";
     },
-    does: () =>
-      `Activate an action in this Ask: ${actionRoutes()
+    does: () => {
+      const routes = actionRoutes();
+      if (!routes.length)
+        return "Activate an action in the Ask you stand at, by its number";
+      return `Activate an action in this Ask: ${routes
         .map(({ binding, line }) => `${spell(binding)} ${line}`)
-        .join("; ")}`,
+        .join("; ")}`;
+    },
     line: "Ask actions",
+    reach: "in an Ask",
     when: () => actionRoutes().length > 0,
+    commandReferenceWhen: () => allAsks().length > 0,
   };
   const reachableActionRoutes = (available = availableCommandRoutes()) => {
     const reachable = available.get(actionRow) ?? new Set();

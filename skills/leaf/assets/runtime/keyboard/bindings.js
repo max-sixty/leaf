@@ -18,9 +18,9 @@
      route may override `line` and `label` for the case where a nearer scope shadows only
      its sibling binding.
    - `label` optionally overrides the compact keycap in the command's own scope. A keyless
-     row must declare one, unless a Decision command can fall back to its `decision` action
-     name in the command reference.
-     An Ask instead shows the resolved binding beside that separate action name, so an
+     row must declare one, unless it is a Decision: its key is the digit its Ask gives it,
+     and the command reference names it only under that digit, while the user stands in
+     the Ask. An Ask shows the resolved binding beside that separate action name, so an
      inline hint always says what the user actually presses.
    - `control` is the visible element that activates the capability. `decision` is a
      non-empty action-name string or a function returning one; it includes that command in

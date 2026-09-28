@@ -6806,6 +6806,25 @@ def test_the_reference_runs_the_exact_numbered_ask_action(browser, serve):
     round_trip(page)
 
 
+def test_away_from_an_ask_the_reference_names_its_digits_not_its_options(
+    browser, serve
+):
+    """An option's key is the digit its Ask gives it while the user stands there, so away
+    from every Ask the reference offers that digit range once, rather than one row per
+    option id with some Ask's option words standing in for a keycap."""
+    page = open_page(browser, serve(ASKS_PAGE))
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    reference = page.locator(".lf-command-reference")
+    expect(reference).to_be_visible()
+    expect(
+        reference.locator('tr[data-lf-command^="option.choose-"]')
+    ).to_have_count(0)
+    digits = reference.locator('tr[data-lf-command="ask.activate-nth"]')
+    expect(digits.locator(".lf-key-badge")).to_have_text(["1–9"])
+    expect(digits).to_contain_text("Activate an action in the Ask you stand at")
+
+
 def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
     """A widget can replace its action controls without declaring its bindings again."""
     page = open_page(

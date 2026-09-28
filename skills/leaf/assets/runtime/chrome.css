@@ -2,7 +2,7 @@
    the document, from banner to shortcut bar. The boot module (leaf.js) adopts it as a
    constructed sheet, so it stands in no head node and a version activation's head
    reconciliation never meets it. */
-/* `.lf-chrome` is one fixed runtime root containing the banner, tray panel, thread panel,
+/* `.lf-chrome` is one fixed runtime root containing the banner, drawer panel, thread panel,
    composer, floating comment control, live region, shortcut bar and status, help,
    inspection paint, legend, and Go-to hint layer. The page and panel are separate scroll
    regions.
@@ -30,9 +30,9 @@
    and the log's news about the content — `restated`, `user-override`, `reported` — has
    no second carrier, while the band also has the washed cell and the key badges.
 
-   Every rule that draws the ring names it in `--lf-here-ring`, in the same declaration
+   Every rule that draws the ring names it in `--lf-focus-ring`, in the same declaration
    (theme.css carries why). Whether a box wears a ring is the paint's answer — the
-   outline's, or the shadow's where the box draws the band as `var(--here-shadow)`
+   outline's, or the shadow's where the box draws the band as `var(--focus-shadow)`
    instead; the name says which rule drew it, so nothing re-runs the layer's selectors to
    find that out. The property is registered non-inheriting, so a name means the box
    rather than each of its words.
@@ -40,7 +40,7 @@
    The compact ring is drawn outside the box it names, so wherever one of those targets
    can be standing, something has to have kept room for it. A box that stands on its own
    draws its ring outside itself, and every scroll region that box can land in reserves
-   `--here-ring-room` at its edges through `scroll-padding` — the document does this for
+   `--focus-ring-room` at its edges through `scroll-padding` — the document does this for
    its foot, the thread list for both of its own, where the outward rings are the controls
    inside a card. Scroll padding governs only where scrolling puts a box, never where a
    sticky offset pins one, so a sticky row whose controls ring outward keeps the room on
@@ -131,8 +131,8 @@
   top: calc(var(--lf-banner-h) + 6px); left: 8px;
   width: auto; height: auto; min-height: var(--aim-floor); padding: 6px 10px;
   overflow: visible; clip-path: none;
-  outline: var(--here-ring); --lf-here-ring: skip;
-  outline-offset: calc(-1 * var(--here-ring-w));
+  outline: var(--focus-ring); --lf-focus-ring: skip;
+  outline-offset: calc(-1 * var(--focus-ring-w));
   border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
   color: var(--ink); box-shadow: 0 8px 24px var(--shade); }
 /* A gesture the log has not answered yet, in the platform's own word for it, which
@@ -175,8 +175,8 @@
   border: 0; border-radius: var(--r); background: transparent; color: inherit;
   font: inherit; }
 button.lf-media-open { cursor: zoom-in; }
-.lf-media-open:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
-  --lf-here-ring: media; outline-offset: 2px; }
+.lf-media-open:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+  --lf-focus-ring: media; outline-offset: 2px; }
 .lf-composer-media-open { width: 68px; height: 52px; overflow: hidden;
   border: 1px solid var(--border-2); background: var(--paper); }
 .lf-composer-media-open img { display: block; width: 100%; height: 100%;
@@ -228,12 +228,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item { cursor: pointer; }
 /* Every non-chrome point on the page accepts a drawing press. The crosshair therefore
    belongs to the whole document plane; an aim box adds semantic context where one is
    available but no longer decides whether the drag can begin. */
-html:has(body[data-lf-draw-mode]),
-body[data-lf-draw-mode] { cursor: crosshair; touch-action: none; }
-body[data-lf-draw-mode] main,
-body[data-lf-draw-mode] main * { cursor: crosshair !important; }
-body[data-lf-draw-mode] main .lf-thread-seat,
-body[data-lf-draw-mode] main .lf-thread-seat * { cursor: auto !important; }
+html[data-lf-draw-mode],
+html[data-lf-draw-mode] body { cursor: crosshair; touch-action: none; }
+html[data-lf-draw-mode] main,
+html[data-lf-draw-mode] main * { cursor: crosshair !important; }
+html[data-lf-draw-mode] main .lf-thread-seat,
+html[data-lf-draw-mode] main .lf-thread-seat * { cursor: auto !important; }
 /* Element feedback is one hollow contour. Unlike a text highlight, an element mark
    is projected above everything the target draws, so any interior paint can obscure
    the target's own words or picture. The target painter keeps this contour above those
@@ -263,8 +263,8 @@ body[data-lf-draw-mode] main .lf-thread-seat * { cursor: auto !important; }
    distinct state that earns a complete outer ring. */
 .lf-mark-el.lf-mark-hover { outline: 2px solid var(--accent); outline-offset: -2px; }
 .lf-mark-el:not(.lf-projected-mark):is(:focus-visible, .lf-focus-visible) {
-  outline: var(--here-ring);
-  --lf-here-ring: passage-focus; outline-offset: 2px; }
+  outline: var(--focus-ring);
+  --lf-focus-ring: passage-focus; outline-offset: 2px; }
 /* The standing comment promotes the same contour to accent. Focus on the passage
    itself is the separate outer ring above. */
 .lf-mark-el.lf-mark-here { outline: 2px solid var(--accent); outline-offset: -2px; }
@@ -298,16 +298,16 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
    holds a thread waiting on the agent has left the user's list while the user is still
    standing in it. Exactly one decision wears it at a time: every shipped widget
    draws one box for it to paint on, and one a page styles boxless hangs it on the
-   boxes its contents make (shownParts). While the Asks tray is open, its row mirrors
-   the same fact — for a decision the tray lists, which is one the user still owes. It is an outline like every other mark the
+   boxes its contents make (shownParts). While the Asks drawer is open, its row mirrors
+   the same fact — for a decision the drawer lists, which is one the user still owes. It is an outline like every other mark the
    runtime paints on the page's own elements: it moves nothing on arriving, and it
    keeps its place for nothing, being the element's own paint rather than a box in
    the chrome that would have to chase it down every scroll, reflow and drag. A widget
    that carries the location itself while the user works inside it stands the band down
    by declaring `--lf-ask-ring: none` on the decision: its theme is in a cascade layer
    this sheet outranks whatever the selector, and a declaration still reaches it. */
-[data-lf-ask] { outline: var(--lf-ask-ring, var(--here-ring)); --lf-here-ring: ask;
-                outline-offset: var(--here-ring-gap); }
+[data-lf-ask] { outline: var(--lf-ask-ring, var(--focus-ring)); --lf-focus-ring: ask;
+                outline-offset: var(--focus-ring-gap); }
 /* Paper takes no input, so what a widget injects to be worked goes: the control,
    and the box that holds controls. What stays is a control whose label is words the
    page keeps — one it speaks (data-lf-said: a pick mark reading "chosen" is the only
@@ -361,9 +361,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
    marked itself lf-live — this block's name for the visually-hidden live region —
    and every tabbed page clipped to a pixel.) */
 @scope (.lf-chrome) {
-  /* The document can scroll its last line above the bottom band. A root workspace
-     ends above the band, so this room fills the rest of the window after it. */
-  :scope { padding-bottom: var(--lf-band-h); }
+  /* The document can scroll its last line above the bottom bar. A root workspace
+     ends above the bar, so this room fills the rest of the window after it. */
+  :scope { padding-bottom: var(--lf-bottom-bar-h); }
   /* The layer is the runtime's, not the document's, so it never prints — one rule
      for all of it, rather than each piece remembering. :scope is the container
      itself, which is why this can't be written at document level without widening
@@ -383,8 +383,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     overflow: visible; clip-path: none; pointer-events: auto; white-space: normal;
     border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
     color: var(--ink); box-shadow: 0 8px 24px var(--shade);
-    outline: var(--here-ring); --lf-here-ring: visual-target;
-    outline-offset: calc(-1 * var(--here-ring-w)); }
+    outline: var(--focus-ring); --lf-focus-ring: visual-target;
+    outline-offset: calc(-1 * var(--focus-ring-w)); }
   /* The hand only where the press lands. An element anchor wears its outline
      wherever its element stands, the layer's own parts included — that is what lets
      a design comment about the banner point at the banner, and a thread about a
@@ -428,13 +428,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      instead of the 67 aimed at, and the composer quoted the page from that passage down
      through every widget. Answered at the root, because a rule per surface is a list
      that stops being complete: the banner, the shortcut bar and the panel's head were named
-     and the panel itself, the trays, the shelf's menu, the command reference, the find
+     and the panel itself, the drawers, the toolbar's menu, the command reference, the find
      row and the asks list were left open, all of them selectable and every one of them
      the same drag. What a user may still copy out of here says so for itself, at
      .lf-quote and .lf-msg-body below. */
   :scope, .lf-legend { position: static; }
   /* The mark's box, at the root because two surfaces draw the same mark — the banner's
-     state leaf and a row per live page in the tray — and because the banner's cap has
+     state leaf and a row per live page in the drawer — and because the banner's cap has
      to reserve the room it takes beside the status sentence. */
   :scope { cursor: auto; user-select: none; -webkit-user-select: none; --lf-mark-w: 16px;
     font: var(--t-5) / var(--lf-ui-lh) var(--sans); color: var(--ink);
@@ -474,12 +474,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-banner-status, .lf-banner-actions { display: flex; align-items: center;
     gap: var(--lf-banner-gap); }
   /* The sentence wins the row. It takes whatever the controls leave and keeps a floor
-     of its own below that, which is what the shelf's cap on the next rule states from
+     of its own below that, which is what the toolbar's cap on the next rule states from
      the other end. Growing into free space rather than reserving its own words is what
      keeps the row still: a status ageing from "is working" to "last checked in" is a
      longer sentence in a box that has not changed size, so nothing beside it moves. */
   .lf-banner-status { flex: 1 1 auto; min-width: 0; }
-  /* Keep a readable start of the status sentence beside the shelf's fixed primary
+  /* Keep a readable start of the status sentence beside the toolbar's fixed primary
      controls. The reservation is independent of changing status copy, so updates
      cannot move controls under the user's pointer. */
   .lf-banner-actions { flex: 0 0 auto; min-width: 0;
@@ -514,7 +514,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-dot.listening { background: var(--ok); }
   .lf-dot.away { background: var(--warn); }
   .lf-dot.offline { background: var(--danger); }
-  /* The developer preview is a key badge like the rest, but the shelf keeps it behind
+  /* The developer preview is a key badge like the rest, but the toolbar keeps it behind
      the overflow door at every width. It stays here in the shared key-badge vocabulary
      because the menu moves the same node rather than constructing a second diagnostic.
      A press copies the diagnostics, so its text is one line however long the name is. */
@@ -534,8 +534,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     border-right: 1px solid var(--muted); border-bottom: 1px solid var(--muted);
     transform: rotate(45deg); margin: -3px 3px 0 0; }
   .lf-status-button:hover { color: var(--ink); }
-  .lf-status-button:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
-    outline-offset: 2px; --lf-here-ring: status; }
+  .lf-status-button:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+    outline-offset: 2px; --lf-focus-ring: status; }
   .lf-status-text { color: inherit; min-width: 0; overflow: hidden;
     display: block; text-overflow: ellipsis; white-space: nowrap; line-height: 1.35; }
   .lf-status-detail { --lf-banner-panel-gap: 8px;
@@ -546,8 +546,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     padding: 14px 16px; border: 1px solid var(--border-2); border-radius: var(--r);
     background: var(--card); color: var(--ink-2); box-shadow: 0 8px 24px var(--shade);
     white-space: normal; overflow-wrap: anywhere; }
-  .lf-status-detail:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
-    outline-offset: 2px; --lf-here-ring: status-detail; }
+  .lf-status-detail:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+    outline-offset: 2px; --lf-focus-ring: status-detail; }
   .lf-status-text:has(.lf-publication-install) { display: flex; gap: 0.6em; }
   .lf-publication-copy { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .lf-publication-link, .lf-publication-install { flex: none; }
@@ -566,7 +566,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      here for the same reason the Page Map says it: hidden is a display of its own. */
   .lf-banner-more[hidden] { display: none; }
   /* The open auxiliary surface wears the same accent face, from the state it already
-     publishes: setOpenTray and the Threads toggle keep aria-expanded true on exactly
+     publishes: setOpenDrawer and the Threads toggle keep aria-expanded true on exactly
      the one surface standing, so the tint is that fact painted rather than a
      second class to keep in step. Scoped, because lf-auxiliary-toggle is worn only by the
      banner's own controls — All leaves, Asks, Threads — and a rule for it at
@@ -577,11 +577,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* News on a banner control is one mark: an accent dot in the control's corner, for
      unread threads, for More holding something new, and for Versions while a newer
      version waits. It is painted inside the box the control already reserved, as the
-     open tint above is. An inline marker is width instead of paint: the shelf is
+     open tint above is. An inline marker is width instead of paint: the toolbar is
      measured to seat its primary controls on a 320px phone with nothing to spare, so
      eleven pixels of marker put Threads past the window's edge at every count, whether
-     or not anything was unread. Not an accent contour: that is the here ring's colour
-     on the here ring's edge, so a door with news behind it read as the focused control
+     or not anything was unread. Not an accent contour: that is the focus ring's colour
+     on the focus ring's edge, so a door with news behind it read as the focused control
      while the user was typing somewhere else. */
   :is(.lf-threads-toggle, .lf-banner-more, .lf-version) { position: relative; }
   :is(.lf-threads-toggle[data-unread-threads], .lf-banner-more[data-lf-news],
@@ -624,7 +624,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   @layer lf-reset {
     .lf-thread-action { font: inherit; }
   }
-  /* The chooser's menu replaces More at the same fixed banner door. Opening it closes
+  /* The picker's menu replaces More at the same fixed banner door. Opening it closes
      More, so the user sees one root popup rather than a child covering its invoker.
      It is anchored rather than measured, so nothing recomputes a position when the
      row's contents change width.
@@ -635,7 +635,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
 
      Two columns, because a version and what it changed are one row's two halves: the
      note says it in words and Compare marks it on the page. That press was a second
-     control out on the bar, naming a second version number beside the chooser's, and
+     control out on the bar, naming a second version number beside the picker's, and
      the two together said no more than either — a user could tell that v2 and v3
      were both being mentioned and not what either mention was for. The pair are grid
      siblings rather than a wrapper each, because a role="menu" owns menuitems and a
@@ -663,8 +663,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     text-align: left; padding: 6px 8px; border: 0; border-radius: 4px;
     background: none; color: inherit; cursor: pointer; width: 100%; }
   .lf-version-row:hover { background: var(--chip); }
-  .lf-version-row:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: version-row;
-    outline-offset: calc(-1 * var(--here-ring-w)); }
+  .lf-version-row:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: version-row;
+    outline-offset: calc(-1 * var(--focus-ring-w)); }
   /* The version being read wears the accent rather than a fill, so the row the
      pointer is over stays the one that looks pressable. */
   .lf-version-row[aria-current] .lf-version-num { color: var(--accent); font-weight: 600; }
@@ -684,8 +684,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     border: 1px solid var(--rule); border-radius: 4px; background: none;
     color: var(--ink-2); cursor: pointer; font-size: var(--t-6); line-height: 1.4; }
   .lf-version-diff:hover { border-color: var(--border-2); background: var(--chip); }
-  .lf-version-diff:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: version-diff;
-    outline-offset: calc(-1 * var(--here-ring-w)); }
+  .lf-version-diff:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: version-diff;
+    outline-offset: calc(-1 * var(--focus-ring-w)); }
   .lf-version-diff[aria-checked="true"] { border-color: var(--accent); color: var(--accent);
     background: var(--chip); }
   /* A diff is a span rather than a point — everything that changed across the versions
@@ -695,18 +695,18 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      the rows rather than the presses because the rows are the run that touch. */
   .lf-version-row.lf-compared::before { content: ""; position: absolute;
     left: 0; top: 0; bottom: 0; width: 2px; background: var(--accent); }
-  /* The trays' edge: the thread panel's mirror on the left, holding one tray at a
-     time (setOpenTray), each its own scroll region so one wheel gesture moves one region.
-     Every metric is the edge's rather than either tray's — a user who has both keys
+  /* The drawers' edge: the thread panel's mirror on the left, holding one drawer at a
+     time (setOpenDrawer), each its own scroll region so one wheel gesture moves one region.
+     Every metric is the edge's rather than either drawer's — a user who has both keys
      should not find two different regions where they learned one — and it is stated once
      here for both. It used to be stated twice, in two rules with every declaration
      duplicated, and by the time anyone looked one copy was carrying a literal 300 where
-     the other read the constant; what the two trays differ in is the row, below. */
-  .lf-tray-panel { position: fixed; top: var(--lf-banner-h); left: 0; bottom: 0;
-    z-index: var(--lf-z-surface); width: var(--lf-tray-slot-width); background: var(--card);
+     the other read the constant; what the two drawers differ in is the row, below. */
+  .lf-drawer-panel { position: fixed; top: var(--lf-banner-h); left: 0; bottom: 0;
+    z-index: var(--lf-z-surface); width: var(--lf-drawer-slot-width); background: var(--card);
     border-right: 1px solid var(--rule); display: none; flex-direction: column;
     padding-bottom: var(--lf-safe-bottom); padding-left: var(--lf-safe-left); }
-  .lf-tray-panel.open { display: flex; }
+  .lf-drawer-panel.open { display: flex; }
   /* A covering auxiliary surface takes the whole window: the banner is one of the inert siblings,
      not an available strip above it. Its shared scrim therefore stands above the banner
      and below the active surface. Chrome-owned targeting and native top-layer dialogs
@@ -714,8 +714,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-auxiliary-scrim { position: fixed; inset: 0;
     z-index: var(--lf-z-scrim); background: color-mix(in srgb, var(--ink) 24%, transparent); }
   .lf-auxiliary-scrim[hidden] { display: none; }
-  :is(.lf-tray-panel, .lf-thread-panel)[aria-modal="true"] { z-index: var(--lf-z-covering-surface); }
-  /* The rows scroll in a box of their own rather than in the tray, which is the comment
+  :is(.lf-drawer-panel, .lf-thread-panel)[aria-modal="true"] { z-index: var(--lf-z-covering-surface); }
+  /* The rows scroll in a box of their own rather than in the drawer, which is the comment
      panel's shape (.lf-threads) reflected, and here it is what lets the edge exist at
      all: a scroll container clips to its padding box, so an edge straddling the border
      was cut to the three pixels inside it, and an absolutely positioned child of a
@@ -723,20 +723,20 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      list, an edge being a fact about the region rather than about how far down it the
      user has read. contain, so reaching the end of the list does not start scrolling
      the page behind it: one wheel gesture moves one region. */
-  /* The tray stands to the window's foot, under the bottom band, so its list ends above
+  /* The drawer stands to the window's foot, under the bottom bar, so its list ends above
      the band for a wheel to the end (padding) and a walk's scroll into view alike
      (scroll-padding). */
-  .lf-tray-list { flex: 1; min-height: 0;
-    padding: 6px 4px calc(6px + var(--lf-band-h));
-    scroll-padding-bottom: calc(var(--lf-band-h) + max(12px, var(--here-ring-room)));
+  .lf-drawer-list { flex: 1; min-height: 0;
+    padding: 6px 4px calc(6px + var(--lf-bottom-bar-h));
+    scroll-padding-bottom: calc(var(--lf-bottom-bar-h) + max(12px, var(--focus-ring-room)));
     overflow-y: auto;
     overscroll-behavior: contain; }
   .lf-others-row { display: block; padding: 8px 10px; border-radius: 6px; color: inherit;
     text-decoration: none; }
   .lf-others-row > svg[data-lf-gen="1"] { display: none; }
   a.lf-others-row:hover { background: var(--chip); }
-  .lf-others-row:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: others-row;
-    outline-offset: calc(-1 * var(--here-ring-w)); }
+  .lf-others-row:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: others-row;
+    outline-offset: calc(-1 * var(--focus-ring-w)); }
   .lf-others-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .lf-others-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden;
     text-overflow: ellipsis; }
@@ -753,13 +753,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     cursor: pointer; }
   .lf-asks-row:hover { background: var(--chip); }
   /* Both rings this row can wear, inset together. A control packed into a list states
-     its own inset (theme.css, --here-ring), because the list clips to its padding box.
+     its own inset (theme.css, --focus-ring), because the list clips to its padding box.
      The second ring arrives from a rule written for a page element with room around
-     it: while the tray is open the row mirrors the standing decision (markHere) wherever
-     the tray lists that decision, so it wears the decision's own outset ring and lost a pixel of
+     it: while the drawer is open the row mirrors the standing decision (markHere) wherever
+     the drawer lists that decision, so it wears the decision's own outset ring and lost a pixel of
      it to each edge. */
   .lf-asks-row:is(:focus-visible, .lf-focus-visible, [data-lf-ask]) {
-    outline: var(--here-ring); --lf-here-ring: asks-row; outline-offset: calc(-1 * var(--here-ring-w)); }
+    outline: var(--focus-ring); --lf-focus-ring: asks-row; outline-offset: calc(-1 * var(--focus-ring-w)); }
   /* What kind of thing is asking, in the apparatus voice, over the decision's own words in
      the page's. Two lines, because they are two claims: the kind is the runtime's word
      for the element and the words below it are the page's own. */
@@ -780,7 +780,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-asks[data-lf-complete] { border-color: var(--ok);
     background: var(--ok-tint); color: var(--ok-ink); }
   /* Version news remains a legible control at every width. When the row runs out of
-     room the shelf above scrolls; clipping the one control instead left a visible
+     room the toolbar above scrolls; clipping the one control instead left a visible
      eighteen-pixel button containing none of its words. */
   .lf-latest-chip { background: var(--warn-tint); border: 1px solid var(--warn); color: var(--warn-ink); border-radius: 6px; padding: 3px 8px; flex: none; }
   .lf-thread-panel { position: fixed; inset: var(--lf-banner-h) 0 0 auto;
@@ -798,7 +798,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
        list and scrolled nothing. It was invisible while the reserved gutter hung the
        whole panel a bar's width off the left of the window (see the root's rule above,
        and #121), which put the list back under that strip by accident. The safe-area
-       sides are the tray's, mirrored: this sheet takes the right inset and that one the
+       sides are the drawer's, mirrored: this sheet takes the right inset and that one the
        left, and both take the bottom. */
     padding: 0 var(--lf-safe-right) var(--lf-safe-bottom) 0; }
   .lf-thread-panel[open] { display: flex; }
@@ -808,7 +808,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      shows. The dialog is shown non-modally either way, so it
      needs no ::backdrop of its own. */
   /* An edge, offered as a thing to take hold of — the thread panel's on the right of
-     the page, the trays' on the left, and nothing here knows which it is drawing except
+     the page, the drawers' on the left, and nothing here knows which it is drawing except
      the two lines that place it. It draws nothing of its own: the region's inner border
      is the line the user already sees, and this is the room around that line in which
      a pointer counts as being on it. It straddles the border rather than sitting inside
@@ -826,7 +826,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      have been two meanings a selector cannot tell apart. The regions this edge draws
      were boards until the same reading caught them: lf-board is a widget an author
      writes into a page, so a grep for it hit the runtime's own furniture and a grep for
-     the furniture hit the widget. They are trays now, and the word is core's alone. */
+     the furniture hit the widget. They are drawers now, and the word is core's alone. */
   /* Held a ring's width in from both ends, because a flush ring at either end is
      drawn where nothing can show it: under the banner at the head, past the bottom of
      the window at the foot — and the user tabbing to the edge got a ring missing that
@@ -836,8 +836,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      handle gives up those pixels of reach at both; the alternative is a ring inside an
      eight-pixel strip, which is a second accent line beside the one ::before already
      draws. RINGS_DRAWN fails the page if either run goes back. */
-  .lf-edge { position: absolute; top: var(--here-ring-w);
-    bottom: var(--here-ring-w); width: 8px;
+  .lf-edge { position: absolute; top: var(--focus-ring-w);
+    bottom: var(--focus-ring-w); width: 8px;
     z-index: 1; cursor: col-resize; touch-action: none; }
   .lf-edge::before { content: ""; position: absolute; top: 0; bottom: 0;
     width: 2px; background: var(--accent); opacity: 0; transition: opacity .12s; }
@@ -850,8 +850,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* Pointer capture carries :hover with it, so one rule covers the reach and the whole
      drag that follows it. */
   .lf-edge:hover::before, .lf-edge:is(:focus-visible, .lf-focus-visible)::before { opacity: 1; }
-  .lf-edge:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: edge; }
-  .lf-thread-panel-head, .lf-tray-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--rule); font-weight: 600; }
+  .lf-edge:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: edge; }
+  .lf-thread-panel-head, .lf-drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--rule); font-weight: 600; }
   .lf-first-unread { margin-inline-start: auto; margin-inline-end: 8px; color: var(--turn-ink);
     font-size: var(--t-6); white-space: nowrap; }
   /* The words in here, against the apparatus the root has already answered for: a reply
@@ -931,7 +931,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-threads-frame::after, .lf-threads { grid-area: 1 / 1; min-height: 0; }
   .lf-threads { overflow-y: auto; overscroll-behavior: contain; z-index: 0;
     padding: 4px 8px; --lf-block-frame: 1;
-    scroll-padding: var(--here-ring-room) 0; }
+    scroll-padding: var(--focus-ring-room) 0; }
   /* An Escape rung lands on the list (general box → list). Whichever thread crosses
      its viewport edge paints after the scrollport, so an
      outline on the list itself disappears under them. Draw the identical inset ring on
@@ -941,8 +941,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-threads-frame::after { content: ""; pointer-events: none; z-index: 1; }
   .lf-threads:is(:focus-visible, .lf-focus-visible) { outline: none; }
   .lf-threads-frame:has(> .lf-threads:is(:focus-visible, .lf-focus-visible))::after {
-    outline: var(--here-ring); --lf-here-ring: thread-list;
-    outline-offset: calc(-1 * var(--here-ring-w));
+    outline: var(--focus-ring); --lf-focus-ring: thread-list;
+    outline-offset: calc(-1 * var(--focus-ring-w));
   }
   .lf-empty { color: var(--muted); padding: 18px 4px; }
   /* A thread and the room a resolved one is still giving back (foldOut) are the same
@@ -966,8 +966,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     text-align: left; font: 500 13px/18px var(--sans); cursor: pointer; }
   .lf-thread-summary:hover { background: var(--chip); }
   .lf-thread-summary::-webkit-details-marker { display: none; }
-  .lf-thread-summary:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
-    outline-offset: calc(-1 * var(--here-ring-w)); --lf-here-ring: thread-summary; }
+  .lf-thread-summary:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+    outline-offset: calc(-1 * var(--focus-ring-w)); --lf-focus-ring: thread-summary; }
   .lf-thread-topic { grid-column: 1; grid-row: 1; min-width: 0; overflow: hidden;
     text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
   /* A placeholder stands in the title's place: muted and lighter, with a highlight
@@ -994,6 +994,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-status { max-width: 150px; min-width: 0; overflow: hidden; text-overflow: ellipsis;
     white-space: nowrap; color: var(--muted); font-size: 11px; }
   .lf-thread-status[data-lf-turn="user"] { color: var(--turn-ink); }
+  /* Open, the card shows what these digest: a message's stage, the draft, the unread. */
+  details[open] > .lf-thread-summary .lf-thread-meta > [data-lf-folded] { display: none; }
   .lf-thread-trailing { grid-column: 2; grid-row: 1; display: flex; align-items: center;
     justify-content: flex-end; gap: 4px; color: var(--muted); white-space: nowrap; }
   .lf-thread-recency { font-size: 10px; }
@@ -1032,8 +1034,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-summary-originals[hidden] { display: none; }
   .lf-summary-originals > .lf-msg { margin: 16px 8px; }
   .lf-summary-expand:is(:focus-visible, .lf-focus-visible) {
-    outline: var(--here-ring); --lf-here-ring: summary-fold;
-    outline-offset: calc(-1 * var(--here-ring-w)); }
+    outline: var(--focus-ring); --lf-focus-ring: summary-fold;
+    outline-offset: calc(-1 * var(--focus-ring-w)); }
   /* Drafts begin at the sent message's text edge. Send shares the field's row;
      right padding keeps draft text clear of it as the field grows. */
   .lf-thread-compact > .lf-compose { margin: 16px 0 8px; }
@@ -1041,7 +1043,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     border: 1px solid var(--border-2); border-radius: 6px; background: var(--card);
   }
   .lf-thread-compact > .lf-compose .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus)) {
-    outline: var(--here-ring); --lf-here-ring: text-box;
+    outline: var(--focus-ring); --lf-focus-ring: text-box;
     border-color: transparent;
   }
   .lf-thread-compact > .lf-compose .lf-compose-field > leaf-text {
@@ -1087,7 +1089,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      over that same ground. */
   .lf-thread:is(:focus-within, .lf-focus-within) {
     outline: none;
-    background: var(--here-surface);
+    background: var(--focus-surface);
   }
   .lf-quote { margin: 0 0 12px; padding: 2px 8px 2px 10px;
     border-inline-start: 1px solid var(--border-2); color: var(--muted);
@@ -1096,7 +1098,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-head { margin-bottom: 12px; }
   .lf-thread-head > .lf-quote { margin: 0; }
   .lf-quote:is(:hover, :focus-visible, .lf-focus-visible) { color: var(--ink-2); }
-  .lf-quote:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: passage-focus;
+  .lf-quote:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: passage-focus;
     outline-offset: 2px; }
   .lf-thread-head > .lf-quote:not(.detached)::after { content: "  ↗ page";
     color: var(--accent); font-size: var(--t-6); font-style: normal; white-space: nowrap; }
@@ -1174,8 +1176,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      the platform's own ring, which is a real mark and the wrong one here: the pair
      looked like two kinds of control, and a walk into resolved threads changed shape
      halfway. */
-  .lf-thread-action:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
-    --lf-here-ring: thread-action; outline-offset: 2px; }
+  .lf-thread-action:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+    --lf-focus-ring: thread-action; outline-offset: 2px; }
   .lf-resolved-by { color: var(--muted); }
   .lf-general { padding: 12px 16px; border-top: 1px solid var(--rule); }
   .lf-system { color: var(--ok); margin: 8px 0; }
@@ -1221,16 +1223,16 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     color: var(--ink-2); font-weight: 400; line-height: 1.3;
     padding-block: var(--lf-compose-pad-block, calc((var(--lf-response-height) - 1lh - 2px) / 2));
     box-shadow: 0 2px 8px var(--shade); }
-  /* The bar keeps one silhouette through every state it has, so the here ring is cast
+  /* The bar keeps one silhouette through every state it has, so the focus ring is cast
      as a shadow beside the lift rather than drawn as an outline the corner would have
-     to be re-stated for. It is still the layer's band (--here-shadow, theme.css), and
+     to be re-stated for. It is still the layer's band (--focus-shadow, theme.css), and
      the name goes with it: this rule takes the outline off the pressables the bar holds,
      so without one they would credit the floor's `pressable` for a ring the floor is no
      longer drawing. */
   .lf-response-control:is(:focus, :focus-visible, .lf-focus, .lf-focus-visible) {
-    outline: none; --lf-here-ring: response-control;
+    outline: none; --lf-focus-ring: response-control;
     border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
-    box-shadow: var(--here-shadow) color-mix(in srgb, var(--accent) 25%, transparent),
+    box-shadow: var(--focus-shadow) color-mix(in srgb, var(--accent) 25%, transparent),
       0 2px 8px var(--shade); }
   /* The field takes the size its words want. A short note is one line; a
      longer one widens to a readable measure before it wraps, then grows along the edge
@@ -1333,22 +1335,22 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
        to paint over them, including under package and page-local theme rules. */
     background: none !important; }
   .lf-visual-mark.lf-visual-mark-pending {
-    --lf-shape-stroke: var(--here-ring-w);
-    border: var(--here-ring-w) solid var(--accent); }
+    --lf-shape-stroke: var(--focus-ring-w);
+    border: var(--focus-ring-w) solid var(--accent); }
   .lf-visual-mark.lf-visual-mark-action {
     --lf-shape-ink: var(--accent); border: 1px solid var(--accent); }
   .lf-visual-mark.lf-visual-mark-hover {
-    border: var(--here-ring-w) solid var(--accent); }
+    border: var(--focus-ring-w) solid var(--accent); }
   .lf-visual-mark.lf-visual-mark-focus {
-    --lf-shape-ink: var(--accent); border: var(--here-ring-w) solid var(--accent); }
+    --lf-shape-ink: var(--accent); border: var(--focus-ring-w) solid var(--accent); }
   .lf-visual-mark:is(.lf-visual-mark-hover, .lf-visual-mark-focus,
       .lf-visual-mark-here) {
-    --lf-shape-stroke: var(--here-ring-w); }
+    --lf-shape-stroke: var(--focus-ring-w); }
   .lf-visual-mark:is(.lf-visual-mark-pending, .lf-visual-mark-hover,
       .lf-visual-mark-here) {
     --lf-shape-ink: var(--accent); }
   .lf-visual-mark.lf-visual-mark-here {
-    border: var(--here-ring-w) solid var(--accent); }
+    border: var(--focus-ring-w) solid var(--accent); }
   .lf-visual-mark.lf-shaped { border: 0; border-radius: 0 !important; }
   html[data-lf-annotations="hidden"] :scope
     .lf-visual-mark:is(.lf-visual-mark-comment, .lf-visual-mark-reaction):not(
@@ -1397,7 +1399,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-command-reference-search { width: 100%; box-sizing: border-box; font: inherit; padding: 7px 9px;
     border: 1px solid var(--border-2); border-radius: var(--r); background: var(--paper);
     color: var(--ink); }
-  .lf-command-reference-search:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: help-search; outline-offset: 1px; }
+  .lf-command-reference-search:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: help-search; outline-offset: 1px; }
   .lf-command-reference-meta { min-height: 1.2em; margin-top: 6px; color: var(--muted);
     font-size: var(--t-6); }
   .lf-command-reference-results { --lf-command-key-column: 104px;
@@ -1432,8 +1434,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     font: inherit; text-align: left; cursor: pointer; }
   .lf-command-reference-command:is(:hover, :focus-visible),
   .lf-command-reference-command[data-lf-selected="true"] { background: var(--chip); }
-  .lf-command-reference-command:focus-visible { outline: var(--here-ring);
-    --lf-here-ring: help-command; outline-offset: 1px; }
+  .lf-command-reference-command:focus-visible { outline: var(--focus-ring);
+    --lf-focus-ring: help-command; outline-offset: 1px; }
   .lf-command-reference-command[data-lf-available="false"] { color: var(--muted); }
   .lf-page-map-toggle { display: none; }
   /* margin-projection.js writes the width and height cap thread-card-geometry.js
@@ -1447,7 +1449,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     width: var(--lf-thread-width, min(var(--thread-card), calc(100vw - 16px)));
     max-height: var(--lf-thread-max-height,
       calc(100vh - var(--lf-banner-h) - 16px));
-    box-sizing: border-box; overflow: hidden; scroll-padding-block: var(--here-ring-room);
+    box-sizing: border-box; overflow: hidden; scroll-padding-block: var(--focus-ring-room);
     margin: 0; padding: 12px; border: 1px solid var(--border-2); border-radius: 10px;
     background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px var(--shade); }
   .lf-margin-preview:not([hidden]) { display: flex; flex-direction: column; }
@@ -1472,7 +1474,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      controls share one sticky metadata row. */
   .lf-margin-preview-list { display: grid; gap: 4px;
     min-height: 0; overflow-y: auto; overscroll-behavior: contain;
-    scroll-padding-block: var(--here-ring-room); }
+    scroll-padding-block: var(--focus-ring-room); }
   .lf-margin-thread { min-width: 0; padding-top: 10px; border-top: 1px solid var(--rule); }
   .lf-margin-thread:first-child { padding-top: 0; border-top: 0; }
   /* The thread's first message opens directly at the card edge. */
@@ -1495,7 +1497,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      to scroll does not drop it by that padding. */
   .lf-margin-thread .lf-say { align-items: stretch; position: sticky; bottom: 0;
     margin-top: 0; margin-inline: calc(-1 * var(--sp-2));
-    padding-block: var(--sp-3) calc(var(--here-ring-room) + var(--sp-1));
+    padding-block: var(--sp-3) calc(var(--focus-ring-room) + var(--sp-1));
     background: inherit; }
   .lf-margin-thread .lf-say leaf-text { padding-inline-start: 7px; }
   .lf-margin-thread .lf-say leaf-text { min-width: 0;
@@ -1537,8 +1539,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      a box whose edge touches something that paints. The ring's width is the inset,
      so the band lands just inside the row's own edge. */
   .lf-page-map-action:focus-visible {
-    outline: var(--here-ring); --lf-here-ring: page-map-action;
-    outline-offset: calc(-1 * var(--here-ring-w)); }
+    outline: var(--focus-ring); --lf-focus-ring: page-map-action;
+    outline-offset: calc(-1 * var(--focus-ring-w)); }
   .lf-page-map-dialog { position: fixed; z-index: var(--lf-z-dialog); width: min(560px, calc(100vw - 24px));
     max-height: min(720px, calc(100vh - 24px)); margin: auto; padding: 14px;
     border: 1px solid var(--border-2); border-radius: 12px; background: var(--paper);
@@ -1577,34 +1579,34 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     .lf-page-map-action:focus-visible {
       outline: 2px solid Highlight; }
   }
-  /* The bottom band is the banner's counterpart at the window's foot: one row at one
-     stated height (--lf-band-h, theme.css), drawn across the page, which ends above it.
-     Its height is a constant rather than a reading of what it holds, so the page's end,
-     a held workspace, the trays' lists, and the contents map all end at the same known
-     line, and nothing the band shows moves anything on the page.
+  /* The bottom bar is the banner's counterpart at the window's foot: one row at one
+     stated height (--lf-bottom-bar-h, theme.css), drawn across the page, which ends
+     above it. Its height is a constant rather than a reading of what it holds, so the
+     page's end, a full-height workspace, the drawers' lists, and the contents map all
+     end at the same known line, and nothing the bar shows moves anything on the page.
 
-     The shortcut line is the band. It gives two contextual hints and the More control
+     The shortcut line is the bar. It gives two contextual hints and the More control
      rendered from the register the dispatcher walks (see the module docstring). A
      sequence shows as much of its live scope as one row holds. More unfolds the
-     remaining current register into a two-row shelf before it opens the complete
-     reference; the shelf grows the line upward over the page as a temporary overlay and
-     leaves the band's reservation where it was. Hints are the
+     remaining current register into a two-row expanded bar before it opens the complete
+     reference; the expanded bar grows the line upward over the page as a temporary
+     overlay and leaves the bar's reservation where it was. Hints are the
      eye's copy of facts spoken elsewhere and stay aria-hidden; More is a real control.
      Useful transient state — a semantic walk's live ordinal, or a brief command or
-     arrival notice in its place — stands at the band's other end, over the line's tail
-     where the two would meet. syncLayout keeps the band out of the thread panel, which
+     arrival notice in its place — stands at the bar's other end, over the line's tail
+     where the two would meet. syncLayout keeps the bar out of the thread panel, which
      stands over the page's right edge. A covering auxiliary surface makes it inert
      background. The line wraps so the runtime can see which hints spill past one row,
-     and hides them (two rows in the shelf): one row fills the band's stated height
-     exactly, and the shelf's second grows the line upward. The rows pack to the foot,
-     and the foot's padding centres a row of key badges in the band, so the last row
-     stands where a one-row line does, level with the status. Overflow is the backstop
-     for a single hint wider than the window. */
+     and hides them (two rows in the expanded bar): one row fills the bar's stated
+     height exactly, and the expanded bar's second grows the line upward. The rows pack
+     to the foot, and the foot's padding centres a row of key badges in the bar, so the
+     last row stands where a one-row line does, level with the status. Overflow is the
+     backstop for a single hint wider than the window. */
   .lf-shortcut-bar { position: fixed; left: 0; right: var(--lf-shortcut-bar-right, 0px);
     bottom: 0; z-index: var(--lf-z-shortcut-bar); pointer-events: none;
-    box-sizing: border-box; min-height: var(--lf-band-h);
+    box-sizing: border-box; min-height: var(--lf-bottom-bar-h);
     padding: 9px calc(18px + var(--lf-safe-right))
-      calc((var(--lf-band-h) + var(--lf-safe-bottom) - var(--lf-key-badge-size)) / 2)
+      calc((var(--lf-bottom-bar-h) + var(--lf-safe-bottom) - var(--lf-key-badge-size)) / 2)
       calc(18px + var(--lf-safe-left));
     display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center;
     align-content: flex-end;
@@ -1613,8 +1615,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     overflow: hidden; white-space: nowrap; }
   .lf-bottom-status { position: fixed;
     right: calc(18px + var(--lf-safe-right) + var(--lf-shortcut-bar-right, 0px));
-    /* Centred on the band's row whatever the status holds. */
-    bottom: calc(var(--lf-safe-bottom) + (var(--lf-band-h) - var(--lf-safe-bottom)) / 2);
+    /* Centred on the bottom bar's row whatever the status holds. */
+    bottom: calc(var(--lf-safe-bottom) + (var(--lf-bottom-bar-h) - var(--lf-safe-bottom)) / 2);
     translate: 0 50%;
     /* Passive feedback remains visible above a covering auxiliary surface. */
     z-index: var(--lf-z-bottom-status); pointer-events: none;
@@ -1679,11 +1681,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* Inside, because the line clips: the button pulls itself out of the row by 3px so
      its own padding does not grow the line, and a ring drawn a further pixel out lands
      past the line's padding box, which overflow: hidden cuts. A control packed into
-     a list states its own inset (theme.css, --here-ring) — the joined option group does
+     a list states its own inset (theme.css, --focus-ring) — the joined option group does
      the same — and here the line's own border is what stands
      the whole thing off the page. */
-  .lf-shortcut-more:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: key-more;
-    outline-offset: calc(-1 * var(--here-ring-w)); }
+  .lf-shortcut-more:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: key-more;
+    outline-offset: calc(-1 * var(--focus-ring-w)); }
   /* Design mode: the user is commenting on the layer rather than the page, and for
      as long as they are the page shows its bones. Every item — a widget, a section, a
      heading with an id — wears a legend box: a dashed hairline in the chrome's layer,
@@ -1707,24 +1709,24 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* Ask binding badges sit on the answer control's upper-left corner. Unlike a route name
      above prose, the single digit is a local label for the control it touches. */
   .lf-ask-binding-badges > .lf-ask-binding-badge { transform: translate(-50%, -50%); }
-  /* The Target chooser and Go-to sequence both give visible targets generated, prefix-free
+  /* The Target picker and Go-to sequence both give visible targets generated, prefix-free
      names while their interaction stands. Every hint remains visible: the face is
      the route itself, not a reminder of a predictable ordinal. */
-  .lf-target-chooser-hints, .lf-go-to-hints {
+  .lf-target-picker-hints, .lf-go-to-hints {
     position: fixed; inset: 0; z-index: var(--lf-z-key-badges); pointer-events: none;
   }
-  :is(.lf-target-chooser-hints, .lf-go-to-hints) > .lf-key-hint {
+  :is(.lf-target-picker-hints, .lf-go-to-hints) > .lf-key-hint {
     position: absolute; display: block;
     min-width: 0; height: auto; padding: 0; border: 0; background: transparent;
     transform: translate(-50%, -50%); }
-  :is(.lf-target-chooser-hints, .lf-go-to-hints) > .lf-key-hint.lf-in {
+  :is(.lf-target-picker-hints, .lf-go-to-hints) > .lf-key-hint.lf-in {
     transform: translate(-50%, 0);
   }
   /* The hint the keyboard is browsing is where the user is standing in this mode, so
      it wears the layer's band — cast as a shadow, since a chip in a layer nothing can
      focus has no outline state to hang it on. */
-  :is(.lf-target-chooser-hints, .lf-go-to-hints) > .lf-key-hint.lf-current { font-weight: 700;
-    --lf-here-ring: target-hint; box-shadow: var(--here-shadow) var(--accent); }
+  :is(.lf-target-picker-hints, .lf-go-to-hints) > .lf-key-hint.lf-current { font-weight: 700;
+    --lf-focus-ring: target-hint; box-shadow: var(--focus-shadow) var(--accent); }
   /* Search has one active result, painted as a quiet wash rather than a second native
      selection. The real Selection is made only on Enter, when the ordinary comment
      surface takes over. One inset line survives over both light and dark authored fills
@@ -1743,8 +1745,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-page-search-box { min-width: 0; box-sizing: border-box; font: inherit;
     padding: 6px 8px; border: 1px solid var(--border-2); border-radius: 5px;
     background: var(--paper); color: var(--ink); }
-  .lf-page-search-box:focus-visible { outline: var(--here-ring);
-    --lf-here-ring: target-search; outline-offset: 1px; }
+  .lf-page-search-box:focus-visible { outline: var(--focus-ring);
+    --lf-focus-ring: target-search; outline-offset: 1px; }
   .lf-page-search-status { min-width: 58px; color: var(--muted);
     font-size: var(--t-6); text-align: right; white-space: nowrap; }
   .lf-legend-box { position: absolute; pointer-events: none;
@@ -1792,17 +1794,15 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
       align-items: center; justify-content: center; }
     /* Forty on the covering row, or the aim floor where a finger raises that past
        forty: this rule outranks the shared floor (shadow.css) by weight, so it has to
-       carry the floor itself or a touch shelf loses four pixels.
+       carry the floor itself or a touch toolbar loses four pixels.
        It states both axes for the same reason, and the band is the shared control's. */
     .lf-banner-actions > .lf-btn { min-height: max(40px, var(--aim-floor)); padding: 4px 2px; }
-    .lf-banner-menu { right: auto;
-      left: max(calc(8px + var(--lf-safe-left)), anchor(left)); }
-    /* The control run starts at the left on this two-row banner. Keep its menu under
+    /* The control run starts at the left on this two-row banner. Keep each menu under
        the same door; pinning the menu to the viewport's right made it appear to belong
-       to Threads after the Versions door wrapped to the left. Its viewport max-width
-       above still keeps the far edge inside the phone. */
-    .lf-version-menu { right: auto;
-      left: max(calc(8px + var(--lf-safe-left)), anchor(left)); }
+       to Threads after the Versions door wrapped to the left. The door already stands
+       inside the row's inset, so its edge is the menu's; the viewport max-width above
+       keeps the far edge inside the phone. */
+    :is(.lf-banner-menu, .lf-version-menu) { right: auto; left: anchor(left); }
     /* The sheet the Map opens in stands over the whole window and is sized to it, so
        its compact shape belongs to the banner overflow rather than to the rail: it asks
        the window, and this is the block that asks it. */
@@ -1833,12 +1833,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     .lf-shortcut-more { min-width: 44px; min-height: 44px; align-items: center; }
     .lf-edge { top: 50%; bottom: auto; width: 44px; height: 44px;
       transform: translateY(-50%); }
-    .lf-edge[data-lf-side="right"] { left: var(--here-ring-w); }
+    .lf-edge[data-lf-side="right"] { left: var(--focus-ring-w); }
     .lf-edge[data-lf-side="right"]::before {
-      left: calc(-2px - var(--here-ring-w)); }
-    .lf-edge[data-lf-side="left"] { right: var(--here-ring-w); }
+      left: calc(-2px - var(--focus-ring-w)); }
+    .lf-edge[data-lf-side="left"] { right: var(--focus-ring-w); }
     .lf-edge[data-lf-side="left"]::before {
-      right: calc(-2px - var(--here-ring-w)); }
+      right: calc(-2px - var(--focus-ring-w)); }
     .lf-edge::before { top: 10px; bottom: 10px; border-radius: 1px; opacity: .35; }
   }
   /* Windows high-contrast mode suppresses the shadow used by text fields. Restore a

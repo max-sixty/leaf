@@ -32,9 +32,9 @@ import { pageCommand, pageRung, pageScope } from "./register.js";
 // arrived, with the press that finishes the motion unnamed.
 //
 // The page's parts and not every one, which is the reading the target map takes as well:
-// the chrome's own links are the leaves tray's and its resolved comments are the panel's,
+// the chrome's own links are the leaves drawer's and its resolved comments are the panel's,
 // and both of those declare what they answer themselves. Asked of the document at large,
-// "On a link" was had by every page — a machine with one neighbour has a tray full of
+// "On a link" was had by every page — a machine with one neighbour has a drawer full of
 // links — so the reference named it wherever the user went, on pages holding none to
 // stand on. One derivation and not a copy apiece: what a scope here asks is the same pair
 // of questions of a different selector, and the day the chrome rule changes is the day a
@@ -152,7 +152,7 @@ export function declareStanding({ pageState, narrowing, threadsBox }) {
 }
 
 // The foot of Escape's ladder, the page's own. Above it stand the surfaces a user can
-// put on — a captured target, a tray, a narrowing, the thread panel, a page mode — each
+// put on — a captured target, a drawer, a narrowing, the thread panel, a page mode — each
 // contributed by its owner, so the ladder is read off `RUNG_LADDER` rather than written
 // out anywhere. This step leaves the chrome, after every surface has had its turn, and
 // stands down while the let-go above answers, so the reference names one press rather

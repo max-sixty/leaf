@@ -15,7 +15,7 @@
  * How a set is drawn is one fact, its flow (`data-lf-tabs-flow`), which this module
  * writes and reads and every rule for the set's presentation reads. The root set with
  * its strip written as a row is the page's own flow ("page"): its strip sticks under the
- * banner as a cover over the document it indexes, and its panels are sections of the
+ * banner as a sticky header over the document it indexes, and its panels are sections of the
  * page, taking the page's width. Each is then a view with a place of its own: a switch,
  * by press, key, Back, or Forward, is not fragment travel, because a view is not a
  * destination, so the strip stays where it is on screen and the view opens where this
@@ -40,7 +40,7 @@ import {
   capturePlace,
   claimTraversals,
   commands,
-  declareCoverRoom,
+  declareStickyHeaders,
   openAsks,
   layoutChanged,
   listWalkPosition,
@@ -221,7 +221,7 @@ customElements.define(
         },
       ]);
       this.prepend(strip);
-      this.#declareCover();
+      this.#declareStickyHeader();
       this.classList.add("lf-rendered"); // the upgraded marker every widget uses
       // Restore this user's tab; a remembered id always resolves in later
       // versions because check forbids dropping ids. Restoration happens here,
@@ -371,7 +371,7 @@ customElements.define(
       } else if (this.#buttons.size) {
         this.#listenForHistory();
       }
-      this.#declareCover();
+      this.#declareStickyHeader();
       // A set that changed flow drew its open panel at another width.
       if (wasFlow !== this.#pageFlow && this.#active) {
         const child = soleSubstantiveElement(this.#active);
@@ -392,16 +392,16 @@ customElements.define(
     }
 
     // A page-flow strip sticks under the banner, over the document it indexes, so it is
-    // a cover there (`declareCoverRoom`): what it stands over is not on screen, and the room
-    // it takes is kept as `--lf-root-tab-clear`, which the document's `scroll-padding`
-    // reads. The document's covers are one set, so only a set that declared its strip
-    // withdraws one, and a tab set nested in a root panel never clears the root's. A strip
-    // that leaves the document is let go on its own.
-    #declareCover() {
+    // a sticky header there (`declareStickyHeaders`): what it stands over is not on
+    // screen, and the room it takes is kept as `--lf-root-tab-clear`, which the
+    // document's `scroll-padding` reads. The document's sticky headers are one set, so
+    // only a set that declared its strip withdraws one, and a tab set nested in a root
+    // panel never clears the root's. A strip that leaves the document is let go on its own.
+    #declareStickyHeader() {
       const covering = this.#pageFlow && Boolean(this.#strip?.isConnected);
       if (!covering && !this.#covering) return;
       this.#covering = covering;
-      declareCoverRoom(
+      declareStickyHeaders(
         document.documentElement,
         "--lf-root-tab-clear",
         covering ? [this.#strip] : [],

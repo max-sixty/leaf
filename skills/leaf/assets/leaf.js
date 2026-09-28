@@ -45,10 +45,10 @@ import { createDrawingController } from "./runtime/composing/drawing.js";
 import { createDrawingPaint } from "./runtime/composing/drawing-paint.js";
 import { createAim } from "./runtime/composing/aim.js";
 import {
-  createTargetChooser,
-  targetChooserHintLayer,
+  createTargetPicker,
+  targetPickerHintLayer,
   pageSearchSurface,
-} from "./runtime/composing/target-chooser.js";
+} from "./runtime/composing/target-picker.js";
 import { createStandingElement } from "./runtime/composing/standing.js";
 import {
   createReactionController,
@@ -89,12 +89,17 @@ import { askActionLayer, ASK_CONTROL } from "./runtime/asks/view-elements.js";
 import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
 import { createChromeLayout } from "./runtime/chrome-layout.js";
 import { createThreadPanelController } from "./runtime/thread-panel.js";
-import { createTrays, asksPanel, currentTray, othersPanel } from "./runtime/trays.js";
+import {
+  createDrawers,
+  asksPanel,
+  currentDrawer,
+  othersPanel,
+} from "./runtime/drawers.js";
 import { createAuxiliarySurfaces } from "./runtime/auxiliary-surfaces.js";
 import { restoreUserView } from "./runtime/restore-state.js";
 import { watchProjection } from "./runtime/projection-watch.js";
 import { createVersionController } from "./runtime/version.js";
-import { versionMenu, versionMenuIsOpen } from "./runtime/version-chooser.js";
+import { versionMenu, versionMenuIsOpen } from "./runtime/version-picker.js";
 import {
   banner,
   isSignoffDeclared,
@@ -122,7 +127,7 @@ if (validationEntry) {
   validationEntry.lfReadiness = pageReadiness;
   validationEntry.lfRenderingSettled = renderingSettled;
 }
-import { overflowMenu } from "./runtime/banner-shelf.js";
+import { overflowMenu } from "./runtime/banner-toolbar.js";
 import {
   leavesOffered,
   othersLinks,
@@ -145,7 +150,7 @@ import { paintTouchControls } from "./runtime/keyboard/touch-controls.js";
 import { commandReferenceDialog } from "./runtime/keyboard/command-reference.js";
 import {
   bottomChromeBoxes,
-  closeShortcutShelf,
+  collapseShortcutBar,
   mountShortcutBar,
   renderShortcutBar,
   shortcutBarEl,
@@ -195,7 +200,7 @@ const paintVersionApproval = () =>
     app.acceptedApprovals(),
   );
 let threadPanelController;
-let trays;
+let drawers;
 let layout;
 let landing;
 let pageMapDialog;
@@ -283,7 +288,7 @@ const designMode = createDesignMode({
   closePreview: (...args) => app.margin.closePreview(...args),
   marginTargetAt: (...args) => app.margin.marginTargetAt(...args),
   closeDrawMode: () => drawing.setDrawMode(false, { spoken: false }),
-  closeTargetChooser: () => targets.closeTargetChooser(),
+  closeTargetPicker: () => targets.closeTargetPicker(),
   closeReactionMode: () => reactions.setReact(false),
   banner,
   announce,
@@ -296,7 +301,7 @@ aim = createAim({
   standDown: (...args) => responseSurface.standDown(...args),
   drawModeActive: () => drawing.drawModeActive(),
   designMode,
-  targetChooser: {
+  targetPicker: {
     active: () => targets.pointerChoosing(),
     choose: (...args) => targets.chooseTarget(...args),
   },
@@ -371,7 +376,7 @@ app = mountApplication({
   threadAvailable: !offlineInteractive,
   reportPageError,
   createEngagement,
-  targetChooserOpen: () => targets.targetChooserOpen(),
+  targetPickerOpen: () => targets.targetPickerOpen(),
   pageComposerDrawing: () => panelComposer.pageComposerDrawing(),
   wireInput: inputs.wireInput,
   anchorPaint,
@@ -463,7 +468,7 @@ declareReading(readingBlock);
 // And where it goes instead while a surface covers the page: the page is inert under one,
 // so the reading above cannot take the user and a step that let go would leave them
 // wherever the closing layer happened to drop them. The modality that covers already
-// answers both halves for whichever surface is standing — the panel, either tray — and
+// answers both halves for whichever surface is standing — the panel, either drawer — and
 // the keyboard register carries the same pair to the dispatcher.
 declareCovering({
   surface: auxiliarySurfaces.coveringSurface,
@@ -578,7 +583,7 @@ responseSurface = createResponseSurface({
   reactionContextContains: (...args) => reactions.reactionContextContains(...args),
   reactionTokens,
   setReact: (...args) => reactions.setReact(...args),
-  closeShortcutShelf: (...args) => closeShortcutShelf(...args),
+  collapseShortcutBar: (...args) => collapseShortcutBar(...args),
   closeVersionMenu: version.closeVersionMenu,
   versionMenuIsOpen,
   openPageThread: app.margin.openPageThread,
@@ -605,7 +610,7 @@ reactions = createReactionController({
   standingThread,
   standingElement,
 });
-targets = createTargetChooser({
+targets = createTargetPicker({
   scrollToRange: anchorTravel.scrollToRange,
   hintChrome,
   commentOnTarget: responseSurface.commentOnTarget,
@@ -629,7 +634,7 @@ drawing = createDrawingController({
     selectionComposer.openComposer(anchor, "", { carry: true, drawing }),
   openPageDrawing: panelComposer.openPageDrawing,
   setDesignMode: designMode.setActive,
-  closeTargetChooser: targets.closeTargetChooser,
+  closeTargetPicker: targets.closeTargetPicker,
   closeReactionMode: () => reactions.setReact(false),
   banner,
   announce,
@@ -650,7 +655,7 @@ layout = createChromeLayout({
   },
   scheduleThreadPreviewPosition: app.margin.scheduleThreadPreviewPosition,
   bottomChromeBoxes,
-  restateTrayEdge: () => trays.traysEdge.state(),
+  restateDrawerEdge: () => drawers.drawersEdge.state(),
   syncAuxiliarySurfaces: auxiliarySurfaces.sync,
   syncReactLayout: reactions.syncReactLayout,
   refreshFab: responseSurface.refreshFab,
@@ -669,7 +674,7 @@ threadPanelController = createThreadPanelController({
   closePreview: app.margin.closePreview,
   syncGeneral: panelComposer.syncGeneral,
 });
-trays = createTrays({
+drawers = createDrawers({
   landEdge: layout.landEdge,
   auxiliarySurfaces,
   closePreview: app.margin.closePreview,
@@ -681,9 +686,9 @@ goToSequence = createGoToSequence({
   panelIsOpen,
   elements: { banner, toggleBtn, threadsBox },
   hintChrome,
-  directDestinations: () => [version.CHOOSER, selectionComposer.KEPT_DRAFT],
+  directDestinations: () => [version.PICKER, selectionComposer.KEPT_DRAFT],
   setPanel: threadPanelController.setPanel,
-  setOpenTray: trays.setOpenTray,
+  setOpenDrawer: drawers.setOpenDrawer,
   scrollToElement: anchorTravel.scrollToElement,
   leavesOffered,
   othersLinks,
@@ -713,7 +718,7 @@ const standing = createStanding({
   paintTouchControls,
   renderShortcutBar: () => renderShortcutBar(goToSequence.goToStatus),
   paintGoToHints: goToSequence.paintGoToHints,
-  paintTargetChooserHints: targets.paintTargetChooserHints,
+  paintTargetPickerHints: targets.paintTargetPickerHints,
   paintCoreControls,
   paintVersionShortcuts: version.paintShortcuts,
   paintInputs: inputs.paintInputs,
@@ -744,7 +749,7 @@ if (!offlineInteractive) {
     legendRoot,
     goToHintLayer,
     askActionLayer,
-    targetChooserHintLayer,
+    targetPickerHintLayer,
     pageSearchSurface,
     targetPaint.visualMarkLayer,
     drawingPaint.layer,
@@ -790,7 +795,7 @@ if (!offlineInteractive) {
   app.mountRead();
   threadListController.mountThreadList(panelIsOpen);
   wireThreadLanding(threadsBox);
-  trays.mountTrays();
+  drawers.mountDrawers();
   threadPanelController.mountThreadPanel();
   layout.mountLayoutObservers();
   goToSequence.mountGoToSequence();
@@ -831,8 +836,8 @@ const replayReady = passiveSample
         closePreview: app.margin.closePreview,
         openInlineThread: app.margin.openInlineThread,
         threadTransitionOrigin: app.margin.threadTransitionOrigin,
-        currentTray,
-        setOpenTray: trays.setOpenTray,
+        currentDrawer,
+        setOpenDrawer: drawers.setOpenDrawer,
       }),
     )
   : Promise.resolve();
@@ -867,7 +872,7 @@ if (!offlineInteractive) {
 if (!passiveSample && !offlineInteractive) {
   restoreUserView({
     commentsEdge: layout.commentsEdge,
-    traysEdge: trays.traysEdge,
+    drawersEdge: drawers.drawersEdge,
     restoreAuxiliarySurface: auxiliarySurfaces.restore,
     setDesignMode: designMode.setActive,
   });

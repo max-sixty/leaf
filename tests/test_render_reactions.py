@@ -82,7 +82,7 @@ def select_paragraph(page, selector):
 
 NEAREST_HINT = """(selector) => {
   const target = document.querySelector(selector).getBoundingClientRect();
-  return [...document.querySelectorAll('.lf-target-chooser-hint')]
+  return [...document.querySelectorAll('.lf-target-picker-hint')]
     .sort((a, b) => {
       const ar = a.getBoundingClientRect(), br = b.getBoundingClientRect();
       return Math.hypot(ar.left - target.left, ar.top - target.top)
@@ -100,7 +100,7 @@ def hint_code(page, selector, hints):
     no hint to be nearest to.
     """
     page.keyboard.press("s")
-    expect(page.locator(".lf-target-chooser-hint")).to_have_count(hints)
+    expect(page.locator(".lf-target-picker-hint")).to_have_count(hints)
     return page.evaluate(NEAREST_HINT, selector)
 
 
@@ -1583,7 +1583,7 @@ def test_a_drawing_names_its_proxies_and_keeps_its_place_among_the_page(browser,
     drawing names as its details, so a screen reader reaches them from it. Nothing
     stands beside the drawing: the page's `svg + p` rule still finds its paragraph and
     moves nothing. The proxies are no Tab stops, since from the chrome they would come
-    after the whole page; the target chooser reaches the drawing from the keyboard."""
+    after the whole page; the target picker reaches the drawing from the keyboard."""
     page_markup = leaf_page(
         "picture gallery",
         """

@@ -1,11 +1,11 @@
 /* `USER_VIEW_RESTORE_CASES` declares each stored runtime arrangement the render suite must visit,
-   and supplies one for each persisted tray. Add a new remembered surface here when the
+   and supplies one for each persisted drawer. Add a new remembered surface here when the
    surface is introduced.
 
    Every way this page can come up that is not a first visit, each named by the fact its
    store holds. The browser gate arrives once in each, because every other reading it
    takes is of a first visit: a fresh context holds nothing, so the panel is shut, no
-   tray stands and the mode is off. So the restores are the one road onto the page the
+   drawer stands and the mode is off. So the restores are the one road onto the page the
    gate does not walk on its own. Declared here rather than listed in the gate, because a list over there stops at the surfaces it
    was taught; this one is read on the day a surface starts remembering something. One
    stored fact each rather than the combinations of them: what a finding has to name is
@@ -28,32 +28,32 @@ export const USER_VIEW_RESTORE_CASES = [
     value: "560",
   },
   {
-    name: "the tray panel at the width the user drew it to",
-    ...userStore.where("lf-tray-slot-width"),
+    name: "the drawer panel at the width the user drew it to",
+    ...userStore.where("lf-drawer-slot-width"),
     value: "260",
   },
-  ...["leaves", "asks"].map((tray) => ({
-    name: `the ${tray} tray standing`,
+  ...["leaves", "asks"].map((drawer) => ({
+    name: `the ${drawer} drawer standing`,
     ...userStore.where(AUXILIARY_SURFACE_KEY),
-    value: tray,
+    value: drawer,
   })),
   { name: "design mode on", ...tabStore.where(DESIGN_MODE_KEY), value: "1" },
   { name: "annotations hidden", ...tabStore.where(ANNOTATIONS_KEY), value: "hidden" },
 ];
 
 // The chrome put back the way this user left it, before the page is presented: the
-// widths first, so a panel or tray put back open is open at the width they left it at
+// widths first, so a panel or drawer put back open is open at the width they left it at
 // rather than sliding to it afterwards.
 export function restoreUserView({
   commentsEdge,
-  traysEdge,
+  drawersEdge,
   restoreAuxiliarySurface,
   setDesignMode,
 }) {
-  // The widths first, so a panel or a tray put back open is open at the width the user
+  // The widths first, so a panel or a drawer put back open is open at the width the user
   // left it at rather than sliding to it afterwards.
   commentsEdge.restore();
-  traysEdge.restore();
+  drawersEdge.restore();
   restoreAuxiliarySurface();
   if (tabStore.get(DESIGN_MODE_KEY) === "1") setDesignMode(true, { spoken: false });
   if (tabStore.get(ANNOTATIONS_KEY) === "hidden") setAnnotationsHidden(true);

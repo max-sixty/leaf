@@ -1,4 +1,4 @@
-/* Generated faces for the Asks banner controls. The banner shelf owns the stable native
+/* Generated faces for the Asks banner controls. The banner toolbar owns the stable native
    buttons and their fixed overflow seats; these light-DOM Lit owners paint one frozen
    Ask presentation reading inside them. */
 import { html } from "../../vendor/browser-runtime.js";
@@ -6,7 +6,7 @@ import {
   BANNER_CONTROL_RANK,
   registerBannerControl,
   showNews,
-} from "../banner-shelf.js";
+} from "../banner-toolbar.js";
 import { RetainedFace } from "../retained-face.js";
 import { el } from "../widget-elements.js";
 

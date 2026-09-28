@@ -250,7 +250,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     //
     // An open thread the narrowing hides keeps its node, hidden, rather than leaving the
     // list: a widget an agent sent in a reply is instantiated once, here, and every other
-    // reading of it — the banner's Asks count, the tray's rows, the a/A walk — finds it by
+    // reading of it — the banner's Asks count, the drawer's rows, the a/A walk — finds it by
     // id in the document. Pressing "Waiting on you" after answering a thread's question
     // took that thread's node out and, with it, the question from the page's count: 2/2
     // became 1/1 while the log said nothing had changed. Hidden is a fact about this list;

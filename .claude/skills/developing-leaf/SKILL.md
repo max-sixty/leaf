@@ -152,9 +152,9 @@ production reading.
 this working tree installed as its plugin, through the App Server adapter `leaf codex
 start` leaves running, and checks each comment it posts is answered once and each
 turn is closed under App Server's id. Run it after a change to `codex.py`,
-`codex_adapter.py`, `hooks.py`, or the claim's turn in `service.py`; the suite
-scripts App Server, and only this run shows what Codex itself sends. It spends a
-few turns on the host's Codex login, and CI has none.
+`codex_adapter.py`, `hooks.py`, `hook_carrier.py`, or the claim's turn in
+`service.py`; the suite scripts App Server, and only this run shows what Codex
+itself sends. It spends a few turns on the host's Codex login, and CI has none.
 
 ## Compare checkout versions
 
@@ -208,7 +208,7 @@ loads `leaf:leaf` and reads the references as a real session does. Score a chang
 `skills/leaf/` on the cases it bears on:
 
 ```bash
-uv run leaf-dev guidance-ab [CASE]... [--base REF] [--runs N]
+uv run leaf-dev guidance-eval [CASE]... [--base REF] [--runs N]
 ```
 
 It runs the cases on the base's guidance (the merge base with `main` by
@@ -252,22 +252,11 @@ commands, ask the user to run `wt config approvals add`.
 
 ## Land a change
 
-A branch may land with a red gate only when every failure also fails on the
-exact merge-base SHA under the same CI job and selection; until it reproduces
-there, it is the branch's. Use the base SHA's
-GitHub Actions run as the control, not a local container or a green run a few
-commits back. `uv run leaf-dev ci-failures` makes that comparison for the pushed
-HEAD, or `HEAD^2` in a pull request's CI checkout, which sits on GitHub's merge
-commit. Its exit 0 proves that each failed job failed only with tests that also
-fail, by node id, in the base's same job; every other case lists the jobs to read
-by hand. Main holds one nightly slot, so a base commit may carry no nightly result;
-the command then prints the dispatch that makes one. A case can differ between Linux and a Mac, or between
-the full suite under `-n 2` and a run alone.
-
-`wt merge --no-hooks` lands past a red local hook whose failures reproduce on the
-base, and reuses a passing result when a newer `main` dislodges the merge. Finish
-either with `git push origin main:main`, since the skipped hook normally pushes.
-`✗ Can't push to local main branch` is a fast-forward failure.
+A red gate is the branch's to fix. A pull request's `test` job and the local
+pre-merge `tests` run the broad selection, which main passes; the nightly-marked
+tests run only once main moves, and `tend-ci-fix` answers them when they fail.
+`wt merge` checks the rebased tree and lands it; `✗ Can't push to local main branch`
+is a fast-forward failure.
 
 Installed sessions load host caches, not the checkout. Claude Code picks up a
 push on its marketplace sweep; the post-merge hook refreshes an installed Codex

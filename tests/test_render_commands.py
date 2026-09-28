@@ -706,7 +706,7 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     handle.focus()
     ring = handle.evaluate(
         """node => { const cs = getComputedStyle(node); return {
-          name: cs.getPropertyValue('--lf-here-ring').trim(),
+          name: cs.getPropertyValue('--lf-focus-ring').trim(),
           width: cs.outlineStyle === 'none' ? 0 : parseFloat(cs.outlineWidth),
         }}"""
     )

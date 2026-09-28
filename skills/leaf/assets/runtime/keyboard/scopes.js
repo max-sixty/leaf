@@ -1,7 +1,7 @@
 /* Scopes: where a group of rows applies, registered against an element and gathered by
    title for the surfaces that project them.
 
-   Standing in a surface is where focus is, not merely that the surface is open. A tray's
+   Standing in a surface is where focus is, not merely that the surface is open. A drawer's
    or panel's own button lives in the banner, so opening by pointer leaves the user
    outside it, and a key, a Tab or a click on its contents is what puts them in. Inside a
    text box the letter is a character, Shift+Enter writes a newline in a composer, and arrows move the caret.
@@ -27,7 +27,7 @@ import {
   word,
 } from "./bindings.js";
 import { deepFocus } from "../focus.js";
-import { shadowHost, upFrom } from "../shadow.js";
+import { hostIn, upFrom } from "../shadow.js";
 import { repaint } from "../repaint.js";
 
 // The scopes still owed a first paint. A declaration joins here and `reflectShortcuts`
@@ -461,16 +461,7 @@ export const focused = () => {
 // Document readings want the host of a control staged in a shadow tree. Retarget the
 // logical reading every time, so a label transaction and an ordinary shadow focus take
 // the same path and no painted surface invents its own exception.
-export const documentFocused = () => {
-  let held = focused();
-  for (
-    let host = shadowHost(held?.getRootNode());
-    host;
-    host = shadowHost(held.getRootNode())
-  )
-    held = host;
-  return held;
-};
+export const documentFocused = () => hostIn(focused(), document);
 export const recoveredLabelFocus = (event) => recoveredLabelKeys.get(event);
 
 // The element scopes covering a node, innermost first — the climb crosses a shadow

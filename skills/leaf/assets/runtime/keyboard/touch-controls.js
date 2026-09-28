@@ -4,7 +4,7 @@
    has no other way to make (AGENTS.md, "Touch routes"). On a coarse pointer each such
    press of a page command is an entry in the banner's More, and a page scope's are the
    gesture steps on the row while it is the innermost standing scope that has any: how a
-   finger leaves a mode or the chooser, or walks search matches. One scope's steps stand
+   finger leaves a mode or the picker, or walks search matches. One scope's steps stand
    at a time, since a phone's row has room for one interaction's. The row is the one home: the control's
    words are its `touch`, it is enabled while the row is live, and a tap makes the press.
 
@@ -17,7 +17,7 @@ import {
   dismissBannerControls,
   registerBannerControl,
   showBannerControl,
-} from "../banner-shelf.js";
+} from "../banner-toolbar.js";
 import { coarsePointer } from "../pointer.js";
 import { el, keepsText } from "../widget-elements.js";
 import { repaint } from "../repaint.js";

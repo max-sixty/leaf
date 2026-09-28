@@ -123,6 +123,7 @@ import {
   handBack,
   holdFocus,
   letGo,
+  placeChrome,
 } from "./focus.js";
 import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
 import { setChildren } from "./dom-children.js";
@@ -1782,18 +1783,17 @@ export function createMarginProjection({
     // changes, synchronously emits focusout. That is a placement transition, not the user
     // leaving the cluster, so keep the options state machine from treating it as an
     // instruction to fold the controls it just exposed — and say the same thing to every
-    // other reader of where the user stands, which is what `placingChrome` is for.
+    // other reader of where the user stands, which is what `placeChrome` is for.
     const wasSettlingOptionsFocus = settlingOptionsFocus;
-    const wasPlacingChrome = runtime.placingChrome;
     settlingOptionsFocus = true;
-    runtime.placingChrome = true;
     let kept = true;
     try {
-      move();
-      kept = restoreFocus?.() ?? true;
+      kept = placeChrome(() => {
+        move();
+        return restoreFocus?.() ?? true;
+      });
     } finally {
       settlingOptionsFocus = wasSettlingOptionsFocus;
-      runtime.placingChrome = wasPlacingChrome;
     }
     // The one case where the placement did move the user: the control they were
     // standing on did not survive it, so focus is wherever the removal left it and the

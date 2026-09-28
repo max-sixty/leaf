@@ -663,7 +663,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-btn.on { border-color: var(--accent); color: var(--accent); background: var(--chip); }
 /* Draw mode takes page-widget presses before their controls can act. This rule is in
    this file because document selectors do not cross a declared shadow root. */
-:host-context(body[data-lf-draw-mode]):host-context(main) * { cursor: crosshair !important; }
-:host-context(body[data-lf-draw-mode]):host-context(main) .lf-thread-seat,
-:host-context(body[data-lf-draw-mode]):host-context(main) .lf-thread-seat * {
+:host-context(html[data-lf-draw-mode]):host-context(main) * { cursor: crosshair !important; }
+:host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat,
+:host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat * {
   cursor: auto !important; }

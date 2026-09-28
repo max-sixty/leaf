@@ -7913,26 +7913,30 @@ def _comment_on(section, text="A comment on this.", quote=None):
 
 
 @pytest.mark.parametrize(
-    ("main", "place"),
+    ("main", "body", "place"),
     [
-        ('<main class="layout-column">', "rail"),
-        ('<main class="layout-wide">', "pin"),
-        ('<main class="layout-wide" data-rail="right">', "rail"),
-        ('<main class="layout-column" data-rail="none">', "pin"),
+        ('<main class="layout-column">', "<body>", "rail"),
+        ('<main class="layout-wide">', "<body>", "pin"),
+        ('<main class="layout-wide">', '<body data-rail="right">', "rail"),
+        ('<main class="layout-column">', '<body data-rail="none">', "pin"),
     ],
     ids=["column", "wide", "wide-keeps-the-rail", "column-gives-it-up"],
 )
-def test_the_page_form_decides_the_rail_and_main_can_say_otherwise(
-    browser, serve, main, place
+def test_the_page_form_decides_the_rail_and_body_can_say_otherwise(
+    browser, serve, main, body, place
 ):
     """A column page keeps a rail beside its column and a wide page does not: its markers
-    stand as pins on their blocks. `data-rail` on `main` turns either round: `right`
+    stand as pins on their blocks. `data-rail` on `body` turns either round: `right`
     gives up the rail's width at the shell's right edge, and `none` keeps the margin for
     the page's own residents. Only `right` takes room from the page."""
-    source = leaf_page(
-        "rail by form",
-        '<h1 id="t">Rail by form</h1><p id="p">A paragraph with a comment on it.</p>',
-    ).replace('<main class="layout-column">', main)
+    source = (
+        leaf_page(
+            "rail by form",
+            '<h1 id="t">Rail by form</h1><p id="p">A paragraph with a comment on it.</p>',
+        )
+        .replace('<main class="layout-column">', main)
+        .replace("<body>", body)
+    )
     page = open_page(browser, serve(source, events=[_comment_on("p")]))
     resized(page, 1440, 900)
     margins_laid_out(page)
@@ -7941,7 +7945,7 @@ def test_the_page_form_decides_the_rail_and_main_can_say_otherwise(
     given = page.evaluate(
         "() => parseFloat(getComputedStyle(document.body).paddingInlineEnd)"
     )
-    assert (given > 0) == ('data-rail="right"' in main), given
+    assert (given > 0) == ('data-rail="right"' in body), given
 
 
 def test_a_pin_on_one_shape_of_a_drawing_stands_on_that_shape(browser, serve):

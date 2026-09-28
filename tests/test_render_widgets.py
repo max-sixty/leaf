@@ -9146,7 +9146,7 @@ def test_a_drawer_standing_over_most_of_an_ask_clears_for_it(browser, serve):
     resized(page, 1440, 900)
     drawer = page.locator(".lf-asks-panel")
     row = page.locator("button.lf-asks-row[data-lf-at='t-bath-decision']")
-    covering = page.locator("body[data-lf-covering-surface]")
+    covering = page.locator("html[data-lf-covering-surface]")
 
     banner_control(page, ".lf-asks").click()
     expect(drawer).to_be_visible()
@@ -9228,7 +9228,7 @@ def test_the_asks_drawer_covers_the_page_only_where_it_leaves_no_usable_page(
     closed = page.evaluate(geometry)
     banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
-    covering = page.locator("body[data-lf-covering-surface='lf-asks']")
+    covering = page.locator("html[data-lf-covering-surface='lf-asks']")
     expect(covering).to_have_count(0)
     wide = page.evaluate(geometry)
     assert wide["column"] == closed["column"], "the drawer moved the column"

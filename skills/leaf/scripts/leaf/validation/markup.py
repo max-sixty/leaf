@@ -160,7 +160,7 @@ def page_boundary_errors(parser: SourceDocument) -> list:
 
 def authored_allocation_errors(parser: SourceDocument) -> list:
     """Authored allocations use the layer's named values, and a page's own allocation
-    stands on its `main`."""
+    stands on its `body`."""
     return (
         [
             f"{at(item, item['attr'] + '=' + repr(item['value']))} has an invalid value; "
@@ -169,10 +169,10 @@ def authored_allocation_errors(parser: SourceDocument) -> list:
             if item["value"] not in AUTHORED_ALLOCATIONS[item["attr"]]
         ]
         + [
-            f"{at(item, item['attr'])} belongs on <main>, where it says whether the page "
+            f"{at(item, item['attr'])} belongs on <body>, where it says whether the page "
             f"keeps a rail"
             for item in parser.authored_allocations
-            if item["attr"] in PAGE_ALLOCATIONS and item["tag"] != "main"
+            if item["attr"] in PAGE_ALLOCATIONS and item["tag"] != "body"
         ]
         + [
             f"{at(item, item['attr'])} sizes a block in the page's flow, and <main> is the "

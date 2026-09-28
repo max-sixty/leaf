@@ -1,4 +1,8 @@
-"""Agent status, waiting, and receipt policy."""
+"""Agent status and the `leaf wait` watch.
+
+A watch revives the server of a live page it finds dead, so this module sits
+above the HTTP servers (`hosting`). Receipt, which every carrier shares, is
+`delivery`'s, so a host hook confirms input without importing a server."""
 
 import json
 import sys
@@ -8,13 +12,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from .activity import blocking_obligations, unanswered
-from .delivery import (
-    batch_data,
-    freeze_delivery,
-    read_delivery,
-    receive_batch,
-    record_pickup,
-)
+from .delivery import batch_data, freeze_delivery, receive_delivery
 from .detached import StartRefused
 from .files import file_stamp, next_reading, read_json
 from .host import Harness, claim_harness, session_harness
@@ -39,7 +37,6 @@ from .server import running_server
 from .service import (
     PageTransaction,
     claim_page,
-    open_session_turn,
     owned_pages,
     read_status,
     unacknowledged,
@@ -486,78 +483,6 @@ def _ended_watch(readings: list[PageTick], page_dir: Path | None) -> int:
         file=sys.stderr,
     )
     return 2
-
-
-def receive_delivery(delivery_id: str) -> list[Path]:
-    """Confirm complete input a `leaf wait` printed, as its reader, and record its
-    entry into this consumer's turn. Printing cannot confirm receipt."""
-    harness = session_harness()
-    return receive(read_delivery(delivery_id), harness.session if harness else None)
-
-
-def receive(payload: dict, session_id: str | None) -> list[Path]:
-    """Confirm one complete delivery and record its entry into `session_id`'s turn.
-
-    Each page uses its own transaction. Interrupted multi-page receipt can be
-    retried against the same immutable bounds; no receipt transfers ownership.
-    Sibling turns open after releasing the page locks, so concurrent receipts
-    never nest transactions across pages.
-    """
-    pages = [receive_one(batch, session_id) for batch in payload["batches"]]
-    if session_id:
-        open_session_turn(session_id)
-    return pages
-
-
-def receive_one(batch: dict, session_id: str | None) -> Path:
-    """Confirm one page's batch of a delivery and record its entry into
-    `session_id`'s turn, under that page's transaction; raise `ReceiptRefused`
-    when the page no longer matches."""
-    page_dir = Path(batch["page"])
-    with (
-        PageTransaction(page_dir) as page,
-        receive_batch(page, batch, session_id=session_id) as events,
-    ):
-        turn = page.open_turn(session_id) if session_id else None
-        record_pickup(page, events, session=session_id, turn=turn)
-    return page_dir
-
-
-def pending_batches(session_id: str) -> list[dict]:
-    """Every page's pending input for a session whose hooks carry it, one batch
-    per page, captured under that page's transaction and not yet confirmed.
-
-    Receipt is a separate step, taken when the carrier hands the batches over:
-    it rechecks ownership and the captured events, and anything appended between
-    the two readings stays pending, above the cursor it advances."""
-    batches = []
-    for page_dir in owned_pages(session_id):
-        try:
-            with PageTransaction(page_dir) as page:
-                claim = page.active_claim
-                if not (
-                    claim
-                    and claim["id"] == session_id
-                    and claim_harness(claim).hooks_carry()
-                ):
-                    continue
-                if batch := unacknowledged(page.events, page.cursor):
-                    batches.append(batch_data(page_dir, page, batch))
-        except FileNotFoundError:
-            continue
-    return batches
-
-
-def take_input(session_id: str) -> dict | None:
-    """Freeze and confirm a hook-carried session's pending input as its hook
-    does, and return the delivery, or None when nothing is pending. For a driver
-    standing in for the host, such as the demo recorder."""
-    batches = pending_batches(session_id)
-    if not batches:
-        return None
-    payload = freeze_delivery(batches, carrier="hook")
-    receive(payload, session_id)
-    return payload
 
 
 def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:

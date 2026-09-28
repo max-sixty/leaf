@@ -133,6 +133,22 @@ export const deepFocus = (at = document.activeElement) => {
 // batch's that commits, costs nothing: the one listener below counts placements for
 // every hold, and a hold compares the count it began at.
 let restoring = false;
+// A chrome placement moving a box the user may be standing in: the focus it takes off
+// and hands straight back inside `move` is the layer's own, not the user going anywhere.
+// Stated here rather than beside the one placer, because what has to know is every
+// reader of where the user stands, and they ask `placingChrome()` from their focus
+// listeners.
+let placing = false;
+export const placingChrome = () => placing;
+export function placeChrome(move) {
+  const was = placing;
+  placing = true;
+  try {
+    return move();
+  } finally {
+    placing = was;
+  }
+}
 let placements = 0;
 // Where the user last stood. A change that removes or hides the node they stand on puts
 // focus on the body and fires no `focusin`, so this still names that node afterwards.

@@ -19,6 +19,7 @@ import tempfile
 from pathlib import Path
 
 import click
+from leaf.delivery import take_input
 from leaf.event_log import read_events
 from leaf.host import session_harness
 from leaf.projection import folded_positions
@@ -26,7 +27,6 @@ from leaf.registry.storage import require_registry
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.scheme import served
 from leaf.served_state.page import read_served_page
-from leaf.session import take_input
 from PIL import Image
 from playwright.sync_api import Page
 

@@ -38,6 +38,7 @@ from interact_support import (
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
+from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import hooks as hooks_model
@@ -46,7 +47,6 @@ from leaf import locations as interact_locations
 from leaf import machine as machine_model
 from leaf import packages as packages_model
 from leaf import schema as schema_model
-from leaf import session as session_model
 from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import contract as registry_contract
@@ -189,7 +189,7 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     woke = runner.invoke(cli_model.cli, ["wait", str(page)])
     assert woke.exit_code == 0, woke.output
     assert "has new input" in woke.output
-    [batch] = session_model.take_input("s1")["batches"]
+    [batch] = delivery_model.take_input("s1")["batches"]
     assert len(batch["events"]) == 2
     record(["thread", "reply", str(page), "--text", "Answer"], 1)
     record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 1)
@@ -1376,29 +1376,57 @@ def test_no_has_rule_restyles_the_whole_document():
     )
 
 
-def _without_has_arguments(compound):
-    """The compound with each `:has(…)`'s argument removed, so an element the `:has()`
-    looks for is not read as the element it stands on."""
-    while (at := compound.find(":has(")) >= 0:
-        depth = 0
-        for end in range(at + 4, len(compound)):
-            depth += {"(": 1, ")": -1}.get(compound[end], 0)
-            if not depth:
-                break
-        compound = compound[:at] + compound[end + 1 :]
+def _pseudo_arguments(compound, pseudos):
+    """Each `pseudo(…)` in the compound, for every pseudo named, as (start, end, argument),
+    where `compound[start:end]` is the whole call."""
+    calls = []
+    for pseudo in pseudos:
+        start = 0
+        while (at := compound.find(pseudo, start)) >= 0:
+            depth = 0
+            for end in range(at + len(pseudo) - 1, len(compound)):
+                depth += {"(": 1, ")": -1}.get(compound[end], 0)
+                if not depth:
+                    break
+            calls.append((at, end + 1, compound[at + len(pseudo) : end]))
+            start = end + 1
+    return calls
+
+
+def _without_arguments(compound, pseudos):
+    """The compound with each named pseudo's argument removed."""
+    for start, end, _argument in sorted(_pseudo_arguments(compound, pseudos))[::-1]:
+        compound = compound[:start] + compound[end:]
     return compound
 
 
-def test_no_has_rule_stands_on_the_chrome_root():
+def _has_hosts(selector):
+    """Each compound a `:has()` stands on, without that `:has()`'s argument, so an element
+    it looks for is not read as the element it stands on. A `:has()` inside an `:is()` or
+    `:where()` argument stands on that argument's compound, not on the outer one."""
+    for compound in _split_top(selector, " >+~"):
+        for _start, _end, argument in _pseudo_arguments(compound, (":is(", ":where(")):
+            for arm in _split_top(argument, ","):
+                yield from _has_hosts(arm)
+        if ":has(" in _without_arguments(compound, (":is(", ":where(")):
+            yield _without_arguments(compound, (":has(",))
+
+
+def test_no_has_rule_stands_on_a_root():
     """Chrome re-reads a `:has()` on every insertion below the element it stands on, and
     one on the chrome root answered by restyling the whole chrome. The Page Map toggle's
     `:scope:has(> .lf-margin-projection > …[data-lf-pins])` did that for every text node
     the runtime wrote anywhere in the chrome: each geometry read after a write paid about
-    4 ms for 800 elements on the corpus page, several times per comment sent. Say such a
-    condition as an attribute on the root, as `data-lf-rail-covered` is.
+    4 ms for 800 elements on the corpus page, several times per comment sent. The
+    document's roots stand above the chrome, so one on `body` or `html` is re-read on
+    those same writes: the rail's `body:has(> main[data-rail])` and two flags read off
+    `body` from `html` re-checked both roots about forty times per comment. Say such a
+    condition as an attribute on the element the rule styles, as `data-lf-rail-covered`
+    is on the chrome and `data-lf-draw-mode` on `html`.
 
-    The root is `.lf-chrome` in any sheet and, inside the layer's one `@scope`, which is
-    the chrome's, `:scope` and a top-level `&`, each also inside `:is()` or `:where()`."""
+    The roots are `.lf-chrome`, `html`, `:root` and `body` in any sheet and, inside the
+    layer's one `@scope`, which is the chrome's, `:scope` and a top-level `&`, each also
+    inside `:is()` or `:where()`."""
     sheets = [
         *sorted(schema_model.ASSETS.glob("*.css")),
         *sorted((schema_model.ASSETS / "runtime").glob("*.css")),
@@ -1427,27 +1455,28 @@ def test_no_has_rule_stands_on_the_chrome_root():
         )
     }
     assert scopes == {"(.lf-chrome)"}, scopes
-    chrome = re.compile(r"\.lf-chrome(?![-\w])")
+    roots = re.compile(
+        r"\.lf-chrome(?![-\w])|(?<![-\w.#:\[])(?:html|body)(?![-\w])|:root"
+    )
     scoped = re.compile(r":scope(?![-\w])|&")
     read = 0
     rooted = []
     for sheet in sheets:
         for _conditions, enclosing, selector, _declarations in _style_rules(sheet):
             read += 1
-            for compound in _split_top(selector, " >+~"):
-                if ":has(" not in compound:
-                    continue
-                stands = _without_has_arguments(compound)
-                if chrome.search(stands) or (
-                    "scope" in enclosing and scoped.search(stands)
-                ):
-                    rooted.append(
-                        f"{sheet.relative_to(schema_model.ASSETS.parent)}: {selector}"
-                    )
-                    break
+            if any(
+                roots.search(stands) or ("scope" in enclosing and scoped.search(stands))
+                for stands in _has_hosts(selector)
+            ):
+                rooted.append(
+                    f"{sheet.relative_to(schema_model.ASSETS.parent)}: {selector}"
+                )
     assert read, "no rules read from the layer's sheets — the reading is broken"
-    assert _without_has_arguments(".a:has(.b:has(.c)).d") == ".a.d"
-    assert not rooted, "a :has() on the chrome root restyles the whole chrome:\n" + (
+    assert list(_has_hosts(".a:has(.b:has(.c)).d")) == [".a.d"]
+    assert list(_has_hosts(":is(:scope, .x):has(.y)")) == [":is(:scope, .x)"]
+    assert list(_has_hosts(":is(html lf-a:has(> b)) > c")) == ["lf-a"]
+    assert roots.search("html[data-lf-live]") and not roots.search(".lf-body")
+    assert not rooted, "a :has() on a root restyles everything below it:\n" + (
         "\n".join(rooted)
     )
 

@@ -794,7 +794,7 @@ def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
         expect(page.locator("body")).to_have_attribute(
             "data-lf-auxiliary-surface", surface
         )
-        expect(page.locator("body[data-lf-covering-surface]")).to_have_count(
+        expect(page.locator("html[data-lf-covering-surface]")).to_have_count(
             1 if window < {"asks": 620, "threads": 740}[surface] else 0
         )
         presented = geometry()

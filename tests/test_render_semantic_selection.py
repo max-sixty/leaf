@@ -137,17 +137,17 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-b")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
 
-    for entry, mode, exit_step in (
-        ("Draw mode", "data-lf-draw-mode", "Exit Draw mode"),
-        ("Design mode", "data-lf-design-mode", "Exit Design mode"),
+    for entry, root, mode, exit_step in (
+        ("Draw mode", "html", "data-lf-draw-mode", "Exit Draw mode"),
+        ("Design mode", "body", "data-lf-design-mode", "Exit Design mode"),
     ):
         banner_control(page, f".lf-banner-menu .lf-btn:text-is('{entry}')").tap()
-        expect(page.locator("body")).to_have_attribute(mode, "")
+        expect(page.locator(root)).to_have_attribute(mode, "")
         step = row.get_by_role("button", name=exit_step, exact=True)
         expect(step).to_be_visible()
         expect(page.locator(".lf-threads-toggle")).to_be_hidden()
         step.tap()
-        expect(page.locator("body")).not_to_have_attribute(mode, "")
+        expect(page.locator(root)).not_to_have_attribute(mode, "")
         expect(step).to_have_count(0)
         expect(page.locator(".lf-threads-toggle")).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_be_hidden()
@@ -236,7 +236,7 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     )
     row.get_by_role("button", name="Close search", exact=True).tap()
     exit_draw.tap()
-    expect(page.locator("body")).not_to_have_attribute("data-lf-draw-mode", "")
+    expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
 
 
 def test_desktop_target_hints_leave_plain_link_clicks_available(browser, serve):

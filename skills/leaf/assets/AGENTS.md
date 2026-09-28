@@ -168,9 +168,9 @@ the page, so they are adopted after page and package sheets and win by their
 selectors. `runtime/marks.css` is adopted by the document and shadow stages. A `:has()` whose rightmost compound carries no class, id, attribute, or
 type restyles every element on ordinary runtime writes
 (`test_no_has_rule_restyles_the_whole_document`); key a repeated type by a class
-its owner writes. A `:has()` on the chrome root is read again on every write inside the
-chrome and restyles all of it (`test_no_has_rule_stands_on_the_chrome_root`), so the
-owner of such a condition states it as an attribute on the root.
+its owner writes. A `:has()` on the chrome root, `body` or `html` is read again on
+every write below it and restyles it (`test_no_has_rule_stands_on_a_root`), so the
+owner of such a condition states it as an attribute on the element the rule styles.
 
 ### One writer for each fact
 

@@ -1248,7 +1248,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     assert page.url == url_before
     page.keyboard.press("w")
     expect(viewer).to_be_visible()
-    expect(page.locator("body")).not_to_have_attribute("data-lf-draw-mode", "")
+    expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
     page.keyboard.press("Escape")
     expect(viewer).to_be_hidden()
     expect(media_open).to_be_focused()

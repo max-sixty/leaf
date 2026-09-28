@@ -2,14 +2,12 @@
 
 import re
 from copy import deepcopy
-from functools import cache
 
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
 from leaf.schema import (
     ANSWER_KINDS,
-    ASSETS,
     DATA_CONTRACT_NAME,
     DECLARED_MARKS,
     EXTENSION_SCHEMA,
@@ -20,26 +18,10 @@ from leaf.schema import (
 from .contract import (
     RegistryError,
     json_validator,
-    read_registry_declarations,
     unresolved_schema_reference,
 )
+from .kernel import kernel_event_kinds
 from .state import stamp_decisions
-
-
-def kernel_event_kinds() -> dict:
-    """The fixed event records produced and consumed by Leaf's kernel."""
-    return read_registry_declarations(ASSETS / "registry.json")["$events"]["kinds"]
-
-
-@cache
-def bookkeeping_kinds() -> frozenset[str]:
-    """The kinds `$events` declares `bookkeeping`: facts about the user's view of
-    the page, kept for the page's own readings and never a move the agent answers."""
-    return frozenset(
-        kind
-        for kind, contract in kernel_event_kinds().items()
-        if contract.get("bookkeeping")
-    )
 
 
 def merge_layer_declarations(merged: dict, declarations: dict) -> None:

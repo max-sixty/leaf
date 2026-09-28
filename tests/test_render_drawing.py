@@ -194,6 +194,8 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     assert mark_relation(page, posted, "#bg-choice-trail") == pytest.approx(
         relation, abs=0.02
     )
+    # The scroll carries the mark rather than a repaint redrawing it.
+    assert stable_mark.evaluate("node => node.isConnected")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     assert mark_relation(page, posted, "#bg-choice-trail") == pytest.approx(

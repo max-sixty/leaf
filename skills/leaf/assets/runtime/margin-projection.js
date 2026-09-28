@@ -28,10 +28,10 @@
    column by no more than that room's shortfall. The card keeps its height in every
    case; one too tall for its spot slides across its cluster rather than shrinking. This
    module supplies the visible boundary — the reading region or the viewport under the
-   banner and over the bottom chrome — measures the card, and clips it to the part of
-   the window the page shows, so a card leaving with its cluster passes under the chrome
-   rather than over it. Floating UI (floating.js) carries the spot into the card's
-   positioning space and follows what moves the cluster. The card contains the complete
+   banner and over the bottom chrome — and measures the card. Floating UI (floating.js)
+   carries the spot into the card's positioning space, in the plane the geometry names,
+   and follows what moves the cluster. A card leaving with its cluster passes under the
+   chrome, which stacks over it, and a reading region clips it at its edge. The card contains the complete
    inline thread view; the Threads panel remains the complete index and takes over when
    already open. Once placed, the card keeps its side and holds one edge at its distance
    from the cluster (the geometry's `hold`): its foot, and the editor pinned to it,
@@ -157,6 +157,7 @@ import { paintTrace } from "./target-paint.js";
 import { updateSequence } from "./updates.js";
 import { threadList } from "./thread/state.js";
 import { threadKey, turns } from "./thread/model.js";
+import { whenDocumentPresented } from "./semantic-state.js";
 
 import { projectionOrigins } from "./projection/model.js";
 import { authoredStates } from "./projection/authored.js";
@@ -172,7 +173,7 @@ import { bannerControlDoor } from "./banner-toolbar.js";
 import { coarsePointer } from "./pointer.js";
 import { threadCardGeometry } from "./thread-card-geometry.js";
 import { shownWindow, skipped } from "./geometry.js";
-import { floatingPlacement, floatingUi } from "./floating.js";
+import { floatingPlacement, floatingUi, heldByWindow } from "./floating.js";
 import { placeKeeper } from "./user-place.js";
 import {
   isLiveWorkflow,
@@ -652,16 +653,36 @@ export function createMarginProjection({
   // within its target's reading region when it has one. That is the visible viewport, so
   // a reply editor stays above a phone's software keyboard.
   function threadCardBoundary(target, { gap = CARD_GAP, viewport } = {}) {
-    const region = containingReadingRegionFor(target);
-    return shownWindow({
-      within: region ? shownRegionBounds(region) : null,
-      gap,
-      viewport,
-    });
+    return shownWindow({ within: regionBounds(target), gap, viewport });
   }
+  const regionBounds = (target) => {
+    const region = containingReadingRegionFor(target);
+    return region ? shownRegionBounds(region) : null;
+  };
+  // A scroll moves the held edge and with it the room to the boundary, so the cap the
+  // geometry asks for moves with every scroll, and every write during a scroll costs a
+  // repaint (widget-elements.js, `keeps`) while the card's far edge, written from the
+  // main thread, trails the scroll that carries the rest of it. So a scroll leaves the
+  // cap the card wears: a card short of both caps renders the same under either, and a
+  // card at its cap takes a new one only once its contents change, when a turn arrives
+  // or a draft grows. A cap that would cut the card it stands on is always taken. Both
+  // are in the card's positioning space, as offsetHeight is.
+  let wornContent = null;
+  const threadCardContent = () =>
+    [previewList, ...previewList.querySelectorAll(REPLY_BOX)].reduce(
+      (sum, box) => sum + box.scrollHeight,
+      0,
+    );
   function measureThreadCard(width, cap) {
     preview.style.setProperty("--lf-thread-width", `${width}px`);
-    preview.style.setProperty("--lf-thread-max-height", `${cap}px`);
+    const worn = parseFloat(preview.style.getPropertyValue("--lf-thread-max-height"));
+    const height = preview.offsetHeight;
+    const content = threadCardContent();
+    const atCap = height >= worn - 0.5;
+    if (!(worn >= 0) || cap < height - 0.5 || (atCap && content !== wornContent)) {
+      preview.style.setProperty("--lf-thread-max-height", `${cap}px`);
+      wornContent = content;
+    }
     fitThreadCardEditors();
     return preview.getBoundingClientRect().height;
   }
@@ -721,10 +742,11 @@ export function createMarginProjection({
         const replyEditor = previewList.querySelector(REPLY_BOX);
         // Drafting is standing anywhere in the reply's row, Send included. A send leaves
         // the user in the box it empties, and the card must not move then.
-        const drafting =
+        const drafting = Boolean(
           replyEditor?.checkVisibility() &&
           (replyEditor.closest(".lf-say").contains(document.activeElement) ||
-            replyEditor.value !== "");
+            replyEditor.value !== ""),
+        );
         const clusterBox = cluster.getBoundingClientRect();
         // Client pixels per positioning-space pixel.
         const scale = {
@@ -751,7 +773,14 @@ export function createMarginProjection({
             geometry,
             drafting,
             scale,
-            shown: threadCardBoundary(target, { gap: 0 }),
+            region: regionBounds(target),
+            // Held at a reading region's edge, the card goes where the page takes that
+            // region, which is its cluster's plane, not the window's.
+            plane:
+              geometry.plane === "window" &&
+              heldByWindow(geometry.y, geometry.y + geometry.height, CARD_GAP)
+                ? "window"
+                : "page",
           },
         };
       },
@@ -774,32 +803,42 @@ export function createMarginProjection({
           getBoundingClientRect: () => cluster.getBoundingClientRect(),
         };
         previewPlacement.watch(target ?? cluster, reference, autoUpdate);
-        return computePosition(reference, preview, {
-          strategy: "fixed",
-          middleware: [threadCardMiddleware(cluster, target)],
-        });
+        return previewPlacement.position(
+          computePosition,
+          reference,
+          { middleware: [threadCardMiddleware(cluster, target)] },
+          ({ middlewareData }) => middlewareData.threadCard?.plane,
+          cluster,
+        );
       })
       .then((position) => {
         const placed = position?.middlewareData.threadCard;
         if (!placed?.geometry || !stillCurrent()) return;
-        const { geometry, drafting, scale, shown } = placed;
+        const { geometry, drafting, scale, region } = placed;
         previewHold = geometry.hold;
         previewAway = geometry.away;
-        preview.style.left = `${position.x}px`;
+        // An unchanged declaration is the browser's own no-op, and `keeps` is the rest's.
         // A card held by its foot writes its foot, so growth before the next placement
         // moves its top.
-        preview.style.top = `${position.y + (drafting ? geometry.height / scale.y : 0)}px`;
-        // Leaving with its cluster, the card passes under the chrome rather than over it.
-        const inset = [
-          (shown.top - geometry.y) / scale.y,
-          (geometry.x + geometry.width - shown.right) / scale.x,
-          (geometry.y + geometry.height - shown.bottom) / scale.y,
-          (shown.left - geometry.x) / scale.x,
-        ];
-        preview.style.clipPath = `inset(${inset.map((side) => `${side}px`).join(" ")})`;
-        preview.dataset.lfThreadPlacement = geometry.placement;
-        if (drafting) preview.dataset.lfThreadHeld = "";
-        else delete preview.dataset.lfThreadHeld;
+        previewPlacement.stand(
+          position.x,
+          position.y + (drafting ? geometry.height / scale.y : 0),
+        );
+        // Leaving with its cluster, the card passes under the chrome, which stacks over
+        // it, and a reading region cuts it at the region's edge as it cuts the words.
+        if (region) {
+          const inset = [
+            (region.top - geometry.y) / scale.y,
+            (geometry.x + geometry.width - region.right) / scale.x,
+            (geometry.y + geometry.height - region.bottom) / scale.y,
+            (region.left - geometry.x) / scale.x,
+          ];
+          // At the browser's layout precision, so the same cut reads the same each time.
+          const length = (side) => `${Math.round(side * 64) / 64}px`;
+          preview.style.clipPath = `inset(${inset.map(length).join(" ")})`;
+        } else preview.style.removeProperty("clip-path");
+        keeps(preview, "data-lf-thread-placement", geometry.placement);
+        preview.toggleAttribute("data-lf-thread-held", drafting);
         preview.style.removeProperty("opacity");
         preview.style.removeProperty("pointer-events");
         answerThreadPreviewPosition(true);
@@ -1847,7 +1886,9 @@ export function createMarginProjection({
       transferThreadFocus || document.activeElement === previewMarginEntry;
     transferThreadFocus = false;
     const main = document.querySelector("main");
-    if (!nav.isConnected) chromeRoot.append(nav);
+    // Before the card, which anchors to its rows (`mount`).
+    if (!nav.isConnected)
+      chromeRoot.insertBefore(nav, preview.parentNode === chromeRoot ? preview : null);
     const mainRect = main?.getBoundingClientRect();
     syncInlineOffers();
     pageInventory = collectEntries();
@@ -2196,17 +2237,29 @@ export function createMarginProjection({
       {
         nav: previewNav.hidden ? null : previewNav,
         close: previewClose,
+        // A resolved thread has no margin card, so resolving closes the card and
+        // hands the user to its target, and a resolve that no longer stands opens the
+        // card on the thread again, while the margin is still where threads open.
         prepareLanding: () => {
           const target = targetFor(previewEntry);
+          const thread = sourceItem(item).thread.id;
           const mayLand = retainUserIntent({
             source: focused(),
-            available: () => target?.isConnected,
+            available: () => Boolean(target?.isConnected) && !panelIsOpen(),
             fallback: bannerControlDoor(mapButton),
           });
           return {
             optimistic: () => {
               if (previewOpen()) return false;
               return mayLand.handoff(() => focusDestination(target));
+            },
+            reverse: async (may = mayLand) => {
+              await whenDocumentPresented();
+              return (
+                may() &&
+                mayLand.available() &&
+                Boolean(openPageThread(thread, { focus: "thread" }))
+              );
             },
           };
         },
@@ -2914,6 +2967,8 @@ export function createMarginProjection({
       scheduleWidthRender();
     });
     renderMargin();
+    // The card anchors to its row (floating.js), which an anchor may do only to a box
+    // laid out before it: the margin comes first.
     chromeRoot.append(nav, preview);
     if (!previewRegionMounted) {
       previewRegionMounted = true;

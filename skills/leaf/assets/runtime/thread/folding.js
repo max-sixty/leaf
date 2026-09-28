@@ -1,5 +1,11 @@
 /* Settlement command continuations and mechanical resolution-fold motion.
-   Thread views own every generated control and reflected folding attribute. */
+   Thread views own every generated control and reflected folding attribute.
+
+   A settlement's landing is the surface's own: `optimistic` carries the user where the
+   gesture leaves them, and `reverse` puts them back once it no longer stands. The log
+   refusing it runs `reverse` here; the user taking it back runs the same `reverse`,
+   which the undo door holds by the gesture's attempt, under the undo's intent. */
+import { newAttempt } from "../drafts.js";
 import { paintKeys } from "../keyboard/scopes.js";
 import { FOLD_MS, motion } from "../motion.js";
 import { pendingForParent } from "../pending/model.js";
@@ -15,11 +21,16 @@ export async function settleThread({
   prepareLanding,
   pendingEntries,
   actions,
+  retainReversal,
 }) {
   if (pendingSettlement(pendingEntries(), parent())) return;
   const landing = prepareLanding?.();
-  const answer = resolved ? actions.reopen(key) : actions.resolve(key);
+  const attempt = newAttempt();
+  const answer = resolved
+    ? actions.reopen(key, { attempt })
+    : actions.resolve(key, { attempt });
   if (!answer) return;
+  if (landing) retainReversal(attempt, landing.reverse);
   const presentation = whenDocumentPresented();
   paintKeys();
   try {
@@ -35,7 +46,7 @@ export async function settleThread({
     if (pendingSettlement(pendingEntries(), parent()))
       landed = await land(landing?.optimistic);
     const accepted = await answer;
-    if (!accepted) await land(landing?.refused);
+    if (!accepted) await land(landing?.reverse);
     else if (!landed) await land(landing?.optimistic);
   } finally {
     paintKeys();

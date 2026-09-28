@@ -280,7 +280,11 @@ export function mountApplication(dependencies) {
     actions: threadActions,
     wireInput: dependencies.wireInput,
   };
-  const settlementView = { pendingEntries: ledger.snapshot, actions: threadActions };
+  const settlementView = {
+    pendingEntries: ledger.snapshot,
+    actions: threadActions,
+    retainReversal: projectionCommands.retainReversal,
+  };
   const reactionView = {
     registerSurface: dependencies.registerReactSurface,
     actions: threadActions,

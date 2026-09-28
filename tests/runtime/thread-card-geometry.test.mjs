@@ -161,17 +161,27 @@ test("the card leaves with its cluster and comes back with it", () => {
   assert.equal(at(100).y, 100);
   assert.equal(at(-400).away, true);
   assert.equal(at(0).away, false);
+  // A scroll carries the card with the window while the head holds it, and with the
+  // page at its spot or once the head has given with its cluster.
+  assert.deepEqual(
+    [at(100), at(30), at(0), at(-400)].map((placed) => placed.plane),
+    ["page", "window", "page", "page"],
+  );
   // Through the foot the same way, whichever edge is held.
   const foot = (top) =>
     place(1440, cluster(934, top), 300, { hold: open.hold, edge: "foot" });
   assert.deepEqual([foot(900).y, foot(900).height], [600, 300]);
+  assert.deepEqual([foot(700).plane, foot(900).plane], ["window", "page"]);
 });
 
 test("a card opened with its cluster out of the window stands in it", () => {
   // Words pressed deep in a tall block whose cluster is above the window: the card opens
   // at the window's head and stays there until the cluster has been in the window.
   const open = ask(1440, cluster(934, -600), 300);
-  assert.deepEqual([open.y, open.away, open.hold.seen], [50, false, false]);
+  assert.deepEqual(
+    [open.y, open.away, open.hold.seen, open.plane],
+    [50, false, false, "window"],
+  );
   const scrolled = place(1440, cluster(934, -500), 300, { hold: open.hold });
   assert.equal(scrolled.y, 50);
   const shown = place(1440, cluster(934, 100), 300, { hold: scrolled.hold });

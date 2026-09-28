@@ -104,9 +104,14 @@ export const HIDDEN = "onbeforematch" in document.body ? "until-found" : "";
 // has touched, so a write that restates what the node already says restates it at that
 // rate: the mutation stream a screen reader rebuilds its buffer from, a fresh dirty box
 // for whatever reads next, and — for the attributes the document's disclosure watch
-// reads — a repaint of every key on the page. `toggleAttribute` keeps that rule for the
-// flags by construction; these three are the same rule for the names, states, and words
-// that have no such door.
+// reads — a repaint of every key on the page. A placement that follows the scroll
+// restates at the scroll's rate: on a page whose marks hold CSS highlight ranges, one
+// same-value class rewrite per scroll event made Chrome repaint the whole document on
+// every scroll frame. `toggleAttribute` keeps
+// the rule for the flags by construction, and `classList.toggle(name, force)` for a
+// class, where `add` and `remove` rewrite the attribute whether or not the class
+// changes; these three are the same rule for the names, states, and words that have no
+// such door.
 // The comparison is against what the node would read back, not what the caller held:
 // `getAttribute` and `textContent` answer with a string and their setters stringify, so
 // a boolean or a count compared raw is never equal to what already stands and rewrites

@@ -25,6 +25,7 @@ import { bottomChromeBoxes } from "./shortcut-bar.js";
 import { bannerFoot, shownParts, shownRect, startsAt } from "../geometry.js";
 import { clamp, overlaps } from "../rect.js";
 import { under } from "../shadow.js";
+import { setChildren } from "../dom-children.js";
 
 // A rectangle, or nothing where its edges crossed. `clippedTop` records that the source
 // box began above the room the user has, which a chip hung on the surviving corner
@@ -209,14 +210,19 @@ export function keyBadgePlacement() {
     });
   }
 
-  // Attach every Ask chip in one write and measure them before moving or removing any.
+  // Attach every Ask chip in one write and measure them before moving or hiding any.
   // Each seat names its chip, the control it labels, and the corner box the chip was
   // anchored at; a chip moves to the first corner of that box whose place, pulled back
   // inside the window, covers no other control and no chrome or badge, and failing every
   // one keeps the first corner's place where that is free. The authored CSS anchor is
-  // adjusted by the move.
+  // adjusted by the move. A chip already standing stays where it is in the layer, and
+  // one with no room is hidden rather than removed, so a pass that changes nothing
+  // writes nothing.
   function paint(layer, seats) {
-    layer.replaceChildren(...seats.map(({ chip }) => chip));
+    setChildren(
+      layer,
+      seats.map(({ chip }) => chip),
+    );
     const right = document.documentElement.clientWidth;
     const bottom = document.documentElement.clientHeight;
     const measured = seats.map(({ chip, owner, corner }) => ({
@@ -240,8 +246,8 @@ export function keyBadgePlacement() {
       ].map(
         ([x, y]) =>
           new DOMRect(
-            clamp(start.left + x - left, 0, right - start.width),
-            clamp(start.top + y - top, covered, bottom - start.height),
+            clamp(start.left + x - corner.left, 0, right - start.width),
+            clamp(start.top + y - corner.top, covered, bottom - start.height),
             start.width,
             start.height,
           ),
@@ -249,11 +255,14 @@ export function keyBadgePlacement() {
       const box =
         places.find((place) => free(place) && !coversAnotherControl(place, owner)) ??
         places[0];
-      if (!reserve(box)) chip.remove();
-      else {
-        chip.style.left = `${left + box.left - start.left}px`;
-        chip.style.top = `${top + box.top - start.top}px`;
+      if (!reserve(box)) {
+        chip.style.visibility = "hidden";
+        continue;
       }
+      chip.style.removeProperty("visibility");
+      if (box.left !== start.left)
+        chip.style.left = `${left + box.left - start.left}px`;
+      if (box.top !== start.top) chip.style.top = `${top + box.top - start.top}px`;
     }
   }
 

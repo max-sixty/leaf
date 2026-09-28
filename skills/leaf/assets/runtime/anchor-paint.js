@@ -124,8 +124,7 @@ export function createAnchorPaint({
     const parts = where.filter((mark) => mark instanceof Element);
     for (const part of hoverParts)
       if (!parts.includes(part)) part.classList.remove(HOVER);
-    for (const part of parts)
-      if (!part.classList.contains(HOVER)) part.classList.add(HOVER);
+    for (const part of parts) part.classList.toggle(HOVER, true);
     hoverParts = parts;
     CSS.highlights.set(
       HOVER,
@@ -143,8 +142,7 @@ export function createAnchorPaint({
     const parts = where.filter((mark) => mark instanceof Element);
     for (const part of hereParts)
       if (!parts.includes(part)) part.classList.remove(HERE);
-    for (const part of parts)
-      if (!part.classList.contains(HERE)) part.classList.add(HERE);
+    for (const part of parts) part.classList.toggle(HERE, true);
     hereParts = parts;
     CSS.highlights.set(
       HERE,

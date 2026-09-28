@@ -72,9 +72,12 @@ A gesture whose result the page can draw shows that result in the gesture (root
 `AGENTS.md`, "The document starts state; the log changes it"); `standGesture`
 owns both the send and the refusal that returns words to their box. The content
 and its Undo are the confirmation, so success needs no notice beyond the
-announcement for a listener. A result only the log can supply waits with
-`aria-busy`, painted on a delay so a fast answer shows nothing. Persistent status
-text is for a state the user must return to, such as failure.
+announcement for a listener. A gesture that moves the user, as settling a thread
+does, owns the move back, and both ways it can stop standing run it: the log
+refusing it and the user taking it back (`thread/folding.js`). A result only the
+log can supply waits with `aria-busy`, painted on a delay so a fast answer shows
+nothing. Persistent status text is for a state the user must return to, such as
+failure.
 
 ### Visual grammar
 

@@ -5,14 +5,26 @@
    again. `z` takes the head of that list only when the server marks it `newest`, the
    user's newest gesture, so a reply sent since ends the walk; a widget's Undo, a
    reaction chip, and a reaction strip each name an exact entry. All of them withdraw
-   through `withdraw`. */
+   through `withdraw`.
+
+   A gesture that moves the user leaves, by its attempt, how to put them back
+   (`retainReversal`); a thread settlement's landing is the one that does
+   (thread/folding.js). A withdrawal the log admits runs that reversal once the page
+   presents it, under the intent of the press that asked for it. A reversal lives with
+   the page that made the gesture, so after a reload or from another tab the undo
+   changes the thread and moves nobody. */
 import { runtime } from "../context.js";
 import { notice } from "../notifications.js";
-import { applicationState, readApplication } from "../semantic-state.js";
+import {
+  applicationState,
+  readApplication,
+  whenDocumentPresented,
+} from "../semantic-state.js";
 import { paintKeys } from "../keyboard/scopes.js";
 import { pageCommand } from "../keyboard/register.js";
 import { undoSentence } from "../reactions.js";
 import { PENDING } from "../thread/identity.js";
+import { retainUserIntent } from "../user-intent.js";
 
 const WAIT = "Wait for the current change to finish before undoing";
 
@@ -27,6 +39,22 @@ const words = {
 };
 
 export function createProjectionCommands({ post, stateApplying, unaccountedGesture }) {
+  // Kept while its gesture can still be taken back: in flight, or on the undo list.
+  const reversals = new Map();
+  function retainReversal(attempt, reverse) {
+    const { effective, unresolved } = readApplication();
+    // Between versions the page holds no undo list to prune against.
+    if (effective.view) {
+      const standing = new Set([
+        ...effective.view.undo.map(({ event }) => event.attempt),
+        ...unresolved.map((entry) => entry.event.attempt),
+      ]);
+      for (const kept of reversals.keys())
+        if (!standing.has(kept)) reversals.delete(kept);
+    }
+    reversals.set(attempt, reverse);
+  }
+
   function undoable() {
     if (stateApplying()) return null;
     const head = readApplication().effective.view?.undo[0];
@@ -54,9 +82,11 @@ export function createProjectionCommands({ post, stateApplying, unaccountedGestu
       notice(WAIT);
       return null;
     }
+    const reverse = reversals.get(event.attempt);
+    const mayLand = retainUserIntent();
     runtime.undoing = true;
     paintKeys();
-    return post({ kind: "undo", undoes: event.id })
+    const answer = post({ kind: "undo", undoes: event.id })
       .then((accepted) => {
         if (accepted)
           notice(
@@ -68,6 +98,16 @@ export function createProjectionCommands({ post, stateApplying, unaccountedGestu
         runtime.undoing = false;
         paintKeys();
       });
+    if (reverse)
+      void answer
+        .then(async (accepted) => {
+          if (!accepted) return;
+          reversals.delete(event.attempt);
+          await whenDocumentPresented();
+          await reverse(mayLand);
+        })
+        .catch(() => {});
+    return answer;
   }
 
   // The walk needs the page settled, not only the gesture it takes back: an
@@ -103,6 +143,7 @@ export function createProjectionCommands({ post, stateApplying, unaccountedGestu
   });
 
   return {
+    retainReversal,
     undoable,
     undoLast,
     withdraw,

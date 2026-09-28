@@ -123,7 +123,8 @@ import {
   shownRegionBounds,
 } from "../reading-regions.js";
 import { moveScrollerBy } from "../scrolling.js";
-import { floatingPlacement, floatingUi } from "../floating.js";
+import { floatingPlacement, floatingUi, heldByWindow } from "../floating.js";
+import { keeps } from "../widget-elements.js";
 
 // The two routes to one Comment capability: the page's own, and the Threads list's local
 // one. The destination box's placeholder names whichever of them dispatch would answer.
@@ -170,8 +171,9 @@ export function createResponseSurface({
     reactionTokens().length > 0 || Boolean(anchor?.quote && !designModeActive());
 
   // ---------- selection → comment ----------
-  // The response surface lives in the viewport plane and Floating UI follows the passage
-  // through every scroll ancestor, so it floats in the part of the window the page shows
+  // The response surface is fixed chrome, anchored to its passage's block while the
+  // passage holds it (floating.js), and Floating UI follows the passage through every
+  // scroll ancestor, so it floats in the part of the window the page shows
   // (`shownWindow`), whose visible viewport autoUpdate also follows: within a reading
   // region's shown box when it has one, else within the document page shell, whose right
   // edge stops short of the root scrollport's gutter. The panel stands over the page, so
@@ -256,13 +258,7 @@ export function createResponseSurface({
     fabMinimumWidth = null;
     fabMinimumComposer = null;
     fabBar.removeAttribute("data-lf-placement");
-    for (const property of [
-      "--lf-float-w",
-      "--lf-response-room",
-      "--lf-float-h",
-      "left",
-      "top",
-    ])
+    for (const property of ["--lf-float-w", "--lf-response-room", "--lf-float-h"])
       fabBar.style.removeProperty(property);
     fabBar.style.visibility = "hidden";
   }
@@ -587,87 +583,111 @@ export function createResponseSurface({
         ({ autoUpdate, computePosition, flip, limitShift, offset, shift, size }) => {
           if (!stillCurrent()) return null;
           watchFabPosition(owner ?? document.documentElement, autoUpdate);
-          return computePosition(reference, fabBar, {
-            placement: requestedPlacement,
-            strategy: "fixed",
-            middleware: [
-              offset(({ placement, rects }) => {
-                const beside = /^(left|right)/.test(placement);
-                return {
-                  mainAxis: 6,
-                  // The paragraph chooses the horizontal lane. Beside it, keep the
-                  // action-bearing foot at its initial attachment as the field grows;
-                  // above or below, preserve the initial inline start.
-                  crossAxis: beside
-                    ? sideTop(rects.floating.height) - keepClear.top
-                    : inlineConnection() + rects.floating.width,
-                };
-              }),
-              // Size precedes the one initial flip so the decision sees the width into
-              // which the compact control can actually shrink. This is Floating UI's
-              // documented initial-placement composition; putting size last makes a
-              // fractional CSS pixel look like a missing margin rail.
-              size({
-                ...overflow,
-                apply({ availableWidth, placement }) {
-                  if (!stillCurrent()) return;
-                  const side = placement.split("-", 1)[0];
-                  const laneWidth =
-                    side === "right"
-                      ? boundary.right - keepClear.right - 6
-                      : side === "left"
-                        ? keepClear.left - boundary.left - 6
-                        : boundary.right - (keepClear.right + inlineConnection());
-                  // A side placement consumes its current rail. Above or below, the
-                  // relative connection preserves the field's inline start as its content
-                  // grows while allowing target reflow to carry that start with it.
-                  setWidth(Math.max(0, Math.min(availableWidth, laneWidth)));
-                  const vertical = block && /^(top|bottom)$/.test(side);
-                  const available = vertical ? verticalRoom(side) : boundary.height;
-                  setHeight(
-                    vertical && available >= minimumFabHeight()
-                      ? available
-                      : boundary.height,
-                  );
-                },
-              }),
-              initial &&
-                !settledSide &&
-                flip({
-                  ...overflow,
-                  crossAxis: false,
-                  fallbackPlacements,
-                  fallbackStrategy: "bestFit",
-                }),
-              // The viewport holds the bar in only while its target is still there: past
-              // that the bar leaves with it, rather than staying pinned to the viewport's
-              // edge over whatever the user scrolled to. Only the block axis is limited;
-              // the reading boundary still holds the bar in across it.
-              shift({
-                ...overflow,
-                mainAxis: true,
-                crossAxis: true,
-                limiter: limitShift(({ placement, rects }) => {
-                  const vertical = /^(top|bottom)/.test(placement);
-                  // A short field may sit below the reference's own bottom while its
-                  // action stays at the established foot. Keep just that extra room in
-                  // the attachment limit; the bar still leaves with its passage.
+          // Whether the boundary, rather than the passage, holds the bar's block
+          // position: shifted there and not limited back to the passage, the bar stands
+          // in the window's plane (floating.js).
+          let heldIn = false;
+          const attachment = limitShift(({ placement, rects }) => {
+            const vertical = /^(top|bottom)/.test(placement);
+            // A short field may sit below the reference's own bottom while its
+            // action stays at the established foot. Keep just that extra room in
+            // the attachment limit; the bar still leaves with its passage.
+            return {
+              mainAxis: !vertical,
+              crossAxis: vertical,
+              offset: vertical
+                ? 0
+                : {
+                    mainAxis: -Math.max(
+                      0,
+                      sideTop(rects.floating.height) - keepClear.bottom,
+                    ),
+                  },
+            };
+          });
+          // Held at a reading region's edge, the bar goes where the page takes the region.
+          const plane = ({ y, middlewareData }) =>
+            heldIn &&
+            Math.abs(middlewareData.shift?.y ?? 0) >= 0.5 &&
+            heldByWindow(y, y + fabBar.offsetHeight, 8)
+              ? "window"
+              : "page";
+          return fabPosition.position(
+            computePosition,
+            reference,
+            {
+              placement: requestedPlacement,
+              middleware: [
+                offset(({ placement, rects }) => {
+                  const beside = /^(left|right)/.test(placement);
                   return {
-                    mainAxis: !vertical,
-                    crossAxis: vertical,
-                    offset: vertical
-                      ? 0
-                      : {
-                          mainAxis: -Math.max(
-                            0,
-                            sideTop(rects.floating.height) - keepClear.bottom,
-                          ),
-                        },
+                    mainAxis: 6,
+                    // The paragraph chooses the horizontal lane. Beside it, keep the
+                    // action-bearing foot at its initial attachment as the field grows;
+                    // above or below, preserve the initial inline start.
+                    crossAxis: beside
+                      ? sideTop(rects.floating.height) - keepClear.top
+                      : inlineConnection() + rects.floating.width,
                   };
                 }),
-              }),
-            ],
-          });
+                // Size precedes the one initial flip so the decision sees the width into
+                // which the compact control can actually shrink. This is Floating UI's
+                // documented initial-placement composition; putting size last makes a
+                // fractional CSS pixel look like a missing margin rail.
+                size({
+                  ...overflow,
+                  apply({ availableWidth, placement }) {
+                    if (!stillCurrent()) return;
+                    const side = placement.split("-", 1)[0];
+                    const laneWidth =
+                      side === "right"
+                        ? boundary.right - keepClear.right - 6
+                        : side === "left"
+                          ? keepClear.left - boundary.left - 6
+                          : boundary.right - (keepClear.right + inlineConnection());
+                    // A side placement consumes its current rail. Above or below, the
+                    // relative connection preserves the field's inline start as its content
+                    // grows while allowing target reflow to carry that start with it.
+                    setWidth(Math.max(0, Math.min(availableWidth, laneWidth)));
+                    const vertical = block && /^(top|bottom)$/.test(side);
+                    const available = vertical ? verticalRoom(side) : boundary.height;
+                    setHeight(
+                      vertical && available >= minimumFabHeight()
+                        ? available
+                        : boundary.height,
+                    );
+                  },
+                }),
+                initial &&
+                  !settledSide &&
+                  flip({
+                    ...overflow,
+                    crossAxis: false,
+                    fallbackPlacements,
+                    fallbackStrategy: "bestFit",
+                  }),
+                // The viewport holds the bar in only while its target is still there: past
+                // that the bar leaves with it, rather than staying pinned to the viewport's
+                // edge over whatever the user scrolled to. Only the block axis is limited;
+                // the reading boundary still holds the bar in across it.
+                shift({
+                  ...overflow,
+                  mainAxis: true,
+                  crossAxis: true,
+                  limiter: {
+                    ...attachment,
+                    fn(state) {
+                      const limited = attachment.fn(state);
+                      heldIn = Math.abs(limited.y - state.y) < 0.5;
+                      return limited;
+                    },
+                  },
+                }),
+              ],
+            },
+            plane,
+            owner ?? document.documentElement,
+          );
         },
       )
       .then((position) => {
@@ -680,9 +700,8 @@ export function createResponseSurface({
         if (beside) fabSideFootOffset ??= y + height - target.top;
         else fabInlineConnection ??= x - keepClear.right;
         fabPlacementInput = placementInput;
-        fabBar.dataset.lfPlacement = fabPlacement;
-        fabBar.style.left = `${x}px`;
-        fabBar.style.top = `${y + (beside ? height : 0)}px`;
+        keeps(fabBar, "data-lf-placement", fabPlacement);
+        fabPosition.stand(x, y + (beside ? height : 0));
         fabBar.style.removeProperty("visibility");
         answerFabPosition(true);
         return true;

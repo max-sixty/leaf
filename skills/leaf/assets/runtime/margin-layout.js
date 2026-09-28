@@ -33,12 +33,13 @@
 import { TAB_STOP } from "./focus.js";
 import { cancelRender, nextFrame, nextRender, sizeObserver } from "./rendering.js";
 import { shellRight, shownBand, shownExtent, shownParts, skipped } from "./geometry.js";
-import { hostIn, shadowHost, under, upFrom } from "./shadow.js";
+import { shadowHost, under, upFrom } from "./shadow.js";
 import { scrollerFor } from "./reading-regions.js";
 import { boundedBlockOf } from "./bounds.js";
 import { pageScroller } from "./scrolling.js";
 import { packRows, rowPosture, seatRows } from "./margin-placement.js";
 import { overlaps } from "./rect.js";
+import { anchorElement, anchorReading, nameAnchor } from "./anchor-names.js";
 import { repaintPage } from "./repaint.js";
 
 const rows = new Map();
@@ -286,45 +287,6 @@ function laneFor(scroller) {
     layer.sizes.observe(scroller);
   }
   return lane;
-}
-
-// Anchor names are global to their tree, so one per target element, merged with whatever
-// name the author gave the same box. The name stays for the element's life: rows come and
-// go on the heartbeat and a name written each time would restyle the target each time.
-// The pass reads what a box is named before it writes any name (`anchorReading`), since
-// reading the author's name is a style read.
-const anchorNames = new WeakMap();
-let anchorOrdinal = 0;
-function anchorReading(el, name = anchorNames.get(el) ?? `--lf-a${++anchorOrdinal}`) {
-  anchorNames.set(el, name);
-  const written = el.style.anchorName;
-  if (written.split(",").some((part) => part.trim() === name)) return { el, name };
-  // What the author's stylesheet names this box, read only where this pass has not already
-  // written: a revision patch that rewrote the style attribute has taken the name away.
-  const authored = written || getComputedStyle(el).anchorName;
-  return {
-    el,
-    name,
-    write: !authored || authored === "none" ? name : `${authored}, ${name}`,
-  };
-}
-function nameAnchor({ el, name, write }) {
-  if (write) el.style.anchorName = write;
-  return name;
-}
-
-// The box a row anchors to. An anchor name reaches only its own tree, so a target inside
-// a shadow tree anchors through its host; a shape inside an SVG drawing has no CSS box of
-// its own, so it anchors through the drawing; a `display: contents` target through its
-// first shown part. Wherever it anchors, the row stands level with the top of the
-// target's own extent (`shownExtent`), a pin wherever `seatPins` seats it, written as
-// insets from the anchor's box.
-function anchorElement(target) {
-  let el = hostIn(target, document);
-  while (el instanceof SVGElement && el.ownerSVGElement) el = el.ownerSVGElement;
-  if (el !== target) return el;
-  const [part] = shownParts(target);
-  return part && part !== target ? part : target;
 }
 
 // The part of a box its scrollers show, short of the document's own: each scroller's band

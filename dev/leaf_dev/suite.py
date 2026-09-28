@@ -1,66 +1,35 @@
 """Run a selection of the suite in a checkout and read what each test did.
 
-`leaf-dev flake` and `leaf-dev bugback` judge tests by running them; both read a run
-here, the same way.
+`leaf-dev flake` and `leaf-dev bugback` run tests here; `leaf-dev ci-failures` reads
+CI's reports with the same `read_junit`.
 
-A selection is pytest node ids. `collect` expands it to the items it names and refuses
-one pytest would not run: a usage error, a collection error, or a selection of
-nothing. One path that does not exist makes pytest collect nothing from every path
-and exit 4, and piped or summarized, that reads as a run with no failures. `present`
-collects leniently instead, for a tree a mutation may have broken: it sorts items into
-those that still collect, those whose module or class no longer imports (`error`),
-and those that are gone (`vanished`), so one broken file costs only its own tests.
+`collect` expands a selection of pytest node ids to the items it names and refuses one
+pytest would not run whole: piped or summarized, a selection that collects nothing
+reads as a run with no failures. `run` runs it with pytest's `--junitxml` and reads
+each item's outcome from that report rather than the terminal: `passed`, `failed` (its
+call failed), `error` (its setup or teardown failed, its module did not import, or its
+worker crashed: red, but not by the test's own assertion), `skipped`, or `not run`
+when the report does not name it. A failure's message leads with the last line under `tests/` it passed
+through, which says which arm of a test walking several routes failed.
 
-`run` runs the selection under pytest-reportlog, carrying on past collection errors,
-and reads each item's outcome from that log rather than the terminal, by phase:
-
-    failed           its call failed: the test itself went red
-    error            its setup failed, its collector could not import, or its
-                     worker crashed: red, but not by the test's own assertion
-    teardown-failed  its call passed and its teardown failed
-    passed, skipped  (an xfail is skipped; a strict xpass is failed)
-    hung             unreported when the run passed `TIMEOUT` and was stopped
-    not run          unreported by a run that ended early, a passing call whose
-                     teardown never reported included; the message says why
-
-A message leads with the last line under `tests/` the failure passed through, which
-says which arm of a test walking several routes failed.
-
-A run takes the suite's own configuration and only the flags its caller adds, and two
-flags that look harmless break it. `-p no:cacheprovider` removes the `--lf` option
-`tests/conftest.py` reads, so every worker dies at collection; `-o cache_dir=…` keeps
-a run out of `.pytest_cache` instead. `--basetemp` buys nothing, since pytest locks a
-live run's directory, and inside a checkout it turns fixtures into payload.
-
-Each run is `uv run --frozen pytest` in the checkout, so a checkout without an
-environment gets its own from its lock, and each runs in a session of its own. A run
-is stopped the way a terminal stops one, SIGINT to its process group, so pytest runs
-its fixtures' teardowns and Playwright closes its browsers; whatever outlives `GRACE`
-is killed. A command runs inside `stoppable()`, which turns SIGTERM and SIGINT into
-that stop for every live run before it exits, so its own cleanup runs and no pytest
-or browser tree outlives it. `TaskStop` sends SIGTERM and then, about a second and a
-half later, SIGKILL to the whole process tree, sessions of its own included: the runs
-die with the command, and only cleanup the command owed its files is lost.
+Each run is `uv run --frozen pytest` in the checkout, in this command's process group,
+so a terminal's Ctrl-C reaches pytest as it would a pytest run by hand, and the
+command waits for its teardowns before its own cleanup. Pass only the flags a caller
+needs: `-p no:cacheprovider` removes the `--lf` option `tests/conftest.py` reads, so
+use `-o cache_dir=…` to keep a run out of `.pytest_cache`.
 """
 
-import json
 import os
 import re
-import signal
 import subprocess
-import threading
-import time
-from contextlib import contextmanager
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 
 import click
 
-# A run still going after this long is stopped and its unreported items are `hung`.
-# Generous: a whole browser file on a loaded machine takes minutes, not this.
-TIMEOUT = 20 * 60
-# How long a stopped run has for its teardowns before its process group is killed.
-GRACE = 30
+# xdist's `loadgroup` appends `@<group>` to the node id of a test in an xdist_group.
+XDIST_GROUP = re.compile(r"@\w+$")
 
 
 @dataclass(frozen=True)
@@ -69,117 +38,40 @@ class Outcome:
     message: str = ""
 
 
-# Set once the command is stopping: every run in progress stops too.
-STOPPING = threading.Event()
-# Every run in progress, so a second signal can kill them all at once.
-LIVE: set[subprocess.Popen] = set()
-
-
-@contextmanager
-def stoppable():
-    """Turn SIGTERM and SIGINT into stopping every run, then exiting 143 or 130
-    through the caller's own cleanup. The runs sit in sessions of their own, so no
-    signal reaches them unless it comes from here. A second signal means now: it
-    kills every run's process group before exiting, rather than waiting out the
-    first stop's `GRACE`, so no cleanup after it runs beside a live run."""
-
-    def stop(signum, frame):
-        if STOPPING.is_set():
-            for proc in list(LIVE):
-                signal_group(proc.pid, signal.SIGKILL)
-        STOPPING.set()
-        raise SystemExit(128 + signum)
-
-    previous = {s: signal.signal(s, stop) for s in (signal.SIGTERM, signal.SIGINT)}
-    try:
-        yield
-    finally:
-        for s, handler in previous.items():
-            signal.signal(s, handler)
-
-
-def pytest(root: Path, *args: str, out: Path, env: dict | None = None) -> int | None:
-    """Run the pytest of the checkout `root` there, its terminal output to `out`;
-    return its exit status, or None when it passed `TIMEOUT` or the command is
-    stopping. `env` adds to this process's environment."""
+def pytest(root: Path, *args: str, out: Path) -> int:
+    """Run the pytest of the checkout `root` there, its terminal output to `out`, and
+    return its exit status."""
     # The caller's own `uv run` names its environment, which is not a scratch
     # checkout's; uv would warn about it on every run and use the checkout's anyway.
-    base = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
-    deadline = time.monotonic() + TIMEOUT
+    # `FORCE_COLOR` would color the report's tracebacks despite `--color=no`.
+    drop = {"VIRTUAL_ENV", "FORCE_COLOR"}
+    env = {k: v for k, v in os.environ.items() if k not in drop}
     with out.open("w") as stream:
         proc = subprocess.Popen(
             ["uv", "run", "--frozen", "pytest", "--color=no", *args],
             cwd=root,
-            env={**base, **(env or {})},
+            env=env,
             stdin=subprocess.DEVNULL,
             stdout=stream,
             stderr=subprocess.STDOUT,
-            start_new_session=True,
         )
-        LIVE.add(proc)
         try:
-            while not STOPPING.is_set() and time.monotonic() < deadline:
-                try:
-                    return proc.wait(timeout=1)
-                except subprocess.TimeoutExpired:
-                    pass
-            return None
-        finally:
-            stop(proc)
-            LIVE.discard(proc)
-
-
-def stop(proc: subprocess.Popen) -> None:
-    """End a run and everything in its process group: SIGINT, then after `GRACE`,
-    SIGKILL, which also takes any process a finished run left behind."""
-    if proc.poll() is None:
-        signal_group(proc.pid, signal.SIGINT)
-        try:
-            proc.wait(GRACE)
-        except subprocess.TimeoutExpired:
-            pass
-    signal_group(proc.pid, signal.SIGKILL)
-    proc.wait()
-
-
-def signal_group(pgid: int, signum: int) -> None:
-    try:
-        os.killpg(pgid, signum)
-    except ProcessLookupError:
-        pass
-
-
-def read_log(log: Path) -> list[dict]:
-    return (
-        [json.loads(line) for line in log.read_text().splitlines()]
-        if log.exists()
-        else []
-    )
-
-
-def collect_errors(records: list[dict], root: Path) -> dict[str, str]:
-    """Each collector that failed, by node id, with its message."""
-    return {
-        r["nodeid"]: crash(r["longrepr"], root)
-        for r in records
-        if r["$report_type"] == "CollectReport" and r["outcome"] == "failed"
-    }
-
-
-def listed(out: Path) -> list[str]:
-    """The node ids a `--collect-only -q` run printed, one a line."""
-    return [
-        line
-        for line in out.read_text().splitlines()
-        if (path := line.partition("::")[0]).endswith(".py") and " " not in path
-    ]
+            return proc.wait()
+        except KeyboardInterrupt:
+            # The Ctrl-C reached pytest too; let it finish its teardowns.
+            proc.wait()
+            raise
 
 
 def collect(root: Path, selection: tuple[str, ...], out: Path) -> list[str]:
     """The node ids of the items `selection` names in `root`, refusing a selection
     pytest would not run whole."""
     status = pytest(root, "--collect-only", "-q", "-n0", *selection, out=out)
-    items = listed(out)
+    items = [
+        line
+        for line in out.read_text().splitlines()
+        if (path := line.partition("::")[0]).endswith(".py") and " " not in path
+    ]
     if status != 0 or not items:
         raise click.ClickException(
             f"pytest will not run {' '.join(selection)} (exit {status}):\n"
@@ -188,123 +80,55 @@ def collect(root: Path, selection: tuple[str, ...], out: Path) -> list[str]:
     return items
 
 
-def present(
-    root: Path, items: list[str], out: Path
-) -> tuple[list[str], dict[str, Outcome]]:
-    """Which of `items` still collect in `root`, and the outcome of each that does
-    not: `error` where its module or class fails to collect, `vanished` where it is
-    gone, or `not run`, for all of them, where pytest cannot start at all."""
-    files = sorted({item.partition("::")[0] for item in items})
-    existing = [f for f in files if (root / f).exists()]
-    log = out.with_suffix(".jsonl")
-    status = (
-        pytest(
-            root,
-            "--collect-only",
-            "-q",
-            "-n0",
-            "--continue-on-collection-errors",
-            f"--report-log={log}",
-            *existing,
-            out=out.with_suffix(".log"),
-        )
-        if existing
-        else 5
-    )
-    if status not in (0, 1, 2, 5):
-        why = f"collection exited {status}; see {out.with_suffix('.log')}"
-        return [], {item: Outcome("not run", why) for item in items}
-    found = set(listed(out.with_suffix(".log"))) if existing else set()
-    errors = collect_errors(read_log(log), root)
-    kept, lost = [], {}
-    for item in items:
-        broken = [
-            m for n, m in errors.items() if item == n or item.startswith(n + "::")
-        ]
-        if item in found:
-            kept.append(item)
-        elif broken:
-            lost[item] = Outcome("error", broken[0])
-        else:
-            lost[item] = Outcome("vanished", "no longer collected")
-    return kept, lost
-
-
 def run(
-    root: Path,
-    selection: tuple[str, ...],
-    items: list[str],
-    out: Path,
-    *args: str,
-    env: dict | None = None,
+    root: Path, selection: tuple[str, ...], items: list[str], out: Path, *args: str
 ) -> dict[str, Outcome]:
-    """Run `selection` in `root` and return each of `items`' outcome. `out` names
-    the run: its terminal output is `out.log` and its report log `out.jsonl`."""
-    log = out.with_suffix(".jsonl")
+    """Run `selection` in `root` and return each of `items`' outcome. `out` names the
+    run: its terminal output is `out.log` and its report `out.xml`."""
+    report = out.with_suffix(".xml")
     status = pytest(
-        root,
-        f"--report-log={log}",
-        "--continue-on-collection-errors",
-        *args,
-        *selection,
-        out=out.with_suffix(".log"),
-        env=env,
+        root, f"--junitxml={report}", *args, *selection, out=out.with_suffix(".log")
     )
-    records = read_log(log)
-    reports = [r for r in records if r["$report_type"] == "TestReport"]
-    errors = collect_errors(records, root)
-
-    def unreported(item: str) -> Outcome:
-        broken = [
-            m for n, m in errors.items() if item == n or item.startswith(n + "::")
-        ]
-        if broken:
-            return Outcome("error", broken[0])
-        if status is None:
-            return Outcome("hung", f"stopped after {TIMEOUT}s")
-        # No path in the message, so copies that ended alike group as one.
-        return Outcome("not run", f"pytest exited {status} before reporting it")
-
+    outcomes = read_junit(report) if report.exists() else {}
+    # No path in the message, so `flake`'s copies that ended alike group as one.
+    missing = Outcome("not run", f"pytest exited {status} before reporting it")
+    # A module that did not import is reported under its path.
     return {
-        item: outcome([r for r in reports if r["nodeid"] == item], root)
-        or unreported(item)
+        item: outcomes.get(item) or outcomes.get(item.partition("::")[0], missing)
         for item in items
     }
 
 
-def outcome(reports: list[dict], root: Path) -> Outcome | None:
-    """One item's outcome from its reports, one per phase it reached; None when
-    they end before the item did. `passed` needs all three phases reported and
-    passed: a process that dies in teardown has written the passing call and
-    nothing after it, and a teardown can skip after its call passed."""
-    phases = {r["when"]: r for r in reports}
-    # `???` is xdist's report for a worker that crashed under the item.
-    if broken := next((r for r in reports if r["when"] in ("setup", "???") and r["outcome"] == "failed"), None):  # fmt: skip
-        return Outcome("error", crash(broken["longrepr"], root))
-    call, teardown = phases.get("call"), phases.get("teardown")
-    if call and call["outcome"] == "failed":
-        return Outcome("failed", crash(call["longrepr"], root))
-    if teardown and teardown["outcome"] == "failed":
-        return Outcome("teardown-failed", crash(teardown["longrepr"], root))
-    if len(phases) == 3 and all(r["outcome"] == "passed" for r in reports):
-        return Outcome("passed")
-    skipped = any(r["outcome"] == "skipped" for r in reports)
-    return Outcome("skipped") if skipped else None
+def read_junit(report: Path) -> dict[str, Outcome]:
+    """Each test's outcome in a junit report, by pytest node id. The suite has no test
+    classes, so a case's dotted `classname` is its module's path; a collection error
+    has none, and is keyed by its module's path."""
+    outcomes: dict[str, Outcome] = {}
+    for case in ET.parse(report).iter("testcase"):
+        classname, name = case.get("classname", ""), case.get("name", "")
+        nodeid = (
+            f"{classname.replace('.', '/')}.py::{XDIST_GROUP.sub('', name)}"
+            if classname
+            else f"{name.replace('.', '/')}.py"
+        )
+        if bad := [e for e in case if e.tag in ("failure", "error")]:
+            result = "failed" if bad[0].tag == "failure" else "error"
+            outcome = Outcome(result, message(bad[0]))
+        elif case.find("skipped") is not None:
+            outcome = Outcome("skipped")
+        else:
+            outcome = Outcome("passed")
+        # A passing test's teardown error comes as a second case, which wins.
+        if nodeid not in outcomes or outcome.result in ("failed", "error"):
+            outcomes[nodeid] = outcome
+    return outcomes
 
 
-def crash(longrepr, root: Path) -> str:
-    """What a failure report leads with: the exception's message, after the last
-    line under `tests/` it passed through; or, for a report pytest keeps only as
-    text, its last line, without the terminal colors a collection error keeps."""
-    if not (isinstance(longrepr, dict) and longrepr.get("reprcrash")):
-        return re.sub(r"\x1b\[[0-9;]*m", "", str(longrepr)).strip().splitlines()[-1]
-    root = root.resolve()
-    # pytest writes a path relative to its own cwd, the run's root, where it can.
-    places = [
-        f"{path.relative_to(root)}:{where['lineno']}"
-        for entry in longrepr["reprtraceback"]["reprentries"]
-        if (where := entry["data"].get("reprfileloc"))
-        and (path := (root / where["path"]).resolve()).is_relative_to(root / "tests")
-    ]
-    message = longrepr["reprcrash"]["message"]
-    return f"{places[-1]}: {message}" if places else message
+def message(failure: ET.Element) -> str:
+    """A failure's message, after the last line under `tests/` its traceback names.
+    pytest writes that path absolute when the test has changed directory."""
+    places = re.findall(
+        r"(?:^|/)(tests/\S+?\.py:\d+):", failure.text or "", re.MULTILINE
+    )
+    text = failure.get("message", "")
+    return f"{places[-1]}: {text}" if places else text

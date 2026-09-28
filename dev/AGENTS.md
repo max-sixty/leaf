@@ -36,13 +36,11 @@ and the others import it; a script under `scripts/` imports it too.
   reached by input, on a base runtime and HEAD's, and crops each state that changed
   into a before/after pair under `.tmp/stills/`.
 - `suite.py` runs a selection of the suite in a checkout and reads each test's
-  outcome, by phase, from pytest's report log, refusing a selection pytest would not
-  run; its runs time out and stop with their command.
+  outcome from pytest's junit report, refusing a selection pytest would not run.
 - `leaf-dev flake NODEID...` runs tests from the working tree as 18 copies, six at a
   time, and prints every failure's message, since a load flake never shows serially.
-- `leaf-dev bugback [NODEID...]` runs the branch's new or changed tests on HEAD and
-  with the branch's change reverted, or with each `--flip` patch, in a scratch
-  worktree, and reports which went red.
+- `leaf-dev bugback NODEID...` runs the tests on HEAD and with the branch's non-test
+  change reverted, in a scratch worktree, and reports which went red.
 - `leaf-dev bench-latency [BASE_REF]` times an open page's answer to a gesture, an
   agent write, and a revision in Chrome, with the traffic each causes, for a base
   runtime and HEAD's.
@@ -58,10 +56,9 @@ and the others import it; a script under `scripts/` imports it too.
 - `leaf-dev guidance-ab [CASE]...` runs the guidance cases in `evals/` on the merge
   base's guidance and the working tree's at once, and prints each case's passes per
   arm (`/developing-leaf`, "Score a guidance change").
-- `leaf-dev ci-failures [REF]` reads the failing tests and steps in REF's `ci` runs
-  and in its merge base's, and says whether the branch may land red
-  (`.claude/skills/developing-leaf/SKILL.md`, "Land a change"); `--run ID` lists
-  one run's failures.
+- `leaf-dev ci-failures [REF]` reads the failing tests in REF's `ci` runs and in its
+  merge base's, and says whether the branch may land red
+  (`.claude/skills/developing-leaf/SKILL.md`, "Land a change").
 
 ## Website and demo
 

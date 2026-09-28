@@ -580,6 +580,7 @@ responseSurface = createResponseSurface({
   openPageThread: app.margin.openPageThread,
   drawModeActive: () => drawing.drawModeActive(),
   refreshThread: app.refreshThread,
+  dismissThreadView: () => app.margin.inlineThreadView.dismiss(),
   responseHome: chromeRoot,
 });
 reactions = createReactionController({

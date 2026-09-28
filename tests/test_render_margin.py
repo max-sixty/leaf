@@ -6584,6 +6584,36 @@ def test_a_card_stays_its_press_to_take_off_when_it_moves_on(browser, serve, ent
     leave_card_by_its_target(page)
 
 
+def test_a_comment_raised_inside_a_card_s_target_takes_the_card_down(browser, serve):
+    """A new comment box stands clear of the thread card the user moved on from.
+
+    The card stays up while the user stands at its target, and an aimed comment inside
+    that target is still standing there. The card is drawn above the page-level comment
+    box and covers the margin beside the target, so leaving it up hid the field the
+    user was typing into. The box on a new target takes the card down instead.
+    """
+    page = open_page(browser, serve(ASK_PAGE))
+    resized(page, 1440, 900)
+    seeded_thread(page, serve.page_dir, "#mounts-p")
+    preview = page.locator(".lf-margin-preview")
+    comment_note(page, "#mounts-p").focus()
+    page.keyboard.press("Enter")
+    page.keyboard.press("Escape")  # onto the target, the card still up beside it
+    expect(preview).to_be_visible()
+
+    page.locator("#mounts-p").click(modifiers=["Alt"])
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    expect(preview).to_be_hidden()
+    assert page.evaluate(
+        """() => {
+          const box = document.querySelector('.lf-fab-bar').getBoundingClientRect();
+          const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+          return Boolean(hit?.closest('.lf-fab-bar'));
+        }"""
+    )
+
+
 def test_a_card_walked_off_the_unfolded_cluster_lands_on_the_page(browser, serve):
     """A cluster unfolded on another entry stands beside the card, not under it.
 

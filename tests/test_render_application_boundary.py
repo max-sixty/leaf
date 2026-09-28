@@ -407,7 +407,8 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     assert '"markup"' not in json.dumps(record) and '"html"' not in json.dumps(record)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(page.locator(".lf-thread-topic")).to_have_text("Generating title")
+    # The agent answered without naming the thread, so its row reads its own words.
+    expect(page.locator(".lf-thread-topic")).to_have_text("Decision")
     page.locator(".lf-thread-summary").click()
     expect(page.locator("#direction")).to_have_count(1)
     with sending(page, "choose North in the authored reply"):

@@ -9485,14 +9485,17 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     expect(visible_hints.nth(0)).to_contain_text("send")
     expect(visible_hints.nth(1)).to_contain_text("back to list")
 
-    # The pointer route remains while this text box owns `?`; the key face and
-    # accessible shortcut return when pressing the button moves focus out of the box.
-    more = page.get_by_role("button", name="More keyboard shortcuts", exact=True)
+    # The line shows only what works from where the user is. This text box owns `?`, so
+    # More stands down with its key rather than standing bare; it returns, key and all,
+    # when the user steps back out to the list.
     more_node = page.locator(".lf-shortcut-more")
     more_node.evaluate("button => window.__lfShortcutMore = button")
+    expect(more_node).to_be_hidden()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    more = page.get_by_role("button", name="? more", exact=True)
     expect(more).to_have_attribute("aria-expanded", "false")
-    expect(more.locator("kbd")).to_be_hidden()
-    expect(more).not_to_have_attribute("aria-keyshortcuts", re.compile(r".+"))
+    expect(more).to_have_attribute("aria-keyshortcuts", "?")
     more.click()
     help_el = page.locator(".lf-command-reference")
     search = page.get_by_role("combobox", name="Search commands")
@@ -10211,9 +10214,7 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
     expect(comment).to_have_count(0)
     expect(movement).to_have_count(0)
     more = line.locator(".lf-shortcut-more")
-    expect(more.locator("kbd")).to_be_hidden()
-    expect(more).to_have_attribute("aria-label", "More keyboard shortcuts")
-    expect(more).not_to_have_attribute("aria-keyshortcuts", re.compile(r".+"))
+    expect(more).to_be_hidden()
     page.keyboard.press("c")
     expect(page.locator("#note")).to_have_value("c")
     expect(page.locator(".lf-command-reference")).to_be_hidden()

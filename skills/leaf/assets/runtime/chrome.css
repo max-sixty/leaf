@@ -1724,7 +1724,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-shortcut-bar .lf-shortcut[hidden] { display: none; }
   .lf-shortcut-bar .lf-sequence-command { margin-inline-start: 4px;
     padding-inline-start: 12px; border-inline-start: 1px solid var(--rule); }
-  .lf-shortcut-more kbd[hidden] { display: none; }
   .lf-binding-sequence { display: inline-flex; align-items: center; gap: 1px;
     white-space: nowrap; }
   .lf-binding-sequence > kbd[data-lf-sequence-step-state="pressed"] { border-color: var(--accent);

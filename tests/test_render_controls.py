@@ -5592,9 +5592,10 @@ RING_CASES = (
                 (".lf-status-button", "status"),
                 (".lf-others", "btn"),
                 (".lf-edge:visible", "edge"),
+                # Before the fields: More stands down while a field takes its key.
+                (".lf-shortcut-more", "key-more"),
                 (".lf-find-box input", "text-entry"),
                 (".lf-thread-panel leaf-text", "text-box"),
-                (".lf-shortcut-more", "key-more"),
             ),
             "feature-gallery": (
                 ("lf-option > .lf-pick", "options-row"),
@@ -6151,7 +6152,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             # their own page surface or to exercise the panel's entry route itself.
             if scope in RING_SCOPES_STARTING_WITHOUT_PANEL:
                 if page.locator(".lf-thread-panel.open").count():
-                    page.get_by_role("button", name="Close threads").click()
+                    page.get_by_role("button", name="Close threads", exact=True).click()
                     panel_settled(page, open=False)
                     page.evaluate(RING_FOCUS_START)
             elif not page.locator(".lf-thread-panel.open").count():

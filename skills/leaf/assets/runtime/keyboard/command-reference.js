@@ -761,6 +761,11 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   commandReferenceDialog.classList.toggle("open", open);
   if (open && !commandReferenceDialog.open) commandReferenceDialog.showModal();
   else if (!open && commandReferenceDialog.open) commandReferenceDialog.close();
+  // A closed dialog's search box keeps focus until the browser's next focus fixup, so the
+  // repaint below would read the user as still typing there, and the shortcut bar would
+  // keep the More it hands back to standing down. Release it with the dialog.
+  if (!open && commandReferenceDialog.contains(document.activeElement))
+    document.activeElement.blur();
 
   // The results are a real overflow region and must enter the modal Tab loop.
   if (open) reachScrollers(commandReferenceDialog);

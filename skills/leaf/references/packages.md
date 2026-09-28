@@ -131,7 +131,7 @@ file begins with its first rule rather than a title of its own.
 A widget attaches its own guidance through `x-guidance`, while a data contract may
 carry producer guidance beside its schema. Packages define audiences such as `author`,
 `reviewer`, or `worker`; Leaf does not keep a role list. `leaf page guidance PAGE` lists
-the audiences in the vendored page, and `leaf page guidance PAGE AUDIENCE` composes all
+the audiences in the vendored page as a JSON array, and `leaf page guidance PAGE AUDIENCE` composes all
 three sources. The page author reads the `author` audience when the list includes it;
 that guide ends by naming the page's other audiences, so a package does not point at
 its own.

@@ -94,7 +94,7 @@ What the traces show:
   (`leaf page events`, `leaf thread read` or `events.jsonl`) before serving it, and two
   rewrote the page body to record what the thread had settled, so the question
   reached an agent that already held the premise. All three answered 22:00 UTC. The
-  delivery's `elided` count and `leaf thread read` serve an agent that has lost the
+  delivery's `elided` count and `leaf page state PAGE THREAD` serve an agent that has lost the
   middle, as a compacted session has; this harness cannot produce one.
 - **Package widgets are used from their entry.** All three found `lf-burn` by listing
   the page registry and wrote `consumed="0.62"` from the entry's fraction rule, valid
@@ -179,7 +179,7 @@ revision's HTML: `state` lists the user's standing moves over that HTML,
 candidate distinct from the live revision. User decisions survive without being
 copied into source. The owning contract is `skills/leaf/scripts/leaf/page-storage.md`.
 `page state` used to carry a construction tree of the whole document; it went after
-the paired run below, and `leaf thread read` keeps that reading for a thread's frozen
+the paired run below, and `leaf page state PAGE THREAD` keeps that reading for a thread's frozen
 markup.
 
 A context-blind continuation check changed one sentence in a copied feature
@@ -191,7 +191,7 @@ edit route, not a paired comparison or a general comprehension score.
 
 Long threads add a smaller version of the same problem. A delivered batch
 may elide the middle of a thread. An agent that no longer holds that middle has to
-notice the `elided` count and read the thread with `leaf thread read` before
+notice the `elided` count and read the thread with `leaf page state PAGE THREAD` before
 answering a question that depends on the missing records. In the second slice every
 agent that picked a page up read the whole thread first, so the elision never bound.
 
@@ -203,12 +203,12 @@ Keep Leaf's agent-facing surface small and semantic:
   standing actions and reports, decisions, requests, reactions, compact thread
   state, and an event-log watermark; the document itself is the HTML `active.file`
   names;
-- `leaf thread read PAGE THREAD` selects one thread's current messages and effective
-  frozen markup; its edits continue that thread;
+- `leaf page state PAGE ID` narrows that reading to what ID names: a thread's current
+  messages and effective frozen markup, whose edits continue that thread, or one page
+  widget's element, standing state, Asks and workflows;
 - `leaf page guidance PAGE [AUDIENCE]` composes explicit operating guidance;
-- `leaf page events PAGE [--after SEQ] [--thread THREAD]` prints the append-only JSONL
-  history admitted at validated write boundaries; `--after` is a sequence cursor
-  and `--thread` selects the thread any message in it names;
+- `leaf page events PAGE [--after SEQ] [--follow]` prints the append-only JSONL
+  history admitted at validated write boundaries; `--after` is a sequence cursor;
 - `active.file` names the readable canonical HTML when a valid revision exists,
   `source.file` names the mutable author target, `data.file` is always readable,
   and `registry.json` remains the canonical vocabulary.
@@ -427,7 +427,7 @@ them.
 HTML plus compact state performed as well as the expanded tree at lower context
 cost, so the condition above held and the page-level tree went: `page state` no
 longer carries `content`, and the references read the active HTML beside `state`.
-`leaf thread read` keeps its construction reading, since a thread's frozen markup has
+`leaf page state PAGE THREAD` keeps its construction reading, since a thread's frozen markup has
 no HTML file to read instead.
 
 The change itself then ran against its base, both arms built from their refs and

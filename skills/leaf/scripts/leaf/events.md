@@ -13,7 +13,7 @@ page and is not a global identifier. The kinds:
 | `reply` | user or agent | `POST /api/event`, `leaf thread reply` | `parent`; `text` or `token`; agent `responds` when answering; `awaits`, `markup`, and a replacement `anchor` or null detachment (CLI only) | answers the exact named obligation without closing its thread; an agent reply may also replace or remove the thread's current location |
 | `edit` | agent | `leaf thread edit` | `message`, `text` | replaces one message's visible text; the original stays in the log |
 | `read` | user | `POST /api/event` | `messages: [{message, version}]` | records that this page's one user has read exact current or historical agent-content versions; `$events` declares it bookkeeping, so it adds no thread turn or agent work |
-| `thread_title` | agent | `leaf thread title` | `thread`, `title` | names a thread in the panel; latest title wins without adding a turn or settling work |
+| `thread_title` | agent | `--title` on `leaf thread open`, `reply` or `edit` | `thread`, `title` | names a thread in the panel; latest title wins without adding a turn or settling work |
 | `summary` | agent | `leaf thread summarize` | `thread`, `from`, `through`, `text` | replaces one contiguous range with Markdown in the thread panel; originals stay in the log and remain revealable |
 | `resolve` | user or agent | `POST /api/event`, `leaf thread resolve` | `parent` | closes a thread |
 | `unresolve` | user | `POST /api/event` | `parent` | the user reopens a resolved thread |

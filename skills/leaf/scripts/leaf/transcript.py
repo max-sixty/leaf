@@ -11,46 +11,27 @@ from leaf.files import latest_revision, revision_label
 from leaf.gesture_words import GestureWords, revisions_on_disk
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.storage import active_registry
-from leaf.revision_artifact import active_enclosing, read_revision
+from leaf.revision_artifact import read_revision
 from leaf.schema import agent_name
-from leaf.thread import thread_named
-from leaf.thread_context import (
-    thread_memberships,
-    thread_names,
-    thread_structure,
-    thread_widgets,
-)
 
 
-def cmd_events(page_dir: Path, after: int, thread: str | None = None) -> None:
-    events = read_events(page_dir)
-    if thread is not None:
-        thread = thread_named(page_dir, events, thread)
-        within = active_enclosing(page_dir)
-        names = thread_names(events)
-        memberships = thread_memberships(
-            events,
-            names,
-            thread_widgets(thread_structure(events), names),
-            within,
-        )
-        events = [event for event in events if thread in memberships[event["id"]]]
-    for event in events:
-        if event["seq"] > after:
-            print(jsonl_line(event))
+def cmd_events(page_dir: Path, after: int, *, follow: bool = False) -> None:
+    """Print each event after `after` as the log reads back, and with `follow` each
+    one appended from then on, until stopped.
 
-
-def cmd_follow_events(page_dir: Path, after: int) -> None:
-    """Print each event after `after`, then each one appended, until stopped.
-
-    A follower is stopped by its consumer, so a stop is the ordinary end rather
-    than a failure: SIGINT and SIGTERM exit 0, and so does a reader that goes away,
-    after which nothing more can be said to it. Each line is flushed as it is
-    printed, since a follower's stdout is a pipe whose reader waits on that line.
+    A reader that goes away is the ordinary end rather than a failure, whether
+    `head` closed the pipe or a follower's consumer stopped it: SIGINT, SIGTERM, and
+    a closed stdout all exit 0. Each line is flushed as it is printed, since a
+    follower's stdout is a pipe whose reader waits on that line.
     """
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    records = (
+        follow_events(page_dir, after)
+        if follow
+        else (event for event in read_events(page_dir) if event["seq"] > after)
+    )
     try:
-        for event in follow_events(page_dir, after):
+        for event in records:
             print(jsonl_line(event), flush=True)
     except KeyboardInterrupt:
         sys.exit(0)

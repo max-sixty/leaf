@@ -87,7 +87,7 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
 
     A thread's id is its opening comment's, so an agent holding a thread id names
     it as a message. Where the log lost that comment the id names no event, yet
-    still names the thread to every thread command (`thread_context.thread_address`).
+    still names the thread to every thread command (`thread.thread_addressed`).
     """
     event = next((event for event in events if event.get("id") == value), None)
     if event is None:

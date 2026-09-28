@@ -7,6 +7,7 @@ is shared with the MCP App resource, which embeds a page the same way.
 """
 
 import base64
+import json
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -310,5 +311,7 @@ def cmd_export(page_dir: Path, out: Path, version) -> int:
 
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding="utf-8")
-    print(f"✓ {name} → {out} ({out.stat().st_size // 1024} KB, opens with no server)")
+    print(
+        json.dumps({"file": str(out), "version": version, "bytes": out.stat().st_size})
+    )
     return 0

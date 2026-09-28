@@ -1282,7 +1282,7 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
         env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
     )
     assert result.exit_code == 0, result.output
-    assert "opens with no server" in result.output
+    assert json.loads(result.output)["file"] == str(interactive)
 
     page = browser.new_page(viewport={"width": 1000, "height": 800})
     external = []

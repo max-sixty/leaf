@@ -233,7 +233,7 @@ Chromium opened, observe the browser's record (`opened_tab`).
 
 Assert the ordering the route created, such as `Traffic.sends` before release, and for
 a stale state prove both the page's view and the server's newer one. Name an event
-from what the appending door returned (`append_event`, a model command, `--json`); the
+from what the appending door returned (`append_event`, a model command, a CLI write's printed record); the
 log's tail may be a `read` an open page appended.
 
 ### A test cannot assert over noise it makes itself

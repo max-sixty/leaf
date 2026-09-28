@@ -50,8 +50,10 @@ from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import structure as structure_model
+from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
 from leaf.registry.storage import load_registry
+from leaf.revision_artifact import active_enclosing
 from leaf.served_state import page as served_page
 from leaf.validation import compatibility as compatibility_model
 from leaf.validation import instances as validation_model
@@ -706,9 +708,7 @@ def _tasks_version(page_dir, status, extra=""):
 
 def _report(page_dir, *args):
     """Report as a worker, with the posted event on stdout for the caller to read."""
-    return CliRunner().invoke(
-        cli_model.cli, ["page", "report", "--json", str(page_dir), *args]
-    )
+    return CliRunner().invoke(cli_model.cli, ["page", "report", str(page_dir), *args])
 
 
 def _board(todo, done):
@@ -734,6 +734,24 @@ OPTIONS = """<lf-ask id="g1-decision">
     <lf-option id="o-stage"{b}><strong>Migrate in stages</strong> {stage}</lf-option>
   </lf-options>
 </lf-ask>"""
+
+
+def thread_records(page_dir, name: str) -> list[str]:
+    """The logged records that change the history of the thread `name` reaches, in
+    log order: the join a delivery reads to say which threads an event lands in
+    (`thread_context.thread_memberships`)."""
+    events = events_model.read_events(page_dir)
+    names = thread_context_model.thread_names(events)
+    memberships = thread_context_model.thread_memberships(
+        events,
+        names,
+        thread_context_model.thread_widgets(
+            thread_context_model.thread_structure(events), names
+        ),
+        active_enclosing(page_dir),
+    )
+    thread = names[name]
+    return [event["id"] for event in events if thread in memberships[event["id"]]]
 
 
 def state_json(d):
@@ -1326,7 +1344,7 @@ def codex_claimed_page(tmp_path, under_codex, codex_env):
     )
     out, err = started.communicate(timeout=60)
     assert started.returncode == 0, f"{out}{err}"
-    assert out.startswith("http://127.0.0.1:")
+    assert json.loads(out)["url"].startswith("http://127.0.0.1:")
     # The fake codex wrapper exits with this one command; a real Codex session
     # stays above later hook calls. Keep that session lifetime true for tests
     # using this fixture after the launch itself has been verified.
@@ -1375,7 +1393,9 @@ def managed_server(spawn):
             stderr=subprocess.PIPE,
             text=True,
         )
-        assert process.stdout.readline().startswith("http://127.0.0.1:")
+        assert json.loads(process.stdout.readline())["url"].startswith(
+            "http://127.0.0.1:"
+        )
         assert process.stderr.readline().strip() == (
             "server   session (stops with its agent session)"
         )
@@ -1425,7 +1445,9 @@ def standing_server(spawn, sessionless):
             stderr=subprocess.PIPE,
             text=True,
         )
-        assert process.stdout.readline().startswith("http://127.0.0.1:")
+        assert json.loads(process.stdout.readline())["url"].startswith(
+            "http://127.0.0.1:"
+        )
         assert process.stderr.readline().strip() == "server   standing"
         return process
 
@@ -1443,9 +1465,7 @@ def published(page_dir):
 
 def comment(page_dir, *args):
     """Open a thread, with the posted event on stdout for the caller to read."""
-    return CliRunner().invoke(
-        cli_model.cli, ["thread", "open", "--json", str(page_dir), *args]
-    )
+    return CliRunner().invoke(cli_model.cli, ["thread", "open", str(page_dir), *args])
 
 
 DRAFTED = PAGE.replace(

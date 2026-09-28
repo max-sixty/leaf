@@ -46,7 +46,7 @@ lf-swipe-pile {
   background: var(--card);
 }
 
-/* The queue is the tray the cards are dealt from, a tinted field so the raised card on
+/* The queue is the drawer the cards are dealt from, a tinted field so the raised card on
  * top of it is the brightest thing in the deck. */
 lf-swipe-pile[verdict="unseen"] {
   background: var(--field);
@@ -75,7 +75,7 @@ lf-swipe-pile[verdict="unseen"] {
  * through the reset, so paper printed the first card and 308px of void. */
 @media not print {
   html:root lf-swipe-deck:not(.lf-swipe-quoted) {
-    /* The label heads the tray on a row of its own, and the stack sits centred under
+    /* The label heads the drawer on a row of its own, and the stack sits centred under
      * it at an index card's width. The bottom padding holds the ghosts' offset. */
     & lf-swipe-pile[verdict="unseen"] {
       display: grid;
@@ -182,9 +182,9 @@ lf-swipe-card > strong:first-child:has(~ :not(.lf-ui, [data-lf-gen])) {
 }
 
 lf-swipe-pile[verdict="unseen"] > lf-swipe-card:first-of-type:focus-visible {
-  outline: var(--here-ring);
-  outline-offset: var(--here-ring-gap);
-  --lf-here-ring: swipe-card;
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-gap);
+  --lf-focus-ring: swipe-card;
 }
 
 /* What a flat queue adds, rather than what it takes back: the cards are in flow, so they

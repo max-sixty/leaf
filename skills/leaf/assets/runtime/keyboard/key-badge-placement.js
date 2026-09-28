@@ -12,7 +12,7 @@
    which box they start from rather than what the user can see of it. `badgeBox` starts
    at the member's own corner — the corner a badge hangs off, which for an inline run that
    wraps is not the middle of its bounds. `visibleBounds` starts at the member's whole box,
-   which is how the target chooser both admits a member and seats its chip. Both are then
+   which is how the target picker both admits a member and seats its chip. Both are then
    held clear of the same room by `clearBox` and tested by the same `exposes`, so both maps
    promise the user the same thing by "visible". `clearPart` answers for a box with no
    element of its own and is the one reading that does subtract the chrome at the foot,
@@ -22,6 +22,7 @@ import { bottomChromeBoxes } from "./shortcut-bar.js";
 import { bannerFoot, shownParts, shownRect, startsAt } from "../geometry.js";
 import { clamp, overlaps } from "../rect.js";
 import { under } from "../shadow.js";
+import { setChildren } from "../dom-children.js";
 
 // A rectangle, or nothing where its edges crossed. `clippedTop` records that the source
 // box began above the room the user has, which a chip hung on the surviving corner
@@ -139,7 +140,7 @@ export function keyBadgePlacement() {
       : null;
 
   // Whether the user can see what this box was measured from. Geometry cannot answer it:
-  // a panel, a tray, a fixed sheet or an ordinary page box covers a member without clipping
+  // a panel, a drawer, a fixed sheet or an ordinary page box covers a member without clipping
   // its rectangle. Ask the rendered stack inside the box, and make the member itself answer,
   // a cover being exactly the case where something else does. Most chrome answers, which is
   // how a card behind the open panel leaves the map; the bar and the status line take no
@@ -189,10 +190,12 @@ export function keyBadgePlacement() {
     return true;
   }
 
-  // Attach every Ask chip in one write, measure them before moving or removing any, then
-  // adjust its authored CSS anchor by the clamp delta.
+  // Attach every Ask chip in one write, measure them before moving or hiding any, then
+  // adjust its authored CSS anchor by the clamp delta. A chip already standing stays
+  // where it is in the layer, and one with no room is hidden rather than removed, so a
+  // pass that changes nothing writes nothing.
   function paint(layer, chips) {
-    layer.replaceChildren(...chips);
+    setChildren(layer, chips);
     const right = document.documentElement.clientWidth;
     const bottom = document.documentElement.clientHeight;
     const measured = chips.map((chip) => ({
@@ -208,11 +211,14 @@ export function keyBadgePlacement() {
         start.width,
         start.height,
       );
-      if (!reserve(box)) chip.remove();
-      else {
-        chip.style.left = `${left + box.left - start.left}px`;
-        chip.style.top = `${top + box.top - start.top}px`;
+      if (!reserve(box)) {
+        chip.style.visibility = "hidden";
+        continue;
       }
+      chip.style.removeProperty("visibility");
+      if (box.left !== start.left)
+        chip.style.left = `${left + box.left - start.left}px`;
+      if (box.top !== start.top) chip.style.top = `${top + box.top - start.top}px`;
     }
   }
 

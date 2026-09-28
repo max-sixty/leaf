@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import pytest
 from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
+from interact_support import record_claim
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
@@ -576,8 +577,8 @@ def test_a_surface_over_the_rail_hands_the_user_the_map(browser, serve):
     """Threads stands over the page and takes no room, so opening it leaves the rail
     drawn, but at 1100 it stands over the rail, so the banner offers the Page Map in the
     markers' place; at 1920 the rail stands clear of it and the margin stays the way in.
-    The Map is read as offered rather than as visible, since the shelf may fold it behind
-    the More door at a width the banner is crowded at. The Asks tray stands over the left
+    The Map is read as offered rather than as visible, since the toolbar may fold it behind
+    the More door at a width the banner is crowded at. The Asks drawer stands over the left
     of the window, away from the rail, so it leaves the markers and the margin alone."""
     comment = {
         "kind": "comment",
@@ -625,7 +626,7 @@ def test_a_surface_over_the_rail_hands_the_user_the_map(browser, serve):
     toggle_asks(page)
     margins_laid_out(page)
     expect(marker).to_be_visible()
-    assert not page.evaluate(offered), "the tray on the left withdrew the rail"
+    assert not page.evaluate(offered), "the drawer on the left withdrew the rail"
 
 
 @pytest.mark.parametrize("touch", [False, True], ids=["mouse", "finger"])
@@ -3435,6 +3436,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
       return result;
     }""")
 
+    record_claim(serve.page_dir)
     with service_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, roots)
     told(page)
@@ -3702,6 +3704,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(browser, serve):
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     ]
+    record_claim(serve.page_dir)
     with service_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, roots)
     told(page)
@@ -4066,6 +4069,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     expect(marker).to_have_attribute("aria-label", re.compile(r"^Waiting for pickup,"))
     assert_status("Waiting for pickup", "3m ago")
 
+    # Pickup belongs to an active agent turn; an unclaimed pickup is stale work.
+    record_claim(page_dir)
     with service_model.PageTransaction(page_dir) as transaction:
         delivery_model.record_pickup(transaction, [logged_action])
     told(page)
@@ -5903,7 +5908,9 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
             if (!event.target.matches('.lf-margin-preview .lf-page-thread'))
               return;
             document.removeEventListener('focusin', firstFocus);
-            queueMicrotask(() => {
+            // The frame the focus paints: the runtime's focus listener ran first and
+            // asked for this frame's standing paint before this one asks to read it.
+            requestAnimationFrame(() => {
               window.__firstReplyHint = card.querySelector('leaf-text')?.placeholder;
             });
           };
@@ -7151,7 +7158,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     page.keyboard.press("Shift+a")
     expect(preview).to_be_hidden()
     expect(page.locator(".lf-asks-panel")).to_have_class(re.compile(r"\bopen\b"))
-    # Exchanging one auxiliary surface for another is lateral, so the tray's Escape
+    # Exchanging one auxiliary surface for another is lateral, so the drawer's Escape
     # lands on the page and the card it displaced is not put back up.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-asks-panel")).not_to_have_class(re.compile(r"\bopen\b"))
@@ -7389,8 +7396,8 @@ def test_a_page_that_can_grow_margin_status_reserves_its_rail_before_the_first_g
     ), "withdrawing the move handed the strip back and moved the column with it"
 
 
-def test_the_thread_card_survives_trays_and_authored_sidebars(browser, serve):
-    """A tray or authored sidebar does not turn the contextual card into a panel."""
+def test_the_thread_card_survives_drawers_and_authored_sidebars(browser, serve):
+    """A drawer or authored sidebar does not turn the contextual card into a panel."""
     page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
@@ -7836,6 +7843,84 @@ def test_a_card_under_a_containing_block_stands_beside_its_cluster(
     assert after == pytest.approx(before, abs=0.5), (before, after)
 
 
+QUOTED_ON_ASK = {
+    **COMMENT_ON_ASK,
+    "anchor": {"section": "sec-mounts", "quote": "one came down in January"},
+}
+
+
+def scroll_writes(page):
+    """Scroll the page up and back down by a few small steps, off the page's controls,
+    and return each DOM write the scroll caused."""
+    # Off the page's controls, so the scroll brings nothing new under the pointer.
+    page.mouse.move(2, 300)
+    rendered(page)
+    page.evaluate(
+        """() => {
+          window.lfWrites = [];
+          new MutationObserver((records) => window.lfWrites.push(...records.map(
+            (r) => `${r.type} ${r.attributeName ?? ""} on ${r.target.nodeName}` +
+              ` ${r.target.className}`,
+          ))).observe(document, {
+            subtree: true, attributes: true, childList: true, characterData: true,
+          });
+        }"""
+    )
+    start = page.evaluate("() => scrollY")
+    for step in (-20, -20, 20, 20, 20):
+        page.evaluate("step => scrollBy(0, step)", step)
+        rendered(page)
+    assert page.evaluate("() => scrollY") == start + 20
+    return page.evaluate("() => window.lfWrites")
+
+
+def test_a_scroll_that_carries_the_card_writes_nothing(browser, serve):
+    """A scroll the card rides with its cluster leaves the page's DOM as it was: the
+    card, its target's trace, the marks, and the Ask's binding badges stand in the plane
+    the scroll carries them with, and each owner on the scroll path writes only what
+    changed. Chrome repaints the whole document for any write while a highlight holds a
+    range, which a page with a quoted comment always has."""
+    page = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK, QUOTED_ON_ASK]))
+    resized(page, 1440, 600)
+    marker = page.locator('[data-lf-margin-for="bracket"] .lf-margin-marker')
+    marker.evaluate(
+        "node => node.scrollIntoView({block: 'center', behavior: 'instant'})"
+    )
+    marker.click()
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_attribute("data-lf-plane", "page")
+    offset = """() =>
+      document.querySelector('.lf-margin-preview').getBoundingClientRect().top -
+      document.querySelector('[data-lf-margin-for="bracket"]').getBoundingClientRect().top"""
+    before = page.evaluate(offset)
+    writes = scroll_writes(page)
+    assert writes == [], writes
+    assert page.evaluate(offset) == pytest.approx(before, abs=0.5)
+
+
+def test_a_scroll_that_carries_the_response_bar_writes_nothing(browser, serve):
+    """The response bar a selection raises rides a scroll with its passage in the same
+    plane, writing nothing, as the card does."""
+    page = open_page(browser, serve(ASK_PAGE, events=[QUOTED_ON_ASK]))
+    resized(page, 1440, 600)
+    words = page.locator("#heater-p")
+    words.evaluate(
+        "node => node.scrollIntoView({block: 'center', behavior: 'instant'})"
+    )
+    box = words.bounding_box()
+    y = box["y"] + 10
+    select(page, (box["x"] + 2, y), (box["x"] + 120, y))
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_be_visible()
+    expect(bar).to_have_attribute("data-lf-plane", "page")
+    offset = """() => document.querySelector('.lf-fab-bar').getBoundingClientRect().top -
+      document.querySelector('#heater-p').getBoundingClientRect().top"""
+    before = page.evaluate(offset)
+    writes = scroll_writes(page)
+    assert writes == [], writes
+    assert page.evaluate(offset) == pytest.approx(before, abs=0.5)
+
+
 def test_a_live_version_keeps_the_user_on_the_same_margin_location(browser, serve):
     """Replacing authored main must not discard focus held by retained map chrome."""
     version_url = serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
@@ -7908,26 +7993,30 @@ def _comment_on(section, text="A comment on this.", quote=None):
 
 
 @pytest.mark.parametrize(
-    ("main", "place"),
+    ("main", "body", "place"),
     [
-        ('<main class="layout-column">', "rail"),
-        ('<main class="layout-wide">', "pin"),
-        ('<main class="layout-wide" data-rail="right">', "rail"),
-        ('<main class="layout-column" data-rail="none">', "pin"),
+        ('<main class="layout-column">', "<body>", "rail"),
+        ('<main class="layout-wide">', "<body>", "pin"),
+        ('<main class="layout-wide">', '<body data-rail="right">', "rail"),
+        ('<main class="layout-column">', '<body data-rail="none">', "pin"),
     ],
     ids=["column", "wide", "wide-keeps-the-rail", "column-gives-it-up"],
 )
-def test_the_page_form_decides_the_rail_and_main_can_say_otherwise(
-    browser, serve, main, place
+def test_the_page_form_decides_the_rail_and_body_can_say_otherwise(
+    browser, serve, main, body, place
 ):
     """A column page keeps a rail beside its column and a wide page does not: its markers
-    stand as pins on their blocks. `data-rail` on `main` turns either round: `right`
+    stand as pins on their blocks. `data-rail` on `body` turns either round: `right`
     gives up the rail's width at the shell's right edge, and `none` keeps the margin for
     the page's own residents. Only `right` takes room from the page."""
-    source = leaf_page(
-        "rail by form",
-        '<h1 id="t">Rail by form</h1><p id="p">A paragraph with a comment on it.</p>',
-    ).replace('<main class="layout-column">', main)
+    source = (
+        leaf_page(
+            "rail by form",
+            '<h1 id="t">Rail by form</h1><p id="p">A paragraph with a comment on it.</p>',
+        )
+        .replace('<main class="layout-column">', main)
+        .replace("<body>", body)
+    )
     page = open_page(browser, serve(source, events=[_comment_on("p")]))
     resized(page, 1440, 900)
     margins_laid_out(page)
@@ -7936,7 +8025,7 @@ def test_the_page_form_decides_the_rail_and_main_can_say_otherwise(
     given = page.evaluate(
         "() => parseFloat(getComputedStyle(document.body).paddingInlineEnd)"
     )
-    assert (given > 0) == ('data-rail="right"' in main), given
+    assert (given > 0) == ('data-rail="right"' in body), given
 
 
 def test_a_pin_on_one_shape_of_a_drawing_stands_on_that_shape(browser, serve):
@@ -8514,7 +8603,7 @@ def test_a_marker_with_nowhere_to_stand_is_withheld_and_reported(browser, serve)
 def test_a_thread_card_reply_stays_in_the_visible_viewport(browser, serve, window):
     """Zooming in, like a phone's software keyboard, shrinks the visible viewport without
     resizing the window, and a card whose reply the user is writing stands inside what
-    is left, below the banner and above the bottom band. The zoom stands in for the
+    is left, below the banner and above the bottom bar. The zoom stands in for the
     keyboard, which no emulation raises; the card starts low in the window, where the
     shrunk viewport no longer reaches."""
     filler = "".join(f"<p>Filler paragraph {i}.</p>" for i in range(14))

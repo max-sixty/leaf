@@ -27,7 +27,7 @@ import { heldThread } from "../thread/focus.js";
 // Below that, the innermost addressable element — the aim's own reading.
 //
 // Chrome that shows one page target stands at it (standing-target.js), so a remark made
-// from a margin control or the Asks tray is about that target. The rest of the chrome
+// from a margin control or the Asks drawer is about that target. The rest of the chrome
 // stands nowhere: it is where a user works on the page rather than where they stand in it,
 // so a press made from it means the page whole. A thread drawn in the chrome is the other
 // exception: a remark made in it is about the thread, which `c` answers in its box and `e`

@@ -1,4 +1,4 @@
-/* The Asks tray's generated list. Its immutable row models contain only the words and
+/* The Asks drawer's generated list. Its immutable row models contain only the words and
    identities the view has already derived; this retained face keys those rows by Ask id
    and keeps the native light-DOM buttons stable across presentations. */
 import { html, repeat } from "../../vendor/browser-runtime.js";
@@ -7,11 +7,11 @@ import { keys } from "../keyboard/scopes.js";
 import { RetainedFace, RowFocus } from "../retained-face.js";
 
 export const ASK_AT = "data-lf-at";
-const TAG = "lf-asks-tray-list";
+const TAG = "lf-asks-drawer-list";
 
 const EMPTY_MODEL = Object.freeze({ open: false, rows: Object.freeze([]) });
 
-class AskTrayList extends RetainedFace {
+class AskDrawerList extends RetainedFace {
   #activate = null;
   #fallback = null;
   #focus = new RowFocus(this, {
@@ -32,7 +32,7 @@ class AskTrayList extends RetainedFace {
 
   willUpdate(changed) {
     if (!changed.has("model")) return;
-    // A tray opened from its edge lands on the first row once that row exists.
+    // A drawer opened from its edge lands on the first row once that row exists.
     if (
       this.model.open &&
       !this.committed.open &&
@@ -49,7 +49,7 @@ class AskTrayList extends RetainedFace {
     for (const row of this.querySelectorAll(`button[${ASK_AT}]`)) {
       if (this.#wired.has(row)) continue;
       this.#wired.add(row);
-      keys(row, "In the Asks tray", [
+      keys(row, "In the Asks drawer", [
         {
           id: "ask.open",
           keys: PRESS,
@@ -93,8 +93,8 @@ class AskTrayList extends RetainedFace {
   }
 }
 
-if (!customElements.get(TAG)) customElements.define(TAG, AskTrayList);
+if (!customElements.get(TAG)) customElements.define(TAG, AskDrawerList);
 
-export function createAskTrayList() {
+export function createAskDrawerList() {
   return document.createElement(TAG);
 }

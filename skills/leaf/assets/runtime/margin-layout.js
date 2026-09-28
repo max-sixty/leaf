@@ -32,12 +32,13 @@
 import { TAB_STOP } from "./focus.js";
 import { cancelRender, nextFrame, nextRender, sizeObserver } from "./rendering.js";
 import { shellRight, shownBand, shownExtent, shownParts, skipped } from "./geometry.js";
-import { under, upFrom } from "./shadow.js";
+import { shadowHost, under, upFrom } from "./shadow.js";
 import { scrollerFor } from "./reading-regions.js";
 import { boundedBlockOf } from "./bounds.js";
 import { pageScroller } from "./scrolling.js";
 import { packRows, rowPosture } from "./margin-placement.js";
 import { overlaps } from "./rect.js";
+import { anchorElement, anchorReading, nameAnchor } from "./anchor-names.js";
 import { repaintPage } from "./repaint.js";
 
 const rows = new Map();
@@ -76,7 +77,7 @@ const POSTURES = {
 // none stays in flow. The room is read with the column centred, so a shift this pass
 // wrote is taken back out of the reading and the decision never feeds itself.
 //
-// A page declares otherwise on `main`: `data-rail="right"` makes the shell give up the
+// A page declares otherwise on `body`: `data-rail="right"` makes the shell give up the
 // rail's width on its right (theme.css), which this reads as room like any other, and
 // `data-rail="none"` keeps its margin for its own residents, so its markers are pins.
 // Chrome layout asks for it on every pass (chrome-layout.js, `syncLayout`), which runs
@@ -121,7 +122,10 @@ function settleResidency() {
   };
   const taken = { left: 0, right: 0 };
   const standing = [];
-  if (main.getAttribute("data-rail") !== "none" && room.right >= need("--rail")) {
+  if (
+    document.body.getAttribute("data-rail") !== "none" &&
+    room.right >= need("--rail")
+  ) {
     standing.push("rail");
     taken.right = need("--rail");
   }
@@ -282,46 +286,6 @@ function laneFor(scroller) {
     layer.sizes.observe(scroller);
   }
   return lane;
-}
-
-// Anchor names are global to their tree, so one per target element, merged with whatever
-// name the author gave the same box. The name stays for the element's life: rows come and
-// go on the heartbeat and a name written each time would restyle the target each time.
-// The pass reads what a box is named before it writes any name (`anchorReading`), since
-// reading the author's name is a style read.
-const anchorNames = new WeakMap();
-let anchorOrdinal = 0;
-function anchorReading(el, name = anchorNames.get(el) ?? `--lf-a${++anchorOrdinal}`) {
-  anchorNames.set(el, name);
-  const written = el.style.anchorName;
-  if (written.split(",").some((part) => part.trim() === name)) return { el, name };
-  // What the author's stylesheet names this box, read only where this pass has not already
-  // written: a revision patch that rewrote the style attribute has taken the name away.
-  const authored = written || getComputedStyle(el).anchorName;
-  return {
-    el,
-    name,
-    write: !authored || authored === "none" ? name : `${authored}, ${name}`,
-  };
-}
-function nameAnchor({ el, name, write }) {
-  if (write) el.style.anchorName = write;
-  return name;
-}
-
-// The box a row anchors to. An anchor name reaches only its own tree, so a target inside
-// a shadow tree anchors through its host; a shape inside an SVG drawing has no CSS box of
-// its own, so it anchors through the drawing; a `display: contents` target through its
-// first shown part. Wherever it anchors, the row stands at the top-right corner of the
-// target's own extent (`shownExtent`), written as insets from the anchor's box.
-function anchorElement(target) {
-  let el = target;
-  for (let root = el.getRootNode(); root instanceof ShadowRoot; root = el.getRootNode())
-    el = root.host;
-  while (el instanceof SVGElement && el.ownerSVGElement) el = el.ownerSVGElement;
-  if (el !== target) return el;
-  const [part] = shownParts(target);
-  return part && part !== target ? part : target;
 }
 
 // The part of a box its scrollers show, short of the document's own: each scroller's band
@@ -570,7 +534,7 @@ export function layoutMarginRows() {
     const anchor = anchorElement(target);
     for (
       let root = target.getRootNode();
-      root instanceof ShadowRoot;
+      shadowHost(root);
       root = root.host.getRootNode()
     )
       hearScrolls(root);

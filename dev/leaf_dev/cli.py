@@ -10,13 +10,12 @@ import click
 from leaf_dev.bench_check import bench_check
 from leaf_dev.bench_latency import bench_latency
 from leaf_dev.bugback import bugback
-from leaf_dev.ci_failures import ci_failures
 from leaf_dev.corpus import corpus
-from leaf_dev.delivery_ab import delivery_ab
+from leaf_dev.delivery_eval import delivery_eval
 from leaf_dev.example_assets import fetch_previews
 from leaf_dev.example_previews import refresh_previews
 from leaf_dev.flake import flake
-from leaf_dev.guidance_ab import guidance_ab
+from leaf_dev.guidance_eval import guidance_eval
 from leaf_dev.keydocs import keydocs
 from leaf_dev.preview import preview
 from leaf_dev.probe import probe
@@ -38,7 +37,7 @@ cli.add_command(corpus)
 cli.add_command(keydocs)
 cli.add_command(bugback)
 cli.add_command(flake)
-cli.add_command(guidance_ab)
+cli.add_command(guidance_eval)
 cli.add_command(probe)
 cli.add_command(stills)
 cli.add_command(site)
@@ -49,6 +48,5 @@ cli.add_command(record_demo)
 cli.add_command(bench_latency)
 cli.add_command(profile)
 cli.add_command(bench_check)
-cli.add_command(delivery_ab)
-cli.add_command(ci_failures)
+cli.add_command(delivery_eval)
 cli.add_command(verify_codex_task)

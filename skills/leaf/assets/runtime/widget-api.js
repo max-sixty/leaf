@@ -31,7 +31,7 @@ export { navigateToDatum } from "./application.js";
 // Experimental: one widget marking part of another (indication.js).
 export { indicate } from "./indication.js";
 export {
-  declareCoverRoom,
+  declareStickyHeaders,
   landingInsets,
   shownBand,
   shownBox,

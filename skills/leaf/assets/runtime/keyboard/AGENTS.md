@@ -98,7 +98,7 @@ state, and press come from the one row the key uses.
 
 Every page command declares `touch`, and the register refuses one that does not; `false`
 says a finger reaches the result directly. Walks, paging, scrolling, and Go-to move the
-reader, which a finger does by scrolling and by tapping the Threads list, the Asks tray,
+reader, which a finger does by scrolling and by tapping the Threads list, the Asks drawer,
 or the Page Map. `n` walks a search that has closed, which a finger searches again from
 More. Choosing a match is the soft keyboard's Enter, or selecting the marked words.
 The ⌥ aim names a target, which a finger does by selecting words or through Select

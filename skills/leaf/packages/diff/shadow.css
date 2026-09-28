@@ -144,15 +144,15 @@
 .lf-diff-next:is(:focus-visible, .lf-focus-visible),
 .lf-diff-wrap:is(:focus-visible, .lf-focus-visible),
 .lf-diff-review:is(:focus-visible, .lf-focus-visible),
-.lf-diff-comment:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
-                                                         --lf-here-ring: diff-tools;
+.lf-diff-comment:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+                                                         --lf-focus-ring: diff-tools;
                                                          outline-offset: 1px; }
 /* The file's own row, and the box it opens clips (overflow above), so the ring it wears
    is inset — theme.css's rule for a control packed into something rather than standing
    on its own. Outside, its top run was drawn into the border the details draws and lost
    with it. */
-:host(.lf-rendered) .lf-diff-file > details > summary:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: code-summary;
-                                            outline-offset: calc(-1 * var(--here-ring-w)); }
+:host(.lf-rendered) .lf-diff-file > details > summary:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: code-summary;
+                                            outline-offset: calc(-1 * var(--focus-ring-w)); }
 /* The file header pins under the banner while its own rows go past, which is the thread
    list's answer to the same question — the name of the part you are reading has to be on
    screen for the whole of it, not only at its start. Forty-six files at thirty-two
@@ -176,7 +176,7 @@
 /* The room that header takes, so a landing arrives below it rather than behind it. The
    document declares its banner through scroll-padding-top; this is the rest of the same
    sum, measured because a wrapped path makes it a number no stylesheet can work out
-   (declareHeadRoom, lf-diff.js, through the runtime's `declareCoverRoom`). Only where
+   (declareHeadRoom, lf-diff.js, through the runtime's `declareStickyHeaders`). Only where
    the header pins:
    unpinned, it covers nothing. */
 :host(.lf-rendered[data-lf-diff-pinned]) [data-line] { scroll-margin-top: var(--lf-head-room, 0px); }
@@ -228,9 +228,9 @@
                           border-radius: 0; overflow-x: auto; color: var(--code-ink); }
 /* The scroll region's tab stop (lf-diff.js): reachable is only half — focus has to
    show where it landed, or the stop reads as Tab going nowhere. */
-:host(.lf-rendered) code[data-code]:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
-                          --lf-here-ring: code-pre-shadow;
-                          outline-offset: calc(-1 * var(--here-ring-w)); }
+:host(.lf-rendered) code[data-code]:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+                          --lf-focus-ring: code-pre-shadow;
+                          outline-offset: calc(-1 * var(--focus-ring-w)); }
 /* A Thread occupies one additional Pierre subgrid row. The widget inserts a content
    outlet and a paired gutter spacer at the same line index; matching fills and borders
    make them one full-width review row while preserving the renderer's two columns. */

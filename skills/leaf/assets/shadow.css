@@ -120,7 +120,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * The marker is the runtime's own, not a new one: `offer` and `selectableOffer` write
  * data-lf-offer on everything a widget builds to be worked, and three passes already
  * asked it before this one (print, the drag guard, the render gate). So the hand, the ground under the
- * aim, and the here ring are stated once against that attribute rather than restated by
+ * aim, and the focus ring are stated once against that attribute rather than restated by
  * each widget's rules — which is what makes them a layer fact. A widget family that
  * joins tomorrow wears all three with its entry and its module, having written no CSS,
  * and a family that wants its own says so in its own theme rules, which come after this
@@ -159,7 +159,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * The ring is the fallback rather than the rule: every control with a ring of its own
  * outranks this, and what is left is the controls that were wearing the platform's
  * outline or, where a widget had restyled them, nothing at all. Named like every other
- * ring the layer draws, so the corpus floor can credit it (--lf-here-ring, theme.css).
+ * ring the layer draws, so the corpus floor can credit it (--lf-focus-ring, theme.css).
  *
  * Every rule here is written to be outranked. The value guard sits in :where() so it
  * costs nothing, which leaves each rule at the weight of the thing it is answering — the
@@ -186,8 +186,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 [data-lf-offer]:where(:not([data-lf-offer=""])):is([aria-disabled="true"], :disabled) {
   cursor: default; opacity: .55; }
 [data-lf-offer]:where(:not([data-lf-offer=""])):is(:focus-visible, .lf-focus-visible) {
-  outline: var(--here-ring); --lf-here-ring: pressable;
-  outline-offset: var(--here-ring-gap); }
+  outline: var(--focus-ring); --lf-focus-ring: pressable;
+  outline-offset: var(--focus-ring-gap); }
 /* The floor under every aim the layer offers, stated once for all of them rather
    than left to whatever each control's type and padding happened to add up to.
    Measured before it existed: a thread's Reopen and the panel's reaction chips stood
@@ -235,7 +235,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
           font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh);
           color: var(--ink); overflow-wrap: anywhere; }
 .lf-page-thread:is(:focus-within, .lf-focus-within) {
-          outline: none; border-radius: var(--r); background: var(--here-surface); }
+          outline: none; border-radius: var(--r); background: var(--focus-surface); }
 /* The thread itself holding the keyboard's focus wears the ring, inset over the quiet
    ground its containing state paints; chrome.css says the same of the panel's card.
    It is drawn on a pseudo-element over the thread's contents rather than as the
@@ -248,8 +248,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-page-thread:is(:focus-visible, .lf-focus-visible)::after { content: "";
           position: absolute; inset: 0; pointer-events: none;
           border-radius: inherit;
-          outline: var(--here-ring); --lf-here-ring: page-thread;
-          outline-offset: calc(-1 * var(--here-ring-w)); }
+          outline: var(--focus-ring); --lf-focus-ring: page-thread;
+          outline-offset: calc(-1 * var(--focus-ring-w)); }
 @media (forced-colors: active) {
   .lf-page-thread:is(:focus-within, .lf-focus-within) {
           outline: 2px solid Highlight; outline-offset: -2px; box-shadow: none; }
@@ -299,7 +299,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
           border: 1px solid var(--border-2); border-radius: 6px; background: var(--card);
           color: inherit; font: inherit; max-height: 50vh; overflow-y: auto; }
 .lf-page-thread :is(.lf-btn, summary):is(:focus-visible, .lf-focus-visible) {
-          outline: var(--here-ring); outline-offset: 1px; --lf-here-ring: thread; }
+          outline: var(--focus-ring); outline-offset: 1px; --lf-focus-ring: thread; }
 /* The reply is a text box and wears the text box's band: the ring replaces the resting
    border in place rather than standing a second edge off it. The chrome stylesheet
    states that for every text box in the document and reaches this one too, but only
@@ -310,8 +310,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    so the reply field wears one band wherever the thread is seated, the way
    .lf-outline-chip repeats its own face through this boundary. */
 .lf-page-thread leaf-text:is(:focus, .lf-focus) {
-          outline: var(--here-ring); outline-offset: 0; border-color: transparent;
-          --lf-here-ring: text-box; }
+          outline: var(--focus-ring); outline-offset: 0; border-color: transparent;
+          --lf-focus-ring: text-box; }
 @media print {
   .lf-page-thread,
   .lf-page-thread :is(.lf-page-thread-msg, .lf-page-thread-resolved) {
@@ -345,8 +345,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   .lf-outline-chip:is(button, [role="button"]) { display: inline-flex;
           align-items: center; }
 }
-.lf-outline-chip:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
-          --lf-here-ring: chip; outline-offset: 1px; }
+.lf-outline-chip:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+          --lf-focus-ring: chip; outline-offset: 1px; }
 /* Reaction controls own their resting, selected and interactive appearance together.
    A surface places and reveals them without restating their ink, border or fill.
    Margin reactions wear the margin-entry family (theme.css); response actions keep
@@ -532,7 +532,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
           opacity: 1; color: var(--muted); background: var(--paper);
           border-color: var(--border-2); }
 /* Standing on a press, in the band everything else the user stands on is drawn in
-   (--here-ring). This was the last place on the product still wearing the browser's own
+   (--focus-ring). This was the last place on the product still wearing the browser's own
    ring: a user who backed out of the panel landed on Threads in Chrome's blue, beside
    a decision wearing the page's accent, with nothing saying the two rectangles meant
    one thing.
@@ -545,8 +545,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    Beside the face above it, so a button inside a declared widget tree wears this ring
    too. In chrome.css, where it was, it reached neither that button nor a
    package wanting to answer it. */
-.lf-btn:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
-          --lf-here-ring: btn; outline-offset: 2px; }
+.lf-btn:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+          --lf-focus-ring: btn; outline-offset: 2px; }
 .lf-compose-field { --lf-icon-action-hit: max(28px, var(--aim-floor));
           --lf-compose-pad-block: 8px; --lf-compose-pad-inline-start: 10px;
           position: relative; display: grid; grid-template-columns: minmax(0, 1fr);
@@ -624,8 +624,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
           overflow-y: auto; }
 .lf-fab-bar[data-lf-presentation="inline"] .lf-compose-placeholder { line-height: 1.3; }
 .lf-fab-bar[data-lf-presentation="inline"] leaf-text.lf-fab-input:is(:focus, .lf-focus) {
-          outline: var(--here-ring); outline-offset: 0; border-color: transparent;
-          --lf-here-ring: inline-response; }
+          outline: var(--focus-ring); outline-offset: 0; border-color: transparent;
+          --lf-focus-ring: inline-response; }
 .lf-fab-bar[data-lf-presentation="inline"] .lf-compose-submit {
           inset-inline-end: 2px; inset-block-end: 2px; }
 .lf-fab-bar[data-lf-presentation="inline"] .lf-response-action {
@@ -663,7 +663,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-btn.on { border-color: var(--accent); color: var(--accent); background: var(--chip); }
 /* Draw mode takes page-widget presses before their controls can act. This rule is in
    this file because document selectors do not cross a declared shadow root. */
-:host-context(body[data-lf-draw-mode]):host-context(main) * { cursor: crosshair !important; }
-:host-context(body[data-lf-draw-mode]):host-context(main) .lf-thread-seat,
-:host-context(body[data-lf-draw-mode]):host-context(main) .lf-thread-seat * {
+:host-context(html[data-lf-draw-mode]):host-context(main) * { cursor: crosshair !important; }
+:host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat,
+:host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat * {
   cursor: auto !important; }

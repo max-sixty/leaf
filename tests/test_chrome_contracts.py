@@ -959,18 +959,18 @@ def test_a_menu_comparison_keeps_its_active_paint(browser, serve):
     url = serve(html)
     _publish(serve.page_dir, 2, html, "reworded the suggestion")
     page = open_page(browser, url.replace("v1.html", "v2.html"))
-    chooser = page.locator(".lf-version")
-    expect(chooser).to_be_enabled()
+    picker = page.locator(".lf-version")
+    expect(picker).to_be_enabled()
 
     resized(page, 1440, 900)
     compare_with(page, 1)
-    expect(chooser).to_have_class(re.compile(r"\bon\b"))
+    expect(picker).to_have_class(re.compile(r"\bon\b"))
     expect(page.locator(".lf-banner-menu > .lf-version")).to_have_count(1)
     banner_control(page, ".lf-version")
     page.evaluate("scrollTo(0, document.documentElement.scrollHeight)")
-    box = chooser.bounding_box()
+    box = picker.bounding_box()
     assert box and 0 <= box["y"] < page.evaluate("innerHeight"), box
-    active = chooser.evaluate(STATE_PAINT)
+    active = picker.evaluate(STATE_PAINT)
     assert (
         active["shadow"] != "none" and "rgba(0, 0, 0, 0)" not in active["background"]
     ), f"the comparison stood in the menu with nothing but ink: {active}"
@@ -978,8 +978,8 @@ def test_a_menu_comparison_keeps_its_active_paint(browser, serve):
     resized(page, 320, 844)
     expect(page.locator(".lf-banner-menu > .lf-version")).to_have_count(1)
     banner_control(page, ".lf-version")
-    assert chooser.evaluate(STATE_PAINT) == active
-    chooser.click()
+    assert picker.evaluate(STATE_PAINT) == active
+    picker.click()
     versions = page.locator(".lf-version-menu")
     expect(versions).to_be_visible()
     box = versions.bounding_box()
@@ -990,10 +990,10 @@ def test_a_menu_comparison_keeps_its_active_paint(browser, serve):
     expect(versions).to_be_visible()
     box = versions.bounding_box()
     assert box and 0 <= box["y"] < page.evaluate("innerHeight"), box
-    # The door's news is the shelf's to state, and it restates it on every paint. A
+    # The door's news is the toolbar's to state, and it restates it on every paint. A
     # newer version puts the urgent latest chip in the menu, so the dot the door
     # takes is the one the page arrived at rather than one the test wrote on it. The
-    # news is a dot and not an accent contour, which is the here ring's face: a door
+    # news is a dot and not an accent contour, which is the focus ring's face: a door
     # drawn that way read as focused while the user typed somewhere else.
     door = page.locator(".lf-banner-more")
     _publish(serve.page_dir, 3, html, "reworded the suggestion again")
@@ -1099,9 +1099,7 @@ def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
             foot = page.locator(".lf-thread-panel-foot").bounding_box()
             assert geometry["bottom"] == pytest.approx(foot["y"] - 14, abs=1)
         else:
-            # Centred on the bottom band's row, inside the band. A line too wide for a
-            # narrow window wraps upward, so the row is the one More stands on rather
-            # than the middle of the line's whole box.
+            # Centred on the bottom bar's row, inside the bar: the row More stands on.
             band = page.locator(".lf-shortcut-bar").bounding_box()
             more = page.locator(".lf-shortcut-more").bounding_box()
             assert band["y"] <= geometry["top"] and geometry["bottom"] <= 800, (
@@ -1586,7 +1584,7 @@ def toggle_surface(page, surface, open=True):
 def test_an_auxiliary_surface_stands_over_the_page_and_moves_none_of_it(
     browser, serve, case, width
 ):
-    """Opening Threads or the Asks tray never moves the page: each stands over its edge of
+    """Opening Threads or the Asks drawer never moves the page: each stands over its edge of
     the window, so the reading column keeps its place, its width and its wrapping, a
     wide page's side track stays where its Layout put it, and the document neither grows nor
     scrolls under it. The page beside the surface stays live rather than going inert

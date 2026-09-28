@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from interact_support import append_command
+from interact_support import append_command, record_claim
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
@@ -656,7 +656,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     # reading goes green over the travel it is about; the assertion before the presses says
     # so rather than leaving it to the window's height to be right. Chrome's focus
     # scroll moves a stop only when it stands wholly outside the padded band, so the
-    # window is one where the arrival leaves the field wholly under the bottom band.
+    # window is one where the arrival leaves the field wholly under the bottom bar.
     page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
     resized(page, 390, 600)
     clearance = """() => document.querySelector('.lf-shortcut-bar').getBoundingClientRect().top
@@ -2752,6 +2752,7 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
     status = message.locator(":scope > .lf-msg-head .lf-msg-sending")
     expect(page.locator("#rp-live > .lf-msg-sending")).to_have_count(0)
     expect(status).to_have_text("Sent")
+    record_claim(d)
     with service_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(transaction, actions)
     told(page)

@@ -358,7 +358,7 @@ export function datumAimTarget(datum) {
   };
 }
 
-// Pointer aim and target-chooser hints share this reading. The returned element is the
+// Pointer aim and target-picker hints share this reading. The returned element is the
 // element the coordinate resolves to, so the promise and eventual mark agree.
 export function aimTargetAt(node) {
   const visual = visualAt(node, { unclaimed: false });

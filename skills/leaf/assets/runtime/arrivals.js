@@ -45,7 +45,7 @@ const stands = (el) => {
   const root = el.getRootNode();
   return root === document
     ? document.body.contains(el)
-    : root instanceof ShadowRoot && root.host.isConnected && stages.has(root);
+    : stages.has(root) && root.host.isConnected;
 };
 
 // Every match in what a record names, the stages inside it included.

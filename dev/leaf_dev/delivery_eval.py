@@ -1,6 +1,6 @@
 """Compare how a Claude Code agent handles a Leaf comment, base vs HEAD.
 
-    uv run leaf-dev delivery-ab [BASE_REF]
+    uv run leaf-dev delivery-eval [BASE_REF]
 
 Each of ROUNDS rounds launches one headless Claude Code session per arm and case at
 once, with the plugin at BASE_REF (the merge base with `main` by default) or at HEAD,
@@ -21,7 +21,7 @@ delivery and its claim, which should be nothing.
 
 There are no statistics: two rounds, one page, fixed comments, the default model, and
 timings that include model latency. Read the table, not the means. Each session costs
-about a dollar. Streams, page logs and `results.json` land in `.tmp/delivery-ab/`.
+about a dollar. Streams, page logs and `results.json` land in `.tmp/delivery-eval/`.
 """
 
 import json
@@ -52,7 +52,7 @@ from leaf_dev.harness import (
     waits_started,
 )
 
-OUT = ROOT / ".tmp" / "delivery-ab"
+OUT = ROOT / ".tmp" / "delivery-eval"
 ROUNDS = 2
 TURN_LIMIT = 600
 PROMPT = (
@@ -75,7 +75,7 @@ COMMENTS = (
 
 
 def attempt(n: int) -> str:
-    return f"delivery-ab-{n}"
+    return f"delivery-eval-{n}"
 
 
 def moment(record: dict) -> float:
@@ -290,14 +290,14 @@ def report(results: dict) -> None:
 
 @click.command()
 @click.argument("base_ref", required=False)
-def delivery_ab(base_ref: str | None) -> None:
+def delivery_eval(base_ref: str | None) -> None:
     """Compare how an agent answers comments.
 
     Compares how a Claude Code agent handles comments on a Leaf page it serves,
     BASE_REF's plugin against HEAD's; BASE_REF defaults to the merge base with
     main. Each round runs a live `claude -p` session per arm and case, about
     a dollar each, and prints per comment how it reached the agent and how long each
-    step took; every stream and page log lands in .tmp/delivery-ab/.
+    step took; every stream and page log lands in .tmp/delivery-eval/.
     """
     with tempfile.TemporaryDirectory() as built:
         arms, commits = build_pair(base_ref, Path(built))

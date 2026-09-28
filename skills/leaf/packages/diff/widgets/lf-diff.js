@@ -18,7 +18,7 @@ import {
   paintKeys,
   projectData,
   consumeThreads,
-  declareCoverRoom,
+  declareStickyHeaders,
   relabel,
   retainUserIntent,
   scrollBehavior,
@@ -1152,7 +1152,7 @@ customElements.define(
           "lf-diff-line-comment",
         );
         // Thousands of lines must not become thousands of Tab stops. The page-level
-        // target chooser is the keyboard route to the same exact datum; this control is
+        // target picker is the keyboard route to the same exact datum; this control is
         // the conventional pointer affordance in the line-number gutter.
         line.comment.tabIndex = -1;
         line.node.addEventListener("pointerenter", () =>
@@ -1247,7 +1247,7 @@ customElements.define(
     // How much of the top a pinned file header covers, which is the one number the theme
     // cannot work out: a long path wraps, so the header's height is whatever it rendered
     // at, and on this corpus that is anything from one line to three. The runtime keeps
-    // that room declared (`declareCoverRoom`); here it is read as `scroll-margin-top`
+    // that room declared (`declareStickyHeaders`); here it is read as `scroll-margin-top`
     // on the rows, so a landing arrives
     // below the header rather than behind it. Per file, because each header pins over its
     // own rows and one number for all of them would spend the widest path's wrap on
@@ -1255,7 +1255,7 @@ customElements.define(
     declareHeadRoom() {
       const pinned = this.dataset.lfDiffPinned !== undefined;
       for (const file of this.shadowRoot?.querySelectorAll("details") ?? [])
-        declareCoverRoom(
+        declareStickyHeaders(
           file,
           "--lf-head-room",
           pinned ? file.querySelectorAll(":scope > summary") : [],

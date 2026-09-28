@@ -1,5 +1,5 @@
-/* The Lit-rendered face inside the banner shelf's stable native approval button. The
- * shelf owns the button's identity and position; this owner paints one complete approval
+/* The Lit-rendered face inside the banner toolbar's stable native approval button. The
+ * toolbar owns the button's identity and position; this owner paints one complete approval
  * reading without replacing the control a user may be holding. */
 import { LitElement, html } from "../vendor/browser-runtime.js";
 

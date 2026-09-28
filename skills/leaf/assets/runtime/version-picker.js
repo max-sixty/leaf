@@ -1,21 +1,21 @@
-/* The generated owner of the version chooser's complete native surface.
+/* The generated owner of the version picker's complete native surface.
  *
  * Version travel supplies one frozen presentation reading and stable commands. This
- * synchronous light-DOM Lit view retains the native chooser button, versions popover,
+ * synchronous light-DOM Lit view retains the native picker button, versions popover,
  * and latest-version chip in their separate banner and chrome seats. It owns their
  * labels, attributes, keyed rows, and disclosure focus; it never
  * fetches a document, chooses a version, or decides what a comparison means.
  */
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 
-import { dismissBannerControls } from "./banner-shelf.js";
+import { dismissBannerControls } from "./banner-toolbar.js";
 import { el } from "./widget-elements.js";
 
 const LATEST_FAILED = "Latest edit couldn't be shown";
 const INITIAL_LATEST = "New page available → open v999";
 const EMPTY = Object.freeze([]);
 const INITIAL = Object.freeze({
-  chooser: Object.freeze({
+  picker: Object.freeze({
     offered: false,
     token: "Draft",
     compared: false,
@@ -38,7 +38,7 @@ const INITIAL = Object.freeze({
   }),
 });
 
-class VersionChooserView {
+class VersionPickerView {
   #activate = null;
   #compare = null;
   #displayedRows = EMPTY;
@@ -71,7 +71,7 @@ class VersionChooserView {
     });
     this.menu.addEventListener("toggle", (event) => {
       const open = event.newState === "open";
-      if (this.#model.chooser.offered)
+      if (this.#model.picker.offered)
         this.button.setAttribute("aria-expanded", String(open));
       if (!open) {
         this.#displayedRows = this.#model.rows;
@@ -142,23 +142,23 @@ class VersionChooserView {
 
   present(model) {
     this.#model = model;
-    const { chooser, latest } = model;
-    if (!chooser.offered) this.close();
+    const { picker, latest } = model;
+    if (!picker.offered) this.close();
 
-    this.button.disabled = !chooser.offered;
-    if (chooser.offered) {
+    this.button.disabled = !picker.offered;
+    if (picker.offered) {
       this.button.setAttribute("aria-haspopup", "menu");
       this.button.setAttribute("aria-expanded", String(this.isOpen()));
     } else {
       this.button.removeAttribute("aria-haspopup");
       this.button.removeAttribute("aria-expanded");
     }
-    this.button.classList.toggle("on", chooser.compared);
-    this.button.toggleAttribute("data-lf-news", chooser.news);
-    this.button.dataset.lfKeyTitle = chooser.keyTitle;
-    this.button.setAttribute("aria-label", chooser.ariaLabel);
-    this.button.title = chooser.keyTitle;
-    render(chooser.token, this.button);
+    this.button.classList.toggle("on", picker.compared);
+    this.button.toggleAttribute("data-lf-news", picker.news);
+    this.button.dataset.lfKeyTitle = picker.keyTitle;
+    this.button.setAttribute("aria-label", picker.ariaLabel);
+    this.button.title = picker.keyTitle;
+    render(picker.token, this.button);
 
     this.latestChip.disabled = latest.disabled;
     this.latestChip.dataset.lfKeyTitle = latest.keyTitle;
@@ -231,11 +231,11 @@ class VersionChooserView {
   }
 }
 
-export const versionChooser = new VersionChooserView();
-export const versionBtn = versionChooser.button;
-export const versionMenu = versionChooser.menu;
-export const latestChip = versionChooser.latestChip;
-export const versionMenuIsOpen = () => versionChooser.isOpen();
+export const versionPicker = new VersionPickerView();
+export const versionBtn = versionPicker.button;
+export const versionMenu = versionPicker.menu;
+export const latestChip = versionPicker.latestChip;
+export const versionMenuIsOpen = () => versionPicker.isOpen();
 export const latestVersionLabel = ({ failed = false, activeLabel = null } = {}) =>
   failed
     ? LATEST_FAILED

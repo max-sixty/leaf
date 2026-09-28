@@ -49,7 +49,7 @@ import { reveal } from "./widget-elements.js";
 import { retainUserIntent } from "./user-intent.js";
 
 // The browser's rule for landing the element a fragment names: its start at its
-// scroller's landing edge, which a sticky cover's declared room keeps clear. Travel
+// scroller's landing edge, which a sticky header's declared room keeps clear. Travel
 // applies it where the browser's own landing does not reach the element: at an arrival
 // the page reshapes after the browser landed it (version.js, `aimArrival`), and at a
 // traversal, where the browser restores an offset instead (`returnToFragment`).

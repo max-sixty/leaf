@@ -72,7 +72,15 @@ export function threadReading(
   return Object.freeze({
     key: threadKey(thread),
     summary: threadSummary(thread),
-    titlePending: thread.title == null,
+    // The agent names a thread as it answers, so the name is pending only while an
+    // answer is: a workflow here the agent has yet to move and nothing has stopped. A
+    // thread it answered without naming, or one whose delivery went stale, reads by its
+    // first words rather than sweeping "Generating title" for as long as it stands.
+    titlePending:
+      thread.title == null &&
+      thread.workflows.some(
+        (workflow) => workflow.next_actor === "agent" && !workflow.condition,
+      ),
     unreadCount: thread.unread.length,
     id: thread.id,
     // The message a reply or settlement addresses, which is not the thread's id where

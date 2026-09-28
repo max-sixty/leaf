@@ -10,7 +10,7 @@ import { composerOpen } from "./selection.js";
 export function createEngagement({
   hasPending,
   fabAnchorAt,
-  targetChooserOpen,
+  targetPickerOpen,
   pageComposerDrawing,
 }) {
   function unaccountedGesture() {
@@ -23,7 +23,7 @@ export function createEngagement({
     return (
       composerOpen ||
       Boolean(pageComposerDrawing()) ||
-      targetChooserOpen() ||
+      targetPickerOpen() ||
       Boolean(fabAnchorAt()) ||
       unaccountedGesture() ||
       (active?.matches(TEXT_BOX) &&

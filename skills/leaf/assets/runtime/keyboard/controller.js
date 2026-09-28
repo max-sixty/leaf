@@ -1,5 +1,5 @@
 /* Browser input lifecycle. The dispatcher resolves declarations; this owner applies
-   page policy around a real input (transient modes and the shelf), and presses the keys
+   page policy around a real input (transient modes and the expanded shortcut bar), and presses the keys
    the prepaint bootstrap held before presentation once the page presents. */
 import { dispatchKey } from "./dispatch.js";
 import { MODIFIER_KEYS } from "./bindings.js";

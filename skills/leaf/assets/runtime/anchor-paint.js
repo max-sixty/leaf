@@ -27,7 +27,7 @@ import {
   rangeOf,
 } from "./passages.js";
 import { bareReaction } from "./thread/model.js";
-import { under } from "./shadow.js";
+import { shadowHost, under } from "./shadow.js";
 import { annotationsHidden } from "./annotation-layer.js";
 
 const MARK = "lf-mark";
@@ -251,9 +251,8 @@ export function createAnchorPaint({
           reacted.set(thread.id, ranges);
           reactions.push(...ranges);
           const block = annotationAt(segments[0].node);
-          const root = block?.getRootNode();
-          [at, before] =
-            root instanceof ShadowRoot ? [root.host, true] : [block, false];
+          const host = shadowHost(block?.getRootNode());
+          [at, before] = host ? [host, true] : [block, false];
         }
         if (at && !inChrome(at)) {
           const held = reactionSeats.get(at) ?? { before: [], inside: [] };

@@ -18,11 +18,11 @@ lf-visual-review {
   container-type: inline-size;
 }
 
-/* Held (a workspace Layout gives it a definite height to fill, `--lf-held`), the review
- * takes that height rather than its content's, so its evidence row takes what the heading
- * leaves and the pane's body scrolls. */
+/* Full-height (a workspace Layout gives it a definite height to fill, `--lf-full-height`),
+ * the review takes that height rather than its content's, so its evidence row takes what
+ * the heading leaves and the pane's body scrolls. */
 @media screen {
-  @container style(--lf-held: 1) {
+  @container style(--lf-full-height: 1) {
     lf-visual-review {
       min-block-size: 0;
       margin-block: 0;
@@ -112,7 +112,7 @@ lf-visual-review {
 }
 
 .lf-vr-toolbar-slot {
-  padding-block: var(--here-ring-w);
+  padding-block: var(--focus-ring-w);
 }
 
 .lf-vr-inspector[hidden] {

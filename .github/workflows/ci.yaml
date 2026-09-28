@@ -102,8 +102,6 @@ jobs:
         if: github.event_name == 'pull_request'
         run: uv run leaf-dev verify-site wrangler
 
-      # `leaf-dev ci-failures` finds a job's report by this artifact name, in both
-      # jobs that run pytest.
       - name: Upload pytest results
         if: always()
         uses: actions/upload-artifact@v7

@@ -12,6 +12,7 @@ import { reportPageError } from "../layer-client.js";
 import { closestAcross, elementById, inChrome } from "../passages.js";
 import { threadState, readThreads } from "./state.js";
 import { watchThreads } from "./watch.js";
+import { holdReply } from "./focus.js";
 import {
   renderSeats,
   beginThreadSeats,
@@ -48,6 +49,7 @@ export function createThreadPresentation({
   activeActionAnchor,
   renderMargin,
   renderSurfaces,
+  openThread,
   read,
 }) {
   const panels = new Set();
@@ -135,6 +137,9 @@ export function createThreadPresentation({
     read.begin();
     const current = () => generation === surfaceGeneration;
     const batch = beginThreadSeats();
+    // The reply the user is writing, which this pass may take off the surface drawing it
+    // (thread/focus.js, `holdReply`).
+    const restoreReply = holdReply(openThread);
     let prepared = null;
     const livePanels = [...panels].filter((panel) => panel.required);
     let surfaces = null;
@@ -180,6 +185,7 @@ export function createThreadPresentation({
       for (const candidate of candidates) candidate?.commit();
       commitThreadSeats(batch);
       pageGeometry.pageShifted();
+      restoreReply?.();
       finishListRecovery(candidates);
       read.present();
     } catch (error) {

@@ -146,7 +146,7 @@ import {
 } from "./annotation-layer.js";
 import { repaint } from "./repaint.js";
 import { chromeRoot } from "./chrome.js";
-import { versionBtn } from "./version-chooser.js";
+import { versionBtn } from "./version-picker.js";
 import { motion, scrollBehavior } from "./motion.js";
 import { declareSide, placeOf } from "./standing-target.js";
 import { closestAcross, elementById, inChrome } from "./passages.js";
@@ -166,7 +166,7 @@ import { anchorLabel } from "./thread/messages.js";
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
 import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
-import { bannerControlDoor } from "./banner-shelf.js";
+import { bannerControlDoor } from "./banner-toolbar.js";
 import { coarsePointer } from "./pointer.js";
 import { threadCardGeometry } from "./thread-card-geometry.js";
 import { shownWindow, skipped } from "./geometry.js";
@@ -180,7 +180,7 @@ import {
   threadAttention,
   workflowLabel,
 } from "./thread/workflow.js";
-import { renderedParent, under } from "./shadow.js";
+import { renderedParent, shadowHost, under } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
 
 // A margin card's reply box.
@@ -216,12 +216,12 @@ export function createMarginProjection({
       .trim();
 
   function targetPath(target) {
-    const root = target.getRootNode();
+    const host = shadowHost(target.getRootNode());
     // IDs and sibling paths are scoped to a shadow root. Prefix them with the host's
     // own stable path so two instances of the same shadow template stay distinct,
     // while a live-version replacement at the same authored coordinate can still
     // retain its marker and preview focus.
-    const prefix = root instanceof ShadowRoot ? `${targetPath(root.host)}/shadow/` : "";
+    const prefix = host ? `${targetPath(host)}/shadow/` : "";
     if (target.id) return `${prefix}id:${target.id}`;
     const steps = [];
     for (let node = target; node;) {
@@ -822,7 +822,7 @@ export function createMarginProjection({
   }
   // A viewport posture change can replace the focused full thread with its
   // compact action. Reconcile after resize delivery so the browser can finish its
-  // own focus and popover bookkeeping before that node changes shape. Panel and tray
+  // own focus and popover bookkeeping before that node changes shape. Panel and drawer
   // changes notify this runtime directly through their owners.
 
   // A margin cluster is hoisted away from the page target it belongs to, so ancestry
@@ -1350,9 +1350,9 @@ export function createMarginProjection({
   }
 
   // Where the Map hands the user back, for `handBack`: the entry's own marker, then the
-  // way into the Map, then a row in view, then the version control. The Map is a shelf
+  // way into the Map, then a row in view, then the version control. The Map is a toolbar
   // control, so at a width that folds it the button itself is behind a shut door and
-  // cannot take focus; the shelf is asked for the way in.
+  // cannot take focus; the toolbar is asked for the way in.
   function mapControlPlaces(entry = null) {
     const visible = visibleRows();
     return [
@@ -2407,7 +2407,7 @@ export function createMarginProjection({
   // which is the container it is part of.
   //
   // Once a contribution is engaged, its complete and escape controls are open because of
-  // semantic state rather than because the user disclosed the secondary tray. That
+  // semantic state rather than because the user disclosed the secondary drawer. That
   // state consumes the earlier disclosure step: Escape leaves the action the user is
   // standing on instead of first pretending to close controls that remain open by
   // contract.
@@ -2621,7 +2621,7 @@ export function createMarginProjection({
   // showing its threads. The card shows the threads of the target the user stands at,
   // which is what lets both be up at once, and goes when they stand anywhere else on the
   // page, let go, or press outside all three. Keyboard focus passing through the chrome
-  // at large — the banner, a tray — is working on the page rather than a place on it,
+  // at large — the banner, a drawer — is working on the page rather than a place on it,
   // and leaves the card; a press anywhere else is the user's attention moving, and
   // takes it, as a press on another page place does.
   //
@@ -2821,7 +2821,7 @@ export function createMarginProjection({
   }
 
   // The margin's parts into the chrome, once it is mounted (leaf.js): the map button beside
-  // the version chooser, then its own parts in the root.
+  // the version picker, then its own parts in the root.
 
   function mount() {
     mountMarginLayer(toolbar);

@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { declareCoverRoom, insetBand, visibleBand } from "/runtime/geometry.js";
+import { declareStickyHeaders, insetBand, visibleBand } from "/runtime/geometry.js";
 import { pointerAt } from "/runtime/pointer.js";
 import { placeCandidates, placeCorrection, placeKeeper } from "/runtime/user-place.js";
 
@@ -121,25 +121,25 @@ function laidOut() {
   };
 }
 
-test("the band is the scroller's less a stuck cover", () => {
+test("the band is the scroller's less a stuck sticky header", () => {
   const { scroller } = laidOut();
   const heading = document.createElement("h3");
   heading.getBoundingClientRect = () => new DOMRect(0, -4, 300, 34);
   scroller.append(heading);
   // Undeclared, a sticky box is content like any other.
   assert.equal(visibleBand(scroller).top, 0);
-  declareCoverRoom(scroller, "--lf-head-room", [heading]);
+  declareStickyHeaders(scroller, "--lf-head-room", [heading]);
   assert.deepEqual(
     { top: visibleBand(scroller).top, bottom: visibleBand(scroller).bottom },
     { top: 30, bottom: 400 },
   );
-  // Read while detached, then put back and declared again, it is still a cover.
+  // Read while detached, then put back and declared again, it is still a sticky header.
   heading.remove();
   visibleBand(scroller);
   scroller.append(heading);
-  declareCoverRoom(scroller, "--lf-head-room", [heading]);
+  declareStickyHeaders(scroller, "--lf-head-room", [heading]);
   assert.equal(visibleBand(scroller).top, 30);
-  // A cover does not hide what it holds: read for a node inside it, the band keeps it.
+  // A sticky header does not hide what it holds: read for a node inside it, the band keeps it.
   const label = document.createElement("span");
   heading.append(label);
   assert.equal(visibleBand(scroller, label).top, 0);
@@ -150,7 +150,7 @@ test("the band is the scroller's less a stuck cover", () => {
   inner.append(heading);
   scroller.append(inner);
   assert.equal(visibleBand(scroller).top, 0);
-  // A cover in a widget's shadow tree sticks in the scroller outside it.
+  // A sticky header in a widget's shadow tree sticks in the scroller outside it.
   inner.remove();
   const widget = document.createElement("div");
   widget.attachShadow({ mode: "open" }).append(heading);
@@ -209,20 +209,20 @@ test("a wheel leaves the precise pointer position intact", () => {
   assert.deepEqual(pointerAt(), { x: 120.5, y: 240.25 });
 });
 
-test("a host's first cover keeps its room from the declaration on", () => {
+test("a host's first sticky header keeps its room from the declaration on", () => {
   // The first observation comes after the frame's layout, and a document's initial
   // fragment landing reads the room before it: declared, the room is already there.
   const { scroller } = laidOut();
   const strip = document.createElement("div");
   strip.getBoundingClientRect = () => new DOMRect(0, 42, 300, 47);
   scroller.append(strip);
-  declareCoverRoom(scroller, "--lf-strip-room", [strip]);
+  declareStickyHeaders(scroller, "--lf-strip-room", [strip]);
   assert.equal(scroller.style.getPropertyValue("--lf-strip-room"), "47px");
-  // A cover replacing it starts at the room the host keeps rather than at none.
+  // A sticky header replacing it starts at the room the host keeps rather than at none.
   const next = document.createElement("div");
   next.getBoundingClientRect = () => new DOMRect(0, 42, 300, 30);
   scroller.append(next);
-  declareCoverRoom(scroller, "--lf-strip-room", [next]);
+  declareStickyHeaders(scroller, "--lf-strip-room", [next]);
   assert.equal(scroller.style.getPropertyValue("--lf-strip-room"), "47px");
   scroller.remove();
 });

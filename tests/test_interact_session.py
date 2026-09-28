@@ -7546,6 +7546,40 @@ def test_a_revival_that_does_not_hold_ends_the_wait(
     ) in capsys.readouterr().err
 
 
+def test_a_page_without_a_declaration_leaves_the_sessions_wait_running(
+    page_dir, tmp_path
+):
+    """A claimed page whose agent has declared nothing, such as a copy served
+    before any `leaf status`, reads as waiting on its user: the session's wait
+    passes over it and still delivers a sibling page's comment, and the copy's
+    own state reads as listening. The copy sorts ahead of the page, so a pass
+    that stumbled on it would end before reaching the comment."""
+    publish(page_dir)
+    serving(page_dir, 1)
+    service_model.claim_page(page_dir)
+    copy = tmp_path / "copy"
+    shutil.copytree(page_dir, copy)
+    (copy / schema_model.STATUS_FILE).unlink()
+    serving(copy, 1)
+    service_model.claim_page(copy)
+    assert service_model.owned_pages(session_model.session_harness().session) == [
+        copy.resolve(),
+        page_dir.resolve(),
+    ]
+    comment = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "still there?"},
+    )
+
+    waited = CliRunner().invoke(cli_model.cli, ["wait"])
+
+    assert waited.exit_code == 0, waited.output
+    _, batch, shown = woken(waited.output)
+    assert batch["page"] == str(page_dir.resolve())
+    assert [event["id"] for event in shown] == [comment["id"]]
+    assert page_state(copy)["activity"]["kind"] == "listening"
+
+
 @pytest.mark.parametrize("wait", ["named", "session"])
 def test_a_wait_on_a_page_never_served_ends_at_once(page_dir, capsys, wait):
     """A page with no service record has nothing that will serve it, so a wait
@@ -10086,7 +10120,7 @@ def test_a_codex_session_id_with_no_codex_above_it_is_refused(page_dir, monkeypa
 
 
 def test_a_claim_records_where_the_session_is_working(page_dir, tmp_path, monkeypatch):
-    """What tells one leaf from another on the tray is the work behind it, which
+    """What tells one leaf from another on the drawer is the work behind it, which
     neither the title somebody wrote nor the state directory nobody chose says — so
     the claim records the directory the claiming command ran in, the same reading
     `layer_dirs` already takes cwd to be. Every seat gets it through `presence`, and a

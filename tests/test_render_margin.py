@@ -577,8 +577,8 @@ def test_a_surface_over_the_rail_hands_the_user_the_map(browser, serve):
     """Threads stands over the page and takes no room, so opening it leaves the rail
     drawn, but at 1100 it stands over the rail, so the banner offers the Page Map in the
     markers' place; at 1920 the rail stands clear of it and the margin stays the way in.
-    The Map is read as offered rather than as visible, since the shelf may fold it behind
-    the More door at a width the banner is crowded at. The Asks tray stands over the left
+    The Map is read as offered rather than as visible, since the toolbar may fold it behind
+    the More door at a width the banner is crowded at. The Asks drawer stands over the left
     of the window, away from the rail, so it leaves the markers and the margin alone."""
     comment = {
         "kind": "comment",
@@ -626,7 +626,7 @@ def test_a_surface_over_the_rail_hands_the_user_the_map(browser, serve):
     toggle_asks(page)
     margins_laid_out(page)
     expect(marker).to_be_visible()
-    assert not page.evaluate(offered), "the tray on the left withdrew the rail"
+    assert not page.evaluate(offered), "the drawer on the left withdrew the rail"
 
 
 @pytest.mark.parametrize("touch", [False, True], ids=["mouse", "finger"])
@@ -5906,7 +5906,9 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
             if (!event.target.matches('.lf-margin-preview .lf-page-thread'))
               return;
             document.removeEventListener('focusin', firstFocus);
-            queueMicrotask(() => {
+            // The frame the focus paints: the runtime's focus listener ran first and
+            // asked for this frame's standing paint before this one asks to read it.
+            requestAnimationFrame(() => {
               window.__firstReplyHint = card.querySelector('leaf-text')?.placeholder;
             });
           };
@@ -7154,7 +7156,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     page.keyboard.press("Shift+a")
     expect(preview).to_be_hidden()
     expect(page.locator(".lf-asks-panel")).to_have_class(re.compile(r"\bopen\b"))
-    # Exchanging one auxiliary surface for another is lateral, so the tray's Escape
+    # Exchanging one auxiliary surface for another is lateral, so the drawer's Escape
     # lands on the page and the card it displaced is not put back up.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-asks-panel")).not_to_have_class(re.compile(r"\bopen\b"))
@@ -7392,8 +7394,8 @@ def test_a_page_that_can_grow_margin_status_reserves_its_rail_before_the_first_g
     ), "withdrawing the move handed the strip back and moved the column with it"
 
 
-def test_the_thread_card_survives_trays_and_authored_sidebars(browser, serve):
-    """A tray or authored sidebar does not turn the contextual card into a panel."""
+def test_the_thread_card_survives_drawers_and_authored_sidebars(browser, serve):
+    """A drawer or authored sidebar does not turn the contextual card into a panel."""
     page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
@@ -8517,7 +8519,7 @@ def test_a_marker_with_nowhere_to_stand_is_withheld_and_reported(browser, serve)
 def test_a_thread_card_reply_stays_in_the_visible_viewport(browser, serve, window):
     """Zooming in, like a phone's software keyboard, shrinks the visible viewport without
     resizing the window, and a card whose reply the user is writing stands inside what
-    is left, below the banner and above the bottom band. The zoom stands in for the
+    is left, below the banner and above the bottom bar. The zoom stands in for the
     keyboard, which no emulation raises; the card starts low in the window, where the
     shrunk viewport no longer reaches."""
     filler = "".join(f"<p>Filler paragraph {i}.</p>" for i in range(14))

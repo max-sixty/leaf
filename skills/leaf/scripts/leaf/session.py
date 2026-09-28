@@ -32,7 +32,6 @@ from .revisioning import activate_source
 from .schema import (
     ANSWER_ASK_INSTRUCTION,
     SERVICE_FILE,
-    STATUS_FILE,
 )
 from .served_state.page import full_state
 from .served_state.reading import page_reading
@@ -42,6 +41,7 @@ from .service import (
     claim_page,
     open_session_turn,
     owned_pages,
+    read_status,
     unacknowledged,
 )
 from .work import standing_work_claims, work_subject
@@ -249,7 +249,7 @@ class Watch:
             # the harmless observation outside makes the lock boundary itself
             # testable: a claim or SessionEnd can win after page selection,
             # and _read must then decline every stale act.
-            observed = read_json(page_dir / STATUS_FILE)
+            observed = read_status(page_dir)
             try:
                 with PageTransaction(page_dir) as page:
                     reading, revive = self._read(page, observed)

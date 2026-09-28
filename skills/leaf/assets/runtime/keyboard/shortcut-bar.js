@@ -32,13 +32,13 @@
    which the document, a full-height workspace, the drawers' lists and the contents map
    all end above, so no reservation is measured off it. The expanded bar's second row
    grows upward over the page as an overlay and leaves that reservation alone. A covering
-   thread panel makes the line inert background. A coarse pointer is drawn no hint line at all — there is no
-   keyboard to advertise, and every hint would name a key the user cannot press — and
-   states no bar height. The status stands at the bar's far end, and the line's row ends
-   short of a standing one. The line, status, and chips take no pointer events; the More
-   control does, because it is the pointer route to the reference. Brief user feedback
-   replaces an ordinal and then restores its live reading; background arrivals queue
-   behind user feedback and persistent command context.
+   thread panel makes the line inert background. A coarse pointer is drawn no hint line
+   at all — there is no keyboard to advertise, and every hint would name a key the user
+   cannot press — and states no bar height. The status stands at the bar's far end, and
+   the line's row ends short of a standing one. The line, status, and chips take no
+   pointer events; the More control does, because it is the pointer route to the
+   reference. Brief user feedback replaces an ordinal and then restores its live reading;
+   background arrivals queue behind user feedback and persistent command context.
 
    The accessible More control and its `?` binding share one progressive route. The first
    activation unfolds additional current-scene rows into an expanded bar capped at two
@@ -83,7 +83,6 @@ import {
   setNoticeContext,
 } from "../notifications.js";
 import { repaint } from "../repaint.js";
-import { sizeObserver } from "../rendering.js";
 import { walkPosition } from "../walk-position.js";
 import { declareBottomBar } from "../geometry.js";
 
@@ -272,13 +271,6 @@ function lineRows(scopes) {
   return rows;
 }
 let shortcutBarIsExpanded = false;
-// Which rows fit follows the line's width, which the window and a panel standing beside
-// the page both set, the panel after this paint has run. Only a width other than the one
-// the last paint fitted asks for another; the height the trim leaves asks nothing.
-let fittedWidth = 0;
-const fittedSizes = sizeObserver(([entry]) => {
-  if (entry.borderBoxSize[0].inlineSize !== fittedWidth) repaint();
-});
 let lastWalkPresentation = null;
 const shortcutHelpAvailable = () => bindings(SHORTCUT_HELP).length > 0;
 const arrange = (rows) => {
@@ -365,16 +357,6 @@ export function renderShortcutBar(goToStatus) {
   });
   setNoticeContext(Boolean(goToReading));
   renderBottomStatus();
-  // The status stands over the line's tail, so the line's row ends a gap short of a
-  // standing status. A transient notice keeps the footprint of what it stands over
-  // (standingStatusBoxes) rather than trimming the line for the seconds it shows.
-  const [status] = standingStatusBoxes();
-  shortcutBarEl.style.setProperty(
-    "--lf-status-room",
-    status
-      ? `${status.width + parseFloat(getComputedStyle(shortcutBarEl).columnGap)}px`
-      : "0px",
-  );
   // Keep the two contextual hints together at the front of the ordinary line. The
   // expanded bar and a sequence retain registry order because each is a fuller reading of
   // one scene rather than a ranked shortlist.
@@ -454,9 +436,16 @@ export function renderShortcutBar(goToStatus) {
   // Lit leaves `hidden` alone, so every paint first restores each row's semantic
   // eligibility; the trim below is then the one measurement that may hide more.
   for (const { presentation, span } of drawn) span.hidden = presentation.hidden;
-  // Read at the width this paint was fitted to; the observer below repaints when a
-  // window or a panel beside the page changes it.
-  fittedWidth = shortcutBarEl.getBoundingClientRect().width;
+  // The status stands at the bar's far end, level with the one row, so a standing status
+  // pads the row's end and More and the way out stop short of it. A transient notice
+  // keeps the footprint of what it stands over (standingStatusBoxes) rather than trimming
+  // the line for the seconds it shows. The expanded bar's upper row is not level with the
+  // status, so it reserves nothing.
+  const [status] = expanded ? [] : standingStatusBoxes();
+  const room = status
+    ? status.width + parseFloat(getComputedStyle(shortcutBarEl).columnGap)
+    : 0;
+  shortcutBarEl.style.setProperty("--lf-status-room", `${room}px`);
   const rowsUsed = () => {
     const items = [...shortcutBarEl.children].filter(
       (node) => !node.hidden && node.checkVisibility(),
@@ -480,6 +469,10 @@ export function renderShortcutBar(goToStatus) {
     .map(({ span }) => span)
     .toReversed();
   while (rowsUsed() > ceiling && removable.length) removable.shift().hidden = true;
+  // A status too wide to leave More and the way out their row gives the room back and
+  // stands over them, since it takes no pointer events and the row is the promise.
+  if (room && rowsUsed() > ceiling)
+    shortcutBarEl.style.setProperty("--lf-status-room", "0px");
 }
 
 const shortcutBarExpanded = () => shortcutBarIsExpanded && shortcutHelpAvailable();
@@ -492,7 +485,8 @@ export function mountShortcutBar({ setGoToSequence, setReact }) {
     setReact(false);
     advanceShortcutHelp();
   };
-  fittedSizes.observe(shortcutBarEl);
+  // Which rows fit follows the line's width, which the window and a panel beside the page
+  // both set; chrome layout's observer of the line repaints on any change to its box.
   repaint();
 }
 

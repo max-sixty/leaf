@@ -1595,8 +1595,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      transient state — a semantic walk's live ordinal, or a brief command or arrival
      notice in its place — stands at the bar's other end, and a standing one pads the
      line's end (--lf-status-room) so the row stops short of it. syncLayout keeps the bar
-     out of the thread panel, which stands over the page's right edge. A covering auxiliary surface makes it inert
-     background. The line wraps so the runtime can see which hints spill past one row,
+     out of the thread panel, which stands over the page's right edge. A covering
+     auxiliary surface makes it inert background. The line wraps so the runtime can see which hints spill past one row,
      and hides them (two rows in the expanded bar): one row fills the bar's stated
      height exactly, and the expanded bar's second grows the line upward. The rows pack
      to the foot, and the foot's padding centres a row of key badges in the bar, so the

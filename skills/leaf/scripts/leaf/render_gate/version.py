@@ -89,8 +89,9 @@ def _render_version_attempt(
     drawing's fit to its box shrinks its labels past reading; and then, resizing that
     loaded page through every width from 360px to 1920px, the sideways readings again:
     a version holds at each of them, not only at the two it renders. There it also
-    reads whether a workspace stacks its panes while the Layout still fills the window,
-    which only the widths between the two viewports show. That pass also
+    reads whether a workspace whose panes stand side by side at the desktop viewport
+    stacks them while the Layout still fills the window, which only the widths between
+    the two viewports show. That pass also
     finds each width where the page's margin content changes (a sidebar, contents map
     or note first standing in the margin), and the gate renders the page there too, in
     the light scheme: what stands in the margin is layout, which the scheme does not
@@ -122,7 +123,7 @@ def _render_version_attempt(
         advice.extend(shrunk_label_advice(page))
         widths = sweep(page, RENDER_VIEWPORTS, open_widgets(registry))
         swept.extend(swept_overflow(widths, RENDER_VIEWPORTS))
-        swept.extend(stacked_panes(widths))
+        swept.extend(stacked_panes(widths, RENDER_VIEWPORTS[0]["width"]))
         arrangement.extend(arrangement_changes(widths))
         height = RENDER_VIEWPORTS[0]["height"]
         fixed = {viewport["width"] for viewport in RENDER_VIEWPORTS}

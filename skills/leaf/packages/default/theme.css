@@ -1486,6 +1486,9 @@ lf-shot .lf-shotdiff > span { position: absolute;
 lf-shot .lf-shotdelta { font-size: var(--t-6); color: var(--muted); }
 lf-shot .lf-shotdelta[data-lf-shot-delta="identical"] { color: var(--warn-ink);
     font-weight: 650; }
+/* An author who finds the outlines point away from the pair's subject marks it
+   `unmarked`, which hides them and the reading and nothing else. */
+lf-shot[unmarked] :is(.lf-shotdiff, .lf-shotdelta) { display: none; }
 
 /* Before the progressive comparison arrives the image is itself the native target. The
    one fallback covers loading and controls-off. */

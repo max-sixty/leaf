@@ -134,4 +134,7 @@ same viewport, of the versions the page compares. Before writing the prose and
 On the page, the pair outlines each region where its images differ, and its rail
 says what they add up to: a count, "changed throughout", "only slight changes", or
 "identical". Check that an outline stands where the prose puts the change. Where none
-does, capture a case that shows the change, or say that nothing changed.
+does, capture a case that shows the change, or say that nothing changed. Where the
+outlines would mostly mark what the pair is not about, such as live data that moved
+between captures you cannot retake, add `unmarked` to hide them and the reading, and
+say in the prose where to look.

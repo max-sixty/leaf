@@ -17,7 +17,8 @@
  * then still sees where the pair differs, that it changed throughout, or that nothing
  * but slight redrawing, or nothing at all, differs. `difference` is that reading, in
  * the images' own pixels, or null for a pair the widget refused; a parent that hides
- * the rail states it from there.
+ * the rail states it from there. An authored `unmarked` hides the outlines and the
+ * reading in CSS, so a revision can turn them on and off in place.
  * Pairs compare one per frame, so a page of large captures does not hold input for the
  * whole batch.
  *

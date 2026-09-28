@@ -1,0 +1,51 @@
+schema_version: '1.0'
+name: shot-pair-live-data
+description: "Source files and media: a pair whose outlines would mostly mark live data that moved between captures that cannot be retaken is `unmarked`, and its prose says where to look."
+tags:
+- evidence
+context:
+  add_dirs:
+  - captures
+execution:
+  prompt: |
+    You are writing a Leaf page for the user about a restyle of the orders dashboard's
+    header, which shipped this morning. Your notes:
+
+    Header. The header was a white bar with a small title. It is now a dark bar with a
+    larger title and a health chip beside it. Nothing below the header changed.
+
+    Before the deploy, a probe captured the production dashboard at 1100x760; this
+    morning it captured it again at the same size. The dashboard shows live orders, and
+    the old build is no longer deployed, so the pair cannot be retaken.
+    `leaf page media` registered the captures and printed each one's page path beside
+    its source file, which sits under the Leaf plugin's root (two directories above the
+    leaf skill's base directory):
+
+        /media/dash-before.png  evals/shot-pair-live-data/captures/before.png  (before the deploy)
+        /media/dash-after.png   evals/shot-pair-live-data/captures/after.png   (this morning)
+
+    Write the HTML for the page's section on the header, with its before/after pair.
+    The page directory is not reachable from here, so reply with the HTML fragment
+    rather than writing a file.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-authoring-evidence
+  type: tool_used
+  tool: Read
+  input_match: authoring-evidence
+- name: pair-unmarked
+  type: regex
+  pattern: <lf-shot\b(?=[^>]*\bbefore=["'][^"']*dash-before\.png)(?=[^>]*\bafter=["'][^"']*dash-after\.png)(?=[^>]*\sunmarked\b)
+  flags: i
+- name: judgment
+  type: llm
+  criteria: |
+    Between the captures the header changed, and so did every figure below it: the
+    four tiles, the chart line, the order rows, and the header's "Updated" time,
+    because the data is live. Read the reply. Pass if the HTML shows the pair as one
+    lf-shot and its prose tells the reader to look at the header, or that the changes
+    below it are live data rather than part of the restyle. Fail if it leaves the pair
+    out, or its prose presents the changed figures as part of the change.

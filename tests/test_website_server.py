@@ -3806,14 +3806,14 @@ def test_the_deploy_gate_stops_waiting_on_a_page_with_no_agent_on_the_comment():
     behind it. Extending the wait there would spend the step's whole budget to raise
     the failure it could already raise.
     """
-    obligation = {"event": "comment-id", "dropped": False}
+    obligation = {"input": "comment-id", "dropped": False}
     for kind in ("away", "unheld", "stalled", "closed", "listening"):
         state = {"activity": {"kind": kind, "obligations": [obligation]}}
         assert not verify_site.still_answering(state, "comment-id")
     dropped = {
         "activity": {
             "kind": "working",
-            "obligations": [{"event": "comment-id", "dropped": True}],
+            "obligations": [{"input": "comment-id", "dropped": True}],
         }
     }
     assert not verify_site.still_answering(dropped, "comment-id")

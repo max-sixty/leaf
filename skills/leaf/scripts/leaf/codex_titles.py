@@ -116,10 +116,14 @@ def generate_title(endpoint: str, subject: str, model: str | None) -> dict:
     started = time.monotonic()
     socket = app_server_connect(endpoint)
     try:
-        request_ids = iter(range(4))
+        request_ids = iter(range(5))
         app_server_handshake(
             socket, next(request_ids), "leaf-thread-titles", "Leaf thread titles"
         )
+        # A thread starts every MCP server the user configured, and an override
+        # replacing the table leaves them standing, so each is turned off by name.
+        configured = app_server_request(socket, "config/read", next(request_ids), {})
+        servers = configured["config"].get("mcp_servers") or {}
         thread = app_server_request(
             socket,
             "thread/start",
@@ -130,7 +134,10 @@ def generate_title(endpoint: str, subject: str, model: str | None) -> dict:
                 "approvalPolicy": "never",
                 "sandbox": "read-only",
                 "baseInstructions": INSTRUCTIONS,
-                "config": TITLE_CONFIG,
+                "config": {
+                    **TITLE_CONFIG,
+                    "mcp_servers": {name: {"enabled": False} for name in servers},
+                },
             },
         )
         thread_id = thread["thread"]["id"]

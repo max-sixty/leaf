@@ -1349,6 +1349,10 @@ def titling_app_server(app_server, answer: str) -> tuple[str, list[dict]]:
             method = message.get("method")
             if method == "initialize":
                 socket.send(json.dumps({"id": message["id"], "result": {}}))
+            elif method == "config/read":
+                servers = {"docs": {"command": "docs-server", "enabled": True}}
+                config = {"config": {"mcp_servers": servers}}
+                socket.send(json.dumps({"id": message["id"], "result": config}))
             elif method == "thread/start":
                 thread = {"thread": {"id": "title-thread"}}
                 socket.send(json.dumps({"id": message["id"], "result": thread}))
@@ -1421,6 +1425,8 @@ def test_an_app_server_turn_names_the_untitled_thread_it_answers(page_dir, app_s
     [start] = [m for m in received if m.get("method") == "thread/start"]
     assert start["params"]["ephemeral"] is True
     assert start["params"]["model"] == "light-model"
+    # The user's MCP servers would start with the thread and list their tools to it.
+    assert start["params"]["config"]["mcp_servers"] == {"docs": {"enabled": False}}
     [turn] = [m for m in received if m.get("method") == "turn/start"]
     [text] = turn["params"]["input"]
     assert "Why does the export take a minute?" in text["text"]

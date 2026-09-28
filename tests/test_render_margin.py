@@ -2440,6 +2440,21 @@ def test_the_page_map_dialog_walks_its_rows_from_the_search(browser, serve):
     ).to_be_focused()
 
 
+def test_a_finger_opens_the_page_map_on_its_first_row(browser, serve):
+    """Focusing the search on a phone raises the soft keyboard over the list the finger
+    came to tap, so a coarse pointer opens the map on its first row instead."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(
+        browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS), context=context
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    expect(dialog.locator("button.lf-page-map-action").first).to_be_focused()
+
+
 def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
     """A late action-only location is reachable while it is visible."""
     page = open_page(browser, serve(FEATURE_GALLERY))

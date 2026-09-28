@@ -14,6 +14,8 @@
 
    The dialog is a list with a search above it. Up and Down walk its rows, Down or Enter
    in the search enters the list at the first match, and a row's Enter is its own press.
+   A finger opens the map on its first row rather than in the search, since focusing the
+   search raises a soft keyboard over the list the finger came to tap.
 
    Boot supplies margin commands and readings to one constructed map owner. Its
    mount attaches the dialog and binds controls; importing the module does not
@@ -25,6 +27,7 @@ import { handBack, holdFocus, letGo } from "./focus.js";
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import { iconTemplate } from "./icons.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
+import { coarsePointer } from "./pointer.js";
 import { rowWalk } from "./walk-position.js";
 import { el, keepsText, offer } from "./widget-elements.js";
 import { placeKeeper } from "./user-place.js";
@@ -362,7 +365,10 @@ export function createPageMapDialog({
             ),
         )
       : group?.querySelector(".lf-page-map-action");
-    (destination ?? dialogSearch).focus({ preventScroll: true });
+    (
+      destination ??
+      (coarsePointer.matches ? (mapRows()[0] ?? dialogClose) : dialogSearch)
+    ).focus({ preventScroll: true });
     paintKeys();
   }
 

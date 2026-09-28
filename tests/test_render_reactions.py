@@ -2641,3 +2641,32 @@ def test_escape_clears_selection_and_keeps_actions_dismissed(browser, serve):
     page.evaluate("() => new Promise(resolve => setTimeout(resolve, 0))")
     assert not bar.is_visible()
     assert page.evaluate("() => getSelection().toString()") == ""
+
+
+def test_a_reply_s_reactions_keep_their_keys_in_a_covering_threads_panel(browser, serve):
+    """At a phone's width the Threads panel covers the page, and the keyboard answers only
+    what stands inside it. The reaction mode stood nowhere, so every one of its rows fell
+    below the panel's floor: an arrow reached no row, read as a stray key, and closed the
+    list the user was walking. The open list is where the mode stands."""
+    page = open_page(browser, serve(FEATURE_GALLERY))
+    resized(page, 390, 844)
+    page.keyboard.press("Shift+t")
+    panel_settled(page)
+    # The reply strip that shows is in the panel; the page's own strips stand under it.
+    page.evaluate(
+        """() => [...document.querySelectorAll('.lf-react-strip.lf-open')]
+          .findLast((strip) => strip.checkVisibility())
+          .setAttribute('data-test-strip', '')"""
+    )
+    strip = page.locator(".lf-react-strip[data-test-strip]")
+    strip.locator(".lf-react-trigger").click()
+    choices = strip.locator(".lf-react-palette > .lf-react")
+    expect(choices.nth(0)).to_be_focused()
+    page.keyboard.press("ArrowRight")
+    expect(choices.nth(1)).to_be_focused()
+    expect(strip).to_have_class(re.compile(r"\blf-react-open\b"))
+    page.keyboard.press("ArrowLeft")
+    expect(choices.nth(0)).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(strip).not_to_have_class(re.compile(r"\blf-react-open\b"))
+    expect(strip.locator(".lf-react-trigger")).to_be_focused()

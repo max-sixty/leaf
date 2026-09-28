@@ -540,6 +540,11 @@ export function createReactionController({
     // the liveness captured at that boundary rather than listing every conditional choice.
     liveInCommandReference: true,
     at: () => reactArmed,
+    // The open list is where the mode stands, so a surface covering the page keeps it
+    // when the list is inside that surface: a reply's strip in a covering Threads panel
+    // lost every row to the panel's floor, and the stray key closed the list. The
+    // margin's list has no node of its own and stands wherever its entry does.
+    root: () => (reactSurface instanceof Element ? reactSurface : document),
     claims: allButCommandReference,
     rows: [
       {

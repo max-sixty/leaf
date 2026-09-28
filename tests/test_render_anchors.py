@@ -4326,10 +4326,11 @@ def test_the_current_page_has_a_menu_local_key(browser, serve):
 
     # The first press opens and goes nowhere. A whole tick passes before the reading,
     # which is far longer than a navigation would take to start.
+    pinned = page.url
     open_versions(page)
     expect(menu).to_be_visible()
     ticked(page)
-    assert page.url.endswith("pin"), "the press that opens the menu navigated"
+    assert page.url == pinned, "the press that opens the menu navigated"
 
     # Walk off the version being read, so the row under the focus is not the current one and
     # not the one this press takes.

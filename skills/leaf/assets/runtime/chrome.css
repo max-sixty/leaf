@@ -1793,14 +1793,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
        carry the floor itself or a touch toolbar loses four pixels.
        It states both axes for the same reason, and the band is the shared control's. */
     .lf-banner-actions > .lf-btn { min-height: max(40px, var(--aim-floor)); padding: 4px 2px; }
-    .lf-banner-menu { right: auto;
-      left: max(calc(8px + var(--lf-safe-left)), anchor(left)); }
-    /* The control run starts at the left on this two-row banner. Keep its menu under
+    /* The control run starts at the left on this two-row banner. Keep each menu under
        the same door; pinning the menu to the viewport's right made it appear to belong
-       to Threads after the Versions door wrapped to the left. Its viewport max-width
-       above still keeps the far edge inside the phone. */
-    .lf-version-menu { right: auto;
-      left: max(calc(8px + var(--lf-safe-left)), anchor(left)); }
+       to Threads after the Versions door wrapped to the left. The door already stands
+       inside the row's inset, so its edge is the menu's; the viewport max-width above
+       keeps the far edge inside the phone. */
+    :is(.lf-banner-menu, .lf-version-menu) { right: auto; left: anchor(left); }
     /* The sheet the Map opens in stands over the whole window and is sized to it, so
        its compact shape belongs to the banner overflow rather than to the rail: it asks
        the window, and this is the block that asks it. */

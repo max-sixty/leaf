@@ -2869,7 +2869,8 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
     and walks back by posting another ordinary edit. A second tab proves restore is
     durable replay rather than local history state; copy mode proves the local history
     does not survive without its handlers."""
-    page = open_page(browser, serve(JOURNEY_V1))
+    url = serve(JOURNEY_V1)
+    page = open_page(browser, url)
     draft = page.locator("#draft-ops")
     edits = [
         "Run the migration before deploying. It takes one minute.",
@@ -2943,7 +2944,8 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
     assert [text for _, text in sequence] == [edits[0], edits[1], edits[0]]
     assert [seq for seq, _ in sequence] == sorted(seq for seq, _ in sequence)
 
-    other = open_page(browser, page.url)
+    # The handover URL, since the key it carries has left this tab's address.
+    other = open_page(browser, url)
     expect(other.locator("#draft-ops .lf-draft-body")).to_have_text(edits[0])
     expect(other.locator("#draft-ops .lf-draft-history > summary")).to_have_text(
         "Changes · 3 edits"

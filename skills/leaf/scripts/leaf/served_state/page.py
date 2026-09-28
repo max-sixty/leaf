@@ -10,12 +10,11 @@ from ..data import browser_data_from, read_data
 from ..event_log import now_iso
 from ..events import build_threads
 from ..files import active_descriptor, version_descriptors
-from ..passages import active_enclosing
+from ..passages import SourceReading
 from ..presence import presence_with_activity
 from ..registry.contract import RegistryError
 from ..registry.storage import layer_metadata, page_vocabulary
-from ..revision_artifact import read_registry
-from ..structure import SourceDocument
+from ..revision_artifact import active_enclosing, read_revision
 from ..workflows import canonical_workflows
 from .browser import BrowserReading, project_browser_state
 
@@ -82,9 +81,7 @@ def read_served_page(
     source_error: str | None = None,
     view_revision: int | None = None,
     active_override: dict | None = None,
-    documents_override: dict[int, SourceDocument] | None = None,
-    registry_override: dict | None = None,
-    registries_override: dict[int, dict] | None = None,
+    readings_override: dict[int, SourceReading] | None = None,
     data_override: dict | None = None,
     versions_override: list[dict] | tuple[dict, ...] | None = None,
     stored_status: dict | None = None,
@@ -105,8 +102,8 @@ def read_served_page(
         present = presence_override
         live_stream = live_stream_override
     now = now_override or now_iso()
-    if registry_override is not None:
-        registry = registry_override
+    if readings_override is not None:
+        registry = readings_override[active["revision"]].registry
     else:
         try:
             registry = page_vocabulary(
@@ -124,11 +121,8 @@ def read_served_page(
         active,
         present,
         now,
-        documents_override=documents_override,
-        registry_override=registry_override,
-        registries_override=registries_override,
+        readings_override=readings_override,
         live_stream=live_stream,
-        data=stored_data,
     )
     browser, reading = projected if projected is not None else (None, None)
     activity = project_activity(
@@ -142,12 +136,10 @@ def read_served_page(
     if active is not None:
         selected_revision = view_revision or active["revision"]
         selected_registry = (
-            registries_override[selected_revision]
-            if registries_override is not None
-            else registry_override
-            if registry_override is not None
-            else read_registry(page_dir, selected_revision)
-        )
+            readings_override[selected_revision]
+            if readings_override is not None
+            else read_revision(page_dir, selected_revision)
+        ).registry
         identity = selected_registry["$layer"]
     else:
         selected_registry = registry

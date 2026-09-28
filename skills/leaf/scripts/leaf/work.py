@@ -6,7 +6,7 @@ from pathlib import Path
 from .asks import quoted_in
 from .events import build_threads, note_settlements
 from .files import latest_revision
-from .passages import enclosing_of, page_passages
+from .passages import page_passages
 from .projection import (
     StateProjection,
     frozen_thread_reading,
@@ -15,7 +15,8 @@ from .projection import (
     rewritten_bodies,
 )
 from .registry.storage import require_registry
-from .structure import parse_revision
+from .revision_artifact import read_revision
+from .thread_context import thread_names
 from .workflows import canonical_workflows
 
 
@@ -114,15 +115,17 @@ def work_subject(page_dir: Path, events: list, target: str, *, standing: list) -
     registry = None
     page = None
     html = None
-    spk: dict = {}
     widget_revision = latest_revision(page_dir)
     if widget_revision is not None:
-        document = parse_revision(page_dir, widget_revision)
-        html = document.html
         registry = require_registry(page_dir)
-        page = page_reading(document, events, registry, widget_revision)
+        page = page_reading(
+            read_revision(page_dir, widget_revision).under(registry),
+            events,
+            widget_revision,
+        )
+        document = page.document
+        html = document.html
         widget_projection = page.projection
-        spk = page.spoken
         rec = page.document.by_id.get(target)
         if rec and rec["tag"] in registry:
             widget = rec
@@ -131,14 +134,9 @@ def work_subject(page_dir: Path, events: list, target: str, *, standing: list) -
     # registry above and raises where that gate refuses, so folding threads
     # against no page here bought nothing and could answer differently from
     # `page state` for the same thread.
-    threads = build_threads(events, enclosing_of(spk))
-    thread_of = {
-        message["id"]: root
-        for root, thread in threads.items()
-        for message in thread["msgs"]
-    }
+    threads = build_threads(events, page.within if page is not None else {})
     frozen = frozen_thread_reading(events, registry) if registry is not None else None
-    thread_id = thread_of.get(target)
+    thread_id = thread_names(events).get(target)
     if thread_id is None and frozen is not None:
         thread_id = frozen.thread_by_widget.get(target)
     thread = threads.get(thread_id) if thread_id is not None else None

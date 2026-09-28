@@ -55,7 +55,7 @@ other page files and the external state listed below.
   ingestion through `page media` and `/api/media`. Browser drafts and messages refer to
   them with Markdown; a public filename always identifies the same bytes. That name is
   `schema.MEDIA_DIGEST`'s, the one `media.media_name` mints and the server serves;
-  `version check` and the agent's message doors refuse any other name under `/media/`,
+  `page check` and the agent's message doors refuse any other name under `/media/`,
   and the browser and the Worker read a reference by its directory alone. A revision
   captures the media its document names, but every host serves media at the page root,
   and documents, messages, and the runtime all address it there.
@@ -64,7 +64,7 @@ other page files and the external state listed below.
 
 - `interactions.jsonl` — diagnostic JSON-lines trace of server requests and browser
   interactions, including refused requests. It is separate from `events.jsonl` and
-  never enters page state or acknowledgement. `leaf interactions PAGE --follow`
+  never enters page state or acknowledgement. `leaf page interactions PAGE --follow`
   reads it. The server appends request method, path without query, status, and
   duration; `/api/interaction` appends browser batches with a session id, scoped
   page address, and server receipt time. Sample activity remains in its parent
@@ -145,7 +145,7 @@ value fails its contract.
 nullable executable digest. Delivery emits `<meta name="lf-executable">` when a
 digest is available; `../../assets/runtime/version.js` owns the resulting install choice.
 `event_seq` is the last event folded into the snapshot and can be passed to
-`leaf events --after`; it is distinct from the acknowledgement cursor.
+`leaf page events --after`; it is distinct from the acknowledgement cursor.
 
 The page's document is not repeated in the reading: an agent reads the HTML at
 `active.file` beside `state`, which lists each standing user move by widget, unit and
@@ -163,7 +163,7 @@ contract, source id and revision, or to the `error` a failing value reads as;
 contracts with a deferred record field expose the manifest plus the value file and
 its revision for their payload. The reading's `content_source` names the thread and
 vocabulary file. Default `page state` thread entries stay compact. Raw diagnostic
-history belongs to `leaf events --thread`, and the page's `registry.json` owns the
+history belongs to `leaf page events --thread`, and the page's `registry.json` owns the
 vocabulary.
 
 Immutable deliveries live outside page directories at

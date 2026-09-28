@@ -59,6 +59,12 @@
      at the user's current position.
    - `run` performs one result. A run-less row names a press it does not make: the
      platform's own on a link, or one another scope's row already runs.
+   - `touch` is the words of the banner control that stands in for a press under a
+     finger, or a function when state chooses them, on a page command or a page-scope row
+     a finger has no other way to reach (keyboard/AGENTS.md, "Touch routes"). A row with
+     `routes` makes a different press per route, so its words go on each route that needs
+     a control, and the row's own `touch` can only be `false`. Every page command
+     answers it, `false` where a finger reaches the result directly.
    - A command that enters a layer declares no way back out of it. The layer's own
      owner declares that step, against the layer standing rather than against the press
      that opened it, so one state has one way out however the user reached it.
@@ -238,6 +244,28 @@ export const labelOf = (row) => {
 // and the overlay alike, so no surface can promise a press the dispatcher refuses. A guard
 // inside `run` instead is a liveness no surface can see.
 export const live = (row) => !row.when || row.when();
+
+// The presses a finger needs a control for: the row's one press, or each route of a routed
+// row that names its words. `id` is the command the press invokes.
+export const touchPresses = (row) =>
+  row.routes
+    ? commandRoutes(row)
+        .filter((route) => route.touch)
+        .map((route) => ({
+          id: route.id,
+          row,
+          binding: route.binding,
+          words: route.touch,
+        }))
+    : row.touch
+      ? [{ id: row.id, row, binding: undefined, words: row.touch }]
+      : [];
+// Whether a row has said which of its presses a finger needs: `false` on the row for none,
+// or an answer on every route.
+export const answersTouch = (row) =>
+  row.touch !== undefined ||
+  (commandRoutes(row).length > 0 &&
+    commandRoutes(row).every((route) => route.touch !== undefined));
 
 // Prose is allowed to change; a command's identity is not. The register uses this name
 // to merge repeated widget instances and to route an action chosen in the command reference back
@@ -462,6 +490,17 @@ export function checked(rows, where) {
         `leaf: row ${i} of ${where} leaves the native press to the platform but runs no result`,
       );
     if (!row.id) throw new Error(`leaf: row ${i} of ${where} has no stable command id`);
+    if (row.touch && (!row.run || row.routes))
+      throw new Error(
+        `leaf: ${row.id} stands in for its keys under a finger, so it needs a run, and a routed row names its words on each route`,
+      );
+    if (
+      commandRoutes(row).some((route) => route.touch) &&
+      (!row.run || row.touch === false)
+    )
+      throw new Error(
+        `leaf: ${row.id} gives a route a finger's words, so it needs a run and no row-level touch: false`,
+      );
     if (typeof row.id !== "string" || !COMMAND_ID.test(row.id))
       throw new Error(
         `leaf: row ${i} of ${where} names ${String(row.id)}, which is not a stable command id`,

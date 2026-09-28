@@ -8,7 +8,7 @@ log holds evidence the user took it in. Two kinds of evidence count:
   body has been shown to the user;
 - a user move made in the version's thread and logged after the version, which is
   the thread the move names (`thread_context.event_threads`): a reply or reaction,
-  a resolve or reopen, an action or request on a widget a message of that thread
+  a resolve or reopen, an action on a widget a message of that thread
   carries, and an action whose admitted answer closes the thread, such as accepting
   the page suggestion it asked for. Answering, resolving and replying are all things
   a user does with what the thread says, so each implies they have read it as it

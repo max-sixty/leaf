@@ -6,14 +6,10 @@ from leaf import event_contracts
 from leaf.event_meaning import admitted_contract_error
 from leaf.events import event_document, taken_back
 from leaf.registry.contract import RegistryError, read_registry_declarations
-from leaf.registry.layer import merge_layer_declarations
-from leaf.registry.state import stamp_decisions
+from leaf.registry.layer import merge_layer_declarations, stamp_composition
 from leaf.registry.validation import validate_registry
-from leaf.requests import (
-    declared_request_error,
-)
-from leaf.revision_artifact import read_registry
-from leaf.structure import SourceDocument, parse_revision
+from leaf.revision_artifact import read_revision
+from leaf.structure import SourceDocument
 from leaf.thread_context import thread_structure
 
 from .instances import fragment_errors, thread_markup_contract_errors
@@ -49,7 +45,7 @@ def incoming_registry(packages: list) -> dict:
         raise RegistryError("the incoming layer has no registry.json")
     source = "merged registry (" + ", ".join(str(path) for path in paths) + ")"
     validate_registry_examples(validate_registry(merged, source), source)
-    return stamp_decisions(merged)
+    return stamp_composition(merged)
 
 
 def candidate_vocabulary_gaps(
@@ -77,18 +73,18 @@ def candidate_vocabulary_gaps(
     tokens = incoming.get("$reactions", {}).get("tokens", {})
     contracts = incoming["$events"]["kinds"]
     thread = thread_structure(events)
-    revisions = {}
-    registries = {}
+    readings = {}
+
+    def revision_reading(revision):
+        if revision not in readings:
+            readings[revision] = read_revision(page_dir, revision)
+        return readings[revision]
 
     def page(revision):
-        if revision not in revisions:
-            revisions[revision] = parse_revision(page_dir, revision)
-        return revisions[revision]
+        return revision_reading(revision).document
 
     def registry(revision):
-        if revision not in registries:
-            registries[revision] = read_registry(page_dir, revision)
-        return registries[revision]
+        return revision_reading(revision).registry
 
     def page_event_participates(event):
         return (
@@ -157,11 +153,9 @@ def candidate_vocabulary_gaps(
             errors := thread_markup_contract_errors(thread.fragments[e["id"]], incoming)
         ):
             key = "thread markup contract: " + "; ".join(errors)
-        elif kind in {"action", "report", "request"}:
+        elif kind in {"action", "report"}:
             scope = event_document(e)["kind"]
-            participates = scope == "thread" or (
-                kind in {"action", "report"} and page_event_participates(e)
-            )
+            participates = scope == "thread" or page_event_participates(e)
             if participates:
                 original_page = page(e["revision"])
                 candidate_page = document if scope == "page" else SourceDocument("")
@@ -169,12 +163,10 @@ def candidate_vocabulary_gaps(
                     error = event_contracts.declared_action_error(
                         e, candidate_page.by_id, thread.by_id, incoming
                     )
-                elif kind == "report":
+                else:
                     error = event_contracts.report_contract_error(
                         e, candidate_page, incoming
                     )
-                else:
-                    error = declared_request_error(e, document, thread, incoming)
                 if error:
                     key = f"{kind} contract: {error}"
                 elif error := admitted_contract_error(

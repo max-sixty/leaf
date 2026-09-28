@@ -126,7 +126,7 @@ the measure but gives it no room to break out into, since that room is the page'
 | --- | --- |
 | `layout-column` | the reading column, and a block's breakout beside it |
 | `layout-wide` | a page as wide as the window, up to a cap, holding one flow |
-| `layout-sidebar` | a body beside a side track, with a `header` and `footer` across both |
+| `layout-sidebar` | a body beside its `aside`, with a `header` and `footer` across both |
 | `layout-tiles` | equal cells, as many to a row as fit |
 | `layout-workspace` | a page that fills the window: `header`, one body, `footer` |
 
@@ -145,24 +145,39 @@ the widths and wrapping every page needs.
 When the regions are the page rather than exhibits in an argument — a board with its
 status, a release dashboard, a queue sorted into buckets, a long review whose contents
 and verdict stay beside the code — widen the page itself. `<main class="layout-wide">`
-holds one flow at the page's width. `<main class="layout-sidebar">` puts what the reader
-works through in its first block and what they keep an eye on — status, counts, the
-verdict's follow-ups, the contents — in its last, with the page's `header` above both:
+holds one flow at the page's width. `<main class="layout-sidebar">` sets what the reader
+works through beside what they keep an eye on — status, counts, the verdict's
+follow-ups, the contents — which is the Layout's `aside`, with the page's `header` above
+both:
 
 ```html
 <main class="layout-sidebar">
   <header><h1>…</h1><p class="lede">…</p></header>
   <div id="body">…</div>        <!-- what the reader works through -->
-  <div id="status">…</div>      <!-- what they keep an eye on -->
+  <aside id="status">…</aside>  <!-- what they keep an eye on -->
 </main>
 ```
 
-The body takes two parts of the row and the side track one, and the track wraps below
-the body where the two no longer fit side by side, or where the body could not keep the
-width its content declares: a board whose columns need the room gets the page's whole
-width rather than clipping. Stack each track's regions inside it, so every region stands
-on the same two vertical lines, rather than a new split per row whose edges land
-somewhere new each time.
+The body takes two parts of the row and the track one. They stand side by side in a
+window down to about 870px, and below that, as on a phone, they stack in the order they
+are written. They stack in a wider window too where the body could not keep the width its
+content declares: a board whose columns need the room gets the page's whole width rather
+than clipping. So write the `aside` where a reader of the stacked page needs it: before
+the body when it is what they read first, such as a code review's verdict and the list of
+files it covers, where it also stands on the left; after it when it follows the work, such
+as a dashboard's checks and log, where it stands on the right. A page read in order is not
+one of these, whatever its length: its contents stand in the margin beside the column
+("The rail and the margin"), and its figures keep the column's measure. Stack each
+track's regions inside it, so every region stands on the same two vertical lines, rather
+than a new split per row whose edges land somewhere new each time.
+
+A track shorter than the window can stay in view while the body scrolls beside it:
+give the `aside` `align-self: stretch`, so it runs the body's height, and the block it
+holds `position: sticky; top: var(--lf-top)`, which keeps that block just below Leaf's
+banner. The block sticks only inside the track, so wherever the two stack, for either
+reason, the track is only as tall as what it holds and nothing sticks over the body; no
+width is needed. Leave a taller track in flow, since sticking it would hide its end
+until the page ends.
 
 Draw each region the same way, as a `section.panel` with a short heading, and keep a
 `.callout` with a status tone (`warn`, `danger`, `ok`) for the one thing the reader must
@@ -176,15 +191,15 @@ glance.
 rest. The header is one row, the title with the page's state beside it as `.tag`
 chips, so the panes keep the window: write no lede, eyebrow or legend there, and put
 what a lede would say at the top of the pane it is about. The body is one `lf-pane`, a
-widget that composes its own regions, or the page's own grid of panes, such as a queue
-beside its detail, which the page's `<style>` places:
+widget that composes its own regions, or the page's own grid of panes, such as a run's
+log beside the chart it explains, which the page's `<style>` places:
 
 ```html
 <main class="layout-workspace">
   <header><h1>…</h1><p><span class="tag warn">…</span></p></header>
   <div id="regions">
-    <lf-pane id="queue" label="Queue">…</lf-pane>
-    <lf-pane id="detail" label="Detail">…</lf-pane>
+    <lf-pane id="log" label="Log">…</lf-pane>
+    <lf-pane id="chart" label="Chart">…</lf-pane>
   </div>
 </main>
 ```
@@ -193,6 +208,12 @@ beside its detail, which the page's `<style>` places:
 #regions { display: grid; grid-template-columns: minmax(16rem, 1fr) 2fr; gap: var(--sp-4); }
 @media (width < 900px) { #regions { grid-template-columns: 1fr; } }
 ```
+
+A queue whose items open one at a time beside it, such as tickets, cases or findings to
+decide, is one `lf-tabs list="side"` as the body: its list is the queue and each item an
+`lf-tab`, so one opens beside the list, a link or an Ask opens its own, and each tab counts
+the Asks its item still holds. Write no script to select, hide or mark an item; the tab
+set does all three.
 
 Each pane's body scrolls on its own, and a widget that fills a held body, such as a
 playground's stage, grows to the window's height. The `lf-pane` entry says what a pane
@@ -364,7 +385,7 @@ Page modules follow `references/packages.md`, "What a behavior module owes". In
 particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-state
 rules keep authored controls correct after reconnection and thread quoting.
 
-`leaf version check` runs a page's own code, a module script or a page widget the
+`leaf page check` runs a page's own code, a module script or a page widget the
 document places, once in the host's browser: through upgrade, presentation, and one
 frame after it. It fails on every error the page would report to you through the
 watcher, an uncaught exception or a rejected promise with the source location it came
@@ -451,7 +472,7 @@ user comparing this version with an earlier one: the id is how the comparison
 finds what the block said before, so a rewritten paragraph keeps the id it had.
 Stay out of the `lf-` prefix: it is the runtime's
 namespace for ids and for classes alike, and `data-lf-` is the same for
-attributes. `version check` refuses all three, including a name the runtime does
+attributes. `page check` refuses all three, including a name the runtime does
 not write today — the namespace is reserved, not the list of names in it.
 
 A code block, table, figure, or aside that a user will point at as a whole also
@@ -485,11 +506,23 @@ source activation already runs the deterministic markup check; this review adds 
 browser gate and a reading:
 
 ```bash
-leaf version check <page> --render
+leaf page check <page> --render
 ```
 
 It runs the browser gate in both color schemes, including when the host gives you
 no separate browser tool. Fix every failure; a screenshot is not a substitute.
+
+A clean check then saves screens of the page and names them: down the page three times,
+on a desktop, in the widest window, where whatever scales with the window is at its
+largest, and on a phone, each as far as its first eight screens (the check says when the
+page runs on past them, and a long page's end then needs its own look); and one screen
+at each width where the page's own arrangement is at its tightest before it changes,
+such as a sidebar page just before its track stacks or a row of tiles just before it
+wraps. Read every one. The gate finds what is broken; only a reading finds a drawing
+whose labels shrink past reading in a narrow body or grow past the page's text in a wide
+one, a row that wraps to leave one tile alone, a pin over the end of a heading, or a
+summary the phone puts after everything else. Fix what the page can fix, and check
+again.
 
 Then read the page as the user will. Take the headings on their own first, and
 check that none of them promises a finding it does not give. Confirm that
@@ -511,7 +544,7 @@ Without a way to inspect the rendered page, read `leaf page state <page>`'s
 `state` and `asks` alongside the active HTML to review the words, evidence, and
 available choices. Report the render command's result separately from the visual
 and keyboard review you could not perform. If the command cannot launch a browser,
-run `leaf version check <page>` for the markup and report the render check as
+run `leaf page check <page>` for the markup and report the render check as
 unfinished; for a page with code of its own, that check needs the browser too, so
 report the run of its code as unfinished as well. A text reading does not establish
 layout or interaction quality.

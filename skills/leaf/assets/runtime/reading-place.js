@@ -3,10 +3,12 @@
  * A place names the first quotable block the user can see in a scroller, with that
  * block's distance below the scroller's landing edge; failing a quotable block, the
  * section it stands in; failing that, the raw offset, which only the same scroller can
- * take back. `capturePlace` reads one, of the page or of a reading region, and
- * `restorePlace` returns the user to it: the passage is found again by its words, so a
- * place survives what moved the pixels under it — a new revision, a resize, a view that
- * was hidden while its width changed. A restore jumps rather than glides.
+ * take back. A bounded block following its newest entry has its end as its place
+ * (`bounds.js`, `followingItsEnd`), however many entries have arrived since.
+ * `capturePlace` reads one, of the page or of a reading region, and `restorePlace`
+ * returns the user to it: the passage is found again by its words, so a place survives
+ * what moved the pixels under it — a new revision, a resize, a view that was hidden
+ * while its width changed. A restore jumps rather than glides.
  *
  * Whoever remembers a place owns when to take it and where to keep it: version
  * continuity (version.js) across revisions and reading-region shifts, a root tab set
@@ -18,12 +20,11 @@ import { clippedContents, landingBand, shownBox, shownWindow } from "./geometry.
 import {
   closestAcross,
   cut,
+  elementReading,
   inChrome,
   pageBlocks,
   pageText,
-  quoteFrom,
   rangeOf,
-  textNodesUnder,
 } from "./passages.js";
 import { resolveAnchor } from "./anchor-resolution.js";
 import { targetElement, targetSegments } from "./resolved-target.js";
@@ -34,6 +35,7 @@ import {
   readingRegions,
   shownRegionBounds,
 } from "./reading-regions.js";
+import { followingItsEnd } from "./bounds.js";
 import { moveScrollerBy, pageScroller } from "./scrolling.js";
 import { under } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -71,10 +73,9 @@ export function* blocksOnScreen(region = null, blocks = textBlocks()) {
     if (
       inChrome(block) ||
       closestAcross(block, "[hidden]") ||
-      (region && !under(block, region.body)) ||
-      (!region &&
-        readingRegionFor(block) &&
-        readingPosture(readingRegionFor(block)) === "bounded")
+      (region
+        ? !under(block, region.body)
+        : readingPosture(readingRegionFor(block)) === "bounded")
     )
       continue;
     const range = document.createRange();
@@ -103,6 +104,7 @@ export function capturePlace(region = null, blocks = textBlocks()) {
   const landmarkTop = (top, block, blockTop = top) =>
     block?.matches(HEADING) ? top + Math.max(0, -blockTop) : top;
   const view = { y: box.scrollTop, scroller: scrollerIdentity(box) };
+  if (region && followingItsEnd(box)) return { ...view, end: true };
   for (const [block, rect] of blocksOnScreen(region, blocks)) {
     const section = closestAcross(block, "[id]");
     if (!view.section && section) {
@@ -117,7 +119,7 @@ export function capturePlace(region = null, blocks = textBlocks()) {
     }
     // Written down the way a comment's quote is, so the search that re-finds it is
     // looking for a string of the same kind.
-    const text = cut(quoteFrom(textNodesUnder(block)), 0, LANDMARK_CAP);
+    const text = cut(elementReading(block), 0, LANDMARK_CAP);
     // A short line ("Risks") would match anywhere; keep scanning for a quotable block.
     if (text.length >= 24) {
       // Unconditionally, so a quotable block under no section clears the earlier one
@@ -142,7 +144,8 @@ export function capturePlace(region = null, blocks = textBlocks()) {
 // A restore jumps rather than glides: a page is free to set scroll-behavior: smooth, and
 // animating from the replacement's raw position is worse than the jump it replaces.
 // Moving to a mark the user asked for is the other case, and says so.
-export const hasLandmark = (reading) => Boolean(reading?.quote || reading?.section);
+export const hasLandmark = (reading) =>
+  Boolean(reading?.end || reading?.quote || reading?.section);
 export const rawOffsetFits = (reading, scroller) =>
   reading.scroller !== undefined && reading.scroller === scrollerIdentity(scroller);
 function scrollerIdentity(scroller) {
@@ -153,6 +156,10 @@ function scrollerIdentity(scroller) {
 export function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
   if (!view) return;
   const box = region ? effectiveScroller(region) : pageScroller;
+  if (view.end) {
+    box.scrollTo({ top: box.scrollHeight, behavior: "instant" });
+    return;
+  }
   const boxTop = landingBand(box).top;
   const text = pageText();
   const found = view.quote && resolveAnchor(view, text);

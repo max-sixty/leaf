@@ -23,23 +23,19 @@ from functools import cached_property
 from pathlib import Path
 
 from .events import event_document
-from .passages import collapse, shown_words, spoken
+from .passages import SourceReading, collapse, shown_words
 from .projection import frozen_thread_reading
-from .revision_artifact import read_registry
-from .structure import SourceDocument, parse_revision
+from .revision_artifact import read_revision
 from .thread_context import thread_structure
 
 TITLES = frozenset({"summary", "h1", "h2", "h3", "h4", "h5", "h6", "strong"})
 
-# revision → its immutable source and the registry captured with it.
-RevisionReader = Callable[[int], tuple[SourceDocument, dict]]
+# revision → its immutable document read under the registry captured with it.
+RevisionReader = Callable[[int], SourceReading]
 
 
 def revisions_on_disk(page_dir: Path) -> RevisionReader:
-    return lambda revision: (
-        parse_revision(page_dir, revision),
-        read_registry(page_dir, revision),
-    )
+    return lambda revision: read_revision(page_dir, revision)
 
 
 def _text(node) -> str:
@@ -114,9 +110,9 @@ class GestureWords:
                     self.registry,
                 )
             else:
-                source, registry = self.revisions(revision)
+                reading = self.revisions(revision)
                 self._documents[revision] = _Document(
-                    [source.content], spoken(source, registry), registry
+                    [reading.document.content], reading.spoken, reading.registry
                 )
         return self._documents[revision]
 
@@ -215,22 +211,3 @@ class GestureWords:
             or self._created(event, identity)
             or identity
         )
-
-    def operation(self, request: dict) -> str:
-        """What a request's holder calls the operation asked of it: the name of the
-        offered child whose attribute carries the verb, else the verb itself."""
-        document = self._document(request)
-        holder = document.nodes.get(request["widget"]) if document else None
-        if holder is not None:
-            offers = (
-                document.registry.get(holder["tag"], {})
-                .get("x-request", {})
-                .get("offers", {})
-            )
-            for child in holder["content"]:
-                if isinstance(child, str) or child["tag"] not in offers:
-                    continue
-                offered = child["attrs"].get(offers[child["tag"]]) == request["action"]
-                if offered and (words := document.name(child)):
-                    return words
-        return request["action"].replace("-", " ")

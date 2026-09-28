@@ -1,0 +1,58 @@
+# From session 9a24bf96, whose handoff page put an identical capture pair under an
+# alt claiming a change (#1344). Both arms opened the captures the prompt names and
+# passed 3 of 3; the fix rests on the session log.
+schema_version: '1.0'
+name: shot-pair-matches
+description: "Source files and media: open both captures of an lf-shot before writing around it; a pair whose sides match does not go on the page as a change."
+tags:
+- evidence
+context:
+  add_dirs:
+  - captures
+execution:
+  prompt: |
+    You are writing a Leaf page for the user about a change to Leaf's margin thread
+    card, on branch thread-card-geometry. Your notes:
+
+    Growth. On main, the reply box in the thread card is capped at 35% of the room
+    above the card's foot, 221px at 1440x900, so a long reply scrolls inside it. On
+    the branch it grows until the card reaches the top of the window, and only then
+    scrolls.
+
+    A probe typed a ten-line reply into the open card at 1440x900 on each runtime and
+    captured the window's right half. `leaf page media` registered the captures and
+    printed each one's page path beside its source file, which sits under the Leaf
+    plugin's root (two directories above the leaf skill's base directory):
+
+        /media/card-before.png  evals/shot-pair-matches/captures/before.png  (main)
+        /media/card-after.png   evals/shot-pair-matches/captures/after.png   (the branch)
+
+    Write the HTML for the page's section on growth, with its before/after pair.
+    The page directory is not reachable from here, so reply with the HTML fragment
+    rather than writing a file.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-authoring-evidence
+  type: tool_used
+  tool: Read
+  input_match: authoring-evidence
+- name: opens-before
+  type: tool_used
+  tool: Read
+  input_match: captures/before.png
+- name: opens-after
+  type: tool_used
+  tool: Read
+  input_match: captures/after.png
+- name: judgment
+  type: llm
+  criteria: |
+    The two captures are the same: in both, the ten-line reply fits its box and
+    nothing scrolls. Read the reply. Pass only if it does not present the pair as
+    showing a change in the reply box: it says the captures match, or leaves the pair
+    out, or says a longer reply is needed to show the difference. Fail if the HTML's
+    prose, caption, or lf-shot alt says the before capture shows the reply scrolling,
+    capped, or cut off, or says the two captures differ.

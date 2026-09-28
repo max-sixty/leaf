@@ -19,11 +19,9 @@ page and is not a global identifier. The kinds:
 | `unresolve` | user | `POST /api/event` | `parent` | the user reopens a resolved thread |
 | `done` | user | the banner, only on a page declaring `<meta name="lf-review" content="sign-off">` | `version`, the stamp approved | approval of the declared sign-off; a page that asks nothing gets no terminal control |
 | `action` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`; server-stamped `meaning` | the user edited the document through the widget |
-| `report` | agent or worker | `leaf experimental report` | as `action`, validated by an `x-state` verb declaring `writer: "agent"` | provisional state that stands until a stamped revision answers it |
-| `request` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`, and `source_revision` for a projected record; validated by the holder's `x-request` | a durable, non-undoable one-shot instruction to the host, seated on its admitted document, widget, and unit |
-| `receipt` | agent | `leaf experimental receipt`; a host failure receipt | `request`, `succeeded` or `failed`, `text`; host `failure` with `failed` | exactly one terminal outcome per accepted request |
+| `report` | agent or worker | `leaf page report` | as `action`, validated by an `x-state` verb declaring `writer: "agent"` | provisional state that stands until a stamped revision answers it |
 | `pickup` | page | the delivery carrier; a host failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` with `failed` | the named user events reached the durable Codex queue or entered an exact agent turn, or the host gave up on them with no answer coming; idempotent per event, phase, session, and turn; never a work claim |
-| `note` | agent | `leaf version stamp` | `version`, `revision`, changelog `text`, `restated`, `settles` | one public version mapped to an immutable revision, naming the decisions it took back and the reports or work it answered |
+| `note` | agent | `leaf page stamp` | `version`, `revision`, changelog `text`, `restated`, `settles` | one public version mapped to an immutable revision, naming the decisions it took back and the reports or work it answered |
 | `error` | page | the runtime | | the page reported a failure in front of the user; heard like a report, never counted against the user |
 | `undo` | user | `POST /api/event` | `undoes` | withdraws one gesture of the user's own (`UNDOABLE_KINDS`: resolve, unresolve, action, done) |
 
@@ -51,8 +49,7 @@ follows the thread's resolution state.
 
 The user may withdraw a resolve, unresolve, action, or approval. A reaction
 may also be withdrawn while unanswered and on an unresolved thread. Spoken
-messages cannot be withdrawn; requests cannot be withdrawn because their external
-effects may precede the receipt. An undo cannot itself be undone.
+messages cannot be withdrawn. An undo cannot itself be undone.
 
 `undo` names the gesture and nothing else; every other field is the target's to
 state. It withdraws rather than deletes: nothing leaves the log, and the folds and
@@ -70,8 +67,8 @@ of the undo re-derives the still-standing action.
 ## Authorship and voice
 
 The server stamps every browser-posted event `author=user`. `leaf thread open`,
-`leaf thread reply`, `leaf thread edit`, `leaf experimental report`, `leaf experimental receipt`,
-and `version stamp` stamp `author=agent` plus the posting session's own voice: `agent`, its display
+`leaf thread reply`, `leaf thread edit`, `leaf page report`, and
+`page stamp` stamp `author=agent` plus the posting session's own voice: `agent`, its display
 name, and `session`, its host session id. Several agent sessions can write to one
 page, so the voice is read from the poster's environment rather than from the
 watcher's claim record, and identity is the session id, because a display name is
@@ -113,8 +110,7 @@ only what a reader without the sending registry cannot recover from the event
 itself. Every widget event records `scope`, `page` or `thread`, and its document
 identity is read from that scope and the event's revision (`events.event_document`):
 a page event's document is the revision the event names, and a thread event's is
-the frozen markup that sent its widget. It also records `unit`, the fold unit or request
-seat, so an action or report stands on the `[widget, unit, action]` coordinate.
+the frozen markup that sent its widget. It also records `unit`, the fold unit, so an action or report stands on the `[widget, unit, action]` coordinate.
 Actions and reports add `depends`, the direct element identities named by the
 owner, the unit, and declared state fields. An action whose admission
 makes its widget's `x-awaits.answered` condition hold is that Ask's answer and
@@ -130,7 +126,7 @@ moves stand, and undoing or superseding one unit's move never moves another. The
 lies among the container's authored units on the revision the move was made on,
 which admission records in order as `meaning.among`. The key places the unit while
 a revision authors that container the same way; a revision that authors it
-differently absorbs the move (`projection.move_absorbed`), and `version check`
+differently absorbs the move (`projection.move_absorbed`), and `page check`
 holds its markup, and every later revision's, to the move's container and to the
 nearest unit both revisions list before it unless the unit is `restated`. The
 absorbed move still stands, as a written-back pick does, and it can no longer be
@@ -148,7 +144,7 @@ it yet.
 
 ## Following the log
 
-`leaf events PAGE --follow [--after SEQ]` is the log's change feed. It prints each
+`leaf page events PAGE --follow [--after SEQ]` is the log's change feed. It prints each
 stored record after `SEQ` (default 0) as one JSON line, server-stamped `meaning`
 included, then keeps printing each event the append door admits, flushed as it
 lands. A reader drops a field or kind it does not recognise rather than refusing the
@@ -173,7 +169,7 @@ reaction is not. The original message id names its first content version, and ea
 browser posts one after presenting and exposing the visible body, including an
 interactive reply — or once the user moves in its thread after it, the thread the
 move names (`thread_context.event_threads`): a reply or reaction, a resolve or reopen,
-an action or request on a widget one of the thread's messages carries, or an action
+an action on a widget one of the thread's messages carries, or an action
 whose admitted answer closes the thread. A move that changes a thread without naming
 it, such as a later decision on the suggestion that had answered it or an `undo`,
 does not count, and neither does a move the user took back. A later edit is unread
@@ -191,7 +187,7 @@ records `awaits: true`. The browser cannot write that field. A user reply
 always hands the thread back to the agent, so it needs no parallel declaration.
 An agent reply records the delivery event it answers as `responds`, including a
 completed delivery answer whose move was settled during the turn. A proactive
-message (`leaf thread reply --to` without `--for`) carries no `responds`. Settlement
+message (`leaf thread reply <page> <message-id>`, without `--for`) carries no `responds`. Settlement
 consumes this exact identity rather than log order, so answering older work cannot
 erase newer user input. A substantive reply reopens a resolved thread;
 reactions and host failure receipts leave its closure standing. A later resolution
@@ -199,17 +195,15 @@ closes the thread again. Reopening restores its still-unanswered widget Asks,
 as an explicit reopen does.
 A host that gives up on a move writes the failure the move's answer takes
 (`thread.fail_answer`): a reply for a message, including one in a thread
-that asked for a version, a failed `receipt` for a request, and a failed `pickup` for
-an answer to a page Ask. Each carries `failure`, a nonempty host-owned code, which
-is what tells a host's failed receipt from an agent's. Only the host writer supplies
-`failure`, and the panel draws such a reply as a receipt whose head says the message
-answers nothing, since otherwise it is indistinguishable from the answer it stands in
-for.
-When a reply carries a widget with a local `x-awaits` or `x-request.ask`
-request, the widget's standing projection or lifecycle declares the request
-instead; the CLI refuses a parallel `--awaits` flag on that markup. A frozen widget
-keeps the user's Ask open until its `x-awaits.answered` condition holds. Moves on the
-widget before then have not been handed over: they carry no receipt and
+that asked for a version, and a failed `pickup` for an answer to a page Ask. Each
+carries `failure`, a nonempty host-owned code, which is what tells a host's failure
+reply from an agent's. Only the host writer supplies `failure`, and the panel draws
+such a reply as a receipt whose head says the message answers nothing, since
+otherwise it is indistinguishable from the answer it stands in for.
+When a reply carries a widget with a local `x-awaits` Ask, the widget's standing
+projection declares the Ask instead; the CLI refuses a parallel `--awaits` flag on
+that markup. A frozen widget keeps the user's Ask open until its
+`x-awaits.answered` condition holds. Moves on the widget before then have not been handed over: they carry no receipt and
 require no agent reply, and the move that answers carries the receipt and hands the
 turn to the agent. Undoing it returns the Ask to the user and removes the reply
 obligation. A frozen widget move that answers no Ask, such as a card moved

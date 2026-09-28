@@ -36,10 +36,10 @@ from .event_log import flocked
 from .files import read_json, write_json
 from .gesture_words import GestureWords, revisions_on_disk
 from .machine import state_home
-from .passages import active_enclosing
 from .registry.contract import RegistryError, event_clauses
 from .registry.reactions import described
 from .registry.storage import active_registry
+from .revision_artifact import active_enclosing
 from .schema import CURSOR_FILE
 from .served_state.page import full_state
 from .service import (
@@ -150,7 +150,7 @@ def _registry(page_dir: Path):
 
 def _subject(event: dict, threads: list[str], by_id: dict[str, dict]) -> dict:
     """Name what one event changes without using prose as an identifier."""
-    if event["kind"] in {"action", "request", "report"}:
+    if event["kind"] in {"action", "report"}:
         return {"kind": "widget", "id": event["widget"]}
     if event["kind"] == "undo":
         original = by_id.get(event["undoes"])

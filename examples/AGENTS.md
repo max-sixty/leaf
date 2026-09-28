@@ -75,8 +75,8 @@ An example's markup is its current version. Beside it may sit:
   entry naming a sibling file (`format` defaults to `text`; `unified-diff` reads a
   whole `.patch`).
 
-`prepare_page` in `scripts/page_fixtures.py` is the one builder of a page directory
-from an example; its docstring gives the build order.
+`prepare_page` in `dev/leaf_dev/page_fixtures.py` is the one builder of a page
+directory from an example; its docstring gives the build order.
 
 Capture a seeded anchor with `leaf thread open --quote` against the file. Never
 write `{section, quote, suffix}` by hand: a hand-written anchor detaches silently
@@ -97,5 +97,5 @@ Draw a before/after pair rather than capturing it. Draw both images at one heigh
 at twice the width the shot gets on the page as measured from the layout, and take
 the palette from the pair already here. A mock's generator belongs in scratch, since
 nothing can make a depicted console false. A generator for images that depict Leaf
-itself, such as `scripts/record-demo.py`, stays in `scripts/` because a change to
-Leaf can make them stale.
+itself, such as `leaf-dev record-demo`, is tracked tooling rather than scratch,
+because a change to Leaf can make those images stale and they need regenerating.

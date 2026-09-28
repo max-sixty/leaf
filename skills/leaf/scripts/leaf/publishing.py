@@ -32,7 +32,7 @@ def _stamp_reading(events: list, checked, revision: int):
     registry = checked.registry
     if registry is None:
         sys.exit("refusing to stamp index.html: the page has no registry.json")
-    page = page_reading(checked.document, events, registry, revision)
+    page = page_reading(checked.reading, events, revision)
     return registry, page.projection, page.document, page.spoken
 
 

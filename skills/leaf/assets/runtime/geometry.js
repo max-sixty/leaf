@@ -3,7 +3,7 @@
  * document-positioned chrome. */
 import { sizeObserver } from "./rendering.js";
 import { setRuntimeRootStyle } from "./root-state.js";
-import { uiInside, under, upFrom } from "./shadow.js";
+import { renderedParent, uiInside, under, upFrom } from "./shadow.js";
 import { overlaps, overlapsAcross, union } from "./rect.js";
 
 /* Shared readings of the boxes the page actually shows.
@@ -13,8 +13,10 @@ import { overlaps, overlapsAcross, union } from "./rect.js";
    which an outline can be drawn, and `shownExtent` the box they cover together.
    `shownRect` clips an element's `shownBox` through scrolling ancestors' visible bands (less the stuck covers over their edges) and the viewport,
    stopping ancestor clipping at a fixed-position box, then takes away what a declared
-   occluder stands over (`declareOccluder`); it is the one reading of whether something
-   is on screen.
+   occluder stands over (`declareOccluder`). It is what a box may be drawn over, which
+   chrome can be: the banner and the shortcut bar are drawn above the page, not cut out
+   of it. `seenRect` holds that to the room the chrome leaves (`shownWindow`), and it is
+   the one reading of whether the user can see something.
    `clippedRect` applies that same clipping walk to a box measured some other way for an
    element, and `clippedContents` to a box measured from a Range, starting at the element
    that holds the Range and counting that element's own clip. Use:
@@ -24,8 +26,12 @@ import { overlaps, overlapsAcross, union } from "./rect.js";
    - `shownExtent` for what stands beside a target's parts: a margin row, the
      response field's room;
    - `shownRect` for visible placement of floating chrome and key badges;
+   - `seenRect` for whether, and how much of, something is in front of the user;
    - `clippedRect` for an element's box the caller has adjusted;
    - `clippedContents` when the subject has no element box of its own.
+
+   `skipped` is asked first by a reading that can leave out a box the browser is not
+   drawing, since reading one in skipped content forces that content's style and layout.
 
    Do not read `getBoundingClientRect()` directly when the target may generate no box.
    A `display: contents` element reports an origin-like zero rectangle that does not
@@ -107,7 +113,7 @@ export function documentPoint(left, top) {
 // nothing about either, and a box drawn under a border is drawn nowhere as surely as one
 // past the edge.
 //
-// `version check --render` imports this to ask which container cut a box away, so the
+// `page check --render` imports this to ask which container cut a box away, so the
 // band a handover is refused against and the band the page paints to are one reading.
 // Written twice they disagreed twice, each copy right about one of the two things above
 // and wrong about the other.
@@ -149,7 +155,7 @@ export function shownBand(el) {
 //
 // `visibleBand` is what the user can see through a scroller now: its shown band less
 // the covers stuck over an edge of it. A cover is a sticky box declared through
-// `declareCoverRoom` (below): an `lf-diff` file header, a root `lf-tabs` strip.
+// `declareCoverRoom` (below): an `lf-diff` file header, a page `lf-tabs` strip.
 // Stuck, it paints over the scroller's contents without clipping them, so a band that
 // ignored it would call what is under it shown. The clip walk below applies this band at
 // every ancestor, so `shownRect` and the readings built on it (read acknowledgement, the
@@ -356,6 +362,36 @@ export function insetBand(band, covers) {
       bottom = cover.top;
   return bottom > top ? { ...band, top, bottom } : null;
 }
+// Whether `el` stands in content the browser skips: what a `content-visibility: hidden`
+// box holds, which a hidden tab's panel (`hidden="until-found"`) is, and a closed
+// disclosure's content. The browser leaves skipped content unstyled and unlaid, and one
+// question about any box inside — its computed style, its rect, its scroll offsets —
+// makes it style and lay out that whole subtree first to answer. On the corpus, whose
+// examples each stand in a hidden tab, those forced passes were most of a revision's
+// style time. So a reading that has nothing to say about a box on no screen — where it
+// stands, whether it scrolls, what room it takes — asks this first and leaves the box
+// out until a pass after it is drawn: revealing a panel or opening a disclosure resizes
+// what holds it, which brings those passes round. A reading that marks what the user
+// will see once it is drawn (an anchor's outline) still asks, and pays.
+//
+// Answered without forcing anything: `checkVisibility` reads the tree the browser has,
+// and is false for a box that is not drawn for any reason. The nearest drawn ancestor
+// says which reason — a box skipping what it holds, or `display: none`/`contents` on
+// the way down, which are not skipped and cheap to ask about — and it is drawn, so its
+// own style is not skipped either. A disclosure skips through a pseudo-element of its
+// own, so it is asked by its state rather than by its style.
+export function skipped(el) {
+  if (el.checkVisibility()) return false;
+  let child = el;
+  let box = renderedParent(el);
+  while (box && !box.checkVisibility()) {
+    child = box;
+    box = renderedParent(box);
+  }
+  if (!box) return false;
+  if (box.localName === "details") return !box.open && child.localName !== "summary";
+  return getComputedStyle(box).contentVisibility === "hidden";
+}
 // The box an element shows as. An element that generates none of its own — a
 // display: contents wrapper — shows as what its contents paint, so its bounds are
 // theirs, and a range asks the platform for that union in one read. Its own rect is
@@ -445,6 +481,20 @@ export const shownExtent = (el) =>
 // on the walk is two style reads per ancestor rather than two per item per ancestor.
 export function shownRect(item, clips) {
   return clippedRect(shownBox(item), item, clips);
+}
+// What of an item the user sees: what every box over it lets through, within the room the
+// chrome leaves. `within` keeps a bottom-band box from cutting the item unless it stands
+// across it. The chrome cuts the item's top and foot only; its sides stay shownRect's, the
+// layout viewport's, since a pinch zoom's visual viewport is a pan across the page and not
+// a clip — read with its sides, a message wider than the zoomed view was never seen whole
+// across, and never counted read. Null when none of it shows.
+export function seenRect(item, clips) {
+  const shown = shownRect(item, clips);
+  if (!shown) return null;
+  const room = shownWindow({ within: shown });
+  return room.width > 0 && room.height > 0
+    ? { left: shown.left, top: room.top, right: shown.right, bottom: room.bottom }
+    : null;
 }
 // Where a member begins, as the user sees it: the first of the boxes it paints that
 // survives the clips, rather than the bounds of all of them. They are the same box for

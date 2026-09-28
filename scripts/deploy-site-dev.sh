@@ -59,8 +59,7 @@ head_commit=$(git -C "$repo_root" rev-parse HEAD)
 release=$(
   printf '%s:%s' "$head_commit" "$working_tree" | git -C "$repo_root" hash-object --stdin
 )
-LEAF_SITE_RELEASE="$release" uv run --project "$repo_root" \
-  "$repo_root/scripts/site.py"
+LEAF_SITE_RELEASE="$release" uv run --project "$repo_root" leaf-dev site
 
 (
   cd "$worker_root"

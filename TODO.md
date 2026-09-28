@@ -53,6 +53,19 @@ has tried; settle that before building it.
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
 
+### Repository tooling
+
+- **Import every module as a package; never edit an import path.** Nothing should
+  reach code through `sys.path`, `PYTHONPATH`, `pythonpath`, or loading a file by path:
+  such an import breaks when the file moves, and it works only from one working
+  directory. The Worker's server is now the `leaf_website` package. What remains:
+  - `pyproject.toml`'s pytest `pythonpath = ["scripts"]`, so that tests can import
+    `preview`, `verify_site`, `corpus`, and `keydocs`. Move those four into `leaf_dev`
+    as commands, as `site.py` moved, then delete the setting.
+  - `test_interact_layer.py` and `test_interact_session.py` set `PYTHONPATH` to put an
+    older copy of `leaf` first, to stand in for a stale plugin install. Build that
+    install as an environment of its own instead.
+
 ## Next
 
 ### User continuity and mobile access
@@ -63,8 +76,7 @@ has tried; settle that before building it.
   show the native selection menu or software keyboard.
 - **Finish what a phone user still cannot reach.** Give touch users visible passage
   threads, and remove keyboard-only hints, hover-only reasons, clipped diagram content,
-  and remaining undersized touch targets. Undo (`z`) and Draw mode (`w`) have no route
-  under a finger; `o` and `s` have one in the banner's More.
+  and remaining undersized touch targets.
 - **Take the layout readings across widths.** The render check renders each page at
   1200px and 540px and sweeps sideways overflow from 360px to 1200px, but it reads a
   drawing's label size on the settled 1200px page only, and nothing yet reads an Ask
@@ -105,7 +117,7 @@ and its chrome coordinate.
   rail's width at every width, so on a phone it leaves a 295px column. The margin pass
   admits residents by measuring the room they leave (`settleResidency`), which a rail
   the shell has already reserved never fails.
-- **Make the outcome checks the gate.** `version check` passed a page that scrolled
+- **Make the outcome checks the gate.** `page check` passed a page that scrolled
   sideways at 520px. Check sideways scroll and leaking minimums (a box whose content,
   not its declared minimum, sets its holder's floor) across swept widths. The corpus
   (`scripts/corpus.py`) sets every example's body in one column page, so only the
@@ -147,20 +159,19 @@ and its chrome coordinate.
 
 ### The agent's text interface
 
-- **Read the render checks after handover.** `version check --render` blocks the
+- **Read the render checks after handover.** `page check --render` blocks the
   agent for the whole browser pass, so quick pages skip it and get none of its
   advice. Run the render readings on the server when a version goes live and
   deliver the findings through `leaf wait`: the agent hands the page over at once
   and refines it if a reading warrants, while a failure still blocks a record's
   stamp. **Unconfirmed:** measure how long the pass takes on a typical page, and
   whether agents act on findings that arrive after handover, before building it.
-- **Consider loading a page once per render check.** `version check --render` loads
+- **Consider loading a page once per render check.** `page check --render` loads
   the page afresh for each of its four passes, including dark mode and the narrow
   viewport. Switching those in place would save at most about 1.4 s on
-  `triage-board` and 12.6 s on the corpus, measured with
-  `scripts/bench_render_check.py`. The price is that dark mode and the narrow width
-  would no longer be checked from a fresh start. Decide whether that coverage is
-  worth the time before building it.
+  `triage-board` and 12.6 s on the corpus, measured with `leaf-dev bench-check`.
+  The price is that dark mode and the narrow width would no longer be checked from
+  a fresh start. Decide whether that coverage is worth the time before building it.
 - **Scale a drawing by the box it was drawn in.** On replay, scale the strokes by
   the anchored element's size over the recorded `box`, so a mark stays on its
   element in a narrower window; reflowed text still moves under it. Verify replay
@@ -175,42 +186,20 @@ and its chrome coordinate.
   several open Asks and an informational page before choosing how the banner
   explains who owes the next move. Keep explicit agent status available when the
   Ask alone does not explain the wait.
-- **Decide whether requests earn their weight.** A request (`x-request`, `leaf
-  receipt`) is a non-undoable one-shot operation the user asks the host to run, with
-  one pending attempt per control and a `succeeded`/`failed` receipt. Leaf never
-  runs it, and a receipt carries no structured result. Its users are Command Hub's
-  `lf-operations`, monitoring's `lf-release-actions` and the developer gallery's
-  `lf-job-requests`, none backed by a real integration, while the lifecycle reaches
-  `requests.py`, workflows, Asks, admission, the runtime's pending model and margin,
-  and the Codex adapter's failure receipts. Once the Command Hub redesign settles
-  whether its operations stay, either remove requests and recast the remaining
-  operations as Asks, or keep them and cut what only the gallery uses: projected
-  holders (`records`, one seat per data row). Kept requests also need one owner for
-  whether a seat is open, which `application.ts`, `widget-controller.js`,
-  `application.js` and `request-elements.js` each restate.
 
 ### Shared definitions
 
-- **Keep the comment note out of the page's structure.** `anchor-note-view.js`
-  appends a `leaf-anchor-note` inside each commented block, so the block's authored
-  `:last-child`, `:only-child` and `:nth-last-child` rules stop matching while a comment
-  stands: with `.list > :last-child { margin-bottom: 80px }`, one comment on `.list`
-  moves the next paragraph up 67px. The block frame and a few widget rules skip the
-  note with `of :not(.lf-ui, [data-lf-gen])`. Page CSS does not, and neither, by
-  reading, do the default package's `:last-child` rules for milestones, chronology
-  entries, cards and a held Ask's answer, or `theme.css`'s map-only sidebar rules,
-  where a comment would change which residents the margin admits. Patching selectors
-  cannot reach page CSS. The note sits there to follow the block in tab and reading
-  order, so the fix is a route to the block's comments from that position that adds
-  no element to authored content.
-- **Say which panes the workspace holds without naming `lf-pane`.** `layouts.css`
-  holds an authored pane only as the workspace body or a cell of it (a pane in a
-  section flows), and a generated pane at any depth. It tells the two apart by the
-  `lf-pane` tag, so a package's authored pane takes the generated rule, and it names
-  the tag for first paint too: the runtime paints `data-lf-reading-role` about half a
-  second after the panes first draw. Both need a mark the stylesheet can read before
-  the script: an authored/generated distinction in the paint, and the role in the
-  first paint.
+- **Keep the rest of the runtime's apparatus out of authored structure.** Two
+  generated elements still stand among the page's own: `anchor-controls.js` puts a
+  `span.lf-visual-actions` after each drawing that takes visual comments, and
+  `presentation.js` puts a hidden `span.lf-external-note` after each external link.
+  Each changes which of its parent's children is last and what follows the drawing
+  or link, so page rules such as `:last-child` or `svg + p` stop matching. The
+  external note can move to the chrome and be named through
+  `ariaDescribedByElements`, as the comment note is named through
+  `ariaDetailsElements`. The visual actions are Tab stops placed after their drawing
+  so Tab reaches them there, so they need a keyboard route that does not depend on
+  where they stand in the document.
 
 ## Etc
 
@@ -241,7 +230,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **#22 — MCP workspace hosting:** compare an iframe, a constrained host, and
   browser handoff when an inline-hosting task calls for it. See the
   [research brief](notes/workspace-followups.md#item-22).
-- **Decide whether an exported page carries its threads.** `leaf version
+- **Decide whether an exported page carries its threads.** `leaf page
   export` writes a file that boots the page's own runtime offline, and that file
   embeds the page's threads in its state reading. The runtime turns the
   thread surface off offline (`threadAvailable: !offlineInteractive`
@@ -262,12 +251,6 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Implementation candidates
 
-- **Write the unresolved-gesture ledger as one state machine.** `application.ts`
-  (`accept`, `accountPresented`), `application.js` (`releasableEntries`) and
-  `pending/model.js` track a gesture through five flags, and each writes its own rule
-  for when an action leaves the ledger. Nothing
-  has drifted and this is the hottest race path, so take it when a change has to touch
-  the ledger anyway.
 - **Set interaction-trace privacy before sharing pages.** Define who can inspect
   traces, consent or opt-out, sensitive-field redaction (including passwords,
   pasted text, and selection), and retention/deletion for page-local files and

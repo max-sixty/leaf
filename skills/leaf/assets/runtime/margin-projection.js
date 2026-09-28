@@ -124,7 +124,7 @@ import {
   holdFocus,
   letGo,
 } from "./focus.js";
-import { el, keeps, keepsHidden, keepsText, offer } from "./widget-elements.js";
+import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
 import { setChildren } from "./dom-children.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
@@ -148,7 +148,7 @@ import { repaint } from "./repaint.js";
 import { chromeRoot } from "./chrome.js";
 import { versionBtn } from "./version-chooser.js";
 import { motion, scrollBehavior } from "./motion.js";
-import { declareSide } from "./standing-target.js";
+import { declareSide, placeOf } from "./standing-target.js";
 import { closestAcross, elementById, inChrome } from "./passages.js";
 import { addressableSays, addressableWord, visualAt } from "./anchor-resolution.js";
 import { paintTrace } from "./target-paint.js";
@@ -166,16 +166,10 @@ import { anchorLabel } from "./thread/messages.js";
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
 import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
-import {
-  BANNER_CONTROL_RANK,
-  bannerControlDoor,
-  dismissBannerControls,
-  registerBannerControl,
-  showBannerControl,
-} from "./banner-shelf.js";
+import { bannerControlDoor } from "./banner-shelf.js";
 import { coarsePointer } from "./pointer.js";
 import { threadCardGeometry } from "./thread-card-geometry.js";
-import { shownWindow } from "./geometry.js";
+import { shownWindow, skipped } from "./geometry.js";
 import { floatingPlacement, floatingUi } from "./floating.js";
 import { placeKeeper } from "./user-place.js";
 import {
@@ -191,22 +185,6 @@ import { retainUserIntent } from "./user-intent.js";
 
 // A margin card's reply box.
 const REPLY_BOX = `.lf-say ${TEXT_FIELD}`;
-
-// A pin covers the corner of its block, and `o`, which clears it, has no key under a
-// finger. Wherever the pointer is coarse, More holds the same toggle.
-const annotationsButton = el("button", "lf-btn lf-annotations-toggle");
-annotationsButton.type = "button";
-registerBannerControl({
-  key: "annotations",
-  control: annotationsButton,
-  rank: BANNER_CONTROL_RANK.annotations,
-  present: coarsePointer.matches,
-});
-const paintAnnotationsButton = () =>
-  keepsText(
-    annotationsButton,
-    annotationsHidden() ? "Show annotations" : "Hide annotations",
-  );
 
 export function createMarginProjection({
   panel,
@@ -741,8 +719,8 @@ export function createMarginProjection({
         const boundary = threadCardBoundary(target);
         if (!boundary.width || !boundary.height) return {};
         const replyEditor = previewList.querySelector(REPLY_BOX);
-        // Drafting is standing anywhere in the reply's row, Send included: a pressed Send
-        // keeps its focus while the send empties the box, and the card must not move then.
+        // Drafting is standing anywhere in the reply's row, Send included. A send leaves
+        // the user in the box it empties, and the card must not move then.
         const drafting =
           replyEditor?.checkVisibility() &&
           (replyEditor.closest(".lf-say").contains(document.activeElement) ||
@@ -1474,7 +1452,6 @@ export function createMarginProjection({
     );
   }
   watchAnnotations((hidden) => {
-    paintAnnotationsButton();
     if (hidden) {
       const holding = closestAcross(document.activeElement, ".lf-margin-cluster");
       if (holding?.dataset.lfPlace === "pin" && holding.lfTarget?.isConnected)
@@ -1492,6 +1469,8 @@ export function createMarginProjection({
     keys: ["o"],
     does: "Hide or show the annotations drawn over the page",
     line: () => (annotationsHidden() ? "show annotations" : "hide annotations"),
+    // A pin covers the corner of its block, and a finger has no `o` to clear it.
+    touch: () => (annotationsHidden() ? "Show annotations" : "Hide annotations"),
     run: toggleAnnotations,
   });
 
@@ -2016,9 +1995,15 @@ export function createMarginProjection({
     // between two marker writes forced one full document layout per Page Map entry —
     // including on the two-second heartbeat. The spoken positions use the main rect
     // already read above and one final scroll height, then write every name together.
+    // A target in skipped content (a tab not chosen) stands nowhere down the page, and
+    // asking would force that content's style and layout (`skipped`).
     const mainHeight = main?.scrollHeight ?? 0;
     const positions = pageInventory.map((entry) =>
-      targetFor(entry) && !readingRegionFor(targetFor(entry)) && mainRect && mainHeight
+      targetFor(entry) &&
+      !skipped(targetFor(entry)) &&
+      !readingRegionFor(targetFor(entry)) &&
+      mainRect &&
+      mainHeight
         ? Math.round(
             ((targetFor(entry).getBoundingClientRect().top - mainRect.top) /
               mainHeight) *
@@ -2640,11 +2625,14 @@ export function createMarginProjection({
   // heading. Treating an Ask as one target for its threads is a possible refinement. It
   // belongs where a thread's target is decided (anchor-paint's placement), so every
   // reader keeps one definition, not in this or any other single reader.
+  // Read from where the node stands (standing-target.js), so chrome that shows a page
+  // target, such as a comment note, arrives at that target as its own content does.
   const threadEntryAt = (node) => {
+    const place = placeOf(node);
     let standing = null;
     for (const entry of pageInventory) {
       const target = targetFor(entry);
-      if (!target || !threadReading(entry) || !under(node, target)) continue;
+      if (!target || !threadReading(entry) || !under(place, target)) continue;
       if (seatedOnPage(threadIdOf(entry))) continue;
       if (!standing || under(target, targetFor(standing))) standing = entry;
     }
@@ -2816,16 +2804,6 @@ export function createMarginProjection({
 
   function mount() {
     mountMarginLayer(toolbar);
-    paintAnnotationsButton();
-    coarsePointer.addEventListener("change", () => {
-      showBannerControl(annotationsButton, coarsePointer.matches);
-      repaint();
-    });
-    annotationsButton.addEventListener("click", () => {
-      dismissBannerControls();
-      bannerControlDoor(annotationsButton)?.focus({ preventScroll: true });
-      toggleAnnotations();
-    });
     onPaper.addEventListener("change", () => {
       if (!onPaper.matches) renderMargin.refresh();
     });

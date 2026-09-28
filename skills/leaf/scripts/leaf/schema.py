@@ -19,11 +19,11 @@ UNNAMED_AGENT = "Agent"
 UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done"}
 MESSAGE_KINDS = {"comment", "reply"}
 # The kinds a widget owns, admitted against the page's registry before they append.
-WIDGET_KINDS = {"action", "report", "request"}
+WIDGET_KINDS = {"action", "report"}
 # The operations that settle a user move the agent owes, as `workflows` and
 # `activity` address them and `$events.answering` explains them. A `turn` answer is
 # a thread reply the claimant's turn writes with its own opening and final messages.
-ANSWER_KINDS = ("reply", "turn", "markup", "receipt")
+ANSWER_KINDS = ("reply", "turn", "markup")
 # The answer kinds that post a message in a thread.
 THREAD_ANSWER_KINDS = frozenset({"reply", "turn"})
 ANSWER_ASK_INSTRUCTION = (
@@ -178,7 +178,7 @@ REFERENCE_SCHEMA = {
 
 
 # Each verb is {detail, unit, record}. `writer: "agent"` makes it a verb the agent
-# reports through `leaf experimental report` rather than one the user acts on;
+# reports through `leaf page report` rather than one the user acts on;
 # absent, the user writes it. The two writers differ in what their state may be, not in its shape.
 STATE_SCHEMA = {
     "type": "object",
@@ -223,56 +223,6 @@ STATE_SCHEMA = {
         },
         "else": {"properties": {"update": False}},
     },
-}
-# A request is a one-shot instruction for the host, not state the browser can replay.
-# Its declaration owns the offered verbs and typed payload, but no replay form.
-# Authored holders name child offers; projected holders offer their verbs directly.
-# The linked receipt carries the closed, layer-wide outcome envelope;
-# host-specific evidence belongs in external data.
-REQUEST_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "ask": {"type": "boolean"},
-        # This request supplies the commands but not its own question title.
-        # A matching holder therefore stands inside an x-ask-surface region, whose direct
-        # heading owns the reading and arrival.
-        "region": {"const": True},
-        "records": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        "offers": {
-            "type": "object",
-            "minProperties": 1,
-            "propertyNames": {"pattern": f"^{WIDGET_NAME}$"},
-            "additionalProperties": {
-                "type": "string",
-                "pattern": f"^{HTML_NAME}$",
-            },
-        },
-        "verbs": {
-            "type": "object",
-            "minProperties": 1,
-            "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-            "additionalProperties": {
-                "type": "object",
-                "properties": {
-                    "detail": {"type": "object"},
-                    "unit": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-                    "bind": {
-                        "type": "object",
-                        "minProperties": 1,
-                        "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-                        "additionalProperties": {
-                            "type": "string",
-                            "pattern": f"^{HTML_NAME}$",
-                        },
-                    },
-                },
-                "required": ["detail"],
-                "additionalProperties": False,
-            },
-        },
-    },
-    "required": ["verbs"],
-    "additionalProperties": False,
 }
 AWAITS_SCHEMA = {
     "type": "object",
@@ -367,7 +317,7 @@ EXTENSION_SCHEMA = {
         # Attributes holding line references into the nearest data body — the element's
         # own <pre>, or its enclosing data element's (lf-note's `at` names a line of its
         # lf-code) — by the numbers x-numbering gives that body, 1-based without it.
-        # `version check` refuses one outside the body (line_ref_errors).
+        # `page check` refuses one outside the body (line_ref_errors).
         "x-lines": _ATTRIBUTE_LIST,
         "x-numbering": _ATTRIBUTE_NAME,
         "x-measured": MEASURED_SCHEMA,
@@ -382,7 +332,6 @@ EXTENSION_SCHEMA = {
             "minItems": 1,
         },
         "x-refers": REFERENCE_SCHEMA,
-        "x-request": REQUEST_SCHEMA,
         "x-retired-when": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-says": {
             "type": "object",
@@ -458,6 +407,27 @@ ATTRIBUTE_KEYS = (
     "x-says",
     "x-tone",
 )
+# The declarations a stylesheet reads, each painted on the element as `paint`: the room
+# it takes (x-space), whether it sets inline among words (x-inline), quotes what it holds
+# (x-exhibit), holds its own height (x-bound), and the reading structure it supplies
+# (x-reading-role). A stylesheet cannot read the registry, so each is painted where a
+# selector can ask. `authored` is the attribute an occurrence writes to override its
+# tag's declaration. `message` says whether the mark holds in a thread's message too:
+# each is the element's own fact wherever it renders, except the room, which is the
+# document's to hand out; a message renders in the panel, whose width bounds it.
+#
+# Delivery paints a page's document from this (`revision_delivery.mark_declared`).
+# Composition stamps it into the vocabulary as `$marks` (`registry.layer.
+# stamp_composition`), from which the runtime paints a message it renders and tells the
+# paint from the author's attributes (`isPagePaint`). The paint names are also the
+# theme's contract: the stylesheets that read them spell them out.
+DECLARED_MARKS = {
+    "x-space": {"paint": "data-lf-space", "authored": "data-width", "message": False},
+    "x-inline": {"paint": "data-lf-inline", "message": True},
+    "x-exhibit": {"paint": "data-lf-exhibit", "message": True},
+    "x-bound": {"paint": "data-lf-bound", "authored": "data-bound", "message": True},
+    "x-reading-role": {"paint": "data-lf-reading-role", "message": True},
+}
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent.parent
 PLUGIN_ROOT = SKILL_ROOT.parent.parent
@@ -506,6 +476,9 @@ VIEWED_FILE = "viewed.json"
 # blind to the port, so every page this machine serves shares a jar — on 127.0.0.1,
 # with every other server the user has running, which is what the prefix is for.
 KEY_COOKIE = "lf_key"
+# How long a bare address stays authorized after the last handover link (`host_key`),
+# the lifetime Jupyter gives its login cookie.
+KEY_COOKIE_MAX_AGE = 30 * 24 * 60 * 60
 STATUS_FILE = "status.json"
 CURSOR_FILE = "cursor.json"
 SERVICE_FILE = "service.json"
@@ -537,7 +510,7 @@ VERSION_NAME = r"v(?P<version>[1-9][0-9]*)"
 # media it adds, the revisions it activates, the versions it stamps). The website
 # adapter routes exactly these and those files to a page, and so does the Worker in
 # front of it, which reads the layer and session kinds from the site manifest
-# `scripts/site.py` writes: a static miss under a session directory is a file the
+# `leaf-dev site` writes: a static miss under a session directory is a file the
 # page's container has. `api` is the page server's protocol prefix, which the Worker
 # names with the endpoints under it.
 SESSION_ROUTE_DIRS = (MEDIA_DIR, "revisions", "versions")

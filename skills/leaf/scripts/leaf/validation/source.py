@@ -10,6 +10,7 @@ from leaf.data_contracts import (
     measurement_lag,
     working_data_document_readings,
 )
+from leaf.passages import SourceReading
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import read_page_registry
 from leaf.revision_artifact import ArtifactError, RevisionArtifact, capture_artifact
@@ -30,7 +31,6 @@ from leaf.validation.instances import (
     layout_errors,
     line_ref_errors,
     reference_errors,
-    request_offer_errors,
     suggestion_errors,
     visual_part_errors,
     widget_errors,
@@ -45,22 +45,32 @@ from leaf.validation.markup import (
     unpointable_blocks,
 )
 from leaf.validation.source_history import (
-    RevisionReading,
+    EMPTY_READING,
+    NO_PREDECESSOR,
+    PredecessorReading,
     continuity_errors,
-    revision_reading,
+    predecessor_reading,
     transition_errors,
     transition_reading,
 )
 
 
 class SourceCheck(NamedTuple):
-    """One complete reading of the exact source bytes."""
+    """One complete reading of the exact source bytes.
 
-    document: SourceDocument
+    `reading` is the document under `registry` (none where the page has no
+    vocabulary), read once for the whole check; the revision activation writes from
+    it adopts it (`revision_artifact.write_artifact`)."""
+
+    reading: SourceReading
     registry: dict | None
     errors: list[str]
     advice: list[str]
     artifact: RevisionArtifact | None = None
+
+    @property
+    def document(self) -> SourceDocument:
+        return self.reading.document
 
 
 def _source_bytes(page_dir: Path) -> tuple[bytes, str | None]:
@@ -177,7 +187,6 @@ def _instance_errors(
     errors.extend(visual_part_errors(parser.lf_elements, registry))
     errors.extend(addressable_instance_errors(parser.lf_elements, registry))
     errors.extend(ask_surface_errors(parser.lf_elements, registry))
-    errors.extend(request_offer_errors(parser.lf_elements, registry))
     errors.extend(
         reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
     )
@@ -217,7 +226,7 @@ def _source_advice(
     parser,
     registry: dict | None,
     stored_data: dict,
-    revision: RevisionReading,
+    revision: PredecessorReading,
     dropped_ids: list[str],
     artifact: RevisionArtifact | None,
 ) -> list[str]:
@@ -254,7 +263,7 @@ def check_source(
     """Check ``index.html`` against the last activated revision."""
     data, source_error = _source_bytes(page_dir)
     if source_error:
-        return SourceCheck(SourceDocument(""), None, [source_error], [])
+        return SourceCheck(EMPTY_READING, None, [source_error], [])
     html = data.decode("utf-8")
     document = SourceDocument(html)
     errors = []
@@ -265,6 +274,7 @@ def check_source(
     except RegistryError as error:
         registry = None
         errors.append(str(error))
+    reading = SourceReading(document, registry)
     stored_data = read_data(page_dir, registry)
     contracts = read_contracts(page_dir)
     readings = (
@@ -312,10 +322,11 @@ def check_source(
                 child_readings,
                 selected,
             )
-            initial = RevisionReading(0, False, False, 0, SourceDocument(""), {}, {})
-            transition = transition_reading(child, child_events, registry, initial)
+            transition = transition_reading(
+                SourceReading(child, registry), child_events, NO_PREDECESSOR
+            )
             child_errors.extend(
-                transition_errors(child, registry, initial, transition, False)
+                transition_errors(child, registry, NO_PREDECESSOR, transition, False)
             )
             errors.extend(name + error for error in child_errors)
     artifact = None
@@ -330,7 +341,7 @@ def check_source(
             )
         except ArtifactError as error:
             errors.append(str(error))
-    revision = revision_reading(page_dir, data, events, artifact)
+    revision = predecessor_reading(page_dir, data, events, artifact)
 
     source_history_errors, dropped_advice = continuity_errors(
         events, document, registry, revision
@@ -352,7 +363,7 @@ def check_source(
                     revision.predecessor,
                 )
             )
-        transition = transition_reading(document, events, registry, revision)
+        transition = transition_reading(reading, events, revision)
         errors.extend(
             transition_errors(
                 document, registry, revision, transition, allow_transition
@@ -367,4 +378,4 @@ def check_source(
         dropped_advice,
         artifact,
     )
-    return SourceCheck(document, registry, errors, advice, artifact)
+    return SourceCheck(reading, registry, errors, advice, artifact)

@@ -52,12 +52,12 @@ directory explicitly; export or copy anything that must outlive the page directo
    `page/`; Leaf alone writes revisions and version mappings.
 3. Check the page by its intended lifetime, whatever its shape and whether or
    not it asks a question. A quick page that will be revised or dropped after an
-   immediate reaction needs only `leaf version check <page>`; fix every failure,
+   immediate reaction needs only `leaf page check <page>`; fix every failure,
    and do not stamp it or delay its handoff for a browser review. For a finished
    record that work will rely on after the conversation, run
-   `leaf version check <page> --render`, read the page as "Pre-handover review"
+   `leaf page check <page> --render`, read the page as "Pre-handover review"
    in `references/page-authoring.md` says, and fix what the reading finds before
-   `leaf version stamp <page> --text "<changelog>"`. The reading comes between
+   `leaf page stamp <page> --text "<changelog>"`. The reading comes between
    the check and the stamp: the check sees whether the page renders, and only
    the reading sees whether it shows the user what it should, such as a view
    that describes what it should have drawn. A record takes this review before
@@ -108,7 +108,7 @@ on `main` or a block arranges each of these, and the page's own CSS adjusts it;
 
 The page contract and widget capabilities are choices, not a checklist. Include
 only controls and gestures whose results advance the user's task. A widget
-move, a resolution and a sign-off can be taken back; words and requests stand.
+move, a resolution and a sign-off can be taken back; words stand.
 
 ## Keep the user current
 
@@ -125,7 +125,7 @@ page and rewrite whatever the change reaches, its title, headings, and order
 included. A status note added where the page already mentions the subject leaves
 everything around it as it was written before the change.
 `references/authoring-revisions.md` says what a rewrite carries across. The
-`version stamp` changelog and the event log hold the history, so the page does not
+`page stamp` changelog and the event log hold the history, so the page does not
 retell it: correct a wrong figure in place and drop a superseded claim. Save
 freely as the subject changes and stamp meaningful checkpoints.
 

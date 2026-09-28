@@ -40,15 +40,15 @@
    contents`. A normal boxed ask wears one outline on its own box. Hoisted controls
    use the same ring token through the shared chip rule.
 
-   Ask rows come from every active local `x-awaits` source and holder declaring
-   `x-request.ask`, answered or open, not from a list of ask tags. Where a
-   source is nested in an `x-ask-surface` region, the row names the region: its heading,
-   context, and evidence are the ask the user is being sent to, while the source
-   remains the owner of the answer. `addressableSays` supplies each row's own label and the owned
-   command scope's `options.answer` supplies its current answer. Selecting a tray row
-   travels through the same ask-arrival function as `a` and `A`, so the panel and
-   directional walk agree about focus, reveal, arrival placement, and `landed`; only the
-   tray's list is wider, preserving answered routes for review and revision.
+   Ask rows come from every active local `x-awaits` source, answered or open, not
+   from a list of ask tags. Where a source is nested in an `x-ask-surface` region,
+   the row names the region: its heading, context, and evidence are the ask the user
+   is being sent to, while the source remains the owner of the answer.
+   `addressableSays` supplies each row's own label and the owned command scope's
+   `options.answer` supplies its current answer. Selecting a tray row travels through
+   the same ask-arrival function as `a` and `A`, so the panel and directional walk
+   agree about focus, reveal, arrival placement, and `landed`; only the tray's list is
+   wider, preserving answered routes for review and revision.
 
    An arrival stands the user on the ask, which is the element the scroll has just
    aligned and the one the ring names. The widget's contributed actions are addressable
@@ -476,9 +476,7 @@ export function createAskView({
   // local scopes still own the keys they declare and the dispatcher's ordinary shadowing
   // keeps an unavailable digit out of every projection.
   function ownedAskControl(source, commandSource) {
-    const selector = tagsDeclaring(
-      (entry) => entry["x-awaits"] || entry["x-request"]?.ask,
-    ).join(",");
+    const selector = tagsDeclaring((entry) => entry["x-awaits"]).join(",");
     return !selector || closestAcross(commandSource, selector) === source;
   }
   const MAX_ASK_ACTIONS = 9;
@@ -527,6 +525,7 @@ export function createAskView({
     );
   const actionRow = {
     id: "ask.activate-nth",
+    touch: false,
     keys: () => actionRoutes().map(({ binding }) => binding),
     routes: actionRoutes,
     label: () => {
@@ -745,7 +744,7 @@ export function createAskView({
     if (row && trayIsOpen("asks")) row.scrollIntoView({ block: "nearest" });
     for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
       if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
-    // A control-less request can borrow its own tab stop while the broader x-ask-surface
+    // A control-less Ask source can borrow its own tab stop while the broader x-ask-surface
     // region wears the ring. Keep that stop until the user leaves the region.
     const holder = sourceNode(record);
     if (askLent && askLent !== here && askLent !== holder) lend(null);
@@ -1120,6 +1119,7 @@ export function createAskView({
   pageCommand(actionRow);
   pageCommand({
     id: "ask.walk",
+    touch: false,
     keys: ["a", "Shift+a"],
     routes: [
       {

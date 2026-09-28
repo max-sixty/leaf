@@ -3,6 +3,7 @@
 import sys
 from pathlib import Path
 
+from leaf.activity import answer_command, reply_binding_stands
 from leaf.asks import local_ask_entry
 from leaf.delivery import current_responses, record_pickup
 from leaf.event_contracts import append_admitted
@@ -15,18 +16,17 @@ from leaf.files import (
 )
 from leaf.host import message_identity
 from leaf.leases import contract_writer
-from leaf.passages import active_enclosing
+from leaf.passages import SourceReading
 from leaf.projection import (
     generated_children,
     page_reading,
     retirement_outcomes,
     rewritten_bodies,
 )
-from leaf.requests import receipt_event
+from leaf.revision_artifact import active_enclosing, read_revision
 from leaf.schema import MESSAGE_KINDS, THREAD_ANSWER_KINDS
 from leaf.service import PageTransaction, delivery_reply_attempt
-from leaf.structure import SourceDocument, parse_revision
-from leaf.thread_context import thread_names
+from leaf.thread_context import thread_address, thread_names
 from leaf.validation.admission import (
     check_markup,
     logged_id,
@@ -39,24 +39,34 @@ def _messages(events: list) -> dict[str, dict]:
     return {event["id"]: event for event in events if event["kind"] in MESSAGE_KINDS}
 
 
+def _unknown_message(page_dir: Path, events: list, name: str) -> None:
+    held = logged_id(events, name, current_responses(page_dir, events))
+    sys.exit(
+        f"unknown comment id {name!r}"
+        + (f"; {held}" if held else "")
+        + f"; known: {sorted(_messages(events))}"
+    )
+
+
 def _message(page_dir: Path, events: list, to: str) -> dict:
     messages = _messages(events)
     if to not in messages:
-        held = logged_id(events, to, current_responses(page_dir, events))
-        sys.exit(
-            f"unknown comment id {to!r}"
-            + (f"; {held}" if held else "")
-            + f"; known: {sorted(messages)}"
-        )
+        _unknown_message(page_dir, events, to)
     return messages[to]
 
 
-def _thread(page_dir: Path, events: list, to: str) -> tuple[str, dict | None]:
-    """The id of the thread holding message `to`, and the comment that opened it,
-    or None where the log lost that comment."""
-    _message(page_dir, events, to)
-    thread_id = thread_names(events)[to]
-    return thread_id, _messages(events).get(thread_id)
+def thread_addressed(page_dir: Path, events: list, name: str) -> tuple[str, str]:
+    """`thread_address`, refusing a name that reaches no thread with what the log
+    holds it as instead."""
+    address = thread_address(events, name)
+    if address is None:
+        _unknown_message(page_dir, events, name)
+    return address
+
+
+def thread_named(page_dir: Path, events: list, name: str) -> str:
+    """The id of the thread `name` reaches."""
+    return thread_addressed(page_dir, events, name)[0]
 
 
 def reserve_delivery_reply(session_id: str, delivery_id: str, target: dict) -> None:
@@ -93,16 +103,21 @@ def _clear_delivery_reply(session_id: str, attempt: str, target: dict) -> None:
 
 
 def delivery_reply_reserved(session_id: str, delivery_id: str, target: dict) -> bool:
-    """Whether an observed provider still owns this delivery's reply address."""
+    """Whether this delivery's binding of its reply address still stands."""
     try:
         with PageTransaction(Path(target["page"])) as page:
             binding = (
                 (page.status.get("stream") or {}).get("reply_bindings") or {}
             ).get(target["responds"])
-            return binding == {
-                "session": session_id,
-                "attempt": delivery_reply_attempt(delivery_id),
-            }
+            claim = page.active_claim
+            return bool(
+                claim
+                and reply_binding_stands(
+                    binding, claim["id"], claim["turn"], claim["turn_closed"]
+                )
+                and binding["session"] == session_id
+                and binding["attempt"] == delivery_reply_attempt(delivery_id)
+            )
     except FileNotFoundError:
         return False
 
@@ -264,16 +279,18 @@ def _current_anchor(
         revision = require_revision(page_dir)
     if not (quote or section or part):
         return revision, None
-    document = parse_revision(page_dir, revision)
+    from leaf.registry.storage import require_registry
+
+    reading = read_revision(page_dir, revision).under(require_registry(page_dir))
     return revision, _capture_anchor(
-        page_dir, events, document, quote, section, part, revision
+        page_dir, events, reading, quote, section, part, revision
     )
 
 
 def _capture_anchor(
     page_dir: Path,
     events: list,
-    document: SourceDocument,
+    reading: SourceReading,
     quote: str,
     section: str,
     part: str,
@@ -281,16 +298,14 @@ def _capture_anchor(
 ) -> dict:
     """Capture a target against one exact document reading."""
     from leaf.anchor_capture import capture_anchor
-    from leaf.registry.storage import require_registry
 
-    registry = require_registry(page_dir)
-    page = page_reading(document, events, registry, revision)
+    page = page_reading(reading, events, revision)
     decided = retirement_outcomes(page.projection.actions)
     edited = rewritten_bodies(page.projection.actions)
     try:
         anchor = capture_anchor(
-            document,
-            registry,
+            page.document,
+            page.registry,
             quote,
             section,
             decided,
@@ -376,8 +391,10 @@ def cmd_reply(
     currently owe no reply for; the event then carries no ``responds``.
 
     ``when_settled`` distinguishes completed delivery answers from failure receipts.
-    ``post`` retains the delivered response address even after settlement; ``skip``
-    omits a receipt when no answer is owed. The default ``refuse`` rejects a stale
+    ``post`` retains the delivered response address even after settlement, but
+    yields to an answer another writer already gave the move (a failure receipt
+    is no answer), so a turn's answer committed after its binding lapsed never
+    answers twice; ``skip`` omits a receipt when no answer is owed. The default ``refuse`` rejects a stale
     response address from an ordinary CLI writer.
 
     ``failure`` records a host-owned failure code alongside its presentation text;
@@ -411,6 +428,17 @@ def cmd_reply(
                 ):
                     sys.exit(f"attempt {attempt!r} already belongs to another event")
                 return existing
+        if (
+            when_settled == "post"
+            and for_event is not None
+            and any(
+                event["kind"] == "reply"
+                and event.get("responds") == for_event
+                and "failure" not in event
+                for event in events
+            )
+        ):
+            return None
         responses = current_responses(page_dir, events)
         if for_event is None and to is None:
             claim = page.active_claim
@@ -440,8 +468,8 @@ def cmd_reply(
                     "cannot infer a reply: this turn's opened delivery holds "
                     f"{len(pending)} reply obligations. Read what the page still "
                     "owes with `leaf page state <page>`; use --for EVENT_ID to "
-                    "answer one, or --to ID to post a new message only if that "
-                    "read shows nothing owed"
+                    "answer one, or name the thread to post a new message only if "
+                    "that read shows nothing owed"
                 )
             for_event, expected = pending[0]
             to = expected["to"]
@@ -459,7 +487,8 @@ def cmd_reply(
             elif to is None:
                 to = expected["to"]
         assert to is not None
-        thread_id, opening = _thread(page_dir, events, to)
+        thread_id, to = thread_addressed(page_dir, events, to)
+        opening = _messages(events).get(thread_id)
         if for_event is not None:
             expected = responses.get(for_event)
             if (
@@ -489,7 +518,7 @@ def cmd_reply(
             if standing is not None:
                 sys.exit(
                     f"thread {thread_id!r} currently requires a response; "
-                    f"answer it with `--for {standing['for']}`"
+                    f"{answer_command(standing)} answers it"
                 )
         if only_if_unclaimed and any(
             event["kind"] == "pickup" and for_event in event["events"]
@@ -561,10 +590,12 @@ def cmd_reply(
                     )
                 prospective_page = checked.document
                 if moving:
+                    from leaf.registry.storage import require_registry
+
                     prospective_anchor = _capture_anchor(
                         page_dir,
                         events,
-                        checked.document,
+                        SourceReading(checked.document, require_registry(page_dir)),
                         quote,
                         section,
                         part,
@@ -654,8 +685,6 @@ def fail_answer(
     - a `reply` answer takes a reply carrying `failure` in its thread, which
       the user resends into; a `turn` answer refuses it until its turn gives the
       reply up and the answer reads as a `reply` again;
-    - a `receipt` answer takes a failed receipt carrying `failure`, the request's
-      own terminal outcome, which reopens its seat for the user to press again;
     - a `markup` answer takes a failed pickup: the user's Ask answer stands in the
       log, and answering again sends a new move.
 
@@ -665,10 +694,8 @@ def fail_answer(
     """
     with PageTransaction(page_dir) as page:
         answer = current_responses(page_dir, page.events).get(responds)
-    if answer is not None and answer["kind"] in {"receipt", "markup"}:
-        return _fail_page_answer(
-            page_dir, responds, failure, text, identity, only_if_unclaimed
-        )
+    if answer is not None and answer["kind"] == "markup":
+        return _fail_markup_answer(page_dir, responds, failure, only_if_unclaimed)
     return cmd_reply(
         page_dir,
         None,
@@ -684,15 +711,10 @@ def fail_answer(
 
 
 @contract_writer
-def _fail_page_answer(
-    page_dir: Path,
-    responds: str,
-    failure: str,
-    text: str,
-    identity: dict,
-    only_if_unclaimed: bool,
+def _fail_markup_answer(
+    page_dir: Path, responds: str, failure: str, only_if_unclaimed: bool
 ) -> dict | None:
-    """Write a receipt or markup failure, rechecking the answer under the lock."""
+    """Record a failed pickup of a page move, rechecking its answer under the lock."""
     with PageTransaction(page_dir) as page:
         events = page.events
         answer = current_responses(page_dir, events).get(responds)
@@ -704,10 +726,6 @@ def _fail_page_answer(
             )
         ):
             return None
-        if answer["kind"] == "receipt":
-            return append_admitted(
-                page, receipt_event(responds, "failed", text, identity, failure)
-            )
         [move] = [event for event in events if event["id"] == responds]
         return record_pickup(page, [move], phase="failed", failure=failure)
 
@@ -749,7 +767,8 @@ def cmd_edit(page_dir: Path, to: str, text) -> dict:
 
 @contract_writer
 def cmd_title(page_dir: Path, thread: str, text: str) -> dict:
-    """Name a thread without adding a turn or changing its obligations."""
+    """Name the thread `thread` reaches without adding a turn or changing its
+    obligations."""
     with PageTransaction(page_dir) as page:
         return append_admitted(
             page,
@@ -757,7 +776,7 @@ def cmd_title(page_dir: Path, thread: str, text: str) -> dict:
                 "kind": "thread_title",
                 "author": "agent",
                 **message_identity(),
-                "thread": thread,
+                "thread": thread_named(page_dir, page.events, thread),
                 "title": text,
             },
         )
@@ -766,12 +785,12 @@ def cmd_title(page_dir: Path, thread: str, text: str) -> dict:
 @contract_writer
 def cmd_summarize(
     page_dir: Path,
-    thread: str,
     from_message: str,
     through_message: str,
     text,
 ) -> dict:
-    """Append a presentation summary over one contiguous message range."""
+    """Append a presentation summary over one contiguous message range, in the
+    thread its first message sits in."""
     from leaf.registry.storage import require_registry
 
     body = read_text_arg(page_dir, text)
@@ -783,7 +802,7 @@ def cmd_summarize(
                 "kind": "summary",
                 "author": "agent",
                 **message_identity(),
-                "thread": thread,
+                "thread": thread_named(page_dir, page.events, from_message),
                 "from": from_message,
                 "through": through_message,
                 "text": body,
@@ -797,7 +816,7 @@ def cmd_resolve(page_dir: Path, to: str) -> dict:
     `parent` — any message in the thread names it — and `author` the whole
     difference, which is how the panel can say who closed it."""
     with PageTransaction(page_dir) as page:
-        _message(page_dir, page.events, to)
+        _thread_id, to = thread_addressed(page_dir, page.events, to)
         event = {
             "kind": "resolve",
             "author": "agent",
@@ -818,7 +837,7 @@ def cmd_report(
     widget, admitted the way the append door admits a user's action,
     stamped with the posting session's voice, and made against the active revision —
     the page the user is looking at. The runtime paints it live; it stands until
-    a stamped revision absorbs or overrules it by id (see `version stamp`), and the
+    a stamped revision absorbs or overrules it by id (see `page stamp`), and the
     page's watcher wakes to fold it in. Field values
     are strings — the declared detail schemas for reports speak in attribute
     values, which is all a report may move."""

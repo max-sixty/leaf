@@ -5,7 +5,6 @@ from ..events import (
     active_summaries,
     awaits_agent,
     bare_reaction,
-    document_identity,
     is_reaction,
     seat_root,
     spoken_turns,
@@ -14,7 +13,6 @@ from ..events import (
 )
 from ..projection import FrozenThreadReading, frozen_thread_reading
 from ..read_state import content_version, unread_content
-from ..requests import request_lifecycles_for, request_phases
 from ..schema import agent_name
 from .wire import browser_projection
 
@@ -95,7 +93,6 @@ def browser_thread(
     registry: dict,
     threads: dict,
     live_reply: dict | None = None,
-    data: dict | None = None,
 ) -> tuple[dict, FrozenThreadReading]:
     """The threads' browser reading. Whose turn each thread is reaches the browser
     only as its `attention`, which `served_state.browser` attaches from this
@@ -104,20 +101,7 @@ def browser_thread(
     (`agent_name`), so the browser keeps no fallback name of its own."""
     settled = {identity for identity, thread in threads.items() if thread["resolved"]}
     reading = frozen_thread_reading(events, registry)
-    requests = request_lifecycles_for(
-        events,
-        reading.elements,
-        registry,
-        document_identity("thread"),
-        data,
-    )
-    asks = thread_ask_readings(
-        events,
-        registry,
-        settled,
-        reading=reading,
-        request_phases=request_phases(requests),
-    )
+    asks = thread_ask_readings(events, registry, settled, reading=reading)
     awaiting = asks["awaiting"]
     unread = unread_content(
         events, threads, reading.thread_by_name, reading.thread_by_widget
@@ -205,7 +189,6 @@ def browser_thread(
                 reading.projection, scope="thread", within={}, floors={}
             ),
             "asks": {key: asks[key] for key in ("all", "user", "unanswered")},
-            "requests": requests,
             "threads": rendered_threads,
             # What the banner's own button reads to say whether the version has
             # been signed off.

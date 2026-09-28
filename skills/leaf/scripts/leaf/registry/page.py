@@ -14,8 +14,7 @@ from copy import deepcopy
 from typing import NamedTuple
 
 from .contract import RegistryError
-from .layer import merge_layer_declarations
-from .state import stamp_decisions
+from .layer import merge_layer_declarations, stamp_composition
 from .validation import validate_registry
 
 
@@ -37,8 +36,9 @@ def compose_page_registry(
 
     ``validated`` is a vocabulary already validated, such as the active revision's:
     a composition equal to it is not validated again. A composition that is
-    validated gets its `$decisions` stamped (`registry.state.stamp_decisions`); one
-    equal to ``validated`` already carries it.
+    validated gets its `$decisions` and `$marks` stamped
+    (`registry.layer.stamp_composition`); one equal to ``validated`` already carries
+    them.
 
     ``widget_paths`` contains available page-root-relative file names, including
     ``widgets/<tag>.js`` from the layer and ``page/widgets/<tag>.js`` from the
@@ -59,7 +59,7 @@ def compose_page_registry(
 
         if page_declarations:
             validate_registry_examples(registry, source)
-        stamp_decisions(registry)
+        stamp_composition(registry)
     declaration_sources = {}
     widget_sources = {}
     available = set(widget_paths)

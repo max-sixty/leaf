@@ -25,9 +25,7 @@ import pytest
 import tinycss2
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
-from example_data import patch_manifest
 from interact_support import (
-    COMMAND_SUBJECTS,
     PAGE,
     PAGE_PACKAGES,
     ROOT,
@@ -60,6 +58,7 @@ from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf import media as media_model
 from leaf import page_snapshot as page_snapshot_model
+from leaf import passages as passages_model
 from leaf import presence as presence_model
 from leaf import projection as projection_model
 from leaf import publishing as publishing_model
@@ -80,7 +79,8 @@ from leaf.served_state import page as served_page
 from leaf.served_state import reading as served_reading
 from leaf.served_state import service as served_service
 from leaf.structure import EXTERNAL_ORIGINS
-from page_fixtures import package_selection_args
+from leaf_dev.example_data import patch_manifest
+from leaf_dev.page_fixtures import package_selection_args
 
 
 def test_interaction_trace_records_browser_entries_and_every_request_outcome(
@@ -127,7 +127,7 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
     }
     assert all("?" not in row["path"] and row["durationMs"] >= 0 for row in server_rows)
     assert fetch(f"{server}/interactions.jsonl")[0] == 404
-    result = CliRunner().invoke(cli_model.cli, ["interactions", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "interactions", str(page_dir)])
     assert result.exit_code == 0, result.output
     assert result.output.splitlines() == list(interaction_model.lines(page_dir))
 
@@ -162,7 +162,7 @@ def test_interaction_trace_is_writable_from_a_read_only_page_preview(page_dir):
     active = files_model.active_descriptor(page_dir, event_model.read_events(page_dir))
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
-        structure_model.parse_revision(page_dir, active["revision"]),
+        artifact_model.read_revision(page_dir, active["revision"]).document,
         active,
     )
     before = event_model.read_events(page_dir)
@@ -967,7 +967,7 @@ def test_historical_deferred_reads_keep_the_document_revision_and_layer(
         '@@ -1 +1 @@\n-return "old"\n+return "new"\n'
     )
     data_model.cmd_data_set(page_dir, "review-patch", patch_manifest(patch))
-    first_layer = artifact_model.read_artifact(page_dir, first.revision).registry[
+    first_layer = artifact_model.read_revision(page_dir, first.revision).registry[
         "$layer"
     ]["generation"]
 
@@ -976,7 +976,7 @@ def test_historical_deferred_reads_keep_the_document_revision_and_layer(
     (page_dir / "index.html").write_text(source.replace("<h1>A</h1>", "<h1>B</h1>"))
     second = revisioning_model.activate_source(page_dir)
     assert second.error is None and second.revision != first.revision
-    second_layer = artifact_model.read_artifact(page_dir, second.revision).registry[
+    second_layer = artifact_model.read_revision(page_dir, second.revision).registry[
         "$layer"
     ]["generation"]
     assert second_layer != first_layer
@@ -1025,7 +1025,7 @@ def test_a_bad_source_save_keeps_the_last_revision_live_and_reports_the_error(
 
     stamp = CliRunner().invoke(
         cli_model.cli,
-        ["version", "stamp", str(page_dir), "--text", "must not fall back"],
+        ["page", "stamp", str(page_dir), "--text", "must not fall back"],
     )
     assert stamp.exit_code != 0
     assert files_model.list_revisions(page_dir) == [1]
@@ -1092,7 +1092,7 @@ def test_a_stamped_restatement_remains_the_valid_live_source(server, page_dir):
     (page_dir / "index.html").write_text(baseline)
     first = CliRunner().invoke(
         cli_model.cli,
-        ["version", "stamp", "--json", str(page_dir), "--text", "baseline"],
+        ["page", "stamp", "--json", str(page_dir), "--text", "baseline"],
     )
     assert first.exit_code == 0, first.output
     first_revision = json.loads(first.output)["revision"]
@@ -1116,7 +1116,7 @@ def test_a_stamped_restatement_remains_the_valid_live_source(server, page_dir):
     )
     second = CliRunner().invoke(
         cli_model.cli,
-        ["version", "stamp", "--json", str(page_dir), "--text", "corrected"],
+        ["page", "stamp", "--json", str(page_dir), "--text", "corrected"],
     )
     assert second.exit_code == 0, second.output
     stamped = json.loads(second.output)
@@ -1188,7 +1188,7 @@ def test_server_round_trip(server, page_dir):
     assert status == 404
     stamped = CliRunner().invoke(
         cli_model.cli,
-        ["version", "stamp", str(page_dir), "--text", "cut"],
+        ["page", "stamp", str(page_dir), "--text", "cut"],
     )
     assert stamped.exit_code == 0, stamped.output
     # The handover address is the live page, not a pinned revision address.
@@ -1325,7 +1325,9 @@ def test_server_round_trip(server, page_dir):
     assert status == 200
     design = event_model.read_events(page_dir)[-1]
     assert design["about"] == "design" and design["anchor"]["part"] == "Threads"
-    transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+    transcript = CliRunner().invoke(
+        cli_model.cli, ["page", "transcript", str(page_dir)]
+    )
     assert "> § lf-banner · Threads  — about the design" in transcript.output
     drawing = {
         "format": "leaf-drawing/2",
@@ -1357,7 +1359,9 @@ def test_server_round_trip(server, page_dir):
     assert status == 200
     page_drawing = event_model.read_events(page_dir)[-1]
     assert "anchor" not in page_drawing and page_drawing["drawing"] == drawing
-    transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+    transcript = CliRunner().invoke(
+        cli_model.cli, ["page", "transcript", str(page_dir)]
+    )
     assert (
         "_(drawing attached over “to reap every process … before exporting”)_"
         in transcript.output
@@ -1539,7 +1543,7 @@ def test_server_round_trip(server, page_dir):
         },
         {"kind": "reply", "parent": "nope", "revision": 2, "text": "hi"},
         {"kind": "resolve", "parent": "nope"},
-        # A report is agent-authored: its one door is `leaf experimental report`,
+        # A report is agent-authored: its one door is `leaf page report`,
         # so the browser door refuses the kind outright rather than minting user
         # events that outrank nothing.
         {
@@ -1583,7 +1587,7 @@ def test_a_page_serves_one_document_at_each_of_its_three_addresses(server, page_
     them, and a crawler that finds all three, arrive at one page.
     """
     stamped = CliRunner().invoke(
-        cli_model.cli, ["version", "stamp", str(page_dir), "--text", "cut"]
+        cli_model.cli, ["page", "stamp", str(page_dir), "--text", "cut"]
     )
     assert stamped.exit_code == 0, stamped.output
     revision = files_model.latest_revision(page_dir)
@@ -1777,8 +1781,6 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
             "thread",
             "reply",
             str(page_dir),
-            "--to",
-            "approval-question",
             "--for",
             "approval-question",
             "--text",
@@ -1838,7 +1840,9 @@ def test_the_transcript_reports_only_an_approval_that_stands(page_dir):
     )
 
     def transcript():
-        result = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+        result = CliRunner().invoke(
+            cli_model.cli, ["page", "transcript", str(page_dir)]
+        )
         assert result.exit_code == 0, result.output
         return result.output
 
@@ -2215,9 +2219,11 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
 
     def reading(active_revision):
         state, _reading = served_browser.browser_state(
-            documents,
+            {
+                revision: passages_model.SourceReading(document, registry)
+                for revision, document in documents.items()
+            },
             events,
-            registry,
             active_revision,
             presence_model.presence(page_dir, events),
             {},
@@ -2274,9 +2280,7 @@ def test_undo_candidates_keep_only_standing_user_gestures():
     empty = projection_model.StateProjection(
         {}, {}, {}, {}, {}, frozenset(), frozenset()
     )
-    document = document_reading_model.DocumentReading(
-        None, empty, {}, None, [], {}, {}, {}
-    )
+    document = document_reading_model.DocumentReading(None, empty, {}, None, {}, {}, {})
     undo_reading = event_folds_model.UndoReading(
         events, within={}, absorbed=frozenset()
     )
@@ -2346,10 +2350,13 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
         },
     )
     events = event_model.read_events(page_dir)
+    registry = registry_storage.require_registry(page_dir)
     views = served_browser.browser_state(
-        documents,
+        {
+            revision: passages_model.SourceReading(document, registry)
+            for revision, document in documents.items()
+        },
         events,
-        registry_storage.require_registry(page_dir),
         2,
         presence_model.presence(page_dir, events),
         {},
@@ -2692,651 +2699,6 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
     assert fetch(f"{server}/api/event", data=json.dumps(valid).encode())[0] == 200
 
 
-def test_server_admits_only_a_widget_declared_host_request(server, page_dir):
-    """A package verb reaches the host as typed intent, never as prose the
-    coordinator has to interpret. The browser door resolves the widget against the
-    revision the user used and validates its complete detail there."""
-    operation = (
-        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
-        "<strong>Goal</strong>"
-        + COMMAND_SUBJECTS
-        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
-        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
-        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask></lf-task></lf-command>"
-    )
-    version = page_dir / "index.html"
-    version.write_text(
-        version.read_text().replace("</section>", operation + "</section>")
-    )
-    publish(page_dir)
-
-    invalid = [
-        (
-            {
-                "target": "goal",
-                "worker": "worker",
-                "worktree": "tree",
-                "extra": "guess",
-            },
-            "detail is invalid",
-        ),
-        ({}, "detail is invalid"),
-        (
-            {"target": "other-goal", "worker": "worker", "worktree": "tree"},
-            "must match its authored `target`",
-        ),
-    ]
-    for detail, message in invalid:
-        status, body = fetch(
-            f"{server}/api/event",
-            data=json.dumps(
-                {
-                    "kind": "request",
-                    "revision": 1,
-                    "widget": "commands",
-                    "action": "restart",
-                    "detail": detail,
-                }
-            ).encode(),
-        )
-        assert status == 400, body
-        assert message in json.loads(body)["error"]
-
-    # The task's status is the worker's verb; the browser door refuses a user's.
-    status, body = fetch(
-        f"{server}/api/event",
-        data=json.dumps(
-            {
-                "kind": "action",
-                "revision": 1,
-                "widget": "goal",
-                "action": "status",
-                "detail": {"status": "done"},
-            }
-        ).encode(),
-    )
-    assert status == 400, body
-    assert (
-        "'status' is a verb the agent writes; this action came from the user"
-        in (json.loads(body)["error"])
-    )
-
-    status, body = fetch(
-        f"{server}/api/event",
-        data=json.dumps(
-            {
-                "kind": "request",
-                "revision": 1,
-                "widget": "commands",
-                "action": "restart",
-                "detail": {
-                    "target": "goal",
-                    "worker": "worker",
-                    "worktree": "tree",
-                },
-            }
-        ).encode(),
-    )
-
-    assert status == 200, body
-    request = event_model.read_events(page_dir)[-1]
-    assert request["kind"] == "request" and request["author"] == "user"
-    assert (request["widget"], request["action"], request["detail"]) == (
-        "commands",
-        "restart",
-        {"target": "goal", "worker": "worker", "worktree": "tree"},
-    )
-
-
-def test_server_refuses_a_host_verb_the_widget_instance_did_not_offer(server, page_dir):
-    """The package declaration names every verb the widget family can speak, while
-    the authored children name the commands this particular target offers. A crafted
-    POST must not turn a restart-only surface into a request to land the target."""
-    operation = (
-        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
-        "<strong>Goal</strong>"
-        + COMMAND_SUBJECTS
-        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
-        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
-        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask></lf-task></lf-command>"
-    )
-    version = page_dir / "index.html"
-    version.write_text(
-        version.read_text().replace("</section>", operation + "</section>")
-    )
-    publish(page_dir)
-
-    status, body = fetch(
-        f"{server}/api/event",
-        data=json.dumps(
-            {
-                "kind": "request",
-                "revision": 1,
-                "widget": "commands",
-                "action": "land",
-                "detail": {
-                    "target": "goal",
-                    "worker": "worker",
-                    "worktree": "tree",
-                },
-            }
-        ).encode(),
-    )
-
-    assert status == 400, body
-    assert "not offered" in json.loads(body)["error"]
-    assert not [
-        event
-        for event in event_model.read_events(page_dir)
-        if event["kind"] == "request"
-    ]
-
-
-def test_server_refuses_a_second_request_while_the_first_is_pending(server, page_dir):
-    """The operation holder is one atomic choice surface. Its browser lock is only
-    presentation: a stale second tab can still POST before seeing the first request,
-    so the append boundary must serialize the pending lifecycle."""
-    operation = (
-        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
-        "<strong>Goal</strong>"
-        + COMMAND_SUBJECTS
-        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
-        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
-        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        '<lf-operation verb="drop"><strong>Drop</strong></lf-operation>'
-        "</lf-operations></lf-ask></lf-task></lf-command>"
-    )
-    version = page_dir / "index.html"
-    version.write_text(
-        version.read_text().replace("</section>", operation + "</section>")
-    )
-    publish(page_dir)
-
-    first_status, first_body = fetch(
-        f"{server}/api/event",
-        data=json.dumps(
-            {
-                "kind": "request",
-                "revision": 1,
-                "widget": "commands",
-                "action": "restart",
-                "detail": {
-                    "target": "goal",
-                    "worker": "worker",
-                    "worktree": "tree",
-                },
-            }
-        ).encode(),
-    )
-    assert first_status == 200, first_body
-    second_status, second_body = fetch(
-        f"{server}/api/event",
-        data=json.dumps(
-            {
-                "kind": "request",
-                "revision": 1,
-                "widget": "commands",
-                "action": "drop",
-                "detail": {
-                    "target": "goal",
-                    "worker": "worker",
-                    "worktree": "tree",
-                },
-            }
-        ).encode(),
-    )
-
-    assert second_status == 400, second_body
-    assert "pending request" in json.loads(second_body)["error"]
-    requests = [
-        event
-        for event in event_model.read_events(page_dir)
-        if event["kind"] == "request"
-    ]
-    assert [(event["action"], event["detail"]) for event in requests] == [
-        ("restart", {"target": "goal", "worker": "worker", "worktree": "tree"})
-    ]
-
-
-def test_request_lifecycle_reopens_on_failure_and_resets_in_a_later_revision(
-    server, page_dir
-):
-    """Failure makes another attempt meaningful, success closes the instruction, and
-    a later authored revision is a new surface. These are protocol facts at POST, not
-    assumptions made only by the package's current browser module."""
-    operation = (
-        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
-        "<strong>Goal</strong>"
-        + COMMAND_SUBJECTS
-        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
-        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
-        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        '<lf-operation verb="drop"><strong>Drop</strong></lf-operation>'
-        "</lf-operations></lf-ask></lf-task></lf-command>"
-    )
-    version = page_dir / "index.html"
-    version.write_text(
-        version.read_text().replace("</section>", operation + "</section>")
-    )
-    publish(page_dir)
-
-    def ask(revision, action):
-        return fetch(
-            f"{server}/api/event",
-            data=json.dumps(
-                {
-                    "kind": "request",
-                    "revision": revision,
-                    "widget": "commands",
-                    "action": action,
-                    "detail": {
-                        "target": "goal",
-                        "worker": "worker",
-                        "worktree": "tree",
-                    },
-                }
-            ).encode(),
-        )
-
-    first_status, first_body = ask(1, "restart")
-    assert first_status == 200, first_body
-    first = event_model.read_events(page_dir)[-1]
-    event_model.append_event(
-        page_dir,
-        {
-            "kind": "receipt",
-            "author": "agent",
-            "request": first["id"],
-            "status": "failed",
-            "text": "Worker lease disappeared",
-        },
-    )
-
-    retry_status, retry_body = ask(1, "drop")
-    assert retry_status == 200, retry_body
-    retry = event_model.read_events(page_dir)[-1]
-    event_model.append_event(
-        page_dir,
-        {
-            "kind": "receipt",
-            "author": "agent",
-            "request": retry["id"],
-            "status": "succeeded",
-            "text": "Archived the branch",
-        },
-    )
-
-    closed_status, closed_body = ask(1, "restart")
-    assert closed_status == 400, closed_body
-    assert "already completed request" in json.loads(closed_body)["error"]
-
-    (page_dir / "index.html").write_text(
-        version.read_text().replace("What next?", "What next now?")
-    )
-    publish(page_dir, 2)
-    next_status, next_body = ask(2, "restart")
-    assert next_status == 200, next_body
-
-
-def test_projected_record_requests_have_independent_typed_seats(server, page_dir):
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["$data"]["contracts"]["job-rows"] = {
-        "description": "Jobs displayed by the request widget.",
-        "records": {"items": "rows", "key": "id"},
-        "schema": {
-            "type": "object",
-            "properties": {
-                "rows": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "id": {"type": "string", "minLength": 1},
-                            "state": {"type": "string"},
-                        },
-                        "required": ["id", "state"],
-                        "additionalProperties": False,
-                    },
-                }
-            },
-            "required": ["rows"],
-            "additionalProperties": False,
-        },
-    }
-    registry["lf-row-requests"] = {
-        "description": "A typed request for each displayed job.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
-        },
-        "required": ["id", "source"],
-        "additionalProperties": False,
-        "x-content": "members",
-        "x-upgrade": True,
-        "x-data": {"jobs": {"contract": "job-rows", "source": "source"}},
-        "x-request": {
-            "ask": True,
-            "region": True,
-            "records": "jobs",
-            "verbs": {
-                "restart": {
-                    "unit": "target",
-                    "detail": {
-                        "type": "object",
-                        "properties": {
-                            "target": {"type": "string"},
-                            "state": {"type": "string"},
-                        },
-                        "required": ["target", "state"],
-                        "additionalProperties": False,
-                    },
-                    "bind": {"target": "id", "state": "state"},
-                }
-            },
-        },
-    }
-    registry_path.write_text(json.dumps(registry))
-    widget_module = page_dir / "page/widgets/lf-row-requests.js"
-    widget_module.parent.mkdir(parents=True, exist_ok=True)
-    widget_module.write_text(
-        'customElements.define("lf-row-requests", class extends HTMLElement {});'
-    )
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "</section>",
-            '<lf-ask id="jobs-question"><h2>Restart a job?</h2>'
-            '<lf-row-requests id="jobs" source="jobs"></lf-row-requests>'
-            "</lf-ask></section>",
-        )
-    )
-    assert check(page_dir).exit_code == 0, check(page_dir).output
-    publish(page_dir)
-    data_model.cmd_data_set(
-        page_dir,
-        "jobs",
-        {
-            "rows": [
-                {"id": "alpha", "state": "stopped"},
-                {"id": "beta", "state": "stopped"},
-            ]
-        },
-    )
-
-    first = read_page_data(page_dir)["sources"]["jobs"]["revision"]
-
-    def send(unit, state="stopped", revision=first):
-        return fetch(
-            f"{server}/api/event",
-            data=json.dumps(
-                {
-                    "kind": "request",
-                    "revision": 1,
-                    "widget": "jobs",
-                    "action": "restart",
-                    "source_revision": revision,
-                    "detail": {"target": unit, "state": state},
-                }
-            ).encode(),
-        )
-
-    for unit, state, revision in [
-        ("missing", "stopped", first),
-        ("alpha", "running", first),
-        ("alpha", "stopped", "0123456789abcdef"),
-    ]:
-        status, _body = send(unit, state, revision)
-        assert status == 400
-    assert send("alpha")[0] == 200
-    assert send("alpha")[0] == 400
-    status, raw = fetch(f"{server}/api/state")
-    assert status == 200
-    state = json.loads(raw)
-    seats = state["browser"]["views"]["1"]["document"]["requests"]
-    assert {(seat["seat"]["unit"], seat["phase"]) for seat in seats} == {
-        ("alpha", "pending"),
-        ("beta", "ready"),
-    }
-    assert [
-        ask["id"] for ask in state["browser"]["views"]["1"]["document"]["asks"]["user"]
-    ] == ["jobs-question"]
-    assert send("beta")[0] == 200
-    events = event_model.read_events(page_dir)
-    requests = [event for event in events if event["kind"] == "request"]
-    assert [event["meaning"]["unit"] for event in requests] == ["alpha", "beta"]
-    status, raw = fetch(f"{server}/api/state")
-    assert status == 200
-    assert not json.loads(raw)["browser"]["views"]["1"]["document"]["asks"]["user"]
-    event_model.append_event(
-        page_dir,
-        {
-            "kind": "receipt",
-            "author": "agent",
-            "request": requests[0]["id"],
-            "status": "failed",
-            "text": "Try again",
-        },
-    )
-    assert send("alpha")[0] == 200
-    event_model.append_event(
-        page_dir,
-        {
-            "kind": "receipt",
-            "author": "agent",
-            "request": requests[1]["id"],
-            "status": "succeeded",
-            "text": "Restarted",
-        },
-    )
-    assert send("beta")[0] == 400
-    retry = [
-        event
-        for event in event_model.read_events(page_dir)
-        if event["kind"] == "request"
-    ][-1]
-    event_model.append_event(
-        page_dir,
-        {
-            "kind": "receipt",
-            "author": "agent",
-            "request": retry["id"],
-            "status": "succeeded",
-            "text": "Restarted",
-        },
-    )
-    with pytest.raises(data_model.DataError, match="keys must be unique"):
-        data_model.cmd_data_set(
-            page_dir,
-            "jobs",
-            {
-                "rows": [
-                    {"id": "beta", "state": "stopped"},
-                    {"id": "beta", "state": "stopped"},
-                ],
-            },
-        )
-    data_model.cmd_data_set(
-        page_dir,
-        "jobs",
-        {
-            "rows": [
-                {"id": "beta", "state": "stopped"},
-                {"id": "gamma", "state": "stopped"},
-            ],
-        },
-    )
-    status, raw = fetch(f"{server}/api/state")
-    assert status == 200
-    seats = json.loads(raw)["browser"]["views"]["1"]["document"]["requests"]
-    assert {(seat["seat"]["unit"], seat["phase"]) for seat in seats} == {
-        ("alpha", "completed"),
-        ("beta", "completed"),
-        ("gamma", "ready"),
-    }
-    second = read_page_data(page_dir)["sources"]["jobs"]["revision"]
-    assert send("gamma", revision=first)[0] == 400
-    assert send("beta", revision=second)[0] == 400
-    assert send("gamma", revision=second)[0] == 200
-    gamma = next(
-        event
-        for event in event_model.read_events(page_dir)
-        if event["kind"] == "request" and event["meaning"]["unit"] == "gamma"
-    )
-    event_model.append_event(
-        page_dir,
-        {
-            "kind": "receipt",
-            "author": "agent",
-            "request": gamma["id"],
-            "status": "failed",
-            "text": "Try again",
-        },
-    )
-    data_model.cmd_data_set(page_dir, "jobs", {"rows": []})
-    status, raw = fetch(f"{server}/api/state")
-    assert status == 200
-    document = json.loads(raw)["browser"]["views"]["1"]["document"]
-    assert document["asks"]["user"] == []
-    assert {
-        (seat["seat"]["unit"], seat["phase"], seat["seat"].get("offered", True))
-        for seat in document["requests"]
-    } == {
-        ("alpha", "completed", False),
-        ("beta", "completed", False),
-        ("gamma", "ready", False),
-    }
-
-
-def test_a_thread_request_does_not_reset_when_the_page_revision_changes(
-    server, page_dir
-):
-    """Thread markup is a frozen second document, not part of each page revision. Its
-    one-shot operation therefore remains pending when the authored page advances."""
-    subjects = (
-        '<lf-command id="hub"><lf-task id="goal" status="active">'
-        "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
-    )
-    (page_dir / "index.html").write_text(
-        PAGE.replace("</section>", subjects + "</section>")
-    )
-    publish(page_dir)
-    root = event_model.append_event(
-        page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "What should happen to this branch?",
-        },
-    )
-    event_model.append_event(
-        page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "agent": "Codex",
-            "parent": root["id"],
-            "text": "Choose the host operation.",
-            "markup": (
-                '<lf-ask id="thread-command-decision"><h3>What next?</h3>'
-                '<lf-operations id="thread-commands" target="goal" worker="worker" '
-                'worktree="tree">'
-                '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-                "</lf-operations></lf-ask>"
-            ),
-        },
-    )
-
-    def ask(revision):
-        return fetch(
-            f"{server}/api/event",
-            data=json.dumps(
-                {
-                    "kind": "request",
-                    "revision": revision,
-                    "widget": "thread-commands",
-                    "action": "restart",
-                    "detail": {
-                        "target": "goal",
-                        "worker": "worker",
-                        "worktree": "tree",
-                    },
-                }
-            ).encode(),
-        )
-
-    first_status, first_body = ask(1)
-    assert first_status == 200, first_body
-    (page_dir / "index.html").write_text(
-        (page_dir / "index.html")
-        .read_text()
-        .replace("<h2>Plan</h2>", "<h2>Updated plan</h2>")
-    )
-    publish(page_dir, 2)
-
-    repeated_status, repeated_body = ask(2)
-    assert repeated_status == 400, repeated_body
-    assert "pending request" in json.loads(repeated_body)["error"]
-
-
-def test_server_refuses_a_thread_request_that_swaps_typed_page_subjects(
-    server, page_dir
-):
-    """Frozen thread markup may point into the page, so POST checks the combined
-    document after the fragment-only door has verified its local structure."""
-    subjects = (
-        '<lf-command id="hub"><lf-task id="goal" status="active">'
-        "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
-    )
-    (page_dir / "index.html").write_text(
-        PAGE.replace("</section>", subjects + "</section>")
-    )
-    publish(page_dir)
-    root = event_model.append_event(
-        page_dir,
-        {"kind": "comment", "author": "user", "revision": 1, "text": "Act?"},
-    )
-    event_model.append_event(
-        page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "agent": "Codex",
-            "parent": root["id"],
-            "text": "Choose.",
-            "markup": (
-                '<lf-operations id="thread-commands" target="worker" worker="tree" '
-                'worktree="goal" label="Next">'
-                '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-                "</lf-operations>"
-            ),
-        },
-    )
-
-    status, body = fetch(
-        f"{server}/api/event",
-        data=json.dumps(
-            {
-                "kind": "request",
-                "revision": 1,
-                "widget": "thread-commands",
-                "action": "restart",
-                "detail": {
-                    "target": "worker",
-                    "worker": "tree",
-                    "worktree": "goal",
-                },
-            }
-        ).encode(),
-    )
-
-    assert status == 400, body
-    assert "where role='goal'" in json.loads(body)["error"]
-
-
 @pytest.mark.parametrize(
     ("corrupt", "message"),
     [
@@ -3396,8 +2758,6 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
             "thread",
             "reply",
             str(page_dir),
-            "--to",
-            "c1",
             "--for",
             "c1",
             "--text",
@@ -3496,7 +2856,7 @@ def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring
     noted = CliRunner().invoke(
         cli_model.cli,
         [
-            "version",
+            "page",
             "stamp",
             str(page_dir),
             "--text",
@@ -3567,22 +2927,20 @@ def test_concurrent_posts_never_tear_the_log(server, page_dir):
 def test_every_kind_of_user_move_is_named_in_eight_characters(server, page_dir):
     """An id is something the agent reads back and retypes. One user comment
     shows the agent its id five times over and is answered with `leaf thread reply --for
-    <id>`, so an id is eight hex characters. No kind is carved out of that: a
-    `request` id reaches a host, but its uniqueness is within this page either
-    way, so the host pairs it with the page rather than being handed a wider id
-    and left to assume it is distinctive on its own."""
-    operation = (
-        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
-        "<strong>Goal</strong>"
-        + COMMAND_SUBJECTS
-        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
-        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
-        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask></lf-task></lf-command>"
-    )
+    <id>`, so an id is eight hex characters. No kind is carved out of that: an
+    id a host keys an operation on is unique within this page either way, so the
+    host pairs it with the page rather than being handed a wider id and left to
+    assume it is distinctive on its own."""
     version = page_dir / "index.html"
     version.write_text(
-        version.read_text().replace("</section>", operation + "</section>")
+        version.read_text().replace(
+            "</section>",
+            '<lf-ask id="worker-decision"><h3>What next?</h3>'
+            '<lf-options id="worker" choose>'
+            '<lf-option id="worker-restart">Restart the worker</lf-option>'
+            '<lf-option id="worker-park">Park it</lf-option>'
+            "</lf-options></lf-ask></section>",
+        )
     )
     publish(page_dir)
 
@@ -3599,20 +2957,20 @@ def test_every_kind_of_user_move_is_named_in_eight_characters(server, page_dir):
         f"{server}/api/event",
         data=json.dumps(
             {
-                "kind": "request",
+                "kind": "action",
                 "revision": 1,
-                "widget": "commands",
-                "action": "restart",
-                "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
+                "widget": "worker",
+                "action": "choose",
+                "detail": {"options": ["worker-restart"]},
             }
         ).encode(),
     )
     assert status == 200, body
-    request = event_model.read_events(page_dir)[-1]
+    action = event_model.read_events(page_dir)[-1]
 
-    assert comment["kind"] == "comment" and request["kind"] == "request"
+    assert comment["kind"] == "comment" and action["kind"] == "action"
     assert re.fullmatch(r"[0-9a-f]{8}", comment["id"]), comment["id"]
-    assert re.fullmatch(r"[0-9a-f]{8}", request["id"]), request["id"]
+    assert re.fullmatch(r"[0-9a-f]{8}", action["id"]), action["id"]
 
 
 def test_event_ids_are_unique_within_the_log_whatever_the_mint_returns(
@@ -3642,20 +3000,7 @@ def test_event_ids_are_unique_within_the_log_whatever_the_mint_returns(
     with pytest.raises(ValueError, match="event id .* already exists"):
         event_model.append_event(
             page_dir,
-            {
-                "id": first["id"],
-                "meaning": {"scope": "page"},
-                "kind": "request",
-                "author": "user",
-                "revision": 1,
-                "widget": "commands",
-                "action": "restart",
-                "detail": {
-                    "target": "goal",
-                    "worker": "worker",
-                    "worktree": "tree",
-                },
-            },
+            {"id": first["id"], "kind": "comment", "author": "user", "text": "third"},
         )
 
 
@@ -4108,7 +3453,7 @@ def test_a_comment_carrying_line_separators_survives_the_log(server, page_dir):
     events = [e for e in event_model.read_events(page_dir) if e["kind"] == "comment"]
     assert [e["text"] for e in events] == [text]
     # One physical line per event under any line-splitting reader, so what
-    # `wait` and `events` print stays one event per line for every consumer.
+    # `wait` and `page events` print stays one event per line for every consumer.
     raw = (page_dir / "events.jsonl").read_text()
     assert raw.splitlines() == raw.rstrip("\n").split("\n")
 
@@ -4245,7 +3590,7 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     active = files_model.active_descriptor(page_dir, event_model.read_events(page_dir))
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
-        structure_model.parse_revision(page_dir, active["revision"]),
+        artifact_model.read_revision(page_dir, active["revision"]).document,
         active,
     )
     preview = hosting_model.LeafHTTPServer(
@@ -4471,7 +3816,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
     active = files_model.active_descriptor(page_dir, events)
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
-        structure_model.parse_revision(page_dir, active["revision"]),
+        artifact_model.read_revision(page_dir, active["revision"]).document,
         active,
     )
     projection = served_service.PageStateService(
@@ -4634,7 +3979,9 @@ def test_the_key_arrives_in_the_query_and_stays_in_the_cookie(server, page_dir):
 
     with opener.open(f"{server}/versions/v1.html?t={TOKEN}") as arrival:
         assert arrival.status == 200
-    assert [c.value for c in jar] == [TOKEN]
+    # Persistent rather than a session cookie: the tab holds only the bare address,
+    # which has to open again after the browser restarts.
+    assert [(c.value, c.discard) for c in jar] == [(TOKEN, False)]
 
     # No query this time: the runtime's own fetches never carry one.
     with opener.open(f"{server}/api/state") as polled:
@@ -5779,7 +5126,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
         if element["thread"] == "c-lost"
     ] == [element["id"] for element in orphan_elements]
     history = CliRunner().invoke(
-        cli_model.cli, ["events", str(page_dir), "--thread", "c-lost"]
+        cli_model.cli, ["page", "events", str(page_dir), "--thread", "c-lost"]
     )
     assert history.exit_code == 0, history.output
     records = [json.loads(line) for line in history.output.splitlines()]
@@ -5797,15 +5144,17 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     assert rows["r-kept"]["thread"] == lost_thread
     assert rows[closed["id"]]["thread"] == lost_thread
 
-    # An agent holding the thread's id names it as the message to answer, as it may
-    # for any thread whose opening comment survives; the refusal sends it to the
-    # message the thread is answered through.
-    refused = CliRunner().invoke(
+    # The thread's id still names the thread to the writers, as it does for any
+    # thread whose opening comment survives; the reply is addressed through the
+    # first message the thread still holds, since the id names no event.
+    replied = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", str(page_dir), "--to", "c-lost", "--text", "Retrying."],
+        ["thread", "reply", "--json", str(page_dir), "c-lost", "--text", "Retrying."],
     )
-    assert refused.exit_code != 0
-    assert (
-        "c-lost is a thread whose opening message this page's log lost — "
-        "`leaf thread reply <page> --to r-kept` replies in it"
-    ) in refused.output
+    assert replied.exit_code == 0, replied.output
+    assert json.loads(replied.output)["parent"] == "r-kept"
+    resolved = CliRunner().invoke(
+        cli_model.cli, ["thread", "resolve", str(page_dir), "c-lost"]
+    )
+    assert resolved.exit_code == 0, resolved.output
+    assert resolved.output == "resolved c-lost\n"

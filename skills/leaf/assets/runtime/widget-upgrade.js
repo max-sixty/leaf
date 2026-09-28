@@ -24,7 +24,7 @@ export function once(el) {
 export const dataBody = (el) => el.querySelector(":scope > pre").textContent;
 
 // The body's text as a module reads its lines: leading blank lines and trailing
-// whitespace are the <pre>'s layout, not lines. `version check` holds an x-numbering to
+// whitespace are the <pre>'s layout, not lines. `page check` holds an x-numbering to
 // the lines of this same trim (`_body_text`, validation/instances.py). trimEnd removes
 // the class collapse.js's COLLAPSE spells, which Python names outright because its own
 // \s differs at the edges. A notation whose trailing whitespace is content, a diff's,

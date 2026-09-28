@@ -72,7 +72,7 @@ import {
   showBannerControl,
 } from "../banner-shelf.js";
 import {
-  bannerFoot,
+  seenRect,
   shellRight,
   shownExtent,
   shownParts,
@@ -880,8 +880,7 @@ export function createResponseSurface({
   // that box against a passage they have not moved.
   function bringForward(addressable) {
     if (!addressable) return;
-    const seen = shownRect(addressable, new Map());
-    if (!seen || seen.bottom <= bannerFoot()) {
+    if (!seenRect(addressable, new Map())) {
       scrollToElement(addressable, "instant");
       return;
     }
@@ -1530,6 +1529,7 @@ export function createResponseSurface({
   // left behind, which is the order the destination reading above uses.
   pageCommand({
     id: "comment.create",
+    touch: false,
     keys: ["c"],
     // The surfaces name the destination in front of the user rather than the capability:
     // "Comment" covered all four and so promised none of them.

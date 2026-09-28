@@ -12,7 +12,8 @@ subpackage's initializer is only a marker, never a second API.
 ## Owners
 
 - `files`, `revisioning`, `revision_artifact`, `revision_delivery`: atomic page
-  files, immutable revisions, their captured inputs, and delivery URLs;
+  files, immutable revisions, their captured inputs and held readings, and delivery
+  URLs;
 - `locations`: filesystem path identity, containment, and overlap;
 - `page`: vendored page guidance;
 - `event_log`: append-only JSONL storage, locking, and attempt identity;
@@ -33,7 +34,6 @@ subpackage's initializer is only a marker, never a second API.
 - `workflows`, `activity`: unsettled user moves with their evidence, and the
   page-level fold over workflows, status, claim, turn, and watcher;
 - `asks`: the one implementation of page and thread Asks, which every surface reads;
-- `requests`: declared request seats, their lifecycle, and terminal receipts;
 - `work`: transient subject claims and widget work seats;
 - `delivery`, `session`, `hooks`, `host`: the delivery envelope, direct wait
   delivery, host lifecycle, and harness declarations;
@@ -72,7 +72,8 @@ the served response, `reading` names filesystem changes for the news stream, and
 Within `render_gate/`, `scheme` owns one browser and color lifecycle, `readings` owns
 the probe readings and their findings, `version` owns retry policy, `page_code` owns
 the run of a page's own code, `preview` owns ephemeral servers, `browser` owns the
-browser launch, and `command` owns the CLI boundary.
+browser launch, `screens` owns the screens a passing check saves for the author, and
+`command` owns the CLI boundary.
 
 Within `validation/`, `markup` owns shared document structure, `instances` owns
 registry-declared instance rules, `admission` owns what an agent's writer hands in,

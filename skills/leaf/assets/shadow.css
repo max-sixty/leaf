@@ -45,21 +45,19 @@
    x-paints writes). Worn with
    .lf-ui, since an invisible word is apparatus the anchor pass must not offer — a
    quote resolved into a clipped box would paint a mark nobody can see. Out of flow,
-   so it holds no room; the covered-words gate skips this class the way it skips a
-   thread mark's own note, which keeps the same one-pixel geometry.
+   so it holds no room; the covered-words gate skips this class.
 
    And out of the selection, which the clip does not do on its own: a word standing
    among the page's own words is inside any selection drawn across them, so the
    runtime's reading skipped it and the user's clipboard did not — a copied task line
    came away carrying the word "done", and a copied code block would carry
-   "highlighted" into whatever editor it was bound for. The thread mark's note had
-   answered this the day it was written and this recipe had not.
+   "highlighted" into whatever editor it was bound for.
 
    No offsets, so the box keeps the static position its holder gives it. That place is
    read: shownBox reads it for a wrapper that draws no box of its own, and everything
    asking where such an element is asks through that. What the box must not do is
    escape the box it sits in, which it did — an out-of-flow box with no positioned
-   ancestor is positioned against the page, so the count on a cell of a table scrolling
+   ancestor is positioned against the page, so a word on a cell of a table scrolling
    inside itself stood three hundred pixels past the window with the page scrolling
    sideways to reach it. The scroller answers for it, and the runtime sees to that:
    reachScrollers marks every static box that scrolls, and the theme positions the
@@ -67,7 +65,7 @@
 
    Here and not in runtime/chrome.css, because content widgets write it into the page
    and into declared trees, and the chrome's sheet is the one an exported page never
-   adopts: every quiet word stood on screen in a file `leaf version export` wrote. */
+   adopts: every quiet word stood on screen in a file `leaf page export` wrote. */
 .lf-quiet { position: absolute; width: 1px; height: 1px; overflow: hidden;
     clip-path: inset(50%); white-space: nowrap;
     user-select: none; -webkit-user-select: none; }
@@ -152,7 +150,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  *
  * A spent press keeps its shape and gives up its opacity. That is the layer's one cue
  * for "there is nothing left to do here", and it is stated with the hand it withdraws so
- * the two cannot come apart: a one-shot request that had been answered still wore the
+ * the two cannot come apart: a press that had been used up once still wore the
  * full-strength border of a live one and differed only in ink, which greyscale drops and
  * a user scanning a column of eight of them never sees. Chrome's own .lf-btn says the
  * same pair for the same reason (chrome.css); this reaches the controls that are
@@ -231,32 +229,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 /* The shared boxes of a registry-declared widget thread. The widget places it.
    The same Thread view may be seated inside an x-thread-surface shadow tree, so this
    whole vocabulary is in this file. */
-/* A thread mark's accessibility control lives beside the datum it names: the one
-   runtime word living inside the page's own elements, so its hiding cannot come from
-   the chrome's scoped .lf-unseen. It is clipped to nothing because the paint already
-   says the same fact to the eye, and its transparent pixel is still a real pointer
-   target, so a press reaches the handler Enter reaches. On focus it becomes a
-   skip-link-style control — a user who hears the count can enter its first thread,
-   then t/T through the rest — and that second rule states its whole visible form, so
-   the transparent resting button adds no paint of its own.
-
-   Stated here and nowhere else, because document selectors cannot cross into a
-   declared widget tree and the note is written into one. `font: inherit` clears the UA's button face;
-   the family is spelled after it for the reason the chip's rule below gives. */
-leaf-anchor-note { display: contents; }
-/* The note stands at the static position after its target's last glyph, so it takes
-   its pixel back from that glyph: a line ending flush with the window's edge would
-   otherwise hang it past the edge and scroll the page sideways. */
-.lf-mark-note { appearance: none; box-sizing: border-box; position: absolute;
-          width: 1px; height: 1px; margin: 0 0 0 -1px; padding: 0; overflow: hidden;
-          border: 0; background: none; color: inherit;
-          font: inherit; font-family: var(--sans);
-          user-select: none; -webkit-user-select: none; opacity: 0; }
-.lf-mark-note:is(:focus-visible, .lf-focus-visible) { position: fixed; z-index: var(--lf-z-escaped-control);
-          top: calc(var(--lf-banner-h) + 6px); left: 8px;
-          width: auto; height: auto; padding: 6px 10px; overflow: visible; opacity: 1;
-          border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
-          color: var(--ink); box-shadow: 0 8px 24px var(--shade); }
 .lf-thread-seat { display: none; margin-top: var(--sp-2); overflow-wrap: anywhere; }
 .lf-page-thread { box-sizing: border-box; min-width: 0; position: relative;
           padding: var(--sp-1);
@@ -335,8 +307,8 @@ leaf-anchor-note { display: contents; }
    inside its own shadow tree is out of that rule's reach, and read only the rules above
    it kept its resting border under the ring, which is the accented border plus outline
    the text box rule exists to remove. Repeated here on the terms the chrome rule sets,
-   so the reply field wears one band wherever the thread is seated, the way .lf-mark-note
-   and .lf-outline-chip repeat their own faces through this boundary. */
+   so the reply field wears one band wherever the thread is seated, the way
+   .lf-outline-chip repeats its own face through this boundary. */
 .lf-page-thread leaf-text:is(:focus, .lf-focus) {
           outline: var(--here-ring); outline-offset: 0; border-color: transparent;
           --lf-here-ring: text-box; }
@@ -344,7 +316,7 @@ leaf-anchor-note { display: contents; }
   .lf-page-thread,
   .lf-page-thread :is(.lf-page-thread-msg, .lf-page-thread-resolved) {
           display: block !important; }
-  .lf-page-thread :is(.lf-say, button, .lf-msg-sending), .lf-mark-note {
+  .lf-page-thread :is(.lf-say, button, .lf-msg-sending) {
           display: none !important; }
 }
 /* The outline chip: the kernel's chip geometry (the chip tokens in theme.css's :root)

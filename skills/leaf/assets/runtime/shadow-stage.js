@@ -20,31 +20,14 @@ import { watchDisclosures } from "./keyboard/disclosure.js";
 import { watchLayers } from "./keyboard/layer-stack.js";
 import { setChildren } from "./dom-children.js";
 import { watchPassageRoot } from "./passages.js";
-import { watchExternalLinks } from "./presentation.js";
+import { liveStages, watchArrivalsIn } from "./arrivals.js";
 
 // A third-party stylesheet that arrives with an on-demand bundle belongs wherever that
 // bundle can draw: the document and every declared shadow stage. The vendored Web
-// Awesome bundle calls this as it evaluates (scripts/vendor-src/webawesome/build.mjs).
+// Awesome bundle calls this as it evaluates (build/webawesome/build.mjs).
 // Keep one constructable sheet per name so a page parses it once, existing stages
 // receive a late-loaded bundle, and stages built after registration inherit the sheet.
 const widgetSheets = new Map();
-const stageRefs = new Set();
-const stageRefFor = new WeakMap();
-function rememberStage(root) {
-  if (stageRefFor.has(root)) return;
-  const ref = new WeakRef(root);
-  stageRefFor.set(root, ref);
-  stageRefs.add(ref);
-}
-function liveStages() {
-  const roots = [];
-  for (const ref of stageRefs) {
-    const root = ref.deref();
-    if (root) roots.push(root);
-    else stageRefs.delete(ref);
-  }
-  return roots;
-}
 export function registerWidgetStyles(name, text) {
   const existing = widgetSheets.get(name);
   if (existing) return existing;
@@ -58,7 +41,9 @@ export function registerWidgetStyles(name, text) {
 
 export function shadowStage(host, nodes) {
   const root = host.shadowRoot ?? host.attachShadow({ mode: "open" });
-  rememberStage(root);
+  // The stages' one registry (arrivals.js), and the watch over what stands in them: no
+  // observer crosses the boundary on its own.
+  watchArrivalsIn(root);
   root.adoptedStyleSheets = [marksSheet, ...widgetSheets.values()];
   // A root is the one place the shortcut bar's watch cannot reach on its own: a `toggle`
   // from inside one is not composed, and a MutationObserver does not cross the
@@ -73,6 +58,5 @@ export function shadowStage(host, nodes) {
   // The page reading walks in here at the host's place in the string, and its observer
   // does not cross the boundary on its own.
   watchPassageRoot(root);
-  watchExternalLinks(root);
   return root;
 }

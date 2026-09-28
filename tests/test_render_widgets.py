@@ -5,7 +5,6 @@ from itertools import pairwise
 from pathlib import Path
 
 import pytest
-from example_data import patch_manifest
 from interact_support import append_command
 from leaf import data as data_model
 from leaf import delivery as delivery_model
@@ -17,6 +16,7 @@ from leaf import thread as thread_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.schema import ELEMENT_ID
+from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ALL_ASKS_IN_ORDER,
@@ -82,13 +82,16 @@ from render_harness import (
     ask_actions_hint,
     compare_with,
     consume_browser_errors,
+    displayed,
     expect_banner_control_offered,
+    expect_comment_notes,
     holding,
     holds_the_window,
     leaf_page,
     open_page,
     pane_posture,
     panel_settled,
+    plant_quiet_word,
     post_event,
     refuse,
     regions_side_by_side,
@@ -546,7 +549,7 @@ def test_embedded_tab_selection_preserves_the_document_reading_position(browser,
     page = open_page(browser, serve(source))
     resized(page, 1280, 720)
     tabs = page.locator("#root-tabs")
-    expect(tabs).to_have_attribute("data-lf-tabs-context", "embedded")
+    expect(tabs).to_have_attribute("data-lf-tabs-flow", "box")
     evidence = tabs.get_by_role("tab", name="Evidence", exact=True)
     evidence.evaluate("el => el.scrollIntoView({block: 'start', behavior: 'instant'})")
     scroll_settled(page)
@@ -604,7 +607,7 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     page = open_page(browser, serve(source))
     resized(page, 1440, 900)
     tabs = page.locator("#root-tabs")
-    expect(tabs).to_have_attribute("data-lf-tabs-context", "root")
+    expect(tabs).to_have_attribute("data-lf-tabs-flow", "page")
     boxes = page.evaluate(
         """() => {
           const box = (el) => {
@@ -630,6 +633,116 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     assert boxes["panel"] == boxes["content"], boxes
     assert boxes["strip"]["left"] == boxes["content"]["left"], boxes
     assert boxes["title"]["left"] == boxes["content"]["left"], boxes
+
+
+def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
+    """`list="side"` stands a tab set's list beside its panels: a queue whose items open
+    one at a time. Where the set holds both the list is a column left of the open panel,
+    walked down as well as across; on a phone it is a row above the panel, so the open
+    item never lands below the whole queue. A row carries its panel's summary under its
+    name, and each tab counts the Asks in its panel the user still owes: an answer
+    clears its tab's count while the others keep theirs, and moves no row. A tab's name
+    is its label whatever the row shows, and a panel bounds what it holds."""
+
+    BOARD = (
+        '<lf-board id="board">'
+        + "".join(
+            f'<lf-column id="col-{i}" label="Column {i}"><lf-card id="card-{i}">'
+            f"<strong>Card {i}</strong> text</lf-card></lf-column>"
+            for i in range(6)
+        )
+        + "</lf-board>"
+    )
+
+    def ticket(key):
+        return f"""
+<lf-tab id="t-{key}" label="Ticket {key}" summary="sev {key} · suggested fix">
+  <p id="p-{key}">What went wrong with {key}.</p>{BOARD if key == "a" else ""}
+  <lf-ask id="ask-{key}"><h3 id="q-{key}">What happens to {key}?</h3>
+    <lf-options id="o-{key}" choose>
+      <lf-option id="o-{key}-fix"><strong>Fix</strong> Ship the patch.</lf-option>
+      <lf-option id="o-{key}-close"><strong>Close</strong> Explain and close.</lf-option>
+    </lf-options>
+  </lf-ask>
+</lf-tab>"""
+
+    source = leaf_page(
+        "a queue",
+        "<header><h1>Queue</h1></header>"
+        '<lf-tabs id="queue" list="side">' + "".join(map(ticket, "abc")) + "</lf-tabs>",
+        layout="workspace",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1200, 900)
+    boxes = """() => {
+      const r = (s) => document.querySelector(s).getBoundingClientRect();
+      const strip = r('#queue > .lf-tabstrip'), panel = r('#queue > lf-tab:not([hidden])');
+      return {stripRight: strip.right, stripTop: strip.top, stripBottom: strip.bottom,
+              panelLeft: panel.left, panelTop: panel.top};
+    }"""
+    wide = page.evaluate(boxes)
+    assert wide["stripRight"] <= wide["panelLeft"] + 1, wide
+    owed = page.locator("#queue > .lf-tabstrip .lf-tabowed")
+    expect(owed).to_have_text(["1", "1", "1"])
+    bounds = page.evaluate("""() => ({
+      board: document.querySelector('#board').getBoundingClientRect().right,
+      panel: document.querySelector('#t-a').getBoundingClientRect().right})""")
+    assert bounds["board"] <= bounds["panel"] + 1, bounds
+    expect(page.locator("#queue > .lf-tabstrip .lf-tab-summary").first).to_have_text(
+        "sev a · suggested fix"
+    )
+
+    tabs = page.get_by_role("tab")
+    expect(tabs.first).to_have_accessible_name("Ticket a")
+    rows = (
+        "() => [...document.querySelectorAll('#queue .lf-tab-btn')]"
+        ".map((b) => b.getBoundingClientRect().height)"
+    )
+    heights = page.evaluate(rows)
+    tabs.first.focus()
+    page.keyboard.press("ArrowDown")
+    expect(tabs.nth(1)).to_have_attribute("aria-selected", "true")
+    page.keyboard.press("ArrowUp")
+    expect(tabs.first).to_have_attribute("aria-selected", "true")
+
+    page.locator("#o-a-fix .lf-pick").click()
+    told(page)
+    expect(owed).to_have_text(["", "1", "1"])
+    assert page.evaluate(rows) == heights
+
+    resized(page, 390, 844)
+    narrow = page.evaluate(boxes)
+    assert narrow["stripBottom"] <= narrow["panelTop"] + 1, narrow
+
+    # As a scrolling page's root set, a side list keeps the page's history but is a
+    # box: nothing sticks, so a switch leaves the page where the user stands.
+    def long(key):
+        return "".join(
+            f"<p id='filler-{key}-{i}'>{'Background. ' * 40}</p>" for i in range(12)
+        )
+
+    column = leaf_page(
+        "a long queue",
+        "<header><h1>Queue</h1></header>"
+        '<lf-tabs id="queue" list="side">'
+        + "".join(ticket(k).replace("</lf-tab>", long(k) + "</lf-tab>") for k in "bc")
+        + "</lf-tabs>",
+    )
+    page = open_page(browser, serve(column))
+    resized(page, 1200, 900)
+    # The list is off screen above, so the walk is the gesture: a click would first
+    # scroll the tab into view.
+    page.get_by_role("tab", name="Ticket b", exact=True).evaluate(
+        "tab => tab.focus({preventScroll: true})"
+    )
+    page.evaluate("document.scrollingElement.scrollTop = 900")
+    before = page.evaluate("document.scrollingElement.scrollTop")
+    page.keyboard.press("ArrowDown")
+    expect(page.get_by_role("tab", name="Ticket c", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    rendered(page)
+    assert page.evaluate("document.scrollingElement.scrollTop") == before
 
 
 def test_root_tab_targets_remain_global(browser, serve):
@@ -767,6 +880,69 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     resized(page, 1280, 720)
     pane_posture(page, page.locator("#held-pane"), "bounded")
     holds_the_window(page, page.locator("main"), True)
+
+
+ZONE_PACKAGE = {
+    "lf-zone": {
+        "description": "A project package's differently named pane.",
+        "type": "object",
+        "properties": {"id": {"type": "string"}, "label": {"type": "string"}},
+        "required": ["id", "label"],
+        "additionalProperties": False,
+        "x-content": "markup",
+        "x-reading-role": "pane",
+        "x-upgrade": False,
+    }
+}
+NESTED_PANES_PAGE = leaf_page(
+    "a pane in a pane's body",
+    """<div id="cells">
+  <lf-zone id="outer-zone" label="Zones"><div>
+    <lf-zone id="inner-zone" label="Inner zone"><div>
+      <p>A zone's reading.</p><div style="height: 900px"></div>
+    </div></lf-zone>
+  </div></lf-zone>
+  <lf-pane id="outer-pane" label="Panes"><div>
+    <lf-pane id="inner-pane" label="Inner pane"><div>
+      <p>A pane's reading.</p><div style="height: 900px"></div>
+    </div></lf-pane>
+  </div></lf-pane>
+</div>""",
+    head=regions_side_by_side("cells"),
+    layout="workspace",
+)
+
+
+def test_a_package_pane_is_held_where_an_lf_pane_is(browser, serve):
+    """Which panes a held workspace scrolls is read from the pane role, whichever
+    package names the tag. A package's pane that is a cell of the body scrolls its own
+    body, and one written inside that pane's body is content there and scrolls with it,
+    exactly as lf-panes nested the same way do. The role arrives with the document, so
+    the workspace holds the same panes while the runtime has not started."""
+    boot = []
+    context = browser.new_context(viewport={"width": 1280, "height": 720})
+    page = context.new_page()
+    page.route("**/leaf.js", lambda route: boot.append(route))
+    url = serve(NESTED_PANES_PAGE, layer_registry=ZONE_PACKAGE)
+
+    def postures():
+        for tag in ("zone", "pane"):
+            pane_posture(page, page.locator(f"#outer-{tag}"), "bounded")
+            pane_posture(page, page.locator(f"#inner-{tag}"), "flow")
+
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.goto(url, wait_until="commit")
+        displayed(page)
+        assert boot, "the runtime was not held"
+        postures()
+        boot.pop().continue_()
+        wait_until_ready(page)
+        postures()
+    finally:
+        for route in boot:
+            route.continue_()
+        page.unroute_all(behavior="wait")
 
 
 def test_an_ask_with_more_than_one_answer_part_keeps_each_parts_height(browser, serve):
@@ -1038,30 +1214,95 @@ def test_a_bound_at_its_end_follows_a_rebuilt_feed_until_the_user_scrolls_back(
     assert page.locator("#feed").evaluate("feed => feed.scrollTop") == 200
 
 
-def test_release_rollback_is_a_bound_host_request_not_local_page_state(browser, serve):
-    """The release escape path names exact releases and waits for a host receipt."""
+def revised_log(first, last):
+    """A page whose log bounded at its end holds entries `first` to `last`."""
+    filler = "".join(
+        f"<p>Filler paragraph {n}, long enough to occupy a line of reading.</p>"
+        for n in range(20)
+    )
+    entries = "".join(
+        f"<p>Entry {n}: the deploy copied shard {n} to the new key format.</p>"
+        for n in range(first, last)
+    )
+    return leaf_page(
+        "a revised log",
+        f'<h1 id="t">Deploy</h1>{filler}<div id="log" data-bound="end">{entries}'
+        f"</div>{filler}",
+    )
+
+
+def test_a_revision_leaves_a_following_log_at_its_end_and_a_reader_on_their_line(
+    browser, serve
+):
+    """A bounded log is a reading region, so a revision restores the place the user had
+    in it. The place of a log following its newest entry is its end: restoring the line
+    that stood at its top would have left the user above the entries the revision
+    added, and ended the following. A user who scrolled back keeps the line they were
+    reading, however many entries arrived above it."""
+    url = serve(revised_log(10, 60))
+    page = open_page(browser, live_url(url))
+    resized(page, 1280, 900)
+    log = page.locator("#log")
+    at_end = """log => log.scrollHeight > log.clientHeight
+      && log.scrollHeight - log.scrollTop - log.clientHeight <= 2"""
+    page.wait_for_function(f"({at_end})(document.getElementById('log'))")
+    page.evaluate(
+        """log => { const at = log.getBoundingClientRect();
+          document.scrollingElement.scrollBy({
+            top: at.top + at.height / 2 - innerHeight / 2, behavior: 'instant'}); }""",
+        log.element_handle(),
+    )
+    scroll_settled(page)
+
+    (serve.page_dir / "index.html").write_text(revised_log(10, 80))
+    told(page)
+    expect(log.locator("p")).to_have_count(70)
+    rendered(page)
+    assert log.evaluate(at_end), "the revision left the log above its newest entries"
+
+    # Scrolled back to Entry 30, with ten entries arriving above it.
+    reading = log.locator("p", has_text="Entry 30:")
+    log.evaluate(
+        """(log, line) => log.scrollTop += line.getBoundingClientRect().top
+          - log.getBoundingClientRect().top""",
+        reading.element_handle(),
+    )
+    scroll_settled(page, "#log")
+    where = """([log, line]) => line.getBoundingClientRect().top
+      - log.getBoundingClientRect().top"""
+    handles = [log.element_handle(), reading.element_handle()]
+    before = page.evaluate(where, handles)
+    (serve.page_dir / "index.html").write_text(revised_log(0, 80))
+    told(page)
+    expect(log.locator("p")).to_have_count(80)
+    rendered(page)
+    after = page.evaluate(
+        where,
+        [log.element_handle(), log.locator("p", has_text="Entry 30:").element_handle()],
+    )
+    assert after == pytest.approx(before, abs=2), "the reader lost their line"
+    assert not log.evaluate(at_end)
+
+
+def test_release_rollback_is_the_operators_answer_to_an_ask(browser, serve):
+    """The release escape path is a question the operator answers: the page lists it
+    among its Asks, and the pick reaches the agent as an action naming the option."""
     example = Path(__file__).parent.parent / "examples" / "live-progress.html"
     page = open_page(browser, live_url(serve(example)))
-    holder = page.locator("#lp-release-actions")
-    button = holder.get_by_role("button", name="Request rollback to checkout-v1")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
+    rollback = page.locator("#lp-rollback-now")
 
-    expect(button).to_be_enabled()
-    with sending(page, "the rollback request"):
-        button.click()
+    with sending(page, "the rollback pick"):
+        rollback.click()
 
-    request = events_model.read_events(serve.page_dir)[-1]
-    assert (request["kind"], request["widget"], request["action"]) == (
-        "request",
-        "lp-release-actions",
-        "rollback",
+    pick = events_model.read_events(serve.page_dir)[-1]
+    assert (pick["kind"], pick["widget"], pick["action"]) == (
+        "action",
+        "lp-rollback",
+        "choose",
     )
-    assert request["detail"] == {
-        "candidate": "checkout-v2",
-        "stable": "checkout-v1",
-    }
-    expect(holder).to_contain_text("Rollback requested · waiting for the host")
-    expect(button).to_have_attribute("aria-disabled", "true")
-    expect(page.locator(".lf-asks-row")).to_have_count(0)
+    assert pick["detail"] == {"options": ["lp-rollback-now"]}
+    expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
 
 
 def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
@@ -6344,8 +6585,8 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
     url = serve(SHORT_SUGGESTION, anchored=[("now", "Retry three times")])
     page = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    # Vacuous otherwise: the line has to be inside the slot the label is read from.
-    assert page.locator("lf-new #now > leaf-anchor-note > .lf-mark-note").count() == 1
+    # Vacuous otherwise: the slot the label is read from has to carry the comment.
+    expect_comment_notes(page, "lf-new #now", 1)
     control = page.locator(f"[data-lf-margin-for='sug'] .lf-sug-{outcome}")
     (unfolded_button(control) if folded else control).click()
     expect(page.locator(".lf-live")).to_have_text(
@@ -8520,7 +8761,8 @@ def test_pending_action_waits_for_the_ask_list_paint_before_retiring(
     held.pop(0).continue_()
     page.unroute("**/api/event")
     page.wait_for_function(
-        "() => __lfReadAskApplication().unresolved.some(entry => entry.answered)"
+        "() => __lfReadAskApplication().unresolved.some("
+        "entry => entry.state === 'accepted:logged')"
     )
     assert "asks" in page.evaluate("__lfReadAskPresentation().pending")
     assert page.evaluate("__lfReadAskApplication().unresolved.length") == 1
@@ -8567,7 +8809,8 @@ def test_pending_action_waits_for_the_ask_banner_paint_before_retiring(
     held.pop(0).continue_()
     page.unroute("**/api/event")
     page.wait_for_function(
-        "() => __lfReadAskApplication().unresolved.some(entry => entry.answered)"
+        "() => __lfReadAskApplication().unresolved.some("
+        "entry => entry.state === 'accepted:logged')"
     )
     assert "asks" in page.evaluate("__lfReadAskPresentation().pending")
     assert page.evaluate("__lfReadAskApplication().unresolved.length") == 1
@@ -9223,8 +9466,7 @@ def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
     page = open_page(browser, url)
     # The note is what this test is about, so its presence is stated rather than assumed:
     # without it every assertion below holds for the wrong reason.
-    note = page.locator("#sug-refill .lf-mark-note")
-    expect(note).to_have_count(1)
+    expect_comment_notes(page, "#sug-refill", 1)
 
     page.keyboard.press("a")
     page.keyboard.press("a")
@@ -9240,7 +9482,6 @@ def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
         "LF-OLD",
         "LF-NEW",
     ], f"the ring reached past the page's own boxes: {marks}"
-    expect(page.locator("#sug-refill .lf-mark-note[data-lf-ask]")).to_have_count(0)
 
 
 # Charts. Every reading here is of the composed drawing rather than of the body it was
@@ -9586,17 +9827,16 @@ def test_a_dated_column_is_read_as_the_day_the_page_wrote(browser, serve):
 def test_a_redraw_keeps_the_words_the_runtime_hung_on_the_chart(browser, serve):
     """A chart redraws for a new width, and the runtime writes inside widgets.
 
-    The line saying a comment stands on this chart is a child of the element, put there by
-    the anchor pass. Replacing the element's children to hold the new drawing took it away
-    — and took it away at the moment the user narrowed the window or opened the panel to
-    read that very comment, for the life of the tab, since nothing puts it back. So the
-    drawing lives in a box of its own and the redraw replaces what is in that box.
+    A word the runtime hangs on the chart, such as a quiet word for a user listening, is a
+    child of the element. Replacing the element's children to hold the new drawing takes
+    it away, for the life of the tab, since nothing puts it back. So the drawing lives in
+    a box of its own and the redraw replaces what is in that box.
 
     The room is changed by the window, the one thing that changes it; what this is about
     is that a redraw happened at all, which the drawing's own width says."""
-    page = open_page(
-        browser, serve(CHART_PAGE, anchored=[("c-bars", "")]), context=None
-    )
+    page = open_page(browser, serve(CHART_PAGE), context=None)
+    page.wait_for_function("() => document.querySelector('#c-bars svg')")
+    plant_quiet_word(page, "#c-bars", "")
     read = """() => {
         const el = document.getElementById('c-bars');
         return { room: Math.round(el.clientWidth),
@@ -9604,7 +9844,7 @@ def test_a_redraw_keeps_the_words_the_runtime_hung_on_the_chart(browser, serve):
                  drawn: Number(el.querySelector('svg').getAttribute('width')) };
     }"""
     before = page.evaluate(read)
-    assert before["notes"] > 0, "the fixture must hang a comment line on the chart"
+    assert before["notes"] > 0, "the chart holds no word of the runtime's"
 
     resized(page, 620, 900)
     page.wait_for_function(

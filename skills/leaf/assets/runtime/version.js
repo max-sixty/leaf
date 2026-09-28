@@ -111,7 +111,7 @@ import {
   stateCoordinate,
 } from "./projection/authored.js";
 import { whenApplicationRegionsPresented } from "./semantic-state.js";
-import { MARKED_IN_PAGE, markDeclared, settlePageInterface } from "./presentation.js";
+import { settlePageInterface } from "./presentation.js";
 import { runtimeRootState } from "./root-state.js";
 import {
   commitWidgetDescriptors,
@@ -831,8 +831,7 @@ export function createVersionController({
   // `.lf-ui`; comments, copies, and later comparisons therefore continue to read the exact
   // current document rather than the temporary historical words on screen.
   const inlineId = (target) => `lf-version-inline-${target.id}`;
-  const authoredReading = (target) =>
-    readingFrom(textNodesUnder(target, authored(target)));
+  const authoredReading = (target) => readingFrom(textNodesUnder(target, "wrote"));
 
   function pointAt(target, reading, offset) {
     if (!reading.units.length) return { node: target, offset: 0 };
@@ -1100,36 +1099,49 @@ export function createVersionController({
   }
 
   // ---------- live revision activation ----------
+  // What the outgoing revision wrote on a root and the arriving one does not comes off,
+  // what the arriving one writes differently goes on, and what both write is left
+  // standing. These roots are `html` and `body`, where a class or attribute that comes
+  // off and goes back on restyles the whole document, so the layer's rule against
+  // rewriting what a node already says (`keeps`) matters most here.
   function replaceAuthoredAttributes(target, source, prior) {
-    const scratch = document.createElement(target.localName);
-    for (const [name, value] of prior) scratch.setAttribute(name, value);
     const runtimeState = runtimeRootState(target);
-    for (const name of prior.keys()) {
-      if (name === "class")
-        for (const token of scratch.classList) target.classList.remove(token);
-      else if (name === "style")
-        for (const property of scratch.style) {
-          // Inline style is the one root attribute whose members can have different
-          // owners. Registered runtime properties survive; every other declaration is
-          // authored and retires with its revision like every other source attribute.
-          if (!runtimeState.styles.has(property)) target.style.removeProperty(property);
-        }
-      else if (!runtimeState.attributes.has(name)) target.removeAttribute(name);
-    }
     const next = authoredAttributes(source);
-    for (const [name, value] of next) {
-      if (name === "class") {
-        for (const token of value.split(" ")) target.classList.add(token);
-      } else if (name === "style") {
-        for (const property of source.style)
-          if (!runtimeState.styles.has(property))
-            target.style.setProperty(
-              property,
-              source.style.getPropertyValue(property),
-              source.style.getPropertyPriority(property),
-            );
-      } else if (!runtimeState.attributes.has(name)) target.setAttribute(name, value);
+    const tokens = (value) => new Set(value?.split(" "));
+    const nextTokens = tokens(next.get("class"));
+    for (const token of tokens(prior.get("class")))
+      if (!nextTokens.has(token)) target.classList.remove(token);
+    for (const token of nextTokens)
+      if (!target.classList.contains(token)) target.classList.add(token);
+    // Inline style is the one root attribute whose members can have different owners.
+    // Registered runtime properties survive; every other declaration is authored and
+    // retires with its revision like every other source attribute. Declarations are
+    // compared by name, not value, since an empty custom property (`--x: ;`) reads
+    // back as "", and `setProperty` with "" removes rather than declares, so an empty
+    // one is written as the single space that parses to it.
+    const declared = new Set(source.style);
+    const priorStyle = document.createElement(target.localName).style;
+    priorStyle.cssText = prior.get("style") ?? "";
+    for (const property of priorStyle)
+      if (!runtimeState.styles.has(property) && !declared.has(property))
+        target.style.removeProperty(property);
+    const standing = new Set(target.style);
+    for (const property of declared) {
+      if (runtimeState.styles.has(property)) continue;
+      const value = source.style.getPropertyValue(property);
+      const priority = source.style.getPropertyPriority(property);
+      if (
+        !standing.has(property) ||
+        target.style.getPropertyValue(property) !== value ||
+        target.style.getPropertyPriority(property) !== priority
+      )
+        target.style.setProperty(property, value || " ", priority);
     }
+    const plain = (name) =>
+      name !== "class" && name !== "style" && !runtimeState.attributes.has(name);
+    for (const name of prior.keys())
+      if (plain(name) && !next.has(name)) target.removeAttribute(name);
+    for (const [name, value] of next) if (plain(name)) keeps(target, name, value);
     return next;
   }
 
@@ -1288,7 +1300,6 @@ export function createVersionController({
         // the readings below ask where it stands: whether an exhibit quotes it, and
         // which declared elements enclose it.
         rememberAuthoredParents(arriving, parent);
-        markDeclared(arriving, MARKED_IN_PAGE);
         const descriptors = stageWidgetDescriptors(arriving, {
           kind: "page",
           revision: target.revision,
@@ -1336,10 +1347,7 @@ export function createVersionController({
         },
         same: (before, after) => sameAuthoredMarkup(before, after, arrivingRoot),
         sameValue: (name, held, value) => sameValue(name, held, value, arrivingRoot),
-        touched: (element) => {
-          markDeclared(element, MARKED_IN_PAGE);
-          touched.push(element);
-        },
+        touched: (element) => touched.push(element),
         // An element going is not the same as its name going. Authored state capture
         // still needs to forget removed upgraded owners here; the complete incoming
         // descriptor inventory below decides which identities actually retired.
@@ -1518,6 +1526,7 @@ export function createVersionController({
   // travel stores this reading per tab; restored chrome layout precedes scroll recovery.
 
   function captureView() {
+    dropGoneRegions();
     const blocks = textBlocks();
     const active = activeReadingRegion(readingRegions(), blocks);
     const view = Object.assign(capturePlace(null, blocks), {
@@ -1589,14 +1598,21 @@ export function createVersionController({
   // whose scroller shifts is restored from that record. Keep each semantic region's last
   // reading so a pane that becomes inactive does not inherit the shared page offset when
   // it becomes bounded again. In flow, only the region the user is working represents
-  // the shared page scroller.
+  // the shared page scroller. A region no longer standing in the document has no place
+  // left to keep: its reading goes when the next reading is taken, so a page whose
+  // blocks come and go carries only the regions it has.
   const regionViews = new Map();
   let lastReadingRegionId = null;
+  const dropGoneRegions = () => {
+    const standing = new Set(readingRegions().map(({ id }) => id));
+    for (const id of regionViews.keys()) if (!standing.has(id)) regionViews.delete(id);
+  };
 
   // Only the page's own regions, only those a scroll moved, and only their own words: a
   // scroll is frequent, and a page with no regions (most documents) records nothing and
   // reads no text at all. `moved` names the scrollers that moved; none names every one.
   function recordRegions(moved = null) {
+    dropGoneRegions();
     const main = document.querySelector("body > main");
     const shown = readingRegions().filter(
       (region) =>

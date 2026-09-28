@@ -9,7 +9,7 @@ marked measured, read (from code), or inferred.
 The boundary between the stores is right: typed external values live under `data/`,
 decisions live in the log, and the log names values by source and source revision. Neither a
 document store (Claude Artifacts' `db`, Firestore) nor a CRDT fits: both drop the
-single validating append door, per-event attribution, undo, and `version check`,
+single validating append door, per-event attribution, undo, and `page check`,
 and Leaf already has the coordinator a CRDT exists to avoid. SQLite as the authority
 would be the derived current-state file `AGENTS.md` rules out.
 
@@ -18,22 +18,21 @@ identity: a row.
 
 ## Row identity
 
-Leaf has three row models and no row primitive:
+Leaf has two row models and no row primitive:
 
 - `creates` children, whose existence is carried by the `add` action standing at
   the child's own coordinate (`projection.py` `generated_children`). Every later pick
   must repeat the whole additions map (`lf-options.js` header), undoing a pick also
   withdraws the write-in, and the browser builds the children in `lf-options.js`
   rather than generically. One consumer. (read)
-- `$data.records` and `x-request.records`: keyed rows of a data source. (read)
 - Units that are data keys without saying so: `lf-diff` keys by file path and
   `lf-visual-review` by case id, while `direct_dependencies` treats every unit as an
   element id and `action_rests_on` filters the paths back out. (read)
 
 Proposal:
 
-- A typed unit: `{element: FIELD}` or `{record: FIELD, input: X-DATA-INPUT}`, the form
-  `x-request.records` already uses.
+- A typed unit: `{element: FIELD}` or `{record: FIELD, input: X-DATA-INPUT}`, keyed
+  by a `$data.records` key.
 - Row existence as one verb, `row`, on its own coordinate `(owner, row, "row")`,
   whose detail carries `exists: bool`: `true` adds the row, `false` removes it, and
   the latest standing `row` action wins because a coordinate is keyed by verb. Undo
@@ -65,18 +64,12 @@ A table then declares:
 ```
 
 The same unit with `{record, input}` gives a user cell edits on rows an external
-process supplies, which today reach only `datum` anchors and requests.
-
-## Request staleness
-
-A request's stale-press check compares the source's revision (`requests.py`), so a
-refresh of one source voids every in-flight press on every row of it; decide it per
-row from the key and `bind`, at the door only (`lf-job-requests.js` repeats it).
+process supplies, which today reach only `datum` anchors.
 
 ## Position
 
 `markup_value` compares only a position record's container, so a reorder within one
-container is invisible to `version check`. (read)
+container is invisible to `page check`. (read)
 
 ## Read cost
 

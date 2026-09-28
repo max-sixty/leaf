@@ -1,5 +1,6 @@
 """Thread identity, frozen markup, and bounded delivery context."""
 
+from functools import lru_cache
 from typing import NamedTuple
 
 from leaf.events import (
@@ -51,6 +52,27 @@ def sample_events(
     ]
 
 
+def thread_address(events: list, name: str) -> tuple[str, str] | None:
+    """The thread `name` reaches, and the message an event written into it names.
+
+    `name` is the thread's own id or the id of any message in it, which is how every
+    command that addresses a thread takes it. The message is `name` itself, except
+    where `name` is a thread whose opening comment the log lost: that id names no
+    event, so the thread is addressed through the first message it still holds, as
+    the panel answers it. None where `name` reaches no thread."""
+    names = thread_names(events)
+    thread = names.get(name)
+    if thread is None:
+        return None
+    if name != thread or any(event["id"] == name for event in events):
+        return thread, name
+    return thread, next(
+        message
+        for message, owner in names.items()
+        if owner == thread and message != name
+    )
+
+
 def thread_names(events: list) -> dict:
     """Every name that reaches a thread → that thread's id.
 
@@ -83,12 +105,29 @@ class ThreadStructure(NamedTuple):
     fragments: dict
 
 
+def logged_fragment(event: dict) -> SourceDocument:
+    """The parse of one logged event's frozen markup, shared read-only.
+
+    The log is append-only and a logged event is never rewritten, so its markup is
+    one immutable fragment for the page's lifetime, and every reader of the log
+    takes this one parse of it. The parse is a function of the markup alone, so it
+    is held by that text, which names it exactly whichever page and log it came
+    from. Markup a writer hands in has not been admitted yet and is another fact:
+    its gate parses it afresh (`validation.admission.check_markup`)."""
+    return _fragment(event["markup"])
+
+
+@lru_cache(maxsize=4096)
+def _fragment(markup: str) -> SourceDocument:
+    return SourceDocument(markup)
+
+
 def thread_structure(events: list) -> ThreadStructure:
-    """Parse each logged markup fragment once into the panel's id universe."""
+    """Each logged markup fragment (`logged_fragment`) as the panel's id universe."""
     ids, by_id, fragments = set(), {}, {}
     for e in events:
-        if markup := e.get("markup"):
-            fragment = SourceDocument(markup)
+        if e.get("markup"):
+            fragment = logged_fragment(e)
             fragments[e["id"]] = fragment
             ids.update(fragment.ids)
             by_id.update(fragment.by_id)
@@ -120,7 +159,7 @@ def event_threads(event: dict, names: dict, widgets: dict) -> list:
     of that relation, so a delivery and a projection cannot put the same event
     in different threads.
 
-    An action or request on a sent widget belongs to the thread that supplied
+    An action on a sent widget belongs to the thread that supplied
     its frozen contract. An action also belongs to the thread it settles,
     which admitted `meaning.answer` names — the same key `build_threads` folds on to close
     one. Those are usually different threads and often only the second exists: the
@@ -140,11 +179,8 @@ def event_threads(event: dict, names: dict, widgets: dict) -> list:
         named = [event["thread"]]
     elif kind in {"resolve", "unresolve"}:
         named = [names.get(event["parent"])]
-    elif kind in {"action", "request"}:
-        named = [
-            widgets.get(event["widget"]),
-            event["meaning"].get("answer") if kind == "action" else None,
-        ]
+    elif kind == "action":
+        named = [widgets.get(event["widget"]), event["meaning"].get("answer")]
     else:
         return []
     return [thread for thread in dict.fromkeys(named) if thread]
@@ -172,8 +208,6 @@ def thread_memberships(
     for event in events:
         if event["kind"] == "undo":
             named = memberships.get(event["undoes"], [])
-        elif event["kind"] == "receipt":
-            named = memberships.get(event["request"], [])
         else:
             named = event_threads(event, names, widgets)
         if event["kind"] == "action":
@@ -221,7 +255,7 @@ MESSAGE_FIELDS = (
 
 # How much of one thread a wait digest carries: the message that opened it,
 # because it holds the question the thread is about, and the most recent, being
-# what a new one answers. `leaf events --thread` selects the exchange whole when
+# what a new one answers. `leaf page events --thread` selects the exchange whole when
 # a reader needs the middle.
 #
 # The bound is the point. A delivery reprints the entire thread every time,
@@ -263,7 +297,7 @@ def thread_digest(
     exchange its own events land in without printing them twice. `pin` keeps a
     message the bound would otherwise drop. `elided` says how many went, so a
     reader can tell a short thread from a shortened one and knows to
-    read the exact records with `leaf events --thread`."""
+    read the exact records with `leaf page events --thread`."""
     kept = [m for m in thread["msgs"] if m["seq"] not in omit]
     shown = ends_kept(kept, pin)
     return {
@@ -354,7 +388,7 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
         spoken_for |= {
             e["widget"]
             for e in batch
-            if e["kind"] in {"action", "request"} and widgets.get(e["widget"]) == t
+            if e["kind"] == "action" and widgets.get(e["widget"]) == t
         }
         pin = frozenset(
             sent

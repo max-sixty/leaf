@@ -9,8 +9,7 @@ The user follows your work on the page:
 | Banner | one sentence for the whole page: what you are doing, or what you want back | `leaf status <page> <state> "<detail>"` |
 | Beside a thread or widget | **Working** and your sentence, above the message or on the control the work answers | `leaf status … --on <id>` |
 | Thread | your answer to the user's message | `leaf thread reply` |
-| Page | the revised content in place, and a stamp's changelog | saving `index.html`, `leaf version stamp` |
-| Request | the outcome of a request the user made | `leaf experimental receipt` |
+| Page | the revised content in place, and a stamp's changelog | saving `index.html`, `leaf page stamp` |
 
 Leaf itself marks each user move **Sent**, **Queued**, and **Picked up**, including
 a move that owes you nothing, such as a moved card. A pick before the Done its Ask
@@ -85,7 +84,7 @@ revisions; when a stamped version completes that work, say so on the stamp, once
 per completed widget:
 
 ```bash
-leaf version stamp <page> --text "…" --completes <widget-id>
+leaf page stamp <page> --text "…" --completes <widget-id>
 ```
 
 Stamping accepts only widget ids with standing work. `status --on` refuses a
@@ -108,11 +107,11 @@ For work that will run longer than a few minutes, coordinate it rather than perf
 it. Hand the reading, editing, and testing to background subagents or background
 commands, and end your turn as the host contract says, so the watcher's next delivery
 reaches you while the work runs instead of waiting behind it. When a worker reports
-back, put its result on the page; the thread or request that asked for it then gets a
-reply saying what changed and linking to it, or its receipt.
+back, put its result on the page; the thread that asked for it then gets a reply
+saying what changed and linking to it.
 
 You drive the page and your workers do not. The server, the watcher and its
-acknowledgements, replies, receipts, status, edits to `index.html`, and stamps stay
+acknowledgements, replies, status, edits to `index.html`, and stamps stay
 with you, and a worker returns its result to you. A worker touches the page only in a
 role Leaf's guidance gives it, and only as that guidance directs: a command hub worker
 (`leaf page guidance <page> worker`), or a Codex watcher task

@@ -11,27 +11,31 @@ Everything lives under `.tmp/arrangement-eval/`, and commands take names:
   directory as phase 1 left it; `work-dir` names the child's
   scratch cwd, `state/` is its state home; `gate-{1,2}.json` and `shots/` are the
   scorer's and the camera's.
-- `runs/<batch>/scores.json`, `reviews/` and `reviews-flip/`: one per batch.
+- `runs/<batch>/reviews/` and `reviews-flip/`: one per batch.
 
-Arms. Both are `scripts/eval_harness.py`'s payload at one git ref, so neither carries
+What a later run compares against is committed beside this module: `score` writes the
+batch's per-run scores to `results/<batch>.json`, and `summarize` writes its tables to
+`results/<batch>.md` and every usable verdict to `results/<batch>-reviews.json`.
+
+Arms. Both are `dev/leaf_dev/harness.py`'s payload at one git ref, so neither carries
 the history or the worked corpus that would show an author the other arm's vocabulary.
 `plain_arm.build` takes the arrangement vocabulary out of `plain`, and `arms` renders
 its smoke page, which uses the plain guide's width hook, so a theme that stops
 honouring the hook fails the build rather than every plain run. `skills/` is made
 read-only, so no author writes into a payload another run reads.
 
-Runs. A child is `eval_harness.claude_child`, isolated from the user's `CLAUDE.md`,
+Runs. A child is `leaf_dev.harness.claude_child`, isolated from the user's `CLAUDE.md`,
 their memory and the installed Leaf plugin as that module describes. An author reads the
 arm's `SKILL.md` by path, as a host that loaded the skill would hand it over, runs the
 arm's launcher as `$LEAF`, and keeps its pages and claims under the run's own state
 home. Phase 2 resumes the phase-1 session with the standing preference. A round starts
 every subject × arm pair at once, so load on the machine lands on both arms alike.
 
-Scoring, per run and phase: turns, output tokens, cost and minutes; `version check`
+Scoring, per run and phase: turns, output tokens, cost and minutes; `page check`
 runs, those with `--render`, those whose output carries a ✗, and page writes; the
 references and registry keys read; page CSS lines (`<style>` plus `page/*.css`), style
 attributes, JavaScript lines and each arrangement term used; and an independent
-`version check --render` with the arm's launcher, cached in `gate-<phase>.json`. A
+`page check --render` with the arm's launcher, cached in `gate-<phase>.json`. A
 run's phase counts only when every trace through it reached its result, with `is_error`
 false and no auto-memory loaded (`Run.usable`); `score` marks the others, and `review`
 and `summarize` leave them out alike.
@@ -52,7 +56,6 @@ import re
 import shutil
 import statistics
 import subprocess
-import sys
 import tempfile
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -62,11 +65,7 @@ from pathlib import Path
 
 import click
 import plain_arm
-
-HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
-from eval_harness import (
+from leaf_dev.harness import (
     blocks,
     build_arm,
     completed,
@@ -76,9 +75,12 @@ from eval_harness import (
     run_leaf,
     scratch,
 )
-from eval_harness import trace_result as result
+from leaf_dev.harness import trace_result as result
 
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parents[1]
 DATA = ROOT / ".tmp/arrangement-eval"
+RESULTS = HERE / "results"
 SUBJECTS = ("document", "dashboard", "queue")
 ARMS = ("leaf", "plain")
 PHASES = (1, 2)
@@ -96,13 +98,16 @@ PREFERENCE = (
     'contents or queue beside the main content rather than stacked above or below it."'
 )
 VOCAB = {
-    "lf-grid": r"<lf-grid\b",
-    "lf-workspace": r"<lf-workspace\b",
+    **{
+        f"layout-{kind}": rf"class=\"[^\"]*\blayout-{kind}\b"
+        for kind in ("column", "wide", "sidebar", "tiles", "workspace")
+    },
     "lf-pane": r"<lf-pane\b",
     "data-width": r"\bdata-width=",
-    "panel": r"class=\"[^\"]*\bpanel\b",
-    "sidebar": r"class=\"[^\"]*\bsidebar\b",
-    "sidenote": r"class=\"[^\"]*\bsidenote\b",
+    "data-rail": r"\bdata-rail=",
+    "panel": r"class=\"[^\"]*(?<![\w-])panel\b",
+    "sidebar": r"class=\"[^\"]*(?<![\w-])sidebar\b",
+    "sidenote": r"class=\"[^\"]*(?<![\w-])sidenote\b",
     "data-bound": r"\bdata-bound=",
     "lf-tabs": r"<lf-tabs\b",
 }
@@ -235,7 +240,7 @@ def arms(ref: str, name: str):
         run_leaf(out / "plain", state, "page", "init", str(page), check=True)
         (page / "index.html").write_text(smoke)
         run_leaf(
-            out / "plain", state, "version", "check", str(page), "--render", check=True
+            out / "plain", state, "page", "check", str(page), "--render", check=True
         )
     subprocess.run(
         ["chmod", "-R", "a-w", out / "leaf/skills", out / "plain/skills"], check=True
@@ -253,7 +258,7 @@ that file first and follow it, resolving the references it names from
 
 Write the page at {page}. This run is non-interactive: nobody will read the page in a
 browser or answer in it. Treat the page as a finished record the user will rely on:
-write it, run the pre-handover review including `$LEAF version check {page} --render`,
+write it, run the pre-handover review including `$LEAF page check {page} --render`,
 fix what the checks report, and stamp it. Don't start a server, set a status, or wait
 for feedback. When the stamped page passes, reply with one line naming its path.
 
@@ -268,7 +273,7 @@ def second_prompt(page: Path) -> str:
 {PREFERENCE}
 
 Revise the page at {page} to follow this preference. Check it again with
-`$LEAF version check {page} --render`, fix what the checks report, and stamp it. As
+`$LEAF page check {page} --render`, fix what the checks report, and stamp it. As
 before, don't start a server or wait for feedback. When it passes, reply with one line.
 """
 
@@ -352,7 +357,7 @@ def trace_scores(stream: Path) -> dict:
         name, inp = call["name"], call.get("input", {})
         if name == "Bash":
             cmd = inp.get("command", "")
-            if "version check" in cmd and "--help" not in cmd:
+            if "page check" in cmd and "--help" not in cmd:
                 checks += 1
                 renders += "--render" in cmd
                 # The exit status is often masked by a pipe or a chained command, so
@@ -424,10 +429,10 @@ def page_scores(page: Path) -> dict:
 
 
 def gate(run: Run, phase: int, page: Path) -> dict:
-    """An independent `version check --render` of the phase's page, cached per phase."""
+    """An independent `page check --render` of the phase's page, cached per phase."""
     cached = run.dir / f"gate-{phase}.json"
     if not cached.exists():
-        proc = run.leaf("version", "check", str(page), "--render", timeout=900)
+        proc = run.leaf("page", "check", str(page), "--render", timeout=900)
         out = proc.stdout + proc.stderr
         cached.write_text(
             json.dumps({"passed": proc.returncode == 0, "output": out[-4000:]})
@@ -439,7 +444,8 @@ def gate(run: Run, phase: int, page: Path) -> dict:
 @click.argument("batch", callback=existing_batch)
 @click.option("--no-gate", is_flag=True, help="Skip the independent render check.")
 def score(batch: Batch, no_gate: bool):
-    """Score every run of BATCH into its scores.json, and print a row per run and phase."""
+    """Score every run of BATCH into results/BATCH.json, and print a row per run and
+    phase. The check's output stays in the run's gate-<phase>.json."""
     rows = []
     for run in batch.runs():
         for phase in PHASES:
@@ -449,9 +455,10 @@ def score(batch: Batch, no_gate: bool):
             page = run.page(phase)
             row["page"] = page and page_scores(page)
             if page and not no_gate:
-                row["gate"] = gate(run, phase, page)
+                row["gate"] = {"passed": gate(run, phase, page)["passed"]}
             rows.append(row)
-    (batch.dir / "scores.json").write_text(json.dumps(rows, indent=2))
+    RESULTS.mkdir(exist_ok=True)
+    (RESULTS / f"{batch.dir.name}.json").write_text(json.dumps(rows, indent=2) + "\n")
     click.echo(f"{'run':24} ph gate turns $    min chk rnd ref wr css js  vocab")
     for r in rows:
         t, p, g = r["trace"], r["page"] or {}, r.get("gate", {})
@@ -711,41 +718,45 @@ def outcomes(folder: Path) -> dict:
 @cli.command()
 @click.argument("batch", callback=existing_batch)
 def summarize(batch: Batch):
-    """Print BATCH's scores and both review passes as Markdown tables.
+    """Print BATCH's scores and both review passes as Markdown tables, and write them to
+    results/BATCH.md and every usable pair's verdicts to results/BATCH-reviews.json.
 
     Per subject, phase and arm: median turns, cost, checks, checks reporting a ✗, CSS
     and JavaScript lines, and gate passes; per arm and phase, totals; per subject and
     phase, pairs won in both passes, overall and at each width, and how often each arm
     was judged to honour the preference."""
+    name = batch.dir.name
     rows = [
-        r for r in json.loads((batch.dir / "scores.json").read_text()) if r["usable"]
+        r for r in json.loads((RESULTS / f"{name}.json").read_text()) if r["usable"]
     ]
+    lines = []
+    emit = lines.append
     cells = defaultdict(list)
     for r in rows:
         cells[(r["subject"], r["phase"], r["arm"])].append(r)
 
-    click.echo(
+    emit(
         "| subject | phase | arm | n | gate pass | turns | $ | checks | ✗ reports | CSS lines | JS lines |"
     )
-    click.echo("|---|---|---|---|---|---|---|---|---|---|---|")
+    emit("|---|---|---|---|---|---|---|---|---|---|---|")
     for (subject, phase, arm), rs in sorted(cells.items()):
         t = [r["trace"] for r in rs]
         p = [r["page"] or {} for r in rs]
         passed = sum(bool(r.get("gate", {}).get("passed")) for r in rs)
-        click.echo(
+        emit(
             f"| {subject} | {phase} | {arm} | {len(rs)} | {passed}/{len(rs)} "
             f"| {median([x['turns'] for x in t]):g} | {median([x['cost_usd'] for x in t]):.2f} "
             f"| {median([x['checks'] for x in t]):g} | {median([x['refused'] for x in t]):g} "
             f"| {median([x.get('css_lines') for x in p]):g} | {median([x.get('js_lines') for x in p]):g} |"
         )
 
-    click.echo()
-    click.echo("| arm | phase | turns | $ | CSS lines | JS lines | ✗ reports |")
-    click.echo("|---|---|---|---|---|---|---|")
+    emit("")
+    emit("| arm | phase | turns | $ | CSS lines | JS lines | ✗ reports |")
+    emit("|---|---|---|---|---|---|---|")
     for arm in ARMS:
         for phase in PHASES:
             rs = [r for r in rows if r["arm"] == arm and r["phase"] == phase]
-            click.echo(
+            emit(
                 f"| {arm} | {phase} | {sum(r['trace']['turns'] for r in rs)} "
                 f"| {sum(r['trace']['cost_usd'] for r in rs):.2f} "
                 f"| {sum((r['page'] or {}).get('css_lines', 0) for r in rs)} "
@@ -774,14 +785,14 @@ def summarize(batch: Batch):
             cell[f"{field} {won}"] += 1
         for arm in ARMS:
             cell[f"pref {arm}"] += sum(x.get(f"pref {arm}", False) for x in (a, b))
-    click.echo()
-    click.echo("Pairs won in both passes, leaf/plain/split:")
-    click.echo()
-    click.echo(
+    emit("")
+    emit("Pairs won in both passes, leaf/plain/split:")
+    emit("")
+    emit(
         "| subject | phase | overall | 1440px | 900px | 390px "
         "| preference met, leaf and plain, of 2 per pair | discarded |"
     )
-    click.echo("|---|---|---|---|---|---|---|---|")
+    emit("|---|---|---|---|---|---|---|---|")
     for (subject, phase), c in sorted(tally.items()):
         trio = {
             field: f"{c[field + ' leaf']}/{c[field + ' plain']}/{c[field + ' split']}"
@@ -793,10 +804,26 @@ def summarize(batch: Batch):
             if phase == 2
             else ""
         )
-        click.echo(
+        emit(
             f"| {subject} | {phase} | {trio['overall']} | {trio['laptop']} "
             f"| {trio['narrow']} | {trio['phone']} | {pref} | {c['discarded']} |"
         )
+    (RESULTS / f"{name}.md").write_text("\n".join(lines) + "\n")
+    records = [
+        {"pass": folder} | json.loads(f.read_text())
+        for folder in ("reviews", "reviews-flip")
+        for f in sorted((batch.dir / folder).glob("*.json"))
+    ]
+    # The raw reply stays in the batch's review files; the verdict holds what it said.
+    verdicts = [
+        {k: v for k, v in r.items() if k != "raw"}
+        for r in records
+        if all((r["subject"], r["phase"], r["n"], arm) in usable for arm in ARMS)
+    ]
+    (RESULTS / f"{name}-reviews.json").write_text(
+        json.dumps(verdicts, indent=2, ensure_ascii=False) + "\n"
+    )
+    click.echo("\n".join(lines))
 
 
 if __name__ == "__main__":

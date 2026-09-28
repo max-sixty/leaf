@@ -5,27 +5,44 @@ lay a page out in its own HTML and CSS? This harness answers that with paired au
 runs. It is the first slice of #19 in `notes/workspace-followups.md`, built from the
 harness shape in `notes/agent-usability-evals.md`.
 
-This note is the harness, not its results. A run's findings go to whoever acts on them:
-the pull request or page that reports the run, and a follow-up for each defect in the
-backlog (#19 in `notes/workspace-followups.md` lists the first run's).
+This note is the harness. A run's scores and verdicts are committed in `results/` for
+the next run to compare against; its findings go to whoever acts on them: the pull
+request or page that reports the run, and a follow-up for each defect in the backlog
+(#19 in `notes/workspace-followups.md` lists the first run's).
 
 ## State of the harness
 
-It is early: one run on two refs, and it needs work. A session that runs it improves
-it in the same change, fixing what broke and adding what the run showed it lacked, and
-updates this section. What the first run left:
+It is early: two runs, and it needs work. A session that runs it improves it in the
+same change, fixing what broke and adding what the run showed it lacked, and updates
+this section. What the runs left:
 
-- `plain_arm.py` edits the authoring guide at fixed text anchors, so each rewrite of
-  the guide breaks the plain arm until its anchors are rewritten, as #1171's did.
-  Deriving the plain arm from the guide's structure, or keeping the arrangement
-  guidance in one section it can drop whole, would end that.
+- `plain_arm.py` replaces the authoring guide's arrangement guidance whole, from
+  "Composing a page" to "Draw the subject", and empties the Layouts' stylesheet, but
+  still edits registry descriptions, one other reference and five packages' guidance
+  at fixed text anchors, which a rewrite of those sentences breaks.
+- Plain authors read far past the references: the second run's first attempt found
+  the Layout classes in `layouts.css`, reached by grepping for a size the plain guide
+  names, and in the monitoring package's guidance, and three of six plain pages used
+  them. `check_clean` now covers every package's guidance and registry and the
+  Layouts' stylesheet, and `score` reports any vocabulary a plain page uses; read that
+  column before trusting a batch.
+- The second run's phase-2 children ran with the user's home, read the user's
+  `~/.claude/CLAUDE.md` (and earlier runs' copies of the preference in it), and six appended
+  the preference there. Its phase-2 numbers were made under the user's instructions, not
+  the arm's alone. Children now run under a home of their own (`dev/leaf_dev/harness.py`).
 - The judge reads static screenshots. It cannot see a pane scroll, a rail stick, or
   any interaction, and it reads a pane's first screen as the whole pane.
-- One judge model and three pairs per cell. A batch costs about $50 and 1.5 hours.
-- The plain arm can still read the vocabulary in `references/packages.md` and the
-  optional packages' guidance.
-- Results live only in `.tmp/arrangement-eval/`, which leaves with the worktree.
-  `summarize` prints tables; nothing writes a result a later run can compare against.
+- One judge model and three pairs per cell. A batch's authoring costs about $37 and
+  an hour, the render checks, screenshots and both review passes another hour.
+- Phase 1's judge weighs a 900px window with no preference, and in the second run it
+  preferred a dashboard that stacked there; phase 2's preference asks for the
+  opposite. Read the 900px column of the two phases separately.
+- The plain arm can still read `lf-pane` in `references/packages.md`, and the Layout
+  selectors in the theme's and runtime's own sources.
+- The traces, pages and screenshots live only in `.tmp/arrangement-eval/`, which
+  leaves with the worktree. What a later run compares against is committed in
+  `results/`: each batch's per-run scores, its summary tables, and every verdict with
+  the judge's defect lists.
 
 ## Arms
 
@@ -33,17 +50,19 @@ Both arms are the same Leaf payload, extracted from one git ref by `harness.py a
 the same widgets, theme, runtime, render checks, skill and references. They differ in
 how a page is arranged.
 
-- **leaf**: the payload as shipped. The agent has `lf-grid`, `lf-workspace` and
-  `lf-pane`, `data-width` on blocks and `main`, the layout idioms (`section.panel`,
-  `aside.sidebar`, `aside.sidenote`), and the authoring guide's "Composing a page".
-- **plain**: `plain_arm.py` removes those three elements from the registry, the three
-  idioms from `$idioms`, `data-width` and every sentence naming any of them from the
-  references, registry descriptions and `version check` advice, and replaces
-  "Composing a page" and "The rail and the margin" with guidance to lay the page out in page CSS using the theme's
-  published sizes (`--col`, `--wide`, `--wide-page-max`, `--rail`, `--lf-banner-h`,
-  spacing and colour tokens). The theme's CSS for the vocabulary is still present;
-  an agent that reads `theme.css` can find `data-width` there, and the scorer reports
-  any page that uses it.
+- **leaf**: the payload as shipped. The agent has the Layout classes (`layout-column`,
+  `layout-wide`, `layout-sidebar`, `layout-tiles`, `layout-workspace`), `lf-pane`,
+  `data-width` and `data-rail`, the margin idioms (`section.panel`, `aside.sidebar`,
+  `aside.sidenote`), and the authoring guide's "Composing a page".
+- **plain**: `plain_arm.py` removes `lf-pane` from the registry, the three idioms from
+  `$idioms`, every sentence naming any of the vocabulary from the references and
+  registry descriptions, and the `page check` advice to give `main` a Layout class.
+  It replaces the guide from "Composing a page" to "Draw the subject" with guidance to
+  lay the page out in page CSS, a reading column included, using the theme's published
+  sizes (`--col`, `--wide`, `--wide-page-max`, `--rail`, `--lf-view-height`, spacing and
+  colour tokens). The theme's CSS for the vocabulary is still present; an agent that
+  reads `layouts.css` can find the classes there, and the scorer reports any page that
+  uses them.
 
 Neither arm carries `.git`, `examples/`, `docs/`, `notes/` or the README, so an author
 cannot read its way to the other arm through history or the worked corpus.
@@ -61,11 +80,12 @@ Three requests in `subjects/`, each with the same content in both arms:
 ## A run
 
 `harness.py run` starts a fresh `claude -p` (Opus 5.5, Bash/Read/Write/Edit/Glob/Grep,
-bypass permissions) from a scratch cwd with project-only settings, so neither the user's
-`CLAUDE.md` nor the installed Leaf plugin loads. The prompt points it at the arm's
+bypass permissions) from a scratch cwd under a home of its own, so neither the user's
+`CLAUDE.md` nor the installed Leaf plugin loads, and what the child saves as a standing
+preference stays in that home (`dev/leaf_dev/harness.py`). The prompt points it at the arm's
 `SKILL.md` and sets `$LEAF` to the arm's launcher; the run's own `XDG_STATE_HOME`
 keeps its pages and claims off this machine's. It asks for a finished record: write
-the page, pass `version check --render`, stamp it, no server.
+the page, pass `page check --render`, stamp it, no server.
 
 Then, resuming the same session, it delivers a standing preference: the user reads
 pages in a window about 900px wide and wants the summary, status, contents or queue
@@ -74,9 +94,9 @@ kept beside the main content at that width. The agent revises and re-checks.
 ## Scoring
 
 - `score`: per run and phase, the agent's turns, cost and time; how many times it
-  ran `version check` and `--render`, and how many reported a failure; page writes; CSS
+  ran `page check` and `--render`, and how many reported a failure; page writes; CSS
   and JavaScript lines; which arrangement terms the page used; and an independent
-  `version check --render` of the phase's page with the arm's launcher.
+  `page check --render` of the phase's page with the arm's launcher.
 - `shoot`: screenshots at 1440×900, 900×900 and 390×844, screen by screen down
   the page, for each phase.
 - `review`: a fresh `claude -p` that sees only the request and both pages'

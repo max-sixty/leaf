@@ -152,7 +152,7 @@ def test_sort_film_comment_restores_its_input_and_step(browser, serve):
     page.locator('#sort-film input[value="nearly"]').check()
     expect(moment).to_have_attribute("data-part", "moment:nearly:7:0")
     expect(page.locator(".lf-thread")).to_contain_text("Random, shuffle 7, step 1")
-    page.get_by_role("button", name="1 comment").click()
+    page.get_by_role("button", name="1 comment").press("Enter")
     expect(moment).to_have_attribute("data-part", "moment:random:7:0")
 
 
@@ -283,7 +283,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
     """An example that ships a companion log opens with its event state.
 
     Threads and user decisions are log state: markup alone cannot describe what
-    happened, and `version export` drops the layer that draws it. What an example
+    happened, and `page export` drops the layer that draws it. What an example
     *can* ship is the log itself, beside it, exactly as one that wants a screenshot
     ships the bytes beside it. `scripts/preview.py <example>` then opens with those
     events replayed. A thread-bearing log opens mid-thread; an action-only log
@@ -337,9 +337,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         previous = set()
         for event in logged:
             references = [
-                event[key]
-                for key in ("parent", "undoes", "message", "request")
-                if key in event
+                event[key] for key in ("parent", "undoes", "message") if key in event
             ] + event.get("events", [])
             assert set(references) <= previous, (
                 f"{example.stem}: {event['id']} refers to missing earlier events: "
@@ -533,7 +531,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                     expect(shown.locator("[data-lf-offer]")).not_to_have_count(0)
 
         # Each carried thread must be disclosed for the gate's geometry readings:
-        # hidden bodies have no boxes. The public version check never opens Threads,
+        # hidden bodies have no boxes. The public page check never opens Threads,
         # so exercise its own probes here against every frozen message's widgets.
         # Assert the control population first so a clean reading cannot be vacuous.
         if carried_ids:
@@ -1996,6 +1994,59 @@ def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
     assert root_overflow(page) == 0
 
 
+def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):
+    """The breakout rule widens a block by negative margins, which an auto-width box
+    fills and a box with a width of its own does not. A sample is a table box with a
+    stated width, so `data-width="available"` moved it left by the margin and left it
+    at the column's width. Each wide sample is measured against a plain block given the
+    same width, which is where the room ends. A sample with no width of its own is the
+    control for the inherited surplus: in a list item inside a wide section it takes the
+    item's width, not the item's width plus the section's surplus."""
+    source = leaf_page(
+        "Sample widths",
+        """
+<h1 id="title">Sample widths</h1>
+<p id="prose">Standard prose.</p>
+<div id="block-wide" data-width="wide">A wide block.</div>
+<lf-sample id="sample-wide" data-width="wide"><p>A wide sample.</p></lf-sample>
+<div id="block-available" data-width="available">An available block.</div>
+<lf-sample id="sample-available" data-width="available"><p>An available sample.</p></lf-sample>
+<lf-sample id="sample-column" data-width="column"><p>A column sample.</p></lf-sample>
+<lf-sample id="sample-plain"><p>A plain sample.</p></lf-sample>
+<section data-width="wide"><ul><li id="item">
+  <p>A list item inside wide evidence.</p>
+  <lf-sample id="sample-nested"><p>A sample in that item.</p></lf-sample>
+</li></ul></section>
+""",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    at = page.evaluate("""() => Object.fromEntries(
+      [...document.querySelectorAll('main [id]')].map(el => {
+        const box = el.getBoundingClientRect();
+        return [el.id, {left: box.left, right: box.right, width: box.width}];
+      }))""")
+    assert (
+        at["block-available"]["width"]
+        > at["block-wide"]["width"]
+        > (at["prose"]["width"] + 100)
+    ), at
+    for width in ("wide", "available"):
+        sample, block = at[f"sample-{width}"], at[f"block-{width}"]
+        for edge in ("left", "right"):
+            assert sample[edge] == pytest.approx(block[edge], abs=1), (
+                f'a data-width="{width}" sample\'s {edge} edge is at '
+                f"{sample[edge]:.0f}px, the room's at {block[edge]:.0f}px"
+            )
+    for control in ("sample-column", "sample-plain"):
+        assert at[control]["width"] == pytest.approx(at["prose"]["width"], abs=1), (
+            control,
+            at,
+        )
+    assert at["sample-nested"]["width"] == pytest.approx(at["item"]["width"], abs=1), at
+    assert root_overflow(page) == 0
+
+
 def test_paper_keeps_the_column(browser, serve):
     """Paper has no window to take room from: a printed page is the column's width,
     whatever the screen it was sent from was showing. The rule that grants the room is
@@ -2525,6 +2576,62 @@ def test_a_widget_in_a_reply_is_still_set_among_the_words(browser, serve):
     ), f"the stacking rule never reached the panel at all: {forms['rp-argued']}"
 
 
+def test_a_message_carries_the_marks_a_page_would_except_its_room(browser, serve):
+    """A message's markup renders in the panel and never passes through delivery, so the
+    runtime paints its marks as it renders them, and paints what delivery would paint on
+    the same markup on a page: a quoted sample is an exhibit, a chip sets among words,
+    and an occurrence's own `data-bound` holds its height. The room is the one mark left
+    behind, even where an occurrence asks for it with `data-width`: it is the page's to
+    give, and the panel's width bounds a message."""
+    url = serve(REPLY_HOST_PAGE)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-log",
+            "author": "user",
+            "revision": 1,
+            "text": "What did the old copy say?",
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "id": "r-log",
+            "author": "agent",
+            "parent": "c-log",
+            "revision": 1,
+            "text": "Here it is, with the log:",
+            "markup": '<lf-sample id="rp-quoted" label="the old copy">'
+            "<p>Sessions <lf-chip>draft</lf-chip> live in Redis.</p></lf-sample>"
+            '<pre id="rp-log" data-bound="end">one\ntwo\nthree</pre>'
+            '<section id="rp-room" data-width="wide"><p>Wide on a page.</p></section>',
+        },
+    )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").first.click()
+    panel_settled(page)
+    expect(page.locator("#rp-quoted")).to_be_visible()
+
+    marks = page.evaluate("""() => Object.fromEntries(
+        [['sample', '#rp-quoted'], ['chip', '#rp-quoted lf-chip'], ['log', '#rp-log'],
+         ['room', '#rp-room']].map(([name, selector]) => {
+            const el = document.querySelector(selector);
+            return [name, Object.fromEntries(
+                ['data-lf-exhibit', 'data-lf-inline', 'data-lf-bound', 'data-lf-space']
+                    .filter(attr => el.hasAttribute(attr))
+                    .map(attr => [attr, el.getAttribute(attr)]))];
+        }))""")
+    assert marks == {
+        "sample": {"data-lf-exhibit": ""},
+        "chip": {"data-lf-inline": ""},
+        "log": {"data-lf-bound": "end"},
+        "room": {},
+    }, marks
+
+
 def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
     """The room is the page's to give, and a widget inside a box that paints is not held
     by the page. A quoted board that took the window stood outside the gutter marking it
@@ -2809,6 +2916,32 @@ def test_a_note_the_page_does_not_show_takes_no_room(browser, serve):
     expect(main).to_have_attribute("data-lf-margin", "rail")
     expect(main).not_to_have_attribute("style", re.compile("--lf-shift"))
     assert main.evaluate("node => node.getBoundingClientRect().left") == centred
+
+
+def test_a_sidebar_pages_track_is_its_aside_in_the_order_it_is_written(browser, serve):
+    """A sidebar page's track is its `aside`, wherever it is written. One written before
+    the body stands on the left and, stacked on a phone, comes first; one written after
+    it stands on the right and comes last. Source order is the reading order at every
+    width, so a summary a reader needs first never lands below the whole body."""
+    body = "<div id='body'>" + "<p>Body paragraph. " * 40 + "</p></div>"
+    track = "<aside id='track'><p>Summary and contents.</p></aside>"
+    for first in (True, False):
+        source = leaf_page(
+            "a sidebar page",
+            "<header><h1>Review</h1></header>"
+            + (track + body if first else body + track),
+            layout="sidebar",
+        )
+        page = open_page(browser, serve(source))
+        box = """(id) => document.getElementById(id).getBoundingClientRect()"""
+        resized(page, 1440, 900)
+        body_box, track_box = page.evaluate(box, "body"), page.evaluate(box, "track")
+        assert track_box["top"] == pytest.approx(body_box["top"], abs=1)
+        assert (track_box["x"] < body_box["x"]) is first
+        assert track_box["width"] < body_box["width"]
+        resized(page, 390, 844)
+        body_box, track_box = page.evaluate(box, "body"), page.evaluate(box, "track")
+        assert (track_box["top"] < body_box["top"]) is first
 
 
 def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, serve):
@@ -3168,26 +3301,36 @@ def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
 
 def test_the_handed_over_url_opens_the_latest_version(browser, serve):
     """The URL `server run` prints is the page root carrying the key, so every handover
-    reads the latest version there while keeping the live address. Two things only a
-    real browser can say have to hold: the arrival sets the cookie used by the page's
-    relative polling requests, and that cookie still admits a later query-less arrival.
-    A `SameSite` cookie withheld from either would leave the page open and frozen with
-    no console error to show for it."""
+    reads the latest version there while keeping the live address, and the key leaves
+    the address bar on arrival. Three things only a real browser can say have to hold:
+    the arrival sets the cookie used by the page's relative polling requests, the tab
+    is left on the bare address, and a reload of that bare address is admitted. The
+    link is followed from another site, as it is from a chat or an issue, since a
+    `SameSite=Strict` cookie is withheld from requests another site starts: one
+    withheld from the reload would land the user on a refusal."""
     url = serve(INLINE_PAGE)
-    root = url.rsplit("/versions/", 1)[0] + f"/?t={TOKEN}"
+    bare = url.rsplit("/versions/", 1)[0] + "/"
+    handover = f"{bare}?t={TOKEN}"
 
-    page = open_page(browser, root)
-
-    expect(page).to_have_url(root)
+    page = browser.new_page()
+    page.route(
+        "https://elsewhere.test/",
+        lambda route: route.fulfill(
+            content_type="text/html", body=f'<a href="{handover}">the page</a>'
+        ),
+    )
+    page.goto("https://elsewhere.test/")
+    page.click("a")
+    page.wait_for_url(bare)
+    wait_until_ready(page)
     expect(page.locator(".lf-banner")).to_be_visible()
     # The poll is the page's own fetch, relative and query-less: it answers only if the
     # cookie rode along.
     assert page.evaluate("() => fetch('/api/state').then(r => r.status)") == 200
 
-    # A later top-level arrival carries no query. A cookie the browser withheld from it
-    # would land the user on a refusal rather than the same live page.
-    page.evaluate("() => { location.href = '/' }")
-    page.wait_for_url(root.rsplit("?", 1)[0])
+    page.reload()
+    wait_until_ready(page)
+    expect(page).to_have_url(bare)
     expect(page.locator(".lf-banner")).to_be_visible()
 
 

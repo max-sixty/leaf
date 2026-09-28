@@ -10,7 +10,6 @@ from leaf.render_checks import one_frame, rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASKS_PAGE,
-    COMMAND_HUB_EXAMPLE,
     PANEL_PAGE,
     SEATED_ASK_LAYER,
     SEATED_ASK_WIDGETS,
@@ -31,6 +30,7 @@ from render_cases_navigation import (
     BINDING_BADGE_PAGE,
     CHIPS,
     CLIPPED_BY,
+    COMMENTED_LIST_PAGE,
     CONTROL_LABEL_PAGE,
     CROWDED_PAGE,
     DIFF_PAGE,
@@ -66,10 +66,13 @@ from render_harness import (
     LONG_PAGE,
     ROOT,
     TOKEN,
+    accessible_details,
     ask_actions_hint,
     command_reference_rows,
+    comment_note,
     consume_browser_errors,
     draft_control,
+    expect_comment_notes,
     hold_selection,
     holding,
     leaf_page,
@@ -418,7 +421,7 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
     assert placement["cluster"]["right"] <= placement["body"]["right"] + 6, placement
     assert placement["cluster"]["right"] <= placement["sibling"]["left"], placement
 
-    page.locator("#left-start .lf-mark-note").click()
+    comment_note(page, "#left-start").press("Enter")
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
     # The card shows before it is placed: opening it resets the placement and leaves it
@@ -752,6 +755,177 @@ def test_thread_travel_reveals_a_review_detail_in_its_pane_only(browser, serve):
     assert queue.evaluate("el => el.scrollTop") == queue_before
 
 
+BOUNDED_LOG_FILLER = "".join(
+    f"<p>Filler paragraph {n}, long enough to occupy a line of reading.</p>"
+    for n in range(40)
+)
+
+
+def bounded_log_page(named):
+    """A log bounded at its end between screens of filler, `named` or anonymous."""
+    entries = "".join(
+        f"<p>Entry {n}: the deploy copied shard {n} to the new key format.</p>"
+        for n in range(60)
+    )
+    name = ' id="log"' if named else ""
+    return leaf_page(
+        "bounded log",
+        f'<h1 id="t">Deploy</h1>{BOUNDED_LOG_FILLER}<section id="deploy">'
+        f'<div{name} class="log" data-bound="end">{entries}</div></section>'
+        f"{BOUNDED_LOG_FILLER}",
+    )
+
+
+@pytest.mark.parametrize("named", [True, False], ids=["named", "anonymous"])
+def test_thread_travel_into_a_bounded_log_scrolls_the_log_and_the_page_no_more(
+    browser, serve, named
+):
+    """A block that bounds its height is the box scrolling a passage inside it, with an
+    id or without one. Travel centred the passage by moving the page, scrolling the log
+    only as far as its edge, so a log already on screen slid under the user; one
+    scrolled off the window must still come back with the passage in it."""
+    page = open_page(
+        browser,
+        serve(
+            bounded_log_page(named),
+            anchored=[("deploy", "the deploy copied shard 3 to the new key format")],
+        ),
+    )
+    resized(page, 1400, 900)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    log = page.locator(".log")
+    passage = log.locator("p").nth(3)
+    placed = """([log, passage, bar]) => {
+      const box = log.getBoundingClientRect();
+      const at = passage.getBoundingClientRect();
+      const foot = bar ? bar.getBoundingClientRect().top : innerHeight;
+      return at.top >= box.top && at.bottom <= box.bottom
+        && at.top >= 0 && at.bottom <= foot;
+    }"""
+    handles = [
+        log.element_handle(),
+        passage.element_handle(),
+        page.locator(".lf-shortcut-bar").element_handle(),
+    ]
+    quote = page.locator(".lf-thread .lf-quote")
+    page.locator(".lf-thread-summary").click()
+
+    # The log stands in the middle of the window, opened on its newest entry.
+    page.evaluate(
+        """log => { const at = log.getBoundingClientRect();
+          document.scrollingElement.scrollBy({
+            top: at.top + at.height / 2 - innerHeight / 2, behavior: 'instant'}); }""",
+        log.element_handle(),
+    )
+    scroll_settled(page)
+    assert not page.evaluate(placed, handles)
+    before = page.evaluate("() => document.scrollingElement.scrollTop")
+    quote.click()
+    scroll_settled(page, ".log")
+    scroll_settled(page)
+    assert page.evaluate(placed, handles), "the passage was left out of view"
+    after = page.evaluate("() => document.scrollingElement.scrollTop")
+    assert after == pytest.approx(before, abs=1), f"the page moved {after - before}px"
+
+    # The log scrolled back to its end and the page taken to its top: the travel
+    # brings both the log and the passage in it into the window.
+    log.evaluate("log => log.scrollTop = log.scrollHeight")
+    page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
+    scroll_settled(page)
+    assert not page.evaluate(placed, handles)
+    quote.click()
+    scroll_settled(page, ".log")
+    scroll_settled(page)
+    assert page.evaluate(placed, handles), "the passage stayed off the window"
+
+
+def test_reading_keys_page_the_bounded_log_the_user_stands_in(browser, serve):
+    """Focus inside a bounded block puts the user in that region, so d and u page the
+    block, as they page a pane, and leave the page where it stands."""
+    entries = "".join(
+        f'<p>Entry {n}: <a href="#t">shard {n}</a> copied to the new key format.</p>'
+        for n in range(60)
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "bounded keys",
+                f'<h1 id="t">Deploy</h1>{BOUNDED_LOG_FILLER}<div id="log" '
+                f'data-bound="start">{entries}</div>{BOUNDED_LOG_FILLER}',
+            )
+        ),
+    )
+    resized(page, 1280, 900)
+    log = page.locator("#log")
+    page.evaluate(
+        """log => { const at = log.getBoundingClientRect();
+          document.scrollingElement.scrollBy({
+            top: at.top + at.height / 2 - innerHeight / 2, behavior: 'instant'}); }""",
+        log.element_handle(),
+    )
+    scroll_settled(page)
+    before = page.evaluate("() => document.scrollingElement.scrollTop")
+    log.locator("a").first.focus()
+    page.keyboard.press("d")
+    page.wait_for_function("() => document.getElementById('log').scrollTop > 100")
+    scroll_settled(page, "#log")
+    paged = log.evaluate("log => log.scrollTop")
+    page.keyboard.press("u")
+    page.wait_for_function(f"() => document.getElementById('log').scrollTop < {paged}")
+    scroll_settled(page, "#log")
+    after = page.evaluate("() => document.scrollingElement.scrollTop")
+    assert after == pytest.approx(before, abs=1), f"the page moved {after - before}px"
+
+
+def test_the_ask_walk_lands_an_ask_in_a_bounded_log_at_the_log_top(browser, serve):
+    """An Ask inside a block that bounds its height arrives at the top of that block,
+    which is the box scrolling it. The walk measured its run-up against the window and
+    moved the page to put it under the banner, sliding a log the user could already
+    see."""
+    early = "".join(f"<p>Early {n}: a line before the question.</p>" for n in range(8))
+    entries = "".join(
+        f"<p>Entry {n}: the deploy copied shard {n} to the new key format.</p>"
+        for n in range(40)
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "bounded ask",
+                f'<h1 id="t">Deploy</h1>{BOUNDED_LOG_FILLER}<div id="log" '
+                f'data-bound="end">{early}<lf-ask id="q"><h3>Which shard next?</h3>'
+                '<lf-options id="o" choose><lf-option id="o1">The first</lf-option>'
+                '<lf-option id="o2">The second</lf-option></lf-options></lf-ask>'
+                f"{entries}</div>{BOUNDED_LOG_FILLER}",
+            )
+        ),
+    )
+    resized(page, 1280, 900)
+    log = page.locator("#log")
+    page.evaluate(
+        """log => { const at = log.getBoundingClientRect();
+          document.scrollingElement.scrollBy({
+            top: at.top + at.height / 2 - innerHeight / 2, behavior: 'instant'}); }""",
+        log.element_handle(),
+    )
+    scroll_settled(page)
+    before = page.evaluate("() => document.scrollingElement.scrollTop")
+    page.locator("body").focus()
+    page.keyboard.press("a")
+    expect(page.locator("#q")).to_be_focused()
+    scroll_settled(page, "#log")
+    scroll_settled(page)
+    after = page.evaluate("() => document.scrollingElement.scrollTop")
+    assert after == pytest.approx(before, abs=1), f"the page moved {after - before}px"
+    landed = page.evaluate(
+        """() => document.getElementById('q').getBoundingClientRect().top
+          - document.getElementById('log').getBoundingClientRect().top"""
+    )
+    assert landed == pytest.approx(0, abs=2), f"the Ask landed {landed}px down the log"
+
+
 def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyboard(
     browser, serve
 ):
@@ -884,12 +1058,9 @@ def test_each_comparison_result_keeps_its_own_comment_destination(browser, serve
     pane_posture(page, page.locator("#comparison-current"), "bounded")
     current = page.locator("#comparison-current > :not(header, footer)")
     proposed = page.locator("#comparison-proposed > :not(header, footer)")
-    notes = page.locator(".lf-mark-note")
-    expect(notes).to_have_count(2)
-    assert notes.evaluate_all("els => els.map(el => el.closest('lf-pane').id)") == [
-        "comparison-current",
-        "comparison-proposed",
-    ]
+    expect(page.locator(".lf-mark-note")).to_have_count(2)
+    expect_comment_notes(page, "#comparison-current", 1)
+    expect_comment_notes(page, "#comparison-proposed", 1)
     initial_scrolls = page.evaluate("""() => {
         const panes = ["comparison-current", "comparison-proposed"].map(id =>
             document.querySelector(`#${id} > :not(header, footer)`));
@@ -1045,9 +1216,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     )
     expect(page.locator("#bg-thread-states")).to_be_visible()
     expect(pending_title).to_have_text("Generating title")
-    dots = pending_title.locator(".lf-thread-pending-dots > span")
-    expect(dots).to_have_count(3)
-    animation = dots.first.evaluate(
+    animation = pending_title.evaluate(
         "element => getComputedStyle(element).animationName"
     )
     assert animation != "none"
@@ -1265,94 +1434,75 @@ def test_the_feature_gallery_exercises_core_user_workflows(browser, serve):
     consume_browser_errors(page, "400")
 
 
-def test_command_hub_exercises_request_failure_retry_and_success(browser, serve):
-    """The package's worked page carries a request through both terminal outcomes."""
-    page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
-    operations = page.locator("#dedupe-operations")
-    restart = operations.get_by_role(
-        "button", name="Restart with a fresh worker", exact=True
+def test_a_render_that_keeps_an_external_link_gives_back_the_note_it_dropped(
+    browser, serve
+):
+    """A render that keeps a link and rebuilds the children around it (`setChildren`)
+    drops the link's note, which stands beside it. The link must get the note back, or
+    it keeps describing itself by an id nothing carries."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "kept link",
+                '<h1 id="t">Links</h1><p id="holder">Read <a id="ext" '
+                'href="https://example.com/source">the source</a> first.</p>',
+            )
+        ),
     )
+    link = page.locator("#ext")
+    expect(link).to_have_accessible_description("opens in a new tab")
+    page.evaluate(
+        """async () => {
+          const { setChildren } = await window.__lfRuntimeImport(
+            '/runtime/widget-api.js');
+          const holder = document.getElementById('holder');
+          setChildren(holder, [...holder.childNodes].filter(
+            (node) => !node.classList?.contains('lf-external-note')));
+        }"""
+    )
+    rendered(page)
+    expect(page.locator("#ext + .lf-external-note")).to_have_count(1)
+    expect(link).to_have_accessible_description("opens in a new tab")
 
-    page.keyboard.press("?")
-    page.keyboard.press("?")
-    reference = page.get_by_role("dialog", name="Command reference")
-    expect(reference).to_be_visible()
-    resized(page, 320, 900)
-    operation = reference.locator("tr").filter(has_text="Restart with a fresh worker")
-    geometry = operation.evaluate(
-        """row => {
-          const key = row.querySelector('td:first-child kbd');
-          const keyBox = key.getBoundingClientRect();
-          const action = row.cells[1];
-          const actionBox = action.getBoundingClientRect();
-          const range = document.createRange(), broken = [];
-          const walker = document.createTreeWalker(action, NodeFilter.SHOW_TEXT);
-          for (let node = walker.nextNode(); node; node = walker.nextNode())
-            for (const match of node.textContent.matchAll(/[A-Za-z]+/g)) {
-              range.setStart(node, match.index);
-              range.setEnd(node, match.index + match[0].length);
-              if (new Set([...range.getClientRects()].map(rect => Math.round(rect.top))).size > 1)
-                broken.push(match[0]);
-            }
+
+def test_a_stage_built_before_its_host_arrives_holds_its_links_and_bounds(
+    browser, serve
+):
+    """A widget may fill its shadow stage while its host is still detached. What stands
+    in the stage arrives with the host: its external link is marked, and its bounded
+    block is the reading region scrolling its lines and opens at its end."""
+    page = open_page(
+        browser, serve(leaf_page("staged", '<h1 id="t">Staged</h1><p>Before.</p>'))
+    )
+    held = page.evaluate(
+        """async () => {
+          const { shadowStage } = await window.__lfRuntimeImport(
+            '/runtime/shadow-stage.js');
+          const { scrollerFor } = await window.__lfRuntimeImport(
+            '/runtime/reading-regions.js');
+          const host = document.createElement('div');
+          const link = Object.assign(document.createElement('a'), {
+            href: 'https://example.com/staged', textContent: 'staged source'});
+          const log = document.createElement('div');
+          log.setAttribute('data-lf-bound', 'end');
+          log.style.cssText = 'max-block-size: 120px; overflow: auto';
+          for (let n = 0; n < 40; n++)
+            log.append(Object.assign(document.createElement('p'),
+              {textContent: `Line ${n}`}));
+          shadowStage(host, [link, log]);
+          document.querySelector('main').append(host);
+          await new Promise(requestAnimationFrame);
+          await new Promise(requestAnimationFrame);
           return {
-            broken,
-            keyClass: key.parentElement.className,
-            keyFits: key.scrollWidth <= key.clientWidth && key.scrollHeight <= key.clientHeight,
-            keyRight: keyBox.right,
-            actionLeft: actionBox.left,
+            target: link.getAttribute('target'),
+            marked: Boolean(link.querySelector(':scope > .lf-external-mark')),
+            scroller: scrollerFor(log.querySelector('p')) === log,
+            atEnd: log.scrollHeight - log.scrollTop - log.clientHeight <= 2,
           };
         }"""
     )
-    assert "lf-key-label" in geometry["keyClass"], geometry
-    assert geometry["keyFits"], geometry
-    assert geometry["keyRight"] <= geometry["actionLeft"], geometry
-    assert geometry["broken"] == [], geometry
-    page.keyboard.press("Escape")
-    resized(page, 1280, 900)
-
-    with sending(page, "the restart request"):
-        restart.click()
-    request = [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "request" and event["widget"] == "dedupe-operations"
-    ][-1]
-    events_model.append_event(
-        serve.page_dir,
-        {
-            "kind": "receipt",
-            "author": "agent",
-            "request": request["id"],
-            "status": "failed",
-            "text": "The branch is protected by another review",
-        },
-    )
-    told(page)
-    expect(operations).to_contain_text(
-        "restart failed · The branch is protected by another review"
-    )
-    expect(restart).to_be_enabled()
-
-    with sending(page, "the retried restart request"):
-        restart.click()
-    retried = [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "request" and event["widget"] == "dedupe-operations"
-    ][-1]
-    events_model.append_event(
-        serve.page_dir,
-        {
-            "kind": "receipt",
-            "author": "agent",
-            "request": retried["id"],
-            "status": "succeeded",
-            "text": "Started a fresh worker",
-        },
-    )
-    told(page)
-    expect(operations).to_contain_text("restart succeeded · Started a fresh worker")
-    expect(restart).to_be_disabled()
+    assert held == {"target": "_blank", "marked": True, "scroller": True, "atEnd": True}
 
 
 def test_the_feature_gallery_exercises_live_external_data(browser, serve):
@@ -2320,6 +2470,7 @@ def test_a_delayed_thread_reveal_reports_that_new_user_focus_cancelled_it(
           const landing = createThreadLanding({
             setPanel: () => {},
             scrollToThread: () => {},
+            threadsBox: document.querySelector('.lf-threads'),
             revealThread: () => {
               window.threadRevealStarted = true;
               return held.then(() => { thread.hidden = false; });
@@ -3071,7 +3222,7 @@ def test_c_lands_where_its_badge_is_and_in_the_card_on_screen(browser, serve, ro
             page.keyboard.press(
                 "Tab"
             )  # keyboard modality, so the focus below is visible
-            page.locator("#p .lf-mark-note").focus()
+            comment_note(page, "#p").focus()
         elif step == "@marker":
             page.locator('.lf-margin-marker[data-lf-kinds="comment"]').first.click()
         else:
@@ -3093,12 +3244,14 @@ def test_c_lands_where_its_badge_is_and_in_the_card_on_screen(browser, serve, ro
     assert box.evaluate("box => box === document.activeElement")
 
 
-def test_threads_answers_c_in_the_thread_it_expanded_for_a_target(browser, serve):
+@pytest.mark.parametrize("side", ["note", "marker"])
+def test_threads_answers_c_in_the_thread_it_expanded_for_a_target(browser, serve, side):
     """With Threads open, the list's expanded thread plays the margin card's part.
 
     Arriving at a commented element by the keyboard expands its thread in the list, and
     standing there is standing at that thread: its reply box wears `c`, `c` lands in
-    it, and the walk goes on from it.
+    it, and the walk goes on from it. Every side of the target answers alike, so the
+    arrival is made from the target's comment note and from its margin marker.
     """
     url = serve(
         INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
@@ -3121,7 +3274,10 @@ def test_threads_answers_c_in_the_thread_it_expanded_for_a_target(browser, serve
     # whose arrival has to move it.
     expect(listed[1]).not_to_have_attribute("open", "")
     page.keyboard.press("Tab")  # keyboard modality, so the focus below is visible
-    page.locator("#p2 .lf-mark-note").focus()
+    if side == "note":
+        comment_note(page, "#p2").focus()
+    else:
+        page.locator('[data-lf-margin-for="p2"] .lf-margin-marker').focus()
     expect(listed[1]).to_have_attribute("open", "")
     reply = listed[1].locator("leaf-text")
     expect(reply).to_have_attribute("placeholder", "Reply c")
@@ -3131,7 +3287,7 @@ def test_threads_answers_c_in_the_thread_it_expanded_for_a_target(browser, serve
 
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
-    page.locator("#p .lf-mark-note").focus()
+    comment_note(page, "#p").focus()
     expect(listed[0]).to_have_attribute("open", "")
     page.keyboard.press("t")
     expect(listed[1].locator(":scope > .lf-thread-summary")).to_be_focused()
@@ -3639,7 +3795,6 @@ def test_an_inline_thread_wears_the_ring_only_while_the_keyboard_stands_on_it(
         serve(INLINE_PAGE, anchored=[("p", "bold text")]),
     )
     thread = page.locator(".lf-margin-preview .lf-page-thread")
-    note = page.locator("#p .lf-mark-note")
     # The thread draws its ring on a pseudo-element over its contents (shadow.css), so
     # the outline is read off whichever of the two boxes carries one.
     paint = """el => {
@@ -3652,7 +3807,7 @@ def test_an_inline_thread_wears_the_ring_only_while_the_keyboard_stands_on_it(
       };
     }"""
 
-    note.click()
+    page.locator('.lf-margin-marker[data-lf-kinds="comment"]').first.click()
     expect(thread).to_be_focused()
     assert not thread.evaluate("el => el.matches(':focus-visible')")
     pointer = thread.evaluate(paint)
@@ -4361,12 +4516,12 @@ def test_closing_the_panel_puts_down_the_card_it_was_lighting(browser, serve):
 
 def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     """A mark is painted, not wrapped, so it builds no accessibility node and a passage
-    carrying a comment reads exactly like one that doesn't. No ARIA relation reaches a
-    block that isn't focusable, so the pass says it in the one thing every screen reader
-    announces — text — counting up per block, riding in on a sent comment's round trip,
-    and leaving with its thread. Having put words on the page, it then has to keep them
-    out of the document's own: out of a selection, out of the next quote, and out of the
-    mutations a screen reader rebuilds its buffer on."""
+    carrying a comment reads exactly like one that doesn't. So each commented block names
+    a note as its details, ARIA's relation for an annotation: a button in the chrome
+    saying how many comments the block carries, counting up per block, riding in on a
+    sent comment's round trip, and leaving with its thread. The note is the runtime's, so
+    it stays out of the document: out of a selection, out of the next quote, and out of
+    the mutations a screen reader rebuilds its buffer on."""
     url = serve(NOTED_PAGE)
     d = serve.page_dir
 
@@ -4387,30 +4542,33 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     comment({"section": "fig"}, "The figure too.")
     page = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    # Two threads on one block count up, and leave one line rather than two.
-    assert "2 comments" in page.locator("#p1").aria_snapshot(), (
-        "a screen reader reading the block hears nothing about the comments on it"
+    # Two threads on one block count up, and leave one note rather than two.
+    expect_comment_notes(page, "#p1", 1)
+    named = (
+        "2 comments on § paragraph · The first passage under discussion, with words "
+        "enough for two separate remarks to land in it."
     )
-    assert page.locator("#p1 .lf-mark-note").count() == 1, "one block, one line"
-    # Hidden means hidden from the eye, not the tree: a line that paints is the runtime
-    # writing visible prose into the author's paragraph.
-    assert page.locator("#p1 .lf-mark-note").evaluate(
+    assert accessible_details(page, "#p1") == [named], (
+        "a screen reader reading the block is told nothing about the comments on it"
+    )
+    note = comment_note(page, "#p1")
+    # Hidden means hidden from the eye, not the tree.
+    assert note.evaluate(
         "el => { const r = el.getBoundingClientRect(); return r.width <= 1 && r.height <= 1; }"
-    ), "the hidden line is painting on screen"
-    note = page.locator("#p1 .lf-mark-note")
+    ), "the resting note is painting on screen"
+    assert note.evaluate("el => getComputedStyle(el).opacity") == "0"
+    assert note.evaluate("el => el.tabIndex") == -1, (
+        "the note is a Tab stop in the chrome, after the whole page"
+    )
     page.evaluate("""() => {
-        window.__lfAnchorNoteHost = document.querySelector('#p1 > leaf-anchor-note');
-        window.__lfAnchorNoteButton = window.__lfAnchorNoteHost.querySelector('button');
+        window.__lfNote = document.getElementById('p1').ariaDetailsElements[0];
     }""")
     inline1 = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{c1}"]')
     inline2 = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{c2}"]')
-    assert note.evaluate("el => getComputedStyle(el).opacity") == "0"
     expect(note).to_have_role("button")
-    note.click()
-    expect(inline1).to_be_focused()
-    expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    # Focused with the keyboard's modality, as a screen reader moving to it focuses it,
+    # the note shows and enters the first thread, and the walk goes on from there.
+    page.keyboard.press("Tab")
     note.focus()
     expect(note).to_be_focused()
     assert note.evaluate("el => el.getBoundingClientRect().width > 1"), (
@@ -4419,6 +4577,7 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     assert note.evaluate("el => getComputedStyle(el).opacity") == "1"
     note.press("Enter")
     expect(inline1).to_be_focused()
+    expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     page.keyboard.press("t")
     expect(inline2).to_be_focused()
 
@@ -4429,13 +4588,12 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     expect(note).to_have_text("1 comment")
     expect(note).to_be_focused()
     assert page.evaluate("""() =>
-        window.__lfAnchorNoteHost === document.querySelector('#p1 > leaf-anchor-note') &&
-        window.__lfAnchorNoteButton === document.querySelector('#p1 .lf-mark-note')
-    """), "a count change replaced the note owner or its retained native button"
+        window.__lfNote === document.getElementById('p1').ariaDetailsElements[0]
+    """), "a count change replaced the note"
     note.press("Enter")
     expect(inline2).to_be_focused()
-    # An element anchor has no text to paint, and the element it names holds the line.
-    assert "1 comment" in page.locator("#fig").aria_snapshot()
+    # An element anchor has no text to paint, and the element it names carries the note.
+    assert accessible_details(page, "#fig")[0].startswith("1 comment on § figure")
 
     # A pass that finds nothing to change must change nothing: a screen reader rebuilds
     # its buffer on every mutation, and this pass runs on every poll. A comment on no
@@ -4443,8 +4601,8 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     page.evaluate("""() => {
         window.__churn = 0;
         new MutationObserver(rs => (window.__churn += rs.length))
-            .observe(document.getElementById('p1'),
-                     {childList: true, characterData: true, subtree: true});
+            .observe(document.getElementById('p1'), {childList: true,
+                     characterData: true, attributes: true, subtree: true});
     }""")
     comment({}, "On the page as a whole.")
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 4")
@@ -4452,19 +4610,19 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
         "a poll that changed nothing still rewrote the block, so a screen reader re-reads it"
     )
 
-    # The line belongs to the runtime, not the document: a user dragging across it
-    # neither copies it nor quotes it.
+    # The note belongs to the runtime, not the document: a user dragging across the
+    # block neither copies it nor quotes it.
     page.locator("#p1").click(click_count=3)
     assert "comment" not in page.evaluate("() => getSelection().toString()"), (
-        "the hidden line came along in the user's own selection"
+        "the note came along in the user's own selection"
     )
     page.locator(".lf-fab-input").click()
     assert "comment" not in composer_quote(page)["text"], (
-        "the hidden line came along in the quote the comment would store"
+        "the note came along in the quote the comment would store"
     )
     page.keyboard.press("Escape")
 
-    # The gesture's own comment reaches the line once the send's round trip lands.
+    # The gesture's own comment reaches the note once the send's round trip lands.
     box = page.locator("#p2").bounding_box()
     y = box["y"] + box["height"] / 2
     select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
@@ -4474,24 +4632,75 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     )
     write(page.locator(".lf-composer leaf-text"), "Too short.")
     page.keyboard.press("ControlOrMeta+Enter")
-    expect(page.locator("#p2 .lf-mark-note")).to_have_count(1)
+    expect_comment_notes(page, "#p2", 1)
     c4 = [e for e in events_model.read_events(d) if e.get("kind") == "comment"][-1][
         "id"
     ]
 
-    # A resolved thread takes its line with it: the pass owns what it wrote.
+    # A resolved thread takes its note with it, and gives the block back its own
+    # attributes: the pass owns what it wrote.
     events_model.append_event(d, {"kind": "resolve", "author": "user", "parent": c4})
     told(page)
-    expect(page.locator("#p2 .lf-mark-note")).to_have_count(0)
-    assert "1 comment" in page.locator("#p1").aria_snapshot()
+    expect_comment_notes(page, "#p2", 0)
+    expect(page.locator("#p2")).not_to_have_attribute("aria-details", re.compile(".*"))
+    assert accessible_details(page, "#p1")[0].startswith("1 comment on ")
 
     # A passage crossing two blocks says so in both: a user landing on either block
     # hears about the comment, the way the paint reaches both.
     comment({"quote": "to land in it. A short second"}, "Crosses the boundary.")
     told(page)
-    expect(page.locator("#p2 .lf-mark-note")).to_have_count(1)
-    assert "2 comments" in page.locator("#p1").aria_snapshot()
-    assert "1 comment" in page.locator("#p2").aria_snapshot()
+    expect_comment_notes(page, "#p2", 1)
+    assert accessible_details(page, "#p1")[0].startswith("2 comments on ")
+    assert accessible_details(page, "#p2")[0].startswith("1 comment on ")
+
+
+def test_a_revision_keeps_a_block_naming_its_comment_note(browser, serve):
+    """A revision that keeps a commented block and changes its own `aria-details` writes
+    the new source's value over the block's name for its note. The next pass names the
+    note again after the source's own details, and the note's release keeps the source's
+    value rather than the one the block had when the comment arrived."""
+    url = serve(NOTED_PAGE, anchored=[("p1", "first passage")])
+    page = open_page(browser, live_url(url))
+    expect_comment_notes(page, "#p1", 1)
+    source = (serve.page_dir / "index.html").read_text(encoding="utf-8")
+    stamp_page(
+        serve.page_dir,
+        source.replace('<p id="p1">', '<p id="p1" aria-details="p2">'),
+        "Point the first passage at the second",
+    )
+    told(page)
+    expect(page.locator("#p2")).to_be_attached()
+    page.wait_for_function(
+        """() => document.getElementById('p1').ariaDetailsElements
+            ?.map((el) => el.id || el.textContent).join('|') === 'p2|1 comment'"""
+    )
+
+
+def test_a_comment_leaves_its_block_as_the_page_wrote_it(browser, serve):
+    """Nothing Leaf draws moves the page's content (assets/AGENTS.md, "Space and
+    scrolling"), and the page's own rules read a block's structure: here the last item
+    of a list takes a wide bottom margin. A comment on the list adds no child to it, so
+    the rule keeps matching and the paragraph after the list stays where it stood."""
+    url = serve(COMMENTED_LIST_PAGE)
+    page = open_page(browser, url)
+    read = """() => ({
+        children: [...document.getElementById('list').children].map(el => el.id),
+        after: document.getElementById('after').getBoundingClientRect().top,
+    })"""
+    before = page.evaluate(read)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Is this list complete?",
+            "anchor": {"section": "list"},
+        },
+    )
+    told(page)
+    expect_comment_notes(page, "#list", 1)
+    assert page.evaluate(read) == before
 
 
 def test_generated_hints_fit_the_visible_screen(browser, serve):
@@ -7529,11 +7738,10 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
-    # And a mark note out on the page. It is one of Leaf's controls, placed beside the
-    # words it marks rather than in the chrome, so the ladder's foot backs out of it
-    # onto the page and the standing scope, which lets go of a destination, does not
-    # stand: the reference names that one press rather than listing every step whose
-    # own condition is true.
+    # And a comment note. It is apparatus standing at the block it counts rather than a
+    # destination, so the ladder's foot backs out of it onto the page and the standing
+    # scope, which lets go of a destination, does not stand: the reference names that
+    # one press rather than listing every step whose own condition is true.
     page.locator(".lf-mark-note").focus()
     expect(page.locator(".lf-mark-note")).to_be_focused()
     page.keyboard.press("?")
@@ -10317,7 +10525,7 @@ def test_submitting_a_reply_reveals_its_new_message(browser, serve):
     assert long_reading["height"] > long_reading["room"]
     assert long_reading["bottom"] <= long_reading["bandBottom"] + 1
     assert long_reading["bottom"] > long_reading["bandTop"]
-    expect(thread.locator(":scope > .lf-compose .lf-thread-send")).to_be_focused()
+    expect(box).to_be_focused()
     in_threads_scrollport(page, f'.lf-thread[data-id="{root}"] .lf-thread-send')
 
 

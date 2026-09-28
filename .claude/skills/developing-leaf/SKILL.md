@@ -28,21 +28,29 @@ needs re-vendoring, and doesn't list reviving it as follow-up work.
 
 ## Explore an open design
 
-When a new interface leaves a material visual or interaction choice unsettled,
-first look in the shipped examples and `notes/` for an exploration of the same
-surface, and extend its playground when it owns the same decision. Otherwise
-initialize a page with the `playground` package and follow
-`<root>/skills/leaf/packages/playground/guidance/author.md`: several coherent
-options as named presets, each built far enough that the user can operate it in
-the shared preview. The user's submitted configuration or feedback chooses the
-one implementation the change keeps.
+Whenever the user is to choose among designs for a visual or interaction
+question, whether options for a new interface, alternatives to a shipped one, or
+sketches they asked for, put the candidates in one playground, where the user
+operates each, comments on it, and submits a choice. The submitted configuration
+or feedback chooses the one implementation the change keeps. First look in the
+shipped examples and `notes/` for an exploration of the same surface, and extend
+its playground when it owns the same decision.
 
-When the subject already exists, implement each candidate in the runtime and
-theme that own the surface and present it through a shipped example or fixture.
-When the user asks for sketches without implementation, keep the current surface
-as the baseline, derive each sketch from its actual controls, copy, and styling,
-and embed the operable current surface with a live `lf-sample`
-(`skills/leaf/references/page-authoring.md`).
+A playground is one HTML file, like a standalone sketch. Write it under `.tmp/`
+and serve it with `scripts/preview.py --source <file> --user` ("Preview a
+page"), which builds the page from that file alone. Its CSS reads the live
+theme's tokens, and the `playground` package's elements
+(`<root>/skills/leaf/packages/playground/guidance/author.md`) wrap the
+candidates: a `choice` control naming them, the candidates in its preview, and
+an output saying what to build. Add presets and further controls only where the
+user tunes more than the choice.
+
+When the subject already exists and the candidates are to be implemented,
+implement each in the runtime and theme that own the surface and present it
+through a shipped example or fixture. A sketch without implementation is
+page-local markup derived from the current surface's controls, copy, and
+styling, shown beside that surface as the baseline, which a live `lf-sample`
+(`skills/leaf/references/page-authoring.md`) embeds operable.
 
 ## Prove and hand off a visible change
 
@@ -55,26 +63,38 @@ Re-vendor before trusting a browser result after a runtime, theme, registry, or
 widget change. A green suite does not judge visual quality; run `/ui-sweep` or
 look at a composed page.
 
-Compare against a baseline from `git merge-base HEAD main` ("Compare checkout
-versions" below). For every difference a still can show, the handoff carries one
-sentence and matched before/after screenshots, embedded in the reply or as one
-`lf-shot`; a live preview may accompany the pair but does not replace it. For an
-interaction-only change, keep both previews live and hand off the labeled URL
-pair with the action that reveals the difference.
+To ask a page a question, such as where an element sits, what style it computes, or
+what holds focus after a key, run `uv run leaf-dev probe` rather than writing a
+Playwright script: it builds the page from this working tree, runs the input steps
+you give it, and prints what a JavaScript expression returns, with `--base` for the
+merge base beside it (`dev/AGENTS.md`).
 
-Exercise the same journey in baseline and candidate at the same fragment,
-viewport, theme, and interaction state. Capture each state that draws a box the
-change touches, not only the page at rest: a padding moved for layout can put a
-row over a focus ring that is drawn only while the element is focused. A live
-preview handed to the user carries the fragment of the semantic block it is
-about (a titled section's own id) and stays running.
+Compare against the merge base with `main`. `uv run leaf-dev stills`
+screenshots a catalogue of states on both runtimes and crops each one that
+changed into a before/after pair; commit first, since it compares commits. The
+catalogue holds states a user reaches by acting as well as pages at rest, because
+a change can alter what only such a state draws: a padding moved for layout once
+put a row over a focus ring drawn only while the element is focused. Where a
+change reaches a state the catalogue lacks, add it to `STATES` instead of driving
+the state by hand.
 
-## Preview a shipped example
+For every difference a still can show, the handoff carries one sentence and
+matched before/after screenshots, embedded in the reply or as one `lf-shot`; a
+live preview may accompany the pair but does not replace it. For an
+interaction-only change, serve both versions ("Compare checkout versions" below),
+keep both previews live, and hand off the labeled URL pair with the action that
+reveals the difference. Exercise the same journey in both at the same fragment,
+viewport, theme, and interaction state. A live preview handed to the user
+carries the fragment of the semantic block it is about (a titled section's own
+id) and stays running.
+
+## Preview a page
 
 `scripts/preview.py <example> --export` writes one file that opens offline.
 `scripts/preview.py <example>` serves a live page at `.tmp/previews/<example>`
 in the foreground, like a dev server, so run it as a long-running command
-(`run_in_background` in Claude Code). It follows source and runtime edits at one
+(`run_in_background` in Claude Code). `--source <file>` serves any authored HTML
+file in place of a shipped example. It follows source and runtime edits at one
 URL; each start rebuilds the page from the fixture, and `--slot <name>` runs another copy.
 
 A plain preview takes no task claim, so its presses reach only the page's log;
@@ -116,6 +136,16 @@ uv run <root>/scripts/verify_site.py wrangler --agent
 The `publish-site` workflow's run against the deployed release is the only
 production reading.
 
+## Test a terminal Codex task
+
+`uv run <root>/scripts/verify_codex_task.py` runs a real Codex task, with this
+working tree installed as its plugin, through the App Server adapter `leaf codex
+start` leaves running, and checks each comment it posts is answered once and each
+turn is closed under App Server's id. Run it after a change to `codex.py`,
+`codex_adapter.py`, `hooks.py`, or the claim's turn in `service.py`; the suite
+scripts App Server, and only this run shows what Codex itself sends. It spends a
+few turns on the host's Codex login, and CI has none.
+
 ## Compare checkout versions
 
 Build the baseline in a detached worktree at the merge base:
@@ -148,14 +178,58 @@ the user:
 
 ## Author or revise a page
 
-Read `<root>/skills/leaf/SKILL.md` completely and follow its authoring,
-validation, handoff, and conversation-loop routes, using the checkout launcher
-for every `leaf` command and resolving its references from `<root>/skills/leaf/`.
+Every authored Leaf source is a page: a site page under `docs/`, a shipped
+example or fixture, a playground, or a page made for this conversation. Before
+writing its content, read `<root>/skills/leaf/SKILL.md` completely and follow
+its authoring, validation, handoff, and conversation-loop routes, using the
+checkout launcher for every `leaf` command and resolving its references from
+`<root>/skills/leaf/`.
 To make an existing page exercise the current checkout, re-vendor it with the
 checkout launcher (`<root>/skills/leaf/references/serving-pages.md`); fix or
 report a compatibility refusal rather than falling back to the installed plugin.
 A page that explains how a Leaf interface behaves lets the user operate it
 (`references/sample-explainers.md`).
+
+## Score a guidance change
+
+Each `evals/<case>/case.yaml` is a moment in a session that `claude plugin eval`
+hands a headless Claude Code, with this checkout as its only plugin, so the child
+loads `leaf:leaf` and reads the references as a real session does. Score a change to
+`skills/leaf/` on the cases it bears on:
+
+```bash
+uv run leaf-dev guidance-ab [CASE]... [--base REF] [--runs N]
+```
+
+It runs the cases on the base's guidance (the merge base with `main` by default) and
+the working tree's at once, and prints each case's passes per arm and the cost. It
+passes `--allow-tools Skill Read`, without which the child's `dontAsk` mode denies
+the skill and the references and every run answers with no guidance, while
+`loads-leaf` still passes on the attempt. So every case also grades that the child
+read the reference it tests, and a run that fails that check measured nothing.
+
+Grow the suite slowly, toward a modest set of cases that each tell two wordings
+apart; several older cases predate this rule, and their comments say where they
+stand. Measure with whatever scenarios and guardrails the change needs, then add a
+case only if it pins a clause no existing case pins and it separated two arms you ran:
+the base failed most runs and the change passed every run, or a blunter draft failed
+a guardrail the change passes. That is usually one case per problem, and rarely more
+than two. A case both arms passed goes in the commit message, not the suite. The
+comment above `schema_version` says where the case came from and what it measured;
+`description` names the clause it pins, and `tags` its area.
+
+A prompt ends by asking for the HTML in the reply, since the child has no page
+directory. It cannot search the plugin either, so it answers from the references
+without the registry. The prompt never states the behavior under test. Grade a fixed
+form with a `regex` grader, and a judgment with an `llm` grader whose `criteria`
+state the passing reading without requiring particular wording.
+
+Run cold, a case that states the situation plainly usually passes on both arms: the
+failing session had its own earlier turns or a competing instruction pulling the
+other way, so paste those into the prompt. A rule that loses only to a long
+session's context needs a replay of that session instead.
+`notes/usability-eval/harness.py` runs cases that need a page directory and `leaf`.
+No grader has been checked against a person's judgment, so a pass is weak evidence.
 
 ## Refresh the public catalog stills
 
@@ -173,9 +247,14 @@ A branch may land with a red gate only when every failure also fails on the
 exact merge-base SHA under the same CI job and selection; until it reproduces
 there, it is the branch's. Use the base SHA's
 GitHub Actions run as the control, not a local container or a green run a few
-commits back. Main holds one nightly slot, so a base commit may carry no nightly
-result; push that SHA as a branch and dispatch `ci` on it. A case can differ
-between Linux and a Mac, or between the full suite under `-n 2` and a run alone.
+commits back. `uv run leaf-dev ci-failures` makes that comparison for the pushed
+HEAD, or `HEAD^2` in a pull request's CI checkout, which sits on GitHub's merge
+commit. Its exit 0 proves that every branch job has a result and that each failure
+also fails on the base: a test by node id, but any other step only by name, so
+read both logs for each step it lists as matched by name. Main holds one nightly
+slot, so a base commit may carry no nightly result; the command then prints the
+dispatch that makes one. A case can differ between Linux and a Mac, or between
+the full suite under `-n 2` and a run alone.
 
 `wt merge --no-hooks` lands past a red local hook whose failures reproduce on the
 base, and reuses a passing result when a newer `main` dislodges the merge. Finish

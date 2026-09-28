@@ -17,7 +17,6 @@ import preview as preview_model
 import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
-from example_data import patch_manifest
 from interact_support import install_payload, wait_for
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -32,6 +31,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf.schema import ELEMENT_ID
 from leaf.structure import UTF8_BOM
+from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import ASK_PAGE
 from render_cases_navigation import (
@@ -1121,15 +1121,10 @@ customElements.define("lf-offline-test", class extends LitElement {
     });
   }
 
-  requestRun() {
-    return this.controller.dispatch({kind: "request", verb: "run", detail: {}});
-  }
-
   render() {
     const choice = this.reading.state.choose?.value ?? this.getAttribute("choice");
     const action = this.reading.actions.choose;
-    const request = this.reading.requests.run;
-    const unavailable = action.unavailable ?? request.unavailable;
+    const unavailable = action.unavailable;
     return html`
       <style>#local { color: rgb(12, 34, 56); }</style>
       <button id="local" @click=${() => { this.local += 1; this.requestUpdate(); }}>
@@ -1138,9 +1133,6 @@ customElements.define("lf-offline-test", class extends LitElement {
       <output id="local-value">${this.local}</output>
       <button id="choose" ?disabled=${!action.available} @click=${this.choose}>
         Choose on host
-      </button>
-      <button id="request" ?disabled=${!request.available} @click=${this.requestRun}>
-        Request host work
       </button>
       <output id="choice">${choice}</output>
       ${unavailable ? html`<p id="unavailable">${unavailable}</p>` : null}
@@ -1160,7 +1152,7 @@ OFFLINE_REGISTRY = {
         },
         "required": ["id"],
         "additionalProperties": False,
-        "x-content": "members",
+        "x-content": "empty",
         "x-upgrade": True,
         "x-state": {
             "choose": {
@@ -1174,33 +1166,9 @@ OFFLINE_REGISTRY = {
                 "record": {"kind": "value", "attr": "choice", "value": "choice"},
             }
         },
-        "x-request": {
-            "offers": {"lf-offline-command": "verb"},
-            "verbs": {
-                "run": {
-                    "detail": {
-                        "type": "object",
-                        "properties": {},
-                        "additionalProperties": False,
-                    }
-                }
-            },
-        },
         "x-example": (
-            '<lf-offline-test id="offline-example" choice="idle">'
-            '<lf-offline-command verb="run">Run</lf-offline-command>'
-            "</lf-offline-test>"
+            '<lf-offline-test id="offline-example" choice="idle"></lf-offline-test>'
         ),
-    },
-    "lf-offline-command": {
-        "description": "One host request offered by the test widget.",
-        "type": "object",
-        "properties": {"verb": {"enum": ["run"]}},
-        "required": ["verb"],
-        "additionalProperties": False,
-        "x-owners": ["lf-offline-test"],
-        "x-content": "markup",
-        "x-upgrade": False,
     },
 }
 
@@ -1214,7 +1182,7 @@ def test_interactive_export_with_an_ask_reaches_application_presentation(
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "version",
+            "page",
             "export",
             str(serve.page_dir),
             "--out",
@@ -1244,7 +1212,7 @@ def test_an_interactive_export_paints_a_widget_owned_text_box(browser, serve, tm
     interactive = tmp_path / "interactive-addition.html"
     result = CliRunner().invoke(
         cli_model.cli,
-        ["version", "export", str(serve.page_dir), "--out", str(interactive)],
+        ["page", "export", str(serve.page_dir), "--out", str(interactive)],
         env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
     )
     assert result.exit_code == 0, result.output
@@ -1273,9 +1241,7 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
         "offline interactive",
         """
 <h1>Offline interactive</h1>
-<lf-offline-test id="offline-widget" choice="idle">
-  <lf-offline-command verb="run">Run</lf-offline-command>
-</lf-offline-test>
+<lf-offline-test id="offline-widget" choice="idle"></lf-offline-test>
 <a id="jump" href="#destination">Jump locally</a>
 <h2 id="destination">Destination</h2>
 """,
@@ -1307,7 +1273,7 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "version",
+            "page",
             "export",
             str(serve.page_dir),
             "--out",
@@ -1348,18 +1314,16 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     assert page.url.endswith("#destination")
 
     expect(page.locator("#offline-widget #choose")).to_be_disabled()
-    expect(page.locator("#offline-widget #request")).to_be_disabled()
     expect(page.locator("#offline-widget #unavailable")).to_have_text(
         "no agent or server is available"
     )
     refused = page.locator("#offline-widget").evaluate(
         """owner => [
           owner.choose(),
-          owner.requestRun(),
           owner.controller.dispatch({kind: 'undo', target: 'missing'}),
         ]"""
     )
-    assert refused == [None, None, None]
+    assert refused == [None, None]
     expect(page.locator("#offline-widget #choice")).to_have_text("chosen")
     assert external == []
 
@@ -1384,7 +1348,7 @@ def test_interactive_export_hydrates_captured_deferred_values_offline(
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "version",
+            "page",
             "export",
             str(serve.page_dir),
             "--out",
@@ -1443,7 +1407,7 @@ def test_playground_examples_keep_their_offline_interaction_mode(
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "version",
+            "page",
             "export",
             str(serve.page_dir),
             "--out",
@@ -1562,7 +1526,7 @@ def test_export_refuses_server_dependent_samples(serve, tmp_path):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "version",
+            "page",
             "export",
             str(serve.page_dir),
             "--out",

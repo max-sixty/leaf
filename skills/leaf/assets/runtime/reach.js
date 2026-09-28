@@ -1,8 +1,8 @@
 /* Keyboard reachability and continuation paint for scrollable page and shadow content. */
 
 import { TAB_STOP, TEXT_BOX } from "./focus.js";
+import { skipped } from "./geometry.js";
 import { sizeObserver } from "./rendering.js";
-import { ANCHOR_NOTE_TAG } from "./anchor-note-view.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { shadowRootsIn } from "./shadow.js";
 import { LAYOUT } from "./widget-elements.js";
@@ -15,18 +15,9 @@ import { LAYOUT } from "./widget-elements.js";
 // entry, and it reaches the runtime's own boxes on the same terms as the page's — and
 // into the trees an x-shadow widget renders in, which the walk alone does not enter.
 //
-// A box holding a control of its own is already reachable (lf-board, through its
-// grips). Re-read that content when layout changes: an initially empty Page Map list
-// must give up its container stop once actions arrive inside it.
-//
-// Of its own is the load-bearing half. The anchor note is the one control the runtime
-// hangs inside a block it does not own, and it is a skip control over that block rather
-// than a stop inside it: a 1px transparent button (shadow.css, .lf-mark-note) that
-// leaves the flow for `position: fixed` the moment it takes focus, so standing on it
-// scrolls nothing and leaves everything past the box's edge as unreachable as before.
-// Counting it took the scroll stop off any box a user had commented on — one comment
-// anchored to a flowchart wider than the window, and the keyboard lost the half of the
-// graph hanging off the right of it.
+// A box holding a control is already reachable (lf-board, through its grips). Re-read
+// that content when layout changes: an initially empty Page Map list must give up its
+// container stop once actions arrive inside it.
 //
 // Two things every caller owes it, both learned by getting them wrong. It runs after a
 // widget has rendered rather than as one stages, because the look a scroll box has is
@@ -40,11 +31,10 @@ import { LAYOUT } from "./widget-elements.js";
 // block. An out-of-flow box is laid out against its containing block, and scrolling
 // makes a box no such thing: a static scroller's absolutely positioned descendant is
 // laid out against the page instead, where the scroller neither carries it as the
-// user scrolls nor clips it at its edge. The runtime hangs one in every block a
-// comment lands on — the count a user listening hears, clipped to a pixel
-// (.lf-mark-note, and .lf-quiet beside it) — so one comment on the far column of a
-// table wider than the window had the page itself scrolling sideways to reach a word
-// nobody can see. So every static box this finds declaring a scroll is marked, and the
+// user scrolls nor clips it at its edge. A widget's word for a user listening is one,
+// clipped to a pixel (.lf-quiet): standing past the far edge of a line of code wider
+// than its box, it would have the page itself scrolling sideways to reach a word nobody
+// can see. So every static box this finds declaring a scroll is marked, and the
 // theme positions the mark ([data-lf-holds]). Off the declaration and not the
 // measurement below, on purpose: the stop is owed only while something is out of
 // sight, while containment has to hold at whatever width the user's window turns
@@ -67,17 +57,13 @@ import { LAYOUT } from "./widget-elements.js";
 // But overflow is a fact about the current layout, and the sweep runs once. Measured at
 // sweep time alone, a `pre` that fits a desk and scrolls on a phone got no stop at all,
 // which is the very case the sweep was written for. So the two questions are asked at the
-// two times each is answerable: the declaration once, when a tree arrives, and the
-// measurement again whenever the layout moves. The candidate set is what the declaration
-// leaves behind, so the re-measure walks a handful of boxes rather than the document.
+// two times each is answerable: the declaration once, when a tree arrives or a box in it
+// is first rendered, and the measurement again whenever the layout moves. The candidate
+// set is what the declaration leaves behind, so the re-measure walks a handful of boxes
+// rather than the document.
 const overflows = (el) =>
   el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight;
-// The box's own controls, which is every focusable inside it but the note above.
-function holdsOwnStop(el) {
-  for (const node of el.querySelectorAll(TAB_STOP))
-    if (!node.closest(ANCHOR_NOTE_TAG)) return true;
-  return false;
-}
+const holdsOwnStop = (el) => el.querySelector(TAB_STOP) !== null;
 const mayScroll = new Set();
 // The same measurement spent on the eye. Scrolling is the layer's honest degrade for a
 // box whose content is wider than the room it was given — a diagram at the size it was
@@ -126,7 +112,7 @@ export function reachReadingScroller(el) {
   paintReadingReach(el);
   return () => {
     downwards.delete(el);
-    if (!mayScroll.has(el) && !sideways.has(el)) reachSizes.unobserve(el);
+    if (!watched(el)) reachSizes.unobserve(el);
     el.removeEventListener("scroll", readingScrolled);
     el.removeAttribute(PAGE_PAINT_ATTRIBUTE.moreBelow);
   };
@@ -142,58 +128,102 @@ function paintReadingReach(el) {
   );
 }
 
+// Every element in the scope is asked, except content the browser skips (`skipped`,
+// which says why): asking about a box in a hidden tab's panel or a closed disclosure
+// makes the browser style and lay out that whole subtree first, which on the corpus was
+// nearly all of a revision's sweep. So the walk stops at the first skipped box on each
+// path and leaves its subtree waiting, observed: a box in skipped content has no size,
+// and the size observer hears it come to have one, which is the first moment its
+// answers could matter to anyone. It is swept then. Every other element is asked,
+// whoever's rule made it scroll — theme, package, runtime chrome, or the page's own
+// stylesheet — so nobody declares a scroller, and a revision that swaps the page's CSS
+// is read afresh by the sweep its install runs.
+const waiting = new Set();
+
 export function reachScrollers(root) {
-  // The root too: a rebuilt widget is handed as itself, and the panel's thread list is
-  // its own scroller.
-  for (const scope of [root, ...shadowRootsIn(root)])
-    for (const el of [
-      ...(scope.nodeType === Node.ELEMENT_NODE ? [scope] : []),
-      ...scope.querySelectorAll("*"),
-    ]) {
-      const style = getComputedStyle(el);
-      if (
-        !/^(auto|scroll)$/.test(style.overflowX) &&
-        !/^(auto|scroll)$/.test(style.overflowY)
-      )
-        continue;
-      // Not a text box, which scrolls its own value and can hold nothing laid out inside
-      // it: the mark would claim containment of a box that contains nothing. Written once, because the attribute
-      // is observed (design.js) and this runs on every panel reconcile.
-      if (
-        style.position === "static" &&
-        !el.matches(TEXT_BOX) &&
-        !el.hasAttribute(PAGE_PAINT_ATTRIBUTE.holds)
-      )
-        el.setAttribute(PAGE_PAINT_ATTRIBUTE.holds, "1");
-      // A text box is out of the continuation marks for its own reason: it scrolls a
-      // value its user is writing and already knows continues.
-      if (
-        /^(auto|scroll)$/.test(style.overflowX) &&
-        !el.matches(TEXT_BOX) &&
-        !sideways.has(el)
-      ) {
-        sideways.add(el);
-        reachSizes.observe(el);
-        el.addEventListener("scroll", sidewaysScrolled, { passive: true });
-      }
-      // A box that already carries a stop of its own is somewhere the user can be put,
-      // whoever put it there; this sweep neither adds to it nor takes it away.
-      if (el.tabIndex >= 0 && !mayScroll.has(el)) continue;
-      mayScroll.add(el);
-      // The box itself, not the page's: a candidate's own resize is exactly the moment
-      // its answer can change, and asking it there is one observation per candidate
-      // rather than a sweep per layout pass. Watching body instead read the old width —
-      // the observation arrives after the frame that resized, and axe was already
-      // looking.
-      reachSizes.observe(el);
-    }
+  sweep(root);
   paintReach();
 }
+
+const wait = (el) => {
+  waiting.add(el);
+  reachSizes.observe(el);
+};
+function sweep(root) {
+  if (root.nodeType === Node.ELEMENT_NODE && skipped(root)) return wait(root);
+  // The x-shadow trees the walk enters, which it reaches through their hosts, so a
+  // host in skipped content leaves its tree unasked too.
+  const trees = new Set(shadowRootsIn(root));
+  const walk = (scope) => {
+    const walker = document.createTreeWalker(scope, NodeFilter.SHOW_ELEMENT, (el) => {
+      if (!skipped(el)) return NodeFilter.FILTER_ACCEPT;
+      wait(el);
+      return NodeFilter.FILTER_REJECT;
+    });
+    // The root too: a rebuilt widget is handed as itself, and the panel's thread list
+    // is its own scroller.
+    let el = scope.nodeType === Node.ELEMENT_NODE ? scope : walker.nextNode();
+    for (; el; el = walker.nextNode()) {
+      // Swept from the size observer's own callback too, when a waiting box is drawn,
+      // so its observation is dropped only once nothing is left to watch: dropping and
+      // taking it again inside the callback is a fresh observation the same delivery
+      // cannot reach, which the browser reports as a ResizeObserver loop.
+      const waited = waiting.delete(el);
+      classify(el);
+      if (waited && !watched(el)) reachSizes.unobserve(el);
+      if (trees.has(el.shadowRoot)) walk(el.shadowRoot);
+    }
+  };
+  walk(root);
+}
+
+function classify(el) {
+  const style = getComputedStyle(el);
+  if (
+    !/^(auto|scroll)$/.test(style.overflowX) &&
+    !/^(auto|scroll)$/.test(style.overflowY)
+  )
+    return;
+  // Not a text box, which scrolls its own value and can hold nothing laid out inside
+  // it: the mark would claim containment of a box that contains nothing. Written once,
+  // because the attribute is observed (design.js) and this runs on every panel
+  // reconcile.
+  if (
+    style.position === "static" &&
+    !el.matches(TEXT_BOX) &&
+    !el.hasAttribute(PAGE_PAINT_ATTRIBUTE.holds)
+  )
+    el.setAttribute(PAGE_PAINT_ATTRIBUTE.holds, "1");
+  // A text box is out of the continuation marks for its own reason: it scrolls a
+  // value its user is writing and already knows continues.
+  if (
+    /^(auto|scroll)$/.test(style.overflowX) &&
+    !el.matches(TEXT_BOX) &&
+    !sideways.has(el)
+  ) {
+    sideways.add(el);
+    reachSizes.observe(el);
+    el.addEventListener("scroll", sidewaysScrolled, { passive: true });
+  }
+  // A box that already carries a stop of its own is somewhere the user can be put,
+  // whoever put it there; this pass neither adds to it nor takes it away.
+  if (el.tabIndex >= 0 && !mayScroll.has(el)) return;
+  mayScroll.add(el);
+  // The box itself, not the page's: a candidate's own resize is exactly the moment
+  // its answer can change, and asking it there is one observation per candidate
+  // rather than a sweep per layout pass. Watching body instead read the old width —
+  // the observation arrives after the frame that resized, and axe was already
+  // looking.
+  reachSizes.observe(el);
+}
+const watched = (el) =>
+  mayScroll.has(el) || sideways.has(el) || downwards.has(el) || waiting.has(el);
 // Re-read each candidate after layout moves it. A user who widens the window is owed
 // the stop's removal as much as its arrival: a box that fits carries nothing to scroll
 // to, and a tab stop on it is a press that goes nowhere. The candidate sets keep the
-// pass to a couple of dozen boxes in the corpus. `tabIndex` and the paint attributes move
-// no box, which keeps the pass safe inside syncLayout.
+// pass to the boxes that scroll, about a hundred of the corpus's ten thousand elements.
+// `tabIndex` and the paint attributes move no box, which keeps the pass safe inside
+// syncLayout.
 const reachSizes = sizeObserver(() => paintReach());
 // A pixel of tolerance, where the stop takes any overflow at all: the stop is owed
 // wherever the keyboard cannot reach something, and a fade drawn for sub-pixel rounding
@@ -217,23 +247,23 @@ function gone(el) {
   mayScroll.delete(el);
   if (sideways.delete(el)) el.removeEventListener("scroll", sidewaysScrolled);
   downwards.delete(el);
+  waiting.delete(el);
   reachSizes.unobserve(el);
   return true;
 }
+// A box that comes to stand in skipped content keeps what it last wore until it is drawn
+// again: measuring it would force that content's style, and a box on no screen is no
+// stop and shows no edge.
+const unpainted = (el) => gone(el) || skipped(el);
 function paintReach() {
+  for (const el of waiting) if (!unpainted(el)) sweep(el);
   for (const el of mayScroll) {
-    if (gone(el)) continue;
+    if (unpainted(el)) continue;
     const wanted = overflows(el) && !holdsOwnStop(el) ? 0 : -1;
     if (el.tabIndex !== wanted) el.tabIndex = wanted;
   }
-  for (const el of sideways) {
-    if (gone(el)) continue;
-    paintSidewaysReach(el);
-  }
-  for (const el of downwards) {
-    if (gone(el)) continue;
-    paintReadingReach(el);
-  }
+  for (const el of sideways) if (!unpainted(el)) paintSidewaysReach(el);
+  for (const el of downwards) if (!unpainted(el)) paintReadingReach(el);
 }
 // A widget can rearrange descendants without changing its outer box. ResizeObserver
 // cannot hear that case; the layer's shared geometry signal can, and one repaint updates

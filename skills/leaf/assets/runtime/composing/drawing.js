@@ -24,11 +24,11 @@ import {
   elementFromPointAcross,
   elementOver,
   inChrome,
+  pageText,
   quoteFrom,
-  textNodesUnder,
 } from "../passages.js";
 import { anchoringIsReady } from "../anchor-resolution.js";
-import { pressIsKeyboardActivation } from "../pointer.js";
+import { coarsePointer, pressIsKeyboardActivation } from "../pointer.js";
 import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 import {
   DRAWING_COORDINATE_LIMIT,
@@ -77,7 +77,7 @@ function wordsUnder(ink) {
   };
   const clips = new Map();
   const range = document.createRange();
-  const segments = textNodesUnder(document.body);
+  const { segments } = pageText();
   let first = null;
   let last = null;
   segments.forEach(({ node }, at) => {
@@ -98,10 +98,10 @@ function wordsUnder(ink) {
   });
   if (!first) return "";
   return quoteFrom(
-    segments.slice(first.at, last.at + 1).map(({ node }, index, all) => ({
-      node,
-      start: index ? 0 : first.start,
-      end: index === all.length - 1 ? last.end : node.data.length,
+    segments.slice(first.at, last.at + 1).map((segment, index, all) => ({
+      ...segment,
+      start: index ? segment.start : first.start,
+      end: index === all.length - 1 ? last.end : segment.end,
     })),
   );
 }
@@ -165,7 +165,11 @@ export function createDrawingController({
     if (spoken)
       announce(
         on
-          ? "Draw mode: draw anywhere on the page; each stroke adds to one drawing. Escape leaves."
+          ? `Draw mode: draw anywhere on the page; each stroke adds to one drawing. ${
+              coarsePointer.matches
+                ? "Exit Draw mode on the banner leaves."
+                : "Escape leaves."
+            }`
           : "Draw mode off",
       );
     paintDrawings();
@@ -483,6 +487,7 @@ export function createDrawingController({
         keys: ["w"],
         does: "Exit Draw mode",
         line: "exit Draw mode",
+        touch: "Exit Draw mode",
         run: () => setDrawMode(false),
       },
     ],
@@ -503,7 +508,8 @@ export function createDrawingController({
     keys: ["w"],
     does: "Draw on the page and attach the drawing to a comment",
     line: "draw",
-    when: () => anchoringIsReady(),
+    touch: "Draw mode",
+    when: () => anchoringIsReady() && !drawModeOn,
     run: () => setDrawMode(true),
   });
 

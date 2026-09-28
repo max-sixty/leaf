@@ -126,10 +126,14 @@ and Codex install the tracked tree whole.
 - `examples/`: the authored pages the site publishes and the render corpus;
 - `tests/`: the file, CLI, browser, and published-site boundaries, and in
   `tests/runtime/` the runtime's folds, which Node runs without a browser;
-- `scripts/`: preview, site, demo, vendor, and browser-framework tooling;
+- `build/`: the browser framework's TypeScript and the builds of every committed
+  browser bundle;
+- `scripts/`: preview, site, demo, corpus, and measurement tooling;
+- `dev/`: the `leaf_dev` package those scripts share, and the `leaf-dev` commands
+  that probe, screenshot, and compare versions of Leaf;
 - `worker/`: the Cloudflare Worker behind <https://leaf.page/>, which routes each
-  example to the Python server in a per-user container; `worker/README.md` names
-  its tokens and how an unattended agent loads one;
+  example to the Python server (the `leaf_website` package) in a per-user container;
+  `worker/README.md` names its tokens and how an unattended agent loads one;
 - `docs/`: the site's own pages, each a Leaf source, so changing what the site
   says is a page edit;
 - `TODO.md`: the ordered priority list;
@@ -141,7 +145,8 @@ Read the scoped instructions for the area being changed:
 `skills/leaf/assets/AGENTS.md` (browser runtime, widgets, registry, theme),
 `skills/leaf/scripts/AGENTS.md` (Python owners and protocol references),
 `examples/AGENTS.md` (pages and corpus), `tests/AGENTS.md` (setup and evidence),
-and `scripts/AGENTS.md` (tooling and generated outputs).
+`scripts/AGENTS.md` (tooling and generated outputs), `build/AGENTS.md` (committed
+bundles), and `dev/AGENTS.md` (the `leaf-dev` package).
 
 For any work whose subject is Leaf itself, load `/developing-leaf`, including
 research and prototypes that change no tracked code. The shipped `/leaf` skill is
@@ -169,7 +174,7 @@ host supplies Chrome and `jq`; leaf never downloads a browser.
 
 Files under `skills/leaf/assets/vendor/`, each package's `vendor/`, and
 `skills/leaf/mcp-app/` are generated and committed where their consumer reads
-them; `scripts/AGENTS.md` names the script that regenerates each.
+them; `build/AGENTS.md` says how to regenerate them.
 
 ## Cross-runtime invariants
 
@@ -238,20 +243,10 @@ external-data source under `data/`, whose source ids keep the contract `data.jso
 records for the page's lifetime. `skills/leaf/scripts/leaf/page-storage.md`
 defines the complete layout.
 
-A request is a durable, non-undoable one-shot instruction whose external effect
-may precede its receipt. The append door admits one pending request per declared
-seat atomically; failure reopens the seat and success completes it. Exactly one
-terminal receipt names each accepted request. Page seats are scoped to their
-authored revision, while a seat in frozen thread markup lasts for that document's
-whole lifetime. Packages own verbs, host meaning, guidance, and UI; Leaf owns only
-the typed transport and canonical lifecycle projection. A package may declare that a
-ready request is a user ask; acceptance hands the turn to the host, success closes it,
-and failure returns it through that same projection.
-
 ### Validate once and share readings
 
 Validate each input at its boundary: every event at the one append door, whether a
-browser posted it or a command wrote it; authored markup at `version check`; and
+browser posted it or a command wrote it; authored markup at `page check`; and
 message markup at `check_markup`. Admission derives server-owned event meaning
 after validation; downstream code reads those fields directly. Event dependencies name declared identities;
 ordinary detail text is never interpreted as a reference.
@@ -271,10 +266,15 @@ Layer-wide facts live under `$` keys; each tag entry is one complete schema.
 
 ## Working on the repository
 
+When the user is to choose among designs, show them the candidates in a
+playground, which is one HTML file and one preview command (`/developing-leaf`,
+"Explore an open design").
+
 Before finishing a feature:
 
 - Give every action a keyboard route, without spending a page-level binding on
-  each one.
+  each one, and a route a finger can take (`runtime/keyboard/AGENTS.md`, "Touch
+  routes").
 - Follow `examples/AGENTS.md` when adding or changing a feature, and regenerate
   the derived corpus.
 - If the feature changes what an agent can do or how it should do it, update
@@ -282,10 +282,10 @@ Before finishing a feature:
   other references point at that section by name. Shipped guidance sets goals
   for the user's experience and names the surface they read on; it leaves
   format and phrasing to the agent. Score the change with `evals/` before and
-  after, and add a case for the behavior it targets (`evals/README.md`).
+  after (`/developing-leaf`, "Score a guidance change").
 
 `uv run pytest tests` and `npm run test:runtime` are the everyday gate
-(`tests/AGENTS.md`). Two TypeScript trees, `worker/src/` and `scripts/browser/`, and
+(`tests/AGENTS.md`). Two TypeScript trees, `worker/src/` and `build/browser/`, and
 the JavaScript lock every committed bundle is built from have gates the suite and
 pre-commit do not reach. Both landing paths run all of them: a pull request in its
 `test` job, and `wt merge` in the pre-merge blocks of `.config/wt.toml`, which name

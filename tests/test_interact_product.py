@@ -8,7 +8,6 @@ from pathlib import Path
 import leaf.validation.command as checking_command
 import pytest
 from click.testing import CliRunner
-from example_data import regression_sources
 from interact_support import (
     COMMAND_SUBJECTS,
     PAGE,
@@ -41,7 +40,8 @@ from leaf.structure import SourceDocument
 from leaf.thread_context import thread_digest
 from leaf.validation import compatibility as validation_model
 from leaf.validation.instances import reference_errors
-from page_fixtures import package_selection_args, prepare_page, read_fixture
+from leaf_dev.example_data import regression_sources
+from leaf_dev.page_fixtures import package_selection_args, prepare_page, read_fixture
 
 PUBLIC_EXAMPLES = tuple(
     path for path in sorted((ROOT / "examples").glob("*.html")) if path.stem != "corpus"
@@ -134,7 +134,7 @@ def test_the_log_reopens_a_refused_save_but_never_the_active_revision(page_dir):
 
     # A tab still showing r1 may anchor a thread on the id r2 dropped. r2 is live
     # and its transition was judged when it activated, so neither activation nor
-    # `version check` re-judges it against the later event; the thread detaches.
+    # `page check` re-judges it against the later event; the thread detaches.
     events_model.append_event(
         page_dir,
         {
@@ -158,7 +158,7 @@ def test_stamp_assigns_versions_to_the_exact_immutable_revision(page_dir):
     runner = CliRunner()
 
     first = runner.invoke(
-        cli_model.cli, ["version", "stamp", str(page_dir), "--text", "first cut"]
+        cli_model.cli, ["page", "stamp", str(page_dir), "--text", "first cut"]
     )
     assert first.exit_code == 0, first.output
     first_note = events_model.read_events(page_dir)[-1]
@@ -167,14 +167,14 @@ def test_stamp_assigns_versions_to_the_exact_immutable_revision(page_dir):
     assert not (page_dir / "versions").exists()
 
     repeated = runner.invoke(
-        cli_model.cli, ["version", "stamp", str(page_dir), "--text", "again"]
+        cli_model.cli, ["page", "stamp", str(page_dir), "--text", "again"]
     )
     assert repeated.exit_code != 0
     assert "already stamped as v1" in repeated.output
 
     source.write_text(PAGE.replace("</section>", ""))
     refused = runner.invoke(
-        cli_model.cli, ["version", "stamp", str(page_dir), "--text", "broken"]
+        cli_model.cli, ["page", "stamp", str(page_dir), "--text", "broken"]
     )
     assert refused.exit_code != 0
     assert files_model.list_revisions(page_dir) == [1]
@@ -183,7 +183,7 @@ def test_stamp_assigns_versions_to_the_exact_immutable_revision(page_dir):
     changed = PAGE.replace("<title>t</title>", "<title>second</title>")
     source.write_text(changed)
     second = runner.invoke(
-        cli_model.cli, ["version", "stamp", str(page_dir), "--text", "second cut"]
+        cli_model.cli, ["page", "stamp", str(page_dir), "--text", "second cut"]
     )
     assert second.exit_code == 0, second.output
     notes = [
@@ -207,7 +207,7 @@ def test_page_events_name_revisions_stamps_name_both_and_signoff_a_version(page_
     # A sign-off names the stamp it approves; the note already maps that to a revision.
     required = kinds["done"]["record"]["required"]
     assert "version" in required and "revision" not in required
-    result = CliRunner().invoke(cli_model.cli, ["version", "--help"])
+    result = CliRunner().invoke(cli_model.cli, ["page", "--help"])
     assert result.exit_code == 0
     assert "\n  stamp " in result.output and "\n  publish " not in result.output
 
@@ -259,35 +259,17 @@ def test_an_ask_surface_frames_exactly_one_source(page_dir):
         )
         == []
     )
-    request = (
-        '<lf-operations id="host-request" target="goal" worker="worker" '
-        'worktree="tree">'
-        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations>"
-    )
-    assert (
-        fragment_errors(
-            f'<lf-ask id="decision-request"><h2>Recover it</h2>{request}</lf-ask>',
-            registry,
-        )
-        == []
-    )
-
     outside = fragment_errors(first, registry)
     assert "this declared Ask source must be inside an Ask with a heading" in " ".join(
         outside
     )
-    outside_request = fragment_errors(request, registry)
-    assert "this declared Ask source must be inside an Ask with a heading" in " ".join(
-        outside_request
-    )
 
-    # Evidence can quote another request-shaped widget without giving this Ask a
+    # Evidence can quote another Ask source without giving this Ask a
     # second live source. The runtime already excludes x-exhibit descendants from the
     # Ask list, so the authored boundary must read the same relation.
     with_evidence = (
         '<lf-ask id="decision-with-evidence"><h2>Choose</h2>'
-        f'{first}<lf-sample id="request-example" label="another request">'
+        f'{first}<lf-sample id="quoted-example" label="another question">'
         f"{second}</lf-sample></lf-ask>"
     )
     assert fragment_errors(with_evidence, registry) == []
@@ -339,50 +321,23 @@ def test_an_ask_surface_frames_exactly_one_source(page_dir):
     assert "<lf-options#g-one>" in message and "<lf-options#g-two>" in message
 
 
-def test_a_request_holder_offers_at_least_one_command(page_dir):
-    """A ready request seat cannot be an Ask the user has no way to answer."""
-    registry = registry_storage.load_registry(page_dir)
-    empty = (
-        '<lf-operations id="host-request" target="goal" worker="worker" '
-        'worktree="tree" label="Restart?"></lf-operations>'
-    )
-
-    assert "an x-request holder must offer at least one declared verb" in " ".join(
-        fragment_errors(empty, registry)
-    )
-    duplicate = (
-        '<lf-operations id="host-request" target="goal" worker="worker" '
-        'worktree="tree" label="Restart?">'
-        '<lf-operation verb="restart"><strong>Restart cleanly</strong></lf-operation>'
-        '<lf-operation verb="restart"><strong>Restart in place</strong></lf-operation>'
-        "</lf-operations>"
-    )
-    assert "must offer each verb once; repeated ['restart']" in " ".join(
-        fragment_errors(duplicate, registry)
-    )
-
-
 def test_command_references_preserve_the_package_owned_subject_roles(page_dir):
-    """Existing ids are insufficient when a typed host command swaps its subjects."""
+    """An existing id is insufficient when a typed reference names the wrong role."""
     registry = registry_storage.load_registry(page_dir)
     parser = SourceDocument(
         '<lf-command id="hub">'
         '<lf-task id="goal" status="active"><strong>Goal</strong>'
-        '<lf-agent id="worker" state="waiting" on="goal"><strong>Worker</strong>'
+        '<lf-agent id="worker" state="waiting" on="tree"><strong>Worker</strong>'
         '<lf-worktree id="tree" source="project-worktrees"></lf-worktree>'
-        "</lf-agent>"
-        '<lf-operations id="commands" target="worker" worker="tree" '
-        'worktree="goal" label="Do it">'
-        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-task></lf-command>"
+        "</lf-agent></lf-task></lf-command>"
+        '<lf-command-readings for="goal"></lf-command-readings>'
     )
 
     errors = reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
 
-    assert len(errors) == 3
+    assert len(errors) == 2
     assert "$command.widgets widget where role='goal'" in errors[0]
-    assert "$command.widgets widget where role='worker'" in errors[1]
-    assert "$command.widgets widget where role='evidence'" in errors[2]
+    assert "$command.widgets widget where role='command'" in errors[1]
 
 
 def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
@@ -736,8 +691,6 @@ def test_reply_validates_widget_markup(page_dir):
                 "thread",
                 "reply",
                 str(page_dir),
-                "--to",
-                "c1",
                 "--for",
                 "c1",
                 "--text",
@@ -765,7 +718,7 @@ def test_reply_validates_widget_markup(page_dir):
 
 
 def test_reply_validates_typed_references_against_the_page(page_dir):
-    """A frozen request must not enter the log already unable to pass POST."""
+    """Reply markup naming a page element of the wrong role never freezes."""
     subjects = (
         '<lf-command id="hub"><lf-task id="goal" status="active">'
         "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
@@ -785,8 +738,6 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
                 "thread",
                 "reply",
                 str(page_dir),
-                "--to",
-                "c1",
                 "--for",
                 "c1",
                 "--text",
@@ -796,21 +747,11 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
             ],
         )
 
-    swapped = reply(
-        '<lf-ask id="commands-decision"><h3>Next</h3>'
-        '<lf-operations id="commands" target="worker" worker="tree" worktree="goal">'
-        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask>"
-    )
+    swapped = reply('<lf-command-readings for="goal"></lf-command-readings>')
     assert swapped.exit_code != 0
-    assert "where role='goal'" in swapped.output
+    assert "where role='command'" in swapped.output
 
-    valid = reply(
-        '<lf-ask id="commands-decision"><h3>Next</h3>'
-        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
-        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask>"
-    )
+    valid = reply('<lf-command-readings for="hub"></lf-command-readings>')
     assert valid.exit_code == 0, valid.output
 
 
@@ -822,15 +763,13 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     )
 
     def reply(markup, *, for_event=None, to="c1"):
-        response = ["--for", for_event] if for_event else []
+        response = ["--for", for_event] if for_event else [to]
         return CliRunner().invoke(
             cli_model.cli,
             [
                 "thread",
                 "reply",
                 str(page_dir),
-                "--to",
-                to,
                 *response,
                 "--text",
                 "Pick:",
@@ -930,8 +869,6 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
             "thread",
             "reply",
             str(page_dir),
-            "--to",
-            "c1",
             "--for",
             "c1",
             "--text",
@@ -970,7 +907,6 @@ def test_agent_messages_preserve_a_single_space(page_dir):
             "thread",
             "reply",
             str(page_dir),
-            "--to",
             root["id"],
             "--text",
             " ",
@@ -1006,8 +942,6 @@ def test_the_wire_ships_a_message_as_logged(page_dir):
             "thread",
             "reply",
             str(page_dir),
-            "--to",
-            "c1",
             "--for",
             "c1",
             "--text",
@@ -1046,9 +980,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
                 "thread",
                 "reply",
                 str(page_dir),
-                "--to",
-                "c1",
-                *(["--for", "c1"] if text == "indexing done" else []),
+                *(["--for", "c1"] if text == "indexing done" else ["c1"]),
                 "--text",
                 text,
             ],
@@ -1076,22 +1008,14 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     assert session["id"] == "hub" and session["agent"] == "Hub"
     assert page_state(page_dir)["agent"] == "Hub"
     # The user meets each message under the name it carried.
-    transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+    transcript = CliRunner().invoke(
+        cli_model.cli, ["page", "transcript", str(page_dir)]
+    )
     assert "- **Indexer**: indexing done" in transcript.output
     assert "- **Crawler**: crawl running" in transcript.output
 
 
 def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir):
-    source = page_dir / "index.html"
-    source.write_text(
-        source.read_text().replace(
-            "</section>",
-            '<lf-command id="reply-command" label="Reply subjects">'
-            '<lf-task id="goal" status="active"><strong>Goal</strong>'
-            + COMMAND_SUBJECTS
-            + "</lf-task></lf-command></section>",
-        )
-    )
     published(page_dir)
     root = events_model.append_event(
         page_dir,
@@ -1104,8 +1028,6 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
             "thread",
             "reply",
             str(page_dir),
-            "--to",
-            root["id"],
             "--for",
             root["id"],
             "--text",
@@ -1118,7 +1040,6 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
             "thread",
             "reply",
             str(page_dir),
-            "--to",
             root["id"],
             "--text",
             "Which store?",
@@ -1131,7 +1052,6 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
             "thread",
             "reply",
             str(page_dir),
-            "--to",
             root["id"],
             "--text",
             "Pick one.",
@@ -1151,7 +1071,6 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
             "thread",
             "reply",
             str(page_dir),
-            "--to",
             root["id"],
             "--text",
             "Should I continue?",
@@ -1163,35 +1082,11 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
             "--awaits",
         ],
     )
-    request_duplicate = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            str(page_dir),
-            "--to",
-            root["id"],
-            "--text",
-            "Restart it?",
-            "--markup",
-            (
-                '<lf-ask id="reply-operations-decision"><h2>Restart it?</h2>'
-                '<lf-operations id="reply-operations" target="goal" '
-                'worker="worker" worktree="tree">'
-                '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-                "</lf-operations></lf-ask>"
-            ),
-            "--awaits",
-        ],
-    )
-
     assert answered.exit_code == 0, answered.output
     assert asking.exit_code == 0, asking.output
     assert duplicate.exit_code == 1
     assert "reply markup already declares" in duplicate.output
     assert aggregate.exit_code == 0, aggregate.output
-    assert request_duplicate.exit_code == 1
-    assert "reply markup already declares a local Ask" in request_duplicate.output
     replies = [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
     assert "awaits" not in replies[0]
     assert replies[1]["awaits"] is True
@@ -1234,8 +1129,6 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
             "reply",
             "--json",
             str(page_dir),
-            "--to",
-            user["id"],
             "--for",
             user["id"],
             "--text",
@@ -1257,7 +1150,6 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
                 "thread",
                 "edit",
                 str(page_dir),
-                "--to",
                 message["id"],
                 "--text",
                 text,
@@ -1267,7 +1159,9 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
         assert result.exit_code == 0, result.output
         revisions.append(json.loads(result.output))
 
-    history_result = CliRunner().invoke(cli_model.cli, ["events", str(page_dir)])
+    history_result = CliRunner().invoke(
+        cli_model.cli, ["page", "events", str(page_dir)]
+    )
     assert history_result.exit_code == 0, history_result.output
     events = [json.loads(line) for line in history_result.output.splitlines()]
     originals = {
@@ -1294,12 +1188,14 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     }
     for thread, ids in expected.items():
         selected = CliRunner().invoke(
-            cli_model.cli, ["events", str(page_dir), "--thread", thread]
+            cli_model.cli, ["page", "events", str(page_dir), "--thread", thread]
         )
         assert selected.exit_code == 0, selected.output
         assert [json.loads(line)["id"] for line in selected.output.splitlines()] == ids
 
-    transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+    transcript = CliRunner().invoke(
+        cli_model.cli, ["page", "transcript", str(page_dir)]
+    )
     assert transcript.exit_code == 0, transcript.output
     assert (
         "- **Indexer** *(edited)*: The index is complete and verified."
@@ -1314,13 +1210,13 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     monkeypatch.setenv("LEAF_AGENT", "Crawler")
     foreign = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "edit", str(page_dir), "--to", root["id"], "--text", "Taken over."],
+        ["thread", "edit", str(page_dir), root["id"], "--text", "Taken over."],
     )
     assert foreign.exit_code != 0
     assert "belongs to agent session 'worker-1'" in foreign.output
     user_edit = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "edit", str(page_dir), "--to", user["id"], "--text", "Changed."],
+        ["thread", "edit", str(page_dir), user["id"], "--text", "Changed."],
     )
     assert user_edit.exit_code != 0
     assert "is not agent-authored" in user_edit.output
@@ -1342,7 +1238,6 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
             "thread",
             "edit",
             str(page_dir),
-            "--to",
             sessionless["id"],
             "--text",
             "Changed.",
@@ -1379,7 +1274,7 @@ def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "edit", str(page_dir), "--to", message["id"], "--text", "Revised."],
+        ["thread", "edit", str(page_dir), message["id"], "--text", "Revised."],
     )
 
     assert result.exit_code == 0, result.output
@@ -1422,7 +1317,7 @@ def test_export_prints_threads_and_versions(page_dir):
     (page_dir / "index.html").write_text(titled)
     CliRunner().invoke(
         cli_model.cli,
-        ["version", "stamp", str(page_dir), "--text", "first cut"],
+        ["page", "stamp", str(page_dir), "--text", "first cut"],
     )
     events_model.append_event(
         page_dir,
@@ -1521,7 +1416,7 @@ def test_export_prints_threads_and_versions(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace("<title>t</title>", "<title>Abandoned draft</title>")
     )
-    result = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
     assert result.exit_code == 0, result.output
     assert result.output.startswith("## Leaf: Cutoff & backfill\n")
     assert "- v1: first cut" in result.output
@@ -1540,7 +1435,7 @@ def test_export_prints_threads_and_versions(page_dir):
     events_model.append_event(
         page_dir, {"kind": "undo", "author": "user", "undoes": moved["id"]}
     )
-    result = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
     assert result.exit_code == 0, result.output
     assert (
         "- `b`: move card=card-x to=col-done rank=0i (on v1) — taken back"
@@ -1578,8 +1473,6 @@ def test_reply_markup_uses_the_captured_registry_after_candidate_files_disappear
             "thread",
             "reply",
             str(page_dir),
-            "--to",
-            "c1",
             "--for",
             "c1",
             "--text",
@@ -1593,7 +1486,6 @@ def test_reply_markup_uses_the_captured_registry_after_candidate_files_disappear
             "thread",
             "reply",
             str(page_dir),
-            "--to",
             "c1",
             "--text",
             "See:",
@@ -1621,7 +1513,7 @@ def test_note_refuses_a_version_that_fails_check(page_dir):
     (page_dir / "index.html").write_text(PAGE.replace("</section>", ""))
     result = CliRunner().invoke(
         cli_model.cli,
-        ["version", "stamp", str(page_dir), "--text", "broken"],
+        ["page", "stamp", str(page_dir), "--text", "broken"],
     )
     assert result.exit_code != 0
     assert "refusing to stamp" in result.output
@@ -1652,13 +1544,13 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
 ):
     """A hand-written seed is the one markup in the product no gate has read.
 
-    Markup reaches a page two ways. A version goes through `version check`. An
+    Markup reaches a page two ways. A version goes through `page check`. An
     event's `markup` goes through `leaf thread reply`, which validates it and then freezes
     it in an append-only log, so that door is the last moment anything about it can
     be fixed. An example's companion log is neither: it is written into the
-    repository by hand, and from there `scripts/site.py` publishes it to
+    repository by hand, and from there `leaf-dev site` publishes it to
     leaf.page, `serve` lays it into every browser sweep, and `scripts/preview.py`
-    serves it live. `version check` reads such a log only for ids colliding
+    serves it live. `page check` reads such a log only for ids colliding
     with the version's.
 
     So the seed is put through the real door rather than through a list of checks
@@ -1700,7 +1592,6 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
                     "thread",
                     "reply",
                     str(d),
-                    "--to",
                     root,
                     "--text",
                     "carrying it",
@@ -1749,7 +1640,7 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
     state = state_json(page_dir)
     assert [t["id"] for t in state["threads"]] == [answered["id"]]
     selected = CliRunner().invoke(
-        cli_model.cli, ["events", str(page_dir), "--thread", answered["id"]]
+        cli_model.cli, ["page", "events", str(page_dir), "--thread", answered["id"]]
     )
     assert selected.exit_code == 0, selected.output
     assert [json.loads(line)["id"] for line in selected.output.splitlines()] == [
@@ -1763,7 +1654,7 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
     assert all("means" not in reaction for reaction in state["reactions"])
     assert state["reactions"][0]["anchor"]["quote"] == "Ship dark"
 
-    result = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
     assert result.exit_code == 0, result.output
     assert "- **User** reacted: ✂️ shorten\n" in result.output
     assert "- **User** reacted: ❌ change\n" in result.output
@@ -1810,6 +1701,7 @@ def test_an_agent_names_and_renames_a_thread_without_changing_its_speech(
     selected = runner.invoke(
         cli_model.cli,
         [
+            "page",
             "events",
             str(page_dir),
             "--thread",

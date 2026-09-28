@@ -60,12 +60,12 @@ refs.
 
 Choices the note asks for before automating:
 
-- Runner and host: `claude -p` through `eval_harness.claude_child`, with the arm
+- Runner and host: `claude -p` through `leaf_dev.harness.claude_child`, with the arm
   loaded by `--plugin-dir`, so the child finds the skill, its launcher on `PATH` and
   its hooks as an installed Claude Code session does. Nothing names a reference or
   the launcher; cold cases do not name Leaf at all.
 - Model: Opus 5.5 (`MODEL`), default effort and tools, bypass permissions.
-- Isolation: an arm is `eval_harness.build_arm`'s payload at one ref, under
+- Isolation: an arm is `leaf_dev.harness.build_arm`'s payload at one ref, under
   `.tmp/usability-eval/arms/<name>/` with `skills/` read-only. Each run has its own
   scratch cwd outside any repository, which holds the fixture page, and its own
   `XDG_STATE_HOME`. A round starts every case × arm at once.
@@ -85,7 +85,7 @@ Choices the note asks for before automating:
   which is committed so a later run compares against it.
 
 A run counts only when every trace through its phase completed
-(`eval_harness.completed`), and a live run only when every turn did and the session
+(`leaf_dev.harness.completed`), and a live run only when every turn did and the session
 ended before its deadline. The first round of a new case fixes its fixture and
 scorer and is not reported.
 """
@@ -94,7 +94,6 @@ import json
 import re
 import shutil
 import subprocess
-import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -103,11 +102,7 @@ from html import unescape
 from pathlib import Path
 
 import click
-
-HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
-from eval_harness import (
+from leaf_dev.harness import (
     URL,
     LiveChild,
     PageClient,
@@ -126,6 +121,8 @@ from eval_harness import (
     waits_started,
 )
 
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parents[1]
 DATA = ROOT / ".tmp/usability-eval"
 FIXTURES = HERE / "fixtures"
 RESULTS = HERE / "results"
@@ -484,7 +481,7 @@ def build_reading(run: Run, page: Path, surface: str | None) -> None:
             "data", "set", str(page), "copier-config",
             input_text=json.dumps(ANSWERS["data"]["copier-config"]), check=True,
         )  # fmt: skip
-    run.leaf("version", "stamp", str(page), "--text", "Plan as authored", check=True)
+    run.leaf("page", "stamp", str(page), "--text", "Plan as authored", check=True)
     run.leaf("status", str(page), "waiting", "Pick a cutover mode", check=True)
     if 'id="cutover-mode"' in html:
         for move in ANSWERS["moves"]:
@@ -511,7 +508,7 @@ def build_resume(run: Run, page: Path) -> None:
     v2 = (FIXTURES / "resume-v2.html").read_text()
     run.leaf("page", "init", str(page), check=True)
     (page / "index.html").write_text(v1)
-    run.leaf("version", "stamp", str(page), "--text", "First plan", check=True)
+    run.leaf("page", "stamp", str(page), "--text", "First plan", check=True)
     admit(run, page, {
         "kind": "comment", "revision": 1,
         "text": "These rehearsal numbers are from before the mapping change. Rerun it and update the figure.",
@@ -520,7 +517,7 @@ def build_resume(run: Run, page: Path) -> None:
     rerun = page_events(page)[-1]["id"]
     (page / "index.html").write_text(v2)
     run.leaf(
-        "version", "stamp", str(page), "--text",
+        "page", "stamp", str(page), "--text",
         "Rehearsal rerun after the mapping change; ask how traffic moves", check=True,
     )  # fmt: skip
     run.leaf(
@@ -570,7 +567,7 @@ def build_constructs(run: Run, page: Path) -> None:
     ).stdout
     at = re.search(r"updated (\S+)", measured)[1]
     (page / "index.html").write_text(re.sub(r'\bat="[^"]*"', f'at="{at}"', template))
-    run.leaf("version", "stamp", str(page), "--text", "Release 4.2 review", check=True)
+    run.leaf("page", "stamp", str(page), "--text", "Release 4.2 review", check=True)
     run.leaf("status", str(page), "waiting", "Edit the release note", check=True)
     admit(run, page, {
         "kind": "action", "revision": 1, "widget": "release-note", "action": "edit",
@@ -583,7 +580,7 @@ def build_board(run: Run, page: Path) -> None:
     """A board whose cards the user moved, one move undone."""
     run.leaf("page", "init", str(page), check=True)
     (page / "index.html").write_text((FIXTURES / "board.html").read_text())
-    run.leaf("version", "stamp", str(page), "--text", "Key rotation board", check=True)
+    run.leaf("page", "stamp", str(page), "--text", "Key rotation board", check=True)
     run.leaf("status", str(page), "waiting", "Move cards as work changes", check=True)
     for detail in BOARD_MOVES:
         admit(run, page, {
@@ -599,7 +596,7 @@ def build_package(run: Run, page: Path) -> None:
     run.leaf("package", "install", str(FIXTURES / "slo"), check=True)
     run.leaf("page", "init", "--package", "slo", str(page), check=True)
     (page / "index.html").write_text((FIXTURES / "slo.html").read_text())
-    run.leaf("version", "stamp", str(page), "--text", "September review", check=True)
+    run.leaf("page", "stamp", str(page), "--text", "September review", check=True)
 
 
 def build_shared_source(run: Run, page: Path) -> None:
@@ -611,7 +608,7 @@ def build_shared_source(run: Run, page: Path) -> None:
         "data", "set", str(page), "project-worktrees",
         input_text=(FIXTURES / "hub-worktrees.json").read_text(), check=True,
     )  # fmt: skip
-    run.leaf("version", "stamp", str(page), "--text", "Parser workers", check=True)
+    run.leaf("page", "stamp", str(page), "--text", "Parser workers", check=True)
 
 
 def build_handoff(run: Run, page: Path) -> None:
@@ -625,7 +622,7 @@ def build_mixed(run: Run, page: Path) -> None:
     throws on a click."""
     run.leaf("page", "init", str(page), check=True)
     (page / "index.html").write_text((FIXTURES / "mixed.html").read_text())
-    run.leaf("version", "stamp", str(page), "--text", "Backfill plan", check=True)
+    run.leaf("page", "stamp", str(page), "--text", "Backfill plan", check=True)
     run.leaf("status", str(page), "waiting", "Pick how the copy runs", check=True)
 
 
@@ -636,7 +633,7 @@ def build_elided(run: Run, page: Path) -> None:
     html = (FIXTURES / "elided.html").read_text()
     run.leaf("page", "init", str(page), check=True)
     (page / "index.html").write_text(html)
-    run.leaf("version", "stamp", str(page), "--text", "Backfill schedule", check=True)
+    run.leaf("page", "stamp", str(page), "--text", "Backfill schedule", check=True)
     run.leaf("status", str(page), "waiting", "", check=True)
     first, *rest = ELIDED_THREAD
     admit(run, page, {
@@ -917,11 +914,11 @@ def run_batch(arms: str, batch: str, rounds: int, cases: tuple[str, ...], start:
 BASH_KINDS = {
     "reference": r"references/|SKILL\.md",
     "page state": r"\bpage state\b",
-    "events": r"\bleaf events\b|/leaf events\b",
+    "events": r"\bpage events\b",
     "thread read": r"\bthread read\b",
     "transcript": r"\btranscript\b",
-    "version check": r"\bversion check\b",
-    "version stamp": r"\bversion stamp\b",
+    "page check": r"\bpage check\b",
+    "page stamp": r"\bpage stamp\b",
     "thread reply": r"\bthread reply\b",
     "server": r"\bserver (start|run)\b",
     "wait": r"\bleaf wait\b",
@@ -1035,11 +1032,11 @@ def score_cold(run: Run, reply: str, calls: list[str]) -> dict:
         return out
     page = found[0]
     html = (page / "index.html").read_text()
-    checked = run.leaf("version", "check", str(page))
+    checked = run.leaf("page", "check", str(page))
     state = page_state(run, page)
     out |= {
         "valid": checked.returncode == 0,
-        "agent_checked": "version check" in calls,
+        "agent_checked": "page check" in calls,
         "stamped": len(state.get("versions", [])),
         "not_served": "server" not in calls,
         "status": (state.get("status") or {}).get("state"),
@@ -1253,7 +1250,7 @@ def score_package(run: Run, trace: list[dict]) -> dict:
     attrs = dict(re.findall(r'([\w-]+)="([^"]*)"', burn[1])) if burn else {}
     return out | {
         "stamped": True,
-        "valid": run.leaf("version", "check", str(page)).returncode == 0,
+        "valid": run.leaf("page", "check", str(page)).returncode == 0,
         "widget_used": burn is not None,
         "objective": attrs.get("objective") == "99.9",
         "window": attrs.get("window") == "28d",
@@ -1380,7 +1377,7 @@ def score_handoff(run: Run, trace: list[dict]) -> dict:
     )
     out = {
         "served": bool(URL.search(handover.get("result") or "")),
-        "checked": any("version check" in c for c in ran_between(trace, 0, first_end)),
+        "checked": any("page check" in c for c in ran_between(trace, 0, first_end)),
         "handoff_waiting": status.get("state") == "waiting",
         "detail_names_ask": check(
             r"cop(y|ies)|backfill|approach|option|how .*run", status.get("detail") or ""

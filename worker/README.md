@@ -248,7 +248,7 @@ user's. Filter Observability by the public session reference, route, browser, or
 `loadId`.
 
 The deployed site answers that beacon at the edge, so the container never sees it. A site
-served straight from `server.py` — the test suite, a local preview — has no edge in front
+served straight from `leaf_website` — the test suite, a local preview — has no edge in front
 of it, so the adapter acknowledges the report itself and keeps no record of it. Startup
 profiles exist only for the deployed release.
 
@@ -356,14 +356,13 @@ streams the final-answer item into its addressed thread and commits that
 same completed text through the canonical reply writer, even if its subscription drops,
 its turn closes, or the next turn opens first. The App Server adapter presents ordered
 input in delivery slices containing at most one plain reply; a later plain reply remains
-pending for the next turn. Version, markup, and receipt obligations may share that
-turn and remain explicit operations: a stamped version, `leaf thread resolve`, and
-`leaf experimental receipt`. There is no second
-website reply endpoint or helper. `leaf` remains the interface for status, delivery
-reads, resolves, and receipts.
+pending for the next turn. Version and markup obligations may share that turn and
+remain explicit operations: a stamped version and `leaf thread resolve`. There is no
+second website reply endpoint or helper. `leaf` remains the interface for status,
+delivery reads, and resolves.
 Once App Server reports a terminal turn, the container closes that exact Leaf turn.
-The bound final-answer message, a page revision closed with `leaf thread resolve`, or a `leaf
-receipt` settles accepted input.
+The bound final-answer message or a page revision closed with `leaf thread resolve`
+settles accepted input.
 A turn is followed on the connection it was started on, which App Server subscribes for
 that connection's life; nothing reconnects or resumes. A completion notification is the
 ordinary ending, and a dropped connection, a silence past `STREAM_SILENCE`, and a fault

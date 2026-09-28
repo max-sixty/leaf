@@ -18,7 +18,6 @@ from interact_support import (
     ACCEPT,
     ADOPTED,
     COMMAND_HUB_PACKAGE,
-    COMMAND_SUBJECTS,
     COMMENT,
     PAGE,
     PAGE_PACKAGES,
@@ -87,7 +86,7 @@ from leaf.registry import page as registry_page
 from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
 from leaf.render_gate import preview as render_gate_model
-from page_fixtures import package_selection_args
+from leaf_dev.page_fixtures import package_selection_args
 
 
 def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
@@ -607,12 +606,12 @@ def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):
             },
         },
     )
-    spk = passages_model.spoken(
+    spk = passages_model.SourceReading(
         structure_model.SourceDocument(
             (page_dir / "index.html").read_text(encoding="utf-8")
         ),
         registry_storage.require_registry(page_dir),
-    )
+    ).spoken
     threads = event_folds_model.build_threads(
         events_model.read_events(page_dir), passages_model.enclosing_of(spk)
     )
@@ -867,123 +866,6 @@ def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
     assert "decide" in result.output
 
 
-def test_init_refuses_to_retire_a_frozen_thread_host_request_verb(page_dir):
-    """A request from frozen markup remains part of every candidate document."""
-    operation = (
-        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
-        "<strong>Goal</strong>"
-        + COMMAND_SUBJECTS
-        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
-        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
-        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask></lf-task></lf-command>"
-    )
-    publish(page_dir)
-    events_model.append_event(
-        page_dir,
-        {"kind": "comment", "id": "c1", "author": "user", "text": "Restart?"},
-    )
-    thread_model.cmd_reply(
-        page_dir,
-        "c1",
-        "Use this operation.",
-        operation,
-        for_event="c1",
-    )
-    append_command(
-        page_dir,
-        {
-            "kind": "request",
-            "author": "user",
-            "revision": 1,
-            "widget": "commands",
-            "action": "restart",
-            "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
-        },
-    )
-    registry = json.loads((page_dir / "registry.json").read_text())
-    del registry["lf-operations"]["x-request"]["verbs"]["restart"]
-    registry["lf-operation"]["properties"]["verb"]["enum"].remove("restart")
-    overlay = page_dir.parent / ".leaf"
-    overlay.mkdir(parents=True)
-    (overlay / "registry.json").write_text(
-        json.dumps(
-            {
-                "lf-operations": registry["lf-operations"],
-                "lf-operation": registry["lf-operation"],
-            }
-        )
-    )
-
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "page",
-            "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
-            str(page_dir),
-        ],
-    )
-
-    assert result.exit_code != 0
-    assert "no longer speaks" in result.output
-    assert "request contract" in result.output and "restart" in result.output
-
-
-@pytest.mark.parametrize("receipt_requests", [["missing"], ["request-1", "request-1"]])
-def test_init_does_not_revalidate_a_written_receipt_lifecycle(
-    page_dir, receipt_requests
-):
-    """Receipt integrity is enforced at append, not by candidate validation."""
-    operation = (
-        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
-        "<strong>Goal</strong>"
-        + COMMAND_SUBJECTS
-        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
-        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
-        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask></lf-task></lf-command>"
-    )
-    version = page_dir / "index.html"
-    version.write_text(
-        version.read_text().replace("</section>", operation + "</section>")
-    )
-    publish(page_dir)
-    if receipt_requests[0] != "missing":
-        append_command(
-            page_dir,
-            {
-                "id": "request-1",
-                "kind": "request",
-                "author": "user",
-                "revision": 1,
-                "widget": "commands",
-                "action": "restart",
-                "detail": {
-                    "target": "goal",
-                    "worker": "worker",
-                    "worktree": "tree",
-                },
-            },
-        )
-    for index, request in enumerate(receipt_requests, 1):
-        events_model.append_event(
-            page_dir,
-            {
-                "id": f"receipt-{index}",
-                "kind": "receipt",
-                "author": "agent",
-                "request": request,
-                "status": "succeeded",
-                "text": "Host operation completed",
-            },
-        )
-
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
-
-    assert result.exit_code == 0, result.output
-
-
 def test_init_refuses_a_log_holding_a_token_the_incoming_layer_dropped(
     page_dir, monkeypatch
 ):
@@ -1041,7 +923,7 @@ def test_init_revendors_over_a_record_the_running_contract_would_not_admit(
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
     assert result.exit_code == 0, result.output
-    after = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+    after = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
     assert after.exit_code == 0, after.output
     assert "Does this still mean anything?" in after.output
 
@@ -1222,7 +1104,7 @@ def test_init_refuses_a_logged_report_the_incoming_layer_no_longer_speaks(page_d
         CliRunner()
         .invoke(
             cli_model.cli,
-            ["experimental", "report", str(page_dir), "t1", "status", "status=done"],
+            ["page", "report", str(page_dir), "t1", "status", "status=done"],
         )
         .exit_code
         == 0
@@ -1868,9 +1750,10 @@ def test_candidate_vocabulary_keeps_every_page_action_an_undo_can_expose(page_di
         },
     ]
     projected = page_reading(
-        structure_model.SourceDocument(source),
+        passages_model.SourceReading(
+            structure_model.SourceDocument(source), historical.registry
+        ),
         after_undo,
-        historical.registry,
         revision,
     )
     assert next(iter(projected.projection.desired.values()))[0]["id"] == first["id"]
@@ -1886,7 +1769,7 @@ def test_candidate_vocabulary_keeps_every_page_action_an_undo_can_expose(page_di
 def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(page_dir):
     """A retracted action on a removed sender is interpreted only in its old revision."""
     from leaf.projection import page_reading
-    from leaf.revision_artifact import read_artifact
+    from leaf.revision_artifact import read_revision
 
     authored = page_dir / "page" / "registry.json"
     declaration = _stateful_page_declaration(page_dir)
@@ -1934,9 +1817,11 @@ def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(pa
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert revendored.exit_code == 0, revendored.output
     historical = page_reading(
-        structure_model.SourceDocument(original),
+        passages_model.SourceReading(
+            structure_model.SourceDocument(original),
+            read_revision(page_dir, first_revision).registry,
+        ),
         events,
-        read_artifact(page_dir, first_revision).registry,
         first_revision,
     )
     assert (
@@ -2419,9 +2304,9 @@ def test_containment_reads_the_same_with_a_vocabulary_and_without_one(page_dir):
     html = (page_dir / "index.html").read_text(encoding="utf-8")
     document = structure_model.SourceDocument(html)
     registry = registry_storage.require_registry(page_dir)
-    full = passages_model.spoken(document, registry)
+    full = passages_model.SourceReading(document, registry).spoken
     assert passages_model.enclosing_ids(document) == passages_model.enclosing_of(full)
-    bare = passages_model.spoken(document, {})
+    bare = passages_model.SourceReading(document, {}).spoken
     assert any(full[wid].words != bare[wid].words for wid in full)
 
 
@@ -2461,7 +2346,9 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
             "restated": ["c1"],
         },
     )
-    spk = passages_model.spoken(document, registry_storage.require_registry(page_dir))
+    spk = passages_model.SourceReading(
+        document, registry_storage.require_registry(page_dir)
+    ).spoken
     assert "sug-a" in spk["c1"].within  # the namesake really is inside the widget
     folds = [passages_model.enclosing_of(spk), passages_model.enclosing_ids(document)]
     events = events_model.read_events(page_dir)
@@ -2786,150 +2673,6 @@ def test_action_detail_schemas_match_the_post_object_contract(page_dir):
     result = check(page_dir)
     assert result.exit_code != 0
     assert "detail schema must declare an object" in result.output
-
-
-def test_request_detail_schemas_match_the_post_object_contract(page_dir):
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-operations"]["x-request"]["verbs"]["restart"]["detail"] = {
-        "type": "string"
-    }
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-
-    result = check(page_dir)
-
-    assert result.exit_code != 0
-    assert "<lf-operations> x-request verb `restart` detail schema" in result.output
-    assert "must declare an object" in result.output
-
-
-@pytest.mark.parametrize(
-    ("mutation", "message"),
-    [
-        (
-            "optional-field",
-            "field `target`, but that field is not declared and required",
-        ),
-        (
-            "non-string-bound-field",
-            "binds detail field `target`, which must be a string",
-        ),
-        ("unknown-attribute", "to `missing`, which is not a declared string attribute"),
-        (
-            "optional-bound-attribute",
-            "to `target`, which is not a required authored attribute",
-        ),
-        (
-            "mutable-bound-attribute",
-            "to `target`, which is written by x-state",
-        ),
-        ("optional-id", "x-request instances are addressable"),
-        ("no-upgrade", "declares x-request"),
-        ("unknown-offer", "x-request offers unknown member <lf-unknown>"),
-        ("wrong-owner", "does not name it in x-owners"),
-        ("freeform-offer", "must be a non-empty string enum"),
-        (
-            "optional-offer-attribute",
-            "offer <lf-operation> attribute `verb` must be required",
-        ),
-        ("unknown-offered-verb", "names undeclared verbs ['explode']"),
-        ("unoffered-verb", "verbs ['restart'] cannot be offered"),
-        ("self-framing-decision", "declares both x-ask-surface and x-request.ask"),
-        ("dual-decision-source", "declares both x-request.ask and x-awaits"),
-    ],
-)
-def test_an_x_request_declaration_closes_its_widget_boundary(
-    page_dir, mutation, message
-):
-    registry = json.loads((page_dir / "registry.json").read_text())
-    operations = registry["lf-operations"]
-    restart = operations["x-request"]["verbs"]["restart"]
-    if mutation == "optional-field":
-        restart["detail"]["required"] = []
-    elif mutation == "non-string-bound-field":
-        restart["detail"]["properties"]["target"] = {"type": "integer"}
-    elif mutation == "unknown-attribute":
-        restart["bind"]["target"] = "missing"
-    elif mutation == "optional-bound-attribute":
-        operations["required"].remove("target")
-    elif mutation == "mutable-bound-attribute":
-        operations["properties"]["overruled"] = {"type": "boolean"}
-        operations["x-state"] = {
-            "retarget": {
-                "writer": "agent",
-                "detail": {
-                    "type": "object",
-                    "properties": {"target": {"type": "string"}},
-                    "required": ["target"],
-                    "additionalProperties": False,
-                },
-                "unit": "widget",
-                "record": {"kind": "value", "attr": "target", "value": "target"},
-            }
-        }
-    elif mutation == "optional-id":
-        operations["required"].remove("id")
-    elif mutation == "no-upgrade":
-        operations["x-upgrade"] = False
-    elif mutation == "unknown-offer":
-        operations["x-request"]["offers"] = {"lf-unknown": "verb"}
-    elif mutation == "wrong-owner":
-        registry["lf-operation"]["x-owners"] = ["lf-command"]
-    elif mutation == "freeform-offer":
-        registry["lf-operation"]["properties"]["verb"] = {"type": "string"}
-    elif mutation == "optional-offer-attribute":
-        registry["lf-operation"]["required"].remove("verb")
-    elif mutation == "unknown-offered-verb":
-        registry["lf-operation"]["properties"]["verb"]["enum"].append("explode")
-    elif mutation == "unoffered-verb":
-        registry["lf-operation"]["properties"]["verb"]["enum"].remove("restart")
-    elif mutation == "self-framing-decision":
-        operations["x-ask-surface"] = True
-        operations["x-content"] = "markup"
-    elif mutation == "dual-decision-source":
-        operations["x-awaits"] = {"answered": {"restart": {}}}
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-
-    result = check(page_dir)
-
-    assert result.exit_code != 0
-    assert message in result.output
-
-
-@pytest.mark.parametrize("writer", [{}, {"writer": "agent"}])
-def test_a_request_offer_attribute_is_authored_static_state(page_dir, writer):
-    registry = json.loads((page_dir / "registry.json").read_text())
-    operation = registry["lf-operation"]
-    operation["properties"].update(
-        {
-            "id": deepcopy(registry["lf-operations"]["properties"]["id"]),
-            "restated": {"type": "boolean"},
-            "overruled": {"type": "boolean"},
-        }
-    )
-    operation["required"].append("id")
-    operation["x-upgrade"] = True
-    operation["x-state"] = {
-        "change-offer": {
-            **writer,
-            "detail": {
-                "type": "object",
-                "properties": {"verb": deepcopy(operation["properties"]["verb"])},
-                "required": ["verb"],
-                "additionalProperties": False,
-            },
-            "unit": "widget",
-            "record": {"kind": "value", "attr": "verb", "value": "verb"},
-        }
-    }
-
-    with pytest.raises(
-        registry_contract.RegistryError,
-        match=(
-            r"<lf-operations> x-request offer <lf-operation> attribute `verb` "
-            r"is written by x-state"
-        ),
-    ):
-        registry_validation.validate_registry(registry, "test registry")
 
 
 @pytest.mark.parametrize("subschema", [True, False])
@@ -3962,7 +3705,6 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         "resolve": {"kind": "resolve"},
         "unresolve": {"kind": "unresolve"},
         "done": {"kind": "done"},
-        "request": {"kind": "request", **owes("receipt")},
         "undo": {"kind": "undo"},
         "report": {"kind": "report"},
         "error": {"kind": "error"},
@@ -5077,7 +4819,6 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
             "thread",
             "reply",
             str(page_dir),
-            "--to",
             json.loads(opened.output)["id"],
             "--text",
             "here:",
@@ -5106,7 +4847,7 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
 
     The reading is the link or image destination the runtime resolves rather than a scan
     of the words, so the same path quoted in a sentence — a page explaining leaf writes
-    one, and `version check` has always let it through — stays the author's prose. Every
+    one, and `page check` has always let it through — stays the author's prose. Every
     `/media/…` destination is asked about, the predicate the markup door's attribute
     harvest already keeps, and the server answers only a digest name there, so a
     destination that isn't one renders as a picture no request will ever answer."""
@@ -5423,7 +5164,11 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
     }
     events = [{**COMMENT, "seq": 1}, {**ACCEPT, "id": "accept1", "seq": 2}, event]
     html = '<lf-suggestion id="sug-a"><lf-new><p>Proposed</p></lf-new></lf-suggestion>'
-    page = page_reading(structure_model.SourceDocument(html), events, registry, 1)
+    page = page_reading(
+        passages_model.SourceReading(structure_model.SourceDocument(html), registry),
+        events,
+        1,
+    )
     winner, _ = page.projection.actions[("sug-a", "sug-a", "decide")]
     assert winner["id"] == "accept1"
     threads = event_folds_model.build_threads(events, page.within)

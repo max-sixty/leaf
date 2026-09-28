@@ -251,9 +251,9 @@ lf-chip[tone="danger"] { background: var(--danger-tint); color: var(--danger-ink
  * tests exercise the terse comparison and inline-widget outcomes instead of
  * reflecting the selectors through a second list. The marker at the end is the
  * inversion's one wrong answer, an inline widget being a custom element like
- * any other: the registry says which widgets those are and the
- * runtime paints it where a selector can reach it (data-lf-inline, leaf.js
- * markDeclared), so a chip keeps the grid here by the same declaration that
+ * any other: the registry says which widgets those are and
+ * delivery paints it where a selector can reach it (data-lf-inline,
+ * `mark_declared`), so a chip keeps the grid here by the same declaration that
  * keeps a suggestion inline in a sentence. It is in :where() for the reason the
  * suggestion slots' copy states: an attribute selector inside :not() would lift
  * this whole rule a specificity column and let a layout question outrank the
@@ -351,8 +351,8 @@ lf-compare:has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button
  * to expect rather than a gap to go looking for.
  *
  * The marker rather than the tag. Which widgets quote what they hold is the registry's to
- * say (x-exhibit) and a stylesheet cannot read it, so the runtime paints the declaration
- * where a selector can reach it (data-lf-exhibit, leaf.js markDeclared) and the descendant
+ * say (x-exhibit) and a stylesheet cannot read it, so delivery paints the declaration
+ * where a selector can reach it (data-lf-exhibit, `mark_declared`) and the descendant
  * combinator asks the descendant half of quoted()'s question: does this element stand
  * inside one. quoted() answers for the element itself too, and that half is nobody's
  * here while lf-options is not an exhibit — a layer declaring it one would have to say
@@ -1251,14 +1251,19 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
                outline-offset: calc(-1 * var(--here-ring-w)); }
 /* Every name reserves the same square face; selection paints it without changing any
  * control's measure. */
-.lf-tabstrip .lf-tab-btn > [data-lf-said] {
+.lf-tabstrip .lf-tab-btn > .lf-tab-name {
                display: inline-block; padding: 2px 5px; }
-.lf-tabstrip .lf-tab-btn[aria-selected="true"] > [data-lf-said] {
+.lf-tabstrip .lf-tab-btn[aria-selected="true"] > .lf-tab-name {
                background: var(--card); color: var(--ink); }
-.lf-tabdiff { font-size: var(--t-6); font-weight: 400; margin-left: 6px;
+/* A tab's counts: the passages the version diff marks, and, in the tone the tray's
+ * count wears, the Asks that still wait on the user. A count with nothing to count
+ * takes no room. */
+:is(.lf-tabdiff, .lf-tabowed) { font-size: var(--t-6); margin-left: 6px;
               padding: var(--chip-pad); line-height: var(--chip-lh);
-              border-radius: var(--chip-r);
-              background: var(--add-tint); color: var(--ok-ink); }
+              border-radius: var(--chip-r); }
+:is(.lf-tabdiff, .lf-tabowed):empty { display: none; }
+.lf-tabdiff { font-weight: 400; background: var(--add-tint); color: var(--ok-ink); }
+.lf-tabowed { font-weight: 600; background: var(--warn-tint); color: var(--warn-ink); }
 /* One panel at a time is the whole of what the strip's handler does, so it is
  * offered only in the live page and the rest is what the markup already says.
  * A control whose state the browser owns needs no such block and has none;
@@ -1286,19 +1291,81 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
      * display:block above outranks the UA's [hidden] rule. */
     lf-tabs.lf-rendered > lf-tab[hidden]:not([hidden="until-found"]) { display: none; }
 
-    /* A root tab set is navigation over sections of one page rather than a framed
-     * widget inside it: a sticky horizontal index, one panel shown. It lays out nothing
+    /* A boxed set's panel is a bounded box, so it is the container what it holds
+     * measures itself against (theme.css in the kernel says why a framed box is one). */
+    lf-tabs.lf-rendered[data-lf-tabs-flow="box"] > lf-tab { container-type: inline-size; }
+
+    /* A list beside its panels (`list="side"`): a queue beside the item it opens. The
+     * list is a column left of the open panel wherever the set holds both, and a row
+     * over it below that, as a narrow window or a phone gives it, so the open item is
+     * never below the whole list. The set is the container its own parts ask, which
+     * is why the stacking is written on them and not on the set. */
+    lf-tabs[list="side"].lf-rendered {
+      container-type: inline-size;
+      display: grid;
+      grid-template-columns: minmax(10rem, 16rem) minmax(0, 1fr);
+      align-items: start;
+    }
+    lf-tabs[list="side"].lf-rendered > .lf-tabstrip {
+      grid-column: 1;
+      grid-row: 1;
+      flex-direction: column;
+      flex-wrap: nowrap;
+      gap: 0;
+      padding: 8px;
+      border-bottom: 0;
+      border-inline-end: 1px solid var(--border-2);
+      border-radius: calc(var(--r) - 1px) 0 0 calc(var(--r) - 1px);
+      align-self: stretch;
+    }
+    /* A row is its name, then its counts, with the summary on a line under them. The
+     * row keeps the Asks count's slot when none wait, so an answer moves nothing. */
+    lf-tabs[list="side"].lf-rendered > .lf-tabstrip .lf-tab-btn {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      align-items: baseline;
+      justify-items: start;
+      text-align: start;
+    }
+    lf-tabs[list="side"].lf-rendered > .lf-tabstrip .lf-tabowed:empty {
+      display: inline-block;
+      visibility: hidden;
+    }
+    lf-tabs[list="side"].lf-rendered > .lf-tabstrip .lf-tab-summary {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      padding: 0 5px 2px;
+      font-size: var(--t-6);
+      color: var(--muted);
+    }
+    lf-tabs[list="side"].lf-rendered > lf-tab { grid-column: 2; grid-row: 1; }
+    @container (width < 36rem) {
+      lf-tabs[list="side"].lf-rendered > .lf-tabstrip {
+        grid-column: 1 / -1;
+        grid-row: auto;
+        flex-direction: row;
+        flex-wrap: wrap;
+        border-inline-end: 0;
+        border-bottom: 1px solid var(--border-2);
+        border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
+      }
+      lf-tabs[list="side"].lf-rendered > lf-tab { grid-column: 1 / -1; grid-row: auto; }
+    }
+
+    /* A set in the page's flow (the root set, its strip a row; lf-tabs.js) is
+     * navigation over sections of one page rather than a framed widget inside it: a
+     * sticky horizontal index, one panel shown. It lays out nothing
      * of its own. The strip and the panel are blocks of `main` like any other, so they
      * take the page's width, column or wide, and whatever stands in `main` beside the set
      * (a header, a sidebar) stays where it would on a page without tabs. */
-    :where(lf-tabs.lf-rendered[data-lf-tabs-context="root"]) {
+    :where(lf-tabs.lf-rendered[data-lf-tabs-flow="page"]) {
       margin-block: 0 32px;
       border: 0;
       border-radius: 0;
       background: transparent;
       --lf-block-frame: 0;
     }
-    lf-tabs[data-lf-tabs-context="root"] > .lf-tabstrip {
+    lf-tabs[data-lf-tabs-flow="page"] > .lf-tabstrip {
       position: sticky;
       top: var(--lf-banner-h);
       z-index: 2;
@@ -1311,32 +1378,32 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
     }
     /* The strip scrolls when its names outrun it; a tab that shrank instead would
      * cut its own name, which the strip's scroll could never reach. */
-    lf-tabs[data-lf-tabs-context="root"] > .lf-tabstrip .lf-tab-btn { flex: none; }
-    lf-tabs[data-lf-tabs-context="root"]
+    lf-tabs[data-lf-tabs-flow="page"] > .lf-tabstrip .lf-tab-btn { flex: none; }
+    lf-tabs[data-lf-tabs-flow="page"]
       > .lf-tabstrip
       .lf-tab-btn
-      > [data-lf-said] {
+      > .lf-tab-name {
       border-bottom: 2px solid transparent;
       background: transparent;
     }
-    lf-tabs[data-lf-tabs-context="root"]
+    lf-tabs[data-lf-tabs-flow="page"]
       > .lf-tabstrip
       .lf-tab-btn[aria-selected="true"]
-      > [data-lf-said] {
+      > .lf-tab-name {
       border-bottom-color: currentColor;
       background: transparent;
     }
-    lf-tabs.lf-rendered[data-lf-tabs-context="root"] > lf-tab:not([hidden]) {
+    lf-tabs.lf-rendered[data-lf-tabs-flow="page"] > lf-tab:not([hidden]) {
       padding: var(--sp-4) 0 0;
     }
     /* A page tab is a section of the page, not a box on it: it declares the frame only
      * so its first line trims under the strip and, like `main`, hands the room back to
      * what it holds, so a wide exhibit in a page tab grows out as it would on a page
      * without tabs. */
-    lf-tabs.lf-rendered[data-lf-tabs-context="root"] > lf-tab:not([hidden]) > * {
+    lf-tabs.lf-rendered[data-lf-tabs-flow="page"] > lf-tab:not([hidden]) > * {
       --lf-room: inherit;
     }
-    lf-tabs.lf-rendered[data-lf-tabs-context="root"] > lf-tab[hidden] {
+    lf-tabs.lf-rendered[data-lf-tabs-flow="page"] > lf-tab[hidden] {
       align-self: start;
       height: 0;
       min-height: 0;
@@ -1807,6 +1874,16 @@ lf-ask { display: block; }
 lf-sample { display: table; table-layout: fixed; width: 100%;
               box-sizing: border-box; margin: 18px 0; padding-left: var(--sp-4);
               border-left: 3px solid var(--border-2); --lf-block-frame: 1; }
+/* An authored width widens a block by negative margins (theme.css, the breakout rule),
+ * which an auto-width box fills and a table box with its own width does not: the sample
+ * moved left by the margin and kept the column's width. So a sample given room adds the
+ * surplus to its width, as the kernel's table rule does, and under the same selector.
+ * Only its own breakout's: `--lf-surplus` inherits, and a sample in a list inside wide
+ * evidence took the section's surplus on top of the item's width. */
+@media screen {
+  lf-sample[data-lf-space]:not([data-lf-space="column"]) {
+    width: calc(100% + var(--lf-surplus)); }
+}
 /* Containment does not apply to a table, so the sample cannot be the size container
  * a framed box is (theme.css, at the pane's body). Its width is fixed, so it states the
  * cap for what it holds as a percentage instead, which resolves against its cell. */

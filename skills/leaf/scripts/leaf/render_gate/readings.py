@@ -11,7 +11,7 @@ import json
 from dataclasses import dataclass
 from itertools import pairwise
 
-from leaf.passages import page_passages
+from leaf.passages import SourceReading, page_passages
 from leaf.projection import (
     frozen_thread_reading,
     generated_children,
@@ -164,27 +164,25 @@ def _expected_verbatim(markup, events, registry, here):
     markup has no later authored revision and therefore uses the thread's whole
     action window. Both use the same passage projection as comment capture.
     """
-    document = SourceDocument(markup)
-    page = page_reading(document, events, registry, here)
+    page = page_reading(SourceReading(SourceDocument(markup), registry), events, here)
     expected = _projected_verbatim(
-        document,
+        page.document,
         registry,
         page.projection,
         page.document.ids,
         ("page", None),
     )
     thread = frozen_thread_reading(events, registry)
-    for event in events:
-        if fragment := event.get("markup"):
-            expected.update(
-                _projected_verbatim(
-                    SourceDocument(fragment),
-                    registry,
-                    thread.projection,
-                    thread.structure.ids,
-                    ("event", event["id"]),
-                )
+    for event_id, fragment in thread.structure.fragments.items():
+        expected.update(
+            _projected_verbatim(
+                fragment,
+                registry,
+                thread.projection,
+                thread.structure.ids,
+                ("event", event_id),
             )
+        )
     return expected
 
 
@@ -295,7 +293,9 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
             # about.
             if slots := retirement_slots(registry):
                 reading = page_reading(
-                    SourceDocument(markup), state["events"], registry, here
+                    SourceReading(SourceDocument(markup), registry),
+                    state["events"],
+                    here,
                 )
                 outcomes = retirement_outcomes(reading.projection.actions)
                 holders = []
@@ -322,7 +322,9 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     if scheme == "light" and replayed:
         if earlier is not None:
             projection = page_reading(
-                SourceDocument(markup), state["events"], registry, here
+                SourceReading(SourceDocument(markup), registry),
+                state["events"],
+                here,
             ).projection
             carried = [
                 event["id"]
@@ -454,7 +456,16 @@ def _settle_at(page, width: int, height: int) -> None:
     rendered(page)
 
 
-def sweep(page, viewports) -> list[tuple[int, dict]]:
+def open_widgets(registry: dict) -> list[str]:
+    """The widgets whose content is the page's own markup or members."""
+    return [
+        tag
+        for tag, entry in registry.items()
+        if tag.startswith("lf-") and entry.get("x-content") in ("markup", "members")
+    ]
+
+
+def sweep(page, viewports, open_tags) -> list[tuple[int, dict]]:
     """The loaded page's geometry at every sweep width, widest first.
 
     Resizes the loaded page rather than rendering it again, and reads only geometry:
@@ -477,10 +488,34 @@ def sweep(page, viewports) -> list[tuple[int, dict]]:
                     "overflow": evaluate_probe(page, "rootOverflow"),
                     "misplaced": evaluate_probe(page, "misplacedBoxes"),
                     "margin": page.evaluate(MARGIN_READING),
+                    "arrangement": evaluate_probe(page, "arrangedBoxes", open_tags),
                 },
             )
         )
     return readings
+
+
+def arrangement_changes(readings) -> list[tuple[int, str, str]]:
+    """Where the page's own arrangement changes, widest first, at the sweep's steps.
+
+    For each step across which a flex or grid box of the page's own splits its children
+    into rows differently, the narrowest swept width at which the wider arrangement still
+    holds, the first box that changes (a selector), and what changes below it
+    (`<div id=regions> 1+2 → 1+1+1`). That is the arrangement at its tightest, the width an
+    author most needs to see."""
+    changes = []
+    for (high, above), (_low, below) in pairwise(readings):
+        wide = {box["path"]: box for box in above["arrangement"]}
+        narrow = {box["path"]: box["rows"] for box in below["arrangement"]}
+        moved = [path for path, box in wide.items() if narrow.get(path) != box["rows"]]
+        if moved:
+            said = "; ".join(
+                f"{wide[path]['at']} {wide[path]['rows']} → "
+                f"{narrow.get(path, 'unarranged')}"
+                for path in moved
+            )
+            changes.append((high, moved[0], said))
+    return changes
 
 
 def margin_changes(page, readings, height: int) -> list[int]:

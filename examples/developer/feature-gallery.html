@@ -346,7 +346,10 @@
         child.querySelector(".lf-thread-filter-reset")?.click();
         await whenPanelMatches(
           child,
-          () => child.querySelector(".lf-thread-view").hidden,
+          () =>
+            child
+              .querySelector(".lf-thread-filter-reset")
+              .hasAttribute("data-lf-unoffered"),
         );
         if (version !== selectionVersion) return;
         if (view === "you" || view === "resolved") {

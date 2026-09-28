@@ -1099,9 +1099,7 @@ def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
             foot = page.locator(".lf-thread-panel-foot").bounding_box()
             assert geometry["bottom"] == pytest.approx(foot["y"] - 14, abs=1)
         else:
-            # Centred on the bottom band's row, inside the band. A line too wide for a
-            # narrow window wraps upward, so the row is the one More stands on rather
-            # than the middle of the line's whole box.
+            # Centred on the bottom band's row, inside the band: the row More stands on.
             band = page.locator(".lf-shortcut-bar").bounding_box()
             more = page.locator(".lf-shortcut-more").bounding_box()
             assert band["y"] <= geometry["top"] and geometry["bottom"] <= 800, (

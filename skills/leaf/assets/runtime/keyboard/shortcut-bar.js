@@ -13,7 +13,7 @@
    the short line. Search and reading-page movement remain ordinary rows named by the shelf
    and the reference; scrolling is the one capability no page has to advertise. Ranking
    is a row's place in its scope, so moving the row is how the
-   line's order changes. An active sequence instead shows every live row in its scope, so
+   line's order changes. An active sequence instead offers every live row in its scope, so
    computed bindings, ranges, and capability filtering are the same ones dispatch and the
    reference use. Each destination row keeps its complete sequence: its leading steps that
    match accepted presses take the accent face, while a branch the user has not taken
@@ -24,15 +24,16 @@
    Hint chips are `aria-hidden` because placeholders and live announcements carry the same
    facts for assistive technology.
 
-   The line wraps when its rows need more room than one row holds, the short line on a
-   window too narrow for it as much as a sequence's whole menu, so nothing, More
-   included, is dropped to fit. Only the shelf, which holds the rest of the register, yields rows to
-   stay within two.
+   The line is one row. Rows that do not fit leave it, the lowest-ranked first, so a
+   narrow window keeps the leading hint and a sequence too long for the window keeps its
+   leading destinations. More and the current way out never leave: More's `?` opens the
+   reference, which lists every row the line had no room for. The shelf, which the user
+   unfolds to read the rest of the register, holds two rows under the same trim.
 
    The line is the bottom band: one row at the stated `--lf-band-h` (theme.css), which the
    document, a held workspace, the trays' lists and the contents map all end above, so no
-   reservation is measured off it. A wrapped line grows upward over the page as an overlay
-   and leaves that reservation alone. A covering thread panel makes the line inert
+   reservation is measured off it. The shelf's second row grows upward over the page as an
+   overlay and leaves that reservation alone. A covering thread panel makes the line inert
    background. A coarse pointer is drawn no hint line at all — there is no keyboard to
    advertise, and every hint would name a key the user cannot press — and states no band.
    The status stands at the band's far end, over the line's tail where the two meet. The
@@ -85,6 +86,7 @@ import {
   setNoticeContext,
 } from "../notifications.js";
 import { repaint } from "../repaint.js";
+import { sizeObserver } from "../rendering.js";
 import { walkPosition } from "../walk-position.js";
 import { declareBottomBand } from "../geometry.js";
 
@@ -273,6 +275,13 @@ function lineRows(scopes) {
   return rows;
 }
 let shortcutShelfIsOpen = false;
+// Which rows fit follows the line's width, which the window and a panel standing beside
+// the page both set, the panel after this paint has run. Only a width other than the one
+// the last paint fitted asks for another; the height the trim leaves asks nothing.
+let fittedWidth = 0;
+const fittedSizes = sizeObserver(([entry]) => {
+  if (entry.borderBoxSize[0].inlineSize !== fittedWidth) repaint();
+});
 let lastWalkPresentation = null;
 const shortcutHelpAvailable = () => bindings(SHORTCUT_HELP).length > 0;
 const arrange = (rows) => {
@@ -438,8 +447,9 @@ export function renderShortcutBar(goToStatus) {
   // Lit leaves `hidden` alone, so every paint first restores each row's semantic
   // eligibility; the shelf's trim below is then the one measurement that may hide more.
   for (const { presentation, span } of drawn) span.hidden = presentation.hidden;
-  if (!shelf) return;
-
+  // Read at the width this paint was fitted to; the observer below repaints when a
+  // window or a panel beside the page changes it.
+  fittedWidth = shortcutBarEl.getBoundingClientRect().width;
   const rowsUsed = () => {
     const items = [...shortcutBarEl.children].filter(
       (node) => !node.hidden && node.checkVisibility(),
@@ -451,17 +461,18 @@ export function renderShortcutBar(goToStatus) {
         tops.push(node.offsetTop);
     return tops.length;
   };
-  // The shelf has a two-row ceiling rather than permission to clip. It yields its
-  // lowest-ranked current commands until both disclosure controls fit; hidden rows remain
+  // A row ceiling rather than permission to clip: one row, or two in the shelf. The line
+  // yields its lowest-ranked current commands until More fits; hidden rows remain
   // available to inspection and the reference. The way out is the one row the trim may
-  // not spend. A shelf covering the page at a narrow width is exactly where the user
-  // needs it: the way out sits last in the register's order, so a trim that only counted
-  // from the end would drop it first of all.
+  // not spend. A line covering the page at a narrow width is exactly where the user needs
+  // it: the way out sits last in the register's order, so a trim that only counted from
+  // the end would drop it first of all.
+  const ceiling = shelf ? 2 : 1;
   const removable = drawn
     .filter(({ span, presentation }) => !span.hidden && !presentation.wayOut)
     .map(({ span }) => span)
     .toReversed();
-  while (rowsUsed() > 2 && removable.length) removable.shift().hidden = true;
+  while (rowsUsed() > ceiling && removable.length) removable.shift().hidden = true;
 }
 
 const shortcutShelfOpen = () => shortcutShelfIsOpen && shortcutHelpAvailable();
@@ -474,8 +485,7 @@ export function mountShortcutBar({ setGoToSequence, setReact }) {
     setReact(false);
     advanceShortcutHelp();
   };
-  // A narrower window changes which shelf rows fit even without another user input.
-  addEventListener("resize", repaint);
+  fittedSizes.observe(shortcutBarEl);
   repaint();
 }
 

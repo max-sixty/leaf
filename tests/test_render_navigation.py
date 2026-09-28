@@ -5424,7 +5424,10 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     page.keyboard.press("Escape")
 
     # Armed, the line names the available global routes and visible-target map. Every destination
-    # keeps its complete route, with the leader painted as already pressed.
+    # keeps its complete route, with the leader painted as already pressed. A window wide
+    # enough to hold every destination in the line's one row, so the comparison is of the
+    # rows the sequence offers rather than of what a narrower one has room for.
+    resized(page, 2560, 800)
     page.keyboard.press("g")
     shortcut_bar_text(page)
     visible_sequence = line.locator(".lf-shortcut:not([hidden])")
@@ -5542,8 +5545,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     for width in (1280, 420):
         resized(page, width, 800)
         rendered(page)
-        # The sequence's line grows upward over the page; the page's room stays the band's
-        # stated height rather than following it.
+        # The page's room is the band's stated height, and the line keeps to it.
         room = page.evaluate(
             """() => {
               const probe = document.createElement('div');
@@ -5583,12 +5585,18 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
         assert geometry["left"] >= 0 and geometry["right"] <= geometry["viewport"], (
             geometry
         )
-        # A desktop window holds the whole line in two rows. A narrow one wraps as far
-        # as the platform's font metrics take it, so what it owes the user is room: the
-        # line keeps to a fifth of the window, however many rows that comes to.
-        if width == 1280:
-            assert geometry["rows"] <= 2, geometry
-        assert geometry["height"] <= 800 * 0.2, geometry
+        # The line is one row at every width: the destinations it has no room for leave
+        # it from the end of the register's order, and the way out and More stay.
+        assert geometry["rows"] == 1, geometry
+        assert geometry["height"] == pytest.approx(room["band"], abs=0.5), geometry
+        expect(
+            line.locator('.lf-shortcut[data-lf-command-ids~="navigation.go-to.back"]')
+        ).to_be_visible()
+        expect(line.locator(".lf-shortcut-more")).to_be_visible()
+        if width == 420:
+            expect(
+                line.locator('.lf-shortcut[data-lf-command-ids~="navigation.page.top"]')
+            ).to_be_hidden()
     resized(page, 1280, 800)
     expect(page.locator(CHIPS).first).to_be_visible()
     # The chips are the eye's copy of the Go-to sequence; a user who cannot see them is told the

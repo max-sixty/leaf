@@ -1,12 +1,15 @@
 /* lf-toc: navigation derived from the headings the page already says.
  *
  * The generated labels are link apparatus rather than a second copy of the page's
- * words, so the nav wears .lf-ui. An authored heading keeps its own attributes. When a
- * heading titles an identified section, that section is the destination: an eyebrow and
- * heading arrive as one title, and the public fragment names the section rather than its
- * label. Otherwise the heading's id is the destination, or a generated sibling supplies
- * a native fragment target.
- * max-level bounds the authored outline before the module creates either links or targets.
+ * words, so the nav wears .lf-ui. When a heading titles an identified section, that
+ * section is the destination: an eyebrow and heading arrive as one title, and the public
+ * fragment names the section rather than its label. Otherwise the heading's id is the
+ * destination, and a heading without one is lent an `lf-` id, which no reader of the
+ * page's ids takes for one its author wrote (`ADDRESSABLE`). The id goes on the heading
+ * rather than on an element inserted beside it, because an inserted element changes
+ * which child a page rule finds first or last and what an `h2 + p` rule finds next to
+ * the heading.
+ * max-level bounds the authored outline before the module creates links or lends ids.
  *
  * In the roomy margin the outline becomes a reading map. Each row receives the length
  * of the section it leads as its flex share, so the quiet spine describes the document
@@ -62,6 +65,7 @@ customElements.define(
     #scroller;
     #scrollSource;
     #watching;
+    #renamed;
     #measureFrame = 0;
     #paintFrame = 0;
 
@@ -81,6 +85,8 @@ customElements.define(
     disconnectedCallback() {
       this.#watching?.disconnect();
       this.#watching = null;
+      this.#renamed?.disconnect();
+      this.#renamed = null;
       this.#scrollSource?.removeEventListener("scroll", this.#onScroll);
       this.#main?.removeEventListener("toggle", this.#onToggle, true);
       this.#main?.removeEventListener("load", this.#onLoad, true);
@@ -161,10 +167,8 @@ customElements.define(
         row.append(link);
         list.append(row);
         // The heading as well as the destination, because they answer different
-        // questions and only one of them can be watched. The destination is where the
-        // link goes, and where that is a section with no id of its own it is a generated
-        // 1x0 span — a box whose size cannot change, so a resize observation on it can
-        // never fire after its first delivery.
+        // questions: the destination is where the link goes, and the heading is the box
+        // the map watches (`#watch`).
         return { destination, heading: item, row, link };
       });
 
@@ -191,13 +195,22 @@ customElements.define(
       this.#watching.observe(this.#main);
       // Watched at the heading rather than at the destination the row points to. A
       // section that grows — an image arriving, a fold opening — moves every marker
-      // below it, and the heading is the box that reports that. Where the destination is
-      // a generated target it has no size to report, so watching it would leave the map
-      // laid out against positions that have since moved, with nothing to say so.
+      // below it, and the heading is the box that reports that.
       for (const { destination, heading } of this.#sections) {
         const watched = heading ?? destination;
         if (watched !== this.#main) this.#watching.observe(watched);
       }
+      // A row's link follows its destination's id. A revision can give a heading an id
+      // of its own over the one this widget lent it, or take an authored one away, and
+      // the widget stays built across a revision that leaves its own markup alone.
+      this.#renamed = new MutationObserver(() =>
+        this.#sections.forEach(({ destination, link }, position) => {
+          if (!destination.id) this.#targetFor(destination, position);
+          link.href = `#${destination.id}`;
+        }),
+      );
+      for (const { destination } of this.#sections)
+        this.#renamed.observe(destination, { attributeFilter: ["id"] });
       this.#scrollSource.addEventListener("scroll", this.#onScroll, { passive: true });
       this.#main.addEventListener("toggle", this.#onToggle, true);
       this.#main.addEventListener("load", this.#onLoad, true);
@@ -448,14 +461,8 @@ customElements.define(
       let id = stem;
       let suffix = 2;
       while (document.getElementById(id)) id = `${stem}-${suffix++}`;
-
-      const target = document.createElement("span");
-      target.id = id;
-      target.className = "lf-toc-target lf-ui";
-      target.dataset.lfGen = "1";
-      target.setAttribute("aria-hidden", "true");
-      heading.before(target);
-      return target;
+      heading.id = id;
+      return heading;
     }
   },
 );

@@ -1,5 +1,5 @@
 /*
- * Browser-side observations for verify_site.py, installed before each navigation.
+ * Browser-side observations for `leaf-dev verify-site`, installed before each navigation.
  * Startup readings belong to one document. Visible-reply timestamps use sessionStorage
  * because the agent journey may navigate before Python reads them. __leafVerifier is
  * the one Playwright boundary exposed to the Python orchestrator.
@@ -40,7 +40,6 @@
       entries.length ? Math.max(...entries.map((entry) => entry.responseEnd)) : null;
     return {
       at: performance.now(),
-      code_loaded: lastResponse(code),
       js_loaded: lastResponse(javascript),
       state_loaded: lastResponse(state),
       requests: resources.length,
@@ -183,11 +182,8 @@
       const visible = sessionStorage.getItem(visibleReplyAtKey);
       return visible === null ? null : Number(visible);
     },
-    // What a reply the container holds and the panel never drew has to say for the next
-    // reader. The page already paints the facts that separate the ways it can happen —
-    // the reading it last applied, the reads it has issued and heard, and the identity
-    // each message carries — so the probe reports them beside the DOM snapshot instead
-    // of leaving a snapshot that fits every cause equally.
+    // What the page shows about a reply the container holds and the panel never drew:
+    // the reading it last applied, its traffic, and each message's identity.
     visibleReplyDebug() {
       return {
         panel: document.querySelector(".lf-thread-panel")?.checkVisibility() ?? null,

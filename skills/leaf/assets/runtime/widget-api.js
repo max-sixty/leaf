@@ -18,6 +18,7 @@ export async function mountSample(frame, options) {
 
 export { USER_VIEW_RESTORE_CASES } from "./restore-state.js";
 export {
+  ADDRESSABLE,
   addressableName,
   addressableSays,
   addressableWord,
@@ -89,6 +90,12 @@ export {
   renderMarkdown,
 } from "./markdown.js";
 export { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
+// Where two images differ, gathered into regions (image-difference.js).
+export {
+  compareImages,
+  describeDifference,
+  differenceKind,
+} from "./image-difference.js";
 export { pageScroller } from "./scrolling.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";

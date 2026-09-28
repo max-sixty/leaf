@@ -266,11 +266,10 @@ export function unreachableWords() {
     // .lf-quiet is words for a user listening, clipped to nothing: not on
     // screen, so there is nothing here the eye can see and the pointer can't
     // reach — the failure this check exists for. [hidden] is the other half of
-    // that same silence and the one the runtime reaches for where a clip cannot
-    // go: the external-link note is an aria-describedby target inside whatever
-    // root its link stands in, shadow roots included, and .lf-quiet's rule is a
-    // document stylesheet that no shadow tree adopts. The attribute is safe to
-    // read as "not shown" because the browser drops it on the reveal — a
+    // that same silence, and the one available where a clip cannot go:
+    // .lf-quiet's rule is a document stylesheet that no shadow tree adopts. The
+    // attribute is safe to read as "not shown" because the browser drops it on
+    // the reveal — a
     // hidden="until-found" word the user finds is a word this check sees
     // again, at the moment it is on screen. The two sibling checks that ask what
     // a box shows (render-checks/widgets.js, render-checks/words.js) spell

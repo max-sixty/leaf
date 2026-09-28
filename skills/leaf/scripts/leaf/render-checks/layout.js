@@ -109,7 +109,13 @@ function marginReading(main) {
     return floatSide(s) === "left" ? b.right <= left + 1 : b.left >= right - 1;
   };
   const residents = [...main.querySelectorAll("*")].filter((el) => {
-    if (!el.checkVisibility() || el.hasAttribute("data-lf-space")) return false;
+    // A map's labels have boxes while its spine is at rest, but opacity and
+    // pointer events keep them from occupying the margin until it opens.
+    if (
+      !el.checkVisibility({ opacityProperty: true, visibilityProperty: true }) ||
+      el.hasAttribute("data-lf-space")
+    )
+      return false;
     const style = getComputedStyle(el);
     const box = el.getBoundingClientRect();
     // Clipped to nothing is not standing in the margin: the words a page paints for

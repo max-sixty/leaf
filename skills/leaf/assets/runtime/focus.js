@@ -173,9 +173,11 @@ document.addEventListener(
 // Leaving for nowhere from a node still drawn is the user's own move, and so a
 // placement: body holds no stop, so a press on the page's words takes focus off the
 // control and puts it nowhere with no `focusin` to count, and a hold still waiting
-// would pull the user back from the words they chose. A node a change hid or replaced
-// is not drawn once it blurs, which leaves it the dropped place above rather than a
-// move, and a window losing focus leaves the document's focus where it was.
+// would pull the user back from the words they chose. It is not a drop either, so the
+// node is forgotten as where they stood: a later change removing it drops nobody. A node
+// a change hid or replaced is not drawn once it blurs, which leaves it the dropped place
+// above rather than a move, and a window losing focus leaves the document's focus where
+// it was.
 document.addEventListener(
   "focusout",
   (event) => {
@@ -185,7 +187,9 @@ document.addEventListener(
     if (restoring) return;
     queueMicrotask(() => {
       const at = document.activeElement;
-      if ((at === null || at === document.body) && drawn(left)) placements += 1;
+      if ((at !== null && at !== document.body) || !drawn(left)) return;
+      placements += 1;
+      if (stood === left) stood = null;
     });
   },
   true,

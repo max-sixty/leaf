@@ -651,7 +651,7 @@ const bannerRows = sizeObserver(() => {
 // The banner's row mounts after the version picker and drawers exist. Its complete
 // inventory and order already belong to the shelf's explicit registrations above.
 export function mountBanner({ approveVersion, paintApproval }) {
-  signoff = isSignoffDeclared() && runtime.currentStamp !== null;
+  signoff = isSignoffDeclared();
   showBannerControl(approveBtn, signoff);
   watchProjection(document.body, paintApproval);
   for (const control of [asksBtn, othersBtn]) showNews(control, false);
@@ -681,10 +681,12 @@ export function mountBanner({ approveVersion, paintApproval }) {
 
 // Sign-off belongs to the authored revision, and the head it rides in is the only copy
 // of it: a revision this document takes on in place brings its own, so the reading is
-// taken from the document each time rather than kept beside it. Stamping the document
-// already open can also add or remove this control without any revision change.
+// taken from the document each time rather than kept beside it. The control stands for
+// the declaration alone. A stamp arriving is news, and the banner wraps by what it holds,
+// so a control the stamp put up would move the document; before a stamp the press is
+// refused with its reason (paintApproval) instead.
 export function stateSignoff(next, syncLayout, paintApproval) {
-  const shown = next && runtime.currentStamp !== null;
+  const shown = next;
   if (shown === signoff) return;
   signoff = shown;
   showBannerControl(approveBtn, signoff);
@@ -718,14 +720,15 @@ export function paintApproval(pendingApprovals, blockingAsks, acceptedApprovals)
   // is refused silently: its aria-busy says so.
   const reason = approved
     ? "Approved. Press z to take it back while it is still your last gesture"
-    : !signoff ||
-        runtime.currentStamp === null ||
-        !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) ||
-        blockingAsks === null
-      ? "Approval waits until this page has read its current state"
-      : blockingAsks.length
-        ? "Answer every Ask before approving this work"
-        : null;
+    : runtime.currentStamp === null
+      ? "There is no stamped version to approve yet"
+      : !signoff ||
+          !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) ||
+          blockingAsks === null
+        ? "Approval waits until this page has read its current state"
+        : blockingAsks.length
+          ? "Answer every Ask before approving this work"
+          : null;
   approvalFace.present(
     Object.freeze({
       reason: reason ?? (approving ? "Approving this version" : null),

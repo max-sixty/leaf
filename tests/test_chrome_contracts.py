@@ -1222,7 +1222,21 @@ def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
                 )
             )
             == ground
-        ), (width, panel_open, "the notice is covered by the panel or its scrim")
+        ), (width, panel_open, "the notice is covered by a scrim")
+        # The panel's ground is the same card token, so the pixel alone cannot see the
+        # panel over the notice, and the covered page is inert, so a hit test skips the
+        # notice either way. The two stand in one stacking context, where the order is
+        # their z-index.
+        order = page.evaluate(
+            """() => {
+              const status = document.querySelector('.lf-bottom-status');
+              const panel = document.querySelector('.lf-thread-panel');
+              const z = (el) => Number(getComputedStyle(el).zIndex);
+              return {shared: status.parentElement === panel.parentElement,
+                      above: z(status) > z(panel)};
+            }"""
+        )
+        assert order == {"shared": True, "above": True}, (width, panel_open, order)
 
 
 PHONE_PAGE = leaf_page(

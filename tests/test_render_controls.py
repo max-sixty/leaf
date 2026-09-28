@@ -731,6 +731,40 @@ def _touch_drag(cdp, x, y, *, dx=0, dy=0, steps=14):
     cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
 
 
+def test_sign_off_stands_through_a_draft_and_moves_nothing(browser, serve):
+    """Approval is on the banner's row wherever the page declares sign-off, stamped or
+    not. It came and went with the stamp, and the banner wraps by what it holds, so at
+    a width where Approval decides the wrap a draft arriving unwrapped the banner and
+    moved the whole document: news moving the page. Before a stamp the press is refused
+    and says why."""
+    html = LONG_PAGE.replace(
+        "<title>long</title>",
+        '<title>long</title><meta name="lf-review" content="sign-off">',
+    )
+    page = open_page(browser, live_url(serve(html)))
+    resized(page, 560, 800)
+    button = page.locator(".lf-signoff")
+    expect(button).to_be_visible()
+    rows = page.evaluate("() => document.documentElement.dataset.lfBannerRows")
+    top = page.evaluate(
+        "() => document.querySelector('main').getBoundingClientRect().top"
+    )
+    (serve.page_dir / "index.html").write_text(
+        html.replace("</main>", "<p>A draft's new paragraph.</p></main>")
+    )
+    told(page)
+    expect(page.locator(".lf-version")).to_have_text("Draft")
+    expect(button).to_be_visible()
+    expect(button).to_have_attribute(
+        "title", "There is no stamped version to approve yet"
+    )
+    assert page.evaluate("() => document.documentElement.dataset.lfBannerRows") == rows
+    after = page.evaluate(
+        "() => document.querySelector('main').getBoundingClientRect().top"
+    )
+    assert after == pytest.approx(top, abs=1), (top, after)
+
+
 def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
     """The declared ask puts the button there, and the press posts `done`.
 
@@ -3633,6 +3667,19 @@ def test_a_press_on_the_pages_words_is_a_newer_word_than_a_waiting_hold(browser,
     assert page.evaluate("() => document.activeElement === document.body")
     assert page.evaluate("() => window.__restore()") is False
     assert page.evaluate("() => document.activeElement === document.body")
+    # Nor is the control the user left the place a later change drops them from: a
+    # rebuild removing it, read after the press, holds nothing to hand them back to.
+    assert (
+        page.evaluate(
+            """async () => {
+          const { holdFocus } = await window.__lfRuntimeImport('/runtime/focus.js');
+          const details = document.querySelector('#d');
+          details.remove();
+          return holdFocus(details) !== null;
+        }"""
+        )
+        is False
+    )
 
 
 def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):

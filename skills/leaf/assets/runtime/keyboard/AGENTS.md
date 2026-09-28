@@ -55,6 +55,8 @@ browser's order.
   title selects the same thread as its body. Enter or Space selects a closed
   title and keeps an open one selected; Comment enters the reply box even from a
   collapsed title.
+- The versions menu opens from inside More, so More is its parent whichever route
+  opened it (`g V` included), and Escape steps back to the version picker there.
 - A selected destination (thread, Ask, heading) has a let-go step back to the
   document, through `letGo`, which lands on the visible block rather than an
   earlier chrome invoker.

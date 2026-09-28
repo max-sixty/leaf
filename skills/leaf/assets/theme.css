@@ -122,8 +122,9 @@
      The banner wraps by what it holds (chrome.css): its control run shares the status's
      line while both fit, and takes a 36px-lower line of its own when they don't. Which
      it drew is `data-lf-banner-rows` on the root (banner.js); before the runtime has
-     drawn a banner, the window's width stands in for it (below), which is right for a
-     phone either way up and for any desk window. */
+     drawn a banner, the window's width stands in for it (below). The guess is right for
+     a phone held upright and for a desk window; between about 440 and 660px it can miss,
+     and a miss moves the document once, when the banner arrives. */
   --lf-safe-top: env(safe-area-inset-top, 0px);
   --lf-safe-right: env(safe-area-inset-right, 0px);
   --lf-safe-bottom: env(safe-area-inset-bottom, 0px);

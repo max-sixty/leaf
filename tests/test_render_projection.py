@@ -8412,6 +8412,33 @@ def test_command_hub_goal_metadata_wraps_on_a_phone(browser, serve):
     assert root_overflow(page) == 0
 
 
+def test_a_command_goal_s_words_flow_as_prose(browser, serve):
+    """A goal is authored prose. Laid out as a grid, each inline piece became a cell, so
+    "Last worktree: <a>atlas/dedupe-attempt</a>." stood on three rows with its full stop
+    alone; and its chips took the serif through `font: inherit`."""
+    page = open_page(browser, serve(COMMAND_HUB_PAGE))
+    resized(page, 1440, 900)
+    link = page.locator('a[href="#tree-w-5"]')
+    expect(link).to_be_visible()
+    reading = link.evaluate(
+        """a => {
+          const words = document.createRange();
+          words.selectNodeContents(a.previousSibling);
+          const lines = [...words.getClientRects()];
+          const box = a.getBoundingClientRect();
+          const chip = a.closest('[data-lf-command-goal]')
+            .querySelector(':scope > .lf-task-meta > span');
+          return {display: getComputedStyle(a).display,
+                  sameLine: Math.abs(lines.at(-1).top - box.top) < 2,
+                  chipFont: getComputedStyle(chip).fontFamily,
+                  sans: getComputedStyle(document.documentElement)
+                    .getPropertyValue('--sans').trim()};
+        }"""
+    )
+    assert reading["display"] == "inline" and reading["sameLine"], reading
+    assert reading["chipFont"] == reading["sans"], reading
+
+
 WIDE_TREE_PAGE = leaf_page(
     "A plan on a wide page",
     """

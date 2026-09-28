@@ -43,10 +43,11 @@ subpackage's initializer is only a marker, never a second API.
   App Server carriers give the threads their turns answer;
 - `mcp_page`, `mcp_server`, `mcp_app`: the capability-scoped MCP page server, its
   transport, and the comments-only snapshot fallback;
-- `machine`, `leases`, `service`, `server`, `hosting`, `detached`: the state home
-  and process readings, process-backed leases taken through `take_lease` and
-  `release_lease`, page claims and serialized transactions, server state, HTTP
-  servers, and detached starts;
+- `state_paths`, `machine`, `leases`, `service`, `server`, `hosting`, `detached`:
+  the state-home path and cold session cleanup, process readings,
+  process-backed leases taken through `take_lease` and `release_lease`, page
+  claims and serialized transactions, server state, HTTP servers, and detached
+  starts;
 - `presence`: page, claim, and neighboring-leaf presence;
 - `samples`: disposable child pages built from captured templates;
 - `http`: HTTP transport;

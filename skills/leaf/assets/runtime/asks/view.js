@@ -44,7 +44,7 @@
    from a list of ask tags. Where a source is nested in an `x-ask-surface` region,
    the row names the region: its heading, context, and evidence are the ask the user
    is being sent to, while the source remains the owner of the answer.
-   `addressableSays` supplies each row's own label and the owned command scope's
+   `addressableLabel` supplies each row's own label and the owned command scope's
    `options.answer` supplies its current answer. Selecting a tray row travels through
    the same ask-arrival function as `a` and `A`, so the panel and directional walk
    agree about focus, reveal, arrival placement, and `landed`; only the tray's list is
@@ -136,7 +136,7 @@ import {
   paintKeys,
   projectCommandScope,
 } from "../keyboard/scopes.js";
-import { addressableSays, addressableWord } from "../anchor-resolution.js";
+import { addressableLabel, addressableWord } from "../anchor-resolution.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
 import { scrollBehavior } from "../motion.js";
 import { ASK_CONTROL, askActionLayer } from "./view-elements.js";
@@ -305,7 +305,7 @@ export function createAskView({
   const rowModel = (ask, unanswered) => {
     const node = askNode(ask);
     const kind = addressableWord(node) || ask.tag.replace(/^lf-/, "");
-    const says = addressableSays(node) || ask.id;
+    const says = addressableLabel(node) || ask.id;
     const answered = !unanswered.has(ask.id);
     const answer = answered ? currentAskAnswer(ask) : "";
     return Object.freeze({

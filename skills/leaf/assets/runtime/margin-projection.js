@@ -150,7 +150,7 @@ import { versionBtn } from "./version-chooser.js";
 import { motion, scrollBehavior } from "./motion.js";
 import { declareSide, placeOf } from "./standing-target.js";
 import { closestAcross, elementById, inChrome } from "./passages.js";
-import { addressableSays, addressableWord, visualAt } from "./anchor-resolution.js";
+import { addressableLabel, addressableWord, visualAt } from "./anchor-resolution.js";
 import { paintTrace } from "./target-paint.js";
 import { updateSequence } from "./updates.js";
 import { threadList } from "./thread/state.js";
@@ -952,9 +952,9 @@ export function createMarginProjection({
       add(groups, target, {
         kind: "ask",
         id: `ask:${id}`,
-        text: labelWords(
-          `${addressableWord(target)} · ${addressableSays(target) || id}`,
-        ),
+        // The group this row stands in already names the Ask; the row says why it is
+        // there, since these are the Asks the user owes.
+        text: "Waiting on you",
         activate: () => {
           const standing = openAsks();
           const next = standing.find((candidate) => candidate.id === id);
@@ -964,35 +964,13 @@ export function createMarginProjection({
     }
 
     const projection = currentProjection();
-    for (const origin of projectionOrigins(authoredStates(), projection)) {
-      const target = elementById(origin.unit);
-      if (!target) continue;
-      const face = KINDS[origin.origin];
-      add(groups, target, {
-        kind: origin.origin,
-        id: `state-origin:${origin.origin}:${origin.unit}`,
-        // Durable provenance belongs in Page Map rather than another target margin entry:
-        // it remains explicit without changing the page's action density or geometry.
-        marker: false,
-        text: labelWords(
-          [face.label, addressableWord(target), addressableSays(target)]
-            .filter(Boolean)
-            .join(" · "),
-        ),
-        activate: () =>
-          revealTarget(
-            target,
-            `${face.label}: ${addressableSays(target)}`,
-            scrollToElement,
-          ),
-      });
-    }
     const claimActivity = new Map(
       workflows()
         .filter(isLiveWorkflow)
         .map((item) => [`${item.subject.kind}:${item.subject.id}`, item]),
     );
     const activityAlreadyShown = new Set();
+    const acknowledged = new Set();
     for (const [coordinate, entry] of projection.desired) {
       if (entry.e.kind !== "action") continue;
       const target = elementById(entry.unit) ?? elementById(entry.e.widget);
@@ -1002,7 +980,7 @@ export function createMarginProjection({
       const account = [
         addressableWord(target),
         humanized(entry.e.action),
-        addressableSays(target),
+        addressableLabel(target),
       ]
         .filter(Boolean)
         .join(" · ");
@@ -1010,6 +988,7 @@ export function createMarginProjection({
       if (!face) continue;
       if (face.kind === "activity")
         activityAlreadyShown.add(`widget:${receipt.subject.id}`);
+      acknowledged.add(target);
       add(groups, target, {
         kind: face.kind,
         id: `acknowledgment:${receipt.id}`,
@@ -1022,6 +1001,34 @@ export function createMarginProjection({
       });
     }
 
+    for (const origin of projectionOrigins(authoredStates(), projection)) {
+      const target = elementById(origin.unit);
+      if (!target) continue;
+      // A gesture the agent still owes an answer to stands under its workflow row, which
+      // says the change is the user's and where it has got to; its provenance row would
+      // say the first half again.
+      if (origin.origin === "user" && acknowledged.has(target)) continue;
+      const face = KINDS[origin.origin];
+      add(groups, target, {
+        kind: origin.origin,
+        id: `state-origin:${origin.origin}:${origin.unit}`,
+        // Durable provenance belongs in Page Map rather than another target margin entry:
+        // it remains explicit without changing the page's action density or geometry.
+        marker: false,
+        text: labelWords(
+          [face.label, addressableWord(target), addressableLabel(target)]
+            .filter(Boolean)
+            .join(" · "),
+        ),
+        activate: () =>
+          revealTarget(
+            target,
+            `${face.label}: ${addressableLabel(target) || addressableWord(target)}`,
+            scrollToElement,
+          ),
+      });
+    }
+
     const base = comparisonBase();
     comparisonChanges().forEach((target, index) => {
       const account = `${addressableWord(target)} changed${base == null ? "" : ` since v${base}`}`;
@@ -1030,7 +1037,9 @@ export function createMarginProjection({
       add(groups, target, {
         kind: "change",
         id: `change:${targetPath(target)}:${index}`,
-        text: labelWords(`${mapAccount} · ${addressableSays(target)}`),
+        text: labelWords(
+          [mapAccount, addressableLabel(target)].filter(Boolean).join(" · "),
+        ),
         // A disclosure has to say what it holds, or its one word reports a fact and
         // promises nothing. The margin entry's quieter line carries it, and a block the
         // comparison holds nothing for has none, so no margin entry offers a press it has
@@ -1130,7 +1139,7 @@ export function createMarginProjection({
               [
                 group.subject ? null : subject.context,
                 group.word,
-                group.subject ?? addressableSays(group.target),
+                group.subject ?? addressableLabel(group.target),
               ]
                 .filter(Boolean)
                 .join(" · "),

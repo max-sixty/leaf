@@ -445,11 +445,15 @@ way it travels to a thread, clearing a panel that covers the page and opening wh
 holds the element.
 
 A module that names an element away from it, in a feed row or a summary, reads the page's
-shared names rather than its own. `addressableName(element)` is the name the authoring
-contract gives the element: the attribute its entry declares with `x-name`, else a
-leading `<summary>`, heading, or titled member's `<strong>`, inside a leading
-`<header>` too; it is empty where the
-contract gives none, and `addressableSays(element)` is the element's whole words. A
+shared names rather than its own. `addressableLabel(element)` is what the chrome calls
+it: first the name the authoring contract gives it (the attribute its entry declares
+with `x-name`, else a leading `<summary>`, heading, or titled member's `<strong>`,
+inside a leading `<header>` too), else its caption or `aria-label`. An element whose
+words are its own, such as a paragraph or a list item, is otherwise named by those
+words cut short; any other element takes the name of the nearest element holding it
+that has one, so a question's options are named by the question. Past that, plain
+markup is named by its words cut short and a widget by nothing: the label is empty, and
+`addressableWord(element)` is the word for its kind. A
 widget whose title is an attribute, as a column's `label` is, declares `x-name`.
 `anchorLabel(anchor, about)` names a comment's anchor the way Threads does, and
 `markdownWords(text)` is the words a Markdown string renders to.

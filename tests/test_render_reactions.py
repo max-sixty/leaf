@@ -1465,7 +1465,8 @@ graph LR
     )
     page = open_page(browser, serve(page_markup))
 
-    for name in ("tabbed", "Start request", "Handle request"):
+    # The figure has no name of its own, so the tab holding it names it.
+    for name in ("figure · First", "Start request", "Handle request"):
         expect(page.get_by_role("button", name=f"Respond to {name}")).to_have_count(1)
 
 

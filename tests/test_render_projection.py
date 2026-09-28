@@ -1548,7 +1548,10 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     else:
         page.locator("#source [data-lf-datum]").click(modifiers=["Alt"])
     quote = page.locator("#lf-composer-quote")
-    expect(quote).to_contain_text("Original source words.")
+    # A whole datum is named as its widget is; only a quote carries its words.
+    expect(quote).to_contain_text(
+        "Original source words." if quote_anchor else "§ text-document"
+    )
     draft = page.locator(".lf-fab-input")
     write(draft, "Keep this comment about the original source.")
     expect(draft).to_be_focused()
@@ -6285,7 +6288,7 @@ def test_a_moved_card_identifies_its_user_origin_across_tabs(browser, serve):
     identified as overriding authored placement in the tab that moved it and in a fresh
     replay alike, because the runtime compares the page's state against the version's
     own snapshot rather than remembering who wrote what. The runtime's quiet word and
-    Page Map entry carry that origin while the grip names the move and its destination.
+    Page Map row carry that origin while the grip names the move and its destination.
     The card the move displaced stays unmarked — the log named one card, not its
     neighbours. The honoring version says the state itself, so on it the
     disagreement and both renderings are gone."""
@@ -6326,12 +6329,16 @@ def test_a_moved_card_identifies_its_user_origin_across_tabs(browser, serve):
             exact=True,
         )
     ).to_be_visible()
+    # The Page Map names the move once: while the agent owes it an answer, under the
+    # row saying the move was sent, which is the user's change as much as its own row.
     second.keyboard.press("g")
     second.keyboard.press("Shift+m")
-    user_origin = second.get_by_role(
-        "button", name=re.compile(r"^Open your change: Your change")
-    )
-    expect(user_origin).to_be_visible()
+    expect(
+        second.get_by_role("button", name=re.compile(r"^Open sent: Sent"))
+    ).to_be_visible()
+    expect(
+        second.get_by_role("button", name=re.compile(r"^Open your change"))
+    ).to_have_count(0)
     second.keyboard.press("Escape")
     assert (
         second.locator("#card-importer").evaluate(

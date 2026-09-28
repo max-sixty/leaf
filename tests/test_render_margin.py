@@ -2440,6 +2440,28 @@ def test_the_page_map_dialog_walks_its_rows_from_the_search(browser, serve):
     ).to_be_focused()
 
 
+def test_the_chrome_names_an_ask_by_its_question(browser, serve):
+    """An Ask is named by its heading, not its heading run into its options and their
+    chips: the Asks tray row, and the Page Map group for it, whose one row says why the
+    Ask is there rather than naming it a second time."""
+    page = open_page(browser, serve(ASK_PAGE))
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+a")
+    row = page.locator("button.lf-asks-row").first
+    expect(row).to_contain_text("Which jobs are worth starting?")
+    expect(row).not_to_contain_text("Replace the")
+    page.keyboard.press("Escape")
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    group = dialog.locator(".lf-page-map-group").filter(
+        has=page.get_by_role("heading", name="ask · Which jobs are worth starting?")
+    )
+    expect(group).to_have_count(1)
+    expect(group.locator(".lf-page-map-action")).to_have_text(["Waiting on you"])
+
+
 def test_a_finger_opens_the_page_map_on_its_first_row(browser, serve):
     """Focusing the search on a phone raises the soft keyboard over the list the finger
     came to tap, so a coarse pointer opens the map on its first row instead."""
@@ -7656,10 +7678,14 @@ def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, s
     ).to_be_visible()
     expect(page.locator(".lf-page-map-toggle")).to_be_hidden()
     expect(dialog).to_be_visible()
-    expect(dialog.locator(".lf-page-map-action")).to_have_count(5)
+    # The answered Ask stands once, under the row saying where its answer has got to.
+    expect(dialog.locator(".lf-page-map-action")).to_have_count(4)
     expect(
-        dialog.get_by_role("button", name=re.compile(r"^Open your change: Your change"))
+        dialog.get_by_role("button", name=re.compile(r"^Open sent: Sent"))
     ).to_be_visible()
+    expect(
+        dialog.get_by_role("button", name=re.compile(r"^Open your change"))
+    ).to_have_count(0)
 
 
 def test_a_marker_level_with_a_hanging_note_pins_and_one_below_it_keeps_the_rail(
@@ -7717,7 +7743,7 @@ def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve, h
     banner_control(page, ".lf-page-map-toggle").click()
     dialog = page.locator(".lf-page-map-dialog")
     actions = dialog.locator(".lf-page-map-action")
-    expect(actions).to_have_count(5)
+    expect(actions).to_have_count(4)
     if height == 480:
         assert dialog.locator(".lf-page-map-list").evaluate(
             "list => list.scrollHeight > list.clientHeight"
@@ -7742,7 +7768,7 @@ def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve, h
             ".lf-margin-count"
         )
     ).to_have_text("2")
-    expect(actions).to_have_count(6)
+    expect(actions).to_have_count(5)
     expect(actions.first).to_be_focused()
 
 

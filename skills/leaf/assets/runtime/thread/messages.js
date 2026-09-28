@@ -26,7 +26,7 @@ import { ago } from "../presence.js";
 import { elementById, pageQueryAll } from "../passages.js";
 import { designName } from "../design-readings.js";
 import {
-  addressableSays,
+  addressableLabel,
   addressableWord,
   visualPartLabel,
 } from "../anchor-resolution.js";
@@ -378,6 +378,7 @@ export function anchorLabel(anchor, about) {
     const part = visualPartLabel(addressable, anchor.visual) ?? anchor.visual;
     return `§ ${addressable ? `${addressableWord(addressable)} · ${part}` : `${anchor.section} · ${part}`}`;
   }
-  const says = addressableSays(addressable);
-  return `§ ${says ? `${addressableWord(addressable)} · ${says}` : anchor.section}`;
+  if (!addressable) return `§ ${anchor.section}`;
+  const says = addressableLabel(addressable);
+  return `§ ${[addressableWord(addressable), says].filter(Boolean).join(" · ")}`;
 }

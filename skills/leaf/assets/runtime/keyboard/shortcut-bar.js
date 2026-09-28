@@ -65,7 +65,7 @@ import {
   progressStates,
   rowSteps,
 } from "./presentation.js";
-import { el } from "../widget-elements.js";
+import { el, keeps, keepsHidden } from "../widget-elements.js";
 import { lineOwner, shadow, stack, executeCommand } from "./dispatch.js";
 
 import {
@@ -426,7 +426,7 @@ export function renderShortcutBar(goToStatus) {
         : null,
     expanded,
   });
-  shortcutBarEl.dataset.lfExpanded = String(model.expanded);
+  keeps(shortcutBarEl, "data-lf-expanded", model.expanded);
   render(shortcutBarTemplate(model), shortcutBarEl);
   const rowSpans = shortcutBarEl.querySelectorAll(":scope > .lf-shortcut");
   const drawn = model.items.map((presentation, index) => ({
@@ -435,7 +435,7 @@ export function renderShortcutBar(goToStatus) {
   }));
   // Lit leaves `hidden` alone, so every paint first restores each row's semantic
   // eligibility; the trim below is then the one measurement that may hide more.
-  for (const { presentation, span } of drawn) span.hidden = presentation.hidden;
+  for (const { presentation, span } of drawn) keepsHidden(span, presentation.hidden);
   // The status stands at the bar's far end, level with the one row, so a standing status
   // pads the row's end and More and the way out stop short of it. A transient notice
   // keeps the footprint of what it stands over (standingStatusBoxes) rather than trimming

@@ -155,6 +155,15 @@ and its chrome coordinate.
   `test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open` reproduces it at
   1200px with the tray closed and runs at 900px, where the composer goes above or
   below, until this is fixed.
+- **Land a sent comment's thread where its comment box stood.** A comment typed beside
+  an option near the top of the window (the box standing just under the banner) came
+  back as a margin card level with the option, about 330px lower, so the words the
+  user just wrote jump across the page on send. The send's carry transition
+  (`composing/surface.js`, the card placement in `margin-projection.js`) animates the
+  jump rather than avoiding it. The card and the box choose their places by different
+  rules: the box from the target and the room at the moment it opened, the card from the
+  margin's own layout. Either the card opens where the box stood, or the box opens where
+  the card will stand.
 - **Decide whether the shortcut line should wrap on a narrow window.** Below about
   390px with a fine pointer, the resting line wraps to a second row
   (`keyboard/shortcut-bar.js`, `chrome.css`), which stands about 31px over the page

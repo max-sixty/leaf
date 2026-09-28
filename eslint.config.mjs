@@ -48,6 +48,7 @@ const browserGlobals = Object.fromEntries(
     "MutationObserver",
     "Node",
     "NodeFilter",
+    "OffscreenCanvas",
     "Range",
     "Response",
     "ResizeObserver",
@@ -748,7 +749,7 @@ export default [
   {
     // The site verifier resolves the release-scoped runtime URL from the page under
     // test. That URL is data, so its two imports cannot be static dependency edges.
-    files: ["scripts/verify-site-browser.js"],
+    files: ["dev/leaf_dev/verify_site_browser.js"],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
     rules: {
       "no-undef": "error",

@@ -788,6 +788,84 @@ def test_a_shot_adopts_a_fallback_choice_when_the_divider_arrives(browser, serve
     ) == [False, ["before"]]
 
 
+def test_a_shot_outlines_where_its_images_differ(browser, serve):
+    """A reader shown one side of the divider, or a screenshot of the page, can't tell
+    where a pair differs, or that it differs nowhere: a handoff once shipped a pair
+    whose sides matched in every part its prose described. So the widget outlines each
+    changed region over both frames, at the same place, and says on the rail what they
+    add up to, including a difference too slight to point at. The outlines and their
+    count are the author's to ask for, with `outlines`; the rest of the reading shows
+    on every pair."""
+    plain = solid_png(600, 300, (210, 220, 235))
+    patched = solid_png(
+        600, 300, (210, 220, 235), patch=(420, 200, 60, 40, (30, 30, 30))
+    )
+    # Ten levels off in each channel, as a redrawn shadow is: nothing to point at.
+    tinted = solid_png(
+        600, 300, (210, 220, 235), patch=(40, 40, 60, 40, (200, 210, 225))
+    )
+    sources = {
+        data: f"/media/{hashlib.sha256(data).hexdigest()[:16]}.png"
+        for data in (plain, patched, tinted)
+    }
+    url = serve(
+        LONG_PAGE.replace(
+            "</main>",
+            f"""<lf-shot id="shot-patch" outlines alt="a dark square appears"
+                 before="{sources[plain]}" after="{sources[patched]}"></lf-shot>
+               <lf-shot id="shot-same" outlines alt="nothing"
+                 before="{sources[plain]}" after="{sources[plain]}"></lf-shot>
+               <lf-shot id="shot-tint" outlines alt="a slight tint"
+                 before="{sources[plain]}" after="{sources[tinted]}"></lf-shot>
+               <lf-shot id="shot-quiet" alt="a dark square"
+                 before="{sources[plain]}" after="{sources[patched]}"></lf-shot>
+               <lf-shot id="shot-quiet-same" alt="nothing"
+                 before="{sources[plain]}" after="{sources[plain]}"></lf-shot>
+               <lf-shot id="shot-quiet-tint" alt="a slight tint"
+                 before="{sources[plain]}" after="{sources[tinted]}"></lf-shot>
+               </main>""",
+        ),
+        media={source: data for data, source in sources.items()},
+    )
+    page = open_page(browser, url)
+    expect(page.locator("#shot-patch .lf-shotdelta")).to_have_text("1 changed area")
+    expect(page.locator("#shot-same .lf-shotdelta")).to_have_text("identical")
+    assert page.locator("#shot-same .lf-shotdiff > span").count() == 0
+    expect(page.locator("#shot-tint .lf-shotdelta")).to_have_text("only slight changes")
+    assert page.locator("#shot-tint .lf-shotdiff > span").count() == 0
+
+    # Each frame's mark stands just outside the square, in the frame's own scale.
+    readings = page.locator("#shot-patch .lf-shotframe").evaluate_all(
+        """frames => frames.map(frame => {
+          const image = frame.querySelector('img').getBoundingClientRect();
+          const marks = [...frame.querySelectorAll('.lf-shotdiff > span')];
+          const scale = image.width / 600;
+          return {state: frame.dataset.lfState, marks: marks.map(mark => {
+            const box = mark.getBoundingClientRect();
+            return [(box.left - image.left) / scale, (box.top - image.top) / scale,
+                    (box.right - image.left) / scale, (box.bottom - image.top) / scale];
+          })};
+        })"""
+    )
+    assert {r["state"] for r in readings} == {"before", "after"}
+    for reading in readings:
+        [(left, top, right, bottom)] = reading["marks"]
+        assert left < 420 and right > 480 and top < 200 and bottom > 240
+        assert right - left < 80 and bottom - top < 60
+
+    # Without `outlines` a pair hides its outlines and their count, but not the word
+    # that it has nothing to point at.
+    quiet = page.locator("#shot-quiet")
+    expect(quiet.locator(".lf-shotdiff > span")).to_have_count(2)
+    expect(quiet.locator(".lf-shotdiff").first).to_be_hidden()
+    expect(quiet.locator(".lf-shotdelta")).to_have_text("1 changed area")
+    expect(quiet.locator(".lf-shotdelta")).to_be_hidden()
+    for shot, reading in (("same", "identical"), ("tint", "only slight changes")):
+        delta = page.locator(f"#shot-quiet-{shot} .lf-shotdelta")
+        expect(delta).to_have_text(reading)
+        expect(delta).to_be_visible()
+
+
 def test_a_shot_refuses_a_pair_shot_at_two_widths(browser, serve):
     """Both frames render at the frame's width, so a pair captured at two viewports is
     scaled by two different factors and every line in it lands somewhere new — the flip

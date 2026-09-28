@@ -1,0 +1,52 @@
+# Added with lf-shot's `outlines`, which a pair must ask for. Against the PR's earlier
+# wording, where every pair drew outlines unless it set `no-outlines`, no base run
+# could write `outlines` (0 of 3) and every candidate run did (3 of 3); the judgment
+# passed in both arms. So it measures that the guidance names the attribute, which a
+# page now needs for its outlines.
+schema_version: '1.0'
+name: shot-pair-outlined
+description: "Source files and media: a pair whose change is local asks for `outlines`, so the page marks where it is."
+tags:
+- evidence
+context:
+  add_dirs:
+  - captures
+execution:
+  prompt: |
+    You are writing a Leaf page for the user about a restyle of the orders dashboard's
+    header, on branch dashboard-header. Your notes:
+
+    Header. The header was a white bar with a small title. It is now a dark bar with a
+    larger title and a health chip beside it. Nothing below the header changed.
+
+    A probe captured the dashboard at 1100x760 on main and on the branch, both
+    against the same fixture data. `leaf page media` registered the captures and
+    printed each one's page path beside its source file, which sits under the Leaf
+    plugin's root (two directories above the leaf skill's base directory):
+
+        /media/header-before.png  evals/shot-pair-outlined/captures/before.png  (main)
+        /media/header-after.png   evals/shot-pair-outlined/captures/after.png   (the branch)
+
+    Write the HTML for the page's section on the header, with its before/after pair.
+    The page directory is not reachable from here, so reply with the HTML fragment
+    rather than writing a file.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-authoring-evidence
+  type: tool_used
+  tool: Read
+  input_match: authoring-evidence
+- name: pair-outlined
+  type: regex
+  pattern: <lf-shot\b(?=[^>]*\bbefore=["'][^"']*header-before\.png)(?=[^>]*\bafter=["'][^"']*header-after\.png)(?=(?:[^>"']|"[^"]*"|'[^']*')*\soutlines(?:=""|\s|/?>))
+  flags: i
+- name: judgment
+  type: llm
+  criteria: |
+    Between the captures only the header changed: a white bar with a small title
+    became a dark bar with a larger title and a green "Healthy" chip. Read the reply.
+    Pass if the HTML shows the pair as one lf-shot and its prose or alt describes that
+    change. Fail if it leaves the pair out, or describes a change below the header.

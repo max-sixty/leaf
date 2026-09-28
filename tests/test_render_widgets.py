@@ -3724,6 +3724,15 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_h
         "spokenWords": True,
     }
     assert bounded["controlsSize"][1] > bounded["controlsSize"][0], bounded
+    # The rail's two titles are one voice: the package draws its generated panes, and
+    # the kernel's default pane header must not outrank the class that says so.
+    voice = """node => {
+      const style = getComputedStyle(node);
+      return [style.fontFamily, style.fontSize, style.fontWeight];
+    }"""
+    assert playground.locator(".lf-playground-instruction-title").evaluate(
+        voice
+    ) == playground.locator(".lf-playground-presets-title").evaluate(voice)
     first_control = playground.locator("lf-playground-control").first
     control_box = first_control.bounding_box()
     controls_box = controls.bounding_box()

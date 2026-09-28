@@ -129,7 +129,7 @@ def prepare_page(
 ) -> PreparedPage:
     """Build one page directory from an authored fixture.
 
-    `scripts/preview.py`, `leaf-dev site`, and the render harness's `serve` all build through
+    `leaf-dev preview`, `leaf-dev site`, and the render harness's `serve` all build through
     here. The current source is written before the data operations, because
     `leaf data set` validates a source against the page's markup and the current
     version is the one that has to bind it. Versions are then stamped oldest first,

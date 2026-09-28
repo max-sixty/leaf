@@ -34,7 +34,7 @@ import { registerMarginContribution } from "./margin-entries.js";
 import { commandScope } from "./keyboard/scopes.js";
 import { pageQueryAll, pageText } from "./passages.js";
 import { registry } from "./registry.js";
-import { upFrom } from "./shadow.js";
+import { shadowHost, upFrom } from "./shadow.js";
 import { targetElement, targetParts } from "./resolved-target.js";
 import { keeps, keepsText, offer, reveal } from "./widget-elements.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -83,10 +83,7 @@ export function createAnchorControls({
   // visibility, so a screen reader meets it while the drawing is folded away. Shadow
   // renderers share their host so sibling groups do not reorder on each paint.
   function visualActionSeat(candidate) {
-    let seat =
-      candidate.getRootNode() instanceof ShadowRoot
-        ? candidate.getRootNode().host
-        : candidate;
+    let seat = shadowHost(candidate.getRootNode()) ?? candidate;
     for (let current = seat; current; current = upFrom(current))
       if (current.matches?.("details")) seat = current;
     return seat;

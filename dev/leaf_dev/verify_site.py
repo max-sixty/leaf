@@ -1,5 +1,6 @@
-#!/usr/bin/env python3
 """Verify that leaf.page serves one exact, coherent release in a real browser.
+
+    uv run leaf-dev verify-site [TARGET] [--release RELEASE] [--agent]
 
 `wrangler` runs a pass against the built site through the local Worker and its page
 container, printing the Worker's log beside a failure;
@@ -16,7 +17,7 @@ a comment sent through the real Threads composer, acknowledgement and activity, 
 first reply text visible in the open thread, the requested publication and durable
 reply, and the changed page's presentation and revision follow. Without `--release`
 it takes the release the origin's page state names, so it measures any origin
-without a local build. `deploy-site-dev.sh` runs it against the dev environment.
+without a local build. `worker/deploy-dev.sh` runs it against the dev environment.
 
 `local` runs the agent pass through the canonical Python adapter against the host's
 Codex login. It bypasses the Worker, container resources, and outbound credential
@@ -43,17 +44,18 @@ from urllib.parse import urlencode, urljoin, urlsplit
 import click
 from leaf.render_gate.browser import launch_browser
 from leaf.served_state.reading import reading_files
-from leaf_dev.harness import codex_home
 from playwright.sync_api import APIResponse, BrowserContext, Page, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-ROOT = Path(__file__).resolve().parent.parent
+from leaf_dev import ROOT
+from leaf_dev.harness import codex_home
+
 MANIFEST = ROOT / ".tmp" / "site" / "_leaf" / "site.json"
 # The site build, run from ROOT, which writes ROOT/.tmp/site (`leaf_dev.site`).
 BUILD_SITE = [sys.executable, "-m", "leaf_dev", "site"]
 # The website's Python server, as its container runs it (`leaf_website`).
 SERVE_SITE = [sys.executable, "-m", "leaf_website"]
-VERIFIER_SCRIPT = ROOT / "scripts" / "verify-site-browser.js"
+VERIFIER_SCRIPT = Path(__file__).with_name("verify_site_browser.js")
 PAGES = (
     ("/", "product", True),
     ("/examples/triage-board/", "example", True),
@@ -405,7 +407,7 @@ def verify_page(
         f"{state_url} left the edge before interaction",
     )
     activation = activation_url(url, passive_response.json())
-    # This pass has no wait of its own: `publish-site` reruns the whole script until
+    # This pass has no wait of its own: `publish-site` reruns the whole command until
     # the release verifies, so a rollout it lands inside ends this run and the next
     # one samples again. Naming the rollout keeps that log from reading as a fault.
     activation_response = activation_read(context, activation)
@@ -1399,7 +1401,7 @@ def built_release(requested: str | None) -> str:
     is_flag=True,
     help="Verify one agent edit and reply instead of the release boundary.",
 )
-def main(target: str, release: str | None, agent: bool) -> None:
+def verify_site(target: str, release: str | None, agent: bool) -> None:
     """Verify a release at TARGET, or run the agent journey there with `--agent`.
 
     TARGET is an origin, `wrangler` for the built site through the local Worker, or
@@ -1469,7 +1471,3 @@ def run_verification(
         finally:
             browser.close()
     print(f"✓ {origin} serves release {release} in {browser_name}")
-
-
-if __name__ == "__main__":
-    main()

@@ -11,7 +11,6 @@ index lands between the two marker comments; everything else is authored.
 import html
 import json
 import re
-import sys
 
 import click
 
@@ -81,8 +80,5 @@ def build(page: str) -> str:
 @click.command()
 def keydocs() -> None:
     """Rewrite the x- key index in docs/registry.html."""
-    page = DOCS_PAGE.read_text(encoding="utf-8")
-    if page.count(OPEN) != 1 or page.count(CLOSE) != 1:
-        sys.exit(f"{DOCS_PAGE}: expected one {OPEN!r} … {CLOSE!r} region")
-    DOCS_PAGE.write_text(build(page), encoding="utf-8")
+    DOCS_PAGE.write_text(build(DOCS_PAGE.read_text(encoding="utf-8")), encoding="utf-8")
     print(DOCS_PAGE)

@@ -45,6 +45,7 @@ const browserGlobals = Object.fromEntries(
     "HTMLSpanElement",
     "Highlight",
     "IntersectionObserver",
+    "MouseEvent",
     "MutationObserver",
     "Node",
     "NodeFilter",

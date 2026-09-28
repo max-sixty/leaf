@@ -19,8 +19,9 @@ bands, the reading measure as typography, and each widget's contract to fill the
 it is given, declare the minimum it needs, and never let its content size its holder.
 
 Nothing Leaf draws at run time moves the page's content. A margin row stands in the
-free room measured beside its target, in a rail the page declares, or as a pin
-inside its target's corner.
+free room measured beside its target, in a rail the page declares, or as a pin by
+its target: in room found where it covers no words (`pinSpot`), and otherwise inside
+its target's corner.
 
 The rail and a pin are different kinds. The rail is room: a strip beside the column,
 which the column may move over to leave (`settleResidency`) but never narrows or
@@ -54,8 +55,9 @@ inspection layer.
 ### Stability
 
 The page holds still under the user's aim. A state change may repaint any box but
-must not move controls next to the gesture that caused it, and news arriving
-without a gesture moves no chrome control. A change the user requested may reflow
+must not move controls next to the gesture that caused it. News causes no layout
+shift: when a box's content changes without a gesture, that box may grow or shrink
+into free room, but no other element moves. A change the user requested may reflow
 the content it replaces, shown as motion the eye can follow. A hover, focus, or
 keyboard reveal never changes the space given to its ancestors or siblings.
 

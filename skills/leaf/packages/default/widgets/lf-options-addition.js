@@ -76,7 +76,7 @@ export class OptionAddition {
     this.#input.value = loadDraft(this.#context) ?? "";
     this.#form.append(this.#bindingBadge, this.#input, this.#add);
     this.#syncInput = wireInput(this.#input, {
-      hint: "Another option — add to select",
+      hint: "Add another option",
       sends: "add and select option",
       icon: "add",
       sendBtn: this.#add,

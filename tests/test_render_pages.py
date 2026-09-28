@@ -2316,9 +2316,9 @@ def test_a_box_that_shows_less_than_it_holds_says_so(browser, serve):
     """A drawing that genuinely could not fit scrolls, and on a platform drawing overlay
     scrollbars the scrollbar is no sign at rest: measured, a twelve-node flowchart in a
     tab panel showed seven of them at 1200, 1440 and 1920 with nothing saying so. So the
-    box marks each edge with content beyond it, which a drawing paints as a shadow over
-    that edge. The line of code that fits is the control: a mark on a box holding
-    nothing back would be a promise of more with nothing behind it."""
+    box marks each edge with content beyond it, which fades the drawing there. The line
+    of code that fits is the control: a mark on a box holding nothing back would be a
+    promise of more with nothing behind it."""
     url = serve(CUT_BOXES_PAGE)
     page = open_page(browser, url)
     marks = page.evaluate("""() => {
@@ -2327,9 +2327,7 @@ def test_a_box_that_shows_less_than_it_holds_says_so(browser, serve):
             return { short: el.scrollWidth - el.clientWidth,
                      before: el.hasAttribute('data-lf-more-before'),
                      after: el.hasAttribute('data-lf-more-after'),
-                     paints: getComputedStyle(el).maskImage !== 'none' ||
-                       ['::before', '::after'].some(
-                         (edge) => getComputedStyle(el, edge).boxShadow !== 'none') };
+                     paints: getComputedStyle(el).maskImage !== 'none' };
         };
         return { flow: read('flow'), fits: read('short') };
     }""")
@@ -2363,19 +2361,23 @@ def test_a_box_that_shows_less_than_it_holds_says_so(browser, serve):
     expect(flow).not_to_have_attribute("data-lf-more-after", "")
 
 
-def test_a_drawing_cut_at_its_edge_shades_each_edge_it_continues_past(browser, serve):
+def test_a_drawing_cut_at_its_edge_fades_toward_the_ground_and_still_reaches_it(
+    browser, serve
+):
     """Three agent-written pages drew a five-step plan `flowchart LR`; at 1440px each
     box showed two and a half steps, and every reader took the plan for three. The mark
-    was there, painted as the layer's fade, and a fade reads as a drawing's end: over
-    blank canvas it draws nothing, and over a node it looks like the node's own edge.
+    was the layer's fade, all the way to the ground, and a node faded out looks like the
+    node's own end.
 
-    So a diagram paints the mark as a shadow cast over the edge it continues past, and
-    this reads the pixels rather than the rule: paper at the very edge of the box against
-    paper a little inside it, in the band above the nodes where nothing else is drawn. The
-    shadow must stand at the scrollport's edge, not the drawing's end, so the end edge is
-    shaded at rest, both in the middle, the start edge alone at the end. The drawing
-    keeps the size it was drawn at throughout, and the same five steps drawn top-down fit
-    the column and shade nothing."""
+    So a drawing's fade stops short of the ground: the node cut at an edge fades toward
+    the page's ground and still reaches the scrollport's side, which is what reads as
+    cut. This reads the pixels rather than the rule, in a row through the cut node's
+    fill above its label: at the very edge the fill is lighter than a little inside the
+    box and still darker than the ground. Over blank canvas the edge is the ground
+    itself, where a grey shadow used to lie. The fade follows the scroll: the end edge
+    at rest, the start edge once a node straddles it. The drawing keeps the size it was
+    drawn at throughout, and the same five steps drawn top-down fit the column and fade
+    nothing."""
     page = open_page(browser, serve(LONG_CHAIN_PAGE))
     resized(page, 1440, 900)
     rendered(page)
@@ -2383,46 +2385,68 @@ def test_a_drawing_cut_at_its_edge_shades_each_edge_it_continues_past(browser, s
         const el = document.getElementById(id), svg = el.querySelector('svg');
         return [id, { short: el.scrollWidth - el.clientWidth,
                       drawn: svg.getBoundingClientRect().width,
-                      natural: svg.viewBox.baseVal.width }];
+                      natural: svg.viewBox.baseVal.width,
+                      mask: getComputedStyle(el).maskImage }];
     }))""")
     assert sizes["chain"]["short"] > 1, f"the chain fits, so nothing is cut: {sizes}"
     assert sizes["stack"]["short"] == 0, f"the stack scrolls too: {sizes}"
+    assert sizes["stack"]["mask"] == "none", sizes
     for box in sizes.values():
         assert abs(box["drawn"] - box["natural"]) < 1, (
             f"a drawing was scaled away from its natural size: {sizes}"
         )
 
-    def shaded(id):
-        """Which edges of the box stand in shadow: darker at the very edge than a little
-        inside it, past the shadow's reach, across the top rows, by more than rounding
-        (the shadow measures about 21 levels of 255, bare paper 0)."""
-        r = page.evaluate(
-            """(id) => { const r = document.getElementById(id).getBoundingClientRect();
-                return { x: r.left, y: r.top, width: r.width, height: 8 }; }""",
-            id,
+    def edge(side):
+        """Luminance at the chain's `side` edge, in a row through the fill of the node
+        standing across it, beside the node's fill 60px inside the edge, past the
+        fade's reach; and the same two places in the blank band above the nodes."""
+        box = page.evaluate(
+            """(side) => {
+            const el = document.getElementById('chain'), r = el.getBoundingClientRect();
+            const x = side === 'end' ? r.right - 1 : r.left + 1;
+            const node = [...el.querySelectorAll('g.node')]
+                .map((n) => n.getBoundingClientRect())
+                .find((n) => n.left < x && n.right > x);
+            return node && { x: r.left, y: r.top, width: r.width,
+                             height: node.bottom - r.top, row: node.top + 3 - r.top };
+            }""",
+            side,
         )
-        band = Image.open(io.BytesIO(page.screenshot(clip=r))).convert("L")
-        w, h = band.size
+        assert box, f"no node stands across the {side} edge, so nothing is cut there"
+        clip = {k: box[k] for k in ("x", "y", "width", "height")}
+        shot = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("L")
+        w, row = shot.size[0], round(box["row"])
+        at, inside = (
+            ((w - 3, w), (w - 63, w - 57)) if side == "end" else ((0, 3), (57, 63))
+        )
 
-        def mean(x0, x1):
-            return ImageStat.Stat(band.crop((x0, 0, x1, h))).mean[0]
+        def mean(x, y0, y1):
+            return ImageStat.Stat(shot.crop((x[0], y0, x[1], y1))).mean[0]
 
         return {
-            "start": mean(48, 54) - mean(0, 6) > 6,
-            "end": mean(w - 54, w - 48) - mean(w - 6, w) > 6,
+            "ground": mean(at, 0, 4),
+            "ground_inside": mean(inside, 0, 4),
+            "edge": mean(at, row, row + 4),
+            "fill": mean(inside, row, row + 4),
         }
 
-    assert shaded("stack") == {"start": False, "end": False}
-    assert shaded("chain") == {"start": False, "end": True}
+    at_rest = edge("end")
+    assert abs(at_rest["ground"] - at_rest["ground_inside"]) < 2, (
+        f"the blank canvas at the edge is not the page's ground: {at_rest}"
+    )
+    assert at_rest["fill"] + 3 < at_rest["edge"] < at_rest["ground"] - 3, (
+        f"the cut node does not fade toward the ground and still reach the edge: "
+        f"{at_rest}"
+    )
     chain = page.locator("#chain")
-    chain.evaluate("el => { el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2; }")
+    chain.evaluate("""(el) => {
+        const node = el.querySelectorAll('g.node')[1].getBoundingClientRect();
+        el.scrollLeft += (node.left + node.right) / 2 - el.getBoundingClientRect().left;
+    }""")
     expect(chain).to_have_attribute("data-lf-more-before", "")
     rendered(page)
-    assert shaded("chain") == {"start": True, "end": True}
-    chain.evaluate("el => { el.scrollLeft = el.scrollWidth; }")
-    expect(chain).not_to_have_attribute("data-lf-more-after", "")
-    rendered(page)
-    assert shaded("chain") == {"start": True, "end": False}
+    scrolled = edge("start")
+    assert scrolled["fill"] + 3 < scrolled["edge"] < scrolled["ground"] - 3, scrolled
 
 
 def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(

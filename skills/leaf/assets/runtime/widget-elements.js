@@ -530,6 +530,13 @@ export function relabel(node, label, { says } = {}) {
 // needs — where out of flow it is simply obeyed, and the widest word then measures as
 // whatever padding the control has.
 //
+// The floor holds the words and the face they were measured in, the control's padding
+// and border among it, and a face can change without the words doing so: the banner's
+// primary controls take a narrower inset in the phone band than on a desk, and a floor
+// measured on one side of that line held the other side's room. So each reservation
+// keeps its words and the face it was taken in, and when the window's size changes a
+// control whose face has changed since measures its words again.
+//
 // What it cannot stand out of is an ancestor that isn't drawn: display: none upward is
 // nobody's box, and every word measures zero there. A control whose ancestors may be
 // undrawn — anything a widget builds, since a widget upgrades wherever the runtime
@@ -561,6 +568,54 @@ export function reserve(control, labels) {
   control.style.cssText = stood.css;
   control.style.minWidth = Math.ceil(widest) + "px";
   restoreFocus?.();
+  forgetDetached();
+  reservations.set(control, { labels, face: reservedFace(control) });
+  reservedFaces.observe(document.documentElement);
+}
+
+// What of a control's computed face a reserved floor was measured in.
+const reservedFace = (control) => {
+  const style = getComputedStyle(control);
+  return [
+    style.font,
+    style.letterSpacing,
+    style.paddingInline,
+    style.borderInlineStartWidth,
+    style.borderInlineEndWidth,
+  ].join("|");
+};
+// A control swapped out of the document leaves with the next reservation rather than
+// waiting on a resize: the playground replaces its copy trigger on every instruction.
+const reservations = new Map();
+function forgetDetached() {
+  for (const control of reservations.keys())
+    if (!control.isConnected) reservations.delete(control);
+}
+// A control an undrawn ancestor holds would measure zero and keep it as its floor, so
+// it waits, still holding the face it was measured in, for a resize that draws it.
+const reservedFaces = sizeObserver(() => {
+  forgetDetached();
+  for (const [control, { labels, face }] of reservations)
+    if (
+      control.parentElement?.getClientRects().length &&
+      reservedFace(control) !== face
+    )
+      reserve(control, labels);
+});
+
+// Every surface that closes wears one control for it: the cross, named for what it
+// closes, since the glyph alone says only "close". `name` is the accessible name, such
+// as "Close threads"; `title` is the hover's, which says the key where one closes it too.
+export function closeControl({ name, title = name, className = "" }) {
+  const control = el(
+    "button",
+    `lf-btn lf-icon-action lf-close-action ${className}`.trim(),
+  );
+  control.type = "button";
+  control.append(iconElement("cross", "lf-action-icon"));
+  control.setAttribute("aria-label", name);
+  control.title = title;
+  return control;
 }
 
 // The anchored response bar has one control grammar of its own. Its buttons share the

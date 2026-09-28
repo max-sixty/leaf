@@ -408,14 +408,6 @@
         font: 600 var(--t-6) / 1.2 var(--sans);
       }
 
-      /* The fields this element's module builds wear the layer's .lf-ui, and a page rule
-         reaches those only by naming the widget they stand in. */
-      release-query-explorer .query-row :is(input, select) {
-        min-height: var(--control-h);
-        color: var(--ink);
-        font: var(--t-5) / 1.25 var(--sans);
-      }
-
       .query-row-actions {
         margin-inline-start: auto;
       }
@@ -430,6 +422,7 @@
          stage is narrower than its columns. */
       .query-results {
         display: table;
+        table-layout: fixed;
         width: 100%;
         min-width: 30rem;
       }
@@ -515,7 +508,7 @@
             const toolbar = document.createElement("div");
             toolbar.className = "query-toolbar";
             toolbar.append(document.createTextNode("Filters run from top to bottom."));
-            const add = offer("button", "lf-btn", "Add filter");
+            const add = offer("button", "lf-btn query-add", "Add filter");
             add.addEventListener("click", () => {
               const id = `filter-${this.#next++}`;
               this.#state.rows.push({
@@ -540,7 +533,7 @@
             const table = document.createElement("table");
             table.className = "query-results";
             table.innerHTML =
-              "<thead><tr><th>Service</th><th>Region</th><th>Risk</th><th>Owner</th></tr></thead>";
+              "<thead><tr><th>Service</th><th>Region</th><th class='num'>Risk</th><th>Owner</th></tr></thead>";
             table.append(this.#results);
             const tableFrame = document.createElement("div");
             tableFrame.className = "query-table-frame";
@@ -611,7 +604,10 @@
             this.#changed();
             queueMicrotask(() => {
               const rows = this.querySelectorAll(".query-row");
-              rows[Math.min(index, rows.length - 1)]?.querySelector("input")?.focus();
+              const next = rows[Math.min(index, rows.length - 1)];
+              (
+                next?.querySelector("input") ?? this.querySelector(".query-add")
+              ).focus();
             });
           }
 
@@ -694,6 +690,7 @@
                 for (const value of Object.values(release)) {
                   const cell = document.createElement("td");
                   cell.textContent = value;
+                  if (typeof value === "number") cell.className = "num";
                   row.append(cell);
                 }
                 return row;
@@ -982,13 +979,13 @@
         border-top: 1px solid var(--rule);
         --lf-block-frame: 1;
       }
-      /* The queue beside its detail, stacked in a narrow window. */
+      /* The queue beside its detail, stacked where the workspace flows. */
       #ar-regions {
         display: grid;
         grid-template-columns: minmax(16rem, 1fr) 2fr;
         gap: var(--sp-4);
       }
-      @media (width < 900px) {
+      @media (width < 720px) {
         #ar-regions {
           grid-template-columns: 1fr;
         }
@@ -1283,8 +1280,6 @@
       }
       lf-sort-film .sort-stage svg {
         width: 100%;
-        height: auto;
-        aspect-ratio: 1080 / 560;
         display: block;
       }
       lf-sort-film .sort-narration {
@@ -1413,13 +1408,13 @@
     </script>
 <!-- current-proposed-comparison.html authored styles -->
 <style>
-      /* The regions side by side, stacked in a narrow window. */
+      /* The regions side by side, stacked where the workspace flows. */
       #comparison-regions {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: var(--sp-4);
       }
-      @media (width < 900px) {
+      @media (width < 720px) {
         #comparison-regions {
           grid-template-columns: 1fr;
         }
@@ -1427,13 +1422,13 @@
     </style>
 <!-- review-queue.html authored styles -->
 <style>
-      /* The regions side by side, stacked in a narrow window. */
+      /* The regions side by side, stacked where the workspace flows. */
       #review-regions {
         display: grid;
         grid-template-columns: minmax(16rem, 1fr) 2fr;
         gap: var(--sp-4);
       }
-      @media (width < 900px) {
+      @media (width < 720px) {
         #review-regions {
           grid-template-columns: 1fr;
         }
@@ -1792,9 +1787,10 @@
         const panel = child.querySelector(".lf-thread-panel");
         if (!panel.open) child.querySelector(".lf-threads-toggle").click();
         child.querySelector(".lf-thread-filter-reset")?.click();
-        await whenPanelMatches(
-          child,
-          () => child.querySelector(".lf-thread-view").hidden,
+        await whenPanelMatches(child, () =>
+          child
+            .querySelector(".lf-thread-filter-reset")
+            .hasAttribute("data-lf-unoffered"),
         );
         if (version !== selectionVersion) return;
         if (view === "you" || view === "resolved") {
@@ -6386,10 +6382,11 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             </h2>
             <p id="bg-reactions-guide">
               Select words and press E, or hover an agent reply and use its corner
-              control. The picker is feedback for the agent, not chat decoration. A
-              saved passage reaction leaves only its emoji; press it to reveal the
-              separate Remove control, then press that control to take the reaction
-              back.
+              control. The picker is feedback for the agent, not chat decoration. Press
+              and hold a reaction to read its word; slide to another to read that one,
+              and let go on the one you mean, or off the picker to choose none. A saved
+              passage reaction leaves only its emoji; press it to reveal the separate
+              Remove control, then press that control to take the reaction back.
             </p>
             <p id="bg-react-ok">
               <strong>1 · 👍 · keep.</strong> The spare key is with reception.

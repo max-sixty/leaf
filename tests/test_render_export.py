@@ -1226,7 +1226,7 @@ def test_an_interactive_export_paints_a_widget_owned_text_box(browser, serve, tm
     form = page.locator("#jobs > .lf-another")
     field = form.locator("leaf-text")
     add = form.locator(".lf-compose-submit")
-    expect(field).to_have_attribute("placeholder", "Another option — add to select")
+    expect(field).to_have_attribute("placeholder", "Add another option")
     expect(add).to_have_attribute("aria-disabled", "true")
     expect(add).to_have_attribute("data-lf-empty", "")
     expect(add).to_be_hidden()

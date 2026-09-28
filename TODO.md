@@ -14,7 +14,7 @@ has tried; settle that before building it.
 - **Make complete reading journeys feel coherent.** Audit a document, workspace,
   board or table, and populated thread in light and dark at wide and narrow
   widths. Fix recurring gaps in type, spacing, framing, controls, and responsive
-  behavior. Set one focus-ring weight for every keyboard target.
+  behavior.
 - **Keep the Thread hierarchy clear.** Check context, search, filters, agent
   activity, selection, and reply editing in the implemented accordion.
 - **Name a new Thread promptly everywhere.** An App Server carrier (leaf.page and
@@ -98,16 +98,15 @@ and its chrome coordinate.
   `--layout-columns: 3fr 2fr`, stacking below 720px, would carry it. A bounded box of
   panes outside a workspace also restates the Layout's pane scrolling (the feature
   gallery), which could key on `--lf-full-height` instead.
-- **Place markers so they cover less without losing what they track.** Where no rail
-  stands, a marker pins inside its block's top-right corner and covers the end of the
-  block's first line. On a 390px phone an Ask's pin covers the end of its question's
-  heading, and a blind judge named that in 24 of 34 arrangement-eval judgments. A
-  marker is an overlay, so the answer cannot reserve room, pad a block, or move text
-  when a marker comes or goes (`skills/leaf/assets/AGENTS.md`, "Space and
-  scrolling"). A better place must still sit at its own target and not a neighbour's,
-  hold still as the page scrolls and reflows, stay off the block's controls, and work
-  where the target is inside a pane that scrolls on its own. Hiding the annotations
-  (`o`, or Hide annotations in More under a finger) stays the escape.
+- **Seat a suggestion's pair of pins on a phone.** A pin now takes room beside its
+  target that covers no words (`pinSpot`), which clears single markers on most pages,
+  but under a finger Accept and Reject together are a 96×44px pair: that needs a line
+  ending 100px short on the run's last line and 44px from that line to the next block.
+  At 390px, 5 of the 7 shipped suggestions find no such room and stay over their words;
+  one 44px marker would find room for 3 of those 5. Folding the pair into one marker
+  that opens Accept and Reject, only where the pair has no room, is the nearest design;
+  it costs a second tap. Hiding the annotations (`o`, or Hide annotations in More under
+  a finger) stays the escape.
 - **Give a declared rail a floor.** `data-rail="right"` makes the shell give up the
   rail's width at every width, so on a phone it leaves a 295px column. The margin pass
   admits residents by measuring the room they leave (`settleResidency`), which a rail
@@ -127,8 +126,6 @@ and its chrome coordinate.
   a cold agent asked for "a dashboard", the likeliest trigger for over-tiling. Run it
   with the agent-usability baseline (#19), by extending the
   [arrangement eval](notes/arrangement-eval/README.md).
-- **Balance a tile row.** `.layout-tiles` wraps four metrics 3 + 1 where four don't
-  fit (live-progress at 480–647px), as `lf-grid` did.
 - **Fit an Ask and what it turns on into one window.** `a` puts an Ask's heading at
   the top, and `authoring-asks.md` has the `lf-ask` hold its premise and evidence,
   but stacked they often outrun the window: on a findings page one Ask with its
@@ -158,6 +155,15 @@ and its chrome coordinate.
   `test_an_aimed_comment_keeps_its_place_with_the_asks_drawer_open` reproduces it at
   1200px with the drawer closed and runs at 900px, where the composer goes above or
   below, until this is fixed.
+- **Land a sent comment's thread where its comment box stood.** A comment typed beside
+  an option near the top of the window (the box standing just under the banner) came
+  back as a margin card level with the option, about 330px lower, so the words the
+  user just wrote jump across the page on send. The send's carry transition
+  (`composing/surface.js`, the card placement in `margin-projection.js`) animates the
+  jump rather than avoiding it. The card and the box choose their places by different
+  rules: the box from the target and the room at the moment it opened, the card from the
+  margin's own layout. Either the card opens where the box stood, or the box opens where
+  the card will stand.
 - **Unconfirmed: scrolling a live sample sometimes sticks.** A user reported it
   while a sample still scrolled inside a fixed-height frame, with no reproduction.
   The frame now takes its page's height, so nothing scrolls inside it; check that the

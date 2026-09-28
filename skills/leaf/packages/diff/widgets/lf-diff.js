@@ -185,6 +185,19 @@ function renderedLines(file, rendered) {
   });
 }
 
+// A path breaks after its slashes before anywhere else: with no break in it but the one
+// the stylesheet forces, a narrow header cut names mid-word ("skills/wor|ktrunk",
+// "preview.|rs"). The text is unchanged; a <wbr> adds only the opportunity.
+function pathNode(className, path) {
+  const node = Object.assign(document.createElement("span"), { className });
+  const parts = path.split("/");
+  parts.forEach((part, index) => {
+    node.append(index < parts.length - 1 ? `${part}/` : part);
+    if (index < parts.length - 1) node.append(document.createElement("wbr"));
+  });
+  return node;
+}
+
 function summaryNode(file, open) {
   const details = document.createElement("details");
   details.className = "lf-diff-fold";
@@ -198,13 +211,7 @@ function summaryNode(file, open) {
     textContent: `+${adds} −${dels}`,
   });
   stat.dataset.lfGen = "1";
-  summary.append(
-    Object.assign(document.createElement("span"), {
-      className: "lf-diff-path",
-      textContent: path,
-    }),
-    stat,
-  );
+  summary.append(pathNode("lf-diff-path", path), stat);
   commands(summary, "On a diff", [
     {
       id: "diff.toggle",
@@ -302,18 +309,12 @@ function renameNode(file) {
   row.className = "lf-diff-rename";
   row.dataset.lfGen = "1";
   row.append(
-    Object.assign(document.createElement("span"), {
-      className: "lf-diff-path lf-diff-before",
-      textContent: file.prevName,
-    }),
+    pathNode("lf-diff-path lf-diff-before", file.prevName),
     Object.assign(document.createElement("span"), {
       className: "lf-diff-arrow",
       textContent: " → ",
     }),
-    Object.assign(document.createElement("span"), {
-      className: "lf-diff-path lf-diff-after",
-      textContent: file.name,
-    }),
+    pathNode("lf-diff-path lf-diff-after", file.name),
     Object.assign(document.createElement("span"), {
       className: "lf-diff-stat",
       textContent: "renamed",
@@ -494,9 +495,9 @@ customElements.define(
           this.endThreadSurface();
         });
       if (this.stopWatching) return;
-      // A page diff's file header pins under the banner; one an agent sent in a reply
-      // scrolls inside the panel's own list, where the banner's height is no offset at
-      // all. The theme cannot ask that question from inside a shadow tree, so
+      // A page diff's file header pins at `--lf-top`, the top of the page's box that
+      // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
+      // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
       // the module answers it once with the layer's own predicate and paints the answer.
       if (!inChrome(this)) this.dataset.lfDiffPinned = "";
       if (!this.reviewKeys) {
@@ -1371,17 +1372,28 @@ customElements.define(
     // Arrival: scrolled to the band the document declares landable, which the pinned
     // header's own room has been added to, and then the focus without the browser
     // scrolling a second time. A row is not a tab stop — a patch is thousands of them —
-    // so it is made focusable for the press that lands on it and wears the platform's
-    // own ring, the same as every control the layer does not restyle. A file header
+    // so it is made focusable for the press that lands on it, and wears the band inset
+    // inside its own box (shadow.css). A file header
     // already is one, and writing a tabindex of -1 onto it would take it out of the
     // order a user tabs through.
+    //
+    // A landing moves the reading down, never sideways. A row is as wide as its file's
+    // longest line, so where one line ran past the code box, "nearest" on the inline
+    // axis scrolled that box to put the row's start at its edge: the width of the line
+    // numbers, which stand over the code there, so every line in the file lost its
+    // change marker and first characters under them. Each box between the target and
+    // the shadow root keeps the sideways place the user left it at.
     land(box, node = box) {
       if (node.tabIndex < 0) node.tabIndex = -1;
+      const sideways = [];
+      for (let el = box.parentElement; el; el = el.parentElement)
+        if (el.scrollWidth > el.clientWidth) sideways.push([el, el.scrollLeft]);
       box.scrollIntoView({
         behavior: scrollBehavior(),
         block: "start",
         inline: "nearest",
       });
+      for (const [el, left] of sideways) el.scrollLeft = left;
       node.focus({ preventScroll: true });
     }
 

@@ -44,7 +44,7 @@
    from a list of ask tags. Where a source is nested in an `x-ask-surface` region,
    the row names the region: its heading, context, and evidence are the ask the user
    is being sent to, while the source remains the owner of the answer.
-   `addressableSays` supplies each row's own label and the owned command scope's
+   `addressableLabel` supplies each row's own label and the owned command scope's
    `options.answer` supplies its current answer. Selecting a drawer row travels through
    the same ask-arrival function as `a` and `A`, so the panel and directional walk
    agree about focus, reveal, arrival placement, and `landed`; only the drawer's list is
@@ -136,7 +136,7 @@ import {
   paintKeys,
   projectCommandScope,
 } from "../keyboard/scopes.js";
-import { addressableSays, addressableWord } from "../anchor-resolution.js";
+import { addressableLabel, addressableWord } from "../anchor-resolution.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
 import { scrollBehavior } from "../motion.js";
 import { ASK_CONTROL, askActionLayer } from "./view-elements.js";
@@ -305,7 +305,7 @@ export function createAskView({
   const rowModel = (ask, unanswered) => {
     const node = askNode(ask);
     const kind = addressableWord(node) || ask.tag.replace(/^lf-/, "");
-    const says = addressableSays(node) || ask.id;
+    const says = addressableLabel(node) || ask.id;
     const answered = !unanswered.has(ask.id);
     const answer = answered ? currentAskAnswer(ask) : "";
     return Object.freeze({
@@ -523,6 +523,9 @@ export function createAskView({
           command,
         ),
     );
+  // Away from every Ask the row still stands in the command reference, as the range the
+  // digits take once the user stands in one, since that is where a question's options
+  // are pressed by number; the widgets' own Decision rows have no key of their own there.
   const actionRow = {
     id: "ask.activate-nth",
     touch: false,
@@ -530,14 +533,21 @@ export function createAskView({
     routes: actionRoutes,
     label: () => {
       const count = actionRoutes().length;
+      if (!count) return `1–${MAX_ASK_ACTIONS}`;
       return count > 1 ? `1–${count}` : "1";
     },
-    does: () =>
-      `Activate an action in this Ask: ${actionRoutes()
+    does: () => {
+      const routes = actionRoutes();
+      if (!routes.length)
+        return "Activate an action in the Ask you stand at, by its number";
+      return `Activate an action in this Ask: ${routes
         .map(({ binding, line }) => `${spell(binding)} ${line}`)
-        .join("; ")}`,
+        .join("; ")}`;
+    },
     line: "Ask actions",
+    reach: "in an Ask",
     when: () => actionRoutes().length > 0,
+    commandReferenceWhen: () => allAsks().length > 0,
   };
   const reachableActionRoutes = (available = availableCommandRoutes()) => {
     const reachable = available.get(actionRow) ?? new Set();
@@ -715,7 +725,7 @@ export function createAskView({
       const at = documentPoint(box.left, box.top);
       chip.style.left = `${at.left}px`;
       chip.style.top = `${at.top}px`;
-      chips.push(chip);
+      chips.push({ chip, owner: presented, corner: box });
     }
     for (const control of [...bindingChips.keys()])
       if (!chips.includes(bindingChips.get(control))) bindingChips.delete(control);

@@ -69,6 +69,7 @@ from render_harness import (
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
+    RELEASE_FOCUS,
     TOKEN,
     _traffic,
     comment_note,
@@ -425,7 +426,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
 
 @pytest.mark.parametrize(
     ("width", "has_touch", "banner_height"),
-    [(800, False, 88), (1200, True, 53), (1724, False, 42)],
+    [(390, True, 89), (740, True, 53), (800, False, 42), (1724, False, 42)],
 )
 def test_authored_html_paints_while_runtime_startup_is_held(
     browser, serve, width, has_touch, banner_height
@@ -2330,7 +2331,7 @@ def test_an_unavailable_floating_ui_module_closes_the_thread_card(browser, serve
         page, "Failed to fetch dynamically imported module", "net::ERR_FAILED"
     )
 
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     with page.expect_event("pageerror") as raised:
         page.keyboard.press("t")
     assert "Failed to fetch dynamically imported module" in str(raised.value)

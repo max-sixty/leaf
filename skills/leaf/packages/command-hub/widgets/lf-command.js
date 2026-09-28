@@ -329,11 +329,8 @@ function renderGoal(goal) {
     meta.append(crew);
   }
   if (goal.held) meta.append(chip("paused by you", "lf-task-held"));
-  const strong = goal.element.querySelector(":scope > strong");
-  const quiet = goal.element.querySelector(":scope > .lf-quiet");
-  if (quiet) quiet.after(meta);
-  else if (strong) strong.after(meta);
-  else goal.element.prepend(meta);
+  // First, so the chips float level with the title (theme.css).
+  goal.element.prepend(meta);
   return true;
 }
 

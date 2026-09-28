@@ -1706,6 +1706,13 @@ SHELL_BOX = """(() => {
 # browser's own rendering frames.
 SCROLL_STILL_FRAMES = 3
 
+# Put the user nowhere, with the next Tab starting at the top of the document: the
+# runtime's own let-go (focus.js, `releaseFocus`). Body holds no stop of its own, so
+# `document.body.focus()` moves nothing on a page whose root does not scroll.
+RELEASE_FOCUS = """async () =>
+  (await window.__lfRuntimeImport('/runtime/focus.js')).releaseFocus()"""
+
+
 SCROLL_STILL = """([selector, axis, frames]) => {
   const box = selector ? document.querySelector(selector) : document.scrollingElement;
   if (!box) return false;
@@ -1761,10 +1768,10 @@ def panel_settled(page, open=True):
 
 def regions_side_by_side(regions: str, columns: str = "1fr 1fr") -> str:
     """The page's own stylesheet setting a workspace body's panes side by side, as a
-    page writes it: a grid, which stacks in a narrow window."""
+    page writes it: a grid, which stacks where the workspace flows."""
     return f"""<style>
 #{regions} {{ display: grid; grid-template-columns: {columns}; gap: var(--sp-4); }}
-@media (width < 900px) {{ #{regions} {{ grid-template-columns: 1fr; }} }}
+@media (width < 720px) {{ #{regions} {{ grid-template-columns: 1fr; }} }}
 </style>"""
 
 

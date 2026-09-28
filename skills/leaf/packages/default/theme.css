@@ -101,7 +101,7 @@ lf-chip {
 lf-chip {
   display: inline-block; font-size: var(--t-6); line-height: var(--chip-lh);
   padding: var(--chip-pad);
-  box-sizing: border-box; max-width: 100%; overflow-wrap: anywhere;
+  box-sizing: border-box; max-width: 100%; overflow-wrap: break-word;
   border-radius: var(--chip-r); background: var(--chip); color: var(--ink-2); }
 
 /* Titled alternatives carry an argument and keep the document's serif. Compact
@@ -412,9 +412,17 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
    & > lf-option::before { content: ""; float: inline-end;
                      width: var(--lf-card-state-room); height: 22px;
                      pointer-events: none; }
+   /* The mark's box is the whole seat the binding badge takes in its place, the mark
+    * centred in it as the badge's digit is. A margin pin standing in the card's corner
+    * steps below the controls it finds there, and it found the 11px mark alone: it stood
+    * over the lower edge of the badge once the badge came, which then gave way to a
+    * chip on the mark's corner, 10px higher, with the mark's ring showing under it. */
    & > lf-option > .lf-pick {
                      left: auto; inset-inline-end: var(--sp-2);
-                     top: var(--sp-2); bottom: auto; z-index: 1; }
+                     top: var(--sp-2); bottom: auto; z-index: 1;
+                     min-width: var(--lf-key-badge-size);
+                     min-height: var(--lf-key-badge-size);
+                     justify-content: center; }
    & > lf-option[chosen] > .lf-pick {
                      padding: var(--chip-pad); border-radius: var(--chip-r);
                      background: var(--ok); color: var(--card);
@@ -662,6 +670,10 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
     & > lf-option:is(:hover, :has(> .lf-pick:is(:focus-visible, .lf-focus-visible))) {
                      background: color-mix(in srgb, var(--fill) 92%, var(--ink)); }
     & > lf-option[chosen] { --fill: var(--ok-tint); }
+    /* An ok chip is drawn in the same tint the pick fills its cell with, so on the chosen
+     * cell a "recommended" chip lost its ground and read as loose green words. There
+     * it stands on the card's ground instead, keeping its tone in its ink. */
+    & > lf-option[chosen] > lf-chip[tone="ok"] { background: var(--card); }
     /* The add form is the group's own child, so joining the group takes it inside the
      * border too, butted against the last cell by the hairline every child shares. It is
      * a cell rather than a footer: it creates the option the user writes when none of
@@ -1078,7 +1090,7 @@ lf-metric[direction="up-bad"][delta^="+"] > [data-lf-said="delta"]
  * following space. Long unbreakable runs (a path, a sha) still
  * break where they must; that is the page-wide bargain and no width buys it back.
  *
- * The grip's column is in the floor for the same reason it is in the card's padding: it
+ * The grip's width is in the floor because a card's title is set beside it (below): it
  * is room only where a grip hangs, so paper, copies and quoted boards floor a column at
  * the measure and its insets alone. */
 /* The board's minimum is every column at its floor and the gaps between them. A layout
@@ -1179,16 +1191,32 @@ lf-card { display: block; position: relative; background: var(--card);
           border: 1px solid var(--rule); border-radius: var(--r);
           padding: 12px var(--lf-card-inset); margin: 0 0 var(--sp-2);
           container-type: inline-size; --lf-block-frame: 1; }
-/* The column the grip hangs in, spent only where a grip hangs: the module measures its
-   own grip's box and states the room (--lf-grip-room, lf-board.js), the same answer the
-   pick column already is, so the ladder moving or a platform substituting a different
-   glyph re-measures itself. The number this replaces was 34px read out of a browser
-   once — and stated unconditionally, so paper and quoted boards, neither of which ever
-   grows a grip, carried a dead column beside every card. No module, no var, no room;
-   paper keeps the var in the style attribute, which is why the rule asks the medium
-   too. */
+/* The room the grip takes, spent only beside the grip: an empty float the grip's own
+   size stands in the card's top corner, so the lines level with the grip (the title's,
+   and on a finger's taller grip the first line after it) stop short of it, and what
+   runs below takes the card's whole width. It used to be a column down the card's full
+   height, which set a 188px card's prose at 136px under a 30px glyph. The float starts
+   where the grip does, 2px under the card's edge and so 10px above its 12px padding,
+   and its width keeps the card's inset between the words and the grip.
+
+   The module measures its own grip's box and states both sides of it (--lf-grip-room,
+   --lf-grip-block; lf-board.js), the same answer the pick column already is, so the
+   ladder moving or a platform substituting a different glyph re-measures itself. No
+   module, no var, no room, so paper and quoted boards, neither of which grows a grip,
+   keep none; paper keeps the vars in the style attribute, which is why the rule asks
+   the medium too. The float is generated rather than the grip itself floated, which
+   would have to come first in the card and so be read before its title.
+
+   Under a finger the grip is the aim floor tall and reaches past a one-line title. The
+   prose lines running on after the title wrap beside it, which is right, since its box
+   takes their presses; but a block that lays itself out on its own (a pre, a table) was
+   set beside the float for its whole height, 44px narrower than the card. So every
+   block after the card's first child clears the grip: it starts under the grip's box
+   and takes the card's width. An inline child ignores `clear`. */
 @media screen {
- lf-card { padding-right: calc(var(--lf-card-inset) + var(--lf-grip-room, 0px)); }
+  lf-card::before { content: ""; float: right; inline-size: var(--lf-grip-room, 0px);
+                    block-size: var(--lf-grip-block, 0px); margin-block-start: -10px; }
+  lf-card > :not(:first-child) { clear: right; }
 }
 lf-card:last-child { margin-bottom: 0; }
 lf-card > strong { display: block; font-weight: 600; line-height: 1.4; margin: 0 0 2px; }
@@ -1204,6 +1232,12 @@ lf-card .lf-grip { position: absolute; top: 2px; right: 0; color: var(--muted);
           border-radius: 4px; user-select: none;
           -webkit-user-select: none; line-height: 1;
           touch-action: none; /* the handle owns the gesture; scroll stays on the card */ }
+/* The grip names its card, so the browser's own reveal of a focused grip reveals the
+   card: its scroll margin runs back to the card's left edge (the card is an inline-size
+   container, so 100cqi is its content). Without it a board scrolling sideways showed only
+   the 30px grip, leaving the card's words and column cut off at the board's edge. The
+   reveal is the browser's, so a focus restored without scrolling leaves the board be. */
+lf-card .lf-grip { scroll-margin-inline-start: calc(100cqi + 2 * var(--lf-card-inset)); }
 lf-card:hover > .lf-grip { color: var(--ink-2); }
 lf-card .lf-grip:hover { background: var(--chip); }
 /* The ring is inset rather than offset a pixel out, as the layer's other small controls
@@ -1216,7 +1250,10 @@ lf-card .lf-grip:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ri
           color: var(--ink-2); }
 /* SortableJS drag states: the in-flow slot, the pressed card, the follower. */
 lf-card.lf-ghost { opacity: .4; border-style: dashed; border-color: var(--accent); }
-lf-card.lf-lift { box-shadow: 0 2px 8px var(--shade); }
+/* A held card says so with its contour. The lift's shadow alone does not show on the
+   dark paper, which left a card grabbed by keyboard looking exactly like one whose grip
+   is merely focused. */
+lf-card.lf-lift { box-shadow: 0 2px 8px var(--shade); border-color: var(--accent); }
 /* (No transform here: Sortable positions the follower with an inline matrix.) */
 lf-card.lf-inhand { opacity: 1; cursor: grabbing;
                     box-shadow: 0 8px 24px var(--shade); }
@@ -1367,7 +1404,7 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
     }
     lf-tabs[data-lf-tabs-flow="page"] > .lf-tabstrip {
       position: sticky;
-      top: var(--lf-banner-h);
+      top: var(--lf-top);
       z-index: 2;
       flex-wrap: nowrap;
       overflow-x: auto;
@@ -1580,8 +1617,11 @@ lf-toc li[data-lf-depth="1"] { --lf-toc-indent: 10px; }
 lf-toc li[data-lf-depth="2"] { --lf-toc-indent: 20px; }
 lf-toc li[data-lf-depth="3"] { --lf-toc-indent: 30px; }
 lf-toc li[data-lf-depth="4"] { --lf-toc-indent: 40px; }
-lf-toc a { display: inline-block; padding: 3px 0; color: inherit;
-           text-decoration: none; }
+/* Each link is a stacked row with no gap to the next, so its box is the whole of its aim:
+ * the padding centres its line in the aim floor, which a finger raises to 44px where the
+ * 3px a mouse needs left 24px rows. */
+lf-toc a { display: inline-block; color: inherit; text-decoration: none;
+           padding-block: max(3px, (var(--aim-floor) - 1lh) / 2); }
 lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
 
 /* The core sidebar states its actual posture after viewport and drawer-room decisions.
@@ -2114,8 +2154,10 @@ lf-text-document > .lf-text-document-view {
   margin: 0; border: 1px solid var(--code-border); border-radius: var(--r);
   overflow: hidden; background: var(--pre-bg); --lf-block-frame: 1;
 }
+/* The caption is the frame's header bar, not a line of reading, so it spans the frame:
+   under the reading measure its rule stopped 53px short of a 795px frame. */
 lf-text-document figcaption {
-  padding: 7px 11px; border-bottom: 1px solid var(--rule);
+  max-inline-size: none; padding: 7px 11px; border-bottom: 1px solid var(--rule);
   color: var(--muted); font-family: var(--sans); font-size: var(--t-6);
   font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
 }

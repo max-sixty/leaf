@@ -105,6 +105,7 @@ import {
   optionsOffered,
   markerFace,
   readingFace,
+  readingLabel,
   readingState,
   readingBehavior,
   awaitingUser,
@@ -125,7 +126,7 @@ import {
   letGo,
   placeChrome,
 } from "./focus.js";
-import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
+import { closeControl, el, keeps, keepsHidden, offer } from "./widget-elements.js";
 import { setChildren } from "./dom-children.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
@@ -151,7 +152,7 @@ import { versionBtn } from "./version-picker.js";
 import { motion, scrollBehavior } from "./motion.js";
 import { declareSide, placeOf } from "./standing-target.js";
 import { closestAcross, elementById, inChrome } from "./passages.js";
-import { addressableSays, addressableWord, visualAt } from "./anchor-resolution.js";
+import { addressableLabel, addressableWord, visualAt } from "./anchor-resolution.js";
 import { paintTrace } from "./target-paint.js";
 import { updateSequence } from "./updates.js";
 import { threadList } from "./thread/state.js";
@@ -317,14 +318,11 @@ export function createMarginProjection({
   preview.hidden = true;
   preview.setAttribute("role", "dialog");
   const previewOpen = () => !preview.hidden;
-  const previewClose = el(
-    "button",
-    "lf-btn lf-icon-action lf-close-action lf-margin-preview-close",
-  );
-  previewClose.append(iconElement("cross", "lf-action-icon"));
-  previewClose.type = "button";
-  previewClose.setAttribute("aria-label", "Dismiss thread view");
-  previewClose.title = "Dismiss thread view (Esc)";
+  const previewClose = closeControl({
+    name: "Dismiss thread view",
+    title: "Dismiss thread view (Esc)",
+    className: "lf-margin-preview-close",
+  });
   const previewNav = el("span", "lf-margin-preview-nav");
   const previewPosition = el("span", "lf-margin-preview-position");
   const previewPrevious = offer(
@@ -992,9 +990,12 @@ export function createMarginProjection({
       add(groups, target, {
         kind: "ask",
         id: `ask:${id}`,
-        text: labelWords(
-          `${addressableWord(target)} · ${addressableSays(target) || id}`,
-        ),
+        // The group this row stands in already names the Ask; the row says why it is
+        // there, since these are the Asks the user owes.
+        text: "Waiting on you",
+        // The marker's own label is the question, which says more than the kind its
+        // glyph already shows.
+        label: addressableLabel(target) || null,
         activate: () => {
           const standing = openAsks();
           const next = standing.find((candidate) => candidate.id === id);
@@ -1004,35 +1005,13 @@ export function createMarginProjection({
     }
 
     const projection = currentProjection();
-    for (const origin of projectionOrigins(authoredStates(), projection)) {
-      const target = elementById(origin.unit);
-      if (!target) continue;
-      const face = KINDS[origin.origin];
-      add(groups, target, {
-        kind: origin.origin,
-        id: `state-origin:${origin.origin}:${origin.unit}`,
-        // Durable provenance belongs in Page Map rather than another target margin entry:
-        // it remains explicit without changing the page's action density or geometry.
-        marker: false,
-        text: labelWords(
-          [face.label, addressableWord(target), addressableSays(target)]
-            .filter(Boolean)
-            .join(" · "),
-        ),
-        activate: () =>
-          revealTarget(
-            target,
-            `${face.label}: ${addressableSays(target)}`,
-            scrollToElement,
-          ),
-      });
-    }
     const claimActivity = new Map(
       workflows()
         .filter(isLiveWorkflow)
         .map((item) => [`${item.subject.kind}:${item.subject.id}`, item]),
     );
     const activityAlreadyShown = new Set();
+    const acknowledged = new Set();
     for (const [coordinate, entry] of projection.desired) {
       if (entry.e.kind !== "action") continue;
       const target = elementById(entry.unit) ?? elementById(entry.e.widget);
@@ -1042,7 +1021,7 @@ export function createMarginProjection({
       const account = [
         addressableWord(target),
         humanized(entry.e.action),
-        addressableSays(target),
+        addressableLabel(target),
       ]
         .filter(Boolean)
         .join(" · ");
@@ -1050,6 +1029,7 @@ export function createMarginProjection({
       if (!face) continue;
       if (face.kind === "activity")
         activityAlreadyShown.add(`widget:${receipt.subject.id}`);
+      acknowledged.add(target);
       add(groups, target, {
         kind: face.kind,
         id: `acknowledgment:${receipt.id}`,
@@ -1062,6 +1042,34 @@ export function createMarginProjection({
       });
     }
 
+    for (const origin of projectionOrigins(authoredStates(), projection)) {
+      const target = elementById(origin.unit);
+      if (!target) continue;
+      // A gesture the agent still owes an answer to stands under its workflow row, which
+      // says the change is the user's and where it has got to; its provenance row would
+      // say the first half again.
+      if (origin.origin === "user" && acknowledged.has(target)) continue;
+      const face = KINDS[origin.origin];
+      add(groups, target, {
+        kind: origin.origin,
+        id: `state-origin:${origin.origin}:${origin.unit}`,
+        // Durable provenance belongs in Page Map rather than another target margin entry:
+        // it remains explicit without changing the page's action density or geometry.
+        marker: false,
+        text: labelWords(
+          [face.label, addressableWord(target), addressableLabel(target)]
+            .filter(Boolean)
+            .join(" · "),
+        ),
+        activate: () =>
+          revealTarget(
+            target,
+            `${face.label}: ${addressableLabel(target) || addressableWord(target)}`,
+            scrollToElement,
+          ),
+      });
+    }
+
     const base = comparisonBase();
     comparisonChanges().forEach((target, index) => {
       const account = `${addressableWord(target)} changed${base == null ? "" : ` since v${base}`}`;
@@ -1070,7 +1078,9 @@ export function createMarginProjection({
       add(groups, target, {
         kind: "change",
         id: `change:${targetPath(target)}:${index}`,
-        text: labelWords(`${mapAccount} · ${addressableSays(target)}`),
+        text: labelWords(
+          [mapAccount, addressableLabel(target)].filter(Boolean).join(" · "),
+        ),
         // A disclosure has to say what it holds, or its one word reports a fact and
         // promises nothing. The margin entry's quieter line carries it, and a block the
         // comparison holds nothing for has none, so no margin entry offers a press it has
@@ -1170,7 +1180,7 @@ export function createMarginProjection({
               [
                 group.subject ? null : subject.context,
                 group.word,
-                group.subject ?? addressableSays(group.target),
+                group.subject ?? addressableLabel(group.target),
               ]
                 .filter(Boolean)
                 .join(" · "),
@@ -1627,7 +1637,7 @@ export function createMarginProjection({
     const face = readingFace(choice);
     const behavior = readingBehavior(face);
     const count = choice.items.length;
-    const label = count > 1 ? `${face.label}s` : face.label;
+    const kind = count > 1 ? `${face.label}s` : face.label;
     const userContext =
       awaitingUser(choice.items) || unreadIn(choice.items)
         ? readingContext(choice)
@@ -1637,8 +1647,8 @@ export function createMarginProjection({
       marginEntry({
         key: `reading:${choice.key}`,
         icon: face.icon,
-        label,
-        accessibleLabel: `${label} for ${spokenSubject(entry.title)}${count > 1 ? `, ${count} items` : ""}${userContext ? `, ${userContext}` : ""}`,
+        label: readingLabel(choice),
+        accessibleLabel: `${kind} for ${spokenSubject(entry.title)}${count > 1 ? `, ${count} items` : ""}${userContext ? `, ${userContext}` : ""}`,
         context: readingContext(choice),
         behavior,
         rank: "reading",
@@ -1938,7 +1948,7 @@ export function createMarginProjection({
         );
         const optionsId = `lf-margin-options-${++optionsOrdinal}`;
         host = clusterViews.createPage(marker, more, optionsId);
-        keys(host, "In the Page Map", marginKeys, () => marginKeysAvailable);
+        keys(host, "In the margin", marginKeys, () => marginKeysAvailable);
         host.lfEntry = entry;
         more.setAttribute("aria-controls", optionsId);
         more.onclick = () => {
@@ -2483,7 +2493,7 @@ export function createMarginProjection({
   // surface's old local listener did, without another keydown listener of its own.
   const pageMapRung = (atFocus = true) => keyboardRung({ atFocus }) ?? null;
   pageScope("page map", {
-    title: "In the Page Map",
+    title: "In the margin",
     root: () => pageMapRung()?.root ?? document,
     when: () => Boolean(pageMapRung(false)),
     at: () => Boolean(pageMapRung()),

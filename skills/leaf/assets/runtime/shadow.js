@@ -47,8 +47,7 @@ export const renderedParent = (node) => node?.assignedSlot ?? upFrom(node);
 // narrowing a search to that section threw away every candidate inside it and the
 // passage resolved to nothing — the anchor captured, the mark never painted.
 export const under = (node, root) => {
-  for (let a = node; a; a = a.parentNode ?? shadowHost(a))
-    if (a === root) return true;
+  for (let a = node; a; a = a.parentNode ?? shadowHost(a)) if (a === root) return true;
   return false;
 };
 

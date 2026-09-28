@@ -12324,11 +12324,13 @@ def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tm
     )
 
 
-def test_session_end_does_not_start_uv_before_the_plugin_environment_exists(tmp_path):
+def test_session_end_does_not_start_uv_before_the_plugin_environment_exists(
+    tmp_path, page_dir
+):
     """An untouched session can end before this plugin copy has run any Leaf code.
 
     The host gives SessionEnd three seconds; syncing a fresh environment can exceed
-    that on a network home. A cold exit has no claim from this install to release.
+    that on a network home. A session with no shared claim needs no CLI.
     """
     project = tmp_path / "plugin"
     guard = project / "hooks" / "scripts" / "loop-guard.py"
@@ -12336,6 +12338,12 @@ def test_session_end_does_not_start_uv_before_the_plugin_environment_exists(tmp_
     guard.write_bytes(
         (PLUGIN_ROOT / "hooks" / "scripts" / "loop-guard.py").read_bytes()
     )
+    package = project / "skills" / "leaf" / "scripts" / "leaf"
+    package.mkdir(parents=True)
+    for name in ("__init__.py", "state_paths.py"):
+        (package / name).write_bytes(
+            (PLUGIN_ROOT / "skills" / "leaf" / "scripts" / "leaf" / name).read_bytes()
+        )
     tools = tmp_path / "tools"
     tools.mkdir()
     uv = tools / "uv"
@@ -12371,6 +12379,40 @@ def test_session_end_does_not_start_uv_before_the_plugin_environment_exists(tmp_
     )
     assert (custom.returncode, custom.stdout, custom.stderr) == (0, "", "")
     assert not called.exists()
+
+    record_claim(page_dir, id="another-session")
+    unrelated = subprocess.run(
+        [sys.executable, str(guard)],
+        input=payload,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=3,
+        check=False,
+    )
+    assert (unrelated.returncode, unrelated.stdout, unrelated.stderr) == (0, "", "")
+    assert not called.exists()
+
+    # A different Leaf checkout can claim a page in the shared state home while
+    # this plugin copy's environment is still cold. SessionEnd must reach the
+    # CLI to release that claim.
+    record_claim(page_dir, id="unused")
+    cross_copy = subprocess.run(
+        [sys.executable, str(guard)],
+        input=payload,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=3,
+        check=False,
+    )
+    assert (cross_copy.returncode, cross_copy.stdout, cross_copy.stderr) == (
+        0,
+        "",
+        "",
+    )
+    assert called.exists()
+    called.unlink()
 
     installed = project / ".venv" / "bin" / "leaf"
     installed.parent.mkdir(parents=True)

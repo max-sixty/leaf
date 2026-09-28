@@ -4985,6 +4985,76 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     assert all("detached" not in classes for classes in quote_classes), quote_classes
 
 
+def test_a_drag_across_a_written_diff_line_is_the_passage_c_comments_on(browser, serve):
+    """A diff written into the page rather than bound to data, and a real drag rather
+    than a range handed to the selection: Chrome keeps the document's selection in the
+    light DOM, so a drag wholly inside the diff's shadow tree reports both its ends at
+    the host, and `isCollapsed` says nothing is selected while the words are painted
+    selected. Read that way, no Comment field rose over the drag and `c` opened a comment
+    on the page with no passage at all. The passage is the composed range the user drew,
+    so the comment carries the words and their neighbours."""
+    patch = (
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        "@@ -1,2 +1,2 @@\n def route(request):\n"
+        '-    return f"legacy:{request.token.id}"\n'
+        '+    return f"tok:{request.token.id}"\n'
+    )
+    url = serve(
+        leaf_page(
+            "written diff",
+            '<h1 id="title">Review</h1>'
+            f'<lf-diff id="patch"><pre>{escape(patch)}</pre></lf-diff>',
+        )
+    )
+    page = open_page(browser, url)
+    page.wait_for_function(
+        "() => document.querySelector('lf-diff.lf-rendered') !== null"
+    )
+    line = page.locator('lf-diff [data-content] [data-line-type="change-addition"]')
+    # Where the phrase's first and last glyphs stand, so the drag starts and ends on them.
+    ends = line.evaluate(
+        """line => {
+          const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+          const nodes = [], starts = [];
+          let flat = '';
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            starts.push(flat.length); nodes.push(node); flat += node.data;
+          }
+          const glyph = offset => {
+            const index = starts.findLastIndex(value => value <= offset);
+            const range = document.createRange();
+            range.setStart(nodes[index], offset - starts[index]);
+            range.setEnd(nodes[index], offset - starts[index] + 1);
+            return range.getBoundingClientRect();
+          };
+          const phrase = 'request.token.id';
+          const start = flat.indexOf(phrase);
+          const first = glyph(start), last = glyph(start + phrase.length - 1);
+          return { x0: first.left + 1, x1: last.right - 1,
+                   y: (first.top + first.bottom) / 2 };
+        }"""
+    )
+    page.mouse.move(ends["x0"], ends["y"])
+    page.mouse.down()
+    page.mouse.move(ends["x1"], ends["y"], steps=6)
+    page.mouse.up()
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.keyboard.press("c")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator("#lf-composer-quote")).to_contain_text("“request.token.id”")
+    write(page.locator(".lf-fab-input"), "Review this expression.")
+    with sending(page, "the comment on the dragged expression"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    [comment] = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert comment["anchor"]["section"] == "patch", comment
+    assert comment["anchor"]["quote"] == "request.token.id", comment
+    assert comment["anchor"].get("prefix", "").endswith("tok:{"), comment
+
+
 @pytest.mark.parametrize("arrived", ["", "#title"], ids=["plain", "fragment"])
 def test_back_returns_from_a_thread_a_widget_surface_holds(browser, serve, arrived):
     """A thread the diff seats is a trip like any other: Back returns to where the

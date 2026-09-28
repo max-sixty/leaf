@@ -20,7 +20,6 @@ from types import SimpleNamespace
 
 import leaf_website as website_server
 import pytest
-import verify_site
 from click.testing import CliRunner
 from interact_support import (
     PAGE,
@@ -47,7 +46,7 @@ from leaf.served_state import page as served_page
 from leaf.served_state.reading import join_reading
 from leaf.service import delivery_reply_attempt, open_session_turn
 from leaf.thread import cmd_reply, cmd_resolve
-from leaf_dev import example_previews
+from leaf_dev import example_previews, verify_site
 from playwright.sync_api import expect
 from render_harness import LONG_PAGE, consume_browser_errors, open_page, told, write
 from websockets.exceptions import ConnectionClosedError
@@ -1022,7 +1021,7 @@ def test_the_agent_pass_emits_one_json_sample_for_local_and_remote_targets(
     )
     monkeypatch.setattr(verify_site, "verify_agent_turn", turn)
     runner = CliRunner()
-    local_result = runner.invoke(verify_site.main, ["local"])
+    local_result = runner.invoke(verify_site.verify_site, ["local"])
     assert local_result.exit_code == 0, local_result.output
     assert json.loads(local_result.stdout) == {
         "browser": "chrome",
@@ -1030,7 +1029,7 @@ def test_the_agent_pass_emits_one_json_sample_for_local_and_remote_targets(
         "release": "a" * 40,
     }
     remote_result = runner.invoke(
-        verify_site.main, ["https://leaf-dev.example/", "--agent"]
+        verify_site.verify_site, ["https://leaf-dev.example/", "--agent"]
     )
     assert remote_result.exit_code == 0, remote_result.output
     assert json.loads(remote_result.stdout) == {
@@ -1044,7 +1043,7 @@ def test_the_agent_pass_emits_one_json_sample_for_local_and_remote_targets(
         ("https://leaf-dev.example", None, False),
     ]
     invalid = runner.invoke(
-        verify_site.main, ["https://leaf-dev.example/a-page", "--agent"]
+        verify_site.verify_site, ["https://leaf-dev.example/a-page", "--agent"]
     )
     assert invalid.exit_code == 2
     assert len(calls) == 2
@@ -1059,11 +1058,11 @@ def test_the_agent_pass_emits_one_json_sample_for_local_and_remote_targets(
     manifest.write_text(json.dumps({"release": "b" * 40}))
     monkeypatch.setattr(verify_site, "MANIFEST", manifest)
     monkeypatch.setattr(verify_site, "local_worker", worker)
-    wrangler_result = runner.invoke(verify_site.main, ["wrangler", "--agent"])
+    wrangler_result = runner.invoke(verify_site.verify_site, ["wrangler", "--agent"])
     assert wrangler_result.exit_code == 0, wrangler_result.output
     assert calls[-1] == ("http://127.0.0.1:8787", "b" * 40, False)
     stale = runner.invoke(
-        verify_site.main, ["wrangler", "--agent", "--release", "c" * 40]
+        verify_site.verify_site, ["wrangler", "--agent", "--release", "c" * 40]
     )
     assert "differs from the built site" in str(stale.exception)
     assert lifecycle == ["start", "stop", "worker"]
@@ -1117,7 +1116,7 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
         host.endpoint,
     ]
     # Measured 2026-09-17: adding a "declare each step" instruction here made the turn
-    # run a closing `resolve` and never reply, which `verify_site.py local` caught. The
+    # run a closing `resolve` and never reply, which `leaf-dev verify-site local` caught. The
     # hosted page's sentence comes from the steps App Server watches instead, which the
     # activity fold prefers over Leaf's own claim wording for exactly this reason. The
     # shared contract describes `leaf status`, so what the agent receives has to hand
@@ -1363,7 +1362,7 @@ def test_the_adapter_takes_its_app_server_with_it_when_it_is_told_to_stop(
     """The stop signal reaches the App Server, not only the adapter that started it.
 
     `close` covers the ordinary return, and inside a container nothing else is
-    needed. On a host it is: `scripts/verify_site.py local` runs this adapter and
+    needed. On a host it is: `leaf-dev verify-site local` runs this adapter and
     stops it with SIGTERM, and uvicorn answers that signal by stopping its loop and
     re-raising it, so the process dies before any `finally`. The App Server is in a
     session of its own, which is what makes it the one child that survives that —
@@ -3711,7 +3710,7 @@ def test_local_verification_settles_host_network_only_for_release(monkeypatch, a
     monkeypatch.setattr(verify_site, "run_verification", verify)
 
     result = CliRunner().invoke(
-        verify_site.main, ["wrangler", *(["--agent"] if agent else [])]
+        verify_site.verify_site, ["wrangler", *(["--agent"] if agent else [])]
     )
 
     assert isinstance(result.exception, RuntimeError)

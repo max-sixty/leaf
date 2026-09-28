@@ -1,7 +1,7 @@
 """Arms, served pages, and agent-host children for evals and probes that run a
 version of Leaf.
 
-The `leaf-dev` commands, `verify_codex_task.py`, `verify_site.py`,
+The `leaf-dev` commands,
 `notes/arrangement-eval/harness.py` and `notes/usability-eval/harness.py` import it.
 
 An arm is the plugin payload (`PAYLOAD`: both hosts' manifests, hooks, launcher, skills

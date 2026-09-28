@@ -179,7 +179,7 @@ run, decides none of that: it runs this command under `uv` and stays silent when
 it cannot get an answer, so a leaf bug costs a turn nothing.
 
 Only a page handed to a user owes a watcher, so the unwatched clause passes
-over a page carrying `preview.json`, which only a checkout's `scripts/preview.py`
+over a page carrying `preview.json`, which only a checkout's `leaf-dev preview`
 writes; nothing else about that page changes. The guard reads the file's presence
 rather than the serve path's validating reader, because it fails open by saying
 nothing.

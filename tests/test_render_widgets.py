@@ -71,6 +71,7 @@ from render_cases_widgets import (
     LONG_LINE_DIFF_PAGE,
     MANIFEST_DIFF_PAGE,
     MULTI_HUNK_PATCH,
+    PANE_DIFF_PAGE,
     SQUEEZED_BOARD_PAGE,
 )
 from render_harness import (
@@ -3737,6 +3738,15 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_h
         "spokenWords": True,
     }
     assert bounded["controlsSize"][1] > bounded["controlsSize"][0], bounded
+    # The rail's two titles are one voice: the package draws its generated panes, and
+    # the kernel's default pane header must not outrank the class that says so.
+    voice = """node => {
+      const style = getComputedStyle(node);
+      return [style.fontFamily, style.fontSize, style.fontWeight];
+    }"""
+    assert playground.locator(".lf-playground-instruction-title").evaluate(
+        voice
+    ) == playground.locator(".lf-playground-presets-title").evaluate(voice)
     first_control = playground.locator("lf-playground-control").first
     control_box = first_control.bounding_box()
     controls_box = controls.bounding_box()
@@ -10275,6 +10285,103 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     expect(page.locator(".lf-walk-position")).to_have_text("File 1 of 2 unreviewed")
 
 
+def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
+    browser, serve
+):
+    """The same two halves inside a held workspace pane, whose body is the box that
+    scrolls the rows. The header used to stop the banner's height below the pane's top,
+    because the offset it pinned at was the window's: rows scrolled past in the 42px
+    above the name that headed them, and a `]` landing, which aligns to the pane's own
+    top, put the row above its header. Where a sticking box stops is `--lf-top`, and a
+    scrolling pane body declares it as its own top edge.
+
+    Short enough a window that the patch overflows the pane, and still tall enough that
+    the workspace holds it."""
+    url = serve(PANE_DIFF_PAGE)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
+    page = open_page(browser, url)
+    page.set_viewport_size({"width": 1024, "height": 560})
+    page.wait_for_function(
+        "() => document.querySelector('lf-diff.lf-rendered') !== null"
+    )
+    page.emulate_media(reduced_motion="reduce")
+    scrollport = """() => {
+        const body = document.querySelector('lf-diff');
+        return { top: Math.round(body.getBoundingClientRect().top),
+                 scrolls: body.scrollHeight > body.clientHeight,
+                 window: document.scrollingElement.scrollTop };
+    }"""
+    pane = page.evaluate(scrollport)
+    assert pane["scrolls"], f"the patch fits its pane, so nothing can pin: {pane}"
+
+    page.evaluate("() => { document.querySelector('lf-diff').scrollTop = 200; }")
+    pinned = page.evaluate(DIFF_LANDING)
+    assert pinned["headTop"] == pane["top"], (
+        f"the file's name is not at the top of the pane that scrolls it: {pinned}, {pane}"
+    )
+    page.evaluate("() => { document.querySelector('lf-diff').scrollTop = 0; }")
+
+    page.locator("lf-diff .lf-diff-wrap").focus()
+    page.keyboard.press("]")
+    page.keyboard.press("]")
+    expect(page.locator(".lf-walk-position")).to_have_text("Hunk 2 of 3")
+    landed = page.evaluate(DIFF_LANDING)
+    assert landed["line"] == "40", landed
+    assert landed["headTop"] == pane["top"], (
+        f"the header is not pinned where the landing was measured against: {landed}"
+    )
+    assert landed["top"] >= landed["headBottom"], (
+        f"the row it landed on is above or behind its file's pinned header: {landed}"
+    )
+    assert page.evaluate(scrollport)["window"] == 0, "the window scrolled, not the pane"
+    # The landed row wears the band where it can be seen: inside the code box that clips
+    # it and below the header pinned over the row above. Drawn outset, its sides fell
+    # outside that box and its upper run under the header, and the row showed no ring.
+    row_ring = page.evaluate(f"""() => {{
+        const at = document.querySelector('lf-diff').shadowRoot.activeElement;
+        return ({_RING_WITHIN})(at, at.closest('code'));
+    }}""")
+    # Its right run is the row's end, as far off as the file's longest line, which the
+    # code box scrolls sideways to reach; the other three are on screen.
+    inside = row_ring["inside"]
+    assert row_ring["drawn"] and inside["top"] and inside["bottom"], row_ring
+    # And the code box has not moved sideways. The row runs past the box, so a landing
+    # that let the browser bring it "nearest" scrolled the box to the row's start, the
+    # width of the line numbers over it, hiding every line's marker and first characters.
+    assert row_ring["sideways"] == 0 and inside["left"], (
+        f"the landing scrolled the file's lines sideways under their numbers: {row_ring}"
+    )
+    assert row_ring["top"] >= landed["headBottom"], (
+        f"the landed row's ring runs under its file's pinned header: {row_ring}"
+    )
+    # The pane's body is a Tab stop because it scrolls, and it fills its pane, so its
+    # band has to stay inside the pane too: outset, the workspace body clipped its right
+    # and lower runs.
+    page.evaluate("() => document.querySelector('lf-diff').focus()")
+    host_ring = page.evaluate(
+        f"() => ({_RING_WITHIN})(document.querySelector('lf-diff'),"
+        " document.querySelector('lf-pane'))"
+    )
+    assert host_ring["drawn"] and all(host_ring["inside"].values()), host_ring
+
+
+# Where an element's focus band falls, from its computed outline, and whether that box
+# stays inside `frame`'s border box, which is what clips it or covers its edge.
+_RING_WITHIN = """(el, frame) => {
+    const s = getComputedStyle(el);
+    const out = parseFloat(s.outlineOffset) + parseFloat(s.outlineWidth);
+    const box = el.getBoundingClientRect(), edge = frame.getBoundingClientRect();
+    const ring = { top: box.top - out, left: box.left - out,
+                   right: box.right + out, bottom: box.bottom + out };
+    return { drawn: s.outlineStyle === 'solid' && s.outlineWidth === '2px',
+             focus: el.matches(':focus-visible'), top: Math.round(ring.top),
+             sideways: frame.scrollLeft,
+             inside: { top: ring.top >= edge.top, left: ring.left >= edge.left,
+                       right: ring.right <= edge.right,
+                       bottom: ring.bottom <= edge.bottom } };
+}"""
+
+
 def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_it(
     browser, serve
 ):
@@ -10556,6 +10663,74 @@ def test_a_phone_can_wrap_diff_lines_by_tapping_the_label(iphone, serve):
     assert line.bounding_box()["height"] > before
     label.tap()
     expect(line).to_have_css("white-space", "pre")
+
+
+def test_a_phone_wraps_a_long_diff_path_after_its_slashes_beside_the_triangle(
+    iphone, serve
+):
+    """A file's header on a phone, with the review press beside it. The triangle stood
+    alone on the first line and the path wrapped below it, back to the header's left
+    edge, because the triangle was the line's first word and the path had no break in
+    it but the ones `overflow-wrap` forces; and a padding held the press's column open
+    down the whole header, so those forced breaks cut names mid-word
+    ("skills/wor|ktrunk"). The path now starts on the triangle's line, every line of
+    it starts at one left edge, and each break falls after a slash."""
+    path = "plugins/worktrunk/skills/worktrunk/reference/config.md"
+    patch = (
+        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+    )
+    page = open_page(
+        None,
+        serve(
+            leaf_page(
+                "Phone header",
+                '<h1>Review</h1><lf-diff id="patch" review><pre>'
+                + patch
+                + "</pre></lf-diff>",
+            )
+        ),
+        context=iphone,
+    )
+    page.wait_for_function("() => document.querySelector('lf-diff.lf-rendered')")
+    lines = page.evaluate(
+        """() => {
+        const head = document.querySelector('lf-diff').shadowRoot
+            .querySelector('summary');
+        const text = head.querySelector('.lf-diff-path');
+        const range = document.createRange();
+        const lines = [];
+        for (const node of text.childNodes) {
+            if (node.nodeType !== Node.TEXT_NODE) continue;
+            for (let i = 0; i < node.length; i++) {
+                range.setStart(node, i);
+                range.setEnd(node, i + 1);
+                const box = range.getBoundingClientRect();
+                const last = lines.at(-1);
+                if (last && Math.abs(box.top - last.top) < 2) last.text += node.data[i];
+                else lines.push({ top: box.top, left: Math.round(box.left),
+                                  text: node.data[i] });
+            }
+        }
+        const s = getComputedStyle(head);
+        return { lines, contentTop: head.getBoundingClientRect().top
+                   + parseFloat(s.borderTopWidth) + parseFloat(s.paddingTop) };
+    }"""
+    )
+    rows = lines["lines"]
+    assert len(rows) > 1, f"the path fits one line, so nothing wrapped: {rows}"
+    assert rows[0]["top"] - lines["contentTop"] < 8, (
+        f"the path did not start on the triangle's line: {lines}"
+    )
+    # To a pixel: the first line is drawn back by the triangle's width, which the
+    # engine's font sets.
+    lefts = [row["left"] for row in rows]
+    assert max(lefts) - min(lefts) <= 1, (
+        f"a wrapped line of the path does not start where its first line does: {rows}"
+    )
+    assert all(row["text"].endswith("/") for row in rows[:-1]), (
+        f"the path broke inside a name: {[row['text'] for row in rows]}"
+    )
 
 
 # A page-authored driver that points at a code block's lines through its declared `for`,

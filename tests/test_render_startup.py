@@ -3680,6 +3680,7 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
             "text": "Did this reach anyone?",
         },
     )
+    record_claim(d)
     page = open_page(browser, url)
     page.keyboard.press("c")
     thread = page.locator(f'.lf-thread[data-id="{comment["id"]}"]')

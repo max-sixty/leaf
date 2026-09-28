@@ -5439,6 +5439,7 @@ RING_CASES = (
                 (".lf-draft-edit", "draft-editor"),
             ),
             "heat-loss": ((".lf-visual-action", "visual-target"),),
+            "review-a-plan": (("main details > summary", "focus"),),
             "pr-walkthrough": (
                 ("lf-gloss:visible > .lf-gloss-mark", "gloss-mark"),
                 (".lf-diff-search input", "text-entry"),
@@ -5453,8 +5454,12 @@ RING_CASES = (
                 (".lf-shotcap", "pressable"),
             ),
             "ship-review": ((".lf-reopen", "thread-action"),),
+            "wt-merge": (
+                ('[data-lf-reading-role="pane"] > [tabindex="0"]', "pane-body"),
+            ),
         },
     ),
+    ("a landed diff line", ("]",), {"pr-walkthrough": ((None, "code-line"),)}),
     (
         "an inline response",
         (),
@@ -5594,6 +5599,8 @@ RING_EXAMPLE_FILES = {
 RING_REMOTE_CARRIER = {
     "ask": None,
     "target-hint": ".lf-target-chooser-hint.lf-current",
+    # A pane draws its focused body's band inset over the body's cell (theme.css).
+    "pane-body": '[data-lf-reading-role="pane"]:has(> :focus-visible)',
 }
 
 
@@ -5641,6 +5648,8 @@ RING_SCOPE_OPENER = {
     "a thread card": '.lf-margin-marker[data-lf-kinds~="comment"]',
     "the Page Map dialog": ".lf-page-map-toggle",
     "a reaction palette": ".lf-react-strip > .lf-react-trigger",
+    # Any control inside the diff puts the user in its scope, where `]` lands a line.
+    "a landed diff line": "#pr-exact-patch .lf-diff-wrap",
 }
 # The window a scope's own surface stands in, where that is not the page's own. These
 # entries are floors the layer states rather than preferences: the Page Map control is drawn

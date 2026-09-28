@@ -529,10 +529,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-layer-version { font-family: var(--mono); font-size: inherit; }
   /* The quiet summary is a native disclosure; complete activity wording remains
      reachable by keyboard and touch without consuming the reading row. */
-  /* Only as wide as its words: at the row's full width a press on the empty banner
-     opened the status, and the focus ring drew across the whole banner. */
   .lf-status-button { display: flex; align-items: center; gap: var(--lf-banner-gap);
-    min-width: 0; width: fit-content; max-width: 100%; min-height: var(--aim-floor); padding: 2px 0;
+    min-width: 0; width: 100%; max-width: 100%; min-height: var(--aim-floor); padding: 2px 0;
     border: 0; border-radius: 4px; background: none; color: var(--ink-2);
     font: inherit; text-align: left; cursor: pointer; }
   .lf-status-button::after { content: ""; flex: none; width: 5px; height: 5px;
@@ -863,7 +861,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* Pointer capture carries :hover with it, so one rule covers the reach and the whole
      drag that follows it. */
   .lf-edge:hover::before, .lf-edge:is(:focus-visible, .lf-focus-visible)::before { opacity: 1; }
-  .lf-edge:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: edge; }
+  /* Flush with its box, which runs the window's height under the banner: the layer's
+     standing gap put the band's top under the banner and its foot past the window. */
+  .lf-edge:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: edge;
+    outline-offset: 0; }
   .lf-thread-panel-head, .lf-tray-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--rule); font-weight: 600; }
   .lf-first-unread { margin-inline-start: auto; margin-inline-end: 8px; color: var(--turn-ink);
     font-size: var(--t-6); white-space: nowrap; }

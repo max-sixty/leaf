@@ -3435,9 +3435,11 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         "data-lf-agent-workflow", re.compile(".+")
     )
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
+    # The turn ended with both updates still the agent's to answer, so they are overdue
+    # and the remedy is the user's.
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude isn't watching right now. 2 updates are saved. "
-        "It picks them up next turn."
+        "Claude last checked in just now. 2 updates are saved. "
+        "Nothing is answering them, so nudge it in the terminal."
     )
     with service_model.PageTransaction(d) as transaction:
         transaction.open_turn("s")

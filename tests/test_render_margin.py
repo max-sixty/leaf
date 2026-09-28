@@ -5906,7 +5906,9 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
             if (!event.target.matches('.lf-margin-preview .lf-page-thread'))
               return;
             document.removeEventListener('focusin', firstFocus);
-            queueMicrotask(() => {
+            // The frame the focus paints: the runtime's focus listener ran first and
+            // asked for this frame's standing paint before this one asks to read it.
+            requestAnimationFrame(() => {
               window.__firstReplyHint = card.querySelector('leaf-text')?.placeholder;
             });
           };

@@ -8748,13 +8748,14 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
           };
         }"""
     )
-    assert compact["rows"] <= 2, compact
+    assert compact["rows"] == 1, compact
     assert compact["scrollWidth"] <= compact["clientWidth"], compact
     assert compact["scrollHeight"] <= compact["clientHeight"], compact
 
-    # Linux's wider system face wraps this line at the smallest supported window, and the
-    # disclosure is the one control on it: whatever the face costs, More stays painted and
-    # the line stays inside its own box rather than clipping the way out of itself.
+    # Linux's wider system face leaves little room on this line at the smallest supported
+    # window, and the disclosure is the one control on it: whatever the face costs, the
+    # hints leave before More does, and the line stays inside its own box rather than
+    # clipping the way out of itself.
     resized(page, 320, 800)
     rendered(page)
     smallest = line.evaluate(

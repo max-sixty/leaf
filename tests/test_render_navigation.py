@@ -4545,10 +4545,8 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     # Two threads on one block count up, and leave one note rather than two.
     expect_comment_notes(page, "#p1", 1)
-    named = (
-        "2 comments on § paragraph · The first passage under discussion, with words "
-        "enough for two separate remarks to land in it."
-    )
+    # The block is named by its words, cut short as every chrome name is.
+    named = "2 comments on § paragraph · The first passage under discussion, with words enough for…"
     assert accessible_details(page, "#p1") == [named], (
         "a screen reader reading the block is told nothing about the comments on it"
     )
@@ -6804,6 +6802,23 @@ def test_the_reference_runs_the_exact_numbered_ask_action(browser, serve):
     expect(page.locator("#lq-token")).to_have_attribute("chosen", "")
     expect(page.locator("#lq-keep")).not_to_have_attribute("chosen", "")
     round_trip(page)
+
+
+def test_away_from_an_ask_the_reference_names_its_digits_not_its_options(
+    browser, serve
+):
+    """An option's key is the digit its Ask gives it while the user stands there, so away
+    from every Ask the reference offers that digit range once, rather than one row per
+    option id with some Ask's option words standing in for a keycap."""
+    page = open_page(browser, serve(ASKS_PAGE))
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    reference = page.locator(".lf-command-reference")
+    expect(reference).to_be_visible()
+    expect(reference.locator('tr[data-lf-command^="option.choose-"]')).to_have_count(0)
+    digits = reference.locator('tr[data-lf-command="ask.activate-nth"]')
+    expect(digits.locator(".lf-key-badge")).to_have_text(["1–9"])
+    expect(digits).to_contain_text("Activate an action in the Ask you stand at")
 
 
 def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
@@ -10012,10 +10027,11 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
     # standing's business — a user on the radio is standing on it, so the box that
     # opens is about it rather than about the page. Named in full, because "comment on
     # the" matches every destination this key has and would assert nothing about which.
+    # The box names the radio by its label, as a screen reader does.
     expect(line).to_contain_text("comment on the control")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
-    expect(page.locator(".lf-composer")).to_contain_text("flip")
+    expect(page.locator(".lf-composer")).to_contain_text("control · after")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-composer")).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
@@ -11004,13 +11020,13 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
 
     # A settled group: not a decision at all, and the thread seat it still holds is
     # inside `hidden="until-found"`, so a press that reached into the seat focused a box
-    # that cannot take focus and did nothing at all. Named by its own words rather than by
-    # "options", which the composer standing open from the phase above already says — an
-    # assertion true before the press is no assertion about the press.
+    # that cannot take focus and did nothing at all. Named by the question holding it
+    # rather than by "options", which the composer standing open from the phase above
+    # already says — an assertion true before the press is no assertion about the press.
     page.locator("#settled .lf-settled").focus()
     expect(line).to_contain_text("comment on the options")
     page.keyboard.press("c")
-    expect(page.locator(".lf-composer")).to_contain_text("Decided last week")
+    expect(page.locator(".lf-composer")).to_contain_text("Should we keep it?")
     drop()
 
     # A decision with no seat: focus on its action names the rewrite, and the composer

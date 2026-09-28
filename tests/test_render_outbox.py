@@ -200,6 +200,37 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
     ] == ["resolve", "resolve", "undo"]
 
 
+def test_z_stops_at_a_newer_gesture_it_cannot_take_back(browser, serve):
+    """`z` takes back the user's newest gesture or nothing. A reply sent after a
+    resolve cannot be unsaid, so the resolve behind it is no longer the last change
+    the user made, and the press reopens nothing."""
+    page = open_page(browser, serve(LONG_PAGE, comments=3))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    first, second = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ][:2]
+    page.locator(f'.lf-threads > .lf-thread[data-id="{first}"] .lf-resolve').click()
+    round_trip(page)
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
+
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "reply", "author": "user", "parent": second, "text": "And this?"},
+    )
+    told(page)
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
+    page.keyboard.press("z")
+    told(page)
+    assert [
+        event["kind"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "undo"
+    ] == []
+
+
 def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
     """A withdrawal leaves the log holding one gesture and one word taking it back,
     and the page derives the rest. What it derives here is the placement this

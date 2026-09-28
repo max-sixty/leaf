@@ -277,6 +277,16 @@ function captureCommandReferenceCatalog() {
     for (const rowInfo of rows) {
       for (const { id, route } of rowInfo.presentations) {
         const chosen = preferred.get(id);
+        // A Decision a widget declares without a key of its own is pressed by the digit
+        // its Ask gives it, which exists only while the user stands in that Ask. There
+        // the Ask's route presents it under that digit; anywhere else it has no press to
+        // name, and the Ask's own row says what the digits do.
+        if (
+          !route &&
+          rowInfo.declared.length === 0 &&
+          rowInfo.row.decision !== undefined
+        )
+          continue;
         if (
           chosen?.row !== rowInfo.row ||
           chosen.binding !== (route?.binding ?? null) ||
@@ -302,7 +312,6 @@ function captureCommandReferenceCatalog() {
           sectionTitle,
           order: sectionEntries.length,
           sequenceControl: Boolean(rowInfo.row.sequenceControl),
-          keyLabel: rowInfo.declared.length === 0 && rowInfo.row.decision !== undefined,
           steps: Object.freeze(steps),
           keySequence: keySequenceModel(steps, neutralStates(steps), spokenSteps),
           action,
@@ -543,10 +552,7 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
       ?hidden=${!shown}
     >
       <td role="gridcell">
-        ${keySequenceTemplate(entry.keySequence, {
-          id: entry.keyId,
-          label: entry.keyLabel,
-        })}
+        ${keySequenceTemplate(entry.keySequence, { id: entry.keyId })}
       </td>
       ${actionCell}
     </tr>

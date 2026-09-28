@@ -2,8 +2,10 @@
 
    The server's view of the shown revision lists, newest first, the user's gestures this
    document can take back (`served_state/document.py`); nothing here judges a candidate
-   again. `z` takes the head of that list, and a widget's Undo, a reaction chip, and a
-   reaction strip each name an exact entry. All of them withdraw through `withdraw`. */
+   again. `z` takes the head of that list only when the server marks it `newest`, the
+   user's newest gesture, so a reply sent since ends the walk; a widget's Undo, a
+   reaction chip, and a reaction strip each name an exact entry. All of them withdraw
+   through `withdraw`. */
 import { runtime } from "../context.js";
 import { notice } from "../notifications.js";
 import { applicationState, readApplication } from "../semantic-state.js";
@@ -27,7 +29,8 @@ const words = {
 export function createProjectionCommands({ post, stateApplying, unaccountedGesture }) {
   function undoable() {
     if (stateApplying()) return null;
-    return readApplication().effective.view?.undo[0]?.event ?? null;
+    const head = readApplication().effective.view?.undo[0];
+    return head?.newest ? head.event : null;
   }
 
   // Whether taking back this exact gesture now takes back what the user sees. The

@@ -17,11 +17,7 @@ export async function mountSample(frame, options) {
 }
 
 export { USER_VIEW_RESTORE_CASES } from "./restore-state.js";
-export {
-  addressableName,
-  addressableSays,
-  addressableWord,
-} from "./anchor-resolution.js";
+export { addressableLabel, addressableWord } from "./anchor-resolution.js";
 // The name Threads, the margin, and reactions give a comment's anchor.
 export { anchorLabel } from "./thread/messages.js";
 // The page's `main`, or the body of the message whose markup a node stands in.

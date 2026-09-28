@@ -1216,6 +1216,12 @@ lf-card .lf-grip { position: absolute; top: 2px; right: 0; color: var(--muted);
           border-radius: 4px; user-select: none;
           -webkit-user-select: none; line-height: 1;
           touch-action: none; /* the handle owns the gesture; scroll stays on the card */ }
+/* The grip names its card, so the browser's own reveal of a focused grip reveals the
+   card: its scroll margin runs back to the card's left edge (the card is an inline-size
+   container, so 100cqi is its content). Without it a board scrolling sideways showed only
+   the 30px grip, leaving the card's words and column cut off at the board's edge. The
+   reveal is the browser's, so a focus restored without scrolling leaves the board be. */
+lf-card .lf-grip { scroll-margin-inline-start: calc(100cqi + 2 * var(--lf-card-inset)); }
 lf-card:hover > .lf-grip { color: var(--ink-2); }
 lf-card .lf-grip:hover { background: var(--chip); }
 /* The ring is inset rather than offset a pixel out, as the layer's other small controls

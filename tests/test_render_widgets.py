@@ -3422,6 +3422,15 @@ def test_tabbing_to_a_grip_reveals_its_whole_card(browser, serve):
     grip, which at a narrow width left the card's words cut off at the board's edge."""
     page = open_page(browser, serve(SQUEEZED_BOARD_PAGE))
     resized(page, 390, 500)
+    # A restored focus is not an arrival: it leaves the board where the user put it.
+    assert page.evaluate(
+        """() => {
+          const board = document.querySelector('#crowd');
+          const before = board.scrollLeft;
+          document.querySelector('#sq-card-5 .lf-grip').focus({preventScroll: true});
+          return board.scrollLeft === before;
+        }"""
+    )
     page.locator("#sq-card-0 .lf-grip").focus()
     whole = """() => {
       const card = document.activeElement.closest('lf-card');

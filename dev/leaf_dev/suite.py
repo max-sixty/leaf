@@ -1,7 +1,6 @@
 """Run a selection of the suite in a checkout and read what each test did.
 
-`leaf-dev flake` and `leaf-dev bugback` run tests here; `leaf-dev ci-failures` reads
-CI's reports with the same `read_junit`.
+`leaf-dev flake` and `leaf-dev bugback` run tests here.
 
 `collect` expands a selection of pytest node ids to the items it names and refuses one
 pytest would not run whole: piped or summarized, a selection that collects nothing

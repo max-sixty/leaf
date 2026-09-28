@@ -3,7 +3,7 @@
 Status: target contract. The lifecycle exists in parts. Under Claude Code, turn entry
 records **Picked up** without waiting for model output (the prompt and Stop hooks carry
 and confirm the delivery), and the reply answering clause asks for the work claim first.
-`leaf-dev delivery-ab` measures the agent-side objectives with a real agent, and
+`leaf-dev delivery-eval` measures the agent-side objectives with a real agent, and
 `leaf-dev bench-latency` the in-tab ones; neither is a gate. Move each stable rule into
 its owning runtime, protocol reference, skill, or test as it lands, then delete this
 note.

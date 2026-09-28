@@ -9848,6 +9848,56 @@ def test_a_dated_column_is_read_as_the_day_the_page_wrote(browser, serve):
     assert any("Jun" in tick for tick in ticks), ticks
 
 
+def test_a_column_of_moments_is_time_only_where_each_states_its_zone(browser, serve):
+    """A moment that states its zone is one instant for every reader, so a column of them
+    is a time axis, and twelve hours of them are ticked by the hour rather than held to a
+    day. Without a zone the browser would read the moment in the viewer's own zone, so
+    that column stays the words the body wrote. Two labels naming one instant would draw
+    two rows at one x on a line, and are refused like two rows sharing a label; a bar
+    chart keeps a slot per label, so there they are two bars."""
+    hours = "".join(f"2026-06-01T{h:02}:00Z, {h}\n" for h in range(12))
+    source = leaf_page(
+        "moments",
+        f"""
+<h1 id="t">Moments</h1>
+<lf-chart id="c-zoned" kind="line" y="queue depth"><pre>
+hour, depth
+{hours}</pre></lf-chart>
+<lf-chart id="c-bare" kind="line" y="queue depth"><pre>
+hour, depth
+2026-06-01T09:00, 4
+2026-06-01T10:00, 7
+</pre></lf-chart>
+<lf-chart id="c-same" kind="line" y="queue depth"><pre>
+day, depth
+2026-06, 4
+2026-06-01, 7
+</pre></lf-chart>
+<lf-chart id="c-bars" kind="bars" y="queue depth"><pre>
+day, depth
+2026-06, 4
+2026-06-01, 7
+</pre></lf-chart>
+""",
+    )
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, timezone_id="America/Anchorage"
+    )
+    page = open_page(browser, serve(source), context=context)
+    ticks = """(id) => [...document.querySelectorAll(
+        `#${id} [data-lf-part="x-axis tick label"] text`)].map((t) => t.textContent)"""
+    zoned = page.evaluate(ticks, "c-zoned")
+    assert len(zoned) >= 4, zoned
+    assert not any("T" in tick for tick in zoned), zoned
+    # UTC, whatever the reader's zone: the first hour is 12 AM, not the day before.
+    assert "May" not in " ".join(zoned), zoned
+    assert page.evaluate(ticks, "c-bare") == ["2026-06-01T09:00", "2026-06-01T10:00"]
+    expect(page.locator("#c-same .lf-error")).to_contain_text(
+        "2026-06-01 is the same x as another row"
+    )
+    assert page.evaluate(ticks, "c-bars") == ["2026-06", "2026-06-01"]
+
+
 def test_a_redraw_keeps_the_words_the_runtime_hung_on_the_chart(browser, serve):
     """A chart redraws for a new width, and the runtime writes inside widgets.
 

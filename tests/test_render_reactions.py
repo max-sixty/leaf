@@ -28,6 +28,7 @@ from render_cases_widgets import (
 )
 from render_harness import (
     FEATURE_GALLERY,
+    RELEASE_FOCUS,
     ROOT,
     holding,
     leaf_page,
@@ -273,7 +274,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     expect(receipt_item).to_have_attribute("data-lf-place", "rail")
     select_paragraph(page, "#how-store")
     expect(bar).to_be_visible()
-    page.evaluate("() => document.body.focus()")
+    page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("e")
     surface = bar
     expect(receipt_item).to_have_count(1)
@@ -343,7 +344,7 @@ def test_e_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, se
     # press then reaches nothing, and the read finds the withdrawal still last in the log.
     told(page)
     select_paragraph(page, "#bg-react-ok")
-    page.evaluate("() => document.body.focus()")
+    page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("e")
 
     surface = page.locator(".lf-fab-bar")
@@ -560,7 +561,7 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve, s
     page.keyboard.press("Escape")
     page.evaluate("() => getSelection().removeAllRanges()")
     page.mouse.move(0, 0)
-    page.evaluate("() => document.body.focus()")
+    page.evaluate(RELEASE_FOCUS)
     expect(
         page.locator('.lf-shortcut-bar [data-lf-command-ids~="reaction.open"]')
     ).to_have_count(0)

@@ -723,8 +723,13 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
     // stands on `body`, which is not a place to be given back — focusing it resets the
     // browser's sequential focus navigation starting point to the top of the document,
     // and the user who opened the reference four screens down would Tab from there.
+    // Nor is a control the hidden popover still holds: a popover opened while nothing
+    // held focus has nobody to hand back to, so focus stays on its control, hidden
+    // until the next rendering update drops it. That user stood nowhere too, and a
+    // hand-back aimed at the hidden control fell to a let-go a frame late, over the
+    // next key they pressed.
     const at = focused();
-    commandReferenceOrigin = at === document.body ? null : at;
+    commandReferenceOrigin = at === document.body || !at.checkVisibility() ? null : at;
     commandRoutesAtOpen = availableCommandRoutes();
   }
   commandReferenceIsOpen = open;

@@ -94,7 +94,8 @@ Focus evidence starts in keyboard modality: press `Tab` to the exact stop and re
 `:focus-visible`, or `:focus` on the runtime's text field (`leaf-text`), a host that
 delegates focus and so never matches `:focus-visible` in Chrome; `element.focus()` alone
 is not that evidence.
-`document.body.focus()` resets the sequential starting point; `blur()` keeps it. Read
+`RELEASE_FOCUS` (`render_harness.py`) resets the sequential starting point; `blur()` keeps
+it; `document.body.focus()` does nothing, since body holds no stop. Read
 a ring's actual paint through `RINGS_DRAWN` and `ring_faults`, because an ancestor or
 linked carrier may draw it.
 

@@ -48,6 +48,7 @@ from render_harness import (
     BOARD_PAGE,
     EXAMPLES,
     FEATURE_GALLERY,
+    RELEASE_FOCUS,
     _traffic,
     _until,
     comment_note,
@@ -2421,7 +2422,7 @@ def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
         })"""
     )
     margins_laid_out(page)
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     show_after = page.get_by_role(
         "button", name="Show after — a sample run list with and without a status column"
     )
@@ -4242,7 +4243,7 @@ def test_secondary_margin_entry_proxies_preserve_disabled_and_focus_contract(
 
     page.evaluate(
         """() => {
-          document.body.focus({preventScroll: true});
+          document.activeElement.blur();
           window.lfRequestedMarginFocus = 'act';
           window.lfMarginEntryFixture.registration.activate('act');
         }"""
@@ -4255,7 +4256,7 @@ def test_secondary_margin_entry_proxies_preserve_disabled_and_focus_contract(
 
     primary.evaluate(
         """button => {
-          document.body.focus({preventScroll: true});
+          document.activeElement.blur();
           window.lfRequestedMarginFocus = 'act';
           button.click();
         }"""
@@ -4508,7 +4509,7 @@ def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
     page.emulate_media(reduced_motion="reduce")
     resized(page, 1838, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
 
     _walk_gallery_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
     _walk_gallery_thread(page, crowded_thread)
@@ -4575,7 +4576,7 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
     page.emulate_media(reduced_motion="reduce")
     resized(page, 2672, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     _walk_gallery_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
     expect(page.locator("#bg-thread-text")).to_be_in_viewport()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
@@ -4696,7 +4697,7 @@ def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, s
     page.evaluate("document.getElementById('bg-compare-note').remove()")
     resized(page, 1360, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     _walk_gallery_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
     geometry = page.evaluate(
         """() => {
@@ -4739,7 +4740,7 @@ def test_a_thread_in_a_short_rail_crosses_the_column_by_only_what_the_rail_lacks
     page.emulate_media(reduced_motion="reduce")
     resized(page, 1024, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     _walk_gallery_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
     geometry = page.evaluate(
         """() => {
@@ -5777,10 +5778,10 @@ def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     expect(preview).to_be_hidden()
     page.mouse.move(4, 200)
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     marker.hover()
     expect(preview).to_be_hidden()
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     marker.focus()
     expect(preview).to_be_hidden()
     page.keyboard.press("Enter")
@@ -8046,7 +8047,7 @@ def test_o_hides_what_is_drawn_over_the_page_and_moves_nothing(browser, serve):
     before = page.evaluate(boxes)
     assert page.evaluate(wash) == ""
 
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("o")
     expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
     expect(pin).to_be_hidden()
@@ -8064,7 +8065,7 @@ def test_o_hides_what_is_drawn_over_the_page_and_moves_nothing(browser, serve):
         if page.evaluate("() => document.activeElement.id === 'sug-card'"):
             break
     expect(pin).to_be_visible()
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     expect(pin).to_be_hidden()
     expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
 
@@ -8073,7 +8074,7 @@ def test_o_hides_what_is_drawn_over_the_page_and_moves_nothing(browser, serve):
     margins_laid_out(page)
     expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
     expect(pin).to_be_hidden()
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("o")
     expect(pin).to_be_visible()
     assert page.evaluate(wash) == ""

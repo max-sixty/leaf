@@ -64,6 +64,7 @@ from render_harness import (
     FEATURE_GALLERY,
     INLINE_PAGE,
     LONG_PAGE,
+    RELEASE_FOCUS,
     ROOT,
     TOKEN,
     accessible_details,
@@ -174,6 +175,41 @@ def test_reading_keys_follow_the_focused_pane_without_moving_its_sibling(
     page.wait_for_function(
         f"() => document.querySelector('#left-reading > :not(header, footer)').scrollTop < {left_position}"
     )
+
+
+def test_a_click_on_a_panes_words_makes_it_the_subject_of_every_scroll_key(
+    browser, serve
+):
+    """A click on words focuses nothing, and Chrome then starts Space, PageDown and the
+    arrows from the node last pressed. A standing `tabindex` on body made the body the
+    focusable ancestor of every word, so the click focused it and those keys scrolled the
+    root, which a held workspace keeps still: both panes stayed at 0. Leaf's own `d` and
+    `j` read only focus and did the same."""
+    left_body = "#left-reading > :not(header, footer)"
+    page = open_page(browser, serve(READING_REGIONS_PAGE))
+    tops = """() => ['left-reading', 'right-reading'].map((id) =>
+      document.querySelector(`#${id} > :not(header, footer)`).scrollTop)"""
+
+    page.locator("#left-start").click()
+    page.keyboard.press("j")
+    page.wait_for_function(f"() => ({tops})()[0] > 0")
+    scroll_settled(page, left_body)
+    stepped = page.evaluate(tops)[0]
+    page.keyboard.press("PageDown")
+    page.wait_for_function(f"() => ({tops})()[0] > {stepped}")
+    scroll_settled(page, left_body)
+    left, right = page.evaluate(tops)
+    assert right == 0, (left, right)
+
+    page.locator("#right-start").click()
+    page.keyboard.press("d")
+    page.wait_for_function(f"() => ({tops})()[1] > 0")
+    scroll_settled(page, "#right-reading > :not(header, footer)")
+    assert page.evaluate(tops)[0] == left
+    # Escape still takes the user off a control, with no stop of its own on body.
+    page.locator("#left-head").focus()
+    page.keyboard.press("Escape")
+    assert page.evaluate("() => document.activeElement === document.body")
 
 
 def test_covering_panel_keeps_focus_on_a_nested_reading_region(browser, serve):
@@ -912,7 +948,7 @@ def test_the_ask_walk_lands_an_ask_in_a_bounded_log_at_the_log_top(browser, serv
     )
     scroll_settled(page)
     before = page.evaluate("() => document.scrollingElement.scrollTop")
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("a")
     expect(page.locator("#q")).to_be_focused()
     scroll_settled(page, "#log")
@@ -1407,7 +1443,7 @@ def test_the_feature_gallery_exercises_core_user_workflows(browser, serve):
     # leaves design mode, the press that came before it.
     threads = page.locator(".lf-thread-panel")
     expect(threads).to_have_class(re.compile(r"\bopen\b"))
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("Escape")
     expect(threads).not_to_have_class(re.compile(r"\bopen\b"))
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
@@ -1585,7 +1621,7 @@ def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
     expect(thread).to_have_count(1)
     expect(markers).to_have_count(baseline)
 
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("t")
     expect(thread).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
@@ -1627,7 +1663,7 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     page.emulate_media(reduced_motion="reduce")
     resized(page, 1440, 900)
 
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("t")
     card = page.locator(".lf-margin-preview")
     expect(
@@ -3768,7 +3804,7 @@ def test_an_absent_walk_destination_returns_to_the_callers_fallback(browser, ser
     expect(page.locator(".lf-thread")).to_be_hidden()
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, False)
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     fallback = page.evaluate(
         """async () => {
           const {beginWalk, walkPositionLabel} = await window.__lfRuntimeImport('/runtime/walk-position.js');
@@ -7501,7 +7537,7 @@ def test_entering_a_covering_workspace_dismisses_an_existing_popover(browser, se
     _publish(serve.page_dir, 2, LONG_PAGE, "two")
     page = open_page(browser, url)
     resized(page, 1000, 800)
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page)
@@ -7552,7 +7588,7 @@ def test_reference_accepts_native_popover_dismissal_across_modal_entry(browser, 
     _publish(serve.page_dir, 2, LONG_PAGE, "two")
     page = open_page(browser, url)
     resized(page, 1000, 800)
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page)
@@ -9766,7 +9802,7 @@ def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser,
         # previous walk. Blurring preserves that control as the sequential focus
         # starting point, which only happened to wrap before the page gained a visual
         # reaction proxy as its first Tab stop.
-        page.evaluate("() => document.body.focus()")
+        page.evaluate(RELEASE_FOCUS)
         trail = []
         for _ in range(24):
             page.keyboard.press("Tab")
@@ -10036,7 +10072,7 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
     expect(page.locator("#note")).to_have_value("c?")
     expect(page.locator(".lf-command-reference")).to_be_hidden()
 
-    page.evaluate("() => document.body.focus()")
+    page.evaluate(RELEASE_FOCUS)
     expect(more.locator("kbd")).to_be_visible()
     expect(more).to_have_attribute("aria-label", "? more")
     expect(more).to_have_attribute("aria-keyshortcuts", "?")
@@ -10383,7 +10419,7 @@ def test_typing_in_a_selected_comment_wins_over_page_shortcuts(browser, serve):
     page.keyboard.press("c")
     expect(fab).to_have_js_property("value", "c")
     page.keyboard.press("Escape")
-    page.evaluate("() => document.body.focus()")
+    page.evaluate(RELEASE_FOCUS)
 
     version = page.locator(".lf-version")
     version.evaluate(
@@ -11695,7 +11731,7 @@ def test_a_user_at_the_top_of_the_document_is_one_press_from_the_chrome(browser,
     """
     example = next(e for e in EXAMPLES if e.stem == "corpus")
     page = open_page(browser, serve(example))
-    page.evaluate("() => document.body.focus()")
+    page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("Tab")
     standing = page.evaluate(STANDING)
     assert standing["isFirstStop"], (

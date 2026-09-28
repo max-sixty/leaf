@@ -66,6 +66,7 @@ from render_cases_widgets import (
 from render_harness import (
     EXAMPLES,
     LONG_PAGE,
+    RELEASE_FOCUS,
     REPLAYED_PAGE,
     SAMPLE_PAGE,
     expect_comment_notes,
@@ -1098,7 +1099,7 @@ def test_design_legend_tracks_a_height_only_page_reflow(browser, serve):
     resized(page, 1200, 900)
     target = page.locator("#p30")
     target.evaluate("node => node.scrollIntoView({block: 'center'})")
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("l")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     legend = page.locator('.lf-legend-box[data-for="p30"]')

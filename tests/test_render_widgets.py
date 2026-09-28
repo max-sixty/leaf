@@ -77,6 +77,7 @@ from render_harness import (
     BOARD_PAGE,
     FEATURE_GALLERY,
     LONG_PAGE,
+    RELEASE_FOCUS,
     REPLY_HOST_PAGE,
     CutOff,
     ask_actions_hint,
@@ -2705,7 +2706,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
 
     page.mouse.move(1200, 700)
     expect(prepare).to_have_css("opacity", "0")
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     # Twice: the layer's skip link is the document's first stop, and the map is what the
     # page itself opens with.
     page.keyboard.press("Tab")
@@ -2717,7 +2718,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     expect(start).to_have_css("outline-offset", "-2px")
 
     # The Asks tray stands over the map and changes nothing about it.
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     toggle_asks(page)
     expect(toc).to_have_css("position", "fixed")
     expect(prepare).to_have_css("opacity", "0")
@@ -3173,7 +3174,7 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
 
     page.mouse.move(0, 0)
     expect(bubble).to_be_hidden()
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     # Twice: the layer's skip link is the document's first stop, and the mark is the
     # first thing the page itself offers.
     page.keyboard.press("Tab")
@@ -3222,7 +3223,7 @@ def test_a_nested_platform_control_does_not_pin_its_gloss(browser, serve):
     expect(bubble).to_be_visible()
     control.click()
     page.mouse.move(0, 0)
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     expect(bubble).to_be_hidden()
 
 

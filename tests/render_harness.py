@@ -1706,6 +1706,13 @@ SHELL_BOX = """(() => {
 # browser's own rendering frames.
 SCROLL_STILL_FRAMES = 3
 
+# Put the user nowhere, with the next Tab starting at the top of the document: the
+# runtime's own let-go (focus.js, `releaseFocus`). Body holds no stop of its own, so
+# `document.body.focus()` moves nothing on a page whose root does not scroll.
+RELEASE_FOCUS = """async () =>
+  (await window.__lfRuntimeImport('/runtime/focus.js')).releaseFocus()"""
+
+
 SCROLL_STILL = """([selector, axis, frames]) => {
   const box = selector ? document.querySelector(selector) : document.scrollingElement;
   if (!box) return false;

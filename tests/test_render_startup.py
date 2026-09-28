@@ -69,6 +69,7 @@ from render_harness import (
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
+    RELEASE_FOCUS,
     TOKEN,
     _traffic,
     comment_note,
@@ -2298,7 +2299,7 @@ def test_an_unavailable_floating_ui_module_closes_the_thread_card(browser, serve
         page, "Failed to fetch dynamically imported module", "net::ERR_FAILED"
     )
 
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     with page.expect_event("pageerror") as raised:
         page.keyboard.press("t")
     assert "Failed to fetch dynamically imported module" in str(raised.value)

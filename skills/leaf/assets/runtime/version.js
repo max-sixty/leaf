@@ -87,6 +87,7 @@ import {
   readingPosture,
   readingRegionFor,
   readingRegions,
+  recentReadingRegion,
   scrollersSettled,
   shownRegionBounds,
   watchReadingRegionTransitions,
@@ -1602,7 +1603,6 @@ export function createVersionController({
   // left to keep: its reading goes when the next reading is taken, so a page whose
   // blocks come and go carries only the regions it has.
   const regionViews = new Map();
-  let lastReadingRegionId = null;
   const dropGoneRegions = () => {
     const standing = new Set(readingRegions().map(({ id }) => id));
     for (const id of regionViews.keys()) if (!standing.has(id)) regionViews.delete(id);
@@ -1642,7 +1642,7 @@ export function createVersionController({
   };
 
   // Continuity restores scroll geometry, not the reading-key subject. Frame furniture
-  // still names its own pane to d/u through readingRegionFor; because the furniture does
+  // still names its own pane to d/u through userReadingRegion; because the furniture does
   // not live in that pane's scroller, a posture change preserves the outer region that
   // geometrically contains it. The same distinction keeps an inline response outside a
   // nested region body with the outer scroller that actually carries it.
@@ -1653,7 +1653,7 @@ export function createVersionController({
     const focusedRegion = containingReadingRegionFor(focused());
     if (focusedRegion && candidates.some(({ id }) => id === focusedRegion.id))
       return focusedRegion;
-    const recent = candidates.find(({ id }) => id === lastReadingRegionId);
+    const recent = candidates.find(({ id }) => id === recentReadingRegion()?.id);
     if (recent) return recent;
     return candidates
       .map((region) => [region, blocksOnScreen(region, blocks).next().value?.[1]])
@@ -1891,15 +1891,6 @@ export function createVersionController({
       ],
       versionsToWalk,
     );
-    for (const type of ["pointerdown", "keydown", "wheel", "touchstart"])
-      addEventListener(
-        type,
-        (event) => {
-          const region = readingRegionFor(event.composedPath()[0]);
-          if (region) lastReadingRegionId = region.id;
-        },
-        { capture: true, passive: true },
-      );
     renderVersions(null);
   }
 

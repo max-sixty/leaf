@@ -102,7 +102,7 @@ other page files and the external state listed below.
   log replacement rules are defined in [session-lifetime.md](session-lifetime.md).
 
 - `preview.json` — the preview identity browser chrome labels, written by
-  `scripts/preview.py`, which decides what a preview tells the browser: the server
+  `leaf-dev preview`, which decides what a preview tells the browser: the server
   hands the file to the page whole. Its presence exempts the page from the handoff's watcher guard.
 
 - `service.json` — desired server address, enabled state, lifetime, and runtime

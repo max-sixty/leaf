@@ -1,11 +1,10 @@
-#!/usr/bin/env python3
 """Prepare an example or developer fixture as a live page or review file.
 
 An example is authored content, not a page directory: Leaf adds its theme and
 runtime when serving from the layer `page init` vendors. Opening one
 from disk gets a dead page, because Chrome refuses ES modules from a file://
 origin — nothing upgrades, and a tabbed page renders as every tab at once. This
-script builds the directory the runtime expects, then watches the fixture and
+command builds the directory the runtime expects, then watches the fixture and
 selected runtime until stopped. `--export` instead writes the page as one HTML file
 that opens offline and runs the same runtime with no server.
 
@@ -44,7 +43,7 @@ longer exist. Until the next start, a stopped preview's page stays readable.
 While a preview runs, a source edit is stamped into the live page, and a layer edit
 re-vendors it and restarts its server at the same URL. `watchfiles` owns the
 watching: it reports which paths changed and groups an editor's save batch, so this
-script only says which paths it follows and what each one means. Only a layer edit
+command only says which paths it follows and what each one means. Only a layer edit
 re-vendors, through the normal compatibility gate, because vendoring mints a fresh
 layer generation and a revision carrying one is a different program, which the
 browser can only follow into a fresh document. So a prose edit here arrives the way
@@ -72,10 +71,15 @@ preview is serving the slot is `<slot>.lock` beside that directory, so discardin
 the page cannot replace the inode the lease is held on, and the lease goes with
 the previews root.
 
-Usage: preview.py [page] [options]  (default: triage-board)
+    uv run leaf-dev preview [EXAMPLE] [--source FILE] [--runtime CHECKOUT]
+        [--slot NAME] [--user] [--export]
+
+The command resolves its checkout and source, then execs the worker, `python -m
+leaf_dev.preview`, into the selected checkout's environment
+(`start_preview_worker`). The worker runs this module rather than the `leaf-dev`
+group, whose other commands import what that environment lacks.
 """
 
-import argparse
 import contextlib
 import hashlib
 import json
@@ -91,6 +95,9 @@ from functools import partial
 from pathlib import Path
 from typing import NamedTuple
 
+import click
+
+from leaf_dev import ROOT
 from leaf_dev.example_data import capture_files, example_versions, named_source
 from leaf_dev.page_fixtures import (
     DEFAULT_PACKAGES,
@@ -103,10 +110,9 @@ from leaf_dev.page_fixtures import (
     source_packages,
 )
 
-ROOT = Path(__file__).resolve().parent.parent
 TMP = ROOT / ".tmp"
 SLOT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
-# The watcher's own dependency, which the dev group beside this script declares. A
+# The watcher's own dependency, which the root `pyproject.toml`'s dev group declares. A
 # checkout named by `--runtime` has the `--no-dev` environment `bin/leaf` syncs, so the
 # worker command overlays it there. Move this floor whenever `pyproject.toml`'s moves.
 WATCHER_PACKAGE = "watchfiles>=1.1.0"
@@ -155,59 +161,19 @@ def leaf(
         raise LeafFailed(args, result.returncode)
 
 
-def slot_name(value: str) -> str:
-    if not SLOT_NAME.fullmatch(value):
-        raise argparse.ArgumentTypeError(
+def slot_name(_ctx, _param, value: str | None) -> str | None:
+    if value is not None and not SLOT_NAME.fullmatch(value):
+        raise click.BadParameter(
             "use 1-64 letters, digits, dots, underscores, or hyphens"
         )
     return value
 
 
-def arguments() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
-    parser = argparse.ArgumentParser(
-        description="Prepare a public example or developer fixture with a Leaf runtime."
-    )
-    parser.add_argument(
-        "example",
-        nargs="?",
-        help="public example or developer fixture name (default: triage-board)",
-    )
-    parser.add_argument("--source", type=Path, help="authored HTML source to preview")
-    parser.add_argument(
-        "--runtime",
-        type=Path,
-        default=ROOT,
-        help="Leaf checkout whose bin/leaf vendors the page",
-    )
-    parser.add_argument(
-        "--slot",
-        type=slot_name,
-        help="stable name for a preview that may coexist with other slots",
-    )
-    parser.add_argument(
-        "--user",
-        action="store_true",
-        help="hand this preview to a user: claim the page so presses arrive as feedback",
-    )
-    parser.add_argument(
-        "--export",
-        action="store_true",
-        help="write an offline HTML file instead of serving the page",
-    )
-    parser.add_argument("--_worker", action="store_true", help=argparse.SUPPRESS)
-    parsed = parser.parse_args()
-    if parsed.source and parsed.example:
-        parser.error("choose an example name or --source, not both")
-    if parsed.user and parsed.export:
-        parser.error("--user serves a page; omit --export")
-    return parser, parsed
-
-
-def checkout(parser: argparse.ArgumentParser, value: Path) -> tuple[Path, Path]:
+def checkout(value: Path) -> tuple[Path, Path]:
     runtime = value.expanduser().resolve()
     launcher = runtime / "bin" / "leaf"
     if not launcher.is_file():
-        parser.error(f"{runtime} has no bin/leaf launcher")
+        raise click.UsageError(f"{runtime} has no bin/leaf launcher")
     result = subprocess.run(
         [str(launcher), "--root"],
         cwd=runtime,
@@ -217,30 +183,28 @@ def checkout(parser: argparse.ArgumentParser, value: Path) -> tuple[Path, Path]:
     )
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip() or "launcher failed"
-        parser.error(f"could not run {launcher}: {detail}")
+        raise click.UsageError(f"could not run {launcher}: {detail}")
     try:
         reported = Path(result.stdout.strip()).resolve()
     except (OSError, ValueError):
-        parser.error(
+        raise click.UsageError(
             f"{launcher} reported an invalid checkout: {result.stdout.strip()}"
-        )
+        ) from None
     if reported != runtime:
-        parser.error(f"{launcher} runs {reported}, not {runtime}")
+        raise click.UsageError(f"{launcher} runs {reported}, not {runtime}")
     return runtime, launcher
 
 
-def authored_source(
-    parser: argparse.ArgumentParser, example: str | None, source: Path | None
-) -> Path:
+def authored_source(example: str | None, source: Path | None) -> Path:
     if source:
         selected = source.expanduser().resolve()
         if not selected.is_file():
-            parser.error(f"no authored source at {selected}")
+            raise click.UsageError(f"no authored source at {selected}")
         return selected
     try:
         return named_source(example or "triage-board")
     except ValueError as error:
-        parser.error(str(error))
+        raise click.UsageError(str(error)) from None
 
 
 def preparation_note(source: Path, data_sources: int, versions: int) -> str:
@@ -833,14 +797,15 @@ def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) ->
         "--with-editable",
         str(ROOT / "dev"),
         "python",
-        str(Path(__file__).resolve()),
+        "-m",
+        "leaf_dev.preview",
         "--source",
         str(source),
         "--runtime",
         str(runtime),
         "--slot",
         page.name,
-        "--_worker",
+        "--worker",
     ]
     # The worker runs in the selected checkout, so it is handed the slot by name and
     # the root as this launcher resolved it, rather than reading a relative setting
@@ -863,54 +828,101 @@ def terminated(signum, _frame) -> None:
     raise SystemExit(128 + signum)
 
 
-def main() -> None:
-    parser, args = arguments()
-    if args._worker:
-        signal.signal(signal.SIGTERM, terminated)
-        source = args.source.resolve()
-        runtime = args.runtime.resolve()
-        run_preview(
-            source,
-            preview_directory(source, args.slot, args.user),
-            runtime / "bin" / "leaf",
-            runtime,
-            args.user,
-        )
-        return
-    runtime, launcher = checkout(parser, args.runtime)
-    source = authored_source(parser, args.example, args.source)
+@click.command()
+@click.argument("example", required=False)
+@click.option(
+    "--source",
+    type=click.Path(path_type=Path),
+    help="Authored HTML source to preview.",
+)
+@click.option(
+    "--runtime",
+    type=click.Path(path_type=Path),
+    default=ROOT,
+    help="Leaf checkout whose bin/leaf vendors the page.",
+)
+@click.option(
+    "--slot",
+    callback=slot_name,
+    help="Stable name for a preview that may coexist with other slots.",
+)
+@click.option(
+    "--user",
+    is_flag=True,
+    help="Hand this preview to a user: claim the page so presses arrive as feedback.",
+)
+@click.option(
+    "--export",
+    is_flag=True,
+    help="Write an offline HTML file instead of serving the page.",
+)
+@click.option("--worker", is_flag=True, hidden=True)
+def preview(
+    example: str | None,
+    source: Path | None,
+    runtime: Path,
+    slot: str | None,
+    user: bool,
+    export: bool,
+    worker: bool,
+) -> None:
+    """Serve an example as a live page, or export it as one file.
 
-    if args.export:
-        TMP.mkdir(exist_ok=True)
-        with tempfile.TemporaryDirectory(prefix="preview-export-", dir=TMP) as staging:
-            page = Path(staging) / "page"
-            prepared = prepare_page(
-                page,
-                read_fixture(source),
-                partial(leaf, launcher, runtime),
-            )
-            suffix = f"-{args.slot}" if args.slot else ""
-            out = TMP / f"example-{source.stem}{suffix}.html"
-            out.unlink(missing_ok=True)
-            leaf(launcher, runtime, "page", "export", str(page), "-o", str(out))
-        print(
-            preparation_note(source, prepared.data_sources, prepared.versions),
-            end="\n\n",
-        )
-        print(out.resolve())
-        return
-
-    start_preview_worker(
-        source, preview_directory(source, args.slot, args.user), runtime, args.user
-    )
-
-
-if __name__ == "__main__":
+    EXAMPLE is a public example or developer fixture, triage-board by default."""
+    if source and example:
+        raise click.UsageError("choose an example name or --source, not both")
+    if user and export:
+        raise click.UsageError("--user serves a page; omit --export")
     try:
-        main()
+        if worker:
+            signal.signal(signal.SIGTERM, terminated)
+            source = source.resolve()
+            runtime = runtime.resolve()
+            run_preview(
+                source,
+                preview_directory(source, slot, user),
+                runtime / "bin" / "leaf",
+                runtime,
+                user,
+            )
+        elif export:
+            export_preview(*checkout(runtime), authored_source(example, source), slot)
+        else:
+            runtime, _ = checkout(runtime)
+            source = authored_source(example, source)
+            start_preview_worker(
+                source, preview_directory(source, slot, user), runtime, user
+            )
     except KeyboardInterrupt:
         raise SystemExit(130) from None
     except LeafFailed as error:
         raise SystemExit(error.returncode) from None
     except (ValueError, OSError, RuntimeError) as error:
-        raise SystemExit(str(error)) from None
+        raise click.ClickException(str(error)) from None
+
+
+def export_preview(
+    runtime: Path, launcher: Path, source: Path, slot: str | None
+) -> None:
+    """Write the page as one offline file under `.tmp/`, and print its path."""
+    TMP.mkdir(exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="preview-export-", dir=TMP) as staging:
+        page = Path(staging) / "page"
+        prepared = prepare_page(
+            page,
+            read_fixture(source),
+            partial(leaf, launcher, runtime),
+        )
+        suffix = f"-{slot}" if slot else ""
+        out = TMP / f"example-{source.stem}{suffix}.html"
+        out.unlink(missing_ok=True)
+        leaf(launcher, runtime, "page", "export", str(page), "-o", str(out))
+    print(
+        preparation_note(source, prepared.data_sources, prepared.versions),
+        end="\n\n",
+    )
+    print(out.resolve())
+
+
+if __name__ == "__main__":
+    preview()

@@ -1,5 +1,5 @@
 /*
- * Browser-side observations for verify_site.py, installed before each navigation.
+ * Browser-side observations for `leaf-dev verify-site`, installed before each navigation.
  * Startup readings belong to one document. Visible-reply timestamps use sessionStorage
  * because the agent journey may navigate before Python reads them. __leafVerifier is
  * the one Playwright boundary exposed to the Python orchestrator.

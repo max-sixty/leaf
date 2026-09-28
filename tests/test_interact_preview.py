@@ -1,6 +1,6 @@
 """What a preview reads off a checkout before it serves anything.
 
-`scripts/preview.py` resolves three things from wherever its source sits: the
+`leaf-dev preview` resolves three things from wherever its source sits: the
 package layer, the media directory, and the set of paths a watcher subscribes
 to. Each is a pure reading of a directory tree, so these state the tree and ask
 for the reading — no server is started, no watcher subscribes, and no browser
@@ -11,17 +11,16 @@ mark is file-level, with no per-test escape, so a Python-decided reading filed
 in a nightly module runs nowhere near the change that breaks it.
 """
 
-import argparse
 import json
 import subprocess
 from pathlib import Path
 
 from interact_support import ROOT
+from leaf_dev import preview
 
 
 def test_a_preview_source_uses_its_checkout_layer_and_media(tmp_path):
     """A comparison fixture carries the package and asset context of its checkout."""
-    import preview
 
     examples = tmp_path / "baseline" / "examples"
     source = examples / "developer" / "comparison.html"
@@ -46,7 +45,6 @@ def test_a_preview_source_uses_its_checkout_layer_and_media(tmp_path):
 
 def test_a_preview_asks_the_launcher_for_its_payload_root(tmp_path, monkeypatch):
     """The version interface is provenance; checkout validation retains its own flag."""
-    import preview
 
     runtime = tmp_path / "runtime"
     launcher = runtime / "bin" / "leaf"
@@ -60,7 +58,7 @@ def test_a_preview_asks_the_launcher_for_its_payload_root(tmp_path, monkeypatch)
 
     monkeypatch.setattr(preview.subprocess, "run", run)
 
-    assert preview.checkout(argparse.ArgumentParser(), runtime) == (runtime, launcher)
+    assert preview.checkout(runtime) == (runtime, launcher)
     assert calls[0][0] == ([str(launcher), "--root"],)
 
 
@@ -73,7 +71,6 @@ def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():
     other half: its own writes are a user's feedback, and watching them would make
     every gesture a reload.
     """
-    import preview
     from leaf.layer import layer_inputs
 
     source = ROOT / "examples" / "heat-loss.html"
@@ -103,7 +100,6 @@ def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_pa
     last reading is layer, a file beside it that nothing vendors is neither, and a
     prior version of the source is the page's own.
     """
-    import preview
 
     source = tmp_path / "examples" / "page.html"
     source.parent.mkdir()
@@ -161,7 +157,6 @@ def test_a_preview_follows_a_linked_package_wherever_its_files_resolve(tmp_path)
     path has to be resolved, and has to sit under a subscribed root; a path that does
     not is an input the preview has silently stopped following.
     """
-    import preview
 
     source = tmp_path / "pages" / "page.html"
     source.parent.mkdir()
@@ -212,7 +207,6 @@ def test_a_preview_follows_a_nearer_media_directory_when_one_appears(tmp_path):
     inside a directory already watched recursively, so the set does not move; when it
     did, the edit made while that refresh ran was lost.
     """
-    import preview
 
     checkout = tmp_path / "checkout"
     source = checkout / "examples" / "developer" / "page.html"
@@ -244,7 +238,6 @@ def test_a_preview_follows_a_nearer_media_directory_when_one_appears(tmp_path):
 
 
 def test_an_unrelated_ancestor_layer_does_not_change_an_external_source(tmp_path):
-    import preview
 
     source = tmp_path / "project" / "docs" / "page.html"
     source.parent.mkdir(parents=True)

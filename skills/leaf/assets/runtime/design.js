@@ -117,10 +117,24 @@ export function createDesignMode({
   // every rect is read, and only then is anything placed.
   const legendBoxes = new Map(); // addressable → { box, radius, tagW }
   const legendSizes = sizeObserver(() => pageGeometry.pageShifted());
+  // The legend's own writes are mutations too, inside the chrome, and so is the runtime's
+  // paint on page elements: a mark rewrites its classes, in the runtime's namespace, on
+  // every repaint, which a shift starts. A repaint that heard either would never stop,
+  // and on a page with reactions it didn't, at thousands of mutations a second.
+  const authoredClasses = (value) =>
+    (value ?? "")
+      .split(/\s+/)
+      .filter((name) => name && !name.startsWith("lf-"))
+      .sort()
+      .join(" ");
+  const movesPage = (r) =>
+    !inChrome(r.target) &&
+    !(
+      r.attributeName === "class" &&
+      authoredClasses(r.oldValue) === authoredClasses(r.target.getAttribute("class"))
+    );
   const legendMoves = new MutationObserver((records) => {
-    // The legend's own writes are mutations too, inside the chrome; a repaint that heard
-    // itself would never stop.
-    if (records.some((r) => !inChrome(r.target))) pageGeometry.pageShifted();
+    if (records.some(movesPage)) pageGeometry.pageShifted();
   });
   let legendFrame = 0;
   // One tag's height, measured once: where a box's top is nearer the banner than this,
@@ -145,6 +159,7 @@ export function createDesignMode({
       subtree: true,
       childList: true,
       attributes: true,
+      attributeOldValue: true,
       characterData: true,
     });
     const addressables = [...document.querySelectorAll(ADDRESSABLE)].filter(

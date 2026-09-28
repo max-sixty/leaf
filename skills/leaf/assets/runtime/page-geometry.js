@@ -9,6 +9,7 @@ import { cancelRender, nextRender } from "./rendering.js";
 import { visualAt } from "./anchor-resolution.js";
 import { documentPoint } from "./geometry.js";
 import { inChrome } from "./passages.js";
+import { coarsePointer } from "./pointer.js";
 import { keepsText, LAYOUT } from "./widget-elements.js";
 
 export function createPageGeometry({
@@ -32,8 +33,10 @@ export function createPageGeometry({
         ? { element: target.element, part: "", surface: target.surface ?? null }
         : null;
     }
+    // Design mode's box and name follow a hovering pointer. A finger does not hover: its
+    // last tap is not where it stands, and a box left there follows every scroll.
     const at = pointer();
-    if (designMode.active() && at.x >= 0)
+    if (designMode.active() && at.x >= 0 && !coarsePointer.matches)
       return designMode.target(document.elementFromPoint(at.x, at.y));
     return null;
   }

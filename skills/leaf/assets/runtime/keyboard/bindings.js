@@ -296,18 +296,6 @@ export const canonicalBinding = (binding) => {
   return [...canonicalMods, canonicalKey].join("+");
 };
 
-// The binding a press spells, in the canonical form declarations take, so a scope's
-// claim can be asked about a key no row names.
-export const pressBinding = (ev) =>
-  canonicalBinding(
-    [
-      ...(ev.metaKey || ev.ctrlKey ? ["Mod"] : []),
-      ...(ev.altKey ? ["Alt"] : []),
-      ...(ev.shiftKey ? ["Shift"] : []),
-      ev.key,
-    ].join("+"),
-  );
-
 function validateActive(active, where, bindingOf) {
   const owners = new Map();
   for (const row of active)

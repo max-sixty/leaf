@@ -1697,17 +1697,43 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
     rendered(page)
     assert page.evaluate("() => document.scrollingElement.scrollTop") == foot
+    # A turn arriving in the card is news, not a move of the user's: it stays away.
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": "72e031c5bf0d485ba9054628e09869d4",
+            "revision": 1,
+            "text": "A turn arriving while the card is away.",
+        },
+    )
+    told(page)
+    expect(card).to_contain_text("A turn arriving while the card is away.")
+    rendered(page)
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == foot
+    shown = """() => {
+      const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+      const head = document.querySelector('.lf-banner').getBoundingClientRect().bottom;
+      return card.top >= head && card.bottom <= innerHeight;
+    }"""
     # A page command that lands in a card scrolled away brings its cluster, and the
     # card, back.
     page.keyboard.press("c")
-    expect(card.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
-    page.wait_for_function(
-        """() => {
-          const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
-          const head = document.querySelector('.lf-banner').getBoundingClientRect().bottom;
-          return card.top >= head && card.bottom <= innerHeight;
-        }"""
+    reply = card.get_by_role("textbox", name="Reply", exact=True)
+    expect(reply).to_be_focused()
+    page.wait_for_function(shown)
+    # So does moving on from one of its controls to the next, as the browser reveals
+    # the control a Tab reaches.
+    page.evaluate("() => scrollTo(0, document.scrollingElement.scrollHeight)")
+    rendered(page)
+    assert not page.evaluate(shown)
+    page.keyboard.press("Tab")
+    expect(reply).not_to_be_focused()
+    assert page.evaluate(
+        "() => document.activeElement.closest('.lf-margin-preview') !== null"
     )
+    page.wait_for_function(shown)
 
 
 def test_a_pane_frame_comment_preview_is_not_confined_to_its_body(browser, serve):

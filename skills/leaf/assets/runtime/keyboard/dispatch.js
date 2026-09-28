@@ -85,7 +85,6 @@ import {
   commandRoutes,
   live,
   parsed,
-  pressBinding,
   routedCommand,
   spell,
   word,
@@ -399,43 +398,6 @@ function unclaimedScopes(binding) {
 // guard that stays an event's rather than a scope's: an IME's own Escape is not the
 // runtime's to take.
 export function dispatchKey(ev, { beforeCommand }) {
-  const answer = resolvePress(ev);
-  if (!answer) return false;
-  const { invocation } = answer;
-  // A held key repeats keydown where a real button fires once, so a row says whether
-  // it repeats: a held `]` was a page navigation per repeat and a held pick a `choose`
-  // per repeat, where a walk wants the repeat and is the reason the flag exists. The
-  // repeat is still consumed — a non-repeatable command must not be fired again merely
-  // because its key remains held after the first press.
-  //
-  // A `native` row is the narrow converse: Leaf has a result to perform before the
-  // platform completes the same press. The versions menu closes at its Tab boundary,
-  // for example, and the browser then carries focus forward from its stable door. It
-  // remains a registered press — and therefore visible, scoped and shadowed like every
-  // other one — but does not claim the platform's half of it.
-  if (!invocation.native) ev.preventDefault();
-  if (ev.repeat && !invocation.row.repeat) return true;
-  beforeCommand?.(invocation.row);
-  announceInvocation(invocation);
-  invocation.run();
-  return true;
-}
-
-// Where a press is taken, before it runs: the root of the nearest scope that answers it
-// with a command or claims it, as a text box claims its letters and armed Go-to every key,
-// or null where nothing does and the platform takes it at focus. A surface fixed over the
-// page asks this to tell a press taken in it from one the page takes around it. The scopes
-// that act where the user stands (a thread, a text box, the focused control) are rooted
-// at focus, which is what puts their presses in the surface holding it.
-export function pressRoot(ev) {
-  const taken = resolvePress(ev, { claimed: pressBinding(ev) });
-  return taken ? scopeRoot(taken.scope) : null;
-}
-
-// The scope and invocation that answer one keydown, by the walk `dispatchKey` runs. Given
-// the press's own binding as `claimed`, a scope claiming it takes it too, with no
-// invocation: the dispatcher leaves that press to the platform.
-function resolvePress(ev, { claimed = null } = {}) {
   const recovered = recoveredLabelFocus(ev);
   const nearer = shadow();
   for (const scope of stack(answers("Escape", ev) ? "Escape" : null)) {
@@ -459,11 +421,28 @@ function resolvePress(ev, { claimed = null } = {}) {
         );
       matched = invocation;
     }
-    if (matched) return { scope, invocation: matched };
-    if (claimed && scope.claims?.(claimed)) return { scope, invocation: null };
+    if (matched) {
+      // A held key repeats keydown where a real button fires once, so a row says whether
+      // it repeats: a held `]` was a page navigation per repeat and a held pick a `choose`
+      // per repeat, where a walk wants the repeat and is the reason the flag exists. The
+      // repeat is still consumed — a non-repeatable command must not be fired again merely
+      // because its key remains held after the first press.
+      //
+      // A `native` row is the narrow converse: Leaf has a result to perform before the
+      // platform completes the same press. The versions menu closes at its Tab boundary,
+      // for example, and the browser then carries focus forward from its stable door. It
+      // remains a registered press — and therefore visible, scoped and shadowed like every
+      // other one — but does not claim the platform's half of it.
+      if (!matched.native) ev.preventDefault();
+      if (ev.repeat && !matched.row.repeat) return true;
+      beforeCommand?.(matched.row);
+      announceInvocation(matched);
+      matched.run();
+      return true;
+    }
     nearer.past(scope);
   }
-  return null;
+  return false;
 }
 
 // An action chosen from the reference has no keydown to match, but it still belongs to

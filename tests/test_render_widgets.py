@@ -3441,7 +3441,9 @@ def test_tabbing_to_a_grip_reveals_its_whole_card(browser, serve):
         """el => [getComputedStyle(document.documentElement).getPropertyValue('--accent'),
                   getComputedStyle(el).borderTopColor]"""
     )
-    rest = page.locator("#sq-card-2").evaluate("el => getComputedStyle(el).borderTopColor")
+    rest = page.locator("#sq-card-2").evaluate(
+        "el => getComputedStyle(el).borderTopColor"
+    )
     assert border != rest, (border, rest, accent)
 
 

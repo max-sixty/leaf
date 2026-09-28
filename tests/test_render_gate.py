@@ -2925,7 +2925,8 @@ def test_a_scrolling_table_keeps_its_caption_and_status_words_whole(browser, ser
     ).replace(
         "</table>",
         "</table><table id='statuses'><tr><td><span class='tag ok'>passed</span></td>"
-        "<td>" + "The replay covers every legacy export and the importer's output. " * 3
+        "<td>"
+        + "The replay covers every legacy export and the importer's output. " * 3
         + "</td></tr></table>",
     )
     page = open_page(browser, serve(source))

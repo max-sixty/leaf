@@ -326,7 +326,11 @@ customElements.define(
       // card's grip is refocused by each move, which reveals the card itself (#place).
       grip.addEventListener("focus", () => {
         if (this.#grabbed?.grip === grip) return;
-        card.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+        card.scrollIntoView({
+          block: "nearest",
+          inline: "nearest",
+          behavior: "instant",
+        });
       });
       grip.addEventListener("blur", () => {
         if (this.#grabbed?.grip !== grip) return;

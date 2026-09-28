@@ -238,7 +238,9 @@
             queueMicrotask(() => {
               const rows = this.querySelectorAll(".query-row");
               const next = rows[Math.min(index, rows.length - 1)];
-              (next?.querySelector("input") ?? this.querySelector(".query-add")).focus();
+              (
+                next?.querySelector("input") ?? this.querySelector(".query-add")
+              ).focus();
             });
           }
 

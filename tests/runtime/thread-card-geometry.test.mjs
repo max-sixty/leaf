@@ -126,6 +126,15 @@ test("a card being read keeps its top as a turn arrives", () => {
   assert.deepEqual([drafting.y + drafting.height, drafting.height], [847, 400]);
 });
 
+test("a card over its cluster grows upward as a turn arrives", () => {
+  // Read, it holds its foot, the edge toward its cluster, rather than growing down
+  // across the cluster and the words under it.
+  const over = ask(1024, cluster(871, 700), 300);
+  assert.equal(over.placement, "above");
+  const turn = place(1024, cluster(871, 700), 400, { hold: over.hold });
+  assert.deepEqual([turn.y + turn.height, turn.height], [over.y + over.height, 400]);
+});
+
 test("a scroll carries the held card inside the boundary and never squeezes it", () => {
   const over = ask(1024, cluster(871, 700), 300);
   // Scrolled up, the foot stops where the whole card still fits under the head.

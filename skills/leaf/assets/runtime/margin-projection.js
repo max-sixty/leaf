@@ -789,6 +789,12 @@ export function createMarginProjection({
         preview.style.removeProperty("opacity");
         preview.style.removeProperty("pointer-events");
         answerThreadPreviewPosition(true);
+      })
+      .catch((error) => {
+        // A card Floating UI cannot place would stand open and unseen, so it closes, as
+        // the comment box withdraws, and the failure surfaces.
+        if (stillCurrent()) closePreview();
+        throw error;
       });
     return true;
   }
@@ -2818,12 +2824,19 @@ export function createMarginProjection({
         scheduleThreadPreviewPosition();
     });
     // The user still stands in a card a scroll carried away with its cluster, and a key
-    // pressed there first brings the cluster back, as a browser brings a focused field
-    // back into view for typing.
+    // that acts in it first brings the cluster back, as a browser brings a focused field
+    // back into view for typing. A shortcut the browser or the system takes, a modifier
+    // on its own, and Escape, which puts the card away, leave the page where it is.
     preview.addEventListener(
       "keydown",
-      () => {
-        if (previewAway)
+      (event) => {
+        if (
+          previewAway &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          !event.altKey &&
+          !["Control", "Meta", "Alt", "Shift", "Escape"].includes(event.key)
+        )
           scrollToElement(
             targetFor(previewEntry) ?? previewMarginEntry,
             scrollBehavior(),

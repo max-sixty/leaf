@@ -34,8 +34,10 @@
    is read. The card keeps its side and keeps that edge at its offset, and grows from
    it. Drafting, a new line pushes the lines above the caret up, as a chat composer
    does, so the caret's line stays under the user's hand. Reading, a turn arriving
-   extends the card downward, so the words being read stay where they are, and once the
-   card meets the boundary the transcript, which scrolls inside the card, takes the turn
+   extends the card away from its cluster, so the words being read stay where they are
+   and the card never grows across what it is about: downward beside or under the
+   cluster, and upward over it, where the card holds its foot instead. Once the card
+   meets the boundary the transcript, which scrolls inside the card, takes the turn
    instead. Its height is capped by the room from the held edge to the boundary's far
    edge, so from there the transcript gives up its room to further growth. Switching
    edges leaves the card where it stands, since the other edge's offset is always where
@@ -113,17 +115,19 @@ export function threadCardGeometry({
   });
 
   if (hold && (hold.placement === "right") === beside && hold.width === width) {
+    // Read, a card over its cluster holds its foot, the edge toward its cluster.
+    const held = edge === "top" && hold.placement === "above" ? "foot" : edge;
     const last = Math.min(hold.height, boundary.height);
-    const at = cluster.top + hold[edge];
+    const at = cluster.top + hold[held];
     // The room from the held edge to the boundary's far edge, with the edge inside the
     // boundary as the cluster's being there would put it.
     const cap =
-      edge === "foot"
+      held === "foot"
         ? clamp(at, boundary.top + last, boundary.bottom) - boundary.top
         : boundary.bottom - clamp(at, boundary.top, boundary.bottom - last);
     const height = heightAt(width, cap);
-    const y = within(edge === "foot" ? at - height : at, height);
-    return holding(hold.placement, y, height, { [edge]: hold[edge] });
+    const y = within(held === "foot" ? at - height : at, height);
+    return holding(hold.placement, y, height, { [held]: hold[held] });
   }
   const height = heightAt(width, boundary.height);
   const clears = !beside && target && x < target.right ? [cluster, target] : [cluster];

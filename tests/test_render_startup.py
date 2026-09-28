@@ -2286,6 +2286,28 @@ def test_an_unavailable_floating_ui_module_withdraws_the_response(browser, serve
     )
 
 
+def test_an_unavailable_floating_ui_module_closes_the_thread_card(browser, serve):
+    """A card that cannot be placed closes rather than standing open and unseen."""
+    url = serve(FEATURE_GALLERY)
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    watched(page)
+    page.route("**/vendor/floating-ui.esm.js", lambda route: route.abort())
+    page.goto(url, wait_until="load")
+    wait_until_ready(page)
+    consume_browser_errors(
+        page, "Failed to fetch dynamically imported module", "net::ERR_FAILED"
+    )
+
+    page.locator("body").focus()
+    with page.expect_event("pageerror") as raised:
+        page.keyboard.press("t")
+    assert "Failed to fetch dynamically imported module" in str(raised.value)
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    consume_browser_errors(
+        page, "Failed to fetch dynamically imported module", "net::ERR_FAILED"
+    )
+
+
 def test_a_page_with_a_diff_loads_the_renderer_when_it_draws_lines(browser, serve):
     """The other side of the narrowing, on a diff bound as a manifest of collapsed files.
 

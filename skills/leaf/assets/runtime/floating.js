@@ -3,8 +3,8 @@
 
    Each places a fixed box beside something on the page, and each leaves the browser's
    coordinate spaces to Floating UI. `computePosition` maps what the box stands against
-   into the box's own positioning space: a containing block, a scaled ancestor, a frame,
-   or WebKit's visual-viewport offset for a fixed box under pinch zoom. `autoUpdate`
+   into the box's own positioning space: a containing block, a frame, or WebKit's
+   visual-viewport offset for a fixed box under pinch zoom. `autoUpdate`
    follows every scroll container, resize, visual-viewport change, and layout shift that
    can move it. Which side a surface takes and how far it stands is that surface's own
    rule, stated as its middleware.

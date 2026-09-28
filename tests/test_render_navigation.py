@@ -1620,8 +1620,8 @@ def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body")
 
 
-def test_a_thread_walk_card_keeps_its_margin_until_its_anchor_leaves(browser, serve):
-    """A contextual thread has one side and only lives while its anchor is visible."""
+def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
+    """A contextual thread has one side, and leaves and returns with its anchor."""
     page = open_page(browser, live_url(serve(FEATURE_GALLERY)))
     page.emulate_media(reduced_motion="reduce")
     resized(page, 1440, 900)

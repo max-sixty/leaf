@@ -2128,6 +2128,50 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     )
 
 
+def test_a_finger_s_reaction_trigger_meets_the_floor_and_covers_no_words(
+    browser, serve
+):
+    """The add-reaction trigger was a fixed 26x26 under a finger, where every other aim
+    stands at the 44px floor, and it stands on every reply for good once there is no
+    hover to reveal it. At the floor's size hung over the reply's corner it covered the
+    end of the first line, so the head row holds the trigger's height instead."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Why this change?", {"section": "how-cap"})
+    reply = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "text": "Step three now requires the supervisor to reap every process "
+            "under the sandbox user and verify none remain before export.",
+        },
+    )["id"]
+    context = browser.new_context(
+        viewport={"width": 360, "height": 740}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").tap()
+    panel_settled(page)
+    page.locator(".lf-thread-summary").first.tap()
+    message = page.locator(f'.lf-msg[data-mid="{reply}"]')
+    trigger = message.get_by_role("button", name="Add reaction", exact=True)
+    expect(trigger).to_be_visible()
+    reading = trigger.evaluate("""trigger => {
+      const box = trigger.getBoundingClientRect();
+      const text = trigger.closest('.lf-msg').querySelector('.lf-msg-text');
+      const range = document.createRange();
+      range.selectNodeContents(text);
+      const covered = [...range.getClientRects()].filter((line) =>
+        line.right > box.left && line.left < box.right &&
+        line.bottom > box.top && line.top < box.bottom);
+      return {width: box.width, height: box.height, covered: covered.length,
+        opacity: getComputedStyle(trigger).opacity};
+    }""")
+    assert reading == {"width": 44, "height": 44, "covered": 0, "opacity": "1"}
+
+
 @pytest.mark.parametrize("scheme", ["light", "dark"])
 @pytest.mark.parametrize("placement", ["panel", "inline"])
 def test_a_reopened_message_picker_keeps_the_selected_reaction_visible(

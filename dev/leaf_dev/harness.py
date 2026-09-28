@@ -1,51 +1,18 @@
-"""Arms, served pages, and agent-host children for evals and probes that run a
-version of Leaf.
+"""Arms, served pages, and isolated `claude -p` children for the commands and eval
+harnesses that run a version of Leaf.
 
-The `leaf-dev` commands, `verify_codex_task.py`, `verify_site.py`,
-`notes/arrangement-eval/harness.py` and `notes/usability-eval/harness.py` import it.
+An arm is the plugin payload (`PAYLOAD`) at one ref, or as the working tree has it, and
+nothing else: no `.git`, examples or notes, so a child cannot read its way to another
+arm's version. An A/B's base is the merge base with the local `main` unless the caller
+names another ref (`base_ref`).
 
-An arm is the plugin payload (`PAYLOAD`: both hosts' manifests, hooks, launcher, skills
-and uv project) at one ref, or as the working tree has it, and nothing else. It has no
-`.git`, examples, docs or notes, so a child cannot read its way to another arm's
-version through history or the worked corpus. Building runs the launcher once, so uv
-builds the arm's environment before a timed run starts. `extract_payload` alone
-writes the payload without building it, which a Codex home (`codex_home`) installs as
-its plugin.
-
-An A/B command compares two arms, `base` and `head` (`build_pair`), or, as
-`leaf-dev guidance-ab` does, a base and the working tree's arm. Its base is the
-merge base with `main` unless the caller names another ref (`base_ref`), so
-a branch behind `main` is compared with where it started rather than with changes it
-has not merged. A timed one prints the machine's load average before and after
-(`load_average`), since other processes' load moves every timing.
-
-A child is `claude -p` from a scratch cwd outside any repository, under a home of its
-own, with no MCP servers, auto-memory off, and none of the variables that identify an
-agent session running the harness (`environment`). Its permissions are bypassed, so what
-a child writes to its host's user configuration by `~` lands in that home and not the
-user's: a child told of a standing preference saves it where its host keeps them, as the
-guidance says to, and children given the user's home appended six copies to the user's
-own `~/.claude/CLAUDE.md`. The home holds nothing the user wrote, so none of the user's
-instructions, settings, plugins or memory load either. The login is all it takes of the
-user's: on macOS it lives in the keychain, which the child reaches through a link to
-`~/Library/Keychains` alone, and elsewhere in `~/.claude/.credentials.json`, which the
-home gets a copy of. uv keeps the user's cache. Claude Code loads project instructions
-above its cwd, so a child whose cwd sat in this checkout read its `AGENTS.md` whatever
-arm it ran. `--add-dir` grants reads without loading a directory's project instructions.
-Two phases of one session share a cwd, and so a home, which is where `--resume` finds
-the session. The home stands beside the cwd rather than in it, so a child listing its
-own files never meets its host's; and `CLAUDE_CONFIG_DIR`, which would point the child
-back at a config directory of the user's, does not reach it.
-The child's `TMPDIR` is inside its cwd, because concurrent children otherwise write the
-same `/tmp` names and can read each other's.
-
-A trace is the child's stream-json. It counts only when its model call completed: it
-reached a `result` that is not an error, and it loaded no auto-memory (`completed`).
-
-A live child (`LiveChild`) keeps its session open across turns, so a driver can serve
-it a page and post user moves through the page's API (`PageClient`) as a tab would;
-the stream readers below find its backgrounded waits and the deliveries Leaf's hooks
-hand it.
+A child runs from a scratch cwd outside any repository, so no project instructions
+load, under a home of its own beside that cwd, so its bypassed permissions write to
+that home rather than the user's `~` (children given the user's home once appended to
+the user's `~/.claude/CLAUDE.md`). The home carries only the login. A trace is the
+child's stream-json; it counts when it reached a `result` that is not an error
+(`completed`). A `LiveChild` keeps its session open across turns, so a driver can post
+user moves to a served page (`PageClient`) as a tab would.
 """
 
 import http.cookiejar
@@ -133,9 +100,7 @@ def run_leaf(
 @contextmanager
 def serving(arm: Path, state: Path, page: Path):
     """Serve `page` with the arm's `leaf server run --temporary` under the state home
-    `state`, and yield the tokened `url` it prints; a first load of that address
-    sets the page's cookie. An arm is any revision, and one from before the CLI
-    printed JSON prints the bare URL, so the URL is found in the line either way."""
+    `state`, and yield the tokened URL it prints."""
     server = subprocess.Popen(
         [str(arm / "bin" / "leaf"), "server", "run", "--temporary", str(page)],
         env=environment(XDG_STATE_HOME=str(state)),
@@ -340,14 +305,9 @@ class LiveChild:
     manager: `prompt` is its first message, and `records` yields its stream-json,
     hook events included, each stamped `received_at`.
 
-    A later turn opens when a background task, such as a `leaf wait`, ends. `claude
-    -p` terminates its background shells once the final result is out and stdin has
-    closed, so the caller holds stdin open while it expects another turn and calls
-    `close` to end the session. A session still running `limit` seconds after it
-    started is killed and `timed_out` touched; the deadline runs beside the read, so
-    a stream that stops producing lines still ends. Leaving the block, however it is
-    left, cancels the deadline and kills a child still running, so no timer or child
-    outlives a failed driver."""
+    `claude -p` terminates its background shells, such as a `leaf wait`, once stdin
+    closes, so stdin stays open until the caller calls `close`. A session still
+    running `limit` seconds after it started is killed and `timed_out` touched."""
 
     def __init__(
         self,
@@ -448,23 +408,15 @@ class PageClient:
             ) from error
 
 
-def tool_calls(record: dict) -> list[tuple[str, str]]:
-    """Each tool call in one stream record: its id, and what it runs, or the tool
-    and its file."""
+def commands(record: dict) -> list[str]:
+    """What each tool call in one stream record runs, or the tool and its file."""
     content = (record.get("message") or {}).get("content")
     return [
-        (
-            block["id"],
-            block["input"].get("command")
-            or " ".join(filter(None, [block["name"], block["input"].get("file_path")])),
-        )
+        block["input"].get("command")
+        or " ".join(filter(None, [block["name"], block["input"].get("file_path")]))
         for block in (content if isinstance(content, list) else ())
         if block.get("type") == "tool_use"
     ]
-
-
-def commands(record: dict) -> list[str]:
-    return [ran for _, ran in tool_calls(record)]
 
 
 def waits_started(record: dict) -> list[str]:
@@ -505,13 +457,7 @@ def blocks(trace: list[dict]):
         yield from (b for b in content or [] if isinstance(b, dict))
 
 
-def loaded_memory(trace: list[dict]) -> bool:
-    """Whether the child loaded auto-memory, which reads the user's notes and voids
-    the run."""
-    return any(d.get("type") == "system" and d.get("memory_paths") for d in trace)
-
-
 def completed(trace: list[dict]) -> bool:
     """Whether a trace counts: its model call reached a result that is not an
-    error, without auto-memory."""
-    return trace_result(trace).get("is_error") is False and not loaded_memory(trace)
+    error."""
+    return trace_result(trace).get("is_error") is False

@@ -10,6 +10,17 @@
  * the quick endpoint toggle, while a click on the handle only puts the user on it.
  * Print stacks both frames.
  *
+ * Once the page has presented, the widget compares the two images pixel for pixel
+ * (`runtime/image-difference.js` owns what counts as a difference) and puts its
+ * `describeDifference` between the rail labels. Every pair says when it is identical,
+ * only slightly changed, or changed throughout, so a reader of one side of the divider,
+ * or of a screenshot of the page, still learns it. With `outlines`, the pair also
+ * outlines each region that changed over both frames, and the rail counts them. `difference` is that reading, in the images' own pixels,
+ * or null for a pair the widget refused; a parent that hides the rail states it from
+ * there.
+ * Pairs compare one per frame, so a page of large captures does not hold input for the
+ * whole batch.
+ *
  * One two-ended rail stays fixed above the frames while CSS moves its active rule. Its
  * labels are generated page words, available to selection, and become the order key
  * above the two stacked frames on paper.
@@ -21,9 +32,13 @@ import {
   PRESS,
   afterPresentation,
   commandScope,
+  compareImages,
+  describeDifference,
+  differenceKind,
   once,
   offer,
   failSoft,
+  nextFrame,
   isCanonicalMediaUrl,
   commands,
   marginEntry,
@@ -34,6 +49,15 @@ import {
   selectableOffer,
   widgetController,
 } from "/runtime/widget-api.js";
+
+let comparing = Promise.resolve();
+const inTurn = (work) => {
+  const turn = comparing
+    .then(() => new Promise((resolve) => nextFrame(resolve)))
+    .then(work);
+  comparing = turn.catch(() => {});
+  return turn;
+};
 
 let comparisonReady;
 const loadComparison = () =>
@@ -51,6 +75,10 @@ customElements.define(
     #chose = false;
     #frames = [];
     #captions = new Map();
+    #settleDifference;
+    difference = new Promise((resolve) => {
+      this.#settleDifference = resolve;
+    });
 
     static observedAttributes = ["data-lf-shot-controls"];
 
@@ -145,6 +173,14 @@ customElements.define(
       const registered = this.register(shots);
       present(registered);
       void registered.then(() => this.#requestComparison());
+      this.#settleDifference(
+        registered.then((aligned) =>
+          aligned
+            ? afterPresentation(() => inTurn(() => this.#markDifference(shots)))
+            : null,
+        ),
+      );
+      void this.difference.catch((reason) => failSoft(this, reason));
     }
 
     disconnectedCallback() {
@@ -257,6 +293,36 @@ customElements.define(
       );
     }
 
+    // Each region is placed in shares of the pair's frame, the natural width by the
+    // taller image's height that `--lf-shot-ratio` sizes, so the marks scale with the
+    // images at every width.
+    #markDifference(shots) {
+      const reading = compareImages(...shots);
+      const { width, height, regions } = reading;
+      const share = (length, whole) => `${(100 * length) / whole}%`;
+      for (const frame of this.#frames) {
+        const marks = document.createElement("div");
+        marks.className = "lf-shotdiff";
+        marks.dataset.lfGen = "1";
+        marks.ariaHidden = "true";
+        for (const region of regions) {
+          const mark = document.createElement("span");
+          mark.style.setProperty("--lf-shot-x", share(region.x, width));
+          mark.style.setProperty("--lf-shot-y", share(region.y, height));
+          mark.style.setProperty("--lf-shot-w", share(region.width, width));
+          mark.style.setProperty("--lf-shot-h", share(region.height, height));
+          marks.append(mark);
+        }
+        frame.append(marks);
+      }
+      const count = document.createElement("span");
+      count.className = "lf-shotdelta";
+      count.dataset.lfShotDelta = differenceKind(reading);
+      relabel(count, describeDifference(reading), { says: false });
+      this.#captions.get("before").after(count);
+      return reading;
+    }
+
     #show(state) {
       this.#chose = true;
       if (this.#comparison) {
@@ -358,10 +424,12 @@ customElements.define(
     // failure this widget cannot afford: it is silent, it is convincing, and the
     // user has no way to tell it from the truth. Heights may differ freely —
     // content reflowing taller is a real thing to see, and it stays registered.
+    // Answers whether the pair decoded at one width, which is when comparing it
+    // pixel for pixel means anything.
     async register(shots) {
       await Promise.all(shots.map((img) => img.decode().catch(() => {})));
       const [before, after] = shots.map((img) => img.naturalWidth);
-      if (before && after && before !== after)
+      if (before && after && before !== after) {
         failSoft(
           this,
           new Error(
@@ -369,9 +437,12 @@ customElements.define(
               `at one viewport, or the flip moves everything`,
           ),
         );
+        return false;
+      }
       const height = Math.max(...shots.map((img) => img.naturalHeight));
       if (before && height)
         this.style.setProperty("--lf-shot-ratio", `${before} / ${height}`);
+      return Boolean(before && after);
     }
   },
 );

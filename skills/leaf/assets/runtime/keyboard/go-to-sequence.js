@@ -178,19 +178,6 @@ export function createGoToSequence({
     }
   }
 
-  // A generated native-fragment sentinel can carry the scroll coordinate while remaining
-  // absent from the accessibility tree. Such a point sits immediately before the content it
-  // names. Never put keyboard focus on aria-hidden apparatus; after the browser follows the
-  // fragment, place the user on that visible content instead.
-  function fragmentFocusTarget(destination) {
-    if (!destination || destination.getAttribute("aria-hidden") !== "true")
-      return destination;
-    const content = destination.nextElementSibling;
-    return content?.checkVisibility() && !closestAcross(content, '[aria-hidden="true"]')
-      ? content
-      : null;
-  }
-
   function followLink(link) {
     const fragment = sameDocumentFragment(link);
     // Held from the hint's own press, so a newer gesture during the landing keeps the
@@ -210,7 +197,7 @@ export function createGoToSequence({
       landed.then(
         () => {
           if (!mayFocus()) return;
-          const destination = fragmentFocusTarget(fragmentTarget(fragment));
+          const destination = fragmentTarget(fragment);
           if (destination) focusDestination(destination);
         },
         () => {},

@@ -1,12 +1,11 @@
-#!/usr/bin/env python3
 """Run one real Codex task through Leaf's App Server adapter and check what it leaves.
 
-    uv run scripts/verify_codex_task.py
+    uv run leaf-dev verify-codex-task
 
 The suite drives the adapter with scripted App Server messages; this drives it with
 Codex itself. It installs this working tree's plugin payload (`extract_payload`) into
 a throwaway Codex home (`codex_home`), trusts the plugin's hooks there, and starts a
-private App Server the way `leaf codex launch` does (`private_app_server`). The script
+private App Server the way `leaf codex launch` does (`private_app_server`). The command
 is then the terminal: it opens the task, types the user's turns, and posts the user's
 comments to the served page as a tab would. It reads the page's log and claim in
 process, and stops at the first check that fails.
@@ -48,6 +47,8 @@ from leaf.event_log import read_events
 from leaf.leases import adapter_is_live
 from leaf.server import running_server
 from leaf.service import page_claim
+
+from leaf_dev import ROOT
 from leaf_dev.harness import (
     PageClient,
     codex_home,
@@ -56,7 +57,6 @@ from leaf_dev.harness import (
     run_leaf,
 )
 
-ROOT = Path(__file__).resolve().parent.parent
 # How long one step may take, and how long it has to stay settled before its
 # checks count: a second reply lands after the turn that wrote the first.
 STEP_LIMIT = 300
@@ -328,7 +328,7 @@ def journey(task: Task, page: Path, endpoint: str) -> None:
 
 
 @click.command()
-def main() -> None:
+def verify_codex_task() -> None:
     """Run one Codex task through Leaf's App Server adapter and check what it wrote."""
     codex = shutil.which("codex")
     if codex is None:
@@ -385,7 +385,3 @@ def main() -> None:
         else:
             click.echo(f"Kept the task, its page and its state home in {root}")
     click.echo("Every check passed.")
-
-
-if __name__ == "__main__":
-    main()

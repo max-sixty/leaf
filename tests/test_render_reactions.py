@@ -823,7 +823,7 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
         "aria-keyshortcuts",
         "1 2 3 4 5 6 Tab Shift+Tab ArrowLeft ArrowRight ArrowUp ArrowDown Enter Space Escape",
     )
-    suggest = bar.get_by_role("button", name="Suggest", exact=True)
+    suggest = bar.locator(".lf-fab-suggest")
     expect(suggest).to_be_focused()
     assert suggest.get_attribute("aria-expanded") is None
     expect(bar.locator(".lf-react:visible")).to_have_count(6)

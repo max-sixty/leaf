@@ -17,11 +17,12 @@ has tried; settle that before building it.
   behavior. Set one focus-ring weight for every keyboard target.
 - **Keep the Thread hierarchy clear.** Check context, search, filters, agent
   activity, selection, and reply editing in the implemented accordion.
-- **Name a new Thread promptly everywhere.** An App Server carrier (leaf.page and
-  `leaf codex start`) now titles a thread from its opening message in about 3 s
-  (`codex_titles`). Every other carrier still titles on the agent's reply, so a
-  Claude Code thread reads "Generating title" for as long as the work takes; give
-  those carriers the same lightweight request.
+- **Name a new Thread promptly everywhere.** A Claude Code page and an App Server
+  carrier (leaf.page and `leaf codex start`) title a thread from its opening
+  message in about 3 s (`thread_titles`). A Codex task Leaf reaches through `codex
+  queue` still titles on the agent's reply; give it the same request, through
+  `codex exec`. A request at admission, as Claude Code's is, would serve every
+  harness once the page server can reach each one's model.
 - **Keep a long Thread's standing visible.** Let the agent maintain one line at the
   head of a Thread saying what is decided and what remains open, so a user
   returning to a long discussion knows where it stands before reading it. Decide

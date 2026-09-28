@@ -17,6 +17,7 @@ import os
 import socket
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -122,6 +123,15 @@ class Harness:
         is a process of its own is either running, and needs no telling, or gone
         along with the session it served."""
         return False
+
+    def title_generator(self) -> Callable[[str, Path], dict] | None:
+        """How the page server names a thread a user opens on this session's page,
+        as the comment is admitted (`thread_titles`), or None where it cannot.
+
+        Only a host whose model any process on the machine can ask has one. An App
+        Server carrier names the thread instead, as it starts the turn answering
+        it, since the page server cannot reach that server."""
+        return None
 
     def live_turn(self) -> dict | None:
         """What the host itself says about this session right now, or None where it
@@ -231,6 +241,11 @@ class ClaudeCodeHarness(EnvironmentHarness):
             .astimezone()
             .isoformat(),
         }
+
+    def title_generator(self) -> Callable[[str, Path], dict]:
+        from leaf.thread_titles import claude_code_title
+
+        return claude_code_title
 
     def nudge(self, page_dir: Path) -> bool:
         return message_claude_code_session(

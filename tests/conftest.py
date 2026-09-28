@@ -5,6 +5,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import NamedTuple
 
@@ -266,6 +267,20 @@ CLAUDE_IDENTITY = host_model.ClaudeCodeHarness.identity_variables
 # The Claude Code sessions `isolated_session` marks as hooked: the worker's own
 # and the id lifecycle fixtures claim under (`record_claim`).
 HOOKED_SESSIONS = (f"pytest-{os.getpid()}", "s1")
+
+
+def pytest_configure(config):
+    """Put a `claude` that fails at once ahead of the developer's own on PATH, for
+    the whole run. A Claude Code page server asks `claude` to name each thread a
+    user opens (`thread_titles`), from a thread that can outlive the test that
+    posted the comment, so no teardown may restore the real one under it; a test
+    about titling puts its own `claude` first."""
+    programs = Path(tempfile.mkdtemp(prefix="leaf-host-programs."))
+    claude = programs / "claude"
+    claude.write_text("#!/bin/sh\nexit 1\n")
+    claude.chmod(0o755)
+    os.environ["PATH"] = f"{programs}{os.pathsep}{os.environ['PATH']}"
+    config.add_cleanup(lambda: shutil.rmtree(programs, ignore_errors=True))
 
 
 @pytest.fixture(autouse=True)

@@ -457,11 +457,31 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
         assert "thread_title event is invalid" in refused.output
     assert events_model.read_events(page_dir) == before
 
-    [followed] = written(
-        ["thread", "reply", str(page_dir), root, "--text", "and wal mode"]
+    # A reply's --title names only a thread nothing has named, so a name the host
+    # gave the thread while the agent worked stands; edit renames one.
+    followed = runner.invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            str(page_dir),
+            root,
+            "--text",
+            "and wal mode",
+            "--title",
+            "WAL",
+        ],
     )
+    assert followed.exit_code == 0, followed.output
+    assert "already has a title" in followed.stderr
+    [followed] = [json.loads(line) for line in followed.stdout.splitlines()]
     assert followed == logged(followed)
     assert followed["parent"] == root
+    assert [
+        event["title"]
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "thread_title"
+    ] == ["Storage"]
     later = followed["id"]
 
     # Every command naming a thread takes any message in it, as reply does.

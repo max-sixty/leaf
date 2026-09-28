@@ -41,6 +41,7 @@ from .service import (
     unacknowledged,
 )
 from .session import pending_batches, receive_one
+from .thread_titles import titles_log
 
 
 def unattended_pages(
@@ -280,6 +281,7 @@ def cmd_hook(payload: dict) -> None:
         return
     if event == "SessionEnd":
         hooks_path(sid).unlink(missing_ok=True)
+        titles_log(sid).unlink(missing_ok=True)
         for page_dir in owned_pages(sid):
             try:
                 with PageTransaction(page_dir) as page:

@@ -1590,12 +1590,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      sequence shows as much of its live scope as one row holds. More unfolds the
      remaining current register into a two-row expanded bar before it opens the complete
      reference; the expanded bar grows the line upward over the page as a temporary
-     overlay and leaves the bar's reservation where it was. Hints are the
-     eye's copy of facts spoken elsewhere and stay aria-hidden; More is a real control.
-     Useful transient state — a semantic walk's live ordinal, or a brief command or
-     arrival notice in its place — stands at the bar's other end, over the line's tail
-     where the two would meet. syncLayout keeps the bar out of the thread panel, which
-     stands over the page's right edge. A covering auxiliary surface makes it inert
+     overlay and leaves the bar's reservation where it was. Hints are the eye's copy of
+     facts spoken elsewhere and stay aria-hidden; More is a real control. Useful
+     transient state — a semantic walk's live ordinal, or a brief command or arrival
+     notice in its place — stands at the bar's other end, and a standing one pads the
+     line's end (--lf-status-room) so the row stops short of it. syncLayout keeps the bar
+     out of the thread panel, which stands over the page's right edge. A covering auxiliary surface makes it inert
      background. The line wraps so the runtime can see which hints spill past one row,
      and hides them (two rows in the expanded bar): one row fills the bar's stated
      height exactly, and the expanded bar's second grows the line upward. The rows pack
@@ -1605,7 +1605,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-shortcut-bar { position: fixed; left: 0; right: var(--lf-shortcut-bar-right, 0px);
     bottom: 0; z-index: var(--lf-z-shortcut-bar); pointer-events: none;
     box-sizing: border-box; min-height: var(--lf-bottom-bar-h);
-    padding: 9px calc(18px + var(--lf-safe-right))
+    padding: 9px calc(18px + var(--lf-safe-right) + var(--lf-status-room, 0px))
       calc((var(--lf-bottom-bar-h) + var(--lf-safe-bottom) - var(--lf-key-badge-size)) / 2)
       calc(18px + var(--lf-safe-left));
     display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center;

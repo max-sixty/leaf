@@ -5070,7 +5070,9 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
 def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve):
     """Generated hints reserve stable status, not a transient notice's footprint."""
     page = open_page(browser, serve(ADDRESSED_PAGE))
-    resized(page, 1280, 800)
+    # Wide enough that the armed line's one row ends short of the corner the link is
+    # fixed in; at 1280 the row fills the window and More stands over the link.
+    resized(page, 1920, 800)
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
     page.locator("#lk2").evaluate(
         "node => Object.assign(node.style, {position: 'fixed', right: '18px', bottom: '18px'})"

@@ -34,8 +34,8 @@
    grows upward over the page as an overlay and leaves that reservation alone. A covering
    thread panel makes the line inert background. A coarse pointer is drawn no hint line at all — there is no
    keyboard to advertise, and every hint would name a key the user cannot press — and
-   states no bar height. The status stands at the bar's far end, over the line's tail
-   where the two meet. The line, status, and chips take no pointer events; the More
+   states no bar height. The status stands at the bar's far end, and the line's row ends
+   short of a standing one. The line, status, and chips take no pointer events; the More
    control does, because it is the pointer route to the reference. Brief user feedback
    replaces an ordinal and then restores its live reading; background arrivals queue
    behind user feedback and persistent command context.
@@ -365,6 +365,16 @@ export function renderShortcutBar(goToStatus) {
   });
   setNoticeContext(Boolean(goToReading));
   renderBottomStatus();
+  // The status stands over the line's tail, so the line's row ends a gap short of a
+  // standing status. A transient notice keeps the footprint of what it stands over
+  // (standingStatusBoxes) rather than trimming the line for the seconds it shows.
+  const [status] = standingStatusBoxes();
+  shortcutBarEl.style.setProperty(
+    "--lf-status-room",
+    status
+      ? `${status.width + parseFloat(getComputedStyle(shortcutBarEl).columnGap)}px`
+      : "0px",
+  );
   // Keep the two contextual hints together at the front of the ordinary line. The
   // expanded bar and a sequence retain registry order because each is a fuller reading of
   // one scene rather than a ranked shortlist.

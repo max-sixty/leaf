@@ -136,6 +136,9 @@ def generate_title(endpoint: str, subject: str, model: str | None, cwd: Path) ->
                 "cwd": str(cwd),
                 "ephemeral": True,
                 "approvalPolicy": "never",
+                # A sandbox confines only the tools a turn runs, and this one has
+                # none, so the request also works where Codex cannot start one, as
+                # in the website's container.
                 "sandbox": "read-only",
                 "baseInstructions": INSTRUCTIONS,
                 "config": {

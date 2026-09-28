@@ -123,7 +123,7 @@ import {
   shownRegionBounds,
 } from "../reading-regions.js";
 import { moveScrollerBy } from "../scrolling.js";
-import { floatingPlacement, floatingUi } from "../floating.js";
+import { floatingPlacement, floatingUi, heldByWindow } from "../floating.js";
 import { keeps } from "../widget-elements.js";
 
 // The two routes to one Comment capability: the page's own, and the Threads list's local
@@ -170,8 +170,9 @@ export function createResponseSurface({
     reactionTokens().length > 0 || Boolean(anchor?.quote && !designModeActive());
 
   // ---------- selection → comment ----------
-  // The response surface lives in the viewport plane and Floating UI follows the passage
-  // through every scroll ancestor, so it floats in the part of the window the page shows
+  // The response surface is fixed chrome, anchored to its passage's block while the
+  // passage holds it (floating.js), and Floating UI follows the passage through every
+  // scroll ancestor, so it floats in the part of the window the page shows
   // (`shownWindow`), whose visible viewport autoUpdate also follows: within a reading
   // region's shown box when it has one, else within the document page shell, whose right
   // edge stops short of the root scrollport's gutter. The panel stands over the page, so
@@ -256,13 +257,7 @@ export function createResponseSurface({
     fabMinimumWidth = null;
     fabMinimumComposer = null;
     fabBar.removeAttribute("data-lf-placement");
-    for (const property of [
-      "--lf-float-w",
-      "--lf-response-room",
-      "--lf-float-h",
-      "left",
-      "top",
-    ])
+    for (const property of ["--lf-float-w", "--lf-response-room", "--lf-float-h"])
       fabBar.style.removeProperty(property);
     fabBar.style.visibility = "hidden";
   }
@@ -609,8 +604,13 @@ export function createResponseSurface({
                   },
             };
           });
-          const plane = ({ middlewareData }) =>
-            heldIn && Math.abs(middlewareData.shift?.y ?? 0) >= 0.5 ? "window" : "page";
+          // Held at a reading region's edge, the bar goes where the page takes the region.
+          const plane = ({ y, middlewareData }) =>
+            heldIn &&
+            Math.abs(middlewareData.shift?.y ?? 0) >= 0.5 &&
+            heldByWindow(y, y + fabBar.offsetHeight, 8)
+              ? "window"
+              : "page";
           return fabPosition.position(
             computePosition,
             reference,

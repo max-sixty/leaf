@@ -32,6 +32,7 @@
 import { afterPresentation } from "./presentation.js";
 import { keeps } from "./widget-elements.js";
 import { anchorElement, anchorName } from "./anchor-names.js";
+import { shownWindow } from "./geometry.js";
 
 // Insets at the browser's layout precision, so one spot written twice reads the same.
 const px = (value) => `${Math.round(value * 64) / 64}px`;
@@ -41,9 +42,10 @@ export const floatingUi = () =>
   (floatingUiModule ??= import("/vendor/floating-ui.esm.js"));
 afterPresentation(floatingUi);
 
-// Where `anchor` stands in the box's positioning space, found from the reference's
-// rectangle there and both boxes' client rectangles. Nothing where the box's containing
-// block is not the viewport, since an anchor outside that block cannot position it.
+// Where `anchor` stands in the box's positioning space, from the reference's rectangle
+// there and both boxes' client rectangles. Nothing where a transform, filter, or
+// containment between the box and the body makes some box other than the viewport its
+// containing block, since an anchor outside that block cannot position it.
 const anchorAt = (reference, anchor) => ({
   name: "anchorAt",
   async fn({ rects, elements, platform }) {
@@ -51,18 +53,22 @@ const anchorAt = (reference, anchor) => ({
       return {};
     const client = reference.getBoundingClientRect();
     const box = anchor.getBoundingClientRect();
-    const scale = {
-      x: client.width / rects.reference.width || 1,
-      y: client.height / rects.reference.height || 1,
-    };
     return {
       data: {
-        x: rects.reference.x + (box.left - client.left) / scale.x,
-        y: rects.reference.y + (box.top - client.top) / scale.y,
+        x: rects.reference.x + box.left - client.left,
+        y: rects.reference.y + box.top - client.top,
       },
     };
   },
 });
+
+// Whether a box spanning `top` to `bottom` stands against an edge of the window the page
+// shows (geometry.js, `shownWindow`), `gap` inside it, rather than against a reading
+// region's edge the page carries.
+export function heldByWindow(top, bottom, gap) {
+  const shown = shownWindow({ gap });
+  return Math.abs(top - shown.top) < 0.5 || Math.abs(bottom - shown.bottom) < 0.5;
+}
 
 export function floatingPlacement({ floating, update }) {
   let epoch = 0;
@@ -73,10 +79,13 @@ export function floatingPlacement({ floating, update }) {
     floating.style.left = px(x);
     floating.style.top = px(y);
   };
+  // An anchor lost between placements (a row withheld, a target skipped, its name taken
+  // by a revision) stands the box off screen, as the rows fall back, until the placement
+  // that follows finds it another.
   const anchoredAt = (anchor, at) => (x, y) => {
     floating.style.positionAnchor = anchorName(anchor);
-    floating.style.left = `calc(anchor(left) + ${px(x - at.x)})`;
-    floating.style.top = `calc(anchor(top) + ${px(y - at.y)})`;
+    floating.style.left = `calc(anchor(left, -9999px) + ${px(x - at.x)})`;
+    floating.style.top = `calc(anchor(top, -9999px) + ${px(y - at.y)})`;
   };
   let stand = placedAt;
   return {
@@ -117,7 +126,8 @@ export function floatingPlacement({ floating, update }) {
       stopWatching = null;
       watched = null;
       delete floating.dataset.lfPlane;
-      floating.style.removeProperty("position-anchor");
+      for (const property of ["position-anchor", "left", "top"])
+        floating.style.removeProperty(property);
     },
   };
 }

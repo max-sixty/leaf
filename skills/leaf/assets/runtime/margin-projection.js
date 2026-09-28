@@ -171,7 +171,7 @@ import { bannerControlDoor } from "./banner-toolbar.js";
 import { coarsePointer } from "./pointer.js";
 import { threadCardGeometry } from "./thread-card-geometry.js";
 import { shownWindow, skipped } from "./geometry.js";
-import { floatingPlacement, floatingUi } from "./floating.js";
+import { floatingPlacement, floatingUi, heldByWindow } from "./floating.js";
 import { placeKeeper } from "./user-place.js";
 import {
   isLiveWorkflow,
@@ -660,19 +660,30 @@ export function createMarginProjection({
     const region = containingReadingRegionFor(target);
     return region ? shownRegionBounds(region) : null;
   };
-  // A scroll moves the held edge and with it the room to the boundary, so the cap moves
-  // with every scroll. A card short of both the cap it wears and the new one renders the
-  // same under either, and every write during a scroll costs a repaint
-  // (widget-elements.js, `keeps`), so such a card keeps the cap it wears. Growth that
-  // reaches a cap resizes the card, and the placement that answers takes the new one; a
-  // kept cap larger than the room lets that growth stand past the boundary for the one
-  // frame before it. Both are in the card's positioning space, as offsetHeight is.
+  // A scroll moves the held edge and with it the room to the boundary, so the cap the
+  // geometry asks for moves with every scroll, and every write during a scroll costs a
+  // repaint (widget-elements.js, `keeps`) while the card's far edge, written from the
+  // main thread, trails the scroll that carries the rest of it. So a scroll leaves the
+  // cap the card wears: a card short of both caps renders the same under either, and a
+  // card at its cap takes a new one only once its contents change, when a turn arrives
+  // or a draft grows. A cap that would cut the card it stands on is always taken. Both
+  // are in the card's positioning space, as offsetHeight is.
+  let wornContent = null;
+  const threadCardContent = () =>
+    [previewList, ...previewList.querySelectorAll(REPLY_BOX)].reduce(
+      (sum, box) => sum + box.scrollHeight,
+      0,
+    );
   function measureThreadCard(width, cap) {
     preview.style.setProperty("--lf-thread-width", `${width}px`);
     const worn = parseFloat(preview.style.getPropertyValue("--lf-thread-max-height"));
     const height = preview.offsetHeight;
-    if (!(height < worn - 0.5 && height < cap - 0.5))
+    const content = threadCardContent();
+    const atCap = height >= worn - 0.5;
+    if (!(worn >= 0) || cap < height - 0.5 || (atCap && content !== wornContent)) {
       preview.style.setProperty("--lf-thread-max-height", `${cap}px`);
+      wornContent = content;
+    }
     fitThreadCardEditors();
     return preview.getBoundingClientRect().height;
   }
@@ -732,10 +743,11 @@ export function createMarginProjection({
         const replyEditor = previewList.querySelector(REPLY_BOX);
         // Drafting is standing anywhere in the reply's row, Send included. A send leaves
         // the user in the box it empties, and the card must not move then.
-        const drafting =
+        const drafting = Boolean(
           replyEditor?.checkVisibility() &&
           (replyEditor.closest(".lf-say").contains(document.activeElement) ||
-            replyEditor.value !== "");
+            replyEditor.value !== ""),
+        );
         const clusterBox = cluster.getBoundingClientRect();
         // Client pixels per positioning-space pixel.
         const scale = {
@@ -758,7 +770,19 @@ export function createMarginProjection({
         return {
           x: rects.reference.x + (geometry.x - clusterBox.x) / scale.x,
           y: rects.reference.y + (geometry.y - clusterBox.y) / scale.y,
-          data: { geometry, drafting, scale, region: regionBounds(target) },
+          data: {
+            geometry,
+            drafting,
+            scale,
+            region: regionBounds(target),
+            // Held at a reading region's edge, the card goes where the page takes that
+            // region, which is its cluster's plane, not the window's.
+            plane:
+              geometry.plane === "window" &&
+              heldByWindow(geometry.y, geometry.y + geometry.height, CARD_GAP)
+                ? "window"
+                : "page",
+          },
         };
       },
     };
@@ -784,7 +808,7 @@ export function createMarginProjection({
           computePosition,
           reference,
           { middleware: [threadCardMiddleware(cluster, target)] },
-          ({ middlewareData }) => middlewareData.threadCard?.geometry?.plane,
+          ({ middlewareData }) => middlewareData.threadCard?.plane,
           cluster,
         );
       })
@@ -810,7 +834,9 @@ export function createMarginProjection({
             (geometry.y + geometry.height - region.bottom) / scale.y,
             (region.left - geometry.x) / scale.x,
           ];
-          preview.style.clipPath = `inset(${inset.map((side) => `${side}px`).join(" ")})`;
+          // At the browser's layout precision, so the same cut reads the same each time.
+          const length = (side) => `${Math.round(side * 64) / 64}px`;
+          preview.style.clipPath = `inset(${inset.map(length).join(" ")})`;
         } else preview.style.removeProperty("clip-path");
         keeps(preview, "data-lf-thread-placement", geometry.placement);
         preview.toggleAttribute("data-lf-thread-held", drafting);
@@ -1849,7 +1875,9 @@ export function createMarginProjection({
       transferThreadFocus || document.activeElement === previewMarginEntry;
     transferThreadFocus = false;
     const main = document.querySelector("main");
-    if (!nav.isConnected) chromeRoot.append(nav);
+    // Before the card, which anchors to its rows (`mount`).
+    if (!nav.isConnected)
+      chromeRoot.insertBefore(nav, preview.parentNode === chromeRoot ? preview : null);
     const mainRect = main?.getBoundingClientRect();
     syncInlineOffers();
     pageInventory = collectEntries();
@@ -2916,6 +2944,8 @@ export function createMarginProjection({
       scheduleWidthRender();
     });
     renderMargin();
+    // The card anchors to its row (floating.js), which an anchor may do only to a box
+    // laid out before it: the margin comes first.
     chromeRoot.append(nav, preview);
     if (!previewRegionMounted) {
       previewRegionMounted = true;

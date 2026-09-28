@@ -52,7 +52,8 @@
    says the card has left the boundary altogether. `plane` says what a scroll carries the
    card with: the `window`, while the boundary's own edge holds it in, or the `page`,
    where it stands at its spot or at a bound that has given with its cluster. A caller
-   that stands the card in that plane leaves every scroll that keeps it to the browser. Nothing about a scroll closes the
+   that stands the card in that plane, counting a reading region's edge as the page's,
+   leaves to the browser every scroll that keeps it. Nothing about a scroll closes the
    card. The clamp gives only for a cluster `seen` since the card was placed: a card
    opened from words deep in a block whose cluster is above the window stands in the
    window until that cluster has been in it, and a caller whose window changed size

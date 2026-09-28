@@ -100,12 +100,11 @@ import { renderingSettled } from "./rendering.js";
 import { highlightBlocks } from "./syntax.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 
-// Attributes the runtime may paint onto elements the page owns, and the declared marks
-// delivery paints into the served document under the same names (revision_delivery.py,
-// `mark_declared`). This is the replay signature's one exclusion vocabulary as well as
-// the source each runtime writer uses: a new kind of paint therefore has one place to
-// join. The rest of data-lf-* is not
-// implicitly ours — a widget can carry real state there, and replay must see it.
+// Attributes the runtime may paint onto elements the page owns: the source each runtime
+// writer uses, and with the declared marks (`$marks`) the replay signature's exclusion
+// vocabulary (`isPagePaint`), so a new kind of paint has one place to join. The rest of
+// data-lf-* is not implicitly ours — a widget can carry real state there, and replay
+// must see it.
 export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   class: "class",
   ask: "data-lf-ask",
@@ -122,11 +121,6 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   presented: "data-lf-presented",
   reported: "data-lf-reported",
   upgraded: "data-lf-upgraded",
-  inline: "data-lf-inline",
-  space: "data-lf-space",
-  readingRole: "data-lf-reading-role",
-  bound: "data-lf-bound",
-  exhibit: "data-lf-exhibit",
   holds: "data-lf-holds",
   moreBefore: "data-lf-more-before",
   moreAfter: "data-lf-more-after",
@@ -136,7 +130,14 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   traffic: "data-lf-traffic",
   indicated: "data-lf-indicated",
 });
-export const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
+const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
+// Whether an attribute on the page's own element is paint rather than the author's: the
+// runtime's, or a declared mark, which delivery paints into the served document and
+// `markDeclared` into a message. The version diff reads the live DOM against a file
+// nothing has painted, and paint it did not look past is a change the author never made.
+export const isPagePaint = (name) =>
+  PAGE_PAINT_ATTRIBUTES.has(name) ||
+  Object.values(registry.$marks).some((mark) => mark.paint === name);
 export const pagePresented = () =>
   document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
 // The stamp is written here and nowhere else, and never taken back, so the promise it
@@ -492,54 +493,42 @@ export function dress(root) {
 // declaration is the one representation, and the mark is how a stylesheet, which cannot
 // read a registry, asks it the same thing.
 //
+// Two more complete the set: x-bound, a block that holds its own height and scrolls
+// inside it (`bounds.js` holds each bounded block that arrives as a reading region, and
+// keeps an `end` bound on its newest entry), and x-reading-role, the structure the theme
+// and the workspace Layout lay out, so every package's pane takes the same rules.
+//
 // An attribute, because the theme cannot read the registry — the same arrangement x-says
-// already has with data-lf-said. A page's document arrives painted: delivery writes
-// its table into the served source (revision_delivery.py, `mark_declared`), so the
-// first paint already gives a board its room and a workspace its panes, before any
-// module or the registry loads, and a revision the page patches in arrives painted the
-// same way. A message is the runtime's to render, so `markDeclared` paints it with
-// this module's table as it renders. Either way the paint is on the page's own element,
-// so it joins PAGE_PAINT_ATTRIBUTES: the version diff reads the live DOM against a file
-// nothing has painted, and an attribute missing from that exclusion list is a change
-// the author never made.
-//
-// What separates the two tables is where each fact holds. x-inline is true of the element
-// wherever it renders, a thread's message included, or a chip-led comparison quoted into
-// a reply would stack there and nowhere else. So is x-exhibit: quoting is the element's
-// own fact, and a sample carried into a reply is quoted there too. A page's widget
-// renders in both places, and only one of the three changes meaning when it moves. The
-// room x-space hands out is the document's, and a message is the one place a
-// widget of the page's vocabulary renders outside the document, where the room is the
-// panel's (see msgNode).
-//
-// Two more are facts of the element wherever it renders. x-bound says it holds its
-// own height and scrolls inside it; `bounds.js` holds each bounded block that arrives
-// in the document as a reading region, and keeps an `end` bound on its newest entry.
-// An occurrence overrides x-bound with data-bound, as a page's data-width overrides
-// x-space. x-reading-role is the structural role the theme and the workspace Layout lay
-// out, so every package's pane takes the same rules.
-const MARKED_IN_MESSAGE = Object.freeze({
-  "x-inline": PAGE_PAINT_ATTRIBUTE.inline,
-  "x-exhibit": PAGE_PAINT_ATTRIBUTE.exhibit,
-  "x-bound": PAGE_PAINT_ATTRIBUTE.bound,
-  "x-reading-role": PAGE_PAINT_ATTRIBUTE.readingRole,
-});
+// already has with data-lf-said. Which declarations are marks, the attribute each is
+// painted as, the attribute an occurrence overrides it with, and whether it holds in a
+// message are one table, Python's `schema.DECLARED_MARKS`, which composition stamps into
+// the vocabulary as `$marks`. A page's document arrives painted from it: delivery writes
+// the marks into the served source (revision_delivery.py, `mark_declared`), so the first
+// paint already gives a board its room and a workspace its panes, before any module or
+// the registry loads, and a revision the page patches in arrives painted the same way. A
+// message is the runtime's to render, so `markDeclared` paints it from `$marks` as it
+// renders, with the marks that hold there: every one but the room, which is the
+// document's to hand out, while a message renders in the panel's.
 
 function* elementsIn(root, selector) {
   if (root.matches?.(selector)) yield root;
   yield* root.querySelectorAll(selector);
 }
 
-// Paint a message's declared marks, the root alongside its descendants.
+// Paint a message's declared marks, the root alongside its descendants: each tag's
+// declaration, and an occurrence's authored override over it.
 export function markDeclared(root) {
-  for (const [key, attr] of Object.entries(MARKED_IN_MESSAGE))
+  for (const [key, { paint, authored, message }] of Object.entries(registry.$marks)) {
+    if (!message) continue;
     for (const tag of tagsDeclaring((entry) => entry[key])) {
       const declared = registry[tag][key];
       for (const el of elementsIn(root, tag))
-        el.setAttribute(attr, declared === true ? "" : declared);
+        el.setAttribute(paint, declared === true ? "" : declared);
     }
-  for (const el of elementsIn(root, "[data-bound]"))
-    el.setAttribute(PAGE_PAINT_ATTRIBUTE.bound, el.getAttribute("data-bound"));
+    if (authored)
+      for (const el of elementsIn(root, `[${authored}]`))
+        el.setAttribute(paint, el.getAttribute(authored));
+  }
 }
 
 // Words a widget says through an attribute — a metric's number, a chronology entry's time, an

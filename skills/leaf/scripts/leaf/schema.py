@@ -407,6 +407,27 @@ ATTRIBUTE_KEYS = (
     "x-says",
     "x-tone",
 )
+# The declarations a stylesheet reads, each painted on the element as `paint`: the room
+# it takes (x-space), whether it sets inline among words (x-inline), quotes what it holds
+# (x-exhibit), holds its own height (x-bound), and the reading structure it supplies
+# (x-reading-role). A stylesheet cannot read the registry, so each is painted where a
+# selector can ask. `authored` is the attribute an occurrence writes to override its
+# tag's declaration. `message` says whether the mark holds in a thread's message too:
+# each is the element's own fact wherever it renders, except the room, which is the
+# document's to hand out; a message renders in the panel, whose width bounds it.
+#
+# Delivery paints a page's document from this (`revision_delivery.mark_declared`).
+# Composition stamps it into the vocabulary as `$marks` (`registry.layer.
+# stamp_composition`), from which the runtime paints a message it renders and tells the
+# paint from the author's attributes (`isPagePaint`). The paint names are also the
+# theme's contract: the stylesheets that read them spell them out.
+DECLARED_MARKS = {
+    "x-space": {"paint": "data-lf-space", "authored": "data-width", "message": False},
+    "x-inline": {"paint": "data-lf-inline", "message": True},
+    "x-exhibit": {"paint": "data-lf-exhibit", "message": True},
+    "x-bound": {"paint": "data-lf-bound", "authored": "data-bound", "message": True},
+    "x-reading-role": {"paint": "data-lf-reading-role", "message": True},
+}
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent.parent
 PLUGIN_ROOT = SKILL_ROOT.parent.parent

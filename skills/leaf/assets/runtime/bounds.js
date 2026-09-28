@@ -48,13 +48,15 @@
    user sees: an `end` log opens at its end, and a pin taken after the page presents
    would show it at its top and then jump. */
 import { sizeObserver } from "./rendering.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { watchArrivals } from "./arrivals.js";
 import { authoredScope, pageDocument } from "./passages.js";
 import { compoundReadingRegionId, registerReadingRegion } from "./reading-regions.js";
 
-const BOUNDED = `[${PAGE_PAINT_ATTRIBUTE.bound}]`;
-const FOLLOWING = `[${PAGE_PAINT_ATTRIBUTE.bound}="end"]`;
+// The bound's paint (`schema.DECLARED_MARKS`), read by name as the theme's bound rule
+// reads it: the watch starts at boot, before any registry has loaded.
+const BOUND = "data-lf-bound";
+const BOUNDED = `[${BOUND}]`;
+const FOLLOWING = `[${BOUND}="end"]`;
 // A box scrolled to within this of its end is at its end: fractional scroll positions
 // on scaled displays leave a pinned box a pixel short.
 const SLACK = 2;
@@ -128,7 +130,7 @@ function holdBlock(bounded) {
     registered.delete(hold);
   };
   hold.sync = () => {
-    hold.bound = bounded.getAttribute(PAGE_PAINT_ATTRIBUTE.bound);
+    hold.bound = bounded.getAttribute(BOUND);
     if (!bounded.isConnected || hold.bound === null) return letGo();
     const box = scrollerOf(bounded);
     if (box !== hold.box) {
@@ -165,15 +167,11 @@ function holdBlock(bounded) {
 // its bound. What a registered block holds is its own observer's to follow, so a block
 // offered again with its bound unchanged (its children or siblings moved) costs nothing.
 export function holdArrivingBounds() {
-  watchArrivals(BOUNDED, [PAGE_PAINT_ATTRIBUTE.bound], {
+  watchArrivals(BOUNDED, [BOUND], {
     arrive: (el) => {
       if (!holds.has(el)) holds.set(el, holdBlock(el));
       const hold = holds.get(el);
-      if (
-        !registered.has(hold) ||
-        hold.bound !== el.getAttribute(PAGE_PAINT_ATTRIBUTE.bound)
-      )
-        hold.sync();
+      if (!registered.has(hold) || hold.bound !== el.getAttribute(BOUND)) hold.sync();
     },
     leave: (el) => holds.get(el)?.sync(),
   });

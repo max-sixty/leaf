@@ -39,7 +39,7 @@ from urllib.parse import quote, unquote, urlsplit
 import turbohtml
 
 from .revision_artifact import Resource, authored_imports, bind_imports, rewrite_css
-from .schema import BROWSER_DIRS, MEDIA_DIR, VENDORED_FILES
+from .schema import BROWSER_DIRS, DECLARED_MARKS, MEDIA_DIR, VENDORED_FILES
 from .structure import (
     DELIVERY_ENCODING_META,
     UTF8_BOM,
@@ -230,24 +230,14 @@ def rebase_document(
     return source
 
 
-# The element declarations a stylesheet reads, painted on each element of the declared
-# tag as `data-lf-<name>`: the room it takes (x-space), whether it sets inline among
-# words (x-inline), quotes what it holds (x-exhibit), holds its own height (x-bound),
-# and the reading structure it supplies (x-reading-role). A stylesheet cannot read the
-# registry, and a declaration painted by the runtime lands a registry fetch after the
-# document first draws, so a workspace would draw its panes before knowing they are
-# panes. The paint is PAGE_PAINT_ATTRIBUTE's (runtime/presentation.js), so a reading of
-# the page's own words looks past it.
-DECLARED_MARKS = ("x-space", "x-inline", "x-exhibit", "x-bound", "x-reading-role")
-# The two an authored occurrence overrides, by the attribute it writes on any element.
-AUTHORED_MARKS = {"x-space": "data-width", "x-bound": "data-bound"}
-
-
 def mark_declared(source: str, registry: Mapping) -> str:
-    """Paint each element's declared marks onto its start tag, the rest byte-for-byte.
+    """Paint each element's declared marks (`DECLARED_MARKS`) onto its start tag, the
+    rest byte-for-byte.
 
-    What a template holds is inert until a module clones it, and a declarative shadow
-    tree's content is its host's to style, so neither is marked.
+    A mark painted by the runtime would land a registry fetch after the document first
+    draws, so a workspace would draw its panes before knowing they are panes. What a
+    template holds is inert until a module clones it, and a declarative shadow tree's
+    content is its host's to style, so neither is marked.
     """
     tree = turbohtml.parse(source, scripting=True, source_locations=True)
     index = source_index(source)
@@ -259,12 +249,11 @@ def mark_declared(source: str, registry: Mapping) -> str:
         declaration = registry.get(element.tag, {})
         attrs = element_attrs(element)
         marks = {}
-        for key in DECLARED_MARKS:
-            name = f"data-lf-{key.removeprefix('x-')}"
-            if (authored := AUTHORED_MARKS.get(key)) in attrs:
-                marks[name] = attrs[authored]
+        for key, mark in DECLARED_MARKS.items():
+            if (authored := mark.get("authored")) in attrs:
+                marks[mark["paint"]] = attrs[authored]
             elif declared := declaration.get(key):
-                marks[name] = "" if declared is True else str(declared)
+                marks[mark["paint"]] = "" if declared is True else str(declared)
         if marks:
             start = index(location.start_tag.start_line, location.start_tag.start_col)
             edits.append((start + 1 + len(element.tag), _attributes(marks)))

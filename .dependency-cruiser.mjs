@@ -24,9 +24,11 @@ const isOneOf = (names) => `^${runtime}(?:${names.map(escaped).join("|")})$`;
 
 // Each root reaches these modules and nothing else. The pure record folds take values
 // and return values; the keyboard dispatcher resolves a key against the register and
-// the focused scope. If either reached a painter or an application service, every
-// caller would acquire that owner's initialization graph.
+// the focused scope. If one of them reached a painter or an application service, every
+// caller would acquire that owner's initialization graph. image-difference.js reaches
+// nothing because `leaf-dev stills` loads it into a blank page on its own.
 const exactClosures = {
+  "image-difference.js": [],
   "margin-entry-model.js": [],
   "margin-model.js": ["margin-entry-model.js"],
   "margin-map-model.js": ["margin-entry-model.js"],

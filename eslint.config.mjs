@@ -48,6 +48,7 @@ const browserGlobals = Object.fromEntries(
     "MutationObserver",
     "Node",
     "NodeFilter",
+    "OffscreenCanvas",
     "Range",
     "Response",
     "ResizeObserver",

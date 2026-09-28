@@ -1434,12 +1434,13 @@ def test_the_feature_gallery_exercises_core_user_workflows(browser, serve):
     consume_browser_errors(page, "400")
 
 
-def test_a_render_that_keeps_an_external_link_gives_back_the_note_it_dropped(
+def test_a_render_that_keeps_an_external_link_gives_back_the_mark_it_dropped(
     browser, serve
 ):
-    """A render that keeps a link and rebuilds the children around it (`setChildren`)
-    drops the link's note, which stands beside it. The link must get the note back, or
-    it keeps describing itself by an id nothing carries."""
+    """The link's treatment stands inside the link, so a render that rebuilds the
+    children around a kept link leaves nothing beside it to lose. A render that rebuilds
+    the link's own words drops its mark, and the link must get the mark back, or it keeps
+    describing itself by an id nothing carries."""
     page = open_page(
         browser,
         serve(
@@ -1452,17 +1453,17 @@ def test_a_render_that_keeps_an_external_link_gives_back_the_note_it_dropped(
     )
     link = page.locator("#ext")
     expect(link).to_have_accessible_description("opens in a new tab")
+    expect(page.locator("#ext ~ *")).to_have_count(0)
     page.evaluate(
         """async () => {
           const { setChildren } = await window.__lfRuntimeImport(
             '/runtime/widget-api.js');
-          const holder = document.getElementById('holder');
-          setChildren(holder, [...holder.childNodes].filter(
-            (node) => !node.classList?.contains('lf-external-note')));
+          const link = document.getElementById('ext');
+          setChildren(link, [document.createTextNode('the source')]);
         }"""
     )
     rendered(page)
-    expect(page.locator("#ext + .lf-external-note")).to_have_count(1)
+    expect(link.locator(":scope > .lf-external-mark")).to_have_count(1)
     expect(link).to_have_accessible_description("opens in a new tab")
 
 

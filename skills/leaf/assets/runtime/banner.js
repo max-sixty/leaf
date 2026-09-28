@@ -400,9 +400,9 @@ function renderLayerReference(state) {
   const named = `Leaf ${identity}${age ? ` · ${age}` : ""}`;
   layerReferenceElementCopy.copyLabel = `${named} · copy version`;
   render(
-    html`Leaf <code class="lf-layer-version">${identity}</code>${age
-        ? ` · ${age}`
-        : nothing}`,
+    html`Leaf <code class="lf-layer-version">${identity}</code>${
+        age ? ` · ${age}` : nothing
+      }`,
     layerReferenceElement,
   );
   keeps(

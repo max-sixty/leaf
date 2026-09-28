@@ -3889,7 +3889,7 @@ def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
 
     resized(page, narrow, 900)
     squeezed = geometry(page, edge)
-    covering = page.locator("body[data-lf-covering-surface]").count()
+    covering = page.locator("html[data-lf-covering-surface]").count()
 
     resized(page, 1400, 900)
     roomy = geometry(page, edge)

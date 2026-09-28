@@ -1509,7 +1509,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
     )
 
     page.keyboard.press("w")
-    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
 
 
 def test_reduced_motion_leaves_gallery_play_explicit(serve, browser):

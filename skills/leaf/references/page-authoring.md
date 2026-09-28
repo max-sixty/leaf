@@ -283,7 +283,7 @@ geometry without them:
   covers nothing. So leave no room for a pin in the page's CSS, such as padding at the
   end of a heading: wherever the rail stands, the room is left empty.
 
-`data-rail="right"` on `main` keeps the rail on a wide page, and `data-rail="none"`
+`data-rail="right"` on `body` keeps the rail on a wide page, and `data-rail="none"`
 gives a column page's right margin to something of the page's own. A marker level
 with a hanging `aside.sidenote` stands as a pin on its block, so a page with notes needs
 neither.

@@ -76,7 +76,7 @@ const POSTURES = {
 // none stays in flow. The room is read with the column centred, so a shift this pass
 // wrote is taken back out of the reading and the decision never feeds itself.
 //
-// A page declares otherwise on `main`: `data-rail="right"` makes the shell give up the
+// A page declares otherwise on `body`: `data-rail="right"` makes the shell give up the
 // rail's width on its right (theme.css), which this reads as room like any other, and
 // `data-rail="none"` keeps its margin for its own residents, so its markers are pins.
 // Chrome layout asks for it on every pass (chrome-layout.js, `syncLayout`), which runs
@@ -121,7 +121,10 @@ function settleResidency() {
   };
   const taken = { left: 0, right: 0 };
   const standing = [];
-  if (main.getAttribute("data-rail") !== "none" && room.right >= need("--rail")) {
+  if (
+    document.body.getAttribute("data-rail") !== "none" &&
+    room.right >= need("--rail")
+  ) {
     standing.push("rail");
     taken.right = need("--rail");
   }

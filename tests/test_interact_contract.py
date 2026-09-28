@@ -4304,16 +4304,18 @@ def test_check_takes_a_page_s_width_from_a_layout_and_not_from_data_width(page_d
     assert "its width is a Layout class on it" in result.output
 
 
-def test_check_takes_a_rail_only_on_main_and_only_by_name(page_dir):
-    """`data-rail` says whether the page keeps a rail, so it stands on `main` and names
+def test_check_takes_a_rail_only_on_body_and_only_by_name(page_dir):
+    """`data-rail` says whether the page keeps a rail, so it stands on `body` and names
     one of the two answers; anywhere else it would silently declare nothing."""
     (page_dir / "index.html").write_text(
-        PAGE.replace("<main>", '<main data-rail="none">')
+        PAGE.replace("<body>", '<body data-rail="none">')
     )
     result = check(page_dir)
     assert result.exit_code == 0, result.output
     (page_dir / "index.html").write_text(
-        PAGE.replace("<main>", '<main data-rail="left">').replace(
+        PAGE.replace("<body>", '<body data-rail="left">')
+        .replace("<main>", '<main data-rail="right">')
+        .replace(
             "<h2>Plan</h2>", '<h2>Plan</h2><section data-rail="none"><p>A</p></section>'
         )
     )
@@ -4322,7 +4324,7 @@ def test_check_takes_a_rail_only_on_main_and_only_by_name(page_dir):
     assert "data-rail='left'> (line" in result.output
     assert "expected one of right, none" in result.output
     assert "data-rail> (line" in result.output
-    assert "belongs on <main>" in result.output
+    assert result.output.count("belongs on <body>") == 2
 
 
 def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(

@@ -60,7 +60,7 @@ def draw_over(page, locator, *, steps=8, points=STROKE):
     x, y = points[0]
     page.mouse.move(box["x"] + box["width"] * x, box["y"] + box["height"] * y)
     page.keyboard.press("w")
-    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     assert locator.evaluate("el => getComputedStyle(el).cursor") == "crosshair"
     expect(page.locator(".lf-aim")).to_be_hidden()
     return stroke_over(page, locator, steps=steps, points=points)
@@ -284,7 +284,7 @@ def test_a_drawing_says_the_words_it_stands_over_and_the_box_it_was_drawn_in(
     start = page.evaluate(WORDS_BOX, ["#line", "bravo charlie"])
     page.mouse.move(start["x"] + 2, start["y"] + start["height"] / 2)
     page.keyboard.press("w")
-    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     field = page.locator(".lf-fab-input")
 
     def sent(what):
@@ -383,7 +383,7 @@ def test_a_keyboard_send_reaches_send_while_the_stroke_still_owes_its_press(
 
     page.mouse.move(point["x"], point["y"])
     page.keyboard.press("w")
-    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     page.mouse.down()
     page.mouse.move(point["x"] + 70, point["y"] - 60, steps=8)
     page.mouse.move(point["x"] + 130, point["y"] + 30, steps=8)
@@ -467,7 +467,7 @@ def test_a_drawing_can_begin_on_page_whitespace(browser, serve):
     again = {"x": 40, "y": point["y"] - 120}
     page.mouse.move(again["x"], again["y"])
     page.keyboard.press("w")
-    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     page.mouse.down()
     page.mouse.move(again["x"] + 60, again["y"] - 80, steps=8)
     page.mouse.up()
@@ -634,7 +634,7 @@ def test_page_and_anchored_drawing_drafts_keep_their_own_ink(browser, serve):
     # A stroke in the same Draw mode session would join the page drawing, so the
     # anchored one is drawn in a session of its own.
     page.keyboard.press("w")
-    expect(page.locator("body")).not_to_have_attribute("data-lf-draw-mode", "")
+    expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
 
     draw_over(page, page.locator("#prose"))
 
@@ -660,7 +660,7 @@ def test_strokes_join_one_drawing_until_it_is_sent_and_escape_leaves(browser, se
     expect(pending).to_have_count(1)
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
-    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
 
     # Begun over another element, the stroke still belongs to the prose drawing.
     start = stroke_over(page, page.locator("#fig"))
@@ -672,7 +672,7 @@ def test_strokes_join_one_drawing_until_it_is_sent_and_escape_leaves(browser, se
     # Escape puts the box away and keeps its draft; the next stroke joins that draft.
     page.keyboard.press("Escape")
     expect(pending).to_have_count(0)
-    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     stroke_over(page, page.locator("#fig"), points=((0.3, 0.3), (0.5, 0.7), (0.7, 0.3)))
     expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*M[^M]*$"))
     expect(field).to_be_focused()
@@ -693,7 +693,7 @@ def test_strokes_join_one_drawing_until_it_is_sent_and_escape_leaves(browser, se
     ).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*M[^M]*$"))
 
     # The sent draft holds no drawing any more, so the next stroke starts one.
-    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     stroke_over(page, page.locator("#fig"))
     expect(pending).to_have_count(1)
     expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*$"))
@@ -702,9 +702,9 @@ def test_strokes_join_one_drawing_until_it_is_sent_and_escape_leaves(browser, se
     # The composer the stroke opened stands inside the mode, so it comes off first.
     page.keyboard.press("Escape")
     expect(pending).to_have_count(0)
-    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     page.keyboard.press("Escape")
-    expect(page.locator("body")).not_to_have_attribute("data-lf-draw-mode", "")
+    expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-live")).to_contain_text("Draw mode off")
 
     # A new Draw mode session draws into the draft it finds rather than over it.
@@ -787,7 +787,7 @@ def test_a_click_draws_nothing_and_escape_leaves_the_mode(browser, serve):
     assert page.evaluate("getComputedStyle(document.body).touchAction") == "none"
     page.mouse.click(*point)
 
-    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
     expect(page.locator(".lf-fab-input")).to_be_hidden()
     assert target.get_attribute("data-activated") is None
@@ -796,7 +796,7 @@ def test_a_click_draws_nothing_and_escape_leaves_the_mode(browser, serve):
     page.mouse.down()
     page.keyboard.press("Escape")
     page.mouse.up()
-    expect(page.locator("body")).not_to_have_attribute("data-lf-draw-mode", "")
+    expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-live")).to_contain_text("Draw mode off")
     assert target.get_attribute("data-activated") is None
 
@@ -810,7 +810,7 @@ def test_draw_mode_leaves_chrome_controls_usable(browser, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
 
-    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
 
@@ -821,7 +821,7 @@ def test_draw_mode_keeps_the_separate_design_mode_binding(browser, serve):
 
     page.keyboard.press("l")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
-    expect(page.locator("body")).not_to_have_attribute("data-lf-draw-mode", "")
+    expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
     page.keyboard.press("l")
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
 
@@ -845,12 +845,12 @@ def test_draw_mode_leaves_inline_thread_controls_usable(browser, serve):
     reply.scroll_into_view_if_needed()
 
     page.keyboard.press("w")
-    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     assert reply.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
     reply.click()
 
     expect(reply).to_be_focused()
-    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
 
 
@@ -869,7 +869,7 @@ def test_draw_mode_cursor_matches_the_widget_controls_it_captures(browser, serve
     assert control.evaluate("el => getComputedStyle(el).cursor") == "crosshair"
     page.mouse.click(*point)
 
-    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     assert option.get_attribute("chosen") is None
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
 

@@ -228,12 +228,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item { cursor: pointer; }
 /* Every non-chrome point on the page accepts a drawing press. The crosshair therefore
    belongs to the whole document plane; an aim box adds semantic context where one is
    available but no longer decides whether the drag can begin. */
-html:has(body[data-lf-draw-mode]),
-body[data-lf-draw-mode] { cursor: crosshair; touch-action: none; }
-body[data-lf-draw-mode] main,
-body[data-lf-draw-mode] main * { cursor: crosshair !important; }
-body[data-lf-draw-mode] main .lf-thread-seat,
-body[data-lf-draw-mode] main .lf-thread-seat * { cursor: auto !important; }
+html[data-lf-draw-mode],
+html[data-lf-draw-mode] body { cursor: crosshair; touch-action: none; }
+html[data-lf-draw-mode] main,
+html[data-lf-draw-mode] main * { cursor: crosshair !important; }
+html[data-lf-draw-mode] main .lf-thread-seat,
+html[data-lf-draw-mode] main .lf-thread-seat * { cursor: auto !important; }
 /* Element feedback is one hollow contour. Unlike a text highlight, an element mark
    is projected above everything the target draws, so any interior paint can obscure
    the target's own words or picture. The target painter keeps this contour above those

@@ -45,10 +45,10 @@ import { createDrawingController } from "./runtime/composing/drawing.js";
 import { createDrawingPaint } from "./runtime/composing/drawing-paint.js";
 import { createAim } from "./runtime/composing/aim.js";
 import {
-  createTargetChooser,
-  targetChooserHintLayer,
+  createTargetPicker,
+  targetPickerHintLayer,
   pageSearchSurface,
-} from "./runtime/composing/target-chooser.js";
+} from "./runtime/composing/target-picker.js";
 import { createStandingElement } from "./runtime/composing/standing.js";
 import {
   createReactionController,
@@ -99,7 +99,7 @@ import { createAuxiliarySurfaces } from "./runtime/auxiliary-surfaces.js";
 import { restoreUserView } from "./runtime/restore-state.js";
 import { watchProjection } from "./runtime/projection-watch.js";
 import { createVersionController } from "./runtime/version.js";
-import { versionMenu, versionMenuIsOpen } from "./runtime/version-chooser.js";
+import { versionMenu, versionMenuIsOpen } from "./runtime/version-picker.js";
 import {
   banner,
   isSignoffDeclared,
@@ -127,7 +127,7 @@ if (validationEntry) {
   validationEntry.lfReadiness = pageReadiness;
   validationEntry.lfRenderingSettled = renderingSettled;
 }
-import { overflowMenu } from "./runtime/banner-shelf.js";
+import { overflowMenu } from "./runtime/banner-toolbar.js";
 import {
   leavesOffered,
   othersLinks,
@@ -150,7 +150,7 @@ import { paintTouchControls } from "./runtime/keyboard/touch-controls.js";
 import { commandReferenceDialog } from "./runtime/keyboard/command-reference.js";
 import {
   bottomChromeBoxes,
-  closeShortcutShelf,
+  collapseShortcutBar,
   mountShortcutBar,
   renderShortcutBar,
   shortcutBarEl,
@@ -288,7 +288,7 @@ const designMode = createDesignMode({
   closePreview: (...args) => app.margin.closePreview(...args),
   marginTargetAt: (...args) => app.margin.marginTargetAt(...args),
   closeDrawMode: () => drawing.setDrawMode(false, { spoken: false }),
-  closeTargetChooser: () => targets.closeTargetChooser(),
+  closeTargetPicker: () => targets.closeTargetPicker(),
   closeReactionMode: () => reactions.setReact(false),
   banner,
   announce,
@@ -301,7 +301,7 @@ aim = createAim({
   standDown: (...args) => responseSurface.standDown(...args),
   drawModeActive: () => drawing.drawModeActive(),
   designMode,
-  targetChooser: {
+  targetPicker: {
     active: () => targets.pointerChoosing(),
     choose: (...args) => targets.chooseTarget(...args),
   },
@@ -376,7 +376,7 @@ app = mountApplication({
   threadAvailable: !offlineInteractive,
   reportPageError,
   createEngagement,
-  targetChooserOpen: () => targets.targetChooserOpen(),
+  targetPickerOpen: () => targets.targetPickerOpen(),
   pageComposerDrawing: () => panelComposer.pageComposerDrawing(),
   wireInput: inputs.wireInput,
   anchorPaint,
@@ -583,7 +583,7 @@ responseSurface = createResponseSurface({
   reactionContextContains: (...args) => reactions.reactionContextContains(...args),
   reactionTokens,
   setReact: (...args) => reactions.setReact(...args),
-  closeShortcutShelf: (...args) => closeShortcutShelf(...args),
+  collapseShortcutBar: (...args) => collapseShortcutBar(...args),
   closeVersionMenu: version.closeVersionMenu,
   versionMenuIsOpen,
   openPageThread: app.margin.openPageThread,
@@ -610,7 +610,7 @@ reactions = createReactionController({
   standingThread,
   standingElement,
 });
-targets = createTargetChooser({
+targets = createTargetPicker({
   scrollToRange: anchorTravel.scrollToRange,
   hintChrome,
   commentOnTarget: responseSurface.commentOnTarget,
@@ -634,7 +634,7 @@ drawing = createDrawingController({
     selectionComposer.openComposer(anchor, "", { carry: true, drawing }),
   openPageDrawing: panelComposer.openPageDrawing,
   setDesignMode: designMode.setActive,
-  closeTargetChooser: targets.closeTargetChooser,
+  closeTargetPicker: targets.closeTargetPicker,
   closeReactionMode: () => reactions.setReact(false),
   banner,
   announce,
@@ -686,7 +686,7 @@ goToSequence = createGoToSequence({
   panelIsOpen,
   elements: { banner, toggleBtn, threadsBox },
   hintChrome,
-  directDestinations: () => [version.CHOOSER, selectionComposer.KEPT_DRAFT],
+  directDestinations: () => [version.PICKER, selectionComposer.KEPT_DRAFT],
   setPanel: threadPanelController.setPanel,
   setOpenDrawer: drawers.setOpenDrawer,
   scrollToElement: anchorTravel.scrollToElement,
@@ -718,7 +718,7 @@ const standing = createStanding({
   paintTouchControls,
   renderShortcutBar: () => renderShortcutBar(goToSequence.goToStatus),
   paintGoToHints: goToSequence.paintGoToHints,
-  paintTargetChooserHints: targets.paintTargetChooserHints,
+  paintTargetPickerHints: targets.paintTargetPickerHints,
   paintCoreControls,
   paintVersionShortcuts: version.paintShortcuts,
   paintInputs: inputs.paintInputs,
@@ -749,7 +749,7 @@ if (!offlineInteractive) {
     legendRoot,
     goToHintLayer,
     askActionLayer,
-    targetChooserHintLayer,
+    targetPickerHintLayer,
     pageSearchSurface,
     targetPaint.visualMarkLayer,
     drawingPaint.layer,

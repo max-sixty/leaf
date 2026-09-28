@@ -428,7 +428,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      instead of the 67 aimed at, and the composer quoted the page from that passage down
      through every widget. Answered at the root, because a rule per surface is a list
      that stops being complete: the banner, the shortcut bar and the panel's head were named
-     and the panel itself, the drawers, the shelf's menu, the command reference, the find
+     and the panel itself, the drawers, the toolbar's menu, the command reference, the find
      row and the asks list were left open, all of them selectable and every one of them
      the same drag. What a user may still copy out of here says so for itself, at
      .lf-quote and .lf-msg-body below. */
@@ -474,12 +474,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-banner-status, .lf-banner-actions { display: flex; align-items: center;
     gap: var(--lf-banner-gap); }
   /* The sentence wins the row. It takes whatever the controls leave and keeps a floor
-     of its own below that, which is what the shelf's cap on the next rule states from
+     of its own below that, which is what the toolbar's cap on the next rule states from
      the other end. Growing into free space rather than reserving its own words is what
      keeps the row still: a status ageing from "is working" to "last checked in" is a
      longer sentence in a box that has not changed size, so nothing beside it moves. */
   .lf-banner-status { flex: 1 1 auto; min-width: 0; }
-  /* Keep a readable start of the status sentence beside the shelf's fixed primary
+  /* Keep a readable start of the status sentence beside the toolbar's fixed primary
      controls. The reservation is independent of changing status copy, so updates
      cannot move controls under the user's pointer. */
   .lf-banner-actions { flex: 0 0 auto; min-width: 0;
@@ -514,7 +514,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-dot.listening { background: var(--ok); }
   .lf-dot.away { background: var(--warn); }
   .lf-dot.offline { background: var(--danger); }
-  /* The developer preview is a key badge like the rest, but the shelf keeps it behind
+  /* The developer preview is a key badge like the rest, but the toolbar keeps it behind
      the overflow door at every width. It stays here in the shared key-badge vocabulary
      because the menu moves the same node rather than constructing a second diagnostic.
      A press copies the diagnostics, so its text is one line however long the name is. */
@@ -577,7 +577,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* News on a banner control is one mark: an accent dot in the control's corner, for
      unread threads, for More holding something new, and for Versions while a newer
      version waits. It is painted inside the box the control already reserved, as the
-     open tint above is. An inline marker is width instead of paint: the shelf is
+     open tint above is. An inline marker is width instead of paint: the toolbar is
      measured to seat its primary controls on a 320px phone with nothing to spare, so
      eleven pixels of marker put Threads past the window's edge at every count, whether
      or not anything was unread. Not an accent contour: that is the focus ring's colour
@@ -624,7 +624,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   @layer lf-reset {
     .lf-thread-action { font: inherit; }
   }
-  /* The chooser's menu replaces More at the same fixed banner door. Opening it closes
+  /* The picker's menu replaces More at the same fixed banner door. Opening it closes
      More, so the user sees one root popup rather than a child covering its invoker.
      It is anchored rather than measured, so nothing recomputes a position when the
      row's contents change width.
@@ -635,7 +635,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
 
      Two columns, because a version and what it changed are one row's two halves: the
      note says it in words and Compare marks it on the page. That press was a second
-     control out on the bar, naming a second version number beside the chooser's, and
+     control out on the bar, naming a second version number beside the picker's, and
      the two together said no more than either — a user could tell that v2 and v3
      were both being mentioned and not what either mention was for. The pair are grid
      siblings rather than a wrapper each, because a role="menu" owns menuitems and a
@@ -780,7 +780,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-asks[data-lf-complete] { border-color: var(--ok);
     background: var(--ok-tint); color: var(--ok-ink); }
   /* Version news remains a legible control at every width. When the row runs out of
-     room the shelf above scrolls; clipping the one control instead left a visible
+     room the toolbar above scrolls; clipping the one control instead left a visible
      eighteen-pixel button containing none of its words. */
   .lf-latest-chip { background: var(--warn-tint); border: 1px solid var(--warn); color: var(--warn-ink); border-radius: 6px; padding: 3px 8px; flex: none; }
   .lf-thread-panel { position: fixed; inset: var(--lf-banner-h) 0 0 auto;
@@ -1611,7 +1611,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     overflow: hidden; white-space: nowrap; }
   .lf-bottom-status { position: fixed;
     right: calc(18px + var(--lf-safe-right) + var(--lf-shortcut-bar-right, 0px));
-    /* Centred on the band's row whatever the status holds. */
+    /* Centred on the bottom bar's row whatever the status holds. */
     bottom: calc(var(--lf-safe-bottom) + (var(--lf-bottom-bar-h) - var(--lf-safe-bottom)) / 2);
     translate: 0 50%;
     /* Passive feedback remains visible above a covering auxiliary surface. */
@@ -1705,23 +1705,23 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* Ask binding badges sit on the answer control's upper-left corner. Unlike a route name
      above prose, the single digit is a local label for the control it touches. */
   .lf-ask-binding-badges > .lf-ask-binding-badge { transform: translate(-50%, -50%); }
-  /* The Target chooser and Go-to sequence both give visible targets generated, prefix-free
+  /* The Target picker and Go-to sequence both give visible targets generated, prefix-free
      names while their interaction stands. Every hint remains visible: the face is
      the route itself, not a reminder of a predictable ordinal. */
-  .lf-target-chooser-hints, .lf-go-to-hints {
+  .lf-target-picker-hints, .lf-go-to-hints {
     position: fixed; inset: 0; z-index: var(--lf-z-key-badges); pointer-events: none;
   }
-  :is(.lf-target-chooser-hints, .lf-go-to-hints) > .lf-key-hint {
+  :is(.lf-target-picker-hints, .lf-go-to-hints) > .lf-key-hint {
     position: absolute; display: block;
     min-width: 0; height: auto; padding: 0; border: 0; background: transparent;
     transform: translate(-50%, -50%); }
-  :is(.lf-target-chooser-hints, .lf-go-to-hints) > .lf-key-hint.lf-in {
+  :is(.lf-target-picker-hints, .lf-go-to-hints) > .lf-key-hint.lf-in {
     transform: translate(-50%, 0);
   }
   /* The hint the keyboard is browsing is where the user is standing in this mode, so
      it wears the layer's band — cast as a shadow, since a chip in a layer nothing can
      focus has no outline state to hang it on. */
-  :is(.lf-target-chooser-hints, .lf-go-to-hints) > .lf-key-hint.lf-current { font-weight: 700;
+  :is(.lf-target-picker-hints, .lf-go-to-hints) > .lf-key-hint.lf-current { font-weight: 700;
     --lf-focus-ring: target-hint; box-shadow: var(--focus-shadow) var(--accent); }
   /* Search has one active result, painted as a quiet wash rather than a second native
      selection. The real Selection is made only on Enter, when the ordinary comment
@@ -1790,7 +1790,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
       align-items: center; justify-content: center; }
     /* Forty on the covering row, or the aim floor where a finger raises that past
        forty: this rule outranks the shared floor (shadow.css) by weight, so it has to
-       carry the floor itself or a touch shelf loses four pixels.
+       carry the floor itself or a touch toolbar loses four pixels.
        It states both axes for the same reason, and the band is the shared control's. */
     .lf-banner-actions > .lf-btn { min-height: max(40px, var(--aim-floor)); padding: 4px 2px; }
     .lf-banner-menu { right: auto;

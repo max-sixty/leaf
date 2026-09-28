@@ -160,8 +160,8 @@ and its chrome coordinate.
 - **Decide whether the shortcut line should wrap on a narrow window.** Below about
   390px with a fine pointer, the resting line wraps to a second row
   (`keyboard/shortcut-bar.js`, `chrome.css`), which stands about 31px over the page
-  beyond the band the page reserves. The alternative is truncating the resting line
-  to one row. A key sequence and the shelf must still wrap, so truncating brings back
+  beyond the bottom bar the page reserves. The alternative is truncating the resting line
+  to one row. A key sequence and the expanded bar must still wrap, so truncating brings back
   a one-row mode beside them, and it has to keep More, which sits last, from being
   cut first.
 - **Unconfirmed: scrolling a live sample sometimes sticks.** A user reported it

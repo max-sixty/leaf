@@ -1,7 +1,7 @@
 /* The transient keyboard hint session, and the code and placement policy under it.
 
    Two vocabularies stand on this one interaction: the Go-to sequence's map of visible
-   page targets, and the target chooser's map of addressable elements. Arming reads a
+   page targets, and the target picker's map of addressable elements. Arming reads a
    scene, gives each member an opaque prefix-free code, and paints a chip on it. Typed
    letters narrow the map, Tab walks it aloud, Enter takes the one just heard, and
    Escape gives a letter back. A letter that names nothing is reported and the standing

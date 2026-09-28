@@ -386,7 +386,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
     """Publish HTML as the newest version of a fresh page directory and serve it,
     as the real server does — vendoring included, so the assets under test are this
     repo's. Markup is one version; an example is every version it ships, stamped
-    oldest first, so a revised one arrives with a chooser, a base to compare against
+    oldest first, so a revised one arrives with a picker, a base to compare against
     and a thread opened before the revision.
 
     Handed an example's path rather than its markup, it also lays in the three
@@ -1293,7 +1293,7 @@ def expect_banner_control_offered(control, *, offered=True):
 
     Secondary controls live under a closed More ancestor, so ordinary visibility reads
     the ancestor rather than the control. Its own computed display includes both the
-    owner's presence and conditional offer without treating the shelf's news paint as
+    owner's presence and conditional offer without treating the toolbar's news paint as
     application authority.
     """
     if offered:
@@ -1889,7 +1889,7 @@ def write(box, text):
 def compare_with(page, version=None):
     """Mark what changed since a version, the way the page offers it.
 
-    The chooser opens and the row for that version carries the press, beside the note
+    The picker opens and the row for that version carries the press, beside the note
     that says in words what it changed. With no version named it is the one before the
     version being read — the first Compare in the menu, a row offering one only where it is
     older than this."""

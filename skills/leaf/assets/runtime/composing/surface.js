@@ -70,7 +70,7 @@ import {
   dismissBannerControls,
   registerBannerControl,
   showBannerControl,
-} from "../banner-shelf.js";
+} from "../banner-toolbar.js";
 import {
   seenRect,
   shellRight,
@@ -156,7 +156,7 @@ export function createResponseSurface({
   reactionContextContains,
   reactionTokens,
   setReact,
-  closeShortcutShelf,
+  collapseShortcutBar,
   closeVersionMenu,
   versionMenuIsOpen,
   openPageThread,
@@ -1217,7 +1217,7 @@ export function createResponseSurface({
     if (commandReferenceOpen() && !target.closest?.(".lf-command-reference"))
       hideReference();
     if (!target.closest?.(".lf-command-reference, .lf-shortcut-bar"))
-      closeShortcutShelf();
+      collapseShortcutBar();
     // The press on the button itself is its own toggle, so it is not an outside click;
     // without that the open and this close would both run and the menu could never open.
     if (versionMenuIsOpen() && !target.closest?.(".lf-version-menu, .lf-version"))

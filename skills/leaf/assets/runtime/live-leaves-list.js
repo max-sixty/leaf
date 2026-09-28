@@ -1,7 +1,7 @@
 /* The Leaves banner control and drawer's generated light-DOM list.
 
    The caller derives one immutable model for the control's presence and words and the
-   keyed drawer rows. The native control remains the banner shelf and drawer owner's stable
+   keyed drawer rows. The native control remains the banner toolbar and drawer owner's stable
    node; a retained face paints inside it. This owner registers each native link's
    command scope once, preserves a surviving link and its focus through reordering, and
    moves focus to a neighbouring link or the drawer when the focused page disappears.
@@ -14,7 +14,7 @@ import {
   failSoftAfterRetention,
   PresentationRetentionError,
 } from "./semantic-state.js";
-import { showNews } from "./banner-shelf.js";
+import { showNews } from "./banner-toolbar.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { RetainedFace, RowFocus } from "./retained-face.js";
 

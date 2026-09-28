@@ -305,10 +305,10 @@ export function letGo() {
 }
 
 // Handing the user back when a layer closes with them inside it. The closer names where,
-// most particular first — the control whose press opened the layer, the proxy the
-// layer's subject has on the page, the door a folded shelf shows in a control's place —
-// and the user lands on the first that takes focus. The page's body is nowhere: an
-// opener read while nothing held focus names no place to return to.
+// most particular first — the control whose press opened the layer, the proxy the layer's
+// subject has on the page, the door a folded toolbar shows in a control's place — and the
+// user lands on the first that takes focus. The page's body is nowhere: an opener read
+// while nothing held focus names no place to return to.
 //
 // A destination still in the document may not take focus yet: reconciliation can
 // replace a control in the same task, and the paint the close asked for may still hold

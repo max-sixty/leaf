@@ -208,7 +208,7 @@ export function createAskView({
     void syncAsks();
     try {
       // Resolve the current open inventory at activation. A control can survive several
-      // publications and shelf moves; it never captures an earlier Ask or DOM node.
+      // publications and toolbar moves; it never captures an earlier Ask or DOM node.
       for (const ask of openAsks()) {
         if (askEntry(ask)?.all !== outcome) continue;
         const { source } = await materializeAsk(ask);

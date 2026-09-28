@@ -46,17 +46,17 @@ import { overlaps, overlapsAcross, union } from "./rect.js";
 export const shellRight = () => document.body.getBoundingClientRect().right;
 
 // How much of the window the page shows: the visible viewport, less the banner over its
-// head and the bottom bar at its foot. Both bands are chrome fixed to the window that
+// head and the bottom bar at its foot. Both bars are chrome fixed to the window that
 // stand over the page without clipping it, so no clip walk finds them; the owner of each
 // declares it here (`declareBanner`, banner.js; `declareBottomBar`,
 // keyboard/shortcut-bar.js), and every reading of the room the page has starts from
 // `bannerFoot` or `shownWindow` rather than measuring the chrome itself.
 //
 // The banner's foot is its painted edge, since its declared height (`--lf-banner-h`) is a
-// safe-area `calc()` whose serialized value is not a number, and the phone banner wraps to
-// a second row. The bottom bar is read as the boxes standing in it rather than as its
-// stated height (`--lf-bottom-bar-h`), because the status rises above a covering panel's foot;
-// it bounds only the room its boxes stand across.
+// safe-area `calc()` whose serialized value is not a number, and the phone banner wraps
+// to a second row. The bottom bar is read as the boxes standing in it rather than as its
+// stated height (`--lf-bottom-bar-h`), because the status rises above a covering panel's
+// foot; it bounds only the room its boxes stand across.
 //
 // The visible viewport is the part of the window the user sees: pinch zoom and a phone's
 // software keyboard shrink it without resizing the layout viewport the page and its fixed
@@ -153,14 +153,15 @@ export function shownBand(el) {
 
 // The two bands of a scrollport, one reading each, beside the clip they start from.
 //
-// `visibleBand` is what the user can see through a scroller now: its shown band less
-// the sticky headers stuck over an edge of it. A sticky header is a sticky box declared through
-// `declareStickyHeaders` (below): an `lf-diff` file header, a page `lf-tabs` strip.
-// Stuck, it paints over the scroller's contents without clipping them, so a band that
-// ignored it would call what is under it shown. The clip walk below applies this band at
-// every ancestor, so `shownRect` and the readings built on it (read acknowledgement, the
-// summaries a thread card keeps open, arrival checks, chrome placement) all answer "on
-// screen" the same way; the place a re-render holds asks it of its one scroller directly.
+// `visibleBand` is what the user can see through a scroller now: its shown band less the
+// sticky headers stuck over an edge of it. A sticky header is a sticky box declared
+// through `declareStickyHeaders` (below): an `lf-diff` file header, a page `lf-tabs`
+// strip. Stuck, it paints over the scroller's contents without clipping them, so a band
+// that ignored it would call what is under it shown. The clip walk below applies this
+// band at every ancestor, so `shownRect` and the readings built on it (read
+// acknowledgement, the summaries a thread card keeps open, arrival checks, chrome
+// placement) all answer "on screen" the same way; the place a re-render holds asks it of
+// its one scroller directly.
 //
 // A header belongs to the scroller it sticks in, found by climbing out of shadow trees
 // as the clip walk does: a header inside a nested scroller is that scroller's, not the

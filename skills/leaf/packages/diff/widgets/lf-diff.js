@@ -1152,7 +1152,7 @@ customElements.define(
           "lf-diff-line-comment",
         );
         // Thousands of lines must not become thousands of Tab stops. The page-level
-        // target chooser is the keyboard route to the same exact datum; this control is
+        // target picker is the keyboard route to the same exact datum; this control is
         // the conventional pointer affordance in the line-number gutter.
         line.comment.tabIndex = -1;
         line.node.addEventListener("pointerenter", () =>

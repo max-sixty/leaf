@@ -98,13 +98,13 @@ def go_to(page, target, kind="Control"):
 def comment_on_target(page, target):
     """Choose one rendered datum through Leaf's keyboard target map."""
     page.keyboard.press("s")
-    hints = page.locator(".lf-target-chooser-hint[data-lf-hint-code]")
+    hints = page.locator(".lf-target-picker-hint[data-lf-hint-code]")
     expect(hints.first).to_be_visible()
     code = target.evaluate(
         """target => {
           const at = target.getBoundingClientRect();
           const chips = [...document.querySelectorAll(
-            '.lf-target-chooser-hint[data-lf-hint-code]')];
+            '.lf-target-picker-hint[data-lf-hint-code]')];
           return chips.map(chip => {
             const box = chip.getBoundingClientRect();
             return {code: chip.dataset.lfHintCode,
@@ -112,7 +112,7 @@ def comment_on_target(page, target):
           }).sort((a, b) => a.distance - b.distance)[0]?.code ?? null;
         }"""
     )
-    assert code, "the rendered datum had no target-chooser hint"
+    assert code, "the rendered datum had no target-picker hint"
     page.keyboard.type(code)
 
 

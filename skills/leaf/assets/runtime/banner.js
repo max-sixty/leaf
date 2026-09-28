@@ -9,8 +9,8 @@ import {
   registerBannerControl,
   showBannerControl,
   showNews,
-} from "./banner-shelf.js";
-import { latestChip, versionBtn } from "./version-chooser.js";
+} from "./banner-toolbar.js";
+import { latestChip, versionBtn } from "./version-picker.js";
 import { asksBtn, othersBtn } from "./drawers.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { repaint } from "./repaint.js";
@@ -63,7 +63,7 @@ approveBtn.title = "Approve this work; the page stays open for follow-up";
 approveBtn.disabled = true;
 const approvalFace = createBannerApprovalFace(approveBtn);
 
-// The shelf owns this complete order from typed contributions rather than discovering
+// The toolbar owns this complete order from typed contributions rather than discovering
 // or reconstructing it from whichever nodes happen to be in the row.
 registerBannerControl({
   key: "leaves",
@@ -630,8 +630,8 @@ export const isSignoffDeclared = () =>
 
 let signoff = false;
 
-// The banner's row mounts after the version chooser and drawers exist. Its complete
-// inventory and order already belong to the shelf's explicit registrations above.
+// The banner's row mounts after the version picker and drawers exist. Its complete
+// inventory and order already belong to the toolbar's explicit registrations above.
 export function mountBanner({ approveVersion, paintApproval }) {
   signoff = isSignoffDeclared() && runtime.currentStamp !== null;
   showBannerControl(approveBtn, signoff);

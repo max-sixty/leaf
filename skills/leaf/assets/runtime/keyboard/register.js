@@ -35,13 +35,13 @@ const COMMAND_REFERENCE = "command.reference.open";
 
 const STACK = [
   "command reference",
-  "shortcut shelf",
+  "expanded shortcut bar",
   "page map",
   "go to",
   "response options",
   "reactions",
   "page search",
-  "target chooser",
+  "target picker",
   ELEMENTS,
   // Among inner scopes the order is moot, since the modes and the Page Map stand it down
   // themselves.
@@ -82,7 +82,7 @@ const RUNG_LADDER = [
 const PAGE_COMMANDS = [
   "ask.activate-nth",
   "comment.create",
-  "target.chooser.open",
+  "target.picker.open",
   "reaction.open",
   "page.search.open",
   "page.search.repeat",

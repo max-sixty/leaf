@@ -862,7 +862,7 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
     assert page.locator(".lf-banner").evaluate("element => element.localName") == (
         "header"
     )
-    # Read the run that stands, not the shelf's whole inventory: a control registered
+    # Read the run that stands, not the toolbar's whole inventory: a control registered
     # for another device is in the row's markup with no presence, and the fact here is
     # that nothing the user can press follows Threads.
     expect(page.locator(".lf-banner-actions > *:visible").last).to_have_class(
@@ -961,14 +961,14 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
         f"a Tab walk across the phone row missed the reading loop: {walk}"
     )
     ring_room = """el => {
-      const shelf = el.parentElement.getBoundingClientRect();
+      const toolbar = el.parentElement.getBoundingClientRect();
       const button = el.getBoundingClientRect();
       const style = getComputedStyle(el);
       const outset = parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset);
-      return {top: button.top - outset - shelf.top,
-              left: button.left - outset - shelf.left,
-              right: shelf.right - button.right - outset,
-              bottom: shelf.bottom - button.bottom - outset};
+      return {top: button.top - outset - toolbar.top,
+              left: button.left - outset - toolbar.left,
+              right: toolbar.right - button.right - outset,
+              bottom: toolbar.bottom - button.bottom - outset};
     }"""
     room = page.locator(".lf-threads-toggle").evaluate(ring_room)
     assert all(space >= -0.01 for space in room.values()), (
@@ -976,19 +976,19 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     )
 
     # Every secondary contribution stays behind the door in registration order. The
-    # identities do not matter to the layout contract; register them through the shelf's
+    # identities do not matter to the layout contract; register them through the toolbar's
     # internal contribution boundary, just as asynchronous Ask and Page Map owners do.
     page.evaluate(
         """async () => {
-          const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
+          const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
           for (let i = 0; i < 7; i++) {
             const button = document.createElement('button');
             button.className = 'lf-ui lf-btn lf-secondary-destination';
             button.textContent = `Secondary destination ${i + 1}`;
-            shelf.registerBannerControl({
+            toolbar.registerBannerControl({
               key: `test-secondary-${i}`,
               control: button,
-              rank: shelf.BANNER_CONTROL_RANK.blanket + (i + 1) / 10,
+              rank: toolbar.BANNER_CONTROL_RANK.blanket + (i + 1) / 10,
             });
           }
         }"""
@@ -1002,20 +1002,20 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
         f"secondary controls changed seats with viewport width: {behind}"
     )
     # Take the synthetic controls away. The Leaf version remains deliberately behind
-    # the door at every width. The shelf retains
+    # the door at every width. The toolbar retains
     # each registered native island in one Lit root; hiding one changes its presentation,
     # not its identity or connection to the document.
     page.evaluate(
         """async () => {
-          const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
+          const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
           for (const control of document.querySelectorAll('.lf-secondary-destination'))
-            shelf.showBannerControl(control, false);
+            toolbar.showBannerControl(control, false);
         }"""
     )
     resized(page, 1600, 844)
     expect(page.locator(".lf-banner-more")).to_be_visible()
     # Open the door and read what stands behind it rather than counting the menu's
-    # markup: the shelf keeps a control registered for another device in that list with
+    # markup: the toolbar keeps a control registered for another device in that list with
     # no presence, so inventory and what the user meets are different readings.
     page.locator(".lf-banner-more").click()
     expect(page.locator(".lf-banner-menu")).to_be_visible()
@@ -1087,18 +1087,18 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     )
     positions = pinned.evaluate(
         """async () => {
-          const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
+          const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
           const chip = document.querySelector('.lf-latest-chip');
           const threads = document.querySelector('.lf-threads-toggle');
           const door = document.querySelector('.lf-banner-more');
           const x = () => threads.getBoundingClientRect().x;
           const shown = x();
-          shelf.showNews(chip, false);
+          toolbar.showNews(chip, false);
           await Promise.resolve();
           const quiet = {
             x: x(), door: door.checkVisibility(), news: door.hasAttribute('data-lf-news'),
           };
-          shelf.showNews(chip, true);
+          toolbar.showNews(chip, true);
           await Promise.resolve();
           return {shown, quiet, returned: x()};
         }"""
@@ -1219,7 +1219,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     expect(reference).to_be_hidden()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-shortcut-bar")).to_have_attribute(
-        "data-lf-shelf-open", "false"
+        "data-lf-expanded", "false"
     )
     for width in (1280, 841, 390):
         resized(page, width, 900)
@@ -1711,8 +1711,8 @@ def test_one_version_opens_a_menu_with_its_version(browser, serve):
 def test_the_versions_menu_uses_the_banner_panel_and_its_doors_edge(browser, serve):
     """Versions shares the banner panel's fixed top and its door's horizontal edge."""
     page = open_page(browser, serve(LONG_PAGE))
-    chooser = page.locator(".lf-version")
-    expect(chooser).to_be_enabled()
+    picker = page.locator(".lf-version")
+    expect(picker).to_be_enabled()
     banner_control(page, ".lf-version").click()
     menu = page.locator(".lf-version-menu")
     expect(menu).to_be_visible()
@@ -1776,14 +1776,14 @@ def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other
     page = open_page(browser, url)
     resized(page, 390, 800)
 
-    shelf = page.evaluate(
+    toolbar = page.evaluate(
         """() => {
           const actions = document.querySelector('.lf-banner-actions');
           return {shown: actions.clientWidth, needed: actions.scrollWidth};
         }"""
     )
-    assert shelf["shown"] == shelf["needed"], (
-        f"the phone row still hid controls off its own edge: {shelf}"
+    assert toolbar["shown"] == toolbar["needed"], (
+        f"the phone row still hid controls off its own edge: {toolbar}"
     )
     assert root_overflow(page) == 0, (
         "the phone banner made the page itself scroll sideways"
@@ -1864,20 +1864,20 @@ def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
     assert order == [
         "map",
         "blanket",
-    ], f"the shelf changed the established Map-before-blanket order: {order}"
+    ], f"the toolbar changed the established Map-before-blanket order: {order}"
 
     page.evaluate(
         """async () => {
-          const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
+          const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
           for (let i = 0; i < 3; i++) {
             const control = document.createElement('button');
             control.className = `lf-ui lf-btn lf-focus-candidate-${i}`;
             control.textContent = `Focus candidate ${i + 1}`;
             control.disabled = i === 1;
-            shelf.registerBannerControl({
+            toolbar.registerBannerControl({
               key: `test-focus-candidate-${i}`,
               control,
-              rank: shelf.BANNER_CONTROL_RANK.blanket + i + 1,
+              rank: toolbar.BANNER_CONTROL_RANK.blanket + i + 1,
             });
           }
         }"""
@@ -1887,8 +1887,8 @@ def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
     retiring.focus()
     page.evaluate(
         """async control => {
-          const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
-          shelf.showBannerControl(control, false);
+          const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
+          toolbar.showBannerControl(control, false);
         }""",
         retiring.element_handle(),
     )
@@ -1900,8 +1900,8 @@ def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
     answer_all.focus()
     page.evaluate(
         """async button => {
-          const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
-          shelf.showNews(button, false);
+          const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
+          toolbar.showNews(button, false);
         }""",
         answer_all.element_handle(),
     )
@@ -2101,7 +2101,7 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
     page.get_by_role("button", name="Close threads").tap()
     panel_settled(page, open=False)
 
-    # Across the covering boundary the banner fits the same touch aims. Its shelf and
+    # Across the covering boundary the banner fits the same touch aims. Its toolbar and
     # a keyboard ring remain inside the derived edge rather than centred through it.
     for width in (840, 841, 900, 1200, 1440):
         resized(page, width, 844)
@@ -2109,17 +2109,17 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
         geometry = page.locator(".lf-threads-toggle").evaluate(
             """control => {
                   const banner = control.closest('.lf-banner').getBoundingClientRect();
-                  const shelf = control.parentElement.getBoundingClientRect();
+                  const toolbar = control.parentElement.getBoundingClientRect();
                   const box = control.getBoundingClientRect();
                   const style = getComputedStyle(control);
                   const outset = parseFloat(style.outlineWidth) +
                     parseFloat(style.outlineOffset);
                   return {banner: {top: banner.top, bottom: banner.bottom},
-                          shelf: {top: shelf.top, bottom: shelf.bottom},
+                          toolbar: {top: toolbar.top, bottom: toolbar.bottom},
                           ring: {top: box.top - outset, bottom: box.bottom + outset}};
                 }"""
         )
-        for item in ("shelf", "ring"):
+        for item in ("toolbar", "ring"):
             assert (
                 geometry[item]["top"] >= geometry["banner"]["top"] - 0.01
                 and geometry[item]["bottom"] <= geometry["banner"]["bottom"] + 0.01
@@ -2137,15 +2137,15 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
     actions = page.locator(".lf-banner-actions")
     page.evaluate(
         """async () => {
-              const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
+              const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
               for (let i = 0; i < 3; i++) {
                 const button = document.createElement('button');
                 button.className = 'lf-ui lf-btn';
                 button.textContent = `Secondary touch destination ${i + 1}`;
-                shelf.registerBannerControl({
+                toolbar.registerBannerControl({
                   key: `test-touch-secondary-${i}`,
                   control: button,
-                  rank: shelf.BANNER_CONTROL_RANK.blanket + (i + 1) / 10,
+                  rank: toolbar.BANNER_CONTROL_RANK.blanket + (i + 1) / 10,
                 });
               }
             }"""
@@ -2164,22 +2164,22 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
     _touch_drag(cdp, x, y, dy=-160)
     page.wait_for_function("() => document.scrollingElement.scrollTop > 200")
     vertical = page.evaluate(
-        "() => ({shelf: document.querySelector('.lf-banner-actions').scrollLeft,"
+        "() => ({toolbar: document.querySelector('.lf-banner-actions').scrollLeft,"
         " page: document.scrollingElement.scrollTop,"
         " overflow: getComputedStyle(document.scrollingElement).overflowY})"
     )
     assert (
-        vertical["shelf"] == 0
+        vertical["toolbar"] == 0
         and vertical["page"] > 200
         and vertical["overflow"] != "hidden"
     ), f"a vertical touch over the row never reached the page: {vertical}"
     page.evaluate("() => { document.scrollingElement.scrollTop = 200; }")
     _touch_drag(cdp, x, y, dx=-160)
     horizontal = page.evaluate(
-        "() => ({shelf: document.querySelector('.lf-banner-actions').scrollLeft,"
+        "() => ({toolbar: document.querySelector('.lf-banner-actions').scrollLeft,"
         " page: document.scrollingElement.scrollTop})"
     )
-    assert horizontal["shelf"] == 0, (
+    assert horizontal["toolbar"] == 0, (
         f"the row still had a strip of itself to drag along: {horizontal}"
     )
 
@@ -2591,7 +2591,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     which decides who pays. A control that grows moves itself and everything to its
     *left*; everything to its right keeps its place. So `Open threads: 9` becoming
     `Open threads: 10` — a comment posted from the terminal while the user reads —
-    slid the version chooser 6px left, and the Accept all a second tab's decision puts
+    slid the version picker 6px left, and the Accept all a second tab's decision puts
     away took the New-version chip with it.
 
     Driven by writing the events a real one would leave, since that is what the page
@@ -2840,9 +2840,9 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
     def actions():
         return page.evaluate(
             """() => {
-                 const shelf = document.querySelector('.lf-banner-actions');
+                 const toolbar = document.querySelector('.lf-banner-actions');
                  const menu = document.querySelector('.lf-banner-menu');
-                 return [...menu.children, ...shelf.children].map(el =>
+                 return [...menu.children, ...toolbar.children].map(el =>
                    [['others', 'lf-others'], ['latest', 'lf-latest-chip'],
                     ['asks', 'lf-asks'], ['version', 'lf-version'],
                     ['comments', 'lf-threads-toggle'], ['signoff', 'lf-signoff']]
@@ -5500,7 +5500,7 @@ RING_EXAMPLE_FILES = {
 # paint so an unrelated ring with the same name cannot credit the sample.
 RING_REMOTE_CARRIER = {
     "ask": None,
-    "target-hint": ".lf-target-chooser-hint.lf-current",
+    "target-hint": ".lf-target-picker-hint.lf-current",
 }
 
 
@@ -5533,7 +5533,7 @@ RING_SCOPE_SURFACE = {
     # Each is the mode's own state rather than a box that merely exists: the chips are
     # rebuilt from nothing on every open, and the bar is in the document from the first
     # frame and shows only for an anchor.
-    "target hints": (".lf-target-chooser-hint.lf-current", None),
+    "target hints": (".lf-target-picker-hint.lf-current", None),
     "the response bar": (".lf-fab-bar .lf-composer[data-lf-open]", None),
     "the Asks drawer": (".lf-asks-panel.open", ".lf-asks"),
     "the leaves drawer": (".lf-others-panel.open", ".lf-others"),
@@ -6303,7 +6303,7 @@ def _each_aim_surface(page, page_dir):
     yield
     page.keyboard.press("Escape")
 
-    # Twice: the first press unfolds the shelf, the second opens the reference.
+    # Twice: the first press expands the shortcut bar, the second opens the reference.
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference-command").first).to_be_visible()

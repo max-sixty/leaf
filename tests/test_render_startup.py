@@ -1762,7 +1762,7 @@ def test_a_page_the_suite_opens_has_read_the_log(browser, serve):
 
     Only a press can state it. A read lives through the interval, since `expect` re-decisions
     for five seconds and the retry lands in two; a keystroke into a page that has no
-    versions yet is gone, and the chooser never opens."""
+    versions yet is gone, and the picker never opens."""
     url = serve(LONG_PAGE)
     _publish(
         serve.page_dir,

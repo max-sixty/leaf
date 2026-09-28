@@ -1611,7 +1611,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
                box-sizing: border-box;
                padding-block: var(--sp-4);
                pointer-events: none;
-               /* Between the banner and the bottom bar, as every region is: the band is
+               /* Between the banner and the bottom bar, as every region is: the bar is
                 * attached to the window's foot at one stated height, so the map ends above
                 * it rather than losing its last entry under the keyboard's line. */
                height: calc(100vh - var(--lf-banner-h, 0px) - var(--lf-bottom-bar-h, 0px));

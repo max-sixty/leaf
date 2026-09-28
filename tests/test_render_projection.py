@@ -1339,7 +1339,7 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
 def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     """A focused review is a root workspace, not prose followed by a narrow widget.
 
-    The case chooser never taxes the evidence width, the disposition is available before
+    The case picker never taxes the evidence width, the disposition is available before
     the pixels, and a tall mobile pair keeps its authored focus width side by side inside
     the scrolling evidence stage. Capture facts follow the comparison rather than delaying it.
     """
@@ -2012,8 +2012,8 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     expect(page.locator(".lf-version")).to_have_attribute("data-lf-news", "")
     expect(page).to_have_title("Live second")
 
-    # The chooser stands behind More, and a mouse press anywhere outside the composer
-    # stands the composer down (standDown) — so reaching the chooser by mouse would end
+    # The picker stands behind More, and a mouse press anywhere outside the composer
+    # stands the composer down (standDown) — so reaching the picker by mouse would end
     # the hold on the very gesture that opens the menu, and whether the page had followed
     # by then would come down to whether a state read landed between the two presses. The
     # keyboard route leaves the composer standing through both.
@@ -2225,7 +2225,7 @@ def test_a_prose_revision_takes_only_the_words_it_rewrote(browser, serve):
 
     A native selection and the element a page was handed belong to nodes rather than
     markup. The selection still reads what it read over the same text node, the
-    element is still the element, and the chooser says the page moved. Focus follows
+    element is still the element, and the picker says the page moved. Focus follows
     the user's route through More to the new-page control.
 
     A standing selection is a composition, so the page waits rather than moving under

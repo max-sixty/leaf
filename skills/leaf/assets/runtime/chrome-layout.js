@@ -125,7 +125,7 @@ export function createChromeLayout({
     // A region gives up the part of a bottom surface that stands over it: the band from
     // that surface's top down to the region's own foot, plus air above it. Read off the
     // rendered box, since what crosses the panel's list is a status whose place follows
-    // the panel's foot rather than a stated band.
+    // the panel's foot rather than the bottom bar's stated height.
     const roomBelow = (region) => {
       const clearances = bottomChromeBoxes()
         .filter((box) => overlapsAcross(box, region) && region.bottom > box.top)

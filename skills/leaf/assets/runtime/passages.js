@@ -1000,7 +1000,7 @@ export function fencePassageParts(root) {
 // replaces them.
 //
 // A pass is not the bound, though, because the passes are frequent and the walk grows with
-// the page: the painter, the capture, the target chooser and the selection surface each
+// the page: the painter, the capture, the target picker and the selection surface each
 // take one, and a drag-select takes one per pointer move. At a few thousand elements that
 // is the better part of a second apiece, which is a page that stutters while it is only
 // being read. So the reading stands until something it is built out of moves.

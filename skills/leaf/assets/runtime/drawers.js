@@ -14,7 +14,7 @@ import { allAsks } from "./asks/model.js";
 import { rowWalk } from "./walk-position.js";
 import { iconElement } from "./icons.js";
 import { createLiveLeavesList } from "./live-leaves-list.js";
-import { bannerControlDoor, dismissBannerControls } from "./banner-shelf.js";
+import { bannerControlDoor, dismissBannerControls } from "./banner-toolbar.js";
 import { createAskDrawerList } from "./asks/drawer-list.js";
 // The left side holds one drawer at a time, selected by the shared auxiliary-surface owner.
 // Both stand over the page and take no room from it. The leaves drawer covers the document
@@ -29,10 +29,10 @@ import { createAskDrawerList } from "./asks/drawer-list.js";
 //
 // A handle lives inside the region it draws, so a drawn region must not be its own scroll
 // container: a scroller clips a handle straddling its border and carries it away with the
-// content. A drawer is a shell holding a `.lf-drawer-list`, and every drawer list reserves the
-// shortcut bar's room where their horizontal spans meet. Wide content reads the shell's CSS
-// value directly; there is no observed measurement loop or second number system to
-// reconcile during a transition.
+// content. A drawer is a shell holding a `.lf-drawer-list`, and every drawer list
+// reserves the shortcut bar's room where their horizontal spans meet. Wide content reads
+// the shell's CSS value directly; there is no observed measurement loop or second number
+// system to reconcile during a transition.
 
 // The drawers' edge, on the left, and everything said above said again for it: the width
 // it stands at until the user moves it, and how narrow they may draw it.

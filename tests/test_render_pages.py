@@ -256,11 +256,11 @@ def test_ship_review_summary_is_addressable_and_baseline_aligned(browser, serve)
 
     summary.scroll_into_view_if_needed()
     page.keyboard.press("s")
-    expect(page.locator(".lf-target-chooser-hint")).not_to_have_count(0)
+    expect(page.locator(".lf-target-picker-hint")).not_to_have_count(0)
     code = summary.evaluate(
         """element => {
           const box = element.getBoundingClientRect();
-          const hints = [...document.querySelectorAll('.lf-target-chooser-hint')].map(node => {
+          const hints = [...document.querySelectorAll('.lf-target-picker-hint')].map(node => {
             const at = node.getBoundingClientRect();
             return {
               code: node.dataset.lfHintCode,
@@ -274,7 +274,7 @@ def test_ship_review_summary_is_addressable_and_baseline_aligned(browser, serve)
           return hints[0]?.distance < 30 ? hints[0].code : null;
         }"""
     )
-    assert code, "the summary had no target-chooser hint"
+    assert code, "the summary had no target-picker hint"
     page.keyboard.type(code)
     expect(page.locator(".lf-live")).to_contain_text("Chosen list: Observed")
 
@@ -1106,7 +1106,7 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
 
 
 def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
-    """Rollback preserves an unchanged chooser subtree and its focused row."""
+    """Rollback preserves an unchanged picker subtree and its focused row."""
     url = serve(TWIN_V1)
     d = serve.page_dir
     page = open_page(browser, live_url(url))
@@ -2109,7 +2109,7 @@ def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
         f"{room['line']:.0f}px shortcut bar"
     )
 
-    # The covering shelf is taller than the desktop row. A user can cross that
+    # The covering toolbar is taller than the desktop row. A user can cross that
     # breakpoint by rotating or resizing an already-open page, so the flow reservation
     # follows the rendered banner in both directions rather than keeping its startup
     # measurement and either covering the document or leaving a blank strip.

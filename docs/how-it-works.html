@@ -1391,7 +1391,7 @@ flowchart TD
                     />
                     <text x="10" y="15">Banner</text>
                   </g>
-                  <g id="chrome-band">
+                  <g id="chrome-bottom-bar">
                     <rect
                       class="frame-head"
                       x="2"
@@ -1470,9 +1470,9 @@ flowchart TD
                   </g>
                 </svg>
                 <figcaption id="cap-chrome-reserved">
-                  <strong>Two fixed reservations</strong>The banner and the shortcut
-                  band each have a fixed size, so the room a page has depends only on
-                  the window. The rail claims none of it: its markers stand beside the
+                  <strong>Two fixed reservations</strong>The banner and the bottom bar
+                  each have a fixed size, so the room a page has depends only on the
+                  window. The rail claims none of it: its markers stand beside the
                   column wherever the page leaves room for them.
                 </figcaption>
               </figure>
@@ -1862,7 +1862,7 @@ flowchart TD
             <p id="workspace-what">
               <code>&lt;main class="layout-workspace"&gt;</code> keeps regions in view
               together while each scrolls on its own: a queue beside the item it opens,
-              a playground's controls beside its preview. It is a wide page that holds
+              a playground's controls beside its preview. It is a wide page that fills
               the window's height as well as its width: the page's header takes its
               content's height, the one body under it takes the rest, each
               <code>lf-pane</code>'s body scrolls under the pane's header, and actions

@@ -974,7 +974,7 @@ def test_an_ask_with_more_than_one_answer_part_keeps_each_parts_height(browser, 
     fills_the_window(page, page.locator("main"), True)
 
 
-def test_a_held_workspace_that_overflows_scrolls_its_end_clear_of_the_bottom_bar(
+def test_a_full_height_workspace_that_overflows_scrolls_its_end_clear_of_the_bottom_bar(
     browser, serve
 ):
     """Whatever the user scrolls to in a full-height workspace clears the bottom bar, as a
@@ -3656,7 +3656,7 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
     assert playground.evaluate("root => root.values")["compact"] is False
 
 
-def test_notification_playground_sets_regions_side_by_side_while_its_workspace_holds_the_window(
+def test_notification_playground_sets_regions_side_by_side_while_its_workspace_is_full_height(
     browser, serve
 ):
     """A playground is a workspace with its relationship declared: the preview is the
@@ -7895,7 +7895,7 @@ def test_an_ask_that_cannot_name_itself_arrives_on_the_words_that_explain_it(
     assert landed["foot"] <= landed["view"], "the change itself ran off the screen"
 
 
-def test_an_arrival_region_fits_above_the_foot_band(browser, serve):
+def test_an_arrival_region_fits_above_the_bottom_bar(browser, serve):
     """The region an arrival takes in is measured against the landing band.
 
     The shortcut bar stands over the window's foot, so a region measured against the
@@ -8520,7 +8520,7 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
     Design mode lets a user comment on anything the layer draws, so a thread can be
     anchored on a widget that arrived in a reply. Two things were then said about it and
     both were wrong. The panel filed it under "The page's own layer", which groups the
-    agent's question with the composer and the version chooser — the layer's parts wear
+    agent's question with the composer and the version picker — the layer's parts wear
     the runtime's id namespace, which authored markup may not take, and that is what
     tells one from the other. And the thread's label read `§ ps-decision`, the bare id.
 

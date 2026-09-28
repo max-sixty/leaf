@@ -146,7 +146,7 @@ import {
 } from "./annotation-layer.js";
 import { repaint } from "./repaint.js";
 import { chromeRoot } from "./chrome.js";
-import { versionBtn } from "./version-chooser.js";
+import { versionBtn } from "./version-picker.js";
 import { motion, scrollBehavior } from "./motion.js";
 import { declareSide, placeOf } from "./standing-target.js";
 import { closestAcross, elementById, inChrome } from "./passages.js";
@@ -166,7 +166,7 @@ import { anchorLabel } from "./thread/messages.js";
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
 import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
-import { bannerControlDoor } from "./banner-shelf.js";
+import { bannerControlDoor } from "./banner-toolbar.js";
 import { coarsePointer } from "./pointer.js";
 import { threadCardGeometry } from "./thread-card-geometry.js";
 import { shownWindow, skipped } from "./geometry.js";
@@ -1350,9 +1350,9 @@ export function createMarginProjection({
   }
 
   // Where the Map hands the user back, for `handBack`: the entry's own marker, then the
-  // way into the Map, then a row in view, then the version control. The Map is a shelf
+  // way into the Map, then a row in view, then the version control. The Map is a toolbar
   // control, so at a width that folds it the button itself is behind a shut door and
-  // cannot take focus; the shelf is asked for the way in.
+  // cannot take focus; the toolbar is asked for the way in.
   function mapControlPlaces(entry = null) {
     const visible = visibleRows();
     return [
@@ -2821,7 +2821,7 @@ export function createMarginProjection({
   }
 
   // The margin's parts into the chrome, once it is mounted (leaf.js): the map button beside
-  // the version chooser, then its own parts in the root.
+  // the version picker, then its own parts in the root.
 
   function mount() {
     mountMarginLayer(toolbar);

@@ -215,11 +215,11 @@ decide, is one `lf-tabs list="side"` as the body: its list is the queue and each
 the Asks its item still holds. Write no script to select, hide or mark an item; the tab
 set does all three.
 
-Each pane's body scrolls on its own, and a widget that fills a full-height body, such as a
-playground's stage, grows to the window's height. The `lf-pane` entry says what a pane
-holds. Let the Layout allocate the height: page-specific positioning should not be
-needed to keep a pane or footer reachable. Where the window is too small to hold the
-regions, the panes take their natural height and the page scrolls.
+Each pane's body scrolls on its own, and a widget that fills the body of a full-height
+workspace, such as a playground's stage, grows to the window's height. The `lf-pane`
+entry says what a pane holds. Let the Layout allocate the height: page-specific
+positioning should not be needed to keep a pane or footer reachable. Where the window is
+too small to hold the regions, the panes take their natural height and the page scrolls.
 
 ### Bounds and widths
 

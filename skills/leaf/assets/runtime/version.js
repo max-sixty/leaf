@@ -1,12 +1,12 @@
 /* Version travel, comparison, and user continuity.
  *
- * `renderVersions` supplies the immutable chooser reading. `prepareActivation` installs
+ * `renderVersions` supplies the immutable picker reading. `prepareActivation` installs
  * a live revision; `goActive` also returns from a pinned document, while `goVersion`
  * opens a historical `?pin` address. The controller receives application and travel
  * capabilities before mount binds listeners; `installArrival` restores continuity once
  * the arriving geometry is ready.
  *
- * The chooser owns the complete version list. Its focused row selects the comparison
+ * The picker owns the complete version list. Its focused row selects the comparison
  * base; the row for the displayed version clears comparison. Block marks show changes,
  * and `inlineComparison` / `toggleInlineComparison` disclose a block's text diff on
  * request. `comparisonBase`, `comparisonChanges`, and `closeVersionMenu` serve other
@@ -47,8 +47,8 @@
  * fetched again. Reading position is restored even after a patch because content above
  * it may have changed height.
  *
- * `versionsOffered` controls the destination, chooser, and button; `versionsToWalk`
- * controls the menu's local scope. Keep chooser rows available wherever the menu can
+ * `versionsOffered` controls the destination, picker, and button; `versionsToWalk`
+ * controls the menu's local scope. Keep picker rows available wherever the menu can
  * open, including when the platform dismisses it. Scopes sharing a title merge their
  * rows; an unavailable contributor supplies none.
  */
@@ -94,7 +94,7 @@ import {
 import { LIVE_ROOT, PAGE_SCOPE, tabStore } from "./storage.js";
 import { alignInlineText } from "./text-alignment.js";
 import { el, keeps, layoutChanged, quoted, reveal } from "./widget-elements.js";
-import { showNews } from "./banner-shelf.js";
+import { showNews } from "./banner-toolbar.js";
 import { allButCommandReference, pageScope } from "./keyboard/register.js";
 import { pointerAt, restorePointer } from "./pointer.js";
 
@@ -121,10 +121,10 @@ import {
   latestChip,
   latestVersionLabel,
   versionBtn,
-  versionChooser,
+  versionPicker,
   versionMenu,
   versionMenuIsOpen,
-} from "./version-chooser.js";
+} from "./version-picker.js";
 import {
   importWidgets,
   patchDocument,
@@ -240,11 +240,11 @@ export function createVersionController({
   const VIEW_KEY = "lf-view";
   const HANDOFF_KEY = "lf-revision-handoff";
 
-  // ---------- the version chooser ----------
+  // ---------- the version picker ----------
   // Version facts are selectors of the accepted application reading.
   const stamped = (version) =>
     runtime.versions.find((candidate) => candidate.version === version);
-  // The version chooser: a press that says which version this is, and a menu that says
+  // The version picker: a press that says which version this is, and a menu that says
   // what each one was and what it changed. It was a <select>, and the two things that
   // cost were both the control's rather than the styling's. A select takes its inner
   // height from Chrome's own metrics and refuses line-height, so it could never stand
@@ -265,7 +265,7 @@ export function createVersionController({
   // Keep it to one stable version token (or Draft) through disclosure and comparison;
   // those states remain in the menu, class, title, and accessible name. A state arriving
   // on the poll therefore cannot resize this control and displace controls to its left.
-  // The chooser view reserves this compact token range once at load.
+  // The picker view reserves this compact token range once at load.
   const currentVersionToken = () =>
     runtime.currentStamp === null ? "Draft" : `v${runtime.currentStamp}`;
 
@@ -287,11 +287,11 @@ export function createVersionController({
     runtime.active !== null &&
     runtime.currentRevision !== null &&
     runtime.active.revision !== runtime.currentRevision;
-  // A menu is a transient reading of the chooser, not a layer over the next control a
+  // A menu is a transient reading of the picker, not a layer over the next control a
   // user Tabs to. Its comparison checkboxes are real internal Tab stops, so offer an
   // exit only from the boundary control in the direction being travelled. The native row
   // below closes the menu first and then leaves the browser to complete that same Tab.
-  const atVersionBoundary = (end) => versionChooser.atBoundary(end);
+  const atVersionBoundary = (end) => versionPicker.atBoundary(end);
 
   // The browser owns top-layer state, light dismissal and the handback. What it restores
   // focus to on a hide is the element that had it when the popover showed — not the
@@ -299,15 +299,15 @@ export function createVersionController({
   // — so every door into this menu shows it from the button, and a pointer press that
   // lands on the button gets it back. Escape is Leaf's, and the menu's own row performs
   // the whole of it: the close, and then the page the menu stood over, which is where a
-  // layer's one step lands the user rather than on the chooser in the banner. Scoping
+  // layer's one step lands the user rather than on the picker in the banner. Scoping
   // the platform handback to its door rather than to the state is what keeps it off a
   // light dismissal, which restores nothing on purpose: a user who pressed away into
   // the page is left where they pressed.
   function closeVersionMenu() {
-    versionChooser.close();
+    versionPicker.close();
   }
 
-  const numberedVersionRoutes = () => versionChooser.numberedRoutes();
+  const numberedVersionRoutes = () => versionPicker.numberedRoutes();
   const OPEN_NUMBER = {
     id: "version.open-number",
     keys: () => numberedVersionRoutes().map(({ binding }) => binding),
@@ -321,7 +321,7 @@ export function createVersionController({
     does: "Open a numbered version",
     line: "open version",
     when: () => versionsToWalk() && numberedVersionRoutes().length > 0,
-    // The focused menu and its standing chooser share this route. The first gives g V a
+    // The focused menu and its standing picker share this route. The first gives g V a
     // visible compact hint; the second preserves the key across a browser hand-back that
     // leaves the menu open with focus at its door. Close first, as the numbered key is the
     // keyboard form of pressing that row; this matters when it names the version already
@@ -335,7 +335,7 @@ export function createVersionController({
   // ArrowDown anywhere else are the page's own scroll; ⏎ is the browser's, a row being a
   // button, and the row says so with no `run`. A row's Compare is the same comparison for the
   // pointer, which has no walk to state it with. Exact number keys are shared with the
-  // standing menu chooser below, so they stay visible in this focused scope and survive a
+  // standing menu picker below, so they stay visible in this focused scope and survive a
   // browser hand-back that lands at its door.
   //
   // v is the one row worth a key of its own: the current page is where the walk ends, and
@@ -343,7 +343,7 @@ export function createVersionController({
   // page-level destination remains the complete `g V` route rather than a second meaning for
   // a bare letter.
   //
-  // This scope is live only while there is a list to walk. The chooser below stays live for
+  // This scope is live only while there is a list to walk. The picker below stays live for
   // every open menu so page-level Leaf shortcuts remain suspended while the browser owns
   // the transient layer.
   const NEWEST = {
@@ -366,7 +366,7 @@ export function createVersionController({
     id: "version",
     noun: "Version",
     plural: "versions",
-    rows: () => versionChooser.rows(),
+    rows: () => versionPicker.rows(),
     steps: ["later", "earlier", "latest", "earliest"],
     // A press at either end lands on the row it started from and calls nothing here:
     // the walk states a comparison, so landing is not free — it would re-fetch the base
@@ -392,7 +392,7 @@ export function createVersionController({
   };
   const VERSION_EDGE = { ...edge, when: versionsToWalk };
 
-  // The chooser represents the menu standing, not whether it has multiple versions to walk.
+  // The picker represents the menu standing, not whether it has multiple versions to walk.
   // It suspends page shortcuts and owns exact numbered destinations plus the Tab-boundary
   // handoff that a popover does not provide. Light dismissal stays native; Escape is the
   // menu's own row (`version.close`), which closes it and lands the user on the page.
@@ -404,16 +404,17 @@ export function createVersionController({
     // Opening the modal reference dismisses this popover. Retain the menu-boundary
     // reading so the reference documents its rows as unavailable in the remaining scene.
     liveInCommandReference: true,
-    // A chooser over the page suspends the page, which the two transient contexts above this one always did
-    // and this one did not — so a user in the middle of choosing a version could press `l`
-    // and take focus out of the menu into the leaves drawer, `d` and scroll a page they were
-    // not looking at, or `c` and open the composer under the list. None of it fails loudly:
-    // the press does exactly what it says on a page the user has stopped reading. The
-    // worst of them was a page-level key that set a comparison base, which the walk they
-    // were standing in then disagreed with — that key is the menu's own business now, and
-    // the claim is what would have held it either way. The claim is also what narrows
-    // the line to the menu's own keys, so what the chooser takes and what it offers are one
-    // statement rather than a suspension the surfaces have to be told about separately.
+    // A picker over the page suspends the page, which the two transient contexts above
+    // this one always did and this one did not — so a user in the middle of choosing a
+    // version could press `l` and take focus out of the menu into the leaves drawer, `d`
+    // and scroll a page they were not looking at, or `c` and open the composer under the
+    // list. None of it fails loudly: the press does exactly what it says on a page the
+    // user has stopped reading. The worst of them was a page-level key that set a
+    // comparison base, which the walk they were standing in then disagreed with — that
+    // key is the menu's own business now, and the claim is what would have held it either
+    // way. The claim is also what narrows the line to the menu's own keys, so what the
+    // picker takes and what it offers are one statement rather than a suspension the
+    // surfaces have to be told about separately.
     claims: allButCommandReference,
     rows: [
       VERSION_WALK,
@@ -457,9 +458,9 @@ export function createVersionController({
         run: closeVersionMenu,
       },
       // The menu is a layer over the page and its parent is the page, so the one press
-      // that closes it lands the user back there rather than on the chooser in the
+      // that closes it lands the user back there rather than on the picker in the
       // banner, which is chrome they may never have stood on: `g V` runs the press from
-      // the chooser, and the browser would hand focus back to it. Leaf performs the whole
+      // the picker, and the browser would hand focus back to it. Leaf performs the whole
       // result — close, then land — so the press is not the platform's to complete.
       {
         id: "version.close",
@@ -478,11 +479,11 @@ export function createVersionController({
     ],
   };
 
-  // g V names the chooser, the control wearing the version number, and the menu it opens.
+  // g V names the picker, the control wearing the version number, and the menu it opens.
   // Named, because the chip that jumps straight to the current page spells that motion in
   // its tooltip, and because the closed control's own title says the press beside what
   // pressing it does.
-  const CHOOSER = {
+  const PICKER = {
     id: "version.open",
     keys: ["Shift+v"],
     does: "The versions, and what each one changed",
@@ -551,18 +552,18 @@ export function createVersionController({
     );
     return Object.freeze(entries.map((entry) => Object.freeze(entry)));
   }
-  // One immutable, complete presentation reading for the native chooser surfaces. The
+  // One immutable, complete presentation reading for the native picker surfaces. The
   // view deliberately retains the rows it is already showing while its popover stands;
   // the candidate rows below keep advancing, so dismissal can commit them without
   // replaying an accepted state or consulting the rendered DOM as authority.
-  function chooserModel(state) {
+  function pickerModel(state) {
     const offered = state !== null && versionsOffered();
     const behind = behindCurrent();
     const sourceFailed = LIVE_ROOT && Boolean(state?.source_error);
     const currentLabel = runtime.currentLabel ?? "Draft";
     const newer = behind ? `; ${runtime.active.label} available` : "";
     return Object.freeze({
-      chooser: Object.freeze({
+      picker: Object.freeze({
         offered,
         token: currentVersionToken(),
         compared: diffOn || diffPendingBase !== null,
@@ -605,9 +606,9 @@ export function createVersionController({
     });
   }
 
-  function presentChooser(state = runtime.state) {
-    const model = chooserModel(state);
-    versionChooser.present(model);
+  function presentPicker(state = runtime.state) {
+    const model = pickerModel(state);
+    versionPicker.present(model);
     showNews(latestChip, model.latest.news);
     repaint();
     return model;
@@ -616,7 +617,7 @@ export function createVersionController({
   // `null` is the page before its first accepted state. Version controls read the
   // immutable document revision and the accepted root.
   function renderVersions(state) {
-    presentChooser(state);
+    presentPicker(state);
     const walkable = versionsToWalk();
     if (walkable !== versionsWalkable) {
       versionsWalkable = walkable;
@@ -630,7 +631,7 @@ export function createVersionController({
   // revision is cheap. Block-level and additions-only — deleted text has no home
   // to mark — and a widget that renders its own body is opaque to it. The base is
   // any version older than the one being read, offered by its own row in the
-  // chooser's menu, where the note saying what changed in words sits beside the
+  // picker's menu, where the note saying what changed in words sits beside the
   // press that marks it on the page.
   //
   // Which blocks and which widgets is the registry's answer both times, so a widget added
@@ -665,8 +666,8 @@ export function createVersionController({
       "svg",
     ].join(",");
   // What is being compared, and whether the comparison is standing. Every rendering of
-  // the pair — the chooser's word and paint, each row's press, the rail down the span —
-  // comes from the immutable chooser model and is read back by nothing.
+  // the pair — the picker's word and paint, each row's press, the rail down the span —
+  // comes from the immutable picker model and is read back by nothing.
   let diffBase = null;
   let diffOn = false;
   let diffPendingBase = null;
@@ -991,7 +992,7 @@ export function createVersionController({
       for (const b of diffMarked) b.classList.remove("lf-ins-block");
       diffMarked.length = 0;
     }
-    presentChooser();
+    presentPicker();
     // Consumers read the settled comparison projection: on/off and its marks move
     // together, rather than announcing an applied DOM diff before it is standing.
     document.dispatchEvent(new CustomEvent("lf-comparison"));
@@ -1003,7 +1004,7 @@ export function createVersionController({
   // arrives there. Everything touching the live page happens in one synchronous stretch
   // after the single await: the walk asks for a comparison per row, and a marking pass
   // that could interleave with the next row's would leave two bases' marks standing
-  // under a chooser naming one of them.
+  // under a picker naming one of them.
   async function showComparison(base) {
     // Selection is immediate even though its result needs two documents. Clear the prior
     // marks, move the menu's checked state to the requested base, and expose the wait as
@@ -1012,12 +1013,12 @@ export function createVersionController({
     setDiff(false);
     const mine = ++diffRequest;
     diffPendingBase = base;
-    presentChooser();
+    presentPicker();
     const baseVersion = stamped(base);
     const baseRevision = baseVersion?.revision;
     if (baseRevision == null) {
       diffPendingBase = null;
-      presentChooser();
+      presentPicker();
       notice(`Couldn't load v${base}`);
       return;
     }
@@ -1041,7 +1042,7 @@ export function createVersionController({
     } catch {
       if (mine === diffRequest) {
         diffPendingBase = null;
-        presentChooser();
+        presentPicker();
         notice(`Couldn't load v${base}`);
       }
       return;
@@ -1860,7 +1861,7 @@ export function createVersionController({
   }
 
   function mount() {
-    versionChooser.configure({
+    versionPicker.configure({
       activate: (entry) => {
         if (entry.version !== null) goVersion(entry.version);
         else if (entry.active) goActive();
@@ -1903,7 +1904,7 @@ export function createVersionController({
     renderVersions(null);
   }
 
-  // The arrival chip's route spans two rows — the chooser the page opens and the menu's own
+  // The arrival chip's route spans two rows — the picker the page opens and the menu's own
   // key for the live page — so it is composed here rather than painted from one row's
   // `control`. Painted in the standing frame beside every other control name, through
   // `keeps`, so a restated title is not news to whatever is reading the page.
@@ -1911,7 +1912,7 @@ export function createVersionController({
     keeps(
       latestChip,
       "title",
-      `${latestChip.dataset.lfKeyTitle} (${commandShortcut(CHOOSER.id)} ${labelOf(NEWEST)})`,
+      `${latestChip.dataset.lfKeyTitle} (${commandShortcut(PICKER.id)} ${labelOf(NEWEST)})`,
     );
   }
 
@@ -1919,7 +1920,7 @@ export function createVersionController({
 
   return {
     closeVersionMenu,
-    CHOOSER,
+    PICKER,
     paintShortcuts,
     renderVersions,
     inlineComparison,

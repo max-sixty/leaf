@@ -65,7 +65,7 @@ gives it one. Choose the arrangement from the shape of the subject:
   `main`, up to `--wide-page-max`, and place the regions with CSS grid or flexbox.
 - **Regions that stay in view together** while each scrolls on its own, such as a
   queue beside its detail, fill the window: size the layout to `--lf-view-height`, the
-  window's height less Leaf's banner and band, and bound each region.
+  window's height less Leaf's banner and bottom bar, and bound each region.
 - **A comparison** is `lf-compare`, which keeps its variants paired at any width.
 - **Controls beside evidence** is a playground, which declares how its controls
   operate its preview.
@@ -317,7 +317,7 @@ def patch_packages(skill: Path) -> None:
             (
                 "make `lf-visual-review` the body of a workspace page,"
                 ' `<main class="layout-workspace">`, after an optional `header`. Where the'
-                " window holds the workspace, the review fills it: the navigation and case"
+                " workspace is full-height, the review fills it: the navigation and case"
                 " furniture stay in view and the evidence stage takes the height left. A"
                 " smaller window, or a review in a document with prose around it, keeps the"
                 " same order in ordinary flow,"

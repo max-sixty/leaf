@@ -125,8 +125,8 @@
   --lf-safe-left: env(safe-area-inset-left, 0px);
   --lf-banner-h: calc(42px + var(--lf-safe-top));
   /* The bottom bar: the keyboard's line and the status, held at the window's foot at one
-     stated height, as the banner is at its head. The page ends above it and a held
-     workspace is the window less the two, so nothing about the page's size is measured
+     stated height, as the banner is at its head. The page ends above it and a
+     full-height workspace is the window less the two, so nothing about the page's size is measured
      off the chrome (chrome.css, at the shortcut bar). */
   --lf-bottom-bar-h: calc(44px + var(--lf-safe-bottom));
   /* What a page reads of the chrome, and only where it needs a number: a box that fills
@@ -265,12 +265,12 @@
   /* The chrome's line box, said once, because one control in the banner cannot be
      told it. Chrome computes a select's inner height from its own metrics and
      refuses line-height outright — the computed value stays normal however the
-     rule is written — so the chooser stood 3.3px shorter than every button beside
+     rule is written — so the picker stood 3.3px shorter than every button beside
      it, centred, and read as sunk into the row. Its height is stated instead, from
-     this and its own padding (see the chooser's rule), which is the same number
+     this and its own padding (see the picker's rule), which is the same number
      .lf-btn arrives at through the line box. Stated in one place so the two cannot
      come apart: a third copy of 1.45 is exactly the drift the reserve comment in
-     chrome.css is about, and this one would show as the chooser sinking again. */
+     chrome.css is about, and this one would show as the picker sinking again. */
   --lf-ui-lh: 1.45;
   /* The ladder, body at --t-4. Measured on Charter at 17px: 7.9px a character, so
      the column below holds about 74 of them. The numbered rungs are the prose's hierarchy;

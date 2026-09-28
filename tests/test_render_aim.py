@@ -1849,7 +1849,7 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
 
 def test_design_mode_leaves_the_chrome_working(browser, serve):
     """Design mode comments on what the agent made; Leaf's own chrome works as it does
-    outside the mode, as it does for the target chooser.
+    outside the mode, as it does for the target picker.
 
     A remark on the banner or a panel has no reader who can act on it, and a mode that
     took the chrome took the way out of the panel its own send opened: on a phone that

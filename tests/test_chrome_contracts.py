@@ -959,18 +959,18 @@ def test_a_menu_comparison_keeps_its_active_paint(browser, serve):
     url = serve(html)
     _publish(serve.page_dir, 2, html, "reworded the suggestion")
     page = open_page(browser, url.replace("v1.html", "v2.html"))
-    chooser = page.locator(".lf-version")
-    expect(chooser).to_be_enabled()
+    picker = page.locator(".lf-version")
+    expect(picker).to_be_enabled()
 
     resized(page, 1440, 900)
     compare_with(page, 1)
-    expect(chooser).to_have_class(re.compile(r"\bon\b"))
+    expect(picker).to_have_class(re.compile(r"\bon\b"))
     expect(page.locator(".lf-banner-menu > .lf-version")).to_have_count(1)
     banner_control(page, ".lf-version")
     page.evaluate("scrollTo(0, document.documentElement.scrollHeight)")
-    box = chooser.bounding_box()
+    box = picker.bounding_box()
     assert box and 0 <= box["y"] < page.evaluate("innerHeight"), box
-    active = chooser.evaluate(STATE_PAINT)
+    active = picker.evaluate(STATE_PAINT)
     assert (
         active["shadow"] != "none" and "rgba(0, 0, 0, 0)" not in active["background"]
     ), f"the comparison stood in the menu with nothing but ink: {active}"
@@ -978,8 +978,8 @@ def test_a_menu_comparison_keeps_its_active_paint(browser, serve):
     resized(page, 320, 844)
     expect(page.locator(".lf-banner-menu > .lf-version")).to_have_count(1)
     banner_control(page, ".lf-version")
-    assert chooser.evaluate(STATE_PAINT) == active
-    chooser.click()
+    assert picker.evaluate(STATE_PAINT) == active
+    picker.click()
     versions = page.locator(".lf-version-menu")
     expect(versions).to_be_visible()
     box = versions.bounding_box()
@@ -990,7 +990,7 @@ def test_a_menu_comparison_keeps_its_active_paint(browser, serve):
     expect(versions).to_be_visible()
     box = versions.bounding_box()
     assert box and 0 <= box["y"] < page.evaluate("innerHeight"), box
-    # The door's news is the shelf's to state, and it restates it on every paint. A
+    # The door's news is the toolbar's to state, and it restates it on every paint. A
     # newer version puts the urgent latest chip in the menu, so the dot the door
     # takes is the one the page arrived at rather than one the test wrote on it. The
     # news is a dot and not an accent contour, which is the focus ring's face: a door

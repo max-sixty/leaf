@@ -5506,14 +5506,14 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     assert "navigation.drawer.leaves" not in reference_commands
 
     # The visible More control and its registered `?` command are one route. An unmatched
-    # key first disarms the sequence and keeps its ordinary meaning; a pointer press must enter
-    # the same shelf rather than inspecting the still-armed stack and skipping to the full
-    # reference.
+    # key first disarms the sequence and keeps its ordinary meaning; a pointer press must
+    # enter the same expanded bar rather than inspecting the still-armed stack and
+    # skipping to the full reference.
     def disclosure_state():
         return page.evaluate(
             """() => ({
               help: document.querySelector('.lf-command-reference').open,
-              expanded: document.querySelector('.lf-shortcut-bar').dataset.lfShelfOpen,
+              expanded: document.querySelector('.lf-shortcut-bar').dataset.lfExpanded,
               pressed: document.querySelectorAll(
                 '.lf-shortcut-bar kbd[data-lf-sequence-step-state="pressed"]'
               ).length,
@@ -5679,7 +5679,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
         0
     )
     page.keyboard.press("Escape")  # out of the reference
-    page.keyboard.press("Escape")  # and the shelf it was opened from
+    page.keyboard.press("Escape")  # and the expanded shortcut bar it was opened from
     expect(page.locator(".lf-asks-panel")).to_be_visible()
     page.keyboard.press("Escape")  # the drawer they were standing in
     expect(page.locator(".lf-asks-panel")).not_to_be_visible()
@@ -6098,9 +6098,9 @@ def test_no_two_hints_on_the_key_line_say_the_same_word(browser, serve):
     _publish(serve.page_dir, 2, LONG_PAGE, "two")
     page = open_page(browser, url)
 
-    # The shelf, because the ordinary shortlist shows the first live row and little else:
-    # what this is about is two words a user can see at one time, and the shelf is where
-    # the page's own scene is all of it.
+    # The expanded bar, because the ordinary shortlist shows the first live row and little
+    # else: what this is about is two words a user can see at one time, and the expanded
+    # bar is where the page's own scene is all of it.
     page.keyboard.press("?")
     rendered(page)
     standing = page.evaluate(KEY_LINE_HINTS)
@@ -6494,7 +6494,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     commands = help_el.locator(".lf-command-reference-command:visible")
     assert commands.count() > 1, "the command grid has no pair of rows to walk"
     # The head's hint and the rows share their verbs: "choose" and "activate" here,
-    # and on the shortcut shelf, one register for one press.
+    # and on the expanded shortcut bar, one register for one press.
     expect(help_el.locator(".lf-command-reference-meta")).to_have_text(
         re.compile(r"^\d+ commands · ↑↓ choose · ⏎ activate$")
     )
@@ -8571,7 +8571,7 @@ def test_banner_destinations_use_transient_target_overlays(browser, serve):
     }
     for control, suffix in banner_destinations.values():
         expect(control).to_have_attribute("title", re.compile(rf"\(g {suffix}\)$"))
-        expect(control.locator(".lf-target-chooser-hint")).to_have_count(0)
+        expect(control.locator(".lf-target-picker-hint")).to_have_count(0)
     expect(page.locator(".lf-go-to-hints > [data-lf-go-to-command]")).to_have_count(0)
     expect(page.locator(".lf-latest-chip")).to_have_attribute(
         "title", re.compile(r"\(g V v\)$")
@@ -8613,7 +8613,7 @@ def test_banner_destinations_use_transient_target_overlays(browser, serve):
         assert hint.locator("kbd").evaluate_all(
             "keys => keys.map(key => [key.textContent, key.dataset.lfSequenceStepState])"
         ) == [["g", "pressed"], [suffix, "neutral"]]
-        expect(control.locator(".lf-target-chooser-hint")).to_have_count(0)
+        expect(control.locator(".lf-target-picker-hint")).to_have_count(0)
         hint_box, control_box = control.evaluate(
             """(control, command) => [
               document.querySelector(
@@ -8700,7 +8700,7 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     reading-page pair is the case that named this: a runtime key must be visible wherever
     the keyboard vocabulary is projected.
 
-    Where it is projected is the shelf and the reference, not the resting line, which
+    Where it is projected is the expanded bar and the reference, not the resting line, which
     holds two chips and spends neither on scrolling. So the line is asked for the row it
     holds rather than the row it paints, and the reference below is read for the words —
     a key named on no surface at all is what this refuses.
@@ -8916,7 +8916,7 @@ def test_a_partially_shadowed_row_keeps_each_other_live_binding(browser, serve):
 
     # The row the line holds rather than the one it paints. Both are the same projection —
     # renderShortcutBar builds every live row and then hides what it has no room for — and the
-    # The resting line spends both chips on Comment and target chooser, so asking for
+    # The resting line spends both chips on Comment and target picker, so asking for
     # a painted chip would be asking about the width instead of the shadowing.
     line = page.locator(".lf-shortcut-bar")
     up = line.locator('.lf-shortcut[data-lf-command-ids="page.up"]')
@@ -9358,7 +9358,7 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
 ):
     """The short line is a glance, not the command reference. It keeps the first
     innermost live action and the way out when the current scene has one. One `? more`
-    unfolds a bounded shelf of current commands; `? command reference` then opens the
+    expands the shortcut bar to a bounded set of current commands; `? command reference` then opens the
     complete searchable register.
 
     The panel's general box is the causal contrast for the cap. A full page row crosses
@@ -9415,9 +9415,9 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     help_el = page.locator(".lf-command-reference")
     search = page.get_by_role("combobox", name="Search commands")
     expect(help_el).to_be_hidden()
-    expect(line).to_have_attribute("data-lf-shelf-open", "true")
+    expect(line).to_have_attribute("data-lf-expanded", "true")
     expect(page.locator(".lf-live")).to_contain_text(
-        "Shortcut shelf expanded. Press question mark again for Command reference"
+        "Shortcut bar expanded. Press question mark again for Command reference"
     )
     assert visible_hints.count() > 2
     wide_hint_count = visible_hints.count()
@@ -9463,10 +9463,10 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     expect(page.get_by_role("button", name="Back to more shortcuts")).to_be_visible()
     expect(help_el).not_to_contain_text("With more keyboard shortcuts")
 
-    search.fill("Close the target chooser")
+    search.fill("Close the target picker")
     visible_commands = help_el.locator("tr[data-lf-command]:not([hidden])")
     expect(visible_commands).to_have_count(1)
-    expect(visible_commands.first).to_contain_text("Close the target chooser")
+    expect(visible_commands.first).to_contain_text("Close the target picker")
 
     search.fill("thread panel")
     expect(
@@ -9479,13 +9479,13 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     expect(visible_commands).to_have_count(0)
     page.keyboard.press("Escape")
     expect(help_el).to_be_hidden()
-    expect(line).to_have_attribute("data-lf-shelf-open", "true")
+    expect(line).to_have_attribute("data-lf-expanded", "true")
     expect(
         page.get_by_role("button", name="? command reference", exact=True)
     ).to_be_focused()
     page.keyboard.press("Escape")
-    expect(line).to_have_attribute("data-lf-shelf-open", "false")
-    expect(page.locator(".lf-live")).to_contain_text("Shortcut shelf collapsed")
+    expect(line).to_have_attribute("data-lf-expanded", "false")
+    expect(page.locator(".lf-live")).to_contain_text("Shortcut bar collapsed")
     expect(page.get_by_role("button", name="? more", exact=True)).to_have_attribute(
         "aria-expanded", "false"
     )
@@ -9533,12 +9533,10 @@ def test_the_resting_key_line_leads_from_the_page_to_target_selection(browser, s
     expect(help_el).to_be_visible()
     expect(help_el).to_contain_text("Search all the text on the page")
     # Read the capability by the command the reference lists it under. Its words belong
-    # to `target.chooser.open` and are read once, in `test_render_semantic_selection.py`;
+    # to `target.picker.open` and are read once, in `test_render_semantic_selection.py`;
     # a second copy here only drifts. Both cases are nightly, so neither holds those
     # words before `main`.
-    expect(help_el.locator('tr[data-lf-command="target.chooser.open"]')).to_have_count(
-        1
-    )
+    expect(help_el.locator('tr[data-lf-command="target.picker.open"]')).to_have_count(1)
     expect(help_el).not_to_contain_text("Open reactions")
     expect(help_el).to_contain_text("Move 60% of a page down")
     expect(help_el).to_contain_text("Move 60% of a page up")
@@ -9594,7 +9592,7 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
     # `s` naming nothing and `/` painting no match, with the page itself intact and
     # nothing on screen saying why.
     page.keyboard.press("s")
-    expect(page.locator(".lf-target-chooser-hint").first).to_be_visible()
+    expect(page.locator(".lf-target-picker-hint").first).to_be_visible()
     page.keyboard.press("Escape")
 
     page.keyboard.press("a")
@@ -9693,7 +9691,7 @@ UNDER_THE_LINE = """(id) => {
 }"""
 
 
-def test_the_key_line_stands_in_a_band_of_its_own(browser, serve):
+def test_the_key_line_stands_in_the_bottom_bar(browser, serve):
     """The line is the bottom bar, fixed at the foot of the window at one stated height,
     so what it owes the page is exactly that band: room of its own where the document
     ends, and no press taken from what it stands over on the way there. The page's own
@@ -9775,21 +9773,21 @@ def test_the_key_line_stands_in_a_band_of_its_own(browser, serve):
 def test_the_expanded_key_line_stands_down_for_a_page_press_and_another_command(
     browser, serve
 ):
-    """The shelf is transient help, so either kind of onward motion folds it. The
+    """The expanded shortcut bar is transient help, so either kind of onward motion folds it. The
     page-click owner handles presses outside the line, while the dispatcher folds it
     before a registered command runs."""
     page = open_page(browser, serve(NOTED_PAGE))
     line = page.locator(".lf-shortcut-bar")
 
     page.keyboard.press("?")
-    expect(line).to_have_attribute("data-lf-shelf-open", "true")
+    expect(line).to_have_attribute("data-lf-expanded", "true")
     page.locator("#t").click()
-    expect(line).to_have_attribute("data-lf-shelf-open", "false")
+    expect(line).to_have_attribute("data-lf-expanded", "false")
 
     page.keyboard.press("?")
-    expect(line).to_have_attribute("data-lf-shelf-open", "true")
+    expect(line).to_have_attribute("data-lf-expanded", "true")
     page.keyboard.press("g")
-    expect(line).to_have_attribute("data-lf-shelf-open", "false")
+    expect(line).to_have_attribute("data-lf-expanded", "false")
     expect(
         line.locator('kbd[data-lf-sequence-step-state="pressed"]').first
     ).to_have_text("g")
@@ -9935,10 +9933,10 @@ def test_a_select_keeps_its_native_typeahead_letters(browser, serve):
 
 def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
     """A scope takes the keys it uses, so a control that has no Escape of its own
-    leaves the rung standing behind it. The banner's version chooser swallowed it,
+    leaves the rung standing behind it. The banner's version picker swallowed it,
     so the panel could not be closed by key right after the user worked it; the
     fix's first attempt was a two-item denylist, which an authored slider walked
-    straight past. The chooser is a button now, so what holds the rule is the
+    straight past. The picker is a button now, so what holds the rule is the
     page's own controls — which is where it always mattered, a page being free to
     author any of them.
 
@@ -10740,7 +10738,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).not_to_contain_text("Later version")
     expect(help_el).not_to_contain_text("Earlier version")
     page.keyboard.press("Escape")
-    expect(line).to_have_attribute("data-lf-shelf-open", "true")
+    expect(line).to_have_attribute("data-lf-expanded", "true")
 
     # A v2 lands and the live page follows it; on v2 the menu's own keys are
     # live, having a list to walk and a base to walk onto.
@@ -10750,9 +10748,9 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(page.locator(".lf-version-menu")).to_have_attribute(
         "aria-keyshortcuts", "ArrowUp ArrowDown Home End 1 2 Enter Space v"
     )
-    # Nothing executable changed, so the user keeps this document and the shelf they
+    # Nothing executable changed, so the user keeps this document and the expanded bar they
     # opened stays open. The next press opens the reference over the current version.
-    expect(line).to_have_attribute("data-lf-shelf-open", "true")
+    expect(line).to_have_attribute("data-lf-expanded", "true")
     page.keyboard.press("?")
     expect(help_el).to_contain_text("In the versions menu")
     expect(help_el).to_contain_text("Later version")
@@ -11414,7 +11412,7 @@ def test_commenting_on_a_closed_disclosure_leaves_it_closed(browser, serve, gest
     expect(disclosure).not_to_have_attribute("open", "")
 
 
-def test_target_chooser_reveals_a_clipped_board_card_before_commenting(browser, serve):
+def test_target_picker_reveals_a_clipped_board_card_before_commenting(browser, serve):
     """A visible sliver is enough to offer a hint, but not to place a response box.
 
     On a phone the next board column peeks into view as the cue that the board scrolls.
@@ -11429,11 +11427,11 @@ def test_target_chooser_reveals_a_clipped_board_card_before_commenting(browser, 
 
     def choose(page, selector):
         page.keyboard.press("s")
-        expect(page.locator(".lf-target-chooser-hint")).not_to_have_count(0)
+        expect(page.locator(".lf-target-picker-hint")).not_to_have_count(0)
         code = page.evaluate(
             """selector => {
               const target = document.querySelector(selector).getBoundingClientRect();
-              return [...document.querySelectorAll('.lf-target-chooser-hint')]
+              return [...document.querySelectorAll('.lf-target-picker-hint')]
                 .sort((a, b) => {
                   const ar = a.getBoundingClientRect();
                   const br = b.getBoundingClientRect();
@@ -11717,7 +11715,7 @@ def test_the_reference_hands_the_user_back_to_the_page_they_were_reading(
     reading = page.evaluate(
         "() => document.getElementById('p40').getBoundingClientRect().top"
     )
-    # Twice: the first press unfolds the shelf, the second opens the reference.
+    # Twice: the first press expands the shortcut bar, the second opens the reference.
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_be_visible()

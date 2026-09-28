@@ -12,7 +12,7 @@
    which box they start from rather than what the user can see of it. `badgeBox` starts
    at the member's own corner — the corner a badge hangs off, which for an inline run that
    wraps is not the middle of its bounds. `visibleBounds` starts at the member's whole box,
-   which is how the target chooser both admits a member and seats its chip. Both are then
+   which is how the target picker both admits a member and seats its chip. Both are then
    held clear of the same room by `clearBox` and tested by the same `exposes`, so both maps
    promise the user the same thing by "visible". `clearPart` answers for a box with no
    element of its own and is the one reading that does subtract the chrome at the foot,

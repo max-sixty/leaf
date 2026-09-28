@@ -108,11 +108,11 @@ def choose_comment_target(page, selector):
     """Choose one visible element through the user's target-hint route."""
     page.locator(selector).scroll_into_view_if_needed()
     page.keyboard.press("s")
-    expect(page.locator(".lf-target-chooser-hint")).not_to_have_count(0)
+    expect(page.locator(".lf-target-picker-hint")).not_to_have_count(0)
     code = page.evaluate(
         """selector => {
           const top = document.querySelector(selector).getBoundingClientRect().top;
-          return [...document.querySelectorAll('.lf-target-chooser-hint')]
+          return [...document.querySelectorAll('.lf-target-picker-hint')]
             .sort((a, b) => Math.abs(a.getBoundingClientRect().top - top)
                           - Math.abs(b.getBoundingClientRect().top - top))[0]
             .dataset.lfHintCode;
@@ -1691,11 +1691,11 @@ def test_a_held_comment_send_leaves_a_later_keyboard_comment_open(held_events, s
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fab-input")).to_be_hidden()
     page.keyboard.press("s")
-    expect(page.locator(".lf-target-chooser-hint")).not_to_have_count(0)
+    expect(page.locator(".lf-target-picker-hint")).not_to_have_count(0)
     target_code = page.evaluate(
         """() => {
           const top = document.querySelector('#p2').getBoundingClientRect().top;
-          return [...document.querySelectorAll('.lf-target-chooser-hint')]
+          return [...document.querySelectorAll('.lf-target-picker-hint')]
             .sort((a, b) => Math.abs(a.getBoundingClientRect().top - top)
                           - Math.abs(b.getBoundingClientRect().top - top))[0]
             .dataset.lfHintCode;
@@ -2696,7 +2696,7 @@ def test_an_explicit_target_does_not_overwrite_its_existing_draft(
     Two passages may already hold independent work. Choosing the second from the first
     tab should therefore reopen the draft at the chosen destination and leave the source
     draft where it was, rather than tombstoning the source and replacing the destination.
-    The target chooser is the real explicit gesture whose carry path owns that choice.
+    The target picker is the real explicit gesture whose carry path owns that choice.
     """
     url = serve(LONG_PAGE)
     first = open_page(browser, url, context=one_user)

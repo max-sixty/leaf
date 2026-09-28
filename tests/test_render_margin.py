@@ -576,7 +576,7 @@ def test_a_surface_over_the_rail_hands_the_user_the_map(browser, serve):
     """Threads stands over the page and takes no room, so opening it leaves the rail
     drawn, but at 1100 it stands over the rail, so the banner offers the Page Map in the
     markers' place; at 1920 the rail stands clear of it and the margin stays the way in.
-    The Map is read as offered rather than as visible, since the shelf may fold it behind
+    The Map is read as offered rather than as visible, since the toolbar may fold it behind
     the More door at a width the banner is crowded at. The Asks drawer stands over the left
     of the window, away from the rail, so it leaves the markers and the margin alone."""
     comment = {

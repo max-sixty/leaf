@@ -3628,6 +3628,56 @@ def test_only_a_card_s_title_clears_its_grip(browser, serve):
     assert measured["prose"] and all(d > 0 for d in measured["prose"]), measured
 
 
+GRIPPED_BLOCK_CARD_PAGE = leaf_page(
+    "Gripped block card",
+    """
+<h1 id="t">Release triage</h1>
+<lf-board id="gripped">
+  <lf-column id="col-a" label="Fix in 2.4.1">
+    <lf-card id="card-a"><strong>Retries ignore Retry-After</strong>
+      <pre id="card-a-code">retry(after=fixed(30))</pre>
+      <p id="card-a-note">Three partners rate limit us during their own deploys.</p>
+    </lf-card>
+  </lf-column>
+</lf-board>
+""",
+)
+
+
+def test_a_finger_s_taller_grip_leaves_the_blocks_under_a_title_their_width(
+    browser, serve
+):
+    """Under a finger the grip is the aim floor tall, so it reaches past a one-line
+    title. A block after the title that lays itself out on its own (a pre) was set
+    beside the grip's room for its whole height, 30px narrower than the card; a block
+    after the title now clears the grip and takes the card's width, and nothing stands
+    under the grip's box."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(GRIPPED_BLOCK_CARD_PAGE), context=context)
+    measured = page.locator("#card-a").evaluate(
+        """(card) => {
+        const grip = card.querySelector(':scope > .lf-grip').getBoundingClientRect();
+        const s = getComputedStyle(card), box = card.getBoundingClientRect();
+        const content = box.width - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight)
+            - parseFloat(s.borderLeftWidth) - parseFloat(s.borderRightWidth);
+        const title = card.querySelector('strong').getBoundingClientRect();
+        const blocks = ['#card-a-code', '#card-a-note'].map((id) =>
+            card.querySelector(id).getBoundingClientRect());
+        const under = (b) => b.top < grip.bottom && b.bottom > grip.top
+            && b.right > grip.left;
+        return {grip: Math.round(grip.height), title: Math.round(title.height),
+                widths: blocks.map((b) => Math.round(content - b.width)),
+                under: blocks.filter(under).length};
+    }"""
+    )
+    # The premise: the grip reaches past the title's one line.
+    assert measured["grip"] == 44 and measured["title"] < 30, measured
+    assert measured["widths"] == [0, 0], measured
+    assert measured["under"] == 0, measured
+
+
 def test_a_phone_board_gives_its_column_room_and_keeps_the_next_one_discoverable(
     browser, serve
 ):

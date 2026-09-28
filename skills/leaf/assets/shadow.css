@@ -386,7 +386,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-react { touch-action: none; -webkit-touch-callout: none;
           user-select: none; -webkit-user-select: none; }
 .lf-react:not(.lf-margin-entry) { position: relative; }
-.lf-react:not(.lf-margin-entry):is([data-lf-reading], :focus-visible, .lf-focus-visible)::after {
+.lf-react:not(.lf-margin-entry):is([data-lf-held-word], :focus-visible, .lf-focus-visible)::after {
           content: attr(aria-label); position: absolute; z-index: 5;
           inset-block-end: calc(100% + 6px); inset-inline-start: 50%; translate: -50% 0;
           width: max-content; max-width: 220px; padding: 4px 7px; border-radius: 4px;

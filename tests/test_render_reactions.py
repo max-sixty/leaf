@@ -2332,11 +2332,14 @@ def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
     def reading():
         rendered(page)
         return strip.evaluate("""strip => [...strip.querySelectorAll('.lf-react')]
-            .filter((chip) => chip.hasAttribute('data-lf-reading'))
+            .filter((chip) => chip.hasAttribute('data-lf-held-word'))
             .map((chip) => [chip.dataset.token,
                             getComputedStyle(chip, '::after').content])""")
 
+    # What the log holds once everything the page has sent has come back, so a read that
+    # expects no reaction is not merely early.
     def tokens():
+        round_trip(page)
         return [
             e.get("token")
             for e in events_model.read_events(serve.page_dir)
@@ -2354,8 +2357,23 @@ def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
     assert reading() == []
     assert tokens() == [], "a release off the list reacted"
 
-    touch("touchStart", centre("clarify"))
-    touch("touchEnd")
+    # A press with a modifier held is the platform's (ctrl-click is the Mac's context
+    # menu): it reads no word, and a release on another choice reacts with nothing.
+    page.keyboard.down("Control")
+    page.mouse.move(**centre("keep"))
+    page.mouse.down()
+    assert reading() == []
+    page.mouse.move(**centre("change"))
+    page.mouse.up()
+    page.keyboard.up("Control")
+    assert reading() == []
+    assert tokens() == [], "a modified press reacted on its release"
+
+    # The page draws a reaction before its POST lands, so the log is read once the
+    # gesture's own send has come back.
+    with sending(page, "the clarify reaction"):
+        touch("touchStart", centre("clarify"))
+        touch("touchEnd")
     expect(strip.locator('.lf-react[data-token="clarify"]')).to_have_attribute(
         "aria-pressed", "true"
     )
@@ -2373,7 +2391,8 @@ def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
     assert keep.evaluate(
         "c => [c.matches(':focus-visible'), getComputedStyle(c, '::after').content]"
     ) == [True, '"keep"']
-    page.keyboard.press("Enter")
+    with sending(page, "the keep reaction"):
+        page.keyboard.press("Enter")
     expect(keep).to_have_attribute("aria-pressed", "true")
     assert tokens() == ["clarify", "keep"]
 

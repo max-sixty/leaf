@@ -527,8 +527,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-layer-version { font-family: var(--mono); font-size: inherit; }
   /* The quiet summary is a native disclosure; complete activity wording remains
      reachable by keyboard and touch without consuming the reading row. */
+  /* Only as wide as its words: at the row's full width a press on the empty banner
+     opened the status, and the focus ring drew across the whole banner. */
   .lf-status-button { display: flex; align-items: center; gap: var(--lf-banner-gap);
-    min-width: 0; width: 100%; max-width: 100%; min-height: var(--aim-floor); padding: 2px 0;
+    min-width: 0; width: fit-content; max-width: 100%; min-height: var(--aim-floor); padding: 2px 0;
     border: 0; border-radius: 4px; background: none; color: var(--ink-2);
     font: inherit; text-align: left; cursor: pointer; }
   .lf-status-button::after { content: ""; flex: none; width: 5px; height: 5px;
@@ -1501,8 +1503,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-thread .lf-say leaf-text { padding-inline-start: 7px; }
   .lf-margin-thread .lf-say leaf-text { min-width: 0;
     max-height: var(--lf-thread-editor-room, 50vh); }
+  /* Pinned to the transcript's head, it wears the thread's surface as the pinned reply
+     does at the foot, so the focus tint runs under it rather than a paper band. */
   .lf-margin-preview .lf-thread-root-meta { position: sticky; z-index: 2;
-    top: 0; background: var(--paper);
+    top: 0; background: inherit;
     align-items: center; gap: 4px; min-height: max(28px, var(--aim-floor));
     padding-inline-end: 0; }
   .lf-margin-preview .lf-thread-root-meta > .lf-page-thread-head {

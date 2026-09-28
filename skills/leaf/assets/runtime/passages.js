@@ -111,6 +111,7 @@ import {
   overIn,
   pageShadowRoots,
   shadowRootsIn,
+  shadowHost,
   uiInside,
   under,
   upFrom,
@@ -275,7 +276,7 @@ export const layerPart = (el) => inChrome(el) && el.id.startsWith("lf-");
 // being broken, which is the one thing it isn't.
 export const elementOver = (n) => {
   if (n.parentElement) return n.parentElement;
-  const host = n.getRootNode()?.host;
+  const host = shadowHost(n.getRootNode());
   const at = host
     ? `<${host.localName}${host.id ? ` id="${host.id}"` : ""}>`
     : "a module";
@@ -503,11 +504,12 @@ function walk(root, onText, skip = null) {
   // A declared tree handed in as the root reads where its host stands, its tree-local
   // facts starting over as they do when the walk crosses into it; the document starts
   // with nothing over it.
+  const host = shadowHost(root);
   const start =
     root.nodeType === Node.ELEMENT_NODE
       ? contextAt(root, frame, retired)
-      : root.host
-        ? crossed(contextAt(root.host, frame, retired))
+      : host
+        ? crossed(contextAt(host, frame, retired))
         : NO_CONTEXT;
   visit(root, start);
 }
@@ -538,7 +540,7 @@ export function closestAcross(node, selector) {
   while (el) {
     const hit = el.closest(selector);
     if (hit) return hit;
-    el = el.getRootNode()?.host ?? null;
+    el = shadowHost(el.getRootNode());
   }
   return null;
 }

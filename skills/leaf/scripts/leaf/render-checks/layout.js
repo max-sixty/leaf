@@ -53,7 +53,8 @@ export function arrangedBoxes(open) {
 export function heldPanes() {
   const main = document.querySelector("main.layout-workspace");
   if (!main) return [];
-  const held = getComputedStyle(main).getPropertyValue("--lf-full-height").trim() === "1";
+  const held =
+    getComputedStyle(main).getPropertyValue("--lf-full-height").trim() === "1";
   return [...main.children].flatMap((body) => {
     if (body.matches("header, footer")) return [];
     const rects = [...body.children]

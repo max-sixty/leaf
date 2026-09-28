@@ -2643,7 +2643,9 @@ def test_escape_clears_selection_and_keeps_actions_dismissed(browser, serve):
     assert page.evaluate("() => getSelection().toString()") == ""
 
 
-def test_a_reply_s_reactions_keep_their_keys_in_a_covering_threads_panel(browser, serve):
+def test_a_reply_s_reactions_keep_their_keys_in_a_covering_threads_panel(
+    browser, serve
+):
     """At a phone's width the Threads panel covers the page, and the keyboard answers only
     what stands inside it. The reaction mode stood nowhere, so every one of its rows fell
     below the panel's floor: an arrow reached no row, read as a stray key, and closed the

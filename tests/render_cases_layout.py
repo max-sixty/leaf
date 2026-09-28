@@ -1417,10 +1417,16 @@ before it ships.</p>
 )
 
 
-def solid_png(width: int, height: int, rgb: tuple) -> bytes:
+def solid_png(width: int, height: int, rgb: tuple, patch: tuple = ()) -> bytes:
     """A solid-colour PNG, written here rather than committed, so the pair a shot
-    test flips between is two files whose only difference is the one the test made."""
-    raw = b"".join(b"\x00" + bytes(rgb) * width for _ in range(height))
+    test flips between is two files whose only difference is the one the test made.
+    `patch` is `(x, y, width, height, rgb)`, a rectangle painted in another colour."""
+    rows = [bytearray(bytes(rgb) * width) for _ in range(height)]
+    if patch:
+        x, y, w, h, colour = patch
+        for row in rows[y : y + h]:
+            row[x * 3 : (x + w) * 3] = bytes(colour) * w
+    raw = b"".join(b"\x00" + bytes(row) for row in rows)
 
     def chunk(tag, data):
         body = tag + data

@@ -1452,7 +1452,7 @@ def close_on_signal(agent_host: WebsiteCodexHost) -> None:
     process dies where it stood and an ordinary `finally` never runs. The App Server
     is in a session of its own, so nothing else reaps it: inside a container that is
     invisible, because the container takes every process away with it, but
-    `scripts/verify_site.py local` runs this adapter on a developer's machine and
+    `leaf-dev verify-site local` runs this adapter on a developer's machine and
     stops it exactly this way. Three App Servers were found alive there, fifteen
     hours and 95MB of resident memory each after the runs that started them.
 

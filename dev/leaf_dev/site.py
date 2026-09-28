@@ -22,16 +22,14 @@ own source, and the build refuses a page missing either. The rest of the card co
 `site_metadata` in `leaf_website` (`worker/`). Each page's card image is named in the manifest:
 `docs/session-card.png` for a product page and the catalog preview for an example.
 
-    uv run leaf-dev site [--serve]
+    uv run leaf-dev site
 
-`--serve` then keeps a local preview open through `wrangler dev`, which needs
-`npm ci --prefix worker` and a running Docker.
+`npm run dev --prefix worker` builds and then serves the result through `wrangler dev`.
 """
 
 import hashlib
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -43,7 +41,6 @@ from urllib.parse import unquote, urljoin, urlsplit
 
 import click
 from leaf.files import latest_revision, list_revisions
-from leaf.host import IDENTITY_VARIABLES
 from leaf.live_shell import write_live_shell
 from leaf.media import media_name
 from leaf.revision_delivery import DeliveryAddress, rebase_document
@@ -59,17 +56,19 @@ from leaf_website import SITE_MANIFEST, SITE_ORIGIN, initial_state, site_metadat
 from leaf_dev import ROOT
 from leaf_dev.example_assets import example_previews
 from leaf_dev.example_data import catalog_sources
-from leaf_dev.page_fixtures import prepare_page, read_fixture
+from leaf_dev.harness import environment
+from leaf_dev.page_fixtures import (
+    package_selection_args,
+    prepare_page,
+    read_fixture,
+)
 
 LEAF = ROOT / "bin" / "leaf"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 INTERNAL_EXAMPLES = {"corpus"}
 DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
-OUT = (
-    ROOT / ".tmp" / "site"
-)  # gitignored; the container consumes the complete private page directories
-WRANGLER = ROOT / "worker" / "node_modules" / ".bin" / "wrangler"
+OUT = ROOT / ".tmp" / "site"
 BUNDLE_RUNTIME = ROOT / "worker" / "bundle-runtime.mjs"
 
 PRODUCT_ROUTES = {
@@ -81,15 +80,8 @@ PRODUCT_ROUTES = {
     "event-log.html": "/event-log/",
 }
 SITE_PACKAGE = "./docs/package"
-# The card a link to a product page unfurls into. An example names its own catalog
-# preview instead, so a shared example shows the page rather than the product shot.
-#
-# Its own file rather than the landing page's still, because the two are shown at
-# different shapes: an unfurler draws a card at 1.91:1, and the still is 4:3, so
-# serving the still here handed every user a centre crop of it with the banner cut
-# off the top — the version control, the approval, the thread count, everything that
-# says a page is live. `leaf_dev.record_demo` shoots this off the same scene at the card's
-# own shape, so it stays as true as the stills beside it.
+# The card a link to a product page unfurls into, shot at the 1.91:1 an unfurler draws
+# by `leaf_dev.record_demo`. An example names its own catalog preview instead.
 DEFAULT_SOCIAL_IMAGE = DOCS / "session-card.png"
 
 
@@ -199,9 +191,7 @@ def check_links(out: Path) -> None:
 
 
 def leaf(env: dict, *args: str, input_text: str | None = None) -> None:
-    """A leaf command, quiet unless it fails — and then failing with what it said. The
-    output is the whole of a refused check's news, and a build that swallowed it stopped
-    on a traceback naming this file about a fault in an example."""
+    """A leaf command, quiet unless it fails, and then exiting with what it said."""
     done = subprocess.run(
         [str(LEAF), *args],
         cwd=ROOT,
@@ -215,37 +205,19 @@ def leaf(env: dict, *args: str, input_text: str | None = None) -> None:
         sys.exit(f"leaf {' '.join(args)}:\n{done.stdout}{done.stderr}")
 
 
-def worked_example_sources() -> list[Path]:
-    """Authored worked examples, never derived or developer test surfaces."""
-    sources = [
+def published_page_sources() -> list[Path]:
+    """Authored pages the public site publishes, including developer references."""
+    worked = [
         source
         for source in sorted(EXAMPLES.glob("*.html"))
         if source.stem not in INTERNAL_EXAMPLES
     ]
-    if not sources:
-        sys.exit("examples/ holds no authored pages to publish")
-    return sources
-
-
-def published_page_sources() -> list[Path]:
-    """Authored pages the public site publishes, including developer references."""
-    if not DEVELOPER_PAGES:
-        sys.exit("examples/developer holds no authored pages")
-    return [*worked_example_sources(), *DEVELOPER_PAGES]
+    return [*worked, *DEVELOPER_PAGES]
 
 
 def product_sources() -> list[Path]:
-    """The complete product-page set, held to the public route map."""
-    sources = sorted(DOCS.glob("*.html"))
-    found = {source.name for source in sources}
-    expected = set(PRODUCT_ROUTES)
-    if found != expected:
-        missing = sorted(expected - found)
-        extra = sorted(found - expected)
-        sys.exit(
-            f"product pages disagree with their routes: missing={missing}, extra={extra}"
-        )
-    return sources
+    """The product documents, one per public route."""
+    return [DOCS / name for name in PRODUCT_ROUTES]
 
 
 def product_page(out: Path, source_name: str) -> Path:
@@ -263,7 +235,7 @@ def media_url(source: Path) -> str:
     return f"/{MEDIA_DIR}/{media_name(source.read_bytes(), source.suffix)}"
 
 
-def social_images(catalog_previews: Path | None = None) -> dict[str, str]:
+def social_images(previews: Path) -> dict[str, str]:
     """The public card image behind each page root.
 
     Both are named at the page root that publishes the file: the product shot at the
@@ -271,7 +243,6 @@ def social_images(catalog_previews: Path | None = None) -> dict[str, str]:
     were stored against. Every root serves the whole media set, so the two paths hold
     for a card unfurled from any page.
     """
-    previews = catalog_previews or example_previews()
     catalog = PRODUCT_ROUTES["examples.html"].rstrip("/")
     images = {
         f"{catalog}/{source.stem}": catalog
@@ -282,11 +253,8 @@ def social_images(catalog_previews: Path | None = None) -> dict[str, str]:
 
 
 def document_metadata(page_dir: Path) -> tuple[str, str]:
-    """What a published page says it is: the title and description it authored.
-
-    The build refuses a page missing either, because a crawler and an unfurled link
-    show exactly these two and have nothing else to fall back to.
-    """
+    """The title and description a published page authored; a crawler and an
+    unfurled link show exactly these two, so the build refuses a page missing either."""
     parsed = SourceDocument((page_dir / "index.html").read_text(encoding="utf-8"))
     title = parsed.title.strip()
     description = next(
@@ -298,12 +266,7 @@ def document_metadata(page_dir: Path) -> tuple[str, str]:
         "",
     )
     if not title or not description:
-        missing = " and ".join(
-            part
-            for part, present in (("<title>", title), ("a description", description))
-            if not present
-        )
-        sys.exit(f"{page_dir.name}: a published page needs {missing}")
+        sys.exit(f"{page_dir.name}: a published page needs a <title> and a description")
     return title, description
 
 
@@ -356,29 +319,6 @@ def deduplicate_tree(root: Path, *, mutable_names: set[str] = frozenset()) -> No
         os.link(existing, path)
 
 
-def checked_product_sources(page: Path, env: dict) -> list[tuple[Path, bytes]]:
-    """Validate every product document before publishing any of them."""
-    checked = []
-    for source in product_sources():
-        markup = source.read_bytes()
-        (page / "index.html").write_bytes(markup)
-        leaf(env, "page", "check", str(page))
-        checked.append((source, markup))
-    return checked
-
-
-def publish_product_pages(
-    page: Path, out: Path, products: list[tuple[Path, bytes]], env: dict
-) -> None:
-    """Publish every validated product document as a complete Leaf page."""
-    for source, markup in products:
-        target = product_page(out, source.name)
-        shutil.copytree(page, target)
-        (target / "index.html").write_bytes(markup)
-        leaf(env, "page", "stamp", str(target), "--text", "As published")
-        leaf(env, "status", str(target), "idle")
-
-
 def publish_examples(out: Path, env: dict) -> None:
     """Publish worked examples and developer references without product pages."""
     for source in published_page_sources():
@@ -394,44 +334,38 @@ def publish_examples(out: Path, env: dict) -> None:
         print(f"  {source.stem}")
 
 
-def publish_pages(out: Path, env: dict, catalog_previews: Path | None = None) -> None:
+def publish_pages(out: Path, env: dict, previews: Path) -> None:
     """Canonical interactive product documents and worked examples."""
     with tempfile.TemporaryDirectory() as tmp:
-        product_page = Path(tmp) / "product-page"
+        template = Path(tmp) / "product-page"
         packages = json.loads((EXAMPLES / "layer.json").read_text(encoding="utf-8"))
-        selection_args = [arg for name in packages for arg in ("--package", name)]
-        selection_args.extend(("--package", SITE_PACKAGE))
-        leaf(env, "page", "init", *selection_args, str(product_page))
+        selection = package_selection_args([*packages, SITE_PACKAGE])
+        leaf(env, "page", "init", *selection, str(template))
         # Put the authored images behind the content-addressed paths the product
         # sources name before validating and rendering them.
         product_media = sorted(
             path for pattern in ("*.gif", "*.png") for path in DOCS.glob(pattern)
         )
-        preview_source = catalog_previews or example_previews()
         product_media.extend(
-            preview_source / f"example-{source.stem}.jpg"
-            for source in catalog_sources()
+            previews / f"example-{source.stem}.jpg" for source in catalog_sources()
         )
-        leaf(
-            env,
-            "page",
-            "media",
-            str(product_page),
-            *(str(path) for path in product_media),
-        )
-        products = checked_product_sources(product_page, env)
-        publish_product_pages(product_page, out, products, env)
+        leaf(env, "page", "media", str(template), *map(str, product_media))
+        # Each product document is checked in the template, then published as a copy.
+        for source in product_sources():
+            shutil.copyfile(source, template / "index.html")
+            leaf(env, "page", "check", str(template))
+            target = product_page(out, source.name)
+            shutil.copytree(template, target)
+            leaf(env, "page", "stamp", str(target), "--text", "As published")
+            leaf(env, "status", str(target), "idle")
     publish_examples(out, env)
 
 
 def publish_live_shells(
-    out: Path,
-    catalog_previews: Path | None = None,
-    *,
-    include_products: bool = True,
+    out: Path, previews: Path, *, include_products: bool = True
 ) -> Path:
     """Materialize the public bytes of every private page directory."""
-    images = social_images(catalog_previews)
+    images = social_images(previews)
     digest = hashlib.sha256()
     for path in sorted(
         candidate for candidate in out.rglob("*") if candidate.is_file()
@@ -441,8 +375,6 @@ def publish_live_shells(
         digest.update(path.read_bytes())
         digest.update(b"\0")
     release = os.environ.get("LEAF_SITE_RELEASE", digest.hexdigest())
-    if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", release):
-        raise ValueError("LEAF_SITE_RELEASE must be a full git or SHA-256 hex digest")
     assets = asset_site(out)
     shutil.rmtree(assets, ignore_errors=True)
     assets.mkdir(parents=True)
@@ -474,8 +406,6 @@ def publish_live_shells(
                 json.dumps(state, ensure_ascii=False), encoding="utf-8"
             )
             states[str(revision)] = state_path
-        if current is None:
-            raise ValueError(f"{page_dir} has no active revision")
         state_path = states[str(current)]
         state = initial_state(page_dir, page_root, kind, release)
         title, description = document_metadata(page_dir)
@@ -501,12 +431,9 @@ def publish_live_shells(
         )
     write_crawler_directives(assets, sorted(manifest["pages"]))
     manifest_text = json.dumps(manifest, indent=2, sort_keys=True) + "\n"
-    private_manifest = out / SITE_MANIFEST
-    private_manifest.parent.mkdir(parents=True, exist_ok=True)
-    private_manifest.write_text(manifest_text, encoding="utf-8")
-    public_manifest = assets / SITE_MANIFEST
-    public_manifest.parent.mkdir(parents=True, exist_ok=True)
-    public_manifest.write_text(manifest_text, encoding="utf-8")
+    for tree in (out, assets):
+        (tree / SITE_MANIFEST).parent.mkdir(parents=True, exist_ok=True)
+        (tree / SITE_MANIFEST).write_text(manifest_text, encoding="utf-8")
     deduplicate_tree(assets)
     deduplicate_tree(
         out,
@@ -524,39 +451,22 @@ def publish_live_shells(
     return assets
 
 
-def build_environment() -> dict[str, str]:
-    """Keep the builder's host session identity out of published version notes.
-
-    The set comes from `host.IDENTITY_VARIABLES`, so a harness that arrives with
-    a variable of its own is scrubbed here without a second list to remember."""
-    env = dict(os.environ)
-    for variable in IDENTITY_VARIABLES:
-        env.pop(variable, None)
-    return env
-
-
 def build_examples(out: Path, *, catalog_previews: Path) -> None:
     """Build only the public example routes used to record catalog previews."""
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
-    publish_examples(out, build_environment())
+    # `environment()` keeps the builder's host session out of published version notes.
+    publish_examples(out, environment())
     publish_live_shells(out, catalog_previews, include_products=False)
 
 
-def build(
-    out: Path,
-    *,
-    verify_links: bool = True,
-    catalog_previews: Path | None = None,
-) -> None:
+def build(out: Path, *, catalog_previews: Path | None = None) -> None:
+    previews = catalog_previews or example_previews()
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
-
-    publish_pages(out, build_environment(), catalog_previews)
-    publish_live_shells(out, catalog_previews)
-
-    if verify_links:
-        check_links(out)
+    publish_pages(out, environment(), previews)
+    publish_live_shells(out, previews)
+    check_links(out)
 
 
 def bundle_published_runtime(out: Path) -> None:
@@ -574,24 +484,10 @@ def bundle_published_runtime(out: Path) -> None:
 
 
 @click.command("site")
-@click.option(
-    "--serve",
-    is_flag=True,
-    help="Keep a local preview open through `wrangler dev` after building.",
-)
-def site(serve: bool) -> None:
+def site() -> None:
     """Build leaf.page into .tmp/site."""
     build(OUT)
     bundle_published_runtime(OUT)
     click.echo(
         f"✓ {len(list(OUT.rglob('*.html')))} pages → {OUT} and {asset_site(OUT)}"
     )
-    if serve:
-        if not WRANGLER.is_file():
-            sys.exit("website dependencies are missing; run `npm ci --prefix worker`")
-        click.echo("Preview: http://127.0.0.1:8787/examples/")
-        result = subprocess.run(
-            [str(WRANGLER), "dev"], cwd=ROOT / "worker", check=False
-        )
-        if result.returncode:
-            sys.exit(result.returncode)

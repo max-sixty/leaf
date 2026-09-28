@@ -13,10 +13,8 @@ as `wt setup` does.
 """
 
 import json
-import shutil
 import tarfile
 import tempfile
-import urllib.error
 import urllib.request
 from pathlib import Path, PurePosixPath
 
@@ -30,73 +28,42 @@ CACHE = ROOT / ".tmp" / "example-previews"
 
 def specification() -> tuple[str, str]:
     locked = json.loads(LOCK.read_text(encoding="utf-8"))
-    repository = locked["repository"]
-    revision = locked["revision"]
-    if not isinstance(repository, str) or not isinstance(revision, str):
-        raise TypeError(
-            f"{LOCK.name} must contain string repository and revision values"
-        )
-    if len(revision) != 40 or any(
-        character not in "0123456789abcdef" for character in revision
-    ):
-        raise RuntimeError(f"{LOCK.name} revision must be a full lowercase Git commit")
-    return repository, revision
+    return locked["repository"], locked["revision"]
 
 
 def _download(repository: str, revision: str, target: Path) -> None:
-    owner, name = repository.split("/", 1)
-    url = f"https://github.com/{owner}/{name}/archive/{revision}.tar.gz"
+    """Extract the archive's `examples/*.jpg` into `target`, renamed into place whole
+    so a concurrent reader sees either nothing or the complete set."""
+    url = f"https://github.com/{repository}/archive/{revision}.tar.gz"
+    root = f"{repository.split('/')[1]}-{revision}/examples"
     target.parent.mkdir(parents=True, exist_ok=True)
     try:
-        with tempfile.TemporaryDirectory(
-            prefix=f"{revision}-", dir=target.parent
-        ) as raw:
-            staging = Path(raw)
-            archive = staging / "assets.tar.gz"
+        with tempfile.TemporaryDirectory(dir=target.parent) as raw:
+            payload = Path(raw) / "payload"
+            (payload / "examples").mkdir(parents=True)
             with (
                 urllib.request.urlopen(url, timeout=60) as response,
-                archive.open("wb") as output,
+                tarfile.open(fileobj=response, mode="r|gz") as bundle,
             ):
-                shutil.copyfileobj(response, output)
-
-            previews = staging / "payload" / "examples"
-            previews.mkdir(parents=True)
-            root = f"{name}-{revision}/examples"
-            with tarfile.open(archive, "r:gz") as bundle:
-                members = []
-                for member in bundle.getmembers():
+                for member in bundle:
                     path = PurePosixPath(member.name)
-                    if path.parent.as_posix() != root or path.suffix.lower() != ".jpg":
-                        continue
-                    if not member.isfile():
-                        raise RuntimeError(
-                            f"asset archive entry is not a file: {member.name}"
+                    if (
+                        member.isfile()
+                        and path.parent.as_posix() == root
+                        and path.suffix.lower() == ".jpg"
+                    ):
+                        (payload / "examples" / path.name).write_bytes(
+                            bundle.extractfile(member).read()
                         )
-                    members.append(member)
-                if not members:
-                    raise RuntimeError(
-                        f"{repository}@{revision} contains no example previews"
-                    )
-                for member in members:
-                    source = bundle.extractfile(member)
-                    if source is None:
-                        raise RuntimeError(
-                            f"could not read asset archive entry: {member.name}"
-                        )
-                    target_name = PurePosixPath(member.name).name
-                    with source, (previews / target_name).open("wb") as output:
-                        shutil.copyfileobj(source, output)
-            (staging / "payload" / ".complete").write_text(revision, encoding="utf-8")
+            (payload / ".complete").write_text(revision, encoding="utf-8")
             try:
-                (staging / "payload").rename(target)
+                payload.rename(target)
             except OSError:
                 # Another build may have completed the same immutable revision first.
                 if not (target / ".complete").is_file():
                     raise
-    except (OSError, tarfile.TarError, urllib.error.URLError) as error:
-        raise RuntimeError(
-            f"could not fetch {repository}@{revision}: {error}"
-        ) from error
+    except (OSError, tarfile.TarError) as error:
+        raise RuntimeError(f"could not fetch {url}: {error}") from error
 
 
 def example_previews() -> Path:

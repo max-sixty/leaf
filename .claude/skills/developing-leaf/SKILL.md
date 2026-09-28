@@ -219,8 +219,7 @@ the skill and the references and every run answers with no guidance, while
 read the reference it tests, and a run that fails that check measured nothing.
 
 Grow the suite slowly, toward a modest set of cases that each tell two wordings
-apart; several older cases predate this rule, and their comments say where they
-stand. Measure with whatever scenarios and guardrails the change needs, then add a
+apart. Measure with whatever scenarios and guardrails the change needs, then add a
 case only if it pins a clause no existing case pins and it separated two arms you ran:
 the base failed most runs and the change passed every run, or a blunter draft failed
 a guardrail the change passes. That is usually one case per problem, and rarely more

@@ -1525,6 +1525,57 @@ STATUS_FIT = """() => {
 }"""
 
 
+def test_every_more_row_wears_one_face_and_rings_inside_the_menu(browser, serve):
+    """The developer preview stands in More at every width, so it is one of More's
+    rows and wears their face: a badge's smaller type and padding made it a 24px row
+    among 30px ones. Every row is packed 4px from the menu's border, so a row's ring
+    is drawn inside it; outside, it stood a pixel from the border."""
+    url = serve(
+        SUGGESTION_PAGE,
+        preview={
+            "kind": "example",
+            "example": "feature-gallery",
+            "checkout": "leaf.menu-rows",
+            "commit": "c79736ebfcc7",
+            "interaction": "author",
+            "started": "2026-09-06T12:00:00+00:00",
+        },
+    )
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    page.locator(".lf-banner-more").focus()
+    page.keyboard.press("Enter")
+    menu = page.locator(".lf-banner-menu")
+    expect(menu).to_be_visible()
+    rows = page.evaluate(
+        """() => [...document.querySelectorAll('.lf-banner-menu .lf-btn')]
+          .filter((row) => row.checkVisibility())
+          .map((row) => {
+            const style = getComputedStyle(row);
+            return [row.className, row.getBoundingClientRect().height, style.fontSize,
+                    style.paddingInlineStart];
+          })"""
+    )
+    assert any("lf-preview" in row[0] for row in rows), rows
+    assert len({tuple(row[1:]) for row in rows}) == 1, rows
+    preview = page.locator(".lf-banner-menu .lf-preview")
+    expect(preview).to_be_focused()
+    ring = preview.evaluate(
+        """row => {
+          const style = getComputedStyle(row);
+          const width = parseFloat(style.outlineWidth);
+          const offset = parseFloat(style.outlineOffset);
+          const box = row.getBoundingClientRect();
+          const menu = row.closest('.lf-banner-menu');
+          const edge = menu.getBoundingClientRect();
+          const border = parseFloat(getComputedStyle(menu).borderTopWidth);
+          return {matches: row.matches(':focus-visible'),
+                  clear: box.top - offset - width - (edge.top + border)};
+        }"""
+    )
+    assert ring["matches"] and ring["clear"] >= 2, ring
+
+
 def test_preview_diagnostics_keep_their_fixed_banner_overflow_seat(browser, serve):
     """Developer diagnostics stay behind More at every width."""
     html = SUGGESTION_PAGE.replace(

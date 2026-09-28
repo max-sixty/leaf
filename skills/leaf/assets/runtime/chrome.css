@@ -514,13 +514,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-dot.listening { background: var(--ok); }
   .lf-dot.away { background: var(--warn); }
   .lf-dot.offline { background: var(--danger); }
-  /* The developer preview is a key badge like the rest, but the shelf keeps it behind
-     the overflow door at every width. It stays here in the shared key-badge vocabulary
-     because the menu moves the same node rather than constructing a second diagnostic.
-     A press copies the diagnostics, so its text is one line however long the name is. */
-  :is(.lf-preview, .lf-layer-reference) { padding: 2px 7px;
+  /* The developer preview and the Leaf version stand behind the overflow door at every
+     width, so they are rows of that menu and wear its row face: the button's type and
+     inset, which a badge's smaller type and padding had cut to a 24px row among 30px
+     ones. A press copies the diagnostics, so its text is one line however long the
+     name is. */
+  :is(.lf-preview, .lf-layer-reference) {
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    font: inherit; font-size: var(--t-6);
     cursor: pointer; }
   :is(.lf-preview, .lf-layer-reference):hover { color: var(--ink); }
   .lf-layer-version { font-family: var(--mono); font-size: inherit; }
@@ -613,6 +613,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-banner-menu .lf-btn:where(:not(.primary)) { border-color: transparent;
     background: none; }
   .lf-banner-menu .lf-btn:where(:not(.primary)):hover { background: var(--chip); }
+  /* A row is packed against the menu's edge, 4px of padding from its border, so its
+     ring is drawn inset as the versions menu's rows draw theirs: outside the row it
+     stood a pixel from the border. */
+  .lf-banner-menu .lf-btn:is(:focus-visible, .lf-focus-visible) {
+    outline-offset: calc(-1 * var(--here-ring-w)); }
   /* A secondary control doing something has to go on saying so. The menu's resting
      rule clears the same two declarations the row's does, so `.on` needs the same
      answer here: the treatment the open auxiliary surface already keeps in the menu on its
@@ -663,7 +668,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-version-row { grid-column: 1; position: relative;
     display: flex; flex-direction: column; gap: 1px; align-items: start;
     text-align: left; padding: 6px 8px; border: 0; border-radius: 4px;
-    background: none; color: inherit; cursor: pointer; width: 100%; }
+    background: none; color: inherit; font: inherit; cursor: pointer; width: 100%; }
+  /* A row with no Compare beside it, the version being read, takes both columns, so
+     its hover and ring span the menu like every other row's pair. */
+  .lf-version-row:not(:has(+ .lf-version-diff)) { grid-column: 1 / -1; }
   .lf-version-row:hover { background: var(--chip); }
   .lf-version-row:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: version-row;
     outline-offset: calc(-1 * var(--here-ring-w)); }

@@ -1048,6 +1048,37 @@ def test_a_menu_comparison_keeps_its_active_paint(browser, serve):
     assert face["dot"] == accent and face["edge"] != accent, face
 
 
+def test_the_version_being_read_spans_the_versions_menu(browser, serve):
+    """The row for the version being read has no Compare beside it, so it takes both of
+    the menu's columns: it was only as wide as its own words, its hover and ring
+    stopping short of the rows below. The rows wear the menu's own type."""
+    html = SUGGESTION_PAGE.replace(
+        "<title>suggestions</title>",
+        '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
+    )
+    url = serve(html)
+    _publish(serve.page_dir, 2, html, "reworded the suggestion")
+    page = open_page(browser, url.replace("v1.html", "v2.html"))
+    resized(page, 1440, 900)
+    open_versions(page)
+    versions = page.locator(".lf-version-menu")
+    expect(versions).to_be_visible()
+    reading = versions.evaluate(
+        """menu => {
+          const style = getComputedStyle(menu);
+          const inner = menu.getBoundingClientRect().width
+            - 2 * parseFloat(style.borderLeftWidth)
+            - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+          const current = menu.querySelector('.lf-version-row[aria-current]');
+          return {inner, current: current.getBoundingClientRect().width,
+                  font: getComputedStyle(current).fontSize,
+                  menuFont: style.fontSize};
+        }"""
+    )
+    assert reading["current"] == pytest.approx(reading["inner"], abs=1), reading
+    assert reading["font"] == reading["menuFont"], reading
+
+
 def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf):
     """The fixed menu and primary row keep one reading order at every width."""
     html = SUGGESTION_PAGE.replace(

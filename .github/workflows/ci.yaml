@@ -100,10 +100,10 @@ jobs:
 
       - name: Measure the bundled release in Chrome
         if: github.event_name == 'pull_request'
-        run: uv run scripts/verify_site.py wrangler
+        run: uv run leaf-dev verify-site wrangler
 
-      # `leaf-dev ci-failures` finds a job's report by this step's name and this
-      # artifact name, in both jobs that run pytest.
+      # `leaf-dev ci-failures` finds a job's report by this artifact name, in both
+      # jobs that run pytest.
       - name: Upload pytest results
         if: always()
         uses: actions/upload-artifact@v7

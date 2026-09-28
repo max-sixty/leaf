@@ -117,9 +117,14 @@ mediaViewer.addEventListener("close", () => {
   origin = null;
 });
 document.addEventListener("click", (event) => {
+  // The path ends at the document and the window, and an element whose id is
+  // `matches` puts an object at `window.matches`, so only elements are asked.
   const trigger = event
     .composedPath()
-    .find((node) => node?.matches?.(".lf-media-open[data-lf-media-url]"));
+    .find(
+      (node) =>
+        node instanceof Element && node.matches(".lf-media-open[data-lf-media-url]"),
+    );
   if (trigger)
     open(
       trigger.dataset.lfMediaUrl,

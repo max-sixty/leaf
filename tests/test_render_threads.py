@@ -4893,10 +4893,8 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # A standing reaction's paint on the page: the element outline and margin glyph.
         "lf-react-el",
         "lf-react-mark",
-        # Visual reactions add a quiet keyboard proxy beside the authored target and
-        # an outline on the target while its shared action bar is standing.
-        "lf-visual-actions",
-        "lf-visual-action",
+        # A visual reaction's outline on its target while its shared action bar is
+        # standing.
         "lf-action-target",
         # A comparison's target paint and deletions stand inside the block they are
         # about; a text block's parent may not accept a sibling beside it.
@@ -7742,3 +7740,21 @@ def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
     expect(
         page.locator(f'.lf-threads > .lf-thread[data-id="{root}"] .lf-thread-topic')
     ).to_have_text("Terrace accessibility")
+
+
+def test_a_click_survives_an_element_whose_id_shadows_a_dom_method(browser, serve):
+    """A click's composed path ends at the document and the window, and an element with
+    `id="matches"` puts itself at `window.matches`, where a reader of that path expects
+    Element's method. A handoff page with a "matches" section threw on every click."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "named access",
+                '<h1 id="title">Pairs</h1><h2 id="matches">A pair that matches</h2>'
+                "<p id='body'>Words to click.</p>",
+            )
+        ),
+    )
+    page.locator("#matches").click()
+    page.locator("#body").click()

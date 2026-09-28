@@ -13,7 +13,6 @@ from contextlib import ExitStack
 from pathlib import Path
 from typing import NamedTuple
 
-import preview as preview_model
 import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
@@ -31,6 +30,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf.schema import ELEMENT_ID
 from leaf.structure import UTF8_BOM
+from leaf_dev import preview as preview_model
 from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import ASK_PAGE
@@ -51,7 +51,8 @@ from render_harness import (
 pytestmark = pytest.mark.nightly
 
 ROOT = Path(__file__).parent.parent
-PREVIEW_SCRIPT = str(ROOT / "scripts" / "preview.py")
+# `leaf-dev preview`, run by the interpreter this suite runs on.
+PREVIEW = [sys.executable, "-m", "leaf_dev", "preview"]
 
 
 @pytest.fixture
@@ -115,8 +116,7 @@ def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spa
     slot, page = preview_slot
     preview = spawn(
         [
-            sys.executable,
-            PREVIEW_SCRIPT,
+            *PREVIEW,
             "heat-loss",
             "--slot",
             slot,
@@ -156,7 +156,7 @@ def test_terminating_a_preview_stops_its_claimed_service(tmp_path, preview_slot,
     slot, page = preview_slot
     process, url = start_preview(
         spawn,
-        [sys.executable, PREVIEW_SCRIPT, "heat-loss", "--slot", slot, "--user"],
+        [*PREVIEW, "heat-loss", "--slot", slot, "--user"],
         tmp_path / "preview.log",
     )
     assert server_model.running_server(page)
@@ -178,7 +178,7 @@ def test_terminating_a_preview_while_its_service_starts_leaves_none(
     slot, page = preview_slot
     with (tmp_path / "preview.log").open("w", encoding="utf-8") as output:
         process = spawn(
-            [sys.executable, PREVIEW_SCRIPT, "heat-loss", "--slot", slot, "--user"],
+            [*PREVIEW, "heat-loss", "--slot", slot, "--user"],
             cwd=ROOT,
             stdout=output,
             stderr=subprocess.STDOUT,
@@ -218,8 +218,7 @@ def test_a_leaf_failure_exits_the_preview_without_a_wrapper_traceback(
     slot, _ = preview_slot
     result = subprocess.run(
         [
-            sys.executable,
-            PREVIEW_SCRIPT,
+            *PREVIEW,
             "--source",
             str(source),
             "--slot",
@@ -298,8 +297,7 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
         _, url = start_preview(
             spawn,
             [
-                sys.executable,
-                PREVIEW_SCRIPT,
+                *PREVIEW,
                 "--source",
                 str(source),
                 "--runtime",
@@ -347,8 +345,7 @@ def test_a_preview_records_real_gestures_outside_the_task(
     source.write_text(REPLAYED_PAGE, encoding="utf-8")
     runtime = install_payload(tmp_path / "driven-runtime")
     driven_command = [
-        sys.executable,
-        PREVIEW_SCRIPT,
+        *PREVIEW,
         "--source",
         str(source),
         "--runtime",
@@ -478,8 +475,7 @@ def test_an_unclaimed_preview_keeps_its_gestures_out_of_the_stop_hook(
     _, url = start_preview(
         spawn,
         [
-            sys.executable,
-            PREVIEW_SCRIPT,
+            *PREVIEW,
             "--source",
             str(source),
             "--runtime",
@@ -522,8 +518,7 @@ def watching(tmp_path, preview_slot, spawn, user: bool):
     process, url = start_preview(
         spawn,
         [
-            sys.executable,
-            PREVIEW_SCRIPT,
+            *PREVIEW,
             "--source",
             str(source),
             "--runtime",
@@ -572,8 +567,7 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
                 "subprocess.run(sys.argv[2:], stdout=log, stderr=subprocess.STDOUT)"
             ),
             str(log),
-            sys.executable,
-            PREVIEW_SCRIPT,
+            *PREVIEW,
             "--source",
             str(source),
             "--runtime",
@@ -1464,8 +1458,7 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
     out = ROOT / ".tmp" / "example-pr-walkthrough.html"
     result = subprocess.run(
         [
-            sys.executable,
-            PREVIEW_SCRIPT,
+            *PREVIEW,
             "pr-walkthrough",
             "--export",
         ],
@@ -1499,13 +1492,13 @@ def test_exporting_an_example_leaves_the_live_preview_untouched(
     """An offline handoff can be made while its live preview keeps serving."""
     live_source = (page_dir / "index.html").read_bytes()
     live_server = standing_server(page_dir)
-    import preview
-
-    monkeypatch.setattr(preview, "TMP", page_dir.parent)
-    monkeypatch.setattr(sys, "argv", ["preview.py", "pr-walkthrough", "--export"])
+    monkeypatch.setattr(preview_model, "TMP", page_dir.parent)
 
     try:
-        preview.main()
+        result = CliRunner().invoke(
+            preview_model.preview, ["pr-walkthrough", "--export"]
+        )
+        assert result.exit_code == 0, result.output
         assert live_server.poll() is None
         assert (page_dir / "index.html").read_bytes() == live_source
     finally:

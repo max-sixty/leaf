@@ -265,9 +265,9 @@ borders, outlines, and shadows.
 Name the single product change that would make each assertion fail, and arrange the
 fixture so that change reaches the measured surface. Reintroduce the defect and run
 the gate before accepting a test, and again when a refactor changes how an existing
-failure shows. `uv run leaf-dev bugback` does it on a committed branch: it runs the
-tests the branch added or changed with the branch's change reverted, or with each
-`--flip` patch, one guard at a time, and says which went red. An assertion that
+failure shows. `uv run leaf-dev bugback NODEID...` does it on a committed branch: it
+runs the named tests with the branch's non-test change reverted and says which went
+red. To prove each of several guards, flip one at a time by hand. An assertion that
 nothing moved straddles a transition that would move without the rule. Check what a
 lower layer already guarantees: a send queue that drops a second POST hides whether
 the widget refused it.

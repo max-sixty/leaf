@@ -30,7 +30,6 @@ from interact_support import (
     PAGE,
     PAGE_PACKAGES,
     PLUGIN_ROOT,
-    SKILL_ROOT,
     STATED_TIMEOUT,
     Prose,
     _status,
@@ -40,6 +39,7 @@ from interact_support import (
     fetch,
     fifo_writer,
     hold_status_read,
+    install_payload,
     let_a_pick_settle_a_thread,
     owed,
     page_state,
@@ -12576,33 +12576,28 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
     """Re-vendoring a served page restarts its server under the recorded lifetime
     and URL, onto the new layer, and preserves the active revision contract."""
     publish(page_dir)
-    old_skill = page_dir.parent / "old-skill"
-    old_scripts = old_skill / "scripts"
-    old_scripts.mkdir(parents=True)
-    shutil.copytree(SKILL_ROOT / "scripts" / "leaf", old_scripts / "leaf")
-    shutil.copytree(schema_model.ASSETS, old_skill / "assets")
+    old_plugin = install_payload(page_dir.parent / "old-plugin")
     old_registry = files_model.read_json(page_dir / "registry.json")
     del old_registry["$events"]["kinds"]["comment"]["record"]["properties"]["attempt"]
     files_model.write_json(page_dir / "registry.json", old_registry)
-    files_model.write_json(old_skill / "assets" / "registry.json", old_registry)
+    files_model.write_json(
+        old_plugin / "skills" / "leaf" / "assets" / "registry.json", old_registry
+    )
 
     if lifetime == "standing":
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
         monkeypatch.delenv("CLAUDE_PID")
     old_server = spawn(
         [
-            *LEAF_COMMAND,
+            # The old plugin's own launcher, so `SKILL_ROOT` resolves into it and
+            # this server answers out of the registry there rather than the
+            # checkout's.
+            old_plugin / "bin" / "leaf",
             "server",
             "run",
             str(page_dir),
             *(["--standing"] if lifetime == "standing" else []),
         ],
-        # The old skill's own copy of the package, so `SKILL_ROOT` resolves into
-        # it and this server answers out of the registry beside it rather than
-        # the checkout's. PYTHONPATH is what puts that copy first: the `leaf`
-        # this environment installs is editable, and reaches sys.path through a
-        # .pth file site reads after PYTHONPATH.
-        env=os.environ | {"PYTHONPATH": str(old_scripts)},
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,

@@ -1036,22 +1036,17 @@ def test_an_invalid_product_document_stops_the_build(tmp_path, monkeypatch):
     monkeypatch.setattr(site_build, "DOCS", staged_docs)
 
     with pytest.raises(SystemExit) as stopped:
-        site_build.build(tmp_path / "invalid-site", verify_links=False)
+        site_build.build(tmp_path / "invalid-site")
     assert "<script src>" in str(stopped.value)
 
 
 def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
     hosted, browser
 ):
-    """The catalog is useful HTML first; mounting its shared Leaf layer must not move it.
+    """The catalog's position and width are set before the runtime loads.
 
-    The column and the cards are read separately because they answer for different
-    halves of the same promise. `main` is the page's own box, and the catalog is a
-    declared wide exhibit whose width the theme resolves from the authored attribute
-    rather than the one the runtime paints. Both are therefore settled before the
-    module lands, including the margin rail the prepaint bootstrap has already
-    claimed, and a card that resizes or slides under the user's cursor is the
-    failure this names.
+    The map-only sidebar has no vertical room before or after the runtime moves
+    its contents into the margin, so mounting Leaf does not move the cards.
     """
     boot = []
     page = browser.new_page(viewport={"width": 1724, "height": 1036})

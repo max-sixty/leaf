@@ -85,6 +85,7 @@ import {
   commandRoutes,
   live,
   parsed,
+  pressBinding,
   routedCommand,
   spell,
   word,
@@ -420,17 +421,21 @@ export function dispatchKey(ev, { beforeCommand }) {
   return true;
 }
 
-// Where a press lands before it runs: the root of the scope whose command answers it, or
-// null where no Leaf command does and the press is the platform's, at focus. A surface
-// that moves with the page asks this to tell a press acting in it from one the page
-// answers around it.
+// Where a press is taken, before it runs: the root of the nearest scope that answers it
+// with a command or claims it, as a text box claims its letters and armed Go-to every key,
+// or null where nothing does and the platform takes it at focus. A surface fixed over the
+// page asks this to tell a press taken in it from one the page takes around it. The scopes
+// that act where the user stands (a thread, a text box, the focused control) are rooted
+// at focus, which is what puts their presses in the surface holding it.
 export function pressRoot(ev) {
-  const answer = resolvePress(ev);
-  return answer ? scopeRoot(answer.scope) : null;
+  const taken = resolvePress(ev, { claimed: pressBinding(ev) });
+  return taken ? scopeRoot(taken.scope) : null;
 }
 
-// The scope and invocation that answer one keydown, by the walk `dispatchKey` runs.
-function resolvePress(ev) {
+// The scope and invocation that answer one keydown, by the walk `dispatchKey` runs. Given
+// the press's own binding as `claimed`, a scope claiming it takes it too, with no
+// invocation: the dispatcher leaves that press to the platform.
+function resolvePress(ev, { claimed = null } = {}) {
   const recovered = recoveredLabelFocus(ev);
   const nearer = shadow();
   for (const scope of stack(answers("Escape", ev) ? "Escape" : null)) {
@@ -455,6 +460,7 @@ function resolvePress(ev) {
       matched = invocation;
     }
     if (matched) return { scope, invocation: matched };
+    if (claimed && scope.claims?.(claimed)) return { scope, invocation: null };
     nearer.past(scope);
   }
   return null;

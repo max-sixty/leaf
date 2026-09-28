@@ -1245,18 +1245,16 @@ export function createResponseSurface({
   const fabAnchorAt = () => fabAnchor;
 
   function mount() {
-    // Floating, the box is carried away with its target and comes back with it; inline, it
-    // is in flow and the browser's own reveals reach it.
+    // Floating, the box is carried away with its passage and comes back with it, by the
+    // passage's first line, which a block taller than the window would not bring back;
+    // inline, it is in flow and the browser's own reveals reach it.
     declareOffFlowSurface(fabBar, {
-      away: () => {
-        if (!fabAnchor || !fabFloating) return false;
-        const box = fabBar.getBoundingClientRect();
-        const seen = seenRect(fabBar, new Map());
-        return !seen || seen.top > box.top + 0.5 || seen.bottom < box.bottom - 0.5;
-      },
+      away: () => Boolean(fabAnchor && fabFloating && !seenRect(fabBar, new Map())),
       bringBack: (behavior) => {
-        const target = fabTargetAt();
-        if (target) scrollToElement(target, behavior, "nearest");
+        const found = resolveAnchor(fabAnchor, pageText());
+        const start = fabAnchor.quote && found && targetSegments(found)[0]?.node;
+        const line = start?.parentElement ?? fabTargetAt();
+        if (line) scrollToElement(line, behavior, "nearest");
       },
     });
     // Keep the native selection through the button's press; focusing the actual

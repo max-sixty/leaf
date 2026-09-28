@@ -1691,9 +1691,14 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
     rendered(page)
     assert page.evaluate("() => document.scrollingElement.scrollTop") == foot
-    page.keyboard.press("Escape")
+    # Every key is Go-to's while it stands, one it has no use for included: that key
+    # takes Go-to down and keeps the page where it is.
+    page.keyboard.press("F2")
     expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
-    # A key that acts in a card scrolled away brings its cluster, and the card, back.
+    rendered(page)
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == foot
+    # A page command that lands in a card scrolled away brings its cluster, and the
+    # card, back.
     page.keyboard.press("c")
     expect(card.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
     page.wait_for_function(

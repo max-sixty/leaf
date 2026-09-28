@@ -519,26 +519,29 @@ def arrangement_changes(readings) -> list[tuple[int, str, str]]:
     return changes
 
 
-def stacked_panes(readings) -> list[str]:
+def stacked_panes(readings, desktop: int) -> list[str]:
     """Each workspace body that stacks its panes in one column while the Layout still
-    fills the window, at the swept widths it does so.
+    fills the window, where at the `desktop` width it stands them side by side, with the
+    swept widths it stacks them at.
 
-    A full-height workspace shares one window's height among its panes, so panes stacked there
-    each get a slice of it: three at 800x768 left one a 28px body. A body whose panes
-    stand in one column at every width is a design of rows, and is not in question; one
-    that stands them side by side in a wider window stacks them too early, and should
-    stack only where the Layout stops holding the window."""
-    wide = {}
+    A full-height workspace shares one window's height among its panes, so a column of
+    panes there is either a design of rows, which the page shows at its desktop width
+    too, or a side-by-side design's narrow fallback arriving before the Layout lets the
+    page scroll: three panes at 800x768 left one a 28px body. The desktop reading says
+    which the page is, so a body of rows that adds columns only in an ultrawide window
+    is not in question."""
+    meant = {
+        body["at"]
+        for width, reading in readings
+        if width == desktop
+        for body in reading["panes"]
+        if body["beside"] > 1
+    }
     stacked = {}
     for width, reading in readings:
         for body in reading["panes"]:
-            if not body["held"]:
-                continue
-            at = body["at"]
-            if body["beside"] > 1:
-                wide[at] = True
-            elif wide.get(at):
-                stacked.setdefault(at, []).append(width)
+            if body["held"] and body["beside"] == 1 and body["at"] in meant:
+                stacked.setdefault(body["at"], []).append(width)
     found = []
     for at, widths in stacked.items():
         low, high = min(widths), max(widths)

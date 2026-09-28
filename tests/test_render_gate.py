@@ -240,7 +240,7 @@ def test_the_render_gate_fails_a_wide_page_that_scrolls_sideways_only_between_vi
     assert reading.advice == []
 
 
-def _pane_regions(columns: str, stacks_below: int) -> str:
+def _pane_regions(columns: str, media: str) -> str:
     return leaf_page(
         "pane regions",
         """
@@ -252,26 +252,41 @@ def _pane_regions(columns: str, stacks_below: int) -> str:
 """,
         head=f"""<style>
 #regions {{ display: grid; grid-template-columns: {columns}; gap: var(--sp-4); }}
-@media (width < {stacks_below}px) {{ #regions {{ grid-template-columns: 1fr; }} }}
+@media {media}
 </style>""",
         layout="workspace",
     )
 
 
+STACK = "{ #regions { grid-template-columns: 1fr; } }"
+SPLIT = "{ #regions { grid-template-columns: 1fr 1fr; } }"
+
+
 @pytest.mark.parametrize(
-    ("columns", "stacks_below", "stacked"),
-    [("1fr 2fr", 900, "720–880px"), ("1fr 2fr", 720, None), ("1fr", 900, None)],
-    ids=["stacks-early", "stacks-where-the-layout-flows", "rows-at-every-width"],
+    ("columns", "media", "stacked"),
+    [
+        ("1fr 2fr", f"(width < 900px) {STACK}", "720–880px"),
+        ("1fr 2fr", f"(width < 720px) {STACK}", None),
+        ("1fr", f"(width < 900px) {STACK}", None),
+        ("1fr", f"(width >= 1800px) {SPLIT}", None),
+    ],
+    ids=[
+        "stacks-early",
+        "stacks-where-the-layout-flows",
+        "rows-at-every-width",
+        "rows-then-columns-when-ultrawide",
+    ],
 )
 def test_a_workspace_stacks_its_panes_only_where_the_layout_stops_holding_it(
-    browser, serve, columns, stacks_below, stacked
+    browser, serve, columns, media, stacked
 ):
     """Held, a workspace shares one window's height among its panes, so panes that stand
-    side by side in a wide window and stack while the window is still held each get a
-    slice of it. Stacking where the Layout lets the page scroll passes, and so does a
-    body of rows at every width, which was built to share the height."""
+    side by side at the desktop viewport and stack while the window is still held each
+    get a slice of it. Stacking where the Layout lets the page scroll passes, and so does
+    a body of rows, which was built to share the height, even where an ultrawide window
+    sets its panes side by side."""
     reading = render_gate_model.render_version(
-        browser, serve(_pane_regions(columns, stacks_below), packages=())
+        browser, serve(_pane_regions(columns, media), packages=())
     )
 
     if stacked is None:

@@ -725,6 +725,9 @@ export class Painter {
       for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
     };
     set(this.svg, { viewBox: `0 0 ${G.W} ${G.H}` });
+    // The height is set in pixels rather than left to the viewBox's proportions, so in
+    // the frames between a pane's resize and this layout the stage keeps its height.
+    this.svg.style.height = `${G.H}px`;
     set(this.bg, { width: G.W, height: G.H });
     set(this.laneV, { x: X0, y: G.vLabel });
     set(this.laneS, { x: X0, y: G.sLabel });

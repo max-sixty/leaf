@@ -444,16 +444,13 @@
    and a finger's row 44px aims wherever it stands. */
 @media screen and (width <= 480px) { :root { --lf-banner-row: 52px; } }
 @media screen and (pointer: coarse) { :root { --lf-banner-row: 53px; } }
-/* Until the runtime says which rows it drew, guess them. A phone held upright has no room
-   for the status beside its controls. A page that asks for sign-off puts Approval on the
-   row too (banner.js), which wraps any window narrower than about 660px. A wrong guess
-   costs one move of the document when the banner arrives. */
+/* Until the runtime says which rows it drew, guess them from the width: a phone held
+   upright has no room for the status beside its controls. A page asking for sign-off puts
+   Approval on the row too (banner.js) and wraps below about 660px, but the guess cannot
+   read that, since a :has() on the root restyles the whole page on every change below it.
+   A wrong guess costs one move of the document when the banner arrives. */
 @media screen and (width <= 480px) {
   html:root:not([data-lf-banner-rows]) { --lf-banner-rows: 2; }
-}
-@media screen and (width <= 660px) {
-  html:root:not([data-lf-banner-rows]):has(meta[name="lf-review"][content="sign-off"]) {
-    --lf-banner-rows: 2; }
 }
 html[data-lf-banner-rows="2"] { --lf-banner-rows: 2; }
 /* Only a live page draws the banner. Without one, what sticks below the banner sticks

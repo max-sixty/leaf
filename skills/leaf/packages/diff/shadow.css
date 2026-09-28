@@ -153,6 +153,16 @@
    with it. */
 :host(.lf-rendered) .lf-diff-file > details > summary:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: code-summary;
                                             outline-offset: calc(-1 * var(--here-ring-w)); }
+/* A row a hunk step lands on (lf-diff.js, `land`), inset for three reasons at once. The
+   code box clips what it holds (Pierre's overflow and containment), and a row runs the
+   box's whole width, so the outset band the layer draws for any other stop lost both its
+   sides there; each row is positioned, so the row after painted over its lower run; and
+   a landing puts the row flush under the pinned header, which covered its upper run.
+   Outset, a landed row showed no ring at all. */
+:host(.lf-rendered) [data-content] > [data-line]:is(:focus-visible, .lf-focus-visible) {
+                                            outline: var(--here-ring);
+                                            --lf-here-ring: code-line;
+                                            outline-offset: calc(-1 * var(--here-ring-w)); }
 /* The file header pins at the top of what scrolls it while its own rows go past, which is
    the thread list's answer to the same question — the name of the part you are reading has
    to be on screen for the whole of it, not only at its start. Forty-six files at

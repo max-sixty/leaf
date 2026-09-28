@@ -1960,3 +1960,9 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
   container-type: inline-size;
   --lf-block-frame: 1;
 }
+/* A body is a Tab stop wherever it scrolls (reach.js), and it fills its pane to the
+ * frame, so the band goes inside it: outset, it ran over the header's rule and lost its
+ * right and lower runs to the workspace body, which clips at the pane's outer edge. */
+[data-lf-reading-role="pane"] > :not(header, footer):focus-visible {
+  outline-offset: calc(-1 * var(--here-ring-w));
+}

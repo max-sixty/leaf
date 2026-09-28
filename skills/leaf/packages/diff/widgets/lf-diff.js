@@ -1371,8 +1371,8 @@ customElements.define(
     // Arrival: scrolled to the band the document declares landable, which the pinned
     // header's own room has been added to, and then the focus without the browser
     // scrolling a second time. A row is not a tab stop — a patch is thousands of them —
-    // so it is made focusable for the press that lands on it and wears the platform's
-    // own ring, the same as every control the layer does not restyle. A file header
+    // so it is made focusable for the press that lands on it, and wears the band inset
+    // inside its own box (shadow.css). A file header
     // already is one, and writing a tabindex of -1 onto it would take it out of the
     // order a user tabs through.
     land(box, node = box) {

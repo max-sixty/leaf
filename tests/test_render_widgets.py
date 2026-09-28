@@ -10306,6 +10306,46 @@ def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
         f"the row it landed on is above or behind its file's pinned header: {landed}"
     )
     assert page.evaluate(scrollport)["window"] == 0, "the window scrolled, not the pane"
+    # The landed row wears the band where it can be seen: inside the code box that clips
+    # it and below the header pinned over the row above. Drawn outset, its sides fell
+    # outside that box and its upper run under the header, and the row showed no ring.
+    row_ring = page.evaluate(f"""() => {{
+        const at = document.querySelector('lf-diff').shadowRoot.activeElement;
+        return ({_RING_WITHIN})(at, at.closest('code'));
+    }}""")
+    # Its right run is the row's end, as far off as the file's longest line, which the
+    # code box scrolls sideways to reach.
+    inside = row_ring["inside"]
+    assert row_ring["drawn"] and inside["top"] and inside["bottom"], row_ring
+    assert row_ring["top"] >= landed["headBottom"], (
+        f"the landed row's ring runs under its file's pinned header: {row_ring}"
+    )
+    # The pane's body is a Tab stop because it scrolls, and it fills its pane, so its
+    # band has to stay inside the pane too: outset, the workspace body clipped its right
+    # and lower runs.
+    page.evaluate("() => document.querySelector('lf-diff').focus()")
+    host_ring = page.evaluate(
+        f"() => ({_RING_WITHIN})(document.querySelector('lf-diff'),"
+        " document.querySelector('lf-pane'))"
+    )
+    assert host_ring["drawn"] and all(host_ring["inside"].values()), host_ring
+
+
+# Where an element's focus band falls, from its computed outline, and whether that box
+# stays inside `frame`'s border box, which is what clips it or covers its edge.
+_RING_WITHIN = """(el, frame) => {
+    const s = getComputedStyle(el);
+    const out = parseFloat(s.outlineOffset) + parseFloat(s.outlineWidth);
+    const box = el.getBoundingClientRect(), edge = frame.getBoundingClientRect();
+    const ring = { top: box.top - out, left: box.left - out,
+                   right: box.right + out, bottom: box.bottom + out };
+    return { drawn: s.outlineStyle === 'solid' && s.outlineWidth === '2px',
+             focus: el.matches(':focus-visible'), top: Math.round(ring.top),
+             sideways: frame.scrollLeft,
+             inside: { top: ring.top >= edge.top, left: ring.left >= edge.left,
+                       right: ring.right <= edge.right,
+                       bottom: ring.bottom <= edge.bottom } };
+}"""
 
 
 def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_it(

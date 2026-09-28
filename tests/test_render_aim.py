@@ -10,6 +10,7 @@ from interact_support import (
     SHIPPED_PACKAGES,
     append_command,
 )
+from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -45,6 +46,7 @@ from render_cases_layout import (
     edge_settled,
     geometry,
 )
+from render_cases_navigation import source_revision
 from render_cases_widgets import (
     GENERIC_VISUAL_LAYER,
     GENERIC_VISUAL_PAGE,
@@ -1897,6 +1899,75 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
     expect(panel).to_be_hidden()
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     assert comments() == seeded, "a press on the chrome posted a comment"
+
+
+def test_design_mode_leaves_leaves_surfaces_working_inside_a_widget(browser, serve):
+    """Leaf's own surfaces stay Leaf's where a widget seats them.
+
+    A diff seats a thread beside its line, inside page content, where the page's presses
+    are the mode's; so does the response bar it seats in its own outlet. The thread's
+    reply box still takes the caret and sends a reply. It stands in the diff's shadow
+    tree, so the press is read where it lands rather than at the host it is retargeted
+    to."""
+    url = serve(
+        leaf_page(
+            "diff in design mode",
+            '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch">'
+            "<pre></pre></lf-diff>",
+        )
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-return "old"
++return "new"
+""",
+    )
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep this check beside the changed line.",
+            "anchor": {
+                "section": "patch",
+                "datum": '["app.py","new",1]',
+                "source": "review-patch",
+                "source_revision": source_revision(serve.page_dir, "review-patch"),
+            },
+        },
+    )
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root["id"]}"]')
+    reply = thread.locator("leaf-text")
+    expect(reply).to_be_visible()
+    page.keyboard.press("l")
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+
+    # The control: a press on the diff's own file control is the mode's.
+    page.locator("#patch .lf-diff-file-comment").click()
+    expect(page.locator("#lf-composer-quote")).to_have_text(re.compile(r"^design · "))
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-composer")).to_be_hidden()
+
+    reply.click()
+    expect(reply).to_be_focused()
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    write(reply, "Covered now.")
+    with sending(page, "the reply from the seated thread"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert (sent["kind"], sent["parent"], sent["text"]) == (
+        "reply",
+        root["id"],
+        "Covered now.",
+    ), sent
 
 
 def test_design_mode_leaves_prose_to_the_selection(browser, serve):

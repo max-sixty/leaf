@@ -1406,9 +1406,11 @@ export function createResponseSurface({
       // extension both arrive here having just taken some without moving it at all.
       const words = pageSelection();
       if (words && words.toString() !== wordsAtPress) return;
-      // A plain click comments on the block it landed in.
+      // A plain click comments on the block it landed in. Read where it landed rather than
+      // at a widget host, since a Leaf surface the widget seats in its shadow tree answers
+      // for itself (design.js).
       if (designModeActive()) {
-        const target = designTarget(ev.target);
+        const target = designTarget(ev.composedPath()[0]);
         if (target) openOnDesign(target);
         return;
       }

@@ -4,7 +4,7 @@ import { bannerFoot, documentPoint, shownRect } from "./geometry.js";
 import { el, WORKS } from "./widget-elements.js";
 import { tabStore } from "./storage.js";
 import { isAddressable, ADDRESSABLE, addressableAt } from "./anchor-resolution.js";
-import { closestAcross, inChrome } from "./passages.js";
+import { closestAcross, inChrome, leafSurface } from "./passages.js";
 import { tagsDeclaring } from "./registry.js";
 import { designName, DESIGN_MODE_KEY } from "./design-readings.js";
 import { pageCommand, pageRung, pageScope } from "./keyboard/register.js";
@@ -236,14 +236,25 @@ export function createDesignMode({
   }
 
   // What a design press is about: the nearest addressable element, the same answer the ⌥
-  // aim gives; the item a margin entry stands for; or in the layer the nearest authored
-  // id, a widget an agent sent, whose module's generated parts wear the runtime's
-  // namespace and are passed over — and the control the press landed on where it landed
-  // on one, since "the grip" and "the card" are different remarks. Nothing on the rest of
-  // the chrome, which keeps working (the header above).
-  const authoredAt = (at) =>
-    marginTargetAt(at) ??
-    (inChrome(at) ? closestAcross(at, '[id]:not([id^="lf-"])') : addressableAt(at));
+  // aim gives; the item a margin entry stands for; or inside a Leaf surface the nearest
+  // authored id within it, a widget an agent sent, whose module's generated parts wear
+  // the runtime's namespace and are passed over — and the control the press landed on
+  // where it landed on one, since "the grip" and "the card" are different remarks.
+  // Nothing on the rest of a Leaf surface, which keeps working (the header above), even
+  // where its owner seated it inside a widget on the page. A margin entry answers only
+  // where it is nearer than the surface: a thread a diff seats in a line's margin row is
+  // the thread's, not the row's.
+  const MARGIN_ENTRY = ".lf-margin-entry, [data-lf-margin-for]";
+  function authoredAt(at) {
+    const surface = leafSurface(at);
+    const margin = closestAcross(at, MARGIN_ENTRY);
+    const standsFor =
+      margin && (!surface || under(margin, surface)) && marginTargetAt(at);
+    if (standsFor) return standsFor;
+    if (!surface) return addressableAt(at);
+    const authored = closestAcross(at, '[id]:not([id^="lf-"])');
+    return authored && under(authored, surface) ? authored : null;
+  }
   // Asked at use: widget-elements.js's selector reaches this module back through the
   // geometry helpers, so it is not readable as this module evaluates.
   const controls = () => `${WORKS},[data-lf-offer]`;
@@ -282,7 +293,7 @@ export function createDesignMode({
   function designPress(target) {
     const at = target?.nodeType === 1 ? target : target?.parentElement;
     if (!designModeOn || !at) return false;
-    return Boolean(inChrome(at) ? authoredAt(at) : closestAcross(at, PRESSED()));
+    return Boolean(leafSurface(at) ? authoredAt(at) : closestAcross(at, PRESSED()));
   }
 
   // The one way a design target becomes the composer's anchor: the element by id, and the

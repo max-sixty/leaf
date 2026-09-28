@@ -232,6 +232,14 @@ export const DATUM = "[data-lf-projection][data-lf-datum]";
 // the document, so a node inside a widget's shadow tree can only reach it by leaving the
 // tree, and a widget staged inside a reply would otherwise read as page content.
 export const inChrome = (node) => Boolean(node && closestAcross(node, ".lf-chrome"));
+// The Leaf surface a node stands in, wherever it is seated: the chrome root, or a
+// surface of the runtime's own that its owner seats inside page content — the response
+// bar in a widget's outlet, a thread a widget places beside its lines. Each such surface
+// marks itself `data-lf-runtime`, so the reading travels with the node rather than with
+// the place it stands. A press mode that comments on or chooses the page leaves these
+// working.
+export const leafSurface = (node) =>
+  node ? closestAcross(node, ".lf-chrome, [data-lf-runtime]") : null;
 // The two together, which is what an affordance acting on where the pointer or the caret
 // is actually needs: the page's own words, as against the layer over them and as against
 // the apparatus inside them. Either half alone leaves a hole, and the hole `.lf-ui` left

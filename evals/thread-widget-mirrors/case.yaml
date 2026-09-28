@@ -1,5 +1,6 @@
-# Added with package Thread views (#1288). The change passed 2 of 3; the third run's
-# final answer was an unrelated notice. Base result not recorded.
+# Added with package Thread views (#1288). Base at cb6de1f85 wrote no
+# `mountThreadViews` call (0 of 3); main at 0a9195539 3 of 3. The change itself
+# passed 2 of 3, the third run ending on an unrelated notice.
 schema_version: '1.0'
 name: thread-widget-mirrors
 description: "A package widget can render core Thread conversations in independent filtered views without taking their page placement."

@@ -10,13 +10,12 @@ delivery.
 
 Each title is one ephemeral App Server thread whose whole context is the message
 that opened the thread and a one-line instruction: none of the task's transcript,
-and none of what Codex loads by default that a title does not need, which is most
-of its input (`LEAN_CONFIG`). It runs on its own connection beside the delivery's
-turn and never delays it. On leaf.page's Codex and model (0.153.4, `gpt-5.6-luna`
-at low effort) a request reads about 1,900 input tokens, writes about 18, and
-answers in 3 s at the median, 2.5–9 s across nine requests. Codex's defaults took
-it to 13,000–15,000 input tokens, and with a shell the model sometimes acted on
-the message instead of naming it.
+and none of Codex's tools or the context it loads by default (`TITLE_CONFIG`). It
+runs on its own connection beside the delivery's turn and never delays it. On
+leaf.page's Codex and model (0.153.4, `gpt-5.6-luna` at low effort) a request
+reads about 1,900 input tokens, writes about 18, and answers in 3 s at the median,
+2.5–9 s across nine requests; Codex's defaults took it to 13,000–15,000 input
+tokens.
 
 The title is written as the session that holds the page's claim, and only while
 the thread is still untitled, so an agent that named it first keeps its name. A
@@ -29,7 +28,12 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from .codex import app_server_connect, app_server_handshake, app_server_request
+from .codex import (
+    LEAF_THREAD_CONFIG,
+    app_server_connect,
+    app_server_handshake,
+    app_server_request,
+)
 from .event_contracts import append_admitted
 from .service import PageTransaction
 
@@ -48,38 +52,27 @@ OUTPUT_SCHEMA = {
 EFFORT = "low"
 # Past this the thread keeps its placeholder rather than holding a connection open.
 TIMEOUT = 60
-# What a Codex thread loads by default and a title does not need: its tools, skills,
-# plugins, memories and the working directory's AGENTS.md. Left in, they are most of
-# the request's input, and a shell lets the model act on a message that asks for
-# work instead of naming it.
-LEAN_CONFIG = {
+# A title needs no tools either, and the working directory's AGENTS.md says nothing
+# about one. With a shell, the model sometimes acted on a message that asks for work
+# instead of naming it.
+TITLE_CONFIG = {
+    **LEAF_THREAD_CONFIG,
     "features": {
-        feature: False
-        for feature in (
-            "apps",
-            "browser_use",
-            "code_mode_host",
-            "computer_use",
-            "goals",
-            "image_generation",
-            "in_app_browser",
-            "memories",
-            "multi_agent",
-            "plugins",
-            "shell_tool",
-            "skill_mcp_dependency_install",
-            "skill_search",
-            "sleep_tool",
-            "tool_suggest",
-            "unified_exec",
-            "view_image",
-            "workspace_dependencies",
-        )
+        **LEAF_THREAD_CONFIG["features"],
+        **{
+            feature: False
+            for feature in (
+                "code_mode_host",
+                "shell_tool",
+                "sleep_tool",
+                "unified_exec",
+                "view_image",
+            )
+        },
     },
     "include_apply_patch_tool": False,
     "project_doc_max_bytes": 0,
-    "skills": {"include_instructions": False},
-    "web_search": "disabled",
+    "model_reasoning_effort": EFFORT,
 }
 
 Record = Callable[..., None]
@@ -139,7 +132,7 @@ def generate_title(endpoint: str, subject: str, model: str | None) -> dict:
                 "approvalPolicy": "never",
                 "sandbox": "read-only",
                 "baseInstructions": INSTRUCTIONS,
-                "config": {**LEAN_CONFIG, "model_reasoning_effort": EFFORT},
+                "config": TITLE_CONFIG,
             },
         )
         thread_id = thread["thread"]["id"]

@@ -28,6 +28,7 @@ from pathlib import Path
 # one binding: whatever takes a turn's readings there takes the host's too.
 from leaf import codex
 from leaf.codex import (
+    LEAF_THREAD_CONFIG,
     CarriedTurn,
     abandon_codex_delivery,
     app_server_connect,
@@ -1101,7 +1102,7 @@ class WebsiteCodexHost:
                 # kernel does not permit Codex's nested bubblewrap namespaces.
                 "sandbox": "danger-full-access",
                 "developerInstructions": CODEX_INSTRUCTIONS,
-                "config": {"model_reasoning_effort": "low"},
+                "config": {**LEAF_THREAD_CONFIG, "model_reasoning_effort": "low"},
             },
             attach,
         )

@@ -150,6 +150,9 @@ export function createTrays({
       // Asks needs the document beside it because its rows lead to controls there.
       // Leaves covers it: its rows leave the page.
       beside: key === "asks",
+      // Every tray list ends above the bottom band, which stands over the tray in
+      // both postures.
+      underBand: true,
       focus: () =>
         panel.querySelector(".lf-tray-list button, .lf-tray-list a[href]") ?? panel,
       arrival: "presentation",

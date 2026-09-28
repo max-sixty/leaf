@@ -212,6 +212,7 @@ let goToSequence;
 
 const auxiliarySurfaces = createAuxiliarySurfaces({
   chromeRoot,
+  band: shortcutBarEl,
   syncLayout: () => layout.syncLayout(),
   afterChange: () => {
     app.margin.renderMargin();

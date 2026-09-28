@@ -1623,8 +1623,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      Useful transient state — a semantic walk's live ordinal, or a brief command or
      arrival notice in its place — stands at the band's other end, over the line's tail
      where the two would meet. syncLayout keeps the band out of the thread panel, which
-     stands over the page's right edge. A covering auxiliary surface makes it inert
-     background. A line whose rows need more than one row wraps, whatever put them there: one
+     stands over the page's right edge. A covering thread panel makes it inert
+     background; a covering tray stands under it, as a tray always does. A line whose rows need more than one row wraps, whatever put them there: one
      row fills the band's stated height exactly, and each further row grows the line
      upward. The rows pack to the foot, and the foot's padding centres a row of key
      badges in the band, so the last row stands where a one-row line does, level with
@@ -1640,6 +1640,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     color: var(--muted); font-size: var(--t-6);
     background: var(--veil); backdrop-filter: blur(6px); border-top: 1px solid var(--rule);
     overflow: hidden; white-space: nowrap; }
+  /* A tray stands under the band in both postures, its list ending above the band's
+     height. Where the Leaves tray, or the Asks tray on a narrow window, covers the page,
+     the band stays over it and its scrim, the guide to the keys the tray answers, rather
+     than going under them with the page (auxiliary-surfaces.js). */
+  .lf-shortcut-bar[data-lf-over-covering] { z-index: var(--lf-z-covering-band); }
   .lf-bottom-status { position: fixed;
     right: calc(18px + var(--lf-safe-right) + var(--lf-shortcut-bar-right, 0px));
     /* Centred on the band's row whatever the status holds. */

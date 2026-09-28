@@ -2866,6 +2866,51 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     expect(btn).to_have_text("All leaves (2)")
 
 
+def test_the_band_stays_over_the_covering_leaves_tray(browser, serve, other_leaf):
+    """A tray stands under the bottom band, its list ending above the band's height, and
+    the Leaves tray, which always covers the page, is no exception: the band states the
+    keys the tray answers and stays over it and its scrim, its More control live. The
+    covering tray used to stand over the band, hiding the hints it painted for the tray
+    ("open it in a tab", "close leaves") under the tray and the scrim, where the Asks
+    tray, standing beside the page, left them in view."""
+    page = open_page(browser, serve(LONG_PAGE))
+    resized(page, 1440, 900)
+    expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+l")
+    tray = page.locator(".lf-others-panel")
+    expect(tray).to_have_attribute("aria-modal", "true")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("close leaves")
+    reading = page.evaluate(
+        """() => {
+          const band = document.querySelector('.lf-shortcut-bar');
+          const more = band.querySelector('.lf-shortcut-more');
+          const box = more.getBoundingClientRect();
+          const hit = document.elementFromPoint(box.x + box.width / 2,
+                                                box.y + box.height / 2);
+          const z = (selector) =>
+            Number(getComputedStyle(document.querySelector(selector)).zIndex);
+          const tray = document.querySelector('.lf-others-panel').getBoundingClientRect();
+          const line = band.getBoundingClientRect();
+          return {more: more.contains(hit), inert: Boolean(band.closest('[inert]')),
+                  over: z('.lf-shortcut-bar') > Math.max(
+                    z('.lf-others-panel'), z('.lf-auxiliary-scrim')),
+                  meets: line.top < tray.bottom && line.left < tray.right};
+        }"""
+    )
+    assert reading == {
+        "more": True,
+        "inert": False,
+        "over": True,
+        "meets": True,
+    }, reading
+    page.keyboard.press("Escape")
+    expect(tray).not_to_be_visible()
+    expect(page.locator(".lf-shortcut-bar")).not_to_have_attribute(
+        "data-lf-over-covering", ""
+    )
+
+
 def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
     browser, serve, other_leaf
 ):

@@ -132,8 +132,6 @@ and its chrome coordinate.
   a cold agent asked for "a dashboard", the likeliest trigger for over-tiling. Run it
   with the agent-usability baseline (#19), by extending the
   [arrangement eval](notes/arrangement-eval/README.md).
-- **Balance a tile row.** `.layout-tiles` wraps four metrics 3 + 1 where four don't
-  fit (live-progress at 480–647px), as `lf-grid` did.
 - **Fit an Ask and what it turns on into one window.** `a` puts an Ask's heading at
   the top, and `authoring-asks.md` has the `lf-ask` hold its premise and evidence,
   but stacked they often outrun the window: on a findings page one Ask with its

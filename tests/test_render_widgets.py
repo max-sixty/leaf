@@ -10637,6 +10637,74 @@ def test_a_phone_can_wrap_diff_lines_by_tapping_the_label(iphone, serve):
     expect(line).to_have_css("white-space", "pre")
 
 
+def test_a_phone_wraps_a_long_diff_path_after_its_slashes_beside_the_triangle(
+    iphone, serve
+):
+    """A file's header on a phone, with the review press beside it. The triangle stood
+    alone on the first line and the path wrapped below it, back to the header's left
+    edge, because the triangle was the line's first word and the path had no break in
+    it but the ones `overflow-wrap` forces; and a padding held the press's column open
+    down the whole header, so those forced breaks cut names mid-word
+    ("skills/wor|ktrunk"). The path now starts on the triangle's line, every line of
+    it starts at one left edge, and each break falls after a slash."""
+    path = "plugins/worktrunk/skills/worktrunk/reference/config.md"
+    patch = (
+        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+    )
+    page = open_page(
+        None,
+        serve(
+            leaf_page(
+                "Phone header",
+                '<h1>Review</h1><lf-diff id="patch" review><pre>'
+                + patch
+                + "</pre></lf-diff>",
+            )
+        ),
+        context=iphone,
+    )
+    page.wait_for_function("() => document.querySelector('lf-diff.lf-rendered')")
+    lines = page.evaluate(
+        """() => {
+        const head = document.querySelector('lf-diff').shadowRoot
+            .querySelector('summary');
+        const text = head.querySelector('.lf-diff-path');
+        const range = document.createRange();
+        const lines = [];
+        for (const node of text.childNodes) {
+            if (node.nodeType !== Node.TEXT_NODE) continue;
+            for (let i = 0; i < node.length; i++) {
+                range.setStart(node, i);
+                range.setEnd(node, i + 1);
+                const box = range.getBoundingClientRect();
+                const last = lines.at(-1);
+                if (last && Math.abs(box.top - last.top) < 2) last.text += node.data[i];
+                else lines.push({ top: box.top, left: Math.round(box.left),
+                                  text: node.data[i] });
+            }
+        }
+        const s = getComputedStyle(head);
+        return { lines, contentTop: head.getBoundingClientRect().top
+                   + parseFloat(s.borderTopWidth) + parseFloat(s.paddingTop) };
+    }"""
+    )
+    rows = lines["lines"]
+    assert len(rows) > 1, f"the path fits one line, so nothing wrapped: {rows}"
+    assert rows[0]["top"] - lines["contentTop"] < 8, (
+        f"the path did not start on the triangle's line: {lines}"
+    )
+    # To a pixel: the first line is drawn back by the triangle's width, which the
+    # engine's font sets.
+    lefts = [row["left"] for row in rows]
+    assert max(lefts) - min(lefts) <= 1, (
+        f"a wrapped line of the path does not start where its first line does: {rows}"
+    )
+    assert all(row["text"].endswith("/") for row in rows[:-1]), (
+        f"the path broke inside a name: {[row['text'] for row in rows]}"
+    )
+
+
 # A page-authored driver that points at a code block's lines through its declared `for`,
 # from its first connection, before the block's lazy tokenizer has put any line in.
 POINTER_REGISTRY = {

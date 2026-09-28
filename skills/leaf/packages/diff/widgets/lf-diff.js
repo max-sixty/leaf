@@ -185,6 +185,19 @@ function renderedLines(file, rendered) {
   });
 }
 
+// A path breaks after its slashes before anywhere else: with no break in it but the one
+// the stylesheet forces, a narrow header cut names mid-word ("skills/wor|ktrunk",
+// "preview.|rs"). The text is unchanged; a <wbr> adds only the opportunity.
+function pathNode(className, path) {
+  const node = Object.assign(document.createElement("span"), { className });
+  const parts = path.split("/");
+  parts.forEach((part, index) => {
+    node.append(index < parts.length - 1 ? `${part}/` : part);
+    if (index < parts.length - 1) node.append(document.createElement("wbr"));
+  });
+  return node;
+}
+
 function summaryNode(file, open) {
   const details = document.createElement("details");
   details.className = "lf-diff-fold";
@@ -198,13 +211,7 @@ function summaryNode(file, open) {
     textContent: `+${adds} −${dels}`,
   });
   stat.dataset.lfGen = "1";
-  summary.append(
-    Object.assign(document.createElement("span"), {
-      className: "lf-diff-path",
-      textContent: path,
-    }),
-    stat,
-  );
+  summary.append(pathNode("lf-diff-path", path), stat);
   commands(summary, "On a diff", [
     {
       id: "diff.toggle",
@@ -302,18 +309,12 @@ function renameNode(file) {
   row.className = "lf-diff-rename";
   row.dataset.lfGen = "1";
   row.append(
-    Object.assign(document.createElement("span"), {
-      className: "lf-diff-path lf-diff-before",
-      textContent: file.prevName,
-    }),
+    pathNode("lf-diff-path lf-diff-before", file.prevName),
     Object.assign(document.createElement("span"), {
       className: "lf-diff-arrow",
       textContent: " → ",
     }),
-    Object.assign(document.createElement("span"), {
-      className: "lf-diff-path lf-diff-after",
-      textContent: file.name,
-    }),
+    pathNode("lf-diff-path lf-diff-after", file.name),
     Object.assign(document.createElement("span"), {
       className: "lf-diff-stat",
       textContent: "renamed",

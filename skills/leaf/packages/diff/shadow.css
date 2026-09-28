@@ -19,20 +19,37 @@
 :host(.lf-rendered) .lf-diff-rename { padding: 7px 10px; font-size: var(--t-5);
                                      font-family: var(--sans); color: var(--code-ink);
                                      background: var(--code-chrome); }
-/* The press is out of the summary's flow, so that line holds a column open for it and a
-   long path wraps above it rather than running underneath, and reaches at least as far
-   down as the bar's foot. A path sets the line at 35px, which already clears a mouse's
-   bar; under a finger the bar is the taller and the line follows it rather than letting
-   it hang over the first row of the patch. */
+/* The disclosure's triangle hangs in a column of its own, and a path too long for the
+   line wraps beside it rather than back under it to the header's left edge: a hanging
+   indent, the first line drawn back by the triangle's own width. An outside marker would
+   say the same thing, but it stands outside the summary's box, where the file's clip
+   cuts it away. */
+:host(.lf-rendered) :where(.lf-diff-file) > details > summary {
+                                     padding-left: 25px; text-indent: -15px; }
+/* The press is out of the summary's flow, so the line reaches at least as far down as
+   the bar's foot. A path sets the line at 35px, which already clears a mouse's bar;
+   under a finger the bar is the taller and the line follows it rather than letting it
+   hang over the first row of the patch. */
 .lf-diff-file:has(> .lf-diff-file-actions > *) > .lf-diff-fold > .lf-diff-head,
 .lf-diff-file:has(> .lf-diff-file-actions > *) .lf-diff-rename {
                                      box-sizing: border-box;
                                      min-height: calc(var(--lf-diff-action-top)
-                                                      + var(--lf-diff-action-h));
-                                     /* The bar's 11px inset less the 1px border it
-                                        stands inside, and 14px between a path and the
-                                        presses. */
-                                     padding-right: calc(var(--lf-diff-actions) + 24px); }
+                                                      + var(--lf-diff-action-h)); }
+/* And the bar's room is taken only beside the bar: a float as wide and as tall as it,
+   so a long path wraps before the presses and then takes the header's whole width
+   under them. A padding held the column open down the whole header, which on a phone
+   left a path with a review press beside it 80px on every line. The width is the bar's
+   11px inset less the 1px border it stands inside and the header's own 10px padding,
+   and 14px between a path and the presses; the height runs from the header's content
+   edge (the border and 7px padding) to the bar's foot, less the 4px of leading above a
+   line's ink, so the line whose ink starts under the bar takes the full width: held to
+   the foot, a path beside a review press on a phone took three lines rather than two. */
+.lf-diff-file:has(> .lf-diff-file-actions > *) > .lf-diff-fold > .lf-diff-head::before,
+.lf-diff-file:has(> .lf-diff-file-actions > *) .lf-diff-rename::before {
+                                     content: ""; float: right;
+                                     width: calc(var(--lf-diff-actions) + 14px);
+                                     height: calc(var(--lf-diff-action-top)
+                                                  + var(--lf-diff-action-h) - 12px); }
 .lf-diff-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
                  margin: 8px 0; padding: 8px 10px; border: 1px solid var(--code-border);
                  border-radius: var(--r); background: var(--code-chrome);
@@ -306,8 +323,8 @@
   .lf-diff-review:not([data-lf-said]) { display: none !important; }
   .lf-diff-file:not(:has([data-lf-said])) > .lf-diff-file-actions {
                           display: none !important; }
-  .lf-diff-file:not(:has([data-lf-said])) > .lf-diff-fold > .lf-diff-head,
-  .lf-diff-file:not(:has([data-lf-said])) .lf-diff-rename { padding-right: 10px; }
+  .lf-diff-file:not(:has([data-lf-said])) > .lf-diff-fold > .lf-diff-head::before,
+  .lf-diff-file:not(:has([data-lf-said])) .lf-diff-rename::before { display: none; }
   /* The row's pull (above) takes back the press's height, and the press an unreviewed
      file's row is pulled over is gone here: a hidden box has no margins, so a pull on
      the press left with it, but :has() still matches the hidden press, so a pull on the

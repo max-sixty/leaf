@@ -62,9 +62,9 @@ subpackage's initializer is only a marker, never a second API.
 
 Within `registry/`, `contract` owns shared schema helpers, `kernel` the fixed
 kernel event contract, `layer`, `widgets`, and `state` own their vocabulary
-contracts, `validation` composes those gates, `page`
-composes page-owned declarations and provenance, `storage` owns the vendored-file
-cache, and `reactions` owns reaction descriptions.
+contracts, `validation` composes those gates, `page` composes page-owned
+declarations and provenance, `storage` owns the vendored-file cache, and
+`reactions` owns reaction descriptions.
 
 Within `served_state/`, `wire` serializes one declared fold, `thread` and `document`
 own their scoped readings, `browser` assembles the requested views, `page` composes

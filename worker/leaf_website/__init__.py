@@ -434,6 +434,10 @@ class HostedTurn(CarriedTurn):
         self.fault: dict | None = None
         self.started = time.monotonic()
         self.milestones: set[str] = set()
+        # What the turn's model requests read and wrote, summed over the requests.
+        self.tokens = dict.fromkeys(
+            ("modelRequests", "inputTokens", "cachedInputTokens", "outputTokens"), 0
+        )
 
     def elapsed(self) -> int:
         return round((time.monotonic() - self.started) * 1000)
@@ -471,6 +475,11 @@ class HostedTurn(CarriedTurn):
 
     def observe(self, message: dict, update: dict | None) -> None:
         """Record what one notification said, before its readings reach the page."""
+        if message.get("method") == "thread/tokenUsage/updated":
+            request = message["params"]["tokenUsage"]["last"]
+            self.tokens["modelRequests"] += 1
+            for field in ("inputTokens", "cachedInputTokens", "outputTokens"):
+                self.tokens[field] += request[field]
         self.milestone(
             "turn_first_notification",
             durationMs=self.elapsed(),
@@ -538,6 +547,7 @@ class HostedTurn(CarriedTurn):
             "turn_stream_completed",
             durationMs=self.elapsed(),
             status=terminal.get("status"),
+            **self.tokens,
             **(self.fault or terminal_fault(terminal)),
         )
         with self.host.lock:

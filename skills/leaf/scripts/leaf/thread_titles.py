@@ -206,6 +206,9 @@ def app_server_title(endpoint: str, model: str | None) -> Generate:
                     "cwd": str(page_dir),
                     "ephemeral": True,
                     "approvalPolicy": "never",
+                    # A sandbox confines only the tools a turn runs, and this one
+                    # has none, so the request also works where Codex cannot start
+                    # one, as in the website's container.
                     "sandbox": "read-only",
                     "baseInstructions": INSTRUCTIONS,
                     "config": {

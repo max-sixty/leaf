@@ -119,7 +119,8 @@
         {
           "when": {
             "required": [
-              "thread"
+              "thread",
+              "answer"
             ],
             "properties": {
               "thread": {
@@ -131,12 +132,14 @@
                     "type": "null"
                   }
                 }
+              },
+              "answer": {
+                "properties": {
+                  "kind": {
+                    "const": "reply"
+                  }
+                }
               }
-            },
-            "not": {
-              "required": [
-                "token"
-              ]
             }
           },
           "text": "This event's thread has no title yet: name it by adding `--title \"<a few words>\"` to the reply that answers it, so the thread panel lists its subject rather than its opening words."
@@ -177,7 +180,8 @@
         {
           "when": {
             "required": [
-              "thread"
+              "thread",
+              "answer"
             ],
             "properties": {
               "thread": {
@@ -189,12 +193,14 @@
                     "type": "null"
                   }
                 }
+              },
+              "answer": {
+                "properties": {
+                  "kind": {
+                    "const": "reply"
+                  }
+                }
               }
-            },
-            "not": {
-              "required": [
-                "token"
-              ]
             }
           },
           "text": "This event's thread has no title yet: name it by adding `--title \"<a few words>\"` to the reply that answers it, so the thread panel lists its subject rather than its opening words."

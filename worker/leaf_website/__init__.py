@@ -28,6 +28,7 @@ from pathlib import Path
 # one binding: whatever takes a turn's readings there takes the host's too.
 from leaf import codex
 from leaf.codex import (
+    LEAF_THREAD_CONFIG,
     CarriedTurn,
     abandon_codex_delivery,
     app_server_connect,
@@ -40,6 +41,7 @@ from leaf.codex import (
     stop_app_server,
     stream_reply_target,
 )
+from leaf.codex_titles import name_untitled_threads
 from leaf.delivery import read_delivery
 from leaf.host import EmbeddedHarness
 from leaf.hosting import LeafHTTPServer
@@ -65,6 +67,8 @@ from leaf.thread import (
 from starlette.responses import Response
 
 PORT = 8080
+# The model every hosted task runs on, and the one its threads are titled with.
+HOSTED_MODEL = "gpt-5.6-luna"
 WEBSITE_AGENT = "The agent"
 WEBSITE_AGENT_SESSION = "leaf-website-agent"
 
@@ -431,6 +435,10 @@ class HostedTurn(CarriedTurn):
         self.fault: dict | None = None
         self.started = time.monotonic()
         self.milestones: set[str] = set()
+        # What the turn's model requests read and wrote, summed over the requests.
+        self.tokens = dict.fromkeys(
+            ("modelRequests", "inputTokens", "cachedInputTokens", "outputTokens"), 0
+        )
 
     def elapsed(self) -> int:
         return round((time.monotonic() - self.started) * 1000)
@@ -468,6 +476,11 @@ class HostedTurn(CarriedTurn):
 
     def observe(self, message: dict, update: dict | None) -> None:
         """Record what one notification said, before its readings reach the page."""
+        if message.get("method") == "thread/tokenUsage/updated":
+            request = message["params"]["tokenUsage"]["last"]
+            self.tokens["modelRequests"] += 1
+            for field in ("inputTokens", "cachedInputTokens", "outputTokens"):
+                self.tokens[field] += request[field]
         self.milestone(
             "turn_first_notification",
             durationMs=self.elapsed(),
@@ -535,6 +548,7 @@ class HostedTurn(CarriedTurn):
             "turn_stream_completed",
             durationMs=self.elapsed(),
             status=terminal.get("status"),
+            **self.tokens,
             **(self.fault or terminal_fault(terminal)),
         )
         with self.host.lock:
@@ -984,6 +998,9 @@ class WebsiteCodexHost:
             turnId=turn_id,
             durationMs=round((time.monotonic() - started) * 1000),
         )
+        name_untitled_threads(
+            self.endpoint, prepared.payload, thread_id, HOSTED_MODEL, log_agent
+        )
         # App Server answered for the turn it made from this delivery, so the follower
         # knows which turn is its own before it reads anything. The answer names a turn
         # of this delivery's rather than another request's because `turn/start` steers
@@ -1078,14 +1095,14 @@ class WebsiteCodexHost:
         result = self._request(
             "thread/start",
             {
-                "model": "gpt-5.6-luna",
+                "model": HOSTED_MODEL,
                 "cwd": str(page_dir),
                 "approvalPolicy": "never",
                 # The outer Cloudflare Container is the per-user VM sandbox. Its
                 # kernel does not permit Codex's nested bubblewrap namespaces.
                 "sandbox": "danger-full-access",
                 "developerInstructions": CODEX_INSTRUCTIONS,
-                "config": {"model_reasoning_effort": "low"},
+                "config": {**LEAF_THREAD_CONFIG, "model_reasoning_effort": "low"},
             },
             attach,
         )

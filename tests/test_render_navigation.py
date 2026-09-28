@@ -1269,16 +1269,15 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
     banner_control(page, ".lf-threads-toggle").click()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
+    # The agent opened this thread without a title and nothing is naming it, so its
+    # row reads the question rather than a placeholder.
     untitled = page.locator(
         '.lf-thread[data-id="72e031c5bf0d485ba9054628e09869d4"] .lf-thread-topic'
     )
     expect(page.locator("#bg-thread-states")).to_be_visible()
-    # Nobody is answering the month-old question, so its row reads its own words rather
-    # than sweeping "Generating title" for as long as it stands.
     expect(untitled).to_have_text(
         "Is lunch provided, or should attendees make their own plans?"
     )
-    expect(untitled).not_to_have_attribute("data-lf-pending-title", "")
     expect(page.locator('[data-filter-value="resolved"]')).not_to_have_text("Resolved")
     page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()

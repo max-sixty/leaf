@@ -17,10 +17,11 @@ has tried; settle that before building it.
   behavior.
 - **Keep the Thread hierarchy clear.** Check context, search, filters, agent
   activity, selection, and reply editing in the implemented accordion.
-- **Name a new Thread promptly.** Generate a short title from the first user
-  message with a lightweight model request that excludes the full agent context.
-  Measure the request's input tokens and latency; keep the subdued pulsing ellipsis
-  until the title arrives.
+- **Name a new Thread promptly everywhere.** An App Server carrier (leaf.page and
+  `leaf codex start`) now titles a thread from its opening message in about 3 s
+  (`codex_titles`). Every other carrier still titles on the agent's reply, so a
+  Claude Code thread reads "Generating title" for as long as the work takes; give
+  those carriers the same lightweight request.
 - **Keep a long Thread's standing visible.** Let the agent maintain one line at the
   head of a Thread saying what is decided and what remains open, so a user
   returning to a long discussion knows where it stands before reading it. Decide

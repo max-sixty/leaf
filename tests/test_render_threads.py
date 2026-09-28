@@ -1486,7 +1486,9 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
         "src", "/media/051bee487bfb5d13.png"
     )
     assert page.url == url_before
-    viewer.get_by_role("button", name="Close", exact=True).click()
+    close = viewer.get_by_role("button", name="Close image preview", exact=True)
+    expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
+    close.click()
     expect(viewer).to_be_hidden()
     expect(media_open).to_be_focused()
     media_open.click()

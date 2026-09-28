@@ -1,7 +1,7 @@
 /* Tray DOM and readonly visibility are safe to import before browser boot.
  * createTrays binds modality transitions to explicit commands and paint functions;
  * mountTrays installs the controls only after chrome has been attached. */
-import { el } from "./widget-elements.js";
+import { closeControl, el } from "./widget-elements.js";
 import { drawnEdge } from "./drawn-edge.js";
 import { slide } from "./motion.js";
 import { declareOccluder } from "./geometry.js";
@@ -12,7 +12,6 @@ import { pageRung } from "./keyboard/register.js";
 import { pagePresented } from "./presentation.js";
 import { allAsks } from "./asks/model.js";
 import { rowWalk } from "./walk-position.js";
-import { iconElement } from "./icons.js";
 import { createLiveLeavesList } from "./live-leaves-list.js";
 import { bannerControlDoor, dismissBannerControls } from "./banner-shelf.js";
 import { createAskTrayList } from "./asks/tray-list.js";
@@ -60,10 +59,10 @@ export const TRAY_SLOT_PROP = "--lf-tray-slot-width";
 function trayFurniture(panel, name, list = el("div", "lf-tray-list")) {
   const head = el("div", "lf-tray-head");
   const title = el("span", "lf-auxiliary-title", name);
-  const close = el("button", "lf-btn lf-icon-action lf-close-action");
-  close.append(iconElement("cross", "lf-action-icon"));
-  close.title = `Close ${name.toLowerCase()} (Esc)`;
-  close.setAttribute("aria-label", `Close ${name.toLowerCase()}`);
+  const close = closeControl({
+    name: `Close ${name.toLowerCase()}`,
+    title: `Close ${name.toLowerCase()} (Esc)`,
+  });
   list.classList.add("lf-tray-list");
   head.append(title, close);
   panel.append(head, list);

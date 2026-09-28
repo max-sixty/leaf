@@ -38,7 +38,7 @@ import {
   neutralStates,
 } from "./presentation.js";
 import { handBack, tabStops } from "../focus.js";
-import { el, keeps } from "../widget-elements.js";
+import { closeControl, keeps } from "../widget-elements.js";
 import { ELEMENTS, pageScope, pageScopes } from "./register.js";
 import { EVERYTHING } from "./text-entry.js";
 import {
@@ -65,15 +65,17 @@ commandReferenceDialog.setAttribute("aria-modal", "true");
 // Focused on open, so the dialog is not silent to a screen reader.
 commandReferenceDialog.tabIndex = -1;
 
-// Page-key presentation owns this retained native control's changing words and shortcut
+// Page-key presentation owns this retained native control's changing name and shortcut
 // metadata. The reference template only seats it.
-export const commandReferenceClose = el("button", "lf-btn lf-command-reference-close");
-commandReferenceClose.type = "button";
+export const commandReferenceClose = closeControl({
+  name: "Close the command reference",
+  className: "lf-command-reference-close",
+});
 
 // What the user is sent back to when the reference closes. The shortcut shelf is the one
 // surface that can stand behind it, and it declares itself here rather than being read from
 // here: the bar that owns the shelf already reads this module, so the edge only goes one
-// way. The close control's words and its Escape row read this one answer, so the button and
+// way. The close control's name and its Escape row read this one answer, so the button and
 // the key cannot promise different destinations.
 let shelfBehindReference = () => false;
 export const declareShelfBehindReference = (reading) => {
@@ -81,12 +83,9 @@ export const declareShelfBehindReference = (reading) => {
 };
 
 function presentCommandReferenceClose() {
-  const returningToMore = Boolean(shelfBehindReference());
-  const label = returningToMore ? "Back to more shortcuts" : "Close";
-  const title = returningToMore
+  const title = shelfBehindReference()
     ? "Back to more shortcuts"
     : "Close the command reference";
-  render(label, commandReferenceClose);
   keeps(commandReferenceClose, "data-lf-key-title", title);
   keeps(commandReferenceClose, "aria-label", title);
 }

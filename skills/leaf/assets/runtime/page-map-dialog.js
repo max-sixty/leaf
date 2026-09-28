@@ -29,7 +29,7 @@ import { iconTemplate } from "./icons.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { coarsePointer } from "./pointer.js";
 import { rowWalk } from "./walk-position.js";
-import { el, keepsText, offer } from "./widget-elements.js";
+import { closeControl, el, keepsText, offer } from "./widget-elements.js";
 import { placeKeeper } from "./user-place.js";
 import {
   BANNER_CONTROL_RANK,
@@ -65,8 +65,10 @@ dialog.setAttribute("aria-label", "Page Map");
 dialog.setAttribute("aria-modal", "true");
 const dialogHead = el("div", "lf-page-map-head");
 dialogHead.append(el("strong", "", "Page Map"));
-const dialogClose = el("button", "lf-btn", "Close");
-dialogClose.type = "button";
+const dialogClose = closeControl({
+  name: "Close Page Map",
+  title: "Close Page Map (Esc)",
+});
 dialogHead.append(dialogClose);
 const dialogSearch = offer("wa-input", "lf-page-map-search lf-label-hidden");
 dialogSearch.type = "search";

@@ -598,6 +598,21 @@ const reservedFaces = sizeObserver(() => {
       reserve(control, labels);
 });
 
+// Every surface that closes wears one control for it: the cross, named for what it
+// closes, since the glyph alone says only "close". `name` is the accessible name, such
+// as "Close threads"; `title` is the hover's, which says the key where one closes it too.
+export function closeControl({ name, title = name, className = "" }) {
+  const control = el(
+    "button",
+    `lf-btn lf-icon-action lf-close-action ${className}`.trim(),
+  );
+  control.type = "button";
+  control.append(iconElement("cross", "lf-action-icon"));
+  control.setAttribute("aria-label", name);
+  control.title = title;
+  return control;
+}
+
 // The anchored response bar has one control grammar of its own. Its buttons share the
 // field's type, border, height, and floating elevation without claiming to be target-
 // margin entries. The repeated anatomy lets Comment, Suggest, and package reactions

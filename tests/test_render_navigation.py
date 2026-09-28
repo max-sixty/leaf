@@ -1346,7 +1346,10 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     sheet = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(sheet).to_be_visible()
     header = sheet.locator(".lf-page-map-head")
-    close = header.get_by_role("button", name="Close", exact=True)
+    # The one close control every surface wears: the cross, named for what it closes.
+    close = header.get_by_role("button", name="Close Page Map", exact=True)
+    expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
+    expect(close).to_have_text("")
     header_box, close_box = header.bounding_box(), close.bounding_box()
     assert header_box and close_box
     assert close_box["x"] + close_box["width"] == pytest.approx(
@@ -6488,6 +6491,7 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     help_el = page.locator(".lf-command-reference")
     close = page.get_by_role("button", name="Back to more shortcuts")
     expect(close).to_be_visible()
+    expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
     for command in [
         "test.projected-only",
         "response.reaction.choose",

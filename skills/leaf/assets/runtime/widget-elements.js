@@ -563,6 +563,7 @@ export function reserve(control, labels) {
   control.style.cssText = stood.css;
   control.style.minWidth = Math.ceil(widest) + "px";
   restoreFocus?.();
+  forgetDetached();
   reservations.set(control, { labels, face: reservedFace(control) });
   reservedFaces.observe(document.documentElement);
 }
@@ -578,12 +579,23 @@ const reservedFace = (control) => {
     style.borderInlineEndWidth,
   ].join("|");
 };
+// A control swapped out of the document leaves with the next reservation rather than
+// waiting on a resize: the playground replaces its copy trigger on every instruction.
 const reservations = new Map();
-const reservedFaces = sizeObserver(() => {
-  for (const [control, { labels, face }] of reservations) {
+function forgetDetached() {
+  for (const control of reservations.keys())
     if (!control.isConnected) reservations.delete(control);
-    else if (reservedFace(control) !== face) reserve(control, labels);
-  }
+}
+// A control an undrawn ancestor holds would measure zero and keep it as its floor, so
+// it waits, still holding the face it was measured in, for a resize that draws it.
+const reservedFaces = sizeObserver(() => {
+  forgetDetached();
+  for (const [control, { labels, face }] of reservations)
+    if (
+      control.parentElement?.getClientRects().length &&
+      reservedFace(control) !== face
+    )
+      reserve(control, labels);
 });
 
 // The anchored response bar has one control grammar of its own. Its buttons share the

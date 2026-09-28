@@ -525,6 +525,13 @@ export function relabel(node, label, { says } = {}) {
 // needs — where out of flow it is simply obeyed, and the widest word then measures as
 // whatever padding the control has.
 //
+// The floor holds the words and the face they were measured in, the control's padding
+// and border among it, and a face can change without the words doing so: the banner's
+// primary controls take a narrower inset in the phone band than on a desk, and a floor
+// measured on one side of that line held the other side's room. So each reservation
+// keeps its words and the face it was taken in, and when the window's size changes a
+// control whose face has changed since measures its words again.
+//
 // What it cannot stand out of is an ancestor that isn't drawn: display: none upward is
 // nobody's box, and every word measures zero there. A control whose ancestors may be
 // undrawn — anything a widget builds, since a widget upgrades wherever the runtime
@@ -556,7 +563,28 @@ export function reserve(control, labels) {
   control.style.cssText = stood.css;
   control.style.minWidth = Math.ceil(widest) + "px";
   restoreFocus?.();
+  reservations.set(control, { labels, face: reservedFace(control) });
+  reservedFaces.observe(document.documentElement);
 }
+
+// What of a control's computed face a reserved floor was measured in.
+const reservedFace = (control) => {
+  const style = getComputedStyle(control);
+  return [
+    style.font,
+    style.letterSpacing,
+    style.paddingInline,
+    style.borderInlineStartWidth,
+    style.borderInlineEndWidth,
+  ].join("|");
+};
+const reservations = new Map();
+const reservedFaces = sizeObserver(() => {
+  for (const [control, { labels, face }] of reservations) {
+    if (!control.isConnected) reservations.delete(control);
+    else if (reservedFace(control) !== face) reserve(control, labels);
+  }
+});
 
 // The anchored response bar has one control grammar of its own. Its buttons share the
 // field's type, border, height, and floating elevation without claiming to be target-

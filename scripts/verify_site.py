@@ -714,7 +714,7 @@ def print_agent_profile(profile: AgentProfile) -> None:
     for at, kind, detail in profile.activities:
         description = f": {detail}" if detail else ""
         print(f"  activity {kind}{description} at {elapsed_time(at)}", file=sys.stderr)
-    for name in ("published", "response visible", "replied", "answered"):
+    for name in ("titled", "published", "response visible", "replied", "answered"):
         if name in profile.milestones:
             print(
                 f"  {name} at {elapsed_time(profile.milestones[name])}",
@@ -737,6 +737,9 @@ def agent_profile(profile: AgentProfile) -> dict:
             {"atMs": at * 1000, "kind": kind, "detail": detail}
             for at, kind, detail in profile.activities
         ],
+        "titledMs": profile.milestones.get("titled", 0) * 1000
+        if "titled" in profile.milestones
+        else None,
         "publishedMs": profile.milestones.get("published", 0) * 1000
         if "published" in profile.milestones
         else None,
@@ -916,6 +919,11 @@ def await_turn(
         ]
         if replies:
             profile.mark("replied")
+        if any(
+            event.get("kind") == "thread_title" and event.get("thread") == comment["id"]
+            for event in current.get("events", [])
+        ):
+            profile.mark("titled")
         answer = deployment_answer(replies)
         active = current["active"]
         if published is None and active["revision"] > revision:
@@ -1266,6 +1274,9 @@ def local_adapter():
     origin = "http://127.0.0.1:8080"
     with (
         tempfile.TemporaryDirectory(prefix="leaf-site-agent.") as temporary,
+        # Short, because the App Server's Unix socket lives here and its path must
+        # fit the platform's 104 bytes.
+        tempfile.TemporaryDirectory(prefix="lsa.", dir="/tmp") as runtime,
         logged(log) as output,
     ):
         root = Path(temporary)
@@ -1318,6 +1329,10 @@ def local_adapter():
                 **os.environ,
                 "CODEX_HOME": str(home),
                 "LEAF_SITE_ROOT": str(site),
+                # The adapter keeps its App Server socket and log in the temporary
+                # directory, which is one fixed path per machine. A server another
+                # run left behind holds it, and a second server then exits on start.
+                "TMPDIR": runtime,
             },
         ):
             yield origin, release

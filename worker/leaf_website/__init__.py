@@ -40,6 +40,7 @@ from leaf.codex import (
     stop_app_server,
     stream_reply_target,
 )
+from leaf.codex_titles import name_untitled_threads
 from leaf.delivery import read_delivery
 from leaf.host import EmbeddedHarness
 from leaf.hosting import LeafHTTPServer
@@ -65,6 +66,8 @@ from leaf.thread import (
 from starlette.responses import Response
 
 PORT = 8080
+# The model every hosted task runs on, and the one its threads are titled with.
+HOSTED_MODEL = "gpt-5.6-luna"
 WEBSITE_AGENT = "The agent"
 WEBSITE_AGENT_SESSION = "leaf-website-agent"
 
@@ -956,6 +959,9 @@ class WebsiteCodexHost:
             for event in batch["events"]
         )
         log_agent("turn_start_started", **agent_event_fields(prepared_events))
+        name_untitled_threads(
+            self.endpoint, prepared.payload, thread_id, HOSTED_MODEL, log_agent
+        )
         reply_target = stream_reply_target(prepared.payload)
         try:
             turn_id = start_app_server_delivery(
@@ -1078,7 +1084,7 @@ class WebsiteCodexHost:
         result = self._request(
             "thread/start",
             {
-                "model": "gpt-5.6-luna",
+                "model": HOSTED_MODEL,
                 "cwd": str(page_dir),
                 "approvalPolicy": "never",
                 # The outer Cloudflare Container is the per-user VM sandbox. Its

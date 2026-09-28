@@ -875,7 +875,7 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
         lambda *args: (
             prepared.append(args)
             or SimpleNamespace(
-                payload={"id": "delivery-1", "batches": [{"events": []}]}
+                payload={"id": "delivery-1", "batches": [{"events": [], "threads": []}]}
             )
         ),
     )
@@ -906,7 +906,7 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
                 "input": [],
                 "toolOutput": {
                     "name": "leaf_delivery",
-                    "output": '{"id":"delivery-1","batches":[{"events":[]}]}',
+                    "output": '{"id":"delivery-1","batches":[{"events":[],"threads":[]}]}',
                 },
                 "turnTrigger": "leaf",
             },
@@ -4705,6 +4705,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
                 },
                 {"atMs": 12500.0, "kind": "away", "detail": ""},
             ],
+            "titledMs": None,
             "publishedMs": 12000.0,
             "responseVisibleMs": 12500.0,
             "repliedMs": 12500.0,

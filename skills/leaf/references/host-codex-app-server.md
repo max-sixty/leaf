@@ -29,7 +29,8 @@ once, so the user reads it while you work. Later working messages stay in Codex.
 final message completes the reply, and Leaf commits the opening and the final message
 together through the same reply contract as `leaf thread reply`. Do not run `leaf thread reply` for
 that response, which refuses it. The final message cannot move or detach its
-thread, so the thread keeps its anchor. If the user resolves the thread before the
+thread, so the thread keeps its anchor. Leaf titles an untitled thread the reply
+answers from its opening message, so it needs no title from you. If the user resolves the thread before the
 turn completes, the reply still posts and reopens it. A later plain reply remains pending for the next slice.
 
 Other answers in the slice take the operations their delivered `answering`

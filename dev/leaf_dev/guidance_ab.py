@@ -139,14 +139,14 @@ def of(runs: list[dict]) -> str:
 
 @click.command("guidance-ab")
 @click.argument("case_globs", metavar="[CASE]...", nargs=-1)
-@click.option("--base", help="The base ref; the merge base with main.")
+@click.option("--base", help="The base ref; the merge base with origin/main.")
 @click.option("--runs", type=int, help="Runs per case; each case's own, or 3.")
 def guidance_ab(case_globs: tuple[str, ...], base: str | None, runs: int | None):
     """Score the guidance cases, base vs the working tree.
 
     Runs the cases in evals/ matching the CASE globs, or all of them, on the guidance
-    at --base, else the merge base with main, and the working tree's at once. Prints
-    each case's passes per arm and the cost."""
+    at --base, else the merge base with origin/main, and the working tree's at once.
+    Prints each case's passes per arm and the cost."""
     cases = select_cases(case_globs)
     started = datetime.now().astimezone()
     OUT.mkdir(parents=True, exist_ok=True)

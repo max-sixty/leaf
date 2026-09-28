@@ -14,24 +14,25 @@ leaf thread open <page> --text "…"
 `leaf thread open` anchors in the active revision and reads it as the user sees it,
 including edits and retired content. Quote exact visible authored words inside
 one widget part. The command refuses ambiguous, retired, replaced, or
-cross-boundary text instead of creating a detached comment. It prints the id of
-the thread it opened. `leaf thread read`, `title`, `reply` and `resolve`, `leaf
-status --on`, and `leaf page events --thread` all take the id of any message in
-the thread.
+cross-boundary text instead of creating a detached comment. The thread's id is its
+opening comment's `id`, in the record `leaf thread open` prints. `leaf page state
+<page> <id>`, `leaf thread reply`, `edit` and `resolve`, and `leaf status --on` all
+take the id of any message in the thread.
 
-Give a thread you open a short, descriptive title, and name an untitled one
-the user opened when a delivered message in it says to. Choose a few words that
-identify its subject in the thread panel. Keep the title stable; rename it only
-when it no longer describes the discussion.
+Title a thread with `--title` on the command that first handles it: the `open` that
+starts it, or, for an untitled thread the user opened, the reply that answers it,
+which a delivered message in it asks for. Choose a few words that identify its
+subject in the thread panel.
 
 ```bash
-leaf thread title <page> <thread-id> --text "Afternoon workshop"
+leaf thread open <page> --section <element-id> --title "Afternoon workshop" --text "…"
+leaf thread reply <page> --title "Afternoon workshop" --text "…"
 ```
 
-The thread id is its opening comment's id, which `leaf thread open` prints; a
-delivery carries each thread's current title, null until named. Titles are plain text, at most
-80 characters. The same command sets or replaces the title without changing
-messages or adding a turn.
+A delivery carries each thread's current title, null until named. Titles are plain
+text, at most 80 characters. Keep the title stable; when it no longer describes the
+discussion, rename it with `leaf thread edit <page> <message-id> --title "<a few
+words>"`, which changes no message and adds no turn.
 
 Use `--markup` for a small question: an `lf-ask` containing one heading and its
 `lf-options` group; it follows the reply's text, and its ids must not appear in any
@@ -65,7 +66,7 @@ leaf thread reply <page> < reply.md
 
 A user may paste an image into any thread text box, and a delivered message that
 carries one says how to read it. To send one, run `leaf page media <page> <file>` and
-write the printed path as an ordinary Markdown image in the message's text. The door
+write the `path` it prints as an ordinary Markdown image in the message's text. The door
 refuses a `/media/…` link or image the page directory cannot answer, in text as in
 markup, because the log is append-only and a broken image posted to it stays broken;
 a path mentioned in a sentence stays prose.
@@ -74,7 +75,7 @@ With one reply obligation in the current turn's opened delivery, Leaf infers its
 and address. When that delivery contains several, select one with `--for <event-id>`;
 Leaf derives its response address and rechecks both against current state, so a
 response captured before a newer user correction cannot settle the correction. When
-the delivery is no longer the freshest reading, `leaf thread read` shows what
+the delivery is no longer the freshest reading, `leaf page state <page> <thread-id>` shows what
 each move in the thread still owes as its workflow's `answer`. When the source
 changed, the reply validates and activates it before posting, so an edit and its
 answer cross one command boundary.
@@ -99,7 +100,7 @@ leaf thread reply <page> --detach --text "Removed this; the thread no longer has
 ```
 
 The reply records the active revision and its anchor transition atomically. The opening
-comment keeps its original anchor in `leaf page events --thread`. The panel keeps a
+comment keeps its original anchor in the event log. The panel keeps a
 detached thread open, its passage link marked as gone from this version, and the
 **No longer here** filter lists it. `page state` reports its
 null current anchor and the prior anchor as `detached_from`. A later reply may move it
@@ -136,10 +137,9 @@ leaf thread edit <page> <comment-or-reply-id> --text "Corrected wording."
 
 The page labels the message `edited`. Leaf keeps the original and every revision
 in the append-only event log. Only text is revised; any widget markup stays frozen.
-`leaf thread open`, `leaf thread reply`, `leaf thread edit` and `leaf thread resolve` each print one
-sentence naming what they wrote; `leaf thread open` adds the command that titles the
-new thread. `--json` prints the posted event instead. A refusal lists the ids it
-knows.
+Every `leaf thread` write prints the records it appended, one JSON line each, as
+`leaf page events` prints them; a `--title` adds a `thread_title` record after the
+message. A refusal lists the ids it knows.
 
 An ordinary reply leaves the thread open, or reopens a resolved thread, so the user
 can inspect the answer or revised page. Reactions and failure receipts do not reopen it. The user closes it by default. Resolve it yourself only when the
@@ -155,7 +155,7 @@ leaf thread resolve <page> <message-id>
 
 ## What the user has read
 
-Each thread in `leaf page state <page>` and `leaf thread read` lists under
+Each thread in `leaf page state <page>` and `leaf page state <page> <thread-id>` lists under
 `unread` your messages the user has not read at their current wording. A message
 counts as read once its whole body has been on the user's screen, once they mark its
 thread read, or once they do something in the thread after it: reply, react, answer a
@@ -166,7 +166,7 @@ not read yet needs no follow-up from you, and a read one is not an answer.
 ## Summarize a long discussion
 
 When delivered context suggests summarization, read the original messages with
-`leaf thread read` and select a contiguous range whose endpoints are spoken
+`leaf page state <page> <thread-id>` and select a contiguous range whose endpoints are spoken
 messages rather than reactions. Summarize its decisions,
 reasoning, and remaining questions. Keep the current exchange outside the range
 when it is still useful to read directly. A summary helps users navigate the

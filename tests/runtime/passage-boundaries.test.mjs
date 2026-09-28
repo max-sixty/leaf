@@ -42,6 +42,19 @@ test("a text node answers from the element holding it", () => {
   assert.equal(closestAcross(words, "main"), document.querySelector("main"));
 });
 
+test("a document host value does not become a shadow-tree ancestor", () => {
+  document.body.innerHTML = "<main><p>Words</p></main>";
+  Object.defineProperty(document, "host", {
+    configurable: true,
+    value: "external.example",
+  });
+  try {
+    assert.equal(says(document), "Words");
+  } finally {
+    delete document.host;
+  }
+});
+
 test("a node in a declared tree stands where its host stands", () => {
   document.body.innerHTML =
     '<div class="lf-chrome"><article id="host"></article></div><main><p>Page</p></main>';

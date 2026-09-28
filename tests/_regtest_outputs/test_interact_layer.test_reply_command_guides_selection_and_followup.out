@@ -12,7 +12,7 @@ thread 'user-1' currently requires a response; `leaf thread reply <page> --for u
 
 $ leaf thread reply /page --for user-1 --text Answer
 exit: 0
-replied in user-1
+{"kind": "reply", "parent": "user-1"}
 
 $ leaf thread reply /page --for user-1 --text Answer
 exit: 1
@@ -20,7 +20,7 @@ event 'user-1' takes no reply; user-1 is a comment in this page's log, and nothi
 
 $ leaf thread reply /page user-1 --text Follow-up
 exit: 0
-replied in user-1
+{"kind": "reply", "parent": "user-1"}
 
 $ leaf thread reply /page --for user-3 --text Answer
 exit: 1
@@ -28,4 +28,4 @@ event 'user-3' takes no reply; user-3 is a comment in this page's log, and nothi
 
 $ leaf thread resolve /page user-3
 exit: 0
-resolved user-3
+{"kind": "resolve", "parent": "user-3"}

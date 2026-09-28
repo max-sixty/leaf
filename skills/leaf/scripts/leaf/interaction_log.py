@@ -11,8 +11,6 @@ decide which fields to redact or omit for those users.
 """
 
 import os
-import time
-from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 
@@ -59,29 +57,3 @@ def client_records(session: str, page: str, entries: list[dict]) -> list[dict]:
         }
         for entry in entries
     ]
-
-
-def lines(page_dir: Path, *, follow: bool = False) -> Iterator[str]:
-    """Read complete JSON lines, optionally waiting for later appends."""
-    path = page_dir / INTERACTIONS_FILE
-    offset = 0
-    identity = None
-    while True:
-        try:
-            with path.open(encoding="utf-8") as stream:
-                stat = os.fstat(stream.fileno())
-                current = (stat.st_dev, stat.st_ino)
-                if current != identity or stat.st_size < offset:
-                    offset = 0
-                identity = current
-                stream.seek(offset)
-                while line := stream.readline():
-                    if not line.endswith("\n"):
-                        break
-                    offset = stream.tell()
-                    yield line.rstrip("\n")
-        except FileNotFoundError:
-            pass
-        if not follow:
-            return
-        time.sleep(0.2)

@@ -6,7 +6,7 @@ For a served page, read the private diagnostic stream while reproducing a user o
 test-agent path:
 
 ```bash
-leaf page interactions <page> --follow
+tail -F <page>/interactions.jsonl
 ```
 
 It combines browser gestures and server request outcomes in delivery order. Browser

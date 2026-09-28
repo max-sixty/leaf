@@ -593,9 +593,9 @@ def record_demo(output: Path) -> None:
         )
         run_leaf("status", str(page_dir), "waiting")
         # `server start` returns once the server holds its port and has printed
-        # the URL, so there is nothing to poll for here and no second child to
+        # its `url`, so there is nothing to poll for here and no second child to
         # hold: the recording's one long-running process is the waiter.
-        url = run_leaf("server", "start", str(page_dir))
+        url = json.loads(run_leaf("server", "start", str(page_dir)))["url"]
         waiter: DemoWaiter | None = None
         try:
             waiter = DemoWaiter(page_dir)

@@ -24,7 +24,8 @@ declaration with an allowed value; each lf-suggestion is well formed (at most
 one of each slot, at least one of them, no nesting, `resolves` naming a comment
 in the document's reference namespace); ids are unique and hold no whitespace, no authored id, class, or
 attribute sits in the runtime's `lf-` and `data-lf-` namespaces, named today or
-not, and ids needed by anchored unresolved threads, standing user actions, or
+not, no id takes the shape of the event ids the log mints (`schema.EVENT_ID`), since
+a command's ID names a widget or a message in one address space, and ids needed by anchored unresolved threads, standing user actions, or
 effective standing reports survive from the previous revision. A
 declared visual part survives on the same terms as an id: while a live
 thread's current anchor names it, and no longer once every thread on it

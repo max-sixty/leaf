@@ -1,12 +1,12 @@
 """The construction reading of a thread's frozen markup, derived from the canonical
 state fold.
 
-`leaf thread read` prints it for each message that carries markup: semantic HTML and
-its effective inputs, not a second widget renderer. Exact event bodies, generated
-children and placement retain their event authority. Opaque widgets expose their
-source and declared data rather than invented screen text. A page's own document has
-no such reading: its HTML is the active revision file, read beside `page state`'s
-standing `state`.
+`leaf page state <page> <thread>` prints it for each message that carries markup:
+semantic HTML and its effective inputs, not a second widget renderer. Exact event
+bodies, generated children and placement retain their event authority. Opaque widgets
+expose their source and declared data rather than invented screen text. A page's own
+document has no such reading: its HTML is the active revision file, read beside `page
+state`'s standing `state`.
 """
 
 from copy import deepcopy

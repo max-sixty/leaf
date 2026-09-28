@@ -58,6 +58,13 @@ def id_errors(parser) -> list:
             "ids in the runtime's own lf- namespace (it coins lf-composer-quote there, "
             f"and points ARIA at them): {parser.reserved_ids}"
         )
+    # A command's ID names a widget or a message, whichever the page holds; the log
+    # mints message ids in this shape, so an authored one could name both.
+    if parser.event_shaped_ids:
+        errors.append(
+            "ids shaped like the event ids the log mints (eight hex digits), which "
+            f"commands would read as a message: {parser.event_shaped_ids}"
+        )
     return errors + reserved_marker_errors(parser)
 
 

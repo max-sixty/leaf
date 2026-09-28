@@ -20,6 +20,16 @@ For a contract shared across modules or runtimes, read the sidecar beside the
 Python code that owns the boundary;
 `<root>/skills/leaf/scripts/AGENTS.md` lists them under "Protocol references".
 
+To check what the code does, call it: the checkout's environment installs `leaf`
+and `leaf_dev` editable, so `uv run python -c 'from leaf... import ...'` imports
+either without a `sys.path` edit. A tag's schema is in the registry of the package
+that ships it:
+
+```bash
+jq 'select(has("lf-shot"))."lf-shot"' \
+  skills/leaf/assets/registry.json skills/leaf/packages/*/registry.json
+```
+
 ## Leave old state out of the handoff
 
 Leaf owes nothing to state an earlier version wrote (`AGENTS.md`, "Stage"). A
@@ -69,7 +79,7 @@ Playwright script: it builds the page from this working tree, runs the input ste
 you give it, and prints what a JavaScript expression returns, with `--base` for the
 merge base beside it (`dev/AGENTS.md`).
 
-Compare against the merge base with `main`. `uv run leaf-dev stills`
+Compare against the merge base with `origin/main`. `uv run leaf-dev stills`
 screenshots a catalogue of states on both runtimes and crops each one that
 changed into a before/after pair; commit first, since it compares commits. The
 catalogue holds states a user reaches by acting as well as pages at rest, because
@@ -152,7 +162,7 @@ Build the baseline in a detached worktree at the merge base:
 
 ```bash
 candidate_root=$(git rev-parse --show-toplevel)
-baseline_commit=$(git merge-base HEAD main)
+baseline_commit=$(git merge-base HEAD origin/main)
 baseline_parent=$(mktemp -d "${TMPDIR:-/tmp}/leaf-baseline.XXXXXX")
 baseline_parent=$(cd "$baseline_parent" && pwd -P)
 baseline_root="$baseline_parent/checkout"
@@ -201,9 +211,9 @@ loads `leaf:leaf` and reads the references as a real session does. Score a chang
 uv run leaf-dev guidance-ab [CASE]... [--base REF] [--runs N]
 ```
 
-It runs the cases on the base's guidance (the merge base with `main` by default) and
-the working tree's at once, and prints each case's passes per arm and the cost. It
-passes `--allow-tools Skill Read`, without which the child's `dontAsk` mode denies
+It runs the cases on the base's guidance (the merge base with `origin/main` by
+default) and the working tree's at once, and prints each case's passes per arm and the
+cost. It passes `--allow-tools Skill Read`, without which the child's `dontAsk` mode denies
 the skill and the references and every run answers with no guidance, while
 `loads-leaf` still passes on the attempt. So every case also grades that the child
 read the reference it tests, and a run that fails that check measured nothing.

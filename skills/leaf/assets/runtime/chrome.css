@@ -492,7 +492,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      its own words, but the shared aim floor states a minimum width in pixels and would
      otherwise let the item shrink past them. */
   .lf-banner-actions > .lf-btn { flex: none; }
-  .lf-banner-actions > :is(.lf-signoff, .lf-threads-toggle) { padding-inline: 2px; }
   .lf-banner-actions > .lf-btn:where(:not(.primary)) { border-color: transparent;
     border-radius: 0; background: transparent; }
   .lf-banner-actions > .lf-btn:where(:not(.primary)):hover { background: var(--chip); }

@@ -950,6 +950,31 @@ def test_signoff_enabled_face_is_readable(browser, serve):
     }, f"the banner's primary action lost its readable face: {paint}"
 
 
+def test_the_approved_face_keeps_the_buttons_inset(browser, serve):
+    """The approval control reserves the width of its longest words, "✓ Version
+    approved", and those words stand inside it with the inset every chrome button
+    keeps. With 2px of padding they filled the reserved box to the border."""
+    html = LONG_PAGE.replace(
+        "<title>long</title>",
+        '<title>long</title><meta name="lf-review" content="sign-off">',
+    )
+    page = open_page(browser, serve(html))
+    resized(page, 1440, 900)
+    button = page.locator(".lf-signoff")
+    button.click()
+    expect(button).to_have_text("✓ Version approved")
+    inset = button.evaluate(
+        """el => {
+          const box = el.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          const words = range.getBoundingClientRect();
+          return [words.left - box.left, box.right - words.right];
+        }"""
+    )
+    assert min(inset) >= 8, f"the approved words stand {inset}px from the border"
+
+
 def test_a_menu_comparison_keeps_its_active_paint(browser, serve):
     """A standing comparison remains legible in its fixed menu seat."""
     html = SUGGESTION_PAGE.replace(

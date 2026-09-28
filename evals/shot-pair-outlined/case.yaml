@@ -1,3 +1,6 @@
+# Added with lf-shot's `outlines` flag, which a pair must ask for. Against the branch's
+# previous wording (7fc92c8bd), where outlines were on unless `no-outlines`, no base run
+# wrote `outlines` (0 of 3) and every candidate run did (3 of 3).
 schema_version: '1.0'
 name: shot-pair-outlined
 description: "Source files and media: a pair whose change is local asks for `outlines`, so the page marks where it is."

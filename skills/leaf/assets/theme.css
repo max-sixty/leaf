@@ -122,9 +122,9 @@
      The banner wraps by what it holds (chrome.css): its control run shares the status's
      line while both fit, and takes a 36px-lower line of its own when they don't. Which
      it drew is `data-lf-banner-rows` on the root (banner.js); before the runtime has
-     drawn a banner, the window's width stands in for it (below). The guess is right for
-     a phone held upright and for a desk window; between about 440 and 660px it can miss,
-     and a miss moves the document once, when the banner arrives. */
+     drawn a banner, the window's width and the page's sign-off stand in for it (below).
+     Between about 440 and 480px a page without sign-off can still fit one row where two
+     are guessed, and that miss moves the document once, when the banner arrives. */
   --lf-safe-top: env(safe-area-inset-top, 0px);
   --lf-safe-right: env(safe-area-inset-right, 0px);
   --lf-safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -445,13 +445,16 @@
    and a finger's row 44px aims wherever it stands. */
 @media screen and (width <= 480px) { :root { --lf-banner-row: 52px; } }
 @media screen and (pointer: coarse) { :root { --lf-banner-row: 53px; } }
-/* Until the runtime says which rows it drew, guess them from the width: a phone held
-   upright has no room for the status beside its controls. A page asking for sign-off puts
-   Approval on the row too (banner.js) and wraps below about 660px, but the guess cannot
-   read that, since a :has() on the root restyles the whole page on every change below it.
-   A wrong guess costs one move of the document when the banner arrives. */
+/* Until the runtime says which rows it drew, guess them: a phone held upright has no room
+   for the status beside its controls, and a page asking for sign-off puts Approval on the
+   row too (banner.js), which wraps below about 660px. Delivery writes the declaration on
+   the root (`data-lf-review`), since a :has() reading the page's meta from the root would
+   restyle the whole page on every change below it. */
 @media screen and (width <= 480px) {
   html:root:not([data-lf-banner-rows]) { --lf-banner-rows: 2; }
+}
+@media screen and (width <= 660px) {
+  html:root[data-lf-review="sign-off"]:not([data-lf-banner-rows]) { --lf-banner-rows: 2; }
 }
 html[data-lf-banner-rows="2"] { --lf-banner-rows: 2; }
 /* Only a live page draws the banner. Without one, what sticks below the banner sticks

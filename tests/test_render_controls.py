@@ -1983,6 +1983,20 @@ def test_the_banner_wraps_by_what_it_holds(
     assert read["main"] == pytest.approx(read["bannerBottom"], abs=1), (
         f"the document's head does not follow the rows the banner drew: {read}"
     )
+    # Before the runtime reports its rows, the render-blocking theme reserves the head
+    # from what delivery wrote on the root. It reserved one row for a sign-off page at
+    # 600px, so the page shown first moved down a row when the banner arrived.
+    guessed = page.evaluate(
+        """() => {
+          const root = document.documentElement;
+          const drawn = root.dataset.lfBannerRows;
+          delete root.dataset.lfBannerRows;
+          const guess = getComputedStyle(root).getPropertyValue('--lf-banner-rows').trim();
+          root.dataset.lfBannerRows = drawn;
+          return guess;
+        }"""
+    )
+    assert guessed == read["rows"], (width, touch, signoff, guessed, read["rows"])
 
 
 def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(

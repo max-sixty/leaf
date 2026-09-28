@@ -101,8 +101,8 @@ from render_harness import (
     consume_browser_errors,
     draft_control,
     expect_banner_control_offered,
+    fills_the_window,
     holding,
-    holds_the_window,
     leaf_page,
     open_page,
     opened_tab,
@@ -1339,14 +1339,14 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
 def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     """A focused review is a root workspace, not prose followed by a narrow widget.
 
-    The case chooser never taxes the evidence width, the disposition is available before
+    The case picker never taxes the evidence width, the disposition is available before
     the pixels, and a tall mobile pair keeps its authored focus width side by side inside
     the scrolling evidence stage. Capture facts follow the comparison rather than delaying it.
     """
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     resized(page, 1366, 768)
     widget = page.locator("#visual-review-run")
-    holds_the_window(page, widget, True)
+    fills_the_window(page, widget, True)
     gallery_scope = widget.get_by_role("radiogroup", name="Scope")
     expect(gallery_scope).to_be_visible()
     expect(widget).to_have_attribute("data-inspection-scope", "focus")
@@ -1440,7 +1440,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     resized(page, 390, 900)
     assert root_overflow(page) == 0
     resized(page, 1366, 768)
-    holds_the_window(page, widget, True)
+    fills_the_window(page, widget, True)
     shot_host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
     assert shot_host.evaluate("node => node.scrollWidth == node.clientWidth")
     shot_host.evaluate("node => node.style.height = '120px'")
@@ -2012,8 +2012,8 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     expect(page.locator(".lf-version")).to_have_attribute("data-lf-news", "")
     expect(page).to_have_title("Live second")
 
-    # The chooser stands behind More, and a mouse press anywhere outside the composer
-    # stands the composer down (standDown) — so reaching the chooser by mouse would end
+    # The picker stands behind More, and a mouse press anywhere outside the composer
+    # stands the composer down (standDown) — so reaching the picker by mouse would end
     # the hold on the very gesture that opens the menu, and whether the page had followed
     # by then would come down to whether a state read landed between the two presses. The
     # keyboard route leaves the composer standing through both.
@@ -2225,7 +2225,7 @@ def test_a_prose_revision_takes_only_the_words_it_rewrote(browser, serve):
 
     A native selection and the element a page was handed belong to nodes rather than
     markup. The selection still reads what it read over the same text node, the
-    element is still the element, and the chooser says the page moved. Focus follows
+    element is still the element, and the picker says the page moved. Focus follows
     the user's route through More to the new-page control.
 
     A standing selection is a composition, so the page waits rather than moving under
@@ -9229,7 +9229,7 @@ def test_a_spent_press_and_a_static_badge_say_so_before_the_press(browser, serve
 
     The spent press. A press that has nothing left to do keeps its shape and gives up
     its opacity and the hand, the layer's one cue stated beside the hand it withdraws;
-    ink alone is dropped by greyscale. The press also wears the ordinary here ring,
+    ink alone is dropped by greyscale. The press also wears the ordinary focus ring,
     reached by keyboard."""
     page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
     face = """el => { const cs = getComputedStyle(el);
@@ -9253,10 +9253,10 @@ def test_a_spent_press_and_a_static_badge_say_so_before_the_press(browser, serve
     ring = page.evaluate(
         """() => { const cs = getComputedStyle(document.activeElement);
              return [cs.outlineStyle, cs.outlineWidth,
-                     cs.getPropertyValue('--here-ring-w').trim()]; }"""
+                     cs.getPropertyValue('--focus-ring-w').trim()]; }"""
     )
     assert ring[0] == "solid" and ring[1] == ring[2], (
-        f"a layer-built press wears no here ring from the layer's shared rule: {ring}"
+        f"a layer-built press wears no focus ring from the layer's shared rule: {ring}"
     )
 
     press = page.locator(".lf-worktree-head").first

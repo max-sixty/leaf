@@ -481,7 +481,7 @@ def shoot(batch: Batch):
 
     p<phase>-<width>-<k>.png counts screens down the page: the viewport as first seen,
     then scrolled by 85% of the window each time, up to sixteen. Scrolling the window
-    rather than resizing it to the content keeps a layout that holds the window at its
+    rather than resizing it to the content keeps a layout that fills the window at its
     real size and shows the fixed chrome where a reader meets it. What scrolls inside a
     region is shown as first drawn."""
     from playwright.sync_api import sync_playwright
@@ -557,7 +557,7 @@ def review_prompt(subject: str, a: list[str], b: list[str], phase: int) -> str:
     )
     return f"""Two pages were built for the same user request. You have not seen how either
 was made, and you judge only what the user sees. Both run inside the same page viewer:
-the bar fixed across the top, the shortcut band at the foot, and the column of small
+the bar fixed across the top, the bottom bar at the foot, and the column of small
 markers at the right edge are the viewer's, identical on both, and not part of either
 page. A region with a scroll of its own shows only its first screen here; in the real
 page the user can scroll it, so judge whether what it shows first is the right part and

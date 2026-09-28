@@ -27,7 +27,7 @@ from leaf import cli as cli_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import files as files_model
-from leaf import hooks as hooks_model
+from leaf import hook_carrier as hook_carrier_model
 from leaf.delivery import current_responses
 from leaf.registry import storage as registry_storage
 
@@ -1453,7 +1453,7 @@ def test_the_agents_own_comment_is_not_printed_back_to_it(page_dir):
     published(page_dir)
     assert comment(page_dir, "--quote", "Ship dark", "--text", "x").exit_code == 0
     assert page_state(page_dir)["pending"] == 0
-    assert hooks_model.unattended_pages("") == []
+    assert hook_carrier_model.unattended_pages("") == []
 
 
 def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):

@@ -56,15 +56,12 @@ reaches a module by importing it from this package, never through `sys.path`,
 - `leaf-dev bench-check [BASE_REF]` times `leaf page check --render` on a few
   examples, base plugin against HEAD's, with no model, and prints each arm's wall
   time.
-- `leaf-dev delivery-ab [BASE_REF]` compares how a live Claude Code agent handles a
+- `leaf-dev delivery-eval [BASE_REF]` compares how a live Claude Code agent handles a
   comment through `leaf wait` between a base plugin and HEAD's. Its children cost about
   a dollar each.
-- `leaf-dev guidance-ab [CASE]...` runs the guidance cases in `evals/` on the merge
+- `leaf-dev guidance-eval [CASE]...` runs the guidance cases in `evals/` on the merge
   base's guidance and the working tree's at once, and prints each case's passes per
   arm (`/developing-leaf`, "Score a guidance change").
-- `leaf-dev ci-failures [REF]` reads the failing tests in REF's `ci` runs and in its
-  merge base's, and says whether the branch may land red
-  (`.claude/skills/developing-leaf/SKILL.md`, "Land a change").
 
 ## Examples and previews
 

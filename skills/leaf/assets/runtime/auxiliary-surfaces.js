@@ -115,7 +115,7 @@ export function createAuxiliarySurfaces({ chromeRoot, syncLayout, afterChange })
     controller.role = controller.surface.getAttribute("role");
     controller.surface.setAttribute("role", "dialog");
     controller.surface.setAttribute("aria-modal", "true");
-    document.body.dataset.lfCoveringSurface = controller.surface.id;
+    document.documentElement.dataset.lfCoveringSurface = controller.surface.id;
     scrim.hidden = false;
     backgroundMutations.observe(document.body, { childList: true });
     backgroundMutations.observe(chromeRoot, { childList: true });
@@ -134,7 +134,7 @@ export function createAuxiliarySurfaces({ chromeRoot, syncLayout, afterChange })
     if (controller.role === null) controller.surface.removeAttribute("role");
     else controller.surface.setAttribute("role", controller.role);
     controller.surface.removeAttribute("aria-modal");
-    delete document.body.dataset.lfCoveringSurface;
+    delete document.documentElement.dataset.lfCoveringSurface;
     scrim.hidden = true;
     active = null;
   }

@@ -32,7 +32,7 @@
 import { TAB_STOP } from "./focus.js";
 import { cancelRender, nextFrame, nextRender, sizeObserver } from "./rendering.js";
 import { shellRight, shownBand, shownExtent, shownParts, skipped } from "./geometry.js";
-import { under, upFrom } from "./shadow.js";
+import { hostIn, shadowHost, under, upFrom } from "./shadow.js";
 import { scrollerFor } from "./reading-regions.js";
 import { boundedBlockOf } from "./bounds.js";
 import { pageScroller } from "./scrolling.js";
@@ -76,7 +76,7 @@ const POSTURES = {
 // none stays in flow. The room is read with the column centred, so a shift this pass
 // wrote is taken back out of the reading and the decision never feeds itself.
 //
-// A page declares otherwise on `main`: `data-rail="right"` makes the shell give up the
+// A page declares otherwise on `body`: `data-rail="right"` makes the shell give up the
 // rail's width on its right (theme.css), which this reads as room like any other, and
 // `data-rail="none"` keeps its margin for its own residents, so its markers are pins.
 // Chrome layout asks for it on every pass (chrome-layout.js, `syncLayout`), which runs
@@ -121,7 +121,10 @@ function settleResidency() {
   };
   const taken = { left: 0, right: 0 };
   const standing = [];
-  if (main.getAttribute("data-rail") !== "none" && room.right >= need("--rail")) {
+  if (
+    document.body.getAttribute("data-rail") !== "none" &&
+    room.right >= need("--rail")
+  ) {
     standing.push("rail");
     taken.right = need("--rail");
   }
@@ -315,9 +318,7 @@ function nameAnchor({ el, name, write }) {
 // first shown part. Wherever it anchors, the row stands at the top-right corner of the
 // target's own extent (`shownExtent`), written as insets from the anchor's box.
 function anchorElement(target) {
-  let el = target;
-  for (let root = el.getRootNode(); root instanceof ShadowRoot; root = el.getRootNode())
-    el = root.host;
+  let el = hostIn(target, document);
   while (el instanceof SVGElement && el.ownerSVGElement) el = el.ownerSVGElement;
   if (el !== target) return el;
   const [part] = shownParts(target);
@@ -570,7 +571,7 @@ export function layoutMarginRows() {
     const anchor = anchorElement(target);
     for (
       let root = target.getRootNode();
-      root instanceof ShadowRoot;
+      shadowHost(root);
       root = root.host.getRootNode()
     )
       hearScrolls(root);

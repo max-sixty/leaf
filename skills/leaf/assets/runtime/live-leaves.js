@@ -1,7 +1,7 @@
 /* This module derives the machine's immutable Leaves presentation and owns its walk. */
 import { clocked } from "./presence.js";
 import { pagePresented } from "./presentation.js";
-import { liveLeavesList, trayIsOpen, othersPanel } from "./trays.js";
+import { liveLeavesList, drawerIsOpen, othersPanel } from "./drawers.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { activityFacts, countUpdates } from "./banner.js";
 import { rowWalk } from "./walk-position.js";
@@ -9,16 +9,16 @@ import { rowWalk } from "./walk-position.js";
 let others = [];
 let rows = Object.freeze([]);
 
-// The tray's one offer: something to show, or the tray already standing — the key that
+// The drawer's one offer: something to show, or the drawer already standing — the key that
 // opened it must still close it, and its button must still be pressable. The button's
-// visibility and the key both ask the tray's own predicate, so the two surfaces cannot
-// disagree about whether there is a tray to open. A leaves tray of one — the page the
+// visibility and the key both ask the drawer's own predicate, so the two surfaces cannot
+// disagree about whether there is a drawer to open. A leaves drawer of one — the page the
 // user is already on — is not worth a control.
 export const leavesOffered = () =>
-  pagePresented() && (others.length > 0 || trayIsOpen("leaves"));
+  pagePresented() && (others.length > 0 || drawerIsOpen("leaves"));
 // The control counts the rows its press opens, including this page's own marked row.
 // One neighbour therefore says two, rather than naming a different collection from
-// the tray. The list and its control receive this same frozen value.
+// the drawer. The list and its control receive this same frozen value.
 const presentationModel = () =>
   Object.freeze({
     offered: leavesOffered(),
@@ -27,18 +27,18 @@ const presentationModel = () =>
   });
 export const presentLeaves = () => liveLeavesList.present(presentationModel());
 
-// The tray's own scope. The walk is the tray's rather than the page's, because the
+// The drawer's own scope. The walk is the drawer's rather than the page's, because the
 // arrows, Home and End anywhere else are the page's own scroll and stay so; Enter is the
 // browser's, a row being a link, and the row says so with no `run` to give. The user
 // arrives here by key — `g L` lands focus on the first neighbour — so the scope names
 // what activating does rather than leaving it to the platform's own contract.
 export const othersLinks = () => [...othersPanel.querySelectorAll("a.lf-others-row")];
-// Declared once the tray is in the document (leaf.js): the tray is trays.js's, an
+// Declared once the drawer is in the document (leaf.js): the drawer is drawers.js's, an
 // owner that imports this module back.
 export function declareLeavesKeys() {
   keys(
     othersPanel,
-    "In the leaves tray",
+    "In the leaves drawer",
     rowWalk({ id: "leaf", noun: "Leaf", plural: "leaves", rows: othersLinks }),
     () => othersLinks().length > 0,
   );
@@ -81,7 +81,7 @@ function rowPresence(entry) {
   return { tone: facts.tone, line };
 }
 
-// The whole of what the tray knows about one page, for its hover. Everything drawn
+// The whole of what the drawer knows about one page, for its hover. Everything drawn
 // on a row is cut to the panel's fixed width — the title ellipsizes, the line
 // ellipsizes — and the fact that tells two rows apart is not drawn at all: where the
 // session behind the leaf is working. A title is a sentence somebody wrote and two
@@ -120,7 +120,7 @@ function renderOthersNow(state) {
   const offeredBefore = leavesOffered();
   // Null is the explicit pre-read state. It has no self presence to draw, and recovery
   // from a refused first reading must remove every row that candidate introduced.
-  // A closed leaf is not one of the machine's live pages and drops out of the tray on
+  // A closed leaf is not one of the machine's live pages and drops out of the drawer on
   // the poll that says
   // so: its server stays up so the page stays readable — a standing one for good —
   // so nothing else would ever take the row off, and a count the user glances at
@@ -157,6 +157,6 @@ function renderOthersNow(state) {
 }
 
 // Clocked on the list rather than on the body: the body never leaves, so a clock owned
-// by it would go on repainting a tray that has, and the owner argument is exactly the
+// by it would go on repainting a drawer that has, and the owner argument is exactly the
 // question of whose departure ends the paint.
 export const renderOthers = clocked(liveLeavesList, renderOthersNow);

@@ -97,7 +97,7 @@ and its chrome coordinate.
   four-declaration pane grid that `columns="3fr 2fr"` used to say; a token such as
   `--layout-columns: 3fr 2fr`, stacking below 720px, would carry it. A bounded box of
   panes outside a workspace also restates the Layout's pane scrolling (the feature
-  gallery), which could key on `--lf-held` instead.
+  gallery), which could key on `--lf-full-height` instead.
 - **Place markers so they cover less without losing what they track.** Where no rail
   stands, a marker pins inside its block's top-right corner and covers the end of the
   block's first line. On a 390px phone an Ask's pin covers the end of its question's
@@ -155,14 +155,14 @@ and its chrome coordinate.
   and overlaps the element it comments on, on any page wide enough to place it
   beside its target. The reference rect handed to Floating UI (`composing/surface.js`,
   `placeFab`) and the fixed bar disagree by the root's margin.
-  `test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open` reproduces it at
-  1200px with the tray closed and runs at 900px, where the composer goes above or
+  `test_an_aimed_comment_keeps_its_place_with_the_asks_drawer_open` reproduces it at
+  1200px with the drawer closed and runs at 900px, where the composer goes above or
   below, until this is fixed.
 - **Decide whether the shortcut line should wrap on a narrow window.** Below about
   390px with a fine pointer, the resting line wraps to a second row
   (`keyboard/shortcut-bar.js`, `chrome.css`), which stands about 31px over the page
-  beyond the band the page reserves. The alternative is truncating the resting line
-  to one row. A key sequence and the shelf must still wrap, so truncating brings back
+  beyond the bottom bar the page reserves. The alternative is truncating the resting line
+  to one row. A key sequence and the expanded bar must still wrap, so truncating brings back
   a one-row mode beside them, and it has to keep More, which sits last, from being
   cut first.
 - **Unconfirmed: scrolling a live sample sometimes sticks.** A user reported it
@@ -263,14 +263,14 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **Claude Code tool observation:** consider a cheap hook for sessions holding
   pages if status evaluations show that agent declarations are insufficient.
 - **A cheap `leaf hook`:** every hook Leaf registers pays `uv run leaf hook`,
-  about 0.3–0.5s warm and 2.5s cold, and the host waits for it. That cost is why
-  the `PostToolUse` registration keeps its `if` prefilter, and it limits what
-  else hooks can carry. Most of the warm time is Python startup and imports:
-  `leaf.hooks` alone pulls in `delivery`, `event_contracts` and
-  `anchor_capture`, about 120ms. Get the hook path off those imports, then consider a `leaf` filter in
-  front of every tool-result hook, so Leaf can answer more events itself.
-  Rewriting the hook path in a compiled language is the further step if that
-  is not enough.
+  and the host waits for it. In a session holding no page it now costs about
+  0.15s warm (2.5s cold, after a plugin update leaves uv to sync), mostly uv and
+  Python startup: `leaf.hooks` imports in about 25ms. A session holding a page
+  adds about 0.1s to import page reading. That cost is why the `PostToolUse`
+  registration keeps its `if` prefilter, and it limits what else hooks can
+  carry. Consider a `leaf` filter in front of every tool-result hook, so Leaf
+  can answer more events itself. Rewriting the hook path in a compiled language
+  is the further step if that is not enough.
 - **Invoker commands:** revisit when the browser support Leaf needs can replace
   the current dialog and popover handlers. See the
   [dependency survey](notes/dependency-survey.md).

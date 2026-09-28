@@ -6223,13 +6223,12 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     change sits costs it nothing: one inside a card — a positioned ancestor, which
     `left: 100%` used to resolve against, dropping the row back into the text —
     hangs in the rail beside its card like any other. What is left is a
-    measurement no lint can make: a window with no rail stands each row as a pin
-    inside the top-right corner of the change it decides, over the change and never
-    beside it."""
+    measurement no lint can make: where a row stands as a pin, it stands by the change
+    it decides, level with the line the change ends on, over none of the change's
+    words, and on the change's own card."""
     page = open_page(browser, serve(SUGGESTION_PAGE), init_script=HOLD_MOTION)
     page.emulate_media(reduced_motion=reduced_motion)
     column = page.locator("main").evaluate("el => el.getBoundingClientRect().right")
-    room = page.evaluate("() => document.body.getBoundingClientRect().right")
     box = "el => el.getBoundingClientRect()"
 
     margin_rows = page.locator(
@@ -6245,23 +6244,49 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     assert first["bottom"] <= second["top"], "control rows must not stack on each other"
 
     # The card is positioned and the change is three elements down inside it, and
-    # the row still stands on the line that change starts — which is what the anchor
-    # buys, and what a static position never could. The board it sits in grows past
-    # the rail, so the row stands on the board as a pin in the change's top-right
-    # corner.
+    # the row still stands by that change's own line — which is what the anchor buys,
+    # and what a static position never could. The board it sits in grows past the
+    # rail, so the row stands on the board as a pin.
     in_card_row = page.locator("[data-lf-margin-for='sug-in-card']")
     expect(in_card_row).to_have_attribute("data-lf-place", "pin")
-    in_card = in_card_row.evaluate(box)
-    change = page.locator("#sug-in-card").evaluate(box)
-    assert change["right"] - 12 <= in_card["right"] <= change["right"] <= room, (
-        "a change inside a board is decided inside its own top-right corner"
-    )
-    assert (
-        abs(in_card["top"] - page.locator("#sug-in-card lf-old").evaluate(box)["top"])
-        <= 5
-    ), "the row must hang on the change's own line, not on the block it follows"
+    stands_by = """row => {
+      const edges = ({left, top, right, bottom}) => ({left, top, right, bottom});
+      const change = row.lfTarget;
+      const words = [];
+      for (const node of [change, ...change.querySelectorAll('*')])
+        for (const text of node.childNodes)
+          if (text.nodeType === Node.TEXT_NODE && text.data.trim()) {
+            const range = document.createRange();
+            range.selectNodeContents(text);
+            words.push(...[...range.getClientRects()]
+              .filter((b) => b.width > 2 && b.height > 2).map(edges));
+          }
+      const entries = [...row.querySelectorAll('.lf-margin-entry')]
+        .filter((entry) => entry.checkVisibility())
+        .map((entry) => edges(entry.getBoundingClientRect()));
+      const hit = (a, b) => a.left < b.right && b.left < a.right
+        && a.top < b.bottom && b.top < a.bottom;
+      const last = edges([...change.getClientRects()].at(-1));
+      const card = change.closest('lf-card')?.getBoundingClientRect();
+      const r = row.getBoundingClientRect();
+      return {
+        covers: entries.filter((e) => words.some((w) => hit(e, w))).length,
+        level: r.top < last.bottom && last.top < r.bottom,
+        beside: Math.max(0, r.left - last.right, last.left - r.right) <= 12,
+        onCard: !card || (r.left >= card.left && r.right <= card.right),
+        inPage: r.right <= document.body.getBoundingClientRect().right,
+      };
+    }"""
+    placed = in_card_row.evaluate(stands_by)
+    assert placed == {
+        "covers": 0,
+        "level": True,
+        "beside": True,
+        "onCard": True,
+        "inPage": True,
+    }, f"a change inside a board is decided beside its words, on its card: {placed}"
 
-    # No rail: every row is a pin on its own change, and nothing spills sideways.
+    # No rail: every row is a pin by its own change, and nothing spills sideways.
     resized(page, 820, 900)
     page.wait_for_function(
         "() => [...document.querySelectorAll('[data-lf-margin-for^=sug-]')]"
@@ -6269,17 +6294,14 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     )
     assert root_overflow(page) == 0
     for widget in ("sug-refill", "sug-in-card"):
-        stands = page.locator(f"[data-lf-margin-for='{widget}']").evaluate(
-            """row => {
-              const r = row.getBoundingClientRect();
-              const t = row.lfTarget.getBoundingClientRect();
-              return {top: r.top - t.top,
-                      inCorner: r.right <= t.right && r.right >= t.right - 12};
-            }"""
-        )
-        assert stands["inCorner"] and stands["top"] >= -1, (
-            f"a pin belongs inside the top-right corner of the change it decides: {stands}"
-        )
+        placed = page.locator(f"[data-lf-margin-for='{widget}']").evaluate(stands_by)
+        assert placed == {
+            "covers": 0,
+            "level": True,
+            "beside": True,
+            "onCard": True,
+            "inPage": True,
+        }, f"a pin stands by the change it decides, over none of its words: {placed}"
 
 
 def test_the_page_says_a_change_is_only_proposed(browser, serve):

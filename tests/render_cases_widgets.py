@@ -732,6 +732,16 @@ LONG_LINE_DIFF_PAGE = leaf_page(
     + _filler("tail", 30),
 )
 
+# The same review as the body of a workspace pane, where the pane's body is the box that
+# scrolls the rows rather than the window under the banner.
+PANE_DIFF_PAGE = leaf_page(
+    "pane patch",
+    "<header><h1 id='t'>Review</h1></header>"
+    '<lf-pane id="patch-pane" label="Patch"><header><h2>Patch</h2></header>'
+    '<lf-diff id="patch" source="review-patch" review><pre></pre></lf-diff></lf-pane>',
+    layout="workspace",
+)
+
 # The same review bound as a manifest of collapsed files, the form a captured patch
 # arrives in on the shipped walkthrough: the module draws the file rows from the manifest
 # alone and parses no line until a user opens a file, which is where the renderer comes

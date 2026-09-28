@@ -153,24 +153,25 @@
    with it. */
 :host(.lf-rendered) .lf-diff-file > details > summary:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: code-summary;
                                             outline-offset: calc(-1 * var(--here-ring-w)); }
-/* The file header pins under the banner while its own rows go past, which is the thread
-   list's answer to the same question — the name of the part you are reading has to be on
-   screen for the whole of it, not only at its start. Forty-six files at thirty-two
-   thousand pixels is that list's four-thousand-pixel run with a nought on it: opening one
-   file and reading down it left nothing on screen saying which file it was.
-   The slot is the banner's own height, said once at :root and inherited through this
-   boundary, so the two edges cannot drift apart. Opaque already (the summary's
+/* The file header pins at the top of what scrolls it while its own rows go past, which is
+   the thread list's answer to the same question — the name of the part you are reading has
+   to be on screen for the whole of it, not only at its start. Forty-six files at
+   thirty-two thousand pixels is that list's four-thousand-pixel run with a nought on it:
+   opening one file and reading down it left nothing on screen saying which file it was.
+   The slot is `--lf-top`, inherited through this boundary: below the banner where the
+   window scrolls, and the pane's own top edge where a workspace pane does (layouts.css),
+   so the header stops where the box holding it starts showing rows. Opaque already (the summary's
    background), because the rows pass underneath it.
    Screen only: paper has no banner and no scroll to pin against. And only where the module says the page's own scroller is the
    one underneath — a diff in a reply scrolls in the panel's list rather than in the
    document. */
 @media screen {
   :host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file > details > summary { position: sticky;
-                              top: var(--lf-banner-h, 0px); z-index: 2; }
+                              top: var(--lf-top, 0px); z-index: 2; }
   /* The press with it, as far down the pinned line as it stands at rest: its own gap
      less the 1px border the summary's box starts inside. */
   :host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file-actions { position: sticky;
-                              top: calc(var(--lf-banner-h, 0px)
+                              top: calc(var(--lf-top, 0px)
                                         + var(--lf-diff-action-top) - 1px); }
 }
 /* The room that header takes, so a landing arrives below it rather than behind it. The

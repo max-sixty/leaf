@@ -91,6 +91,7 @@ lf-playground:has(> .lf-playground-split) {
 lf-playground .lf-playground-preview-region > .lf-playground-preview-body {
   display: flex;
   flex-direction: column;
+  --lf-pane-top: 0px;
   padding: 0;
 }
 
@@ -117,7 +118,8 @@ lf-playground
 lf-playground
   :is(.lf-playground-controls-region, .lf-playground-instruction-region)
   > :not(header, footer) {
-  padding: 12px 18px 16px;
+  --lf-pane-top: 12px;
+  padding: var(--lf-pane-top) 18px 16px;
 }
 
 lf-playground

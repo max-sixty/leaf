@@ -494,9 +494,9 @@ customElements.define(
           this.endThreadSurface();
         });
       if (this.stopWatching) return;
-      // A page diff's file header pins under the banner; one an agent sent in a reply
-      // scrolls inside the panel's own list, where the banner's height is no offset at
-      // all. The theme cannot ask that question from inside a shadow tree, so
+      // A page diff's file header pins at `--lf-top`, the top of the page's box that
+      // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
+      // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
       // the module answers it once with the layer's own predicate and paints the answer.
       if (!inChrome(this)) this.dataset.lfDiffPinned = "";
       if (!this.reviewKeys) {

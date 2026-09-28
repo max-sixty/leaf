@@ -1950,8 +1950,13 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
  * width from what it holds, so a framed box placed where its width would come from its
  * content (an auto flex basis, a `fit-content` track) is only as wide as its other
  * parts there; the page gives it a width. */
+/* The body's top inset is named because a body that scrolls on its own holds a sticking
+ * box that far below its scrollport's edge, where the rows it scrolls still show above
+ * the box; the workspace hands the inset back through `--lf-top` (layouts.css). A package
+ * that pads a pane body another way sets `--lf-pane-top` with it. */
 :where([data-lf-reading-role="pane"]) > :not(header, footer) {
-  padding: 14px;
+  --lf-pane-top: 14px;
+  padding: var(--lf-pane-top) 14px 14px;
   container-type: inline-size;
   --lf-block-frame: 1;
 }

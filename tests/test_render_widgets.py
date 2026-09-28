@@ -71,6 +71,7 @@ from render_cases_widgets import (
     LONG_LINE_DIFF_PAGE,
     MANIFEST_DIFF_PAGE,
     MULTI_HUNK_PATCH,
+    PANE_DIFF_PAGE,
     SQUEEZED_BOARD_PAGE,
 )
 from render_harness import (
@@ -10254,6 +10255,57 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     expect(page.locator(".lf-walk-position")).to_have_text("File 2 of 2")
     page.keyboard.press("Alt+ArrowDown")
     expect(page.locator(".lf-walk-position")).to_have_text("File 1 of 2 unreviewed")
+
+
+def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
+    browser, serve
+):
+    """The same two halves inside a held workspace pane, whose body is the box that
+    scrolls the rows. The header used to stop the banner's height below the pane's top,
+    because the offset it pinned at was the window's: rows scrolled past in the 42px
+    above the name that headed them, and a `]` landing, which aligns to the pane's own
+    top, put the row above its header. Where a sticking box stops is `--lf-top`, and a
+    scrolling pane body declares it as its own top edge.
+
+    Short enough a window that the patch overflows the pane, and still tall enough that
+    the workspace holds it."""
+    url = serve(PANE_DIFF_PAGE)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
+    page = open_page(browser, url)
+    page.set_viewport_size({"width": 1024, "height": 560})
+    page.wait_for_function(
+        "() => document.querySelector('lf-diff.lf-rendered') !== null"
+    )
+    page.emulate_media(reduced_motion="reduce")
+    scrollport = """() => {
+        const body = document.querySelector('lf-diff');
+        return { top: Math.round(body.getBoundingClientRect().top),
+                 scrolls: body.scrollHeight > body.clientHeight,
+                 window: document.scrollingElement.scrollTop };
+    }"""
+    pane = page.evaluate(scrollport)
+    assert pane["scrolls"], f"the patch fits its pane, so nothing can pin: {pane}"
+
+    page.evaluate("() => { document.querySelector('lf-diff').scrollTop = 200; }")
+    pinned = page.evaluate(DIFF_LANDING)
+    assert pinned["headTop"] == pane["top"], (
+        f"the file's name is not at the top of the pane that scrolls it: {pinned}, {pane}"
+    )
+    page.evaluate("() => { document.querySelector('lf-diff').scrollTop = 0; }")
+
+    page.locator("lf-diff .lf-diff-wrap").focus()
+    page.keyboard.press("]")
+    page.keyboard.press("]")
+    expect(page.locator(".lf-walk-position")).to_have_text("Hunk 2 of 3")
+    landed = page.evaluate(DIFF_LANDING)
+    assert landed["line"] == "40", landed
+    assert landed["headTop"] == pane["top"], (
+        f"the header is not pinned where the landing was measured against: {landed}"
+    )
+    assert landed["top"] >= landed["headBottom"], (
+        f"the row it landed on is above or behind its file's pinned header: {landed}"
+    )
+    assert page.evaluate(scrollport)["window"] == 0, "the window scrolled, not the pane"
 
 
 def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_it(

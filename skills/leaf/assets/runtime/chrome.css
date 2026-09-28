@@ -477,11 +477,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     background: var(--veil); backdrop-filter: blur(6px); border-bottom: 1px solid var(--rule); }
   .lf-banner-status, .lf-banner-actions { display: flex; align-items: center;
     gap: var(--lf-banner-gap); }
-  /* The sentence wins the row. It takes whatever the controls leave and keeps a floor
-     of its own below that, which is what the shelf's cap on the next rule states from
-     the other end. Growing into free space rather than reserving its own words is what
-     keeps the row still: a status ageing from "is working" to "last checked in" is a
-     longer sentence in a box that has not changed size, so nothing beside it moves. */
+  /* The sentence's room is whatever the controls leave, with a floor of its own below
+     that, which is what the shelf's cap on the next rule states from the other end. The
+     room is the box that stands still; the press inside it (.lf-status-button) is as
+     wide as its words and grows rightward into the room as its sentence does, so a
+     status ageing from "is working" to "last checked in" moves nothing beside it. */
   .lf-banner-status { flex: 1 1 auto; min-width: 0; }
   /* Keep a readable start of the status sentence beside the shelf's fixed primary
      controls. The reservation is independent of changing status copy, so updates
@@ -528,9 +528,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   :is(.lf-preview, .lf-layer-reference):hover { color: var(--ink); }
   .lf-layer-version { font-family: var(--mono); font-size: inherit; }
   /* The quiet summary is a native disclosure; complete activity wording remains
-     reachable by keyboard and touch without consuming the reading row. */
+     reachable by keyboard and touch without consuming the reading row. The press is only
+     as wide as its words, so its ring and its hit box are the sentence's, not the empty
+     banner's; a sentence longer than the room shrinks the press, whose words truncate,
+     rather than pushing the controls. */
   .lf-status-button { display: flex; align-items: center; gap: var(--lf-banner-gap);
-    min-width: 0; width: 100%; max-width: 100%; min-height: var(--aim-floor); padding: 2px 0;
+    min-width: 0; min-height: var(--aim-floor); padding: 2px 0;
     border: 0; border-radius: 4px; background: none; color: var(--ink-2);
     font: inherit; text-align: left; cursor: pointer; }
   .lf-status-button::after { content: ""; flex: none; width: 5px; height: 5px;

@@ -2647,7 +2647,9 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     the poll has no gesture at all, so there is no line to draw: the user was
     somewhere else entirely, and every control in the chrome is a control they are
     holding. The document may still change under them, because a fact arriving is what
-    they are here to see; its resulting destination may not be.
+    they are here to see; its resulting destination may not be. A control whose own words
+    the news rewrote may grow or shrink into free room, as the status press does when the
+    sentence it carries changes; nothing else may move for it.
 
     The banner is where all of it lands, and it is packed to the right against a spacer,
     which decides who pays. A control that grows moves itself and everything to its
@@ -2752,7 +2754,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
         drive()
         page.wait_for_function(arrived)
         page_at_rest(page)
-        moved = displaced(before, page.evaluate("() => window.__lfBoxes()"))
+        moved = displaced(before, page.evaluate("() => window.__lfBoxes()"), news=True)
         assert not moved, f"{what} and the banner moved:\n  " + "\n  ".join(moved)
 
     # The two primary controls keep their reserved words when the row narrows.
@@ -2774,6 +2776,71 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     assert len(stayed) >= 2, f"the primary row lost one of its controls: {stayed}"
     assert stayed == {name: wide[name] for name in stayed}, (
         f"a primary control changed width: {stayed} against {wide}"
+    )
+
+
+STATUS_PRESS = """() => {
+  const press = document.querySelector('.lf-status-button');
+  const text = press.querySelector('.lf-status-text');
+  const status = document.querySelector('.lf-banner-status');
+  const roomRight = status.getBoundingClientRect().right
+    - parseFloat(getComputedStyle(status).paddingRight);
+  const box = press.getBoundingClientRect();
+  return {left: box.left, top: box.top, right: box.right, roomRight,
+          words: text.textContent, shown: text.clientWidth, needed: text.scrollWidth};
+}"""
+
+
+@pytest.mark.parametrize("width", [1280, 390])
+def test_the_status_press_grows_into_free_room_and_moves_nothing(browser, serve, width):
+    """The status press is as wide as its words: its ring and its hit box are the
+    sentence's, not the empty banner's. As the sentence the agent declares grows, the
+    press grows rightward into the room the controls leave, and nothing else on the banner
+    moves; once that room runs out its words truncate rather than push More. At 390 the
+    status has a row of its own, so the room is that row."""
+    html = SUGGESTION_PAGE.replace(
+        "<title>suggestions</title>",
+        '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
+    )
+    url = serve(html)
+    page = open_page(browser, url)
+    resized(page, width, 844)
+
+    def say(detail):
+        session_model.cmd_status(serve.page_dir, "working", detail)
+        told(page)
+        page.wait_for_function(
+            "(words) => document.querySelector('.lf-status-text').textContent === words",
+            arg=f"Agent working — {detail}",
+        )
+        page_at_rest(page)
+        return page.evaluate(STATUS_PRESS)
+
+    short = say("tests")
+    assert short["shown"] >= short["needed"], short
+    assert short["right"] < short["roomRight"] - 60, (
+        f"a short status press still spans the banner's free room: {short}"
+    )
+    page.evaluate(DEFINE_BOXES)
+    beside = page.evaluate(BANNER_WATCH, f":is({NEIGHBOUR}):not(.lf-status-button)")
+    assert any("lf-banner-more" in name for name in beside["names"]), beside["names"]
+
+    longer = say("running the browser suite")
+    assert longer["shown"] >= longer["needed"], longer
+    assert (longer["left"], longer["top"]) == (short["left"], short["top"])
+    assert longer["right"] > short["right"], (short, longer)
+    moved = displaced(beside, page.evaluate("() => window.__lfBoxes()"))
+    assert not moved, "a longer status moved the banner:\n  " + "\n  ".join(moved)
+
+    endless = say("checking every thread on the page before recording the update " * 4)
+    assert endless["shown"] < endless["needed"], (
+        f"a sentence longer than the room was shown whole: {endless}"
+    )
+    assert endless["right"] <= endless["roomRight"] + 0.5, endless
+    assert (endless["left"], endless["top"]) == (short["left"], short["top"])
+    moved = displaced(beside, page.evaluate("() => window.__lfBoxes()"))
+    assert not moved, "a status past its room pushed the banner:\n  " + "\n  ".join(
+        moved
     )
 
 

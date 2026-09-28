@@ -14,6 +14,7 @@ from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import schema as schema_model
 from leaf import service as service_model
+from leaf.render_checks import rendered
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -2858,3 +2859,73 @@ def test_a_thread_questions_done_press_wears_its_address_and_one_workflow(
     statuses = message.locator(":scope > .lf-msg-head .lf-msg-sending")
     expect(statuses).to_have_count(1)
     expect(statuses).to_have_text("Sent")
+
+
+def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
+    """A titled card's pick mark and the digit the Ask walk puts in its place share one
+    seat in the card's corner, and a margin pin standing in that corner steps below the
+    controls it finds there. It found the 11px mark alone, so once an answer brought the
+    pin it stood over the lower edge of the first card's digit, which then gave way to a
+    chip hung on the mark's corner, 10px higher, with the mark showing under it. The mark
+    now takes the digit's box, and every card wears its own digit. A chosen card is filled
+    in the tint of an ok chip, so its "recommended" chip keeps a ground of its own there."""
+    page = open_page(browser, serve(next(p for p in EXAMPLES if p.stem == "alert-review")))
+    resized(page, 1440, 900)
+    page.keyboard.press("a")
+    expect(page.locator("#ar-canary-decision")).to_be_focused()
+    page.keyboard.press("2")
+    expect(page.locator("#ar-canary-suppress")).to_have_attribute("chosen", "")
+    # The answer's pin stands in the first card's corner, where the seats are.
+    expect(page.locator('.lf-margin-entry[aria-label^="Sent"]')).to_be_visible()
+    rendered(page)
+    seats = page.evaluate(
+        """() => [...document.querySelectorAll('#ar-canary-choice > lf-option')].map((o) => {
+          const badge = o.querySelector(':scope > .lf-key-badge');
+          const pick = o.querySelector(':scope > .lf-pick').getBoundingClientRect();
+          const box = badge.getBoundingClientRect();
+          return {worn: badge.hasAttribute('data-lf-ask-binding-badge'),
+                  top: box.top - o.getBoundingClientRect().top,
+                  seat: Math.abs(pick.height - box.height) < 1.5};
+        })"""
+    )
+    assert all(seat["worn"] and seat["seat"] for seat in seats), seats
+    assert len({round(seat["top"]) for seat in seats}) == 1, seats
+    expect(page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")).to_have_count(0)
+    page.keyboard.press("1")
+    chosen = page.locator("#ar-canary-consecutive")
+    expect(chosen).to_have_attribute("chosen", "")
+    grounds = chosen.evaluate(
+        """o => [getComputedStyle(o).backgroundColor,
+                 getComputedStyle(o.querySelector('lf-chip[tone="ok"]')).backgroundColor]"""
+    )
+    assert grounds[0] != grounds[1], grounds
+
+
+def test_an_ask_digit_hangs_off_a_corner_clear_of_its_neighbours(browser, serve):
+    """The walk hangs an Ask control's digit off the control's upper-left corner. In the
+    notification playground at 1024px its Create button wraps under Reset and Copy, 8px
+    below them, and a digit hung on that corner stood over Reset's; it now takes the first
+    corner that stands over no other control."""
+    page = open_page(
+        browser, serve(next(p for p in EXAMPLES if p.stem == "notification-playground"))
+    )
+    resized(page, 1024, 768)
+    page.keyboard.press("a")
+    chip = page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")
+    expect(chip).to_have_count(1)
+    reading = chip.evaluate(
+        """chip => {
+          const box = chip.getBoundingClientRect();
+          const create = [...document.querySelectorAll('button')]
+            .find((b) => b.textContent.trim() === 'Create notification')
+            .getBoundingClientRect();
+          const hit = (r) => r.width && box.left < r.right && r.left < box.right
+            && box.top < r.bottom && r.top < box.bottom;
+          const others = [...document.querySelectorAll('main button')]
+            .filter((b) => b.textContent.trim() !== 'Create notification')
+            .map((b) => b.getBoundingClientRect())
+            .filter(hit);
+          return {covers: others.length, touches: hit(create)};
+        }"""
+    )
+    assert reading == {"covers": 0, "touches": True}, reading

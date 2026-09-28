@@ -695,7 +695,7 @@ export function createAskView({
       chip.setAttribute("aria-hidden", "true");
       chip.style.left = `${box.left}px`;
       chip.style.top = `${box.top}px`;
-      chips.push(chip);
+      chips.push({ chip, owner: presented, corner: box });
     }
     placement.paint(askActionLayer, chips);
   }

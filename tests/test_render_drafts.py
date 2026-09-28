@@ -3121,7 +3121,7 @@ def test_registered_control_keys_activate_once(browser, serve):
           return {
             host: {outline: hs.outlineStyle, width: parseFloat(hs.outlineWidth)},
             editor: {outline: es.outlineStyle, shadow: es.boxShadow,
-                     ring: es.getPropertyValue('--lf-here-ring').trim()},
+                     ring: es.getPropertyValue('--lf-focus-ring').trim()},
           };
         }"""
     )

@@ -11,7 +11,7 @@ import {
   showNews,
 } from "./banner-shelf.js";
 import { latestChip, versionBtn } from "./version-chooser.js";
-import { asksBtn, othersBtn } from "./trays.js";
+import { asksBtn, othersBtn } from "./drawers.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { repaint } from "./repaint.js";
 import { announce, notice } from "./notifications.js";
@@ -121,7 +121,7 @@ const WORK_WORDS = {
   replying: "replying",
 };
 export const countUpdates = (count) => `${count} update${count === 1 ? "" : "s"}`;
-// What the banner and the leaves tray both read off one page's server-owned `activity`
+// What the banner and the leaves drawer both read off one page's server-owned `activity`
 // before either words it. Each seat keeps its own sentences; a fact they share changes
 // here once:
 //
@@ -630,7 +630,7 @@ export const isSignoffDeclared = () =>
 
 let signoff = false;
 
-// The banner's row mounts after the version chooser and trays exist. Its complete
+// The banner's row mounts after the version chooser and drawers exist. Its complete
 // inventory and order already belong to the shelf's explicit registrations above.
 export function mountBanner({ approveVersion, paintApproval }) {
   signoff = isSignoffDeclared() && runtime.currentStamp !== null;

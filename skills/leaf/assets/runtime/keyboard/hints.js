@@ -91,7 +91,7 @@ function spreadHints(
 ) {
   const band =
     parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue("--here-ring-w"),
+      getComputedStyle(document.documentElement).getPropertyValue("--focus-ring-w"),
     ) || 0;
   const faces = hints.map(({ chip, target, belowTarget = false }) => ({
     start: chip.getBoundingClientRect(),
@@ -129,7 +129,7 @@ export function seatHints(
   { barriers: fixedBarriers = [], lineBox, band, viewport },
 ) {
   const gap = 2;
-  // The browsed hint wears the layer's band (--here-shadow, theme.css), which a face's
+  // The browsed hint wears the layer's band (--focus-shadow, theme.css), which a face's
   // own rectangle does not report. Any chip can become the browsed one as the user
   // types, so the pass seats every face as though it were, keeping the one layout. A
   // window edge takes the whole band, because a band drawn past it is clipped away. A

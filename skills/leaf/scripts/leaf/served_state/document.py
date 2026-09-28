@@ -18,7 +18,7 @@ def browser_document(page: PageReading, threads: dict) -> tuple[dict, DocumentRe
                 floors=document.floors,
             ),
             # The complete Ask reading of this revision under the same transaction.
-            # The browser draws its tray, walk, and banner count
+            # The browser draws its drawer, walk, and banner count
             # from these lists rather than folding the declarations a second time.
             "asks": document.asks,
         },

@@ -21,16 +21,16 @@
 // and browser UI all use that same root. Root scroll events are reported on `document`,
 // while nested scrollports report on their elements. Use `scrollerFor(el)` where a widget
 // may be one an agent sent, since a widget in a message is scrolled by the panel's own
-// list and by nothing else. Threads and trays are alternate auxiliary surfaces, so only
+// list and by nothing else. Threads and drawers are alternate auxiliary surfaces, so only
 // one stands at a time, over the page and taking no width from it. Leaves always covers
-// the page. Threads and the Asks tray cover it only where they would leave less than a
+// the page. Threads and the Asks drawer cover it only where they would leave less than a
 // usable page beside them, one rule for both (`standsBeside`, auxiliary-surfaces.js;
 // `--lf-auxiliary-beside`, theme.css); elsewhere the page beside them stays live.
 // Auxiliary modality is a shared inert boundary outside this geometry owner; the
 // reference and Page Map keep native `showModal()`. `--lf-room` and
 // `--lf-sidebar-posture` are CSS-owned readings resolved on `main`, which is the named
-// `lf-content-frame` style container a margin resident asks for them. The bottom band is
-// a stated height (`--lf-band-h`, theme.css) rather than a reading, so whatever has to
+// `lf-content-frame` style container a margin resident asks for them. The bottom bar is
+// a stated height (`--lf-bottom-bar-h`, theme.css) rather than a reading, so whatever has to
 // end above it reads that token.
 
 // Application composition supplies feature-local geometry. This owner cannot open
@@ -69,7 +69,7 @@ export function createChromeLayout({
   elements: { panel, closeBtn, panelFoot, threadsBox, shortcutBarEl, bottomStatusEl },
   scheduleThreadPreviewPosition,
   bottomChromeBoxes,
-  restateTrayEdge,
+  restateDrawerEdge,
   syncAuxiliarySurfaces,
   syncReactLayout,
   refreshFab,
@@ -111,10 +111,10 @@ export function createChromeLayout({
         row.getBoundingClientRect().right > panelLeft,
     );
     panel.closest(".lf-chrome")?.toggleAttribute("data-lf-rail-covered", railCovered);
-    // The status stands in the bottom band (chrome.css) and moves only to stay live above
+    // The status stands in the bottom bar (chrome.css) and moves only to stay live above
     // a covering panel's foot: unlike the inert shortcut guide, notices are live feedback
-    // from the foreground action. Everything the page ends above is the band's stated
-    // height, so nothing here writes a reservation for the document or the trays.
+    // from the foreground action. Everything the page ends above is the bottom bar's
+    // stated height, so nothing here writes a reservation for the document or the drawers.
     bottomStatusEl.style.bottom = "";
     bottomStatusEl.style.translate = "";
     const status = bottomStatusEl.getBoundingClientRect();
@@ -198,7 +198,7 @@ export function createChromeLayout({
     commentsEdge.handle(panel, () => closeBtn);
     addEventListener("resize", () => {
       commentsEdge.state();
-      restateTrayEdge();
+      restateDrawerEdge();
       syncAuxiliarySurfaces();
       pageShifted();
       syncLayout();
@@ -209,9 +209,9 @@ export function createChromeLayout({
     layoutSizes.observe(bottomStatusEl);
   }
 
-  // The thread panel's edge, on the right, and the tray panel's, on the left. Each keeps
+  // The thread panel's edge, on the right, and the drawer panel's, on the left. Each keeps
   // the user's choice in their own store rather than the tab's, because where a user
-  // keeps their threads, and how much of the page they will give a tray, is the
+  // keeps their threads, and how much of the page they will give a drawer, is the
   // chrome they arrange and expect to find arranged wherever they are reading (see
   // `userStore`). Live activation keeps the edges themselves; document travel and reload
   // restore the same choices, so no revision or visit asks the user to draw them again.

@@ -822,7 +822,7 @@ export function createMarginProjection({
   }
   // A viewport posture change can replace the focused full thread with its
   // compact action. Reconcile after resize delivery so the browser can finish its
-  // own focus and popover bookkeeping before that node changes shape. Panel and tray
+  // own focus and popover bookkeeping before that node changes shape. Panel and drawer
   // changes notify this runtime directly through their owners.
 
   // A margin cluster is hoisted away from the page target it belongs to, so ancestry
@@ -2407,7 +2407,7 @@ export function createMarginProjection({
   // which is the container it is part of.
   //
   // Once a contribution is engaged, its complete and escape controls are open because of
-  // semantic state rather than because the user disclosed the secondary tray. That
+  // semantic state rather than because the user disclosed the secondary drawer. That
   // state consumes the earlier disclosure step: Escape leaves the action the user is
   // standing on instead of first pretending to close controls that remain open by
   // contract.
@@ -2621,7 +2621,7 @@ export function createMarginProjection({
   // showing its threads. The card shows the threads of the target the user stands at,
   // which is what lets both be up at once, and goes when they stand anywhere else on the
   // page, let go, or press outside all three. Keyboard focus passing through the chrome
-  // at large — the banner, a tray — is working on the page rather than a place on it,
+  // at large — the banner, a drawer — is working on the page rather than a place on it,
   // and leaves the card; a press anywhere else is the user's attention moving, and
   // takes it, as a press on another page place does.
   //

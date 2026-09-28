@@ -254,7 +254,7 @@ export function controlNavigationKeys(node) {
 // letting go asks the covering surface before the page.
 //
 // Two readings, not one. The surface is the whole of what covers, and answers whether the
-// user is already somewhere inside it — a tray's close button, the panel's find box —
+// user is already somewhere inside it — a drawer's close button, the panel's find box —
 // where nothing is owed them. The landing is the one place within it that takes a user
 // who is nowhere. Both are the modality's, which is the thing that inerted the page: a
 // layout predicate of its own would be a second answer, disagreeing with it across a

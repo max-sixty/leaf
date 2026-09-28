@@ -406,7 +406,7 @@ export function createVersionController({
     liveInCommandReference: true,
     // A chooser over the page suspends the page, which the two transient contexts above this one always did
     // and this one did not — so a user in the middle of choosing a version could press `l`
-    // and take focus out of the menu into the leaves tray, `d` and scroll a page they were
+    // and take focus out of the menu into the leaves drawer, `d` and scroll a page they were
     // not looking at, or `c` and open the composer under the list. None of it fails loudly:
     // the press does exactly what it says on a page the user has stopped reading. The
     // worst of them was a page-level key that set a comparison base, which the walk they

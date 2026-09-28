@@ -11,7 +11,7 @@ import { overlaps, overlapsAcross, union } from "./rect.js";
    `shownBox` returns an element's own box or the union of the boxes its
    `display: contents` descendants paint. `shownParts` returns the visible elements on
    which an outline can be drawn, and `shownExtent` the box they cover together.
-   `shownRect` clips an element's `shownBox` through scrolling ancestors' visible bands (less the stuck covers over their edges) and the viewport,
+   `shownRect` clips an element's `shownBox` through scrolling ancestors' visible bands (less the sticky headers stuck over their edges) and the viewport,
    stopping ancestor clipping at a fixed-position box, then takes away what a declared
    occluder stands over (`declareOccluder`). It is what a box may be drawn over, which
    chrome can be: the banner and the shortcut bar are drawn above the page, not cut out
@@ -46,16 +46,16 @@ import { overlaps, overlapsAcross, union } from "./rect.js";
 export const shellRight = () => document.body.getBoundingClientRect().right;
 
 // How much of the window the page shows: the visible viewport, less the banner over its
-// head and the bottom band at its foot. Both bands are chrome fixed to the window that
+// head and the bottom bar at its foot. Both bands are chrome fixed to the window that
 // stand over the page without clipping it, so no clip walk finds them; the owner of each
-// declares it here (`declareBanner`, banner.js; `declareBottomBand`,
+// declares it here (`declareBanner`, banner.js; `declareBottomBar`,
 // keyboard/shortcut-bar.js), and every reading of the room the page has starts from
 // `bannerFoot` or `shownWindow` rather than measuring the chrome itself.
 //
 // The banner's foot is its painted edge, since its declared height (`--lf-banner-h`) is a
 // safe-area `calc()` whose serialized value is not a number, and the phone banner wraps to
-// a second row. The bottom band is read as the boxes standing in it rather than as its
-// stated height (`--lf-band-h`), because the status rises above a covering panel's foot;
+// a second row. The bottom bar is read as the boxes standing in it rather than as its
+// stated height (`--lf-bottom-bar-h`), because the status rises above a covering panel's foot;
 // it bounds only the room its boxes stand across.
 //
 // The visible viewport is the part of the window the user sees: pinch zoom and a phone's
@@ -67,12 +67,12 @@ export const shellRight = () => document.body.getBoundingClientRect().right;
 // the window the page scrolls through, for a caller asking whether a scroll has carried
 // something out of the page's room rather than whether the user can see it.
 let banner = null;
-let bottomBand = () => [];
+let bottomBar = () => [];
 export const declareBanner = (element) => {
   banner = element;
 };
-export const declareBottomBand = (boxes) => {
-  bottomBand = boxes;
+export const declareBottomBar = (boxes) => {
+  bottomBar = boxes;
 };
 export const bannerFoot = () => banner?.getBoundingClientRect().bottom ?? 0;
 export function shownWindow({ within = null, gap = 0, viewport = "visual" } = {}) {
@@ -88,7 +88,7 @@ export function shownWindow({ within = null, gap = 0, viewport = "visual" } = {}
   const left = Math.max(offsetLeft, within?.left ?? -Infinity) + gap;
   const right = Math.min(offsetLeft + width, within?.right ?? Infinity) - gap;
   const top = Math.max(offsetTop, bannerFoot(), within?.top ?? -Infinity) + gap;
-  const foot = bottomBand()
+  const foot = bottomBar()
     .filter((box) => overlapsAcross(box, { left, right }))
     .map((box) => box.top);
   const bottom =
@@ -154,50 +154,50 @@ export function shownBand(el) {
 // The two bands of a scrollport, one reading each, beside the clip they start from.
 //
 // `visibleBand` is what the user can see through a scroller now: its shown band less
-// the covers stuck over an edge of it. A cover is a sticky box declared through
-// `declareCoverRoom` (below): an `lf-diff` file header, a page `lf-tabs` strip.
+// the sticky headers stuck over an edge of it. A sticky header is a sticky box declared through
+// `declareStickyHeaders` (below): an `lf-diff` file header, a page `lf-tabs` strip.
 // Stuck, it paints over the scroller's contents without clipping them, so a band that
 // ignored it would call what is under it shown. The clip walk below applies this band at
 // every ancestor, so `shownRect` and the readings built on it (read acknowledgement, the
 // summaries a thread card keeps open, arrival checks, chrome placement) all answer "on
 // screen" the same way; the place a re-render holds asks it of its one scroller directly.
 //
-// A cover belongs to the scroller it sticks in, found by climbing out of shadow trees
-// as the clip walk does: a cover inside a nested scroller is that scroller's, not the
-// document's, though the document holds it too. And a cover does not hide itself or what
-// it holds, so the band a node inside one is read against (`item`) leaves that cover out.
+// A header belongs to the scroller it sticks in, found by climbing out of shadow trees
+// as the clip walk does: a header inside a nested scroller is that scroller's, not the
+// document's, though the document holds it too. And a header does not hide itself or what
+// it holds, so the band a node inside one is read against (`item`) leaves that header out.
 //
 // `landingBand` is where a landing may put something: the shown band less the
 // `scroll-padding` the scroller declares, which is also what `scrollIntoView` honours.
-// It reserves room for the tallest cover wherever one might stick, so it is never wider
+// It reserves room for the tallest header wherever one might stick, so it is never wider
 // than the visible band a landing arrives in.
 const scrolls = (el) => {
   const { overflowX, overflowY } = getComputedStyle(el);
   return /auto|scroll|hidden/.test(`${overflowX} ${overflowY}`);
 };
 // The scroller a sticky box sticks in: its nearest scrolling ancestor, else the root.
-const stuckIn = (cover) => {
-  for (let a = upFrom(cover); a && a !== document.documentElement; a = upFrom(a))
+const stuckIn = (header) => {
+  for (let a = upFrom(header); a && a !== document.documentElement; a = upFrom(a))
     if (scrolls(a)) return a;
   return document.scrollingElement;
 };
-// Every shown cover's box, by the scroller it sticks in, with the sticky insets it is
+// Every shown header's box, by the scroller it sticks in, with the sticky insets it is
 // held at (insetBand). Built once per clip pass, since a pass asks it at each ancestor of
-// every item. A detached cover is only skipped: its observer lets it go, and a cover put
+// every item. A detached header is only skipped: its observer lets it go, and a header put
 // back and declared again must still be one.
-const COVERS = Symbol("covers");
-function coversByScroller(clips = null) {
-  let index = clips?.get(COVERS);
+const HEADERS = Symbol("sticky headers");
+function headersByScroller(clips = null) {
+  let index = clips?.get(HEADERS);
   if (index) return index;
   index = new Map();
-  for (const cover of declaredCovers) {
-    if (!cover.isConnected || !cover.checkVisibility()) continue;
-    const scroller = stuckIn(cover);
+  for (const header of declaredHeaders) {
+    if (!header.isConnected || !header.checkVisibility()) continue;
+    const scroller = stuckIn(header);
     if (!index.has(scroller)) index.set(scroller, []);
-    const { left, right, top, bottom } = cover.getBoundingClientRect();
-    const style = getComputedStyle(cover);
+    const { left, right, top, bottom } = header.getBoundingClientRect();
+    const style = getComputedStyle(header);
     index.get(scroller).push({
-      cover,
+      header,
       box: {
         left,
         right,
@@ -208,17 +208,17 @@ function coversByScroller(clips = null) {
       },
     });
   }
-  clips?.set(COVERS, index);
+  clips?.set(HEADERS, index);
   return index;
 }
-const bandLess = (band, covers, item) =>
+const bandLess = (band, headers, item) =>
   insetBand(
     band,
-    covers.filter(({ cover }) => !item || !under(item, cover)).map(({ box }) => box),
+    headers.filter(({ header }) => !item || !under(item, header)).map(({ box }) => box),
   );
 export function visibleBand(scroller, item = null) {
   const band = shownBand(scroller);
-  return band && bandLess(band, coversByScroller().get(scroller) ?? [], item);
+  return band && bandLess(band, headersByScroller().get(scroller) ?? [], item);
 }
 export function landingBand(scroller) {
   const band = shownBand(scroller);
@@ -235,7 +235,7 @@ export function landingBand(scroller) {
 // `scroll-padding` it declares. Callers that measure from the scroller's own box take
 // the clearance here rather than reading the style themselves.
 export function landingInsets(scroller) {
-  measureUnseenCovers(scroller);
+  measureUnseenHeaders(scroller);
   const style = getComputedStyle(scroller);
   const inset = (side) => Number.parseFloat(style[`scrollPadding${side}`]) || 0;
   return {
@@ -245,92 +245,92 @@ export function landingInsets(scroller) {
     left: inset("Left"),
   };
 }
-// Declaring a box's covers does two things. Each becomes a cover for `visibleBand`, and
+// Declaring a box's sticky headers does two things. Each counts against `visibleBand`, and
 // the room they take is kept on the box as a custom property, so the `scroll-padding` or
 // `scroll-margin` that reads it reserves that room for every native landing (and a
 // scroller's `scroll-padding` for the runtime's own, through `landingInsets`). How tall
-// a cover is is a measurement rather than a constant: a heading or a file path wraps,
+// a header is is a measurement rather than a constant: a heading or a file path wraps,
 // and the user sets the width by drawing a panel's edge, which posts no event. So the
-// covers are observed rather than measured by whoever renders them, and a declaration
-// that replaces covers forces no layout. Only a host's first covers are measured as
+// headers are observed rather than measured by whoever renders them, and a declaration
+// that replaces headers forces no layout. Only a host's first headers are measured as
 // they are declared, since a first observation comes after the frame's layout: a
 // document's initial fragment landing reads the room in that window, and read as none
-// it stopped a root tab strip's height short, under the strip. A cover that replaces
+// it stopped a root tab strip's height short, under the strip. A header that replaces
 // another starts at the room its host already keeps. The tallest is the room, since a
-// landing cannot know which cover will stick
-// over it. A cover that stops rendering (its panel shut) keeps the room it last
+// landing cannot know which header will stick
+// over it. A header that stops rendering (its panel shut) keeps the room it last
 // measured, so a frame that runs before the reopening's observation reads the room
-// rather than none. A cover first declared while its panel was shut has measured
+// rather than none. A header first declared while its panel was shut has measured
 // nothing, and the frame after that panel's first opening would read its room as none;
-// so a landing's reading of the host's insets measures any cover shown but not yet
+// so a landing's reading of the host's insets measures any header shown but not yet
 // measured shown, before the observer's first report of it. Called again with the box's
-// current covers, it replaces the set; a cover that leaves the document is let go on its
+// current headers, it replaces the set; a header that leaves the document is let go on its
 // own.
-const declaredCovers = new Set();
-const coverRooms = new WeakMap();
-const coverHosts = new WeakMap();
-const unseenCovers = new WeakSet();
-let coverObserver = null;
-const paintCoverRoom = (host) => {
-  const { property, covers } = coverRooms.get(host);
-  const room = `${Math.max(0, ...covers.values())}px`;
+const declaredHeaders = new Set();
+const headerRooms = new WeakMap();
+const headerHosts = new WeakMap();
+const unseenHeaders = new WeakSet();
+let headerObserver = null;
+const paintHeaderRoom = (host) => {
+  const { property, headers } = headerRooms.get(host);
+  const room = `${Math.max(0, ...headers.values())}px`;
   // The document root's inline style is shared with the authored revision, which keeps
   // only what the runtime registered as its own (root-state.js).
   if (host === document.documentElement) setRuntimeRootStyle(host, property, room);
   else host.style.setProperty(property, room);
 };
-const letGo = (cover) => {
-  coverObserver.unobserve(cover);
-  declaredCovers.delete(cover);
+const letGo = (header) => {
+  headerObserver.unobserve(header);
+  declaredHeaders.delete(header);
 };
-export function declareCoverRoom(host, property, covers) {
-  coverObserver ??= sizeObserver((entries) => {
+export function declareStickyHeaders(host, property, headers) {
+  headerObserver ??= sizeObserver((entries) => {
     const touched = new Set();
     for (const { target, borderBoxSize } of entries) {
-      const host = coverHosts.get(target);
-      const room = host && coverRooms.get(host);
-      if (!room?.covers.has(target)) continue;
+      const host = headerHosts.get(target);
+      const room = host && headerRooms.get(host);
+      if (!room?.headers.has(target)) continue;
       if (!target.isConnected) {
         letGo(target);
-        room.covers.delete(target);
+        room.headers.delete(target);
       } else if (target.checkVisibility()) {
-        room.covers.set(target, borderBoxSize[0]?.blockSize ?? 0);
-        unseenCovers.delete(target);
+        room.headers.set(target, borderBoxSize[0]?.blockSize ?? 0);
+        unseenHeaders.delete(target);
       } else continue;
       touched.add(host);
     }
-    for (const host of touched) paintCoverRoom(host);
+    for (const host of touched) paintHeaderRoom(host);
   });
-  const prior = coverRooms.get(host)?.covers ?? new Map();
+  const prior = headerRooms.get(host)?.headers ?? new Map();
   const next = new Map();
   const kept = Math.max(0, ...prior.values());
   const fresh = [];
-  for (const cover of covers) {
-    next.set(cover, prior.get(cover) ?? kept);
-    if (prior.has(cover)) continue;
-    fresh.push(cover);
-    unseenCovers.add(cover);
-    coverHosts.set(cover, host);
-    declaredCovers.add(cover);
-    coverObserver.observe(cover);
+  for (const header of headers) {
+    next.set(header, prior.get(header) ?? kept);
+    if (prior.has(header)) continue;
+    fresh.push(header);
+    unseenHeaders.add(header);
+    headerHosts.set(header, host);
+    declaredHeaders.add(header);
+    headerObserver.observe(header);
   }
-  const left = [...prior.keys()].filter((cover) => !next.has(cover));
-  for (const cover of left) letGo(cover);
-  coverRooms.set(host, { property, covers: next });
-  if (!prior.size) measureUnseenCovers(host, false);
-  if (fresh.length || left.length) paintCoverRoom(host);
+  const left = [...prior.keys()].filter((header) => !next.has(header));
+  for (const header of left) letGo(header);
+  headerRooms.set(host, { property, headers: next });
+  if (!prior.size) measureUnseenHeaders(host, false);
+  if (fresh.length || left.length) paintHeaderRoom(host);
 }
-function measureUnseenCovers(host, paint = true) {
-  const room = coverRooms.get(host);
+function measureUnseenHeaders(host, paint = true) {
+  const room = headerRooms.get(host);
   if (!room) return;
   let measured = false;
-  for (const cover of room.covers.keys())
-    if (unseenCovers.has(cover) && cover.isConnected && cover.checkVisibility()) {
-      room.covers.set(cover, cover.getBoundingClientRect().height);
-      unseenCovers.delete(cover);
+  for (const header of room.headers.keys())
+    if (unseenHeaders.has(header) && header.isConnected && header.checkVisibility()) {
+      room.headers.set(header, header.getBoundingClientRect().height);
+      unseenHeaders.delete(header);
       measured = true;
     }
-  if (measured && paint) paintCoverRoom(host);
+  if (measured && paint) paintHeaderRoom(host);
 }
 // A band less the covers standing over its edges. A cover stands over the top edge when
 // it straddles it, and a cover resting on another stuck cover straddles the edge the
@@ -483,7 +483,7 @@ export function shownRect(item, clips) {
   return clippedRect(shownBox(item), item, clips);
 }
 // What of an item the user sees: what every box over it lets through, within the room the
-// chrome leaves. `within` keeps a bottom-band box from cutting the item unless it stands
+// chrome leaves. `within` keeps a bottom-bar box from cutting the item unless it stands
 // across it. The chrome cuts the item's top and foot only; its sides stay shownRect's, the
 // layout viewport's, since a pinch zoom's visual viewport is a pan across the page and not
 // a clip — read with its sides, a message wider than the zoomed view was never seen whole
@@ -544,7 +544,7 @@ function clipped(box, item, clips, held) {
         (c = {
           band,
           // What stands over the band's edges without clipping it (visibleBand).
-          covers: band ? (coversByScroller(clips).get(a) ?? []) : [],
+          headers: band ? (headersByScroller(clips).get(a) ?? []) : [],
           // Read here rather than out of shownBand, whose answer is a band and is the
           // render gate's too: what clips a box and what a box is positioned against are
           // two facts, and one of them is this walk's alone.
@@ -553,7 +553,7 @@ function clipped(box, item, clips, held) {
       );
     }
     if ((held || a !== item) && c.band) {
-      const band = c.covers.length ? bandLess(c.band, c.covers, item) : c.band;
+      const band = c.headers.length ? bandLess(c.band, c.headers, item) : c.band;
       if (!band) return null;
       left = Math.max(left, band.left);
       top = Math.max(top, band.top);
@@ -570,7 +570,7 @@ function clipped(box, item, clips, held) {
 // A surface that stands over the page without clipping it: the thread panel, over the
 // right of a live page at a desktop window. Nothing in the page's own tree says so,
 // since the surface is fixed chrome beside the page rather than an ancestor of what it
-// stands over, so the surface declares itself, as a sticky cover declares its room. The
+// stands over, so the surface declares itself, as a sticky header declares its room. The
 // clip walk then takes what it stands over away from any box stacked beneath it, and a
 // travel destination, an exposure reading, and a badge's placement all read the part
 // under it as hidden. What the surface holds is its own to show, and what stacks above

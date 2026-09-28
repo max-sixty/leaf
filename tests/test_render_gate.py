@@ -622,24 +622,24 @@ RECURSIVE_ROWS_PAGE = leaf_page(
 def test_recursive_rows_share_the_window_and_keep_pane_furniture_in_view(
     browser, serve
 ):
-    """Rows in a held workspace's body split its height, and a pane's footer stays
+    """Rows in a full-height workspace's body split its height, and a pane's footer stays
     inside its row while the body above it scrolls. A window too short for the
     workspace hands the scroll to the page, where each pane takes its full height."""
     page = open_page(browser, serve(RECURSIVE_ROWS_PAGE))
     resized(page, 1200, 700)
     upper = page.locator("#upper")
     pane_posture(page, upper, "bounded")
-    held = page.evaluate(
+    boxes = page.evaluate(
         """() => {
           const box = selector => document.querySelector(selector).getBoundingClientRect();
           return {upper: box('#upper'), lower: box('#lower'),
                   footer: box('#upper > footer'), workspace: box('main')};
         }"""
     )
-    assert held["lower"]["top"] >= held["upper"]["bottom"] - 1, held
-    assert held["footer"]["bottom"] <= held["upper"]["bottom"] + 1, held
-    assert held["workspace"]["bottom"] <= 700, held
-    assert abs(held["upper"]["height"] - held["lower"]["height"]) <= 1, held
+    assert boxes["lower"]["top"] >= boxes["upper"]["bottom"] - 1, boxes
+    assert boxes["footer"]["bottom"] <= boxes["upper"]["bottom"] + 1, boxes
+    assert boxes["workspace"]["bottom"] <= 700, boxes
+    assert abs(boxes["upper"]["height"] - boxes["lower"]["height"]) <= 1, boxes
 
     resized(page, 1200, 420)
     pane_posture(page, upper, "flow")
@@ -1070,12 +1070,12 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
     """A page put back the way the user left it is simply there, and does not assemble
     itself in front of them.
 
-    Standing a tray up is a gesture and gestures move: the tray slides in over a fifth
-    of a second and the document steps aside to make the room. Coming back to a tray
+    Standing a drawer up is a gesture and gestures move: the drawer slides in over a fifth
+    of a second and the document steps aside to make the room. Coming back to a drawer
     that was already standing is not a gesture — nothing was just decided, and a page
     that replays the decisions on arrival would be showing the user a fifth of a
     second of furniture instead of what they came back to read. The auxiliary-surface
-    owner passes arrival separately from a gesture, so even a tray whose first paint
+    owner passes arrival separately from a gesture, so even a drawer whose first paint
     waits for presentation appears without an opening slide.
 
     What is read is every motion the browser reports, which it does through the
@@ -1157,7 +1157,7 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
     assert len(restore_cases) > 1, "the runtime declares nothing to arrive in"
 
     # The control, and the whole reason the silences below say anything: standing the
-    # tray up by hand is the gesture whose motion the arrivals must not have. What it
+    # drawer up by hand is the gesture whose motion the arrivals must not have. What it
     # paints is the runtime's business and is not named here; that it paints at all is
     # this reading's, and a reading that reports nothing when something moved would
     # pass every assertion after it.
@@ -3682,7 +3682,7 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
 @pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
 def test_the_user_draws_an_edge_to_the_width_they_want(browser, serve, edge):
     """A thread about a table wants room a thread about a sentence does not,
-    and a tray of long names wants room a tray of short ones does not; only the user
+    and a drawer of long names wants room a drawer of short ones does not; only the user
     looking at one knows which this is. So each region's edge is a thing they take hold
     of. The region stands over the page, so the page yields nothing at any width.
 
@@ -3916,21 +3916,21 @@ def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
     )
 
 
-def test_both_trays_stand_on_the_one_edge_the_user_drew(browser, serve, other_leaf):
+def test_both_drawers_stand_on_the_one_edge_the_user_drew(browser, serve, other_leaf):
     """Leaves and decisions are the same furniture at two scopes, one at a time on one side of
-    the window, so the width is the side's rather than either tray's. A user who drew
-    the edge out to read long names has drawn the edge, and finding the other tray back
-    at its default would be one fact kept in two places — which is what a width per tray
+    the window, so the width is the side's rather than either drawer's. A user who drew
+    the edge out to read long names has drawn the edge, and finding the other drawer back
+    at its default would be one fact kept in two places — which is what a width per drawer
     would have been, and what the shared property is instead.
 
-    The `other_leaf` fixture is the whole reason there is a second tray to swap to: a
-    tray of one — the page the user is already on — is not worth a control, so without
+    The `other_leaf` fixture is the whole reason there is a second drawer to swap to: a
+    drawer of one — the page the user is already on — is not worth a control, so without
     a neighbour `g L` is unavailable."""
     page = open_page(browser, serve(ASKS_PAGE))
-    trays = EDGES[1]
-    trays.stand(page)
-    edge_settled(page, trays)
-    draw_edge(page, trays, 160)
+    drawers = EDGES[1]
+    drawers.stand(page)
+    edge_settled(page, drawers)
+    draw_edge(page, drawers, 160)
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
@@ -3943,8 +3943,8 @@ def test_both_trays_stand_on_the_one_edge_the_user_drew(browser, serve, other_le
     )
     page.close()
 
-    assert round(leaves) == trays.wide + 160, (
-        f"the second tray came up at a width the user had already moved: {leaves}"
+    assert round(leaves) == drawers.wide + 160, (
+        f"the second drawer came up at a width the user had already moved: {leaves}"
     )
 
 

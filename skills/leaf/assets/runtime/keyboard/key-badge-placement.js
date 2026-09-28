@@ -139,7 +139,7 @@ export function keyBadgePlacement() {
       : null;
 
   // Whether the user can see what this box was measured from. Geometry cannot answer it:
-  // a panel, a tray, a fixed sheet or an ordinary page box covers a member without clipping
+  // a panel, a drawer, a fixed sheet or an ordinary page box covers a member without clipping
   // its rectangle. Ask the rendered stack inside the box, and make the member itself answer,
   // a cover being exactly the case where something else does. Most chrome answers, which is
   // how a card behind the open panel leaves the map; the bar and the status line take no

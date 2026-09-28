@@ -1,7 +1,7 @@
 /* Scopes: where a group of rows applies, registered against an element and gathered by
    title for the surfaces that project them.
 
-   Standing in a surface is where focus is, not merely that the surface is open. A tray's
+   Standing in a surface is where focus is, not merely that the surface is open. A drawer's
    or panel's own button lives in the banner, so opening by pointer leaves the user
    outside it, and a key, a Tab or a click on its contents is what puts them in. Inside a
    text box the letter is a character, Shift+Enter writes a newline in a composer, and arrows move the caret.

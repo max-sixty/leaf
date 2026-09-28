@@ -29,8 +29,8 @@ export class RetainedFace extends LitElement {
     this.#committed = initial;
   }
 
-  // Every descendant is generated chrome in the stable control or tray that holds it,
-  // where tray styling, keyboard scopes, export, and the render gate read it.
+  // Every descendant is generated chrome in the stable control or drawer that holds it,
+  // where drawer styling, keyboard scopes, export, and the render gate read it.
   createRenderRoot() {
     return this;
   }

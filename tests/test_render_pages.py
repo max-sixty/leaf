@@ -2952,7 +2952,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     takes, so the release-notes shot, the wide exhibit in the control, grows left only
     to stop short of it.
 
-    The Asks tray stands over the left margin and moves nothing in it. A narrow viewport
+    The Asks drawer stands over the left margin and moves nothing in it. A narrow viewport
     returns the aside to the flow, and print proves paper reserves no blank margin for a
     posture it cannot use.
 
@@ -3072,8 +3072,8 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 0"
     )
 
-    # The Asks tray stands over the page's left margin and moves nothing in it: the fixed
-    # ToC and the sidebar stay where the page put them, under the tray while it stands.
+    # The Asks drawer stands over the page's left margin and moves nothing in it: the fixed
+    # ToC and the sidebar stay where the page put them, under the drawer while it stands.
     resized(page, 1700, 900)
     margin = """() => {
           const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
@@ -3101,7 +3101,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert geometry["sidebarPosition"] == "sticky"
     assert geometry["tocPosition"] == "fixed"
     assert 64 <= geometry["tocTop"] <= 68
-    # The map ends above the bottom band, as every region does: its foot is the window's
+    # The map ends above the bottom bar, as every region does: its foot is the window's
     # less the band and the map's own inset, so the keyboard's line never covers its last
     # entry.
     assert abs(geometry["tocBottom"] - (geometry["lineTop"] - 24)) <= 1, (
@@ -3290,7 +3290,7 @@ def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
         else:
             assert at["note"]["float"] == "none", (width, at)
 
-    # The Asks tray stands over the page and grants or withdraws no margin.
+    # The Asks drawer stands over the page and grants or withdraws no margin.
     toggle_asks(page)
     panelled = page.evaluate(reading)
     assert panelled["sidebars"] == at["sidebars"]

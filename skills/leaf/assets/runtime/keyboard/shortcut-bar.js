@@ -1,4 +1,4 @@
-/* The shortcut bar at the foot of the page, the useful status at the band's far end,
+/* The shortcut bar at the foot of the page, the useful status at the bar's far end,
    and the More control that leads to the reference.
 
    The status keeps navigation state out of the command list. It appears after a
@@ -29,13 +29,13 @@
    included, is dropped to fit. Only the shelf, which holds the rest of the register, yields rows to
    stay within two.
 
-   The line is the bottom band: one row at the stated `--lf-band-h` (theme.css), which the
-   document, a held workspace, the trays' lists and the contents map all end above, so no
+   The line is the bottom bar: one row at the stated `--lf-bottom-bar-h` (theme.css), which the
+   document, a full-height workspace, the drawers' lists and the contents map all end above, so no
    reservation is measured off it. A wrapped line grows upward over the page as an overlay
    and leaves that reservation alone. A covering thread panel makes the line inert
    background. A coarse pointer is drawn no hint line at all — there is no keyboard to
-   advertise, and every hint would name a key the user cannot press — and states no band.
-   The status stands at the band's far end, over the line's tail where the two meet. The
+   advertise, and every hint would name a key the user cannot press — and states no bar height.
+   The status stands at the bar's far end, over the line's tail where the two meet. The
    line, status, and chips
    take no pointer events; the More control does, because it is the pointer route to the
    reference. Brief user feedback replaces an ordinal and then restores its live
@@ -86,7 +86,7 @@ import {
 } from "../notifications.js";
 import { repaint } from "../repaint.js";
 import { walkPosition } from "../walk-position.js";
-import { declareBottomBand } from "../geometry.js";
+import { declareBottomBar } from "../geometry.js";
 
 // The shortcut bar — the register's short rendering. Its fact chips are aria-hidden (the spoken
 // copies are placeholders, announcements, and the reference); More is a real button because
@@ -206,7 +206,7 @@ export const bottomChromeBoxes = () => [
   ...boxesOf([shortcutBarEl]),
   ...standingStatusBoxes(),
 ];
-declareBottomBand(bottomChromeBoxes);
+declareBottomBar(bottomChromeBoxes);
 
 // ---------- the shortcut bar ----------
 // The rows the line shows, innermost scope first: the ones carrying a word for it. Each

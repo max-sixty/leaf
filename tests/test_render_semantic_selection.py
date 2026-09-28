@@ -1279,7 +1279,7 @@ def test_the_key_line_moves_a_hint_rather_than_dropping_its_target(browser, serv
     hints = page.locator(".lf-target-chooser-hint")
     expect(hints).to_have_count(3)
 
-    # The premise. Both targets stand wholly inside the bottom band's box, one in its
+    # The premise. Both targets stand wholly inside the bottom bar's box, one in its
     # row and one at the window's foot.
     room = page.evaluate(
         """() => {
@@ -1599,7 +1599,7 @@ def test_a_partly_banner_clipped_passage_keeps_its_hint_below_the_banner(
 
 
 def test_the_shortcut_bar_text_only_hides_targets_in_the_lane_it_paints(browser, serve):
-    """Fixed nested targets standing in the bottom band stay reachable: the selector
+    """Fixed nested targets standing in the bottom bar stay reachable: the selector
     spreads both hints inside the viewport but outside the band. A scalar boundary at the
     band's top dropped both targets, while a center left on their covered part put
     replacement hints on the band or below the viewport."""

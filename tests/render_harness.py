@@ -1785,21 +1785,21 @@ def pane_posture(page, pane, posture):
     )
 
 
-def holds_the_window(page, block, held):
+def fills_the_window(page, block, fills):
     """Wait until a block does, or does not, fill the window with the page at rest.
 
-    A held block is the whole page: its bottom edge is inside the window and the
+    A block that fills it is the whole page: its bottom edge is inside the window and the
     document has nothing to scroll, so the block's own panes carry what overflows. A
     flowing block runs past the window and the page scrolls it.
     """
     page.wait_for_function(
-        """([node, held]) => {
+        """([node, fills]) => {
           const bottom = node.getBoundingClientRect().bottom;
           const page = document.scrollingElement;
           return (bottom <= innerHeight + 1
-            && page.scrollHeight <= page.clientHeight + 1) === held;
+            && page.scrollHeight <= page.clientHeight + 1) === fills;
         }""",
-        arg=[block.element_handle(), held],
+        arg=[block.element_handle(), fills],
     )
 
 

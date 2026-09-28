@@ -1,4 +1,4 @@
-// Arrival is not a gesture. Restored panel, tray, drawn-width, design-mode, widget, and
+// Arrival is not a gesture. Restored panel, drawer, drawn-width, design-mode, widget, and
 // reading-position state appears at rest. `motion` finishes Web Animations immediately
 // before `data-lf-presented` and while an already-standing state is being restored into
 // replacement markup; theme transitions use the same presentation stamp.
@@ -88,8 +88,8 @@ export function motion(el, keyframes, ms) {
 // and two numbers would be that reason written down twice, free to disagree.
 export const FOLD_MS = 220;
 
-// An edge-held auxiliary surface slides in from the edge it is held to, the trays from the
-// left and the thread panel from the right, and a tray slides back out to it. It stands over the page, so the
+// An edge-held auxiliary surface slides in from the edge it is held to, the drawers from the
+// left and the thread panel from the right, and a drawer slides back out to it. It stands over the page, so the
 // slide moves only the surface. Out is quicker than in, since a surface going away is
 // nothing the user has to follow. A new slide replaces one still running on the same
 // surface and starts from where that one had carried it, so a reopen mid-exit comes

@@ -91,7 +91,7 @@ const mayScroll = new Set();
 // as anything else. Computed, not declared, is
 // wider than it sounds and is the set on purpose: `overflow-x: visible` computes to
 // `auto` whenever `overflow-y` is not visible, so a box that only ever meant to scroll
-// down — the panel's list, a tray, the sidebar — is in here too. It earns the mark on the
+// down — the panel's list, a drawer, the sidebar — is in here too. It earns the mark on the
 // same terms as the rest, by actually holding more across than it shows; a box that
 // scrolls only downwards never does, and the ones that do were cutting a word off with
 // nothing to say so.

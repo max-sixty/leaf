@@ -3790,7 +3790,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     expect(menu).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
 
-    # g V opens it from anywhere on the page, the way g L opens the leaves tray, and lands
+    # g V opens it from anywhere on the page, the way g L opens the leaves drawer, and lands
     # where the walk should carry on from, so that walk is the next press rather than a
     # Tab-hunt across the banner. This menu is the only place the notes are, so what each
     # version changed is reachable by keyboard through this key or not at all.
@@ -4091,7 +4091,7 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     So the pair is one exported fact (`PRESS`) and the four rows that named it by hand read
     it: the runtime's control scope, a card grip in both its states, and this row. A link is
     what keeps that fact honest rather than growing into "controls answer two keys" — Enter
-    follows an `<a>` and Space scrolls the page, so the leaves tray binds Enter alone and is
+    follows an `<a>` and Space scrolls the page, so the leaves drawer binds Enter alone and is
     right to."""
     url = serve(INLINE_PAGE)
     _publish(serve.page_dir, 2, INLINE_PAGE, "second")
@@ -5239,7 +5239,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     ring = """(el, compact) => { el.focus();
       const s = getComputedStyle(compact ? el.parentElement : el); return {
       style: s.outlineStyle, width: s.outlineWidth, offset: s.outlineOffset,
-      border: s.borderColor, name: s.getPropertyValue('--lf-here-ring').trim(),
+      border: s.borderColor, name: s.getPropertyValue('--lf-focus-ring').trim(),
     }; }"""
     band = thread.locator("leaf-text").evaluate(ring, False)
     assert band == panel_thread.locator("leaf-text").evaluate(ring, True)

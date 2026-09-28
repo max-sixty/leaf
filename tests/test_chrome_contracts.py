@@ -993,7 +993,7 @@ def test_a_menu_comparison_keeps_its_active_paint(browser, serve):
     # The door's news is the shelf's to state, and it restates it on every paint. A
     # newer version puts the urgent latest chip in the menu, so the dot the door
     # takes is the one the page arrived at rather than one the test wrote on it. The
-    # news is a dot and not an accent contour, which is the here ring's face: a door
+    # news is a dot and not an accent contour, which is the focus ring's face: a door
     # drawn that way read as focused while the user typed somewhere else.
     door = page.locator(".lf-banner-more")
     _publish(serve.page_dir, 3, html, "reworded the suggestion again")
@@ -1099,7 +1099,7 @@ def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
             foot = page.locator(".lf-thread-panel-foot").bounding_box()
             assert geometry["bottom"] == pytest.approx(foot["y"] - 14, abs=1)
         else:
-            # Centred on the bottom band's row, inside the band. A line too wide for a
+            # Centred on the bottom bar's row, inside the band. A line too wide for a
             # narrow window wraps upward, so the row is the one More stands on rather
             # than the middle of the line's whole box.
             band = page.locator(".lf-shortcut-bar").bounding_box()
@@ -1586,7 +1586,7 @@ def toggle_surface(page, surface, open=True):
 def test_an_auxiliary_surface_stands_over_the_page_and_moves_none_of_it(
     browser, serve, case, width
 ):
-    """Opening Threads or the Asks tray never moves the page: each stands over its edge of
+    """Opening Threads or the Asks drawer never moves the page: each stands over its edge of
     the window, so the reading column keeps its place, its width and its wrapping, a
     wide page's side track stays where its Layout put it, and the document neither grows nor
     scrolls under it. The page beside the surface stays live rather than going inert

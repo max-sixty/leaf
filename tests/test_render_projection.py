@@ -101,8 +101,8 @@ from render_harness import (
     consume_browser_errors,
     draft_control,
     expect_banner_control_offered,
+    fills_the_window,
     holding,
-    holds_the_window,
     leaf_page,
     open_page,
     opened_tab,
@@ -1346,7 +1346,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     resized(page, 1366, 768)
     widget = page.locator("#visual-review-run")
-    holds_the_window(page, widget, True)
+    fills_the_window(page, widget, True)
     gallery_scope = widget.get_by_role("radiogroup", name="Scope")
     expect(gallery_scope).to_be_visible()
     expect(widget).to_have_attribute("data-inspection-scope", "focus")
@@ -1440,7 +1440,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     resized(page, 390, 900)
     assert root_overflow(page) == 0
     resized(page, 1366, 768)
-    holds_the_window(page, widget, True)
+    fills_the_window(page, widget, True)
     shot_host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
     assert shot_host.evaluate("node => node.scrollWidth == node.clientWidth")
     shot_host.evaluate("node => node.style.height = '120px'")
@@ -9229,7 +9229,7 @@ def test_a_spent_press_and_a_static_badge_say_so_before_the_press(browser, serve
 
     The spent press. A press that has nothing left to do keeps its shape and gives up
     its opacity and the hand, the layer's one cue stated beside the hand it withdraws;
-    ink alone is dropped by greyscale. The press also wears the ordinary here ring,
+    ink alone is dropped by greyscale. The press also wears the ordinary focus ring,
     reached by keyboard."""
     page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
     face = """el => { const cs = getComputedStyle(el);
@@ -9253,10 +9253,10 @@ def test_a_spent_press_and_a_static_badge_say_so_before_the_press(browser, serve
     ring = page.evaluate(
         """() => { const cs = getComputedStyle(document.activeElement);
              return [cs.outlineStyle, cs.outlineWidth,
-                     cs.getPropertyValue('--here-ring-w').trim()]; }"""
+                     cs.getPropertyValue('--focus-ring-w').trim()]; }"""
     )
     assert ring[0] == "solid" and ring[1] == ring[2], (
-        f"a layer-built press wears no here ring from the layer's shared rule: {ring}"
+        f"a layer-built press wears no focus ring from the layer's shared rule: {ring}"
     )
 
     press = page.locator(".lf-worktree-head").first

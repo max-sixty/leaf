@@ -1541,7 +1541,7 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     here rather than trusted to stay so."""
     runtime = schema_model.ASSETS / "runtime"
     layout = (runtime / "chrome-layout.js").read_text()
-    trays = (runtime / "trays.js").read_text()
+    drawers = (runtime / "drawers.js").read_text()
     presentation = (runtime / "presentation.js").read_text()
     sheet = (schema_model.ASSETS / "theme.css").read_text() + (
         runtime / "chrome.css"
@@ -1554,7 +1554,9 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     for spelling in (
         "--lf-" + constant(r'getPropertyValue\("--lf-([a-z-]+)"\)', surfaces) + ":",
         "var(" + constant(r'^const THREAD_PANEL_PROP = "([^"]+)";', layout) + ")",
-        "var(" + constant(r'^export const TRAY_SLOT_PROP = "([^"]+)";', trays) + ")",
+        "var("
+        + constant(r'^export const DRAWER_SLOT_PROP = "([^"]+)";', drawers)
+        + ")",
         "[" + constant(r'^  ask: "([^"]+)",', presentation) + "]",
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
@@ -1570,7 +1572,7 @@ def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
     state it writes to the stylesheet that reads it, and the surfaces' default widths
     to the runtime owners that hold them."""
     assets = schema_model.ASSETS
-    trays = (assets / "runtime" / "trays.js").read_text()
+    drawers = (assets / "runtime" / "drawers.js").read_text()
     bootstrap = (assets / "runtime" / "bootstrap.js").read_text()
     theme = (assets / "theme.css").read_text()
 
@@ -1583,12 +1585,12 @@ def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
 
     layout = (assets / "runtime" / "chrome-layout.js").read_text()
     panel_prop = constant(r'^const THREAD_PANEL_PROP = "([^"]+)";', layout)
-    tray_prop = constant(r'^export const TRAY_SLOT_PROP = "([^"]+)";', trays)
+    drawer_prop = constant(r'^export const DRAWER_SLOT_PROP = "([^"]+)";', drawers)
     panel_default = constant(r"^const THREAD_PANEL_W = (\d+);", layout)
-    tray_default = constant(r"^const TRAY_SLOT_W = (\d+);", trays)
+    drawer_default = constant(r"^const DRAWER_SLOT_W = (\d+);", drawers)
     for literal in (
         f"var({panel_prop}, {panel_default}px)",
-        f"var({tray_prop}, {tray_default}px)",
+        f"var({drawer_prop}, {drawer_default}px)",
     ):
         assert literal in theme
 

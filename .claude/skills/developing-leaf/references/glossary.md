@@ -15,8 +15,12 @@ A term earns its own entry when current Leaf behavior supplies a stable identity
 criterion. Add a short example only when the definition would otherwise remain
 abstract.
 
-Name the narrowest established kind. Qualify a noun when another web or Leaf concept
-uses the same word.
+Name the narrowest established kind. Where the web platform or UI design already names
+the thing (a drawer, a focus ring, a sticky header, a full-height layout), use that name,
+since it is the one a user, a page author, and a newcomer to the code already know. Coin
+a word only for a concept with no standard name, and let its entry say which standard
+term comes closest and why it does not fit. Qualify a noun when another web or Leaf
+concept uses the same word.
 
 ## Pages, packages, and layers
 
@@ -77,16 +81,17 @@ item.
 | **Frame** | A box whose size comes from outside it: `main`, a root tab panel, a pane, a cell of a Layout or of the page's own grid, or any box declaring `--lf-block-frame: 1`. What it holds takes the frame's width, never the page's room |
 | **Text** and **surface** | How a block uses its frame's width: text (a paragraph, list item, term or description, quote, caption or heading) keeps the reading measure however wide its frame, and every other box is a surface that fills its frame. A surface with `x-space` or `data-width` past the column breaks out of it on a column page |
 | **Bounded block** | A block that holds its own height and scrolls inside it (`x-bound`, `data-bound`); a reading region while it stands in the page, so what it scrolls moves it rather than the page |
-| **Workspace** | A page on `main.layout-workspace`, which keeps task regions together and, where the window is large enough, holds it: header and footer at their content's height, one body taking the rest (**held**, `--lf-held: 1`) |
+| **Workspace** | A page on `main.layout-workspace`, which keeps task regions together |
+| **Full-height** | A workspace filling the window exactly, where the window is at least 720px wide and 480px tall (`--lf-full-height: 1` on `main`): header and footer at their content's height, one body taking the rest, and the page itself does not scroll, so each pane scrolls on its own. Elsewhere the workspace flows and the page scrolls. The web's name for the arrangement is a full-height or app-shell layout |
 | **Pane** | One reading region, typically in a workspace's body: an optional header, exactly one body element, an optional footer |
 | **Reading region** | A stable semantic place used by navigation and reading-position recovery |
 | **Effective reading scroller** | The scroll container currently governing one reading region |
-| **Sticky cover** | A sticky box declared through `declareCoverRoom` that stands over an edge of the scroller it sticks in, such as an `lf-diff` file header or a root `lf-tabs` strip. What passes under it is not on screen, and a landing arrives clear of it |
+| **Sticky header** | A sticky box declared through `declareStickyHeaders` that stands over the top of the scroller it sticks in, such as an `lf-diff` file header or a root `lf-tabs` strip. What passes under it is not on screen, and a landing arrives clear of it |
 | **Reading posture** | Whether a region's body scrolls on its own (`bounded`) or the region is carried by its container (`flow`); the stylesheet decides, for a pane the workspace Layout's media query, and the runtime reads the result |
 
 A root `lf-tabs` and an embedded `lf-tabs` remain the same element type; placement
 changes their presentation rather than creating another structural kind. Only a
-held workspace gives a pane bounded posture; a pane anywhere else, a page tab's
+full-height workspace gives a pane bounded posture; a pane anywhere else, a page tab's
 included, remains in flow.
 A compound widget may own reading regions without being a pane, and its own
 stylesheet decides whether their bodies scroll.
@@ -99,13 +104,13 @@ stylesheet decides whether their bodies scroll.
 | **Banner** | The persistent chrome row carrying page status and the primary Approval and Threads controls, with secondary global controls in its overflow disclosure. While a user's gesture holds a next step, such as Comment on selection after a touch selection or Exit Draw mode while a finger is in Draw mode, that step stands on the row in Approval and Threads' place |
 | **Auxiliary surface** | Chrome opened `beside`, `over`, or `covering` the content frame |
 | **Thread panel** | The right-side auxiliary surface containing threads; it stands over the page and takes no width from it, and covers the page only where it leaves less than a usable page beside it |
-| **Tray** | A mutually exclusive auxiliary surface admitted by the one left-side tray position; the Asks tray stands over the page as the thread panel does, and the Leaves tray always covers |
+| **Drawer** | A mutually exclusive auxiliary surface that slides in at the window's left edge, one at a time; the Asks drawer stands over the page as the thread panel does, and the Leaves drawer always covers |
 
-The current trays are the **Asks tray** and **Leaves tray**. Use *covering auxiliary
+The current drawers are the **Asks drawer** and **Leaves drawer**. Use *covering auxiliary
 surface*, not *modal workspace*: a covering surface and a modal dialog are different
 web interaction primitives. A covering surface makes the page inert behind it; a surface
 over the page, such as the thread panel on a desktop window, takes no width from
-it and leaves it live. A covering surface covers the content frame; a **sticky cover**
+it and leaves it live. A covering surface covers the content frame; a **sticky header**
 stands over one edge of one scroller, and nothing about it is modal.
 
 ## Page Map and the margin
@@ -168,6 +173,7 @@ spine instead.
 | **Unwind** | What Escape takes off, read from what stands in front of the user rather than from how they reached it: the innermost step of the ladder `skills/leaf/assets/runtime/keyboard/AGENTS.md` states, with containment before kind, each landing them at the parent of what it closed |
 | **Landing** | Where a step leaves the user: a box at its container, a standing at its floor, a surface at the document, which is the block they are reading, focused and then blurred |
 | **Layer stack** | The one ordered record of the popovers and modal dialogs standing over the page, in the order they opened; the dispatcher tiers scopes over it, and a covering auxiliary surface is its floor without being an entry |
+| **Focus ring** | The one outline (`--focus-ring`) on whatever takes the user's next press: a focused control, a bounded decision, an Ask stood at. Each rule that draws it names itself in `--lf-focus-ring` |
 | **Key badge** | A keycap-shaped carrier for a binding or transient hint code |
 | **Binding badge** | A key badge showing a command's currently resolved binding |
 
@@ -188,9 +194,34 @@ name for a binding or a shortcut.
 The keyboard help presentations are:
 
 - **Shortcut bar**: the always-visible compact projection of commands applicable in
-  the current keyboard context. It is drawn as the **bottom band**: one row across the
-  window's foot at a stated height (`--lf-band-h`), which the page ends above, as it
-  starts below the banner.
+  the current keyboard context. It is drawn as the **bottom bar**: one row across the
+  window's foot at a stated height (`--lf-bottom-bar-h`), which the page ends above, as
+  it starts below the banner.
 - **Shortcut shelf**: the expanded phase of the shortcut bar, not another surface.
 - **Command reference**: the searchable complete catalog of commands. It includes
   pointer- and platform-triggered commands with no keyboard binding.
+
+## Coined terms
+
+These terms name Leaf concepts that no standard term covers, so they stay:
+
+- **Standing**, not *focus*: a user stands at a target from its margin cluster, its
+  thread card, or its note on the details shelf as well as from the element, while DOM
+  focus is on one node. Where the two coincide, say *focus*.
+- **Trip** and **Journey**, not *navigation*: a trip decides whether to leave a history
+  entry (it stays when the user already has the destination), and a journey shares one
+  entry across trips. Web navigation always adds an entry, or replaces one.
+- **Landing** and **Floor**, not *focus restoration*: a landing is where any step leaves
+  the user, including a box's close and a surface's, and the floor is the place in a
+  layer that holds nothing, which focus restoration has no name for.
+- **Unwind**, not *dismiss*: one Escape takes off whichever step stands innermost, a
+  selection or a narrowing as well as a surface, and only surfaces are dismissed.
+- **Walk**: ordered movement among same-kind destinations, as a DOM `TreeWalker` walks;
+  roving focus moves within one widget.
+- **Frame**, **Text**, and **surface**: the CSS terms (containing block, `margin-trim`)
+  each cover half of a frame, which both sizes what it holds and trims its edge margins.
+- **Reading posture**, **Bounded block**, and **Margin resident**: whether a region
+  scrolls on its own, and what the margin admits, are decisions Leaf makes and reads
+  back; *scroll container* names only the CSS outcome.
+- **Rail**, **Pin**, **Banner**, **Shelf**, and **Chooser** are established UI terms and
+  keep their ordinary meanings.

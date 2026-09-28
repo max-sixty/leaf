@@ -248,7 +248,7 @@ def presence_with_activity(
     One gatherer for every such seat — `full_state` spreads it into the page's own
     state answer, and `other_leaves` attaches it to each entry — so the runtime's one
     claim-against-proof judgment reads the same fields whichever page it judges,
-    and the tray's account of a neighbour is the account this page gives of
+    and the drawer's account of a neighbour is the account this page gives of
     itself."""
     if stored_status is None:
         stored_status = read_json(page_dir / STATUS_FILE)
@@ -307,10 +307,10 @@ def presence_with_activity(
         # user studied and left. Hidden tabs release their stream, so this records
         # user attention rather than tab lifetime.
         "viewed": (read_json(page_dir / VIEWED_FILE) or {"t": None})["t"],
-        # Where the claimant is working (claim_page), for the tray's hover: what
+        # Where the claimant is working (claim_page), for the drawer's hover: what
         # tells one leaf from another is the work behind it, and neither the title
         # nor the page directory says which that is. It outlives the session that
-        # wrote it, as every other fact in this record does — a page the tray
+        # wrote it, as every other fact in this record does — a page the drawer
         # calls unheld came out of somewhere, and that is still where it came from.
         # None for a page nothing ever claimed, which is the honest nothing.
         "session_cwd": claim.get("cwd") if claim else None,
@@ -337,7 +337,7 @@ def presence(page_dir: Path, events: list) -> dict:
 
 def presence_fingerprint(present: dict, others: list) -> str:
     """The half of a reading that file stamps cannot supply, from the facts a state
-    already carries: its `live_facts`, and the neighbours as the tray shows them. A
+    already carries: its `live_facts`, and the neighbours as the drawer shows them. A
     neighbour's `viewed` is left out, since it moves every half minute that tab
     stays open and changes nothing this page shows."""
     facts = (

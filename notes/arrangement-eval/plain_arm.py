@@ -64,7 +64,7 @@ gives it one. Choose the arrangement from the shape of the subject:
   into buckets, a long review whose contents and verdict stay beside the code — widen
   `main`, up to `--wide-page-max`, and place the regions with CSS grid or flexbox.
 - **Regions that stay in view together** while each scrolls on its own, such as a
-  queue beside its detail, hold the window: size the layout to `--lf-view-height`, the
+  queue beside its detail, fill the window: size the layout to `--lf-view-height`, the
   window's height less Leaf's banner and band, and bound each region.
 - **A comparison** is `lf-compare`, which keeps its variants paired at any width.
 - **Controls beside evidence** is a playground, which declares how its controls
@@ -87,8 +87,8 @@ restating numbers, so the page agrees with the theme and Leaf's chrome:
 | `--wide-page-max` | 1600px | the widest a page of regions should grow |
 | `--rail` | about 95px | the strip for comment markers (below) |
 | `--lf-banner-h` | 42px, 88px on a narrow window | the fixed banner; the page starts below it |
-| `--lf-band-h` | 44px | the shortcut band fixed at the window's foot |
-| `--lf-view-height` | the window less both | the height a page that holds the window has |
+| `--lf-bottom-bar-h` | 44px | the bottom bar fixed at the window's foot |
+| `--lf-view-height` | the window less both | the height a page that fills the window has |
 | `--sp-1` … `--sp-4` | 4, 8, 16, 24px | spacing steps |
 | `--r` | 6px | corner radius |
 | `--card`, `--field`, `--rule` | colours | a raised surface, a tinted field, a hairline |
@@ -104,7 +104,7 @@ from a 360px phone to a wide desktop.
 A page grows without changing kind: a report that gains live status gains a row of
 tiles, and its comments and anchors stay put.
 
-The banner and the shortcut band at the foot of the window are fixed reservations, so
+The banner and the bottom bar at the foot of the window are fixed reservations, so
 the room a page has depends only on the window, and nothing Leaf draws moves the page's
 content: the rail stands in room the page leaves beside `main` (below).
 

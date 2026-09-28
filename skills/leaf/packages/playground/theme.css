@@ -2,7 +2,7 @@
  * preview is the stage and owns the larger field, and the controls stand above the
  * instruction they write, with its actions, in a rail beside it. Its regions are three
  * generated panes (data-lf-reading-role="pane", the kernel's theme.css), whose bodies
- * scroll where a workspace Layout holds the window (layouts.css); here the playground
+ * scroll where a workspace Layout fills the window (layouts.css); here the playground
  * only places the panes and draws them.
  *
  * Each region is drawn once. The playground itself is no card: the stage is the
@@ -53,13 +53,13 @@ lf-playground:has(> .lf-playground-split) {
   }
 }
 
-/* Held (a workspace Layout gives it a definite height to fill, `--lf-held`), the
- * playground and its split take that height, the controls give up height and scroll
+/* Full-height (a workspace Layout gives it a definite height to fill, `--lf-full-height`),
+ * the playground and its split take that height, the controls give up height and scroll
  * while the instruction and its actions stay whole under them, down to the controls'
  * floor; below it the instruction takes its track rather than its content's height, and
  * its body scrolls instead of running past the window. */
 @media screen {
-  @container style(--lf-held: 1) {
+  @container style(--lf-full-height: 1) {
     lf-playground {
       min-block-size: 0;
       margin-block: 0;

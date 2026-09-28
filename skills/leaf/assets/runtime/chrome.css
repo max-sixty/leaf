@@ -319,8 +319,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
    that carries the location itself while the user works inside it stands the band down
    by declaring `--lf-ask-ring: none` on the decision: its theme is in a cascade layer
    this sheet outranks whatever the selector, and a declaration still reaches it. */
+/* The ring stands outside the decision, so a landing keeps its room at the scroller's
+   edge, as a margin entry's does (theme.css): an Ask landed at the top of a scrolling
+   pane stood flush with it, the top of its ring cut off under the pane's header rule. */
 [data-lf-ask] { outline: var(--lf-ask-ring, var(--here-ring)); --lf-here-ring: ask;
-                outline-offset: var(--here-ring-gap); }
+                outline-offset: var(--here-ring-gap);
+                scroll-margin-block: var(--here-ring-room); }
 /* Paper takes no input, so what a widget injects to be worked goes: the control,
    and the box that holds controls. What stays is a control whose label is words the
    page keeps — one it speaks (data-lf-said: a pick mark reading "chosen" is the only

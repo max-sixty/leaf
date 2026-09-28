@@ -186,6 +186,12 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    auto ring flush against the words, beside the 2px band on every Leaf control. */
 :where(:focus-visible) { outline: var(--here-ring); --lf-here-ring: focus;
   outline-offset: var(--here-ring-gap); }
+/* Where the user stands wears a ring outside its box, so a scroll that brings the focus
+   into view, the browser's or a landing's (anchor-travel.js reads it), keeps the ring's
+   room at the scroller's edge: an Ask landed at the top of a scrolling pane stood flush
+   with it, the top of its ring cut off under the pane's header rule. At no weight, like
+   the ring. */
+:where(:focus) { scroll-margin-block: var(--here-ring-room); }
 [data-lf-offer]:where(:not([data-lf-offer=""])) { cursor: pointer; }
 [data-lf-offer]:where(:not([data-lf-offer=""])):hover:where(:not([aria-disabled="true"], :disabled)) {
   box-shadow: inset 0 0 0 100px color-mix(in srgb, var(--ink) 7%, transparent); }

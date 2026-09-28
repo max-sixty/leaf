@@ -11923,3 +11923,59 @@ def test_the_reference_keeps_its_count_line_whole_above_the_results(browser, ser
     assert reading["scrolls"], "the results fit, so nothing had to give up height"
     assert reading["meta"]["height"] >= reading["line"] - 0.5, reading
     assert reading["results"]["top"] - reading["meta"]["bottom"] >= 4, reading
+
+
+ASK_IN_A_PANE_PAGE = leaf_page(
+    "ask in a pane",
+    """
+  <header><h1>Decisions</h1></header>
+  <div id="ask-split">
+    <lf-pane id="ask-notes" label="Notes">
+      <header><h2>Notes</h2></header>
+      <div><p>Notes that hold still while the decision pane scrolls.</p></div>
+    </lf-pane>
+    <lf-pane id="ask-detail" label="Decision">
+      <header><h2>Evidence and decision</h2></header>
+      <div>
+        <p>Evidence the user reads before the question.</p>
+        <div style="height: 700px"></div>
+        <lf-ask id="pane-decision">
+          <h3>How should the probe page?</h3>
+          <lf-options id="pane-choice" choose>
+            <lf-option id="pane-a"><strong>Require three failures</strong> Quieter.</lf-option>
+            <lf-option id="pane-b"><strong>Keep one failure</strong> Louder.</lf-option>
+          </lf-options>
+        </lf-ask>
+        <div style="height: 900px"></div>
+      </div>
+    </lf-pane>
+  </div>
+""",
+    head=regions_side_by_side("ask-split"),
+    layout="workspace",
+)
+
+
+def test_an_ask_landed_in_a_pane_keeps_its_ring_inside_the_pane(browser, serve):
+    """An Ask walk lands the decision at the start of the pane that scrolls it, and the
+    Ask wears the ring outside its box. The landing keeps the ring's room at the pane's
+    edge, as the browser's own landing does for a box asking for it: the Ask stood flush
+    with the pane's top, the top of its ring cut off under the pane's header rule."""
+    page = open_page(browser, serve(ASK_IN_A_PANE_PAGE))
+    resized(page, 1440, 900)
+    pane_posture(page, page.locator("#ask-detail"), "bounded")
+    page.keyboard.press("a")
+    ask = page.locator("#pane-decision")
+    expect(ask).to_be_focused()
+    expect(ask).to_have_attribute("data-lf-ask", "1")
+    scroll_settled(page, "#ask-detail > :not(header, footer)")
+    reading = ask.evaluate(
+        """ask => {
+          const body = ask.closest('lf-pane').querySelector(':scope > :not(header, footer)');
+          const style = getComputedStyle(ask);
+          const ring = parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth);
+          return {ringTop: ask.getBoundingClientRect().top - ring,
+                  paneTop: body.getBoundingClientRect().top + body.clientTop};
+        }"""
+    )
+    assert reading["ringTop"] >= reading["paneTop"] - 0.5, reading

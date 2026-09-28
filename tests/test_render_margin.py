@@ -2503,7 +2503,7 @@ def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
     )
     margins_laid_out(page)
     page.evaluate(RELEASE_FOCUS)
-    show_after = page.get_by_role(
+    show_after = page.locator('[data-lf-margin-for="bg-shot"]').get_by_role(
         "button", name="Show after — a sample run list with and without a status column"
     )
     # The hint layer offers the locations on screen, so that is the premise, and the
@@ -2519,7 +2519,7 @@ def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
     )
     page.keyboard.type(address_code(page, "Margin entry", target))
     expect(
-        page.get_by_role(
+        page.locator('[data-lf-margin-for="bg-shot"]').get_by_role(
             "button",
             name="Show before — a sample run list with and without a status column",
         )

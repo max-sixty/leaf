@@ -328,6 +328,41 @@ function headerPath(side, path) {
     : `${side}/${path}`;
 }
 
+function gitPath(path) {
+  if (!path.startsWith('"')) return path;
+  if (!path.endsWith('"')) return null;
+  const inner = path.slice(1, -1);
+  if (!/^(?:[^\\]|\\(?:[abtnvfr"\\]|[0-3][0-7]{2}|[0-7]{1,2}(?![0-7])))*$/.test(inner))
+    return null;
+  const escapes = { a: 7, b: 8, t: 9, n: 10, v: 11, f: 12, r: 13 };
+  const bytes = [];
+  const encoder = new globalThis.TextEncoder();
+  for (let i = 0; i < inner.length; i++) {
+    if (inner[i] !== "\\") {
+      const point = inner.codePointAt(i);
+      bytes.push(...encoder.encode(String.fromCodePoint(point)));
+      if (point > 0xffff) i++;
+      continue;
+    }
+    const match = /^(?:[0-3][0-7]{2}|[0-7]{1,2})/.exec(inner.slice(i + 1));
+    if (match) {
+      bytes.push(parseInt(match[0], 8));
+      i += match[0].length;
+    } else {
+      const escaped = inner[++i];
+      bytes.push(escapes[escaped] ?? escaped.charCodeAt(0));
+    }
+  }
+  if (bytes.includes(0)) return null;
+  try {
+    return new globalThis.TextDecoder("utf-8", { fatal: true }).decode(
+      new Uint8Array(bytes),
+    );
+  } catch {
+    return null;
+  }
+}
+
 function pathOnlyRenames(source) {
   return source
     .split(/(?=^diff --git )/m)
@@ -345,7 +380,11 @@ function pathOnlyRenames(source) {
         lines[0] !== `diff --git ${headerPath("a", prevName)} ${headerPath("b", name)}`
       )
         return [];
-      return [{ prevName, name }];
+      const decodedPrevName = gitPath(prevName);
+      const decodedName = gitPath(name);
+      return decodedPrevName !== null && decodedName !== null
+        ? [{ prevName: decodedPrevName, name: decodedName }]
+        : [];
     });
 }
 

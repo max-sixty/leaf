@@ -3552,6 +3552,22 @@ def test_the_number_hint_names_only_versions_that_still_exist(browser, serve):
     assert "1–3" not in menu_line, menu_line
 
 
+def test_a_layer_opened_from_nowhere_lets_go_as_it_closes(browser, serve):
+    """A popover opened while nothing held focus has nobody to hand focus back to, so
+    the browser left focus on its hidden row until the next rendering update: a key
+    pressed in that frame was dispatched from a control the user could no longer see.
+    Closing it lets go in the same task."""
+    page = open_page(browser, live_url(serve(INLINE_PAGE)))
+    assert page.evaluate("() => document.activeElement === document.body")
+    open_versions(page)
+    menu = page.locator(".lf-version-menu")
+    expect(menu).to_be_visible()
+    assert menu.evaluate("m => m.contains(document.activeElement)"), "no row took focus"
+    assert menu.evaluate(
+        "m => { m.hidePopover(); return document.activeElement === document.body; }"
+    )
+
+
 def test_the_versions_menu_can_close_from_every_door(browser, serve):
     """A version menu opened from either door returns to its actual origin.
 

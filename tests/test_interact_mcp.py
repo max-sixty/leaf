@@ -76,7 +76,9 @@ def test_mcp_samples_keep_the_parent_capability_and_their_own_log(page_dir):
         )
         with urllib.request.urlopen(request) as response:
             assert response.status == 204
-        trace = list(interaction_model.lines(page_dir))
+        trace = (
+            (page_dir / interaction_model.INTERACTIONS_FILE).read_text().splitlines()
+        )
         capability = urllib.parse.urlsplit(parent).path.split("/")[2]
         assert all(capability not in row for row in trace)
         sample = path.rstrip("/").split("/")[-1]

@@ -1,13 +1,14 @@
 """Open one authored page in Chrome, bring it to a state, and print what it shows.
 
     uv run leaf-dev probe review-a-plan --do drive:card-by-keyboard \\
-        --eval "document.activeElement.getBoundingClientRect().toJSON()" --base
+        --js "document.activeElement.getBoundingClientRect().toJSON()" --base
 
 SOURCE is a page name (`leaf_dev.example_data.named_source`) or an authored `.html`
 path. The page is built fresh from it with the checkout's own launcher, so the working
 tree is what runs, uncommitted edits included, and served under a state home of its
-own. `--base` adds the same page on an arm built at the merge base with `main`, or at
-the ref it names, so a probe compares a change with where it started in one command.
+own. `--base` adds the same page on an arm built at the merge base with
+`main`, or at the ref it names, so a probe compares a change with where it
+started in one command.
 
 The tab opens at the viewport and color scheme asked for, with reduced motion, and
 settles before and after the input (`leaf_dev.browser`). The steps (`STEPS`, listed in
@@ -128,7 +129,7 @@ def read_arm(browser, label: str, arm: Path, source: Path, look: dict) -> dict:
                 STEPS[verb](page, arg)
             doing = "settle"
             settle(page)
-            doing = "eval"
+            doing = "js"
             expression = look["expression"]
             reading["result"] = page.evaluate(expression) if expression else None
             if (shot := look["shot"]) is not None:
@@ -155,7 +156,7 @@ def read_arm(browser, label: str, arm: Path, source: Path, look: dict) -> dict:
     help="An input step, VERB:ARG, run in order; repeat for more.",
 )
 @click.option(
-    "--eval",
+    "--js",
     "expression",
     help="A JavaScript expression or function to evaluate once settled; "
     "its JSON value is the result.",
@@ -183,7 +184,7 @@ def read_arm(browser, label: str, arm: Path, source: Path, look: dict) -> dict:
     help="Also probe the merge base with main, or the ref given.",
 )
 def probe(source, steps, expression, shot, size, dark, base) -> None:
-    """Open SOURCE in Chrome, run each --do step, and print what --eval returns.
+    """Open SOURCE in Chrome, run each --do step, and print what --js returns.
 
     SOURCE is an example or fixture name, or an authored .html path, built fresh
     from this working tree. Each --do step is one input, run in order:
@@ -202,7 +203,7 @@ def probe(source, steps, expression, shot, size, dark, base) -> None:
     with press:Tab or a drive: input that does. --shot and --base take an optional
     value, so put SOURCE before them or give them one (--base=, --shot=SEL).
 
-    Prints one JSON line per arm: what --eval returned, or the stage that failed
+    Prints one JSON line per arm: what --js returned, or the stage that failed
     and why; the page's console errors and uncaught exceptions from its first
     request; and with --shot the screenshot's path under .tmp/probe/.
     """

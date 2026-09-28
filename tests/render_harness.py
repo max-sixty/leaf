@@ -103,7 +103,7 @@ def stamp_page(
     complete_args = [arg for widget in completes for arg in ("--completes", widget)]
     result = CliRunner().invoke(
         cli_model.cli,
-        ["page", "stamp", "--json", str(page_dir), "--text", text, *complete_args],
+        ["page", "stamp", str(page_dir), "--text", text, *complete_args],
         catch_exceptions=False,
     )
     assert result.exit_code == 0, result.output

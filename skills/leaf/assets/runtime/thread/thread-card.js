@@ -267,6 +267,7 @@ export class ThreadView {
     this.node.classList.toggle("grow", this.#growing && !model.folding);
     if (!panel) {
       this.node.classList.add("lf-page-thread", "lf-ui");
+      this.node.dataset.lfRuntime = ""; // passages.js, leafSurface
       this.node.dataset.lfGen = "1";
       this.node.dataset.lfOffer = "";
     }

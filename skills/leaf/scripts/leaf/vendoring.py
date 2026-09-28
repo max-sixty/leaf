@@ -457,4 +457,4 @@ def _commit_layer(page_dir: Path, plan: _PagePlan) -> None:
         # an existing page keeps both.
         (page_dir / CURSOR_FILE).unlink(missing_ok=True)
         replace_files([(page_dir / EVENTS_FILE, b"", False)])
-    print(f"initialized {page_dir}")
+    print(json.dumps({"page": str(page_dir)}))

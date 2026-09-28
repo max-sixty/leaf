@@ -20,6 +20,16 @@ For a contract shared across modules or runtimes, read the sidecar beside the
 Python code that owns the boundary;
 `<root>/skills/leaf/scripts/AGENTS.md` lists them under "Protocol references".
 
+To check what the code does, call it: the checkout's environment installs `leaf`
+and `leaf_dev` editable, so `uv run python -c 'from leaf... import ...'` imports
+either without a `sys.path` edit. A tag's schema is in the registry of the package
+that ships it:
+
+```bash
+jq 'select(has("lf-shot"))."lf-shot"' \
+  skills/leaf/assets/registry.json skills/leaf/packages/*/registry.json
+```
+
 ## Leave old state out of the handoff
 
 Leaf owes nothing to state an earlier version wrote (`AGENTS.md`, "Stage"). A
@@ -190,6 +200,46 @@ report a compatibility refusal rather than falling back to the installed plugin.
 A page that explains how a Leaf interface behaves lets the user operate it
 (`references/sample-explainers.md`).
 
+## Score a guidance change
+
+Each `evals/<case>/case.yaml` is a moment in a session that `claude plugin eval`
+hands a headless Claude Code, with this checkout as its only plugin, so the child
+loads `leaf:leaf` and reads the references as a real session does. Score a change to
+`skills/leaf/` on the cases it bears on:
+
+```bash
+uv run leaf-dev guidance-ab [CASE]... [--base REF] [--runs N]
+```
+
+It runs the cases on the base's guidance (the merge base with `main` by
+default) and the working tree's at once, and prints each case's passes per arm and the
+cost. It passes `--allow-tools Skill Read`, without which the child's `dontAsk` mode denies
+the skill and the references and every run answers with no guidance, while
+`loads-leaf` still passes on the attempt. So every case also grades that the child
+read the reference it tests, and a run that fails that check measured nothing.
+
+Grow the suite slowly, toward a modest set of cases that each tell two wordings
+apart. Measure with whatever scenarios and guardrails the change needs, then add a
+case only if it pins a clause no existing case pins and it separated two arms you ran:
+the base failed most runs and the change passed every run, or a blunter draft failed
+a guardrail the change passes. That is usually one case per problem, and rarely more
+than two. A case both arms passed goes in the commit message, not the suite. The
+comment above `schema_version` says where the case came from and what it measured;
+`description` names the clause it pins, and `tags` its area.
+
+A prompt ends by asking for the HTML in the reply, since the child has no page
+directory. It cannot search the plugin either, so it answers from the references
+without the registry. The prompt never states the behavior under test. Grade a fixed
+form with a `regex` grader, and a judgment with an `llm` grader whose `criteria`
+state the passing reading without requiring particular wording.
+
+Run cold, a case that states the situation plainly usually passes on both arms: the
+failing session had its own earlier turns or a competing instruction pulling the
+other way, so paste those into the prompt. A rule that loses only to a long
+session's context needs a replay of that session instead.
+`notes/usability-eval/harness.py` runs cases that need a page directory and `leaf`.
+No grader has been checked against a person's judgment, so a pass is weak evidence.
+
 ## Refresh the public catalog stills
 
 When a change adds or removes a worked example or changes its first viewport,
@@ -206,9 +256,14 @@ A branch may land with a red gate only when every failure also fails on the
 exact merge-base SHA under the same CI job and selection; until it reproduces
 there, it is the branch's. Use the base SHA's
 GitHub Actions run as the control, not a local container or a green run a few
-commits back. Main holds one nightly slot, so a base commit may carry no nightly
-result; push that SHA as a branch and dispatch `ci` on it. A case can differ
-between Linux and a Mac, or between the full suite under `-n 2` and a run alone.
+commits back. `uv run leaf-dev ci-failures` makes that comparison for the pushed
+HEAD, or `HEAD^2` in a pull request's CI checkout, which sits on GitHub's merge
+commit. Its exit 0 proves that every branch job has a result and that each failure
+also fails on the base: a test by node id, but any other step only by name, so
+read both logs for each step it lists as matched by name. Main holds one nightly
+slot, so a base commit may carry no nightly result; the command then prints the
+dispatch that makes one. A case can differ between Linux and a Mac, or between
+the full suite under `-n 2` and a run alone.
 
 `wt merge --no-hooks` lands past a red local hook whose failures reproduce on the
 base, and reuses a passing result when a newer `main` dislodges the merge. Finish

@@ -6,6 +6,7 @@ import math
 import os
 import queue
 import re
+import shlex
 import signal
 import subprocess
 import threading
@@ -1137,7 +1138,7 @@ def test_thread_read_reads_frozen_construction(page_dir):
         },
     )
     runner = CliRunner()
-    result = runner.invoke(cli_model.cli, ["thread", "read", str(page_dir), root["id"]])
+    result = runner.invoke(cli_model.cli, ["page", "state", str(page_dir), root["id"]])
     assert result.exit_code == 0, result.output
     reading = json.loads(result.output)
     assert reading["thread"]["id"] == root["id"]
@@ -1166,15 +1167,13 @@ def test_thread_read_reads_frozen_construction(page_dir):
             "drawing": drawing,
         },
     )
-    result = runner.invoke(
-        cli_model.cli, ["thread", "read", str(page_dir), drawn["id"]]
-    )
+    result = runner.invoke(cli_model.cli, ["page", "state", str(page_dir), drawn["id"]])
     assert result.exit_code == 0, result.output
     [drawn_message] = json.loads(result.output)["content"]
     assert "text" not in drawn_message
     assert drawn_message["drawing"] == drawing
-    refused = runner.invoke(cli_model.cli, ["thread", "read", str(page_dir), "missing"])
-    assert refused.exit_code != 0 and "unknown comment id" in refused.output
+    refused = runner.invoke(cli_model.cli, ["page", "state", str(page_dir), "missing"])
+    assert refused.exit_code != 0 and "names no thread or widget" in refused.output
 
 
 def test_version_descriptors_scan_the_revision_directory_once(tmp_path, monkeypatch):
@@ -2089,7 +2088,7 @@ def test_reply_infers_one_obligation_and_activates_the_current_source(page_dir):
     )
 
     assert result.exit_code == 0, result.output
-    assert result.output == "replied in c1\n"
+    assert json.loads(result.output)["parent"] == "c1"
     assert files_model.list_revisions(page_dir) == [1, 2]
     assert files_model.revision_path(page_dir, 2).read_text() == updated
     reply = events_model.read_events(page_dir)[-1]
@@ -2580,6 +2579,114 @@ def _remedies(output: str) -> set:
     return {why for why, remedy in PROTECTED_REMEDIES.items() if remedy in output}
 
 
+def test_any_id_names_one_subject_for_every_command(page_dir):
+    """A page widget names itself, and a message, a widget frozen into one, or any
+    other event a thread holds names that thread, for `page state`, `status --on`
+    and the thread commands alike. Narrowed to a widget, the reading holds what
+    stands inside it: the Ask carries the pick on its choice."""
+    live = OPTIONS.format(a="", b="", chip="", shim="Keep the old API.", stage="Two.")
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + live)
+    )
+    publish(page_dir)
+    pick = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": files_model.latest_revision(page_dir),
+            "widget": "g1",
+            "action": "choose",
+            "detail": {"options": ["o-shim"]},
+        },
+    )
+    runner = CliRunner()
+
+    def run(*args):
+        return runner.invoke(
+            cli_model.cli, [args[0], args[1], str(page_dir), *args[2:]]
+        )
+
+    for name, widget in (
+        ("g1-decision", "g1-decision"),
+        ("g1", "g1"),
+        (pick["id"], "g1"),
+    ):
+        narrowed = run("page", "state", name)
+        assert narrowed.exit_code == 0, narrowed.output
+        reading = json.loads(narrowed.output)
+        assert reading["widget"]["id"] == widget
+        assert [(r["widget"], r["action"]) for r in reading["state"]] == [
+            ("g1", "choose")
+        ]
+    paged = run("page", "state", "g1", "--after", "1")
+    assert paged.exit_code != 0
+    assert "is a widget; --after and --limit page a thread" in paged.output
+
+    [opened] = [
+        json.loads(line)
+        for line in run(
+            "thread",
+            "open",
+            "--text",
+            "Which store?",
+            "--markup",
+            '<lf-ask id="t-ask"><h3>Store?</h3><lf-options id="t-store" choose>'
+            '<lf-option id="t-sqlite"><strong>sqlite</strong></lf-option>'
+            "</lf-options></lf-ask>",
+        ).output.splitlines()
+    ]
+    [renamed] = [
+        json.loads(line)
+        for line in run(
+            "thread", "edit", "t-ask", "--title", "Store"
+        ).output.splitlines()
+    ]
+    picked = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": files_model.latest_revision(page_dir),
+            "widget": "t-store",
+            "action": "choose",
+            "detail": {"options": ["t-sqlite"]},
+        },
+    )
+    undone = events_model.append_event(
+        page_dir, {"kind": "undo", "author": "user", "undoes": picked["id"]}
+    )
+    for name in ("t-ask", opened["id"], renamed["id"], picked["id"], undone["id"]):
+        read = run("page", "state", name)
+        assert read.exit_code == 0, read.output
+        assert json.loads(read.output)["thread"]["id"] == opened["id"]
+    claimed = runner.invoke(
+        cli_model.cli,
+        ["status", str(page_dir), "working", "weighing it", "--on", "t-ask"],
+    )
+    assert claimed.exit_code == 0, claimed.output
+    assert [claim["subject"] for claim in json.loads(claimed.output)["work"]] == [
+        {"kind": "thread", "id": opened["id"]}
+    ]
+
+    not_a_thread = run("thread", "resolve", "g1")
+    assert not_a_thread.exit_code != 0
+    assert "g1 is a widget on the page, not a thread" in not_a_thread.output
+    [closed] = [
+        json.loads(line)
+        for line in run("thread", "resolve", "t-ask").output.splitlines()
+    ]
+    assert (closed["kind"], closed["parent"]) == ("resolve", opened["id"])
+
+    # The log mints message ids in this shape, so a page may not author one.
+    (page_dir / "index.html").write_text(
+        PAGE.replace('id="flag-first"', 'id="20260927"')
+    )
+    refused = runner.invoke(cli_model.cli, ["page", "check", str(page_dir)])
+    assert refused.exit_code != 0
+    assert "ids shaped like the event ids the log mints" in refused.output
+
+
 def test_an_id_held_twice_is_refused_for_both_reasons_at_once(page_dir):
     live = OPTIONS.format(a="", b="", chip="", shim="Keep the old API.", stage="Two.")
     (page_dir / "index.html").write_text(
@@ -2939,13 +3046,15 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
     assert event["widget"] == "t-parser" and event["action"] == "status"
     assert event["detail"] == {"status": "review"} and event["revision"] == 1
 
-    # A bare call names the coordinate it moved; `_report` above asks for the event.
+    # A call prints the event it appended, whose coordinate is the one it moved.
     named = CliRunner().invoke(
         cli_model.cli,
         ["page", "report", str(page_dir), "t-parser", "status", "status=done"],
     )
     assert named.exit_code == 0, named.output
-    assert named.output == "reported status on t-parser\n"
+    printed = json.loads(named.output)
+    assert (printed["widget"], printed["action"]) == ("t-parser", "status")
+    assert printed == events_model.read_events(page_dir)[-1]
 
 
 def test_a_version_may_not_quietly_contradict_a_standing_report(page_dir):
@@ -4144,11 +4253,12 @@ def test_data_set_reads_a_structured_value_from_a_file(page_dir, tmp_path):
 
     assert result.exit_code == 0, result.output
     source = read_page_data(page_dir)["sources"]["builds"]
-    assert f"set data source 'builds' at revision {source['revision']}" in (
-        result.output
-    )
-    # The printed instant is the one an author pins in `at`, so it is the stored one.
-    assert f"updated {source['updated']}" in result.output
+    # The printed instant is the one an author pins in `at`, so it is the stored one;
+    # the value is the writer's own, so it does not come back.
+    assert json.loads(result.output) == {
+        "source": "builds",
+        **{key: source[key] for key in ("contract", "revision", "updated")},
+    }
     assert source["value"] == {"main": "passing"}
     assert json.loads(data_model.source_file(page_dir, "builds").read_text()) == {
         "main": "passing"
@@ -4586,10 +4696,10 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
         }
     ]
     history = CliRunner().invoke(
-        cli_model.cli, ["page", "events", str(page_dir), "--thread", opened["id"]]
+        cli_model.cli, ["page", "state", str(page_dir), opened["id"]]
     )
     assert history.exit_code == 0, history.output
-    assert [json.loads(line)["id"] for line in history.output.splitlines()] == [
+    assert [m["message"] for m in json.loads(history.output)["content"]] == [
         opened["id"],
         answered["id"],
     ]
@@ -4602,23 +4712,49 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
         cli_model.cli,
         [
             "page",
-            "events",
+            "state",
             str(page_dir),
-            "--thread",
             opened["id"],
             "--after",
             str(opening_seq),
         ],
     )
     assert continued.exit_code == 0, continued.output
-    assert [json.loads(line)["id"] for line in continued.output.splitlines()] == [
+    assert [m["message"] for m in json.loads(continued.output)["content"]] == [
         answered["id"]
     ]
     unknown = CliRunner().invoke(
-        cli_model.cli, ["page", "events", str(page_dir), "--thread", "not-a-thread"]
+        cli_model.cli, ["page", "state", str(page_dir), "not-a-thread"]
     )
     assert unknown.exit_code != 0
-    assert "unknown comment id 'not-a-thread'" in unknown.output
+    assert "'not-a-thread' names no thread or widget" in unknown.output
+
+
+def test_a_reader_that_closes_the_pipe_ends_page_events_quietly(page_dir):
+    """`page events | head` is an ordinary way to stop reading, so the command exits
+    0 and prints nothing past what the reader took. The log outgrows a pipe's buffer,
+    or the write that finds the reader gone never happens."""
+    record = {"kind": "comment", "author": "user", "text": "x" * 200}
+    (page_dir / schema_model.EVENTS_FILE).write_text(
+        "".join(json.dumps({**record, "id": f"e{n}"}) + "\n" for n in range(2000))
+    )
+    for follow in ([], ["--follow"]):
+        piped = subprocess.run(
+            " ".join(
+                [
+                    *map(shlex.quote, [*LEAF_COMMAND, "page", "events", str(page_dir)]),
+                    *follow,
+                    "| head -1",
+                ]
+            ),
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=True,
+        )
+        assert json.loads(piped.stdout)["seq"] == 1
+        assert piped.stderr == ""
 
 
 class Follower:
@@ -4731,12 +4867,18 @@ def test_page_state_points_to_a_users_suggestion_record(page_dir):
 
     [thread] = state_json(page_dir)["threads"]
     history = CliRunner().invoke(
-        cli_model.cli, ["page", "events", str(page_dir), "--thread", thread["id"]]
+        cli_model.cli, ["page", "state", str(page_dir), thread["id"]]
     )
     assert history.exit_code == 0, history.output
-    records = [json.loads(line) for line in history.output.splitlines()]
-    assert [record["id"] for record in records] == [suggestion["id"]]
-    assert records[0]["suggestion"] is True
+    assert [m["message"] for m in json.loads(history.output)["content"]] == [
+        suggestion["id"]
+    ]
+    [record] = [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["id"] == suggestion["id"]
+    ]
+    assert record["suggestion"] is True
 
 
 def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
@@ -5319,10 +5461,10 @@ def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch
     for cache in (
         artifact_model._read_stamped,
         artifact_model._read_artifact_stamped,
-        artifact_model._capture_artifact_stamped,
         artifact_model._shared_registry,
     ):
         cache.cache_clear()
+    artifact_model._captures.clear()
     artifact_model._readings.clear()
     revisioning_model._held.clear()
 
@@ -5389,6 +5531,35 @@ def test_a_crlf_source_rechecked_unchanged_is_the_active_revision(page_dir):
         artifact_model.read_revision(page_dir, activated.revision).document.data == data
     )
     assert predecessor_reading(page_dir, data, events, checked.artifact).unchanged
+
+
+def test_an_activated_revision_adopts_the_reading_its_check_took(page_dir, monkeypatch):
+    """The revision activation writes is the candidate the check just read, so it
+    holds that reading — the captured bytes, CRLF included, and the words the
+    transition check walked — rather than parsing and walking the file it wrote."""
+    source = PAGE.replace("</main>", "<p>A next version.</p></main>")
+    (page_dir / "index.html").write_bytes(source.replace("\n", "\r\n").encode())
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None and activated.created, activated.error
+
+    def no_parse(_source):
+        raise AssertionError("the activated revision was parsed again")
+
+    walks = []
+    native = passages_model.page_passages
+
+    def counted(*args, **kwargs):
+        walks.append(args)
+        return native(*args, **kwargs)
+
+    monkeypatch.setattr(artifact_model, "SourceDocument", no_parse)
+    monkeypatch.setattr(passages_model, "page_passages", counted)
+    reading = artifact_model.read_revision(page_dir, activated.revision)
+    marker = files_model.revision_path(page_dir, activated.revision)
+    assert reading.document.data == marker.read_bytes()
+    assert b"\r\n" in reading.document.data
+    assert reading.spoken
+    assert walks == []
 
 
 def test_held_revision_readings_stay_within_their_source_budget(page_dir, monkeypatch):

@@ -14,9 +14,9 @@ its plugin.
 
 An A/B command compares two arms, `base` and `head` (`build_pair`), or, as
 `leaf-dev guidance-ab` does, a base and the working tree's arm. Its base is the
-merge base with `main` unless the caller names another ref (`base_ref`), so a branch
-behind `main` is compared with where it started rather than with changes it has not
-merged. A timed one prints the machine's load average before and after
+merge base with `main` unless the caller names another ref (`base_ref`), so
+a branch behind `main` is compared with where it started rather than with changes it
+has not merged. A timed one prints the machine's load average before and after
 (`load_average`), since other processes' load moves every timing.
 
 A child is `claude -p` from a scratch cwd outside any repository, under a home of its
@@ -133,8 +133,9 @@ def run_leaf(
 @contextmanager
 def serving(arm: Path, state: Path, page: Path):
     """Serve `page` with the arm's `leaf server run --temporary` under the state home
-    `state`, and yield the tokened address it prints; a first load of that address
-    sets the page's cookie."""
+    `state`, and yield the tokened `url` it prints; a first load of that address
+    sets the page's cookie. An arm is any revision, and one from before the CLI
+    printed JSON prints the bare URL, so the URL is found in the line either way."""
     server = subprocess.Popen(
         [str(arm / "bin" / "leaf"), "server", "run", "--temporary", str(page)],
         env=environment(XDG_STATE_HOME=str(state)),
@@ -143,7 +144,7 @@ def serving(arm: Path, state: Path, page: Path):
         text=True,
     )
     try:
-        yield server.stdout.readline().strip()
+        yield re.search(r"https?://[^\s\"]+", server.stdout.readline())[0]
     finally:
         server.terminate()
         server.wait(10)
@@ -166,11 +167,12 @@ def serving_source(arm: Path, source: Path, scratch: Path):
         yield address
 
 
-def merge_base() -> str:
-    """The commit HEAD branched from `main`: the base an A/B command compares HEAD
-    against unless it is handed another."""
+def merge_base(ref: str = "HEAD") -> str:
+    """The commit `ref` branched from the local `main`: the base an A/B command
+    compares HEAD against unless it is handed another, and the control
+    `leaf-dev ci-failures` reads a branch's CI against."""
     return subprocess.run(
-        ["git", "-C", ROOT, "merge-base", "HEAD", "main"],
+        ["git", "-C", ROOT, "merge-base", ref, "main"],
         capture_output=True,
         text=True,
         check=True,

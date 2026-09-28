@@ -16,7 +16,7 @@ from .projection import (
 )
 from .registry.storage import require_registry
 from .revision_artifact import read_revision
-from .thread_context import thread_names
+from .thread_context import id_subject
 from .workflows import canonical_workflows
 
 
@@ -99,6 +99,27 @@ def widget_work_without_targets(
     return sorted(missing)
 
 
+def page_subject(page_dir: Path, events: list, name: str) -> dict | None:
+    """What `name` names (`thread_context.id_subject`), against the page the user is
+    looking at: the newest revision's widgets, and the widgets its threads' messages
+    froze. Every command that takes an id reads it here, so each resolves it alike."""
+    revision = latest_revision(page_dir)
+    if revision is None:
+        return id_subject(events, set(), {}, {}, name)
+    registry = require_registry(page_dir)
+    return id_subject(
+        events,
+        {
+            element
+            for element, rec in read_revision(page_dir, revision).document.by_id.items()
+            if rec["tag"] in registry
+        },
+        frozen_thread_reading(events, registry).thread_by_widget,
+        read_revision(page_dir, revision).enclosing,
+        name,
+    )
+
+
 def work_subject(page_dir: Path, events: list, target: str, *, standing: list) -> dict:
     """Resolve one bare CLI id to a typed, locally renderable work subject.
 
@@ -126,9 +147,6 @@ def work_subject(page_dir: Path, events: list, target: str, *, standing: list) -
         document = page.document
         html = document.html
         widget_projection = page.projection
-        rec = page.document.by_id.get(target)
-        if rec and rec["tag"] in registry:
-            widget = rec
 
     # Against the page this command has already read: it loads the vendored
     # registry above and raises where that gate refuses, so folding threads
@@ -136,16 +154,13 @@ def work_subject(page_dir: Path, events: list, target: str, *, standing: list) -
     # `page state` for the same thread.
     threads = build_threads(events, page.within if page is not None else {})
     frozen = frozen_thread_reading(events, registry) if registry is not None else None
-    thread_id = thread_names(events).get(target)
-    if thread_id is None and frozen is not None:
-        thread_id = frozen.thread_by_widget.get(target)
+    subject = page_subject(page_dir, events, target)
+    thread_id = subject["id"] if subject and subject["kind"] == "thread" else None
     thread = threads.get(thread_id) if thread_id is not None else None
+    if subject and subject["kind"] == "widget":
+        target = subject["id"]
+        widget = page.document.by_id[target]
 
-    if thread is not None and widget is not None:
-        sys.exit(
-            f"{target} names both a comment thread and a page widget; "
-            "rename one so --on has one subject"
-        )
     if thread is not None:
         if thread["resolved"]:
             sys.exit(

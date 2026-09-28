@@ -68,9 +68,9 @@ def cmd_status(
     state: str,
     detail: str,
     on: str | None = None,
-) -> list[dict]:
-    """Write the declaration and return the user moves still owed an answer,
-    which the page goes on showing over a `waiting` written ahead of them."""
+) -> tuple[dict, list[dict]]:
+    """Write the declaration and return it, with the user moves still owed an
+    answer, which the page goes on showing over a `waiting` written ahead of them."""
     # The banner's dot already says the agent is working; the sentence is the
     # whole of what a working status adds, so a status without one is refused
     # rather than shown as a bare "working".
@@ -90,11 +90,11 @@ def cmd_status(
                 on,
                 standing=standing_work_claims(page.status, page.events),
             )
-        page.set_status(state, detail, work=work)
-        return full_state(page_dir, page.events)["activity"]["obligations"]
+        status = page.set_status(state, detail, work=work)
+        return status, full_state(page_dir, page.events)["activity"]["obligations"]
 
 
-def cmd_idle(page_dir: Path, detail: str, on: str | None) -> None:
+def cmd_idle(page_dir: Path, detail: str, on: str | None) -> dict:
     """Idle, unless the page still owes its user an answer.
 
     Idling over an event nobody has answered ends the leaf on a user still
@@ -135,7 +135,7 @@ def cmd_idle(page_dir: Path, detail: str, on: str | None) -> None:
                 f"{unanswered(owed, 'acknowledged')}; answer before idling. "
                 + ANSWER_ASK_INSTRUCTION
             )
-        page.set_status("idle", detail)
+        return page.set_status("idle", detail)
 
 
 class PageTick(NamedTuple):

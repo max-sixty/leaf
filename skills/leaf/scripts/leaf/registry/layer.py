@@ -1,6 +1,7 @@
 """Layer registry composition and contract validation."""
 
 import re
+from copy import deepcopy
 from functools import cache
 
 from jsonschema import Draft202012Validator
@@ -10,6 +11,7 @@ from leaf.schema import (
     ANSWER_KINDS,
     ASSETS,
     DATA_CONTRACT_NAME,
+    DECLARED_MARKS,
     EXTENSION_SCHEMA,
     GUIDANCE_SCHEMA,
     HTML_NAME,
@@ -21,6 +23,7 @@ from .contract import (
     read_registry_declarations,
     unresolved_schema_reference,
 )
+from .state import stamp_decisions
 
 
 def kernel_event_kinds() -> dict:
@@ -80,6 +83,20 @@ def merge_layer_declarations(merged: dict, declarations: dict) -> None:
                     k: v for k, v in {**earlier[key], **value}.items() if v is not None
                 }
         merged[name] = {k: v for k, v in combined.items() if v is not None}
+
+
+def stamp_composition(registry: dict) -> dict:
+    """Write into a validated vocabulary what the browser reads rather than derives:
+    `$decisions` (`registry.state.stamp_decisions`) and `$marks`, the declared marks
+    (`schema.DECLARED_MARKS`) it paints on a message it renders.
+
+    Each composition that ends in a vocabulary stamps it, `page init`'s layer and a
+    page's own declarations over it, overwriting whatever a layer declared under
+    either name.
+    """
+    stamp_decisions(registry)
+    registry["$marks"] = deepcopy(DECLARED_MARKS)
+    return registry
 
 
 def required_layer_declarations(registry: dict, path):

@@ -156,6 +156,7 @@ import { paintTrace } from "./target-paint.js";
 import { updateSequence } from "./updates.js";
 import { threadList } from "./thread/state.js";
 import { threadKey, turns } from "./thread/model.js";
+import { whenDocumentPresented } from "./semantic-state.js";
 
 import { projectionOrigins } from "./projection/model.js";
 import { authoredStates } from "./projection/authored.js";
@@ -2226,17 +2227,29 @@ export function createMarginProjection({
       {
         nav: previewNav.hidden ? null : previewNav,
         close: previewClose,
+        // A resolved thread has no margin card, so resolving closes the card and
+        // hands the user to its target, and a resolve that no longer stands opens the
+        // card on the thread again, while the margin is still where threads open.
         prepareLanding: () => {
           const target = targetFor(previewEntry);
+          const thread = sourceItem(item).thread.id;
           const mayLand = retainUserIntent({
             source: focused(),
-            available: () => target?.isConnected,
+            available: () => Boolean(target?.isConnected) && !panelIsOpen(),
             fallback: bannerControlDoor(mapButton),
           });
           return {
             optimistic: () => {
               if (previewOpen()) return false;
               return mayLand.handoff(() => focusDestination(target));
+            },
+            reverse: async (may = mayLand) => {
+              await whenDocumentPresented();
+              return (
+                may() &&
+                mayLand.available() &&
+                Boolean(openPageThread(thread, { focus: "thread" }))
+              );
             },
           };
         },

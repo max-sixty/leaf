@@ -926,8 +926,9 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
     )
     expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 1")
     if view == "inline":
-        page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
+        # The margin card the resolve closed opens again, with the user back in it.
         thread = page.locator(".lf-margin-thread")
+        expect(thread.locator(".lf-page-thread")).to_be_focused()
         resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
     else:
         thread = page.locator(f'.lf-thread[data-id="{root}"]')
@@ -960,6 +961,157 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
         expect(page.locator("#bracket")).to_be_focused()
     else:
         expect(page.locator(".lf-general leaf-text")).to_be_focused()
+
+
+@pytest.mark.parametrize("view", ["inline", "panel"])
+def test_z_puts_the_user_back_in_the_thread_they_resolved(browser, serve, view):
+    """Resolving takes the thread off the user's screen: the margin card closes, and
+    Threads hands focus on. The log's state keeps no memory of where the thread was
+    shown, so taking the resolve back reopens it where nobody is looking unless the
+    withdrawal itself returns the user to it, by the route a refusal takes."""
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "Check whether these jobs can share one visit.",
+        "anchor": {"section": "bracket"},
+    }
+    page = open_page(browser, serve(ASK_PAGE, events=[comment]))
+    root = events_model.read_events(serve.page_dir)[0]["id"]
+    resized(page, 1440, 900)
+    if view == "inline":
+        page.keyboard.press("Shift+t")
+        card = page.locator(".lf-margin-thread .lf-page-thread")
+        landed = card
+    else:
+        page.locator(".lf-threads-toggle").click()
+        panel_settled(page)
+        card = page.locator(f'.lf-thread[data-id="{root}"]')
+        focus_panel_thread(card)
+        landed = card.locator(":scope > .lf-thread-summary")
+    expect(landed).to_be_focused()
+    with sending(page, "the resolve"):
+        page.keyboard.press("r")
+    round_trip(page)
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 0")
+    expect(landed).not_to_be_focused()
+
+    undo(page)
+    round_trip(page)
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 1")
+    expect(landed).to_be_focused()
+    expect(landed).to_be_in_viewport()
+
+
+def test_z_leaves_the_user_in_a_seated_thread_they_resolved(browser, serve):
+    """A thread seated on the page folds where it stands when resolved, so the user
+    never left it, and taking the resolve back moves them nowhere either: not to
+    Threads, and not to a margin card for the same thread."""
+    url = serve(SEATED_QUESTION_PAGE)
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "jobs"},
+            "text": "These jobs can share one visit.",
+        },
+    )["id"]
+    page = open_page(browser, url)
+    resized(page, 1920, 900)
+    seated = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
+    seated.get_by_role("button", name="Resolve thread", exact=True).focus()
+    with sending(page, "the resolve"):
+        page.keyboard.press("Enter")
+    round_trip(page)
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 0")
+
+    undo(page)
+    round_trip(page)
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 1")
+    assert seated.evaluate("node => node.contains(document.activeElement)")
+    expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+
+
+def test_z_takes_a_reopen_back_to_the_resolved_list_it_came_from(browser, serve):
+    """Reopening from the Resolved filter carries the user into the open thread; taking
+    the reopen back resolves it again and returns them to the filter and thread they
+    reopened it from, as a refusal of the reopen would."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Reopen this one, then think better of it.")
+    events_model.append_event(
+        serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
+    )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.locator(".lf-thread-filter-toggle").click()
+    resolved_filter = page.locator('[data-filter-value="resolved"]')
+    resolved_filter.click()
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    focus_panel_thread(card)
+    with sending(page, "the reopen"):
+        page.keyboard.press("r")
+    round_trip(page)
+    expect(card.locator(":scope > .lf-compose leaf-text")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(resolved_filter).to_have_attribute("aria-pressed", "false")
+
+    undo(page)
+    round_trip(page)
+    expect(resolved_filter).to_have_attribute("aria-pressed", "true")
+    expect(card.locator(":scope > .lf-thread-summary")).to_be_focused()
+
+    # A later input wins over the whole return, the filter as well as the focus.
+    with sending(page, "the second reopen"):
+        page.keyboard.press("r")
+    round_trip(page)
+    page.keyboard.press("Escape")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
+    page.keyboard.press("z")
+    holding(page, held, 1, "the undo")
+    page.locator("#t").click()
+    held.pop().continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(resolved_filter).to_have_attribute("aria-pressed", "false")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 0")
+
+
+@pytest.mark.parametrize("gesture", ["resolve", "reopen"])
+def test_z_opens_no_surface_the_user_closed_after_settling(browser, serve, gesture):
+    """Putting the user back is the settling surface's to do while it stands. With
+    Threads closed since, taking the gesture back changes the thread and nothing else."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Settle this one, then think better of it.")
+    if gesture == "reopen":
+        events_model.append_event(
+            serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
+        )
+    page = open_page(browser, url)
+    toggle = page.locator(".lf-threads-toggle")
+    toggle.click()
+    panel_settled(page)
+    if gesture == "reopen":
+        page.locator(".lf-thread-filter-toggle").click()
+        page.locator('[data-filter-value="resolved"]').click()
+    focus_panel_thread(page.locator(f'.lf-thread[data-id="{root}"]'))
+    with sending(page, f"the {gesture}"):
+        page.keyboard.press("r")
+    round_trip(page)
+    toggle.focus()
+    page.keyboard.press("Enter")
+    panel_settled(page, open=False)
+
+    undo(page)
+    round_trip(page)
+    expect(toggle).to_have_text(f"Open threads: {1 if gesture == 'resolve' else 0}")
+    expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(toggle).to_be_focused()
 
 
 def test_resolving_one_of_two_threads_leaves_the_user_in_the_card(browser, serve):

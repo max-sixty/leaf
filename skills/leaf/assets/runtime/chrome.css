@@ -891,6 +891,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-filter-toggle { flex: none; color: var(--muted); }
   .lf-thread-filter-toggle[aria-expanded="true"] { color: var(--ink); background: var(--chip); }
   .lf-thread-filter-reset { flex: none; font-size: var(--t-6); }
+  /* The summary row stands in every view, so the default view keeps Reset's box with
+     nothing drawn in it: the first letter typed into the find box used to insert the
+     row and push the list 35px down under the user. */
+  .lf-thread-filter-reset[data-lf-unoffered] { visibility: hidden; }
   .lf-thread-view { display: flex; align-items: baseline; gap: 8px;
     padding: 0 16px 8px; color: var(--muted); font-size: var(--t-6); }
   /* One rule closes the header off from the list: under the choices, or under the
@@ -949,6 +953,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     outline-offset: calc(-1 * var(--here-ring-w));
   }
   .lf-empty { color: var(--muted); padding: 18px 4px; }
+  /* Where the list says it has nothing to show, the words start where a thread's title
+     would: past a card's transparent border and its summary's inline padding. */
+  .lf-threads > .lf-empty { padding-inline: calc(1px + 8px); }
   /* A thread and the room a resolved one is still giving back (foldOut) are the same
      box, so the fold starts from the box the user was looking at rather than from
      a second description of it. What .lf-going adds is the clip the fold needs and

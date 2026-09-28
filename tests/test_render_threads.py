@@ -2818,15 +2818,17 @@ def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
     expect(toggle).to_have_text("View")
     assert page.evaluate(LIST_ORDER) == [whole, cap, lede]
 
-    # Order hides nothing, so it is not part of what Reset puts back. The narrowed
-    # summary that the press brings in stands below the choices, not above them.
+    # Order hides nothing, so it is not part of what Reset puts back. The summary
+    # stands below the choices, not above them, so what a press changes in it moves
+    # none of them.
     anchored = page.get_by_role("group", name="Location", exact=True).get_by_role(
         "button", name=re.compile(r"^Anchored")
     )
     before = anchored.bounding_box()
-    expect(page.locator(".lf-thread-view")).to_be_hidden()
+    reset = page.get_by_role("button", name="Reset thread filters")
+    expect(reset).to_be_hidden()
     anchored.click()
-    expect(page.locator(".lf-thread-view")).to_be_visible()
+    expect(reset).to_be_visible()
     assert anchored.bounding_box() == before, "the summary moved the choices"
     shown = LIST_ORDER.replace(".map(", ".filter((n) => !n.hidden).map(", 1)
     assert page.evaluate(shown)[:1] == [cap]
@@ -7785,3 +7787,38 @@ def test_the_panel_boxes_share_one_column_and_one_button_face(browser, serve):
         })"""
     )
     assert faces[0] == faces[1], faces
+
+
+def test_typing_a_search_moves_nothing_under_the_find_box(browser, serve):
+    """The view's summary and Reset stand in every view, so the first letter typed
+    into the find box changes the summary's words and Reset's paint, never the list's
+    place. The row used to arrive with that letter and push the list 35px down under
+    the user typing above it. A search matching nothing says so where a thread's title
+    would start."""
+    page = open_page(browser, serve(LONG_PAGE, comments=2))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    reset = page.get_by_role("button", name="Reset thread filters")
+    expect(reset).to_be_hidden()
+    top = page.locator(".lf-threads").evaluate("el => el.getBoundingClientRect().top")
+    title = page.locator(".lf-thread-topic").first.evaluate(
+        "el => el.getBoundingClientRect().left"
+    )
+    find = page.get_by_role("searchbox", name="Find in threads")
+    find.click()
+    page.keyboard.type("zq")
+    expect(page.locator(".lf-thread-view-summary")).to_have_text("0 of 2 open threads")
+    expect(reset).to_be_visible()
+    assert page.locator(".lf-threads").evaluate(
+        "el => el.getBoundingClientRect().top"
+    ) == pytest.approx(top, abs=0.5), "the search moved the list"
+    empty = page.locator(".lf-threads > .lf-empty")
+    expect(empty).to_be_visible()
+    words = empty.evaluate(
+        """el => {
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          return range.getBoundingClientRect().left;
+        }"""
+    )
+    assert words == pytest.approx(title, abs=0.5), (words, title)

@@ -100,7 +100,7 @@ run again there in the light scheme, where each resident has the least room it w
 ever have. It reads, too, how each flex or grid box the page wrote splits its children
 into rows, and the swept widths where that changes, and it fails a workspace whose panes
 stand side by side in a wide window and stack in one column at a width where the Layout
-still holds the window, since stacked there they share one window's height.
+still fills the window, since stacked there they share one window's height.
 
 A version that passes gets screens for the author to read (`render_gate/screens.py`):
 the page's first eight screens down from its top at the desktop viewport, at the

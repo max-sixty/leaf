@@ -319,7 +319,7 @@ export function addressableName(element) {
   return declared || leadingTitle(element);
 }
 
-// What the chrome calls an element away from it: an Asks tray row, a Page Map heading,
+// What the chrome calls an element away from it: an Asks drawer row, a Page Map heading,
 // a thread's anchor, a feed row. The element's name comes first: `addressableName`,
 // else its own caption, the `aria-label` its author gave it, or a control's <label>.
 // An element whose words are its own (a block of prose, anything holding text of its
@@ -410,7 +410,7 @@ export function datumAimTarget(datum) {
   };
 }
 
-// Pointer aim and target-chooser hints share this reading. The returned element is the
+// Pointer aim and target-picker hints share this reading. The returned element is the
 // element the coordinate resolves to, so the promise and eventual mark agree.
 export function aimTargetAt(node) {
   const visual = visualAt(node, { unclaimed: false });

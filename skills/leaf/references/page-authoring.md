@@ -111,7 +111,7 @@ the stack from these:
 A page grows without changing kind: a report that gains live status gains a row of
 tiles, and its comments and anchors stay put.
 
-The banner and the shortcut band at the foot of the window are fixed reservations, so
+The banner and the bottom bar at the foot of the window are fixed reservations, so
 the room a page has depends only on the window, and nothing Leaf draws moves the page's
 content: the rail stands in room the page leaves beside its column ("The rail and the
 margin", below).
@@ -218,11 +218,11 @@ decide, is one `lf-tabs list="side"` as the body: its list is the queue and each
 the Asks its item still holds. Write no script to select, hide or mark an item; the tab
 set does all three.
 
-Each pane's body scrolls on its own, and a widget that fills a held body, such as a
-playground's stage, grows to the window's height. The `lf-pane` entry says what a pane
-holds. Let the Layout allocate the height: page-specific positioning should not be
-needed to keep a pane or footer reachable. Where the window is too small to hold the
-regions, the panes take their natural height and the page scrolls.
+Each pane's body scrolls on its own, and a widget that fills the body of a full-height
+workspace, such as a playground's stage, grows to the window's height. The `lf-pane`
+entry says what a pane holds. Let the Layout allocate the height: page-specific
+positioning should not be needed to keep a pane or footer reachable. Where the window is
+too small to hold the regions, the panes take their natural height and the page scrolls.
 
 ### Bounds and widths
 
@@ -286,7 +286,7 @@ geometry without them:
   covers nothing. So leave no room for a pin in the page's CSS, such as padding at the
   end of a heading: wherever the rail stands, the room is left empty.
 
-`data-rail="right"` on `main` keeps the rail on a wide page, and `data-rail="none"`
+`data-rail="right"` on `body` keeps the rail on a wide page, and `data-rail="none"`
 gives a column page's right margin to something of the page's own. A marker level
 with a hanging `aside.sidenote` stands as a pin on its block, so a page with notes needs
 neither.
@@ -349,7 +349,7 @@ notation in `<pre>`, because its whitespace is part of the data. Escape `&`
 first, then `<` and `>`; any other order can silently decode entity text.
 
 The runtime injects the status banner, thread panel, Versions menu, keyboard
-shortcuts, live-leaves tray, and active-asks tray, which lists the page's open Asks.
+shortcuts, live-leaves drawer, and active-asks drawer, which lists the page's open Asks.
 Do not duplicate that chrome or keep a second list of the Asks in the page.
 
 Keep content within its allocated column, visual surface, or pane. The theme scrolls a `<pre>` or a table

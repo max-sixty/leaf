@@ -70,18 +70,18 @@ commandReferenceDialog.tabIndex = -1;
 export const commandReferenceClose = el("button", "lf-btn lf-command-reference-close");
 commandReferenceClose.type = "button";
 
-// What the user is sent back to when the reference closes. The shortcut shelf is the one
-// surface that can stand behind it, and it declares itself here rather than being read from
-// here: the bar that owns the shelf already reads this module, so the edge only goes one
-// way. The close control's words and its Escape row read this one answer, so the button and
-// the key cannot promise different destinations.
-let shelfBehindReference = () => false;
-export const declareShelfBehindReference = (reading) => {
-  shelfBehindReference = reading;
+// What the user is sent back to when the reference closes. The expanded shortcut bar is
+// the one surface that can stand behind it, and it declares itself here rather than being
+// read from here: the bar that expands already reads this module, so the edge only goes
+// one way. The close control's words and its Escape row read this one answer, so the
+// button and the key cannot promise different destinations.
+let expandedBarBehindReference = () => false;
+export const declareExpandedBarBehindReference = (reading) => {
+  expandedBarBehindReference = reading;
 };
 
 function presentCommandReferenceClose() {
-  const returningToMore = Boolean(shelfBehindReference());
+  const returningToMore = Boolean(expandedBarBehindReference());
   const label = returningToMore ? "Back to more shortcuts" : "Close";
   const title = returningToMore
     ? "Back to more shortcuts"
@@ -926,11 +926,13 @@ pageScope("command reference", {
       id: "command.reference.close",
       keys: ["Escape"],
       does: () =>
-        shelfBehindReference()
+        expandedBarBehindReference()
           ? "Back to more keyboard shortcuts"
           : "Close the command reference",
       line: () =>
-        shelfBehindReference() ? "back to more shortcuts" : "close command reference",
+        expandedBarBehindReference()
+          ? "back to more shortcuts"
+          : "close command reference",
       control: () => commandReferenceClose,
       runFromCommandReference: false,
       run: () => commandReferenceClose.click(),

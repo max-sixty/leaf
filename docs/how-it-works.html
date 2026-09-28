@@ -447,10 +447,10 @@ flowchart LR
   end
   subgraph Reads["Where you read it"]
     Thread["the thread"]
-    Asks["the Asks tray"]
+    Asks["the Asks drawer"]
     Versions["the page and its versions menu"]
     Widget["the widget"]
-    Banner["the banner, tab icon and Leaves tray"]
+    Banner["the banner, tab icon and Leaves drawer"]
     Beside["the label beside your comment or widget"]
   end
   Reply --&gt; Thread
@@ -475,7 +475,7 @@ flowchart LR
                 <em>Claude working — running the browser suite</em>. With
                 <code>--on</code>, the same line stands beside that thread or widget
                 until the agent answers there. The tab icon takes the banner's colour,
-                and the page's row in the Leaves tray repeats the line.
+                and the page's row in the Leaves drawer repeats the line.
               </li>
               <li id="updates-written-waiting">
                 <strong><code>leaf status … waiting "…"</code></strong> What it wants
@@ -502,7 +502,7 @@ flowchart LR
               <li id="updates-written-awaits">
                 <strong><code>leaf thread reply … --awaits</code></strong> A question
                 for you. The thread reads <em>On you to answer</em>, and the question
-                joins the Asks tray.
+                joins the Asks drawer.
               </li>
               <li id="updates-written-comment">
                 <strong
@@ -646,7 +646,7 @@ flowchart LR
               the agent process that holds the page: whether it still runs, whether its
               turn is running, whether a watcher runs between its turns, and the last
               status it wrote. The server decides the reading, so every open page, the
-              Leaves tray, and the agent's own
+              Leaves drawer, and the agent's own
               <code>leaf page state</code> show the same one.
             </p>
             <ul id="updates-facts">
@@ -1062,7 +1062,7 @@ flowchart TD
               A Leaf page has one kind: blocks read top to bottom in the reading column.
               A wide block grows past the column by declaring the width it needs, and a
               Layout class on <code>main</code> arranges the whole page: a wide page's
-              body beside its status, or a workspace that holds the window.
+              body beside its status, or a workspace that fills the window.
             </p>
 
             <div class="panels" id="kind-figure">
@@ -1192,7 +1192,7 @@ flowchart TD
               <figure id="kind-workspace">
                 <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>
-                    A workspace page holds the window, and each pane scrolls on its own
+                    A workspace page fills the window, and each pane scrolls on its own
                   </title>
                   <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
                   <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
@@ -1345,7 +1345,7 @@ flowchart TD
                 </svg>
                 <figcaption id="cap-kind-workspace">
                   <strong>A workspace</strong><code>layout-workspace</code> on
-                  <code>main</code> holds the window, and each pane scrolls on its own.
+                  <code>main</code> fills the window, and each pane scrolls on its own.
                 </figcaption>
               </figure>
             </div>
@@ -1376,8 +1376,8 @@ flowchart TD
               <figure id="chrome-reserved">
                 <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>
-                    The banner and the shortcut band are reserved at fixed sizes, and
-                    the rail stands in the room beside the column
+                    The banner and the bottom bar are reserved at fixed sizes, and the
+                    rail stands in the room beside the column
                   </title>
                   <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
                   <g id="chrome-banner">
@@ -1391,7 +1391,7 @@ flowchart TD
                     />
                     <text x="10" y="15">Banner</text>
                   </g>
-                  <g id="chrome-band">
+                  <g id="chrome-bottom-bar">
                     <rect
                       class="frame-head"
                       x="2"
@@ -1400,7 +1400,7 @@ flowchart TD
                       height="18"
                       rx="5"
                     />
-                    <text x="10" y="153">Shortcut band</text>
+                    <text x="10" y="153">Bottom bar</text>
                   </g>
                   <g id="chrome-rail">
                     <rect class="rail" x="194" y="20" width="44" height="120" />
@@ -1470,16 +1470,16 @@ flowchart TD
                   </g>
                 </svg>
                 <figcaption id="cap-chrome-reserved">
-                  <strong>Two fixed reservations</strong>The banner and the shortcut
-                  band each have a fixed size, so the room a page has depends only on
-                  the window. The rail claims none of it: its markers stand beside the
+                  <strong>Two fixed reservations</strong>The banner and the bottom bar
+                  each have a fixed size, so the room a page has depends only on the
+                  window. The rail claims none of it: its markers stand beside the
                   column wherever the page leaves room for them.
                 </figcaption>
               </figure>
               <figure id="chrome-surfaces">
                 <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>
-                    The Asks tray and the Threads panel open over the page's edges
+                    The Asks drawer and the Threads panel open over the page's edges
                   </title>
                   <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
                   <rect class="frame-head" x="2" y="2" width="236" height="18" rx="5" />
@@ -1514,10 +1514,10 @@ flowchart TD
                     height="4"
                     rx="2"
                   />
-                  <g id="chrome-asks-tray">
+                  <g id="chrome-asks-drawer">
                     <rect class="over" x="6" y="24" width="72" height="112" rx="5" />
                     <text class="strong" x="42" y="44" text-anchor="middle">
-                      Asks tray
+                      Asks drawer
                     </text>
                   </g>
                   <g id="chrome-threads-panel">
@@ -1531,7 +1531,7 @@ flowchart TD
                   </g>
                 </svg>
                 <figcaption id="cap-chrome-surfaces">
-                  <strong>Surfaces open over the page</strong>The Asks tray and the
+                  <strong>Surfaces open over the page</strong>The Asks drawer and the
                   Threads panel open one at a time over its edges. The page under them
                   keeps its width, its wrapping and your place.
                 </figcaption>
@@ -1596,9 +1596,9 @@ flowchart TD
             </div>
 
             <p id="chrome-narrow">
-              A touch screen draws no shortcut band, and a window too narrow for the
-              rail draws no rail. A margin entry with no rail to stand in, such as one
-              for a passage inside a pane, sits in the text beside what it marks.
+              A touch screen draws no bottom bar, and a window too narrow for the rail
+              draws no rail. A margin entry with no rail to stand in, such as one for a
+              passage inside a pane, sits in the text beside what it marks.
             </p>
           </section>
 
@@ -1645,8 +1645,8 @@ flowchart TD
                 </svg>
                 <figcaption id="cap-vocabulary-element">
                   <strong>An element when Leaf needs the role</strong>Reading keys and
-                  scroll restore find each pane, and a held workspace scrolls each
-                  pane's body on its own.
+                  scroll restore find each pane, and a full-height workspace scrolls
+                  each pane's body on its own.
                 </figcaption>
               </figure>
               <figure id="vocabulary-attribute">
@@ -1858,11 +1858,11 @@ flowchart TD
           </section>
 
           <section id="workspace">
-            <h2>A workspace holds the window</h2>
+            <h2>A workspace fills the window</h2>
             <p id="workspace-what">
               <code>&lt;main class="layout-workspace"&gt;</code> keeps regions in view
               together while each scrolls on its own: a queue beside the item it opens,
-              a playground's controls beside its preview. It is a wide page that holds
+              a playground's controls beside its preview. It is a wide page that fills
               the window's height as well as its width: the page's header takes its
               content's height, the one body under it takes the rest, each
               <code>lf-pane</code>'s body scrolls under the pane's header, and actions
@@ -1871,13 +1871,13 @@ flowchart TD
             </p>
 
             <div class="panels two" id="workspace-figure">
-              <figure id="workspace-held">
+              <figure id="workspace-full-height">
                 <svg class="drawing" viewBox="0 0 240 160" role="img">
-                  <title>A workspace holds the window and its panes scroll</title>
+                  <title>A workspace fills the window and its panes scroll</title>
                   <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
                   <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
                   <rect class="line" x="12" y="20" width="70" height="7" rx="2" />
-                  <g id="workspace-held-queue">
+                  <g id="workspace-full-height-queue">
                     <rect
                       class="box hot"
                       x="12"
@@ -1961,7 +1961,7 @@ flowchart TD
                     />
                     <rect class="thumb" x="77" y="54" width="3" height="26" rx="1.5" />
                   </g>
-                  <g id="workspace-held-detail">
+                  <g id="workspace-full-height-detail">
                     <rect
                       class="box hot"
                       x="90"
@@ -1998,14 +1998,14 @@ flowchart TD
                     />
                     <rect class="thumb" x="221" y="62" width="3" height="30" rx="1.5" />
                   </g>
-                  <g id="workspace-held-footer">
+                  <g id="workspace-full-height-footer">
                     <rect class="frame-head" x="91" y="128" width="136" height="23" />
                     <rect class="mark" x="186" y="133" width="36" height="13" rx="3" />
                     <text class="small" x="96" y="143">footer</text>
                   </g>
                 </svg>
-                <figcaption id="cap-workspace-held">
-                  <strong>A desktop window</strong>The workspace holds the window. Each
+                <figcaption id="cap-workspace-full-height">
+                  <strong>A desktop window</strong>The workspace fills the window. Each
                   pane scrolls under its header, and a footer's actions stay in reach.
                 </figcaption>
               </figure>

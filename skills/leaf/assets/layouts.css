@@ -98,12 +98,12 @@
     --lf-tiles-fallback: calc(50% - var(--sp-4) / 2);
   }
   .layout-tiles > * { margin: 0; }
-  /* Workspace: the page fills the window below the banner and above the band, its header
-   * and footer take their content's height, and the body between them takes the rest,
+  /* Workspace: a full-height page, filling the window between the banner and the bottom
+   * bar: its header and footer take their content's height, the body takes the rest,
    * arranged as the body itself says: a page's grid of panes, a pane, or a widget that
    * composes its own regions. Each pane's body scrolls on its own, a widget's generated
-   * panes included, and `--lf-held` on main tells a widget the body has a definite height
-   * to fill (a style query). Where the window is too small to hold the regions, the
+   * panes included, and `--lf-full-height` on main tells a widget the body has a definite
+   * height to fill (a style query). Where the window is too small to hold the regions, the
    * workspace flows and the page scrolls.
    *
    * A pane is any element in the pane role (`data-lf-reading-role="pane"`, theme.css),
@@ -136,7 +136,7 @@
   }
   @media screen and (min-width: 720px) and (min-height: 480px) {
     main.layout-workspace {
-      --lf-held: 1;
+      --lf-full-height: 1;
       display: flex;
       flex-direction: column;
       block-size: var(--lf-view-height);
@@ -167,7 +167,7 @@
     /* A pane is already a grid of header, body and footer (theme.css), whose body row
      * takes what a definite height leaves and its content's height otherwise; here it
      * may shrink below its content, and scrolls. That holds for a pane something gives a
-     * height: an authored pane the workspace holds, which is the body itself or a cell of
+     * height: an authored pane the workspace sizes, which is the body itself or a cell of
      * it, and a generated pane at any depth, which its widget sizes. An authored pane
      * inside a section of the body, or inside another pane's body, is content there and
      * scrolls with what holds it. */

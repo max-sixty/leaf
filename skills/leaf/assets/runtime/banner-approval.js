@@ -1,4 +1,4 @@
-/* The Lit-rendered face inside the banner shelf's stable native approval button. The
+/* The Lit-rendered face inside the banner toolbar's stable native approval button. The
  * shelf owns the button's identity and position; this owner paints one complete approval
  * reading without replacing the control a user may be holding.
  *

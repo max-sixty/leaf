@@ -411,7 +411,7 @@ export function selectableOffer(role, cls, label) {
 // What the value above names as a press: the tag for a button, the type for a native
 // choice, or the role for a selectable offer, against the empty string the rest of a
 // widget's chrome takes. The theme states
-// the same reading in CSS for the hand and the here ring; this is it for the passes
+// the same reading in CSS for the hand and the focus ring; this is it for the passes
 // written in JavaScript.
 export const PRESSABLE = '[data-lf-offer]:not([data-lf-offer=""])';
 

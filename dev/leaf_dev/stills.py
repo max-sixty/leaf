@@ -84,6 +84,17 @@ def threads_panel(page: Page) -> None:
     )
 
 
+def panel_reply_sent(page: Page) -> None:
+    """A reply sent from the Threads panel's open thread, its stage on the message
+    and the thread's attention on the other rows."""
+    threads_panel(page)
+    thread = page.locator(".lf-thread[open]")
+    thread.locator("leaf-text").focus()
+    page.keyboard.insert_text("A reply sent from the panel")
+    thread.get_by_role("button", name="Send", exact=True).click()
+    thread.locator(".lf-msg.user .lf-msg-sending").last.wait_for()
+
+
 def composer(page: Page) -> None:
     """A comment being typed on a passage selected by pointer."""
     box = page.locator("#triage-lede").bounding_box()
@@ -130,6 +141,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         card_by_keyboard,
         card_reply,
         threads_panel,
+        panel_reply_sent,
         composer,
         card_grabbed,
         code_focused,
@@ -158,6 +170,8 @@ STATES = (
     State("plan-card-beside", "review-a-plan", card_by_pointer, viewport=BESIDE),
     State("plan-panel", "review-a-plan", threads_panel),
     State("plan-panel-beside", "review-a-plan", threads_panel, viewport=BESIDE),
+    # Last on its page, since the reply it sends stays in the log.
+    State("plan-panel-sent", "review-a-plan", panel_reply_sent),
     State("triage", "triage-board", at_rest),
     State("triage-composer", "triage-board", composer),
     State("triage-grabbed", "triage-board", card_grabbed),

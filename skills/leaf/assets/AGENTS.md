@@ -33,8 +33,8 @@ which markers stand and where, which is what the overlay exists to avoid. Where 
 covers something the user needs, the answers are `o` (or More's Hide annotations
 under a finger) and a better placement (`TODO.md`), never room made for it.
 
-The auxiliary surfaces (Asks tray, thread panel, Leaves tray) stand over the page and
-never change its geometry; the Asks tray and panel leave the page live beside
+The auxiliary surfaces (Asks drawer, thread panel, Leaves drawer) stand over the page and
+never change its geometry; the Asks drawer and panel leave the page live beside
 them, and cover it where they would leave less than a usable page
 (`--lf-auxiliary-beside`, read by `standsBeside`). Which box scrolls is the
 stylesheet's, a Layout's or the page's, which the runtime reads rather than decides.
@@ -125,7 +125,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Widget capture and lifecycle | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js` |
 | Vocabulary and public helpers | `registry.js`, `widget-api.js`, `widget-elements.js` |
 | External data | `data.js`, `projection/data.js`, `projection/authored.js` |
-| Revision installs and continuity | `version.js`, `version-chooser.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js` |
+| Revision installs and continuity | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js` |
 | Repaint and geometry | `rendering.js`, `repaint.js`, `standing.js`, `page-geometry.js`, `geometry.js`, `rect.js`, `pointer.js`, `floating.js` |
 | Chrome and available room | `chrome.js`, `chrome-layout.js`, `auxiliary-surfaces.js`, `drawn-edge.js` |
 | Reading regions and scrolling | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
@@ -138,7 +138,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Passages and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `target-references.js`, `resolved-target.js`, `anchor-resolution.js` |
 | Anchor paint and travel | `anchor-paint.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `visual-parts.js`, `indication.js` |
 | Banner and approvals | `banner*.js` |
-| Trays and neighboring pages | `trays.js`, `live-leaves*.js` |
+| Drawers and neighboring pages | `drawers.js`, `live-leaves*.js` |
 | Activity and updates | `presence.js`, `updates.js` |
 | Notices and announcements | `semantic-news.js`, `notifications.js`, `keyboard/shortcut-bar.js` |
 | Reactions and design review | `reactions.js`, `design.js`, `design-readings.js` |
@@ -168,9 +168,9 @@ the page, so they are adopted after page and package sheets and win by their
 selectors. `runtime/marks.css` is adopted by the document and shadow stages. A `:has()` whose rightmost compound carries no class, id, attribute, or
 type restyles every element on ordinary runtime writes
 (`test_no_has_rule_restyles_the_whole_document`); key a repeated type by a class
-its owner writes. A `:has()` on the chrome root is read again on every write inside the
-chrome and restyles all of it (`test_no_has_rule_stands_on_the_chrome_root`), so the
-owner of such a condition states it as an attribute on the root.
+its owner writes. A `:has()` on the chrome root, `body` or `html` is read again on
+every write below it and restyles it (`test_no_has_rule_stands_on_a_root`), so the
+owner of such a condition states it as an attribute on the element the rule styles.
 
 ### One writer for each fact
 
@@ -190,7 +190,7 @@ selects from:
 | what the DOM represents | controller presentation tickets and projection commits |
 | when a document-wide renderer paints | the publication that opened the epoch, in the order `runtime/semantic-state.js` declares |
 | where each thread's passage lands | anchor paint's resolution of its anchor in this version |
-| geometry readings: what a scroller shows, what a surface hides, cover room, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareOccluder`, `declareCoverRoom`, `shownWindow`, `seenRect`), so being on screen has one answer |
+| geometry readings: what a scroller shows, what a surface hides, sticky-header room, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareOccluder`, `declareStickyHeaders`, `shownWindow`, `seenRect`), so being on screen has one answer |
 
 Do not add a second cache, pending map, widget-specific replay list, or DOM
 attribute as another source for one of these facts; a rendering may expose state,
@@ -225,7 +225,7 @@ Startup order is load-bearing:
     wait the page presents offline and applies the answer when it lands.
 
 Authored HTML paints immediately, and the render-blocking theme reserves the
-banner and shortcut band so mounting the runtime moves nothing. Prose, links, and
+banner and bottom bar so mounting the runtime moves nothing. Prose, links, and
 scrolling work while widgets upgrade. Page keys wait, because a command reads
 state the first answer brings: the bootstrap holds printed keys pressed before
 presentation and the keyboard controller replays them in order once the page

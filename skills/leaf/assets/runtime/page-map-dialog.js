@@ -36,7 +36,7 @@ import {
   bannerControlDoor,
   registerBannerControl,
   showBannerControl,
-} from "./banner-shelf.js";
+} from "./banner-toolbar.js";
 import {
   clearMarginEntryControls,
   marginContributionSource,

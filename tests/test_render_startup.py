@@ -717,7 +717,7 @@ RESTORED_PROSE = "".join(
 @pytest.mark.parametrize(
     ("saved", "wide", "window"),
     [
-        ({"lf-auxiliary-surface": "asks", "lf-tray-slot-width": "280"}, False, 1600),
+        ({"lf-auxiliary-surface": "asks", "lf-drawer-slot-width": "280"}, False, 1600),
         (
             {"lf-auxiliary-surface": "threads", "lf-thread-panel-width": "500"},
             True,
@@ -725,7 +725,7 @@ RESTORED_PROSE = "".join(
         ),
         # Where it would leave less than a usable page it covers the page instead.
         ({"lf-auxiliary-surface": "threads"}, True, 700),
-        # The Asks tray by the same rule: 300 of a 600px window leaves 300.
+        # The Asks drawer by the same rule: 300 of a 600px window leaves 300.
         ({"lf-auxiliary-surface": "asks"}, False, 600),
     ],
     ids=["asks", "threads-wide-page", "covering", "asks-covering"],
@@ -795,7 +795,7 @@ def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
         expect(page.locator("body")).to_have_attribute(
             "data-lf-auxiliary-surface", surface
         )
-        expect(page.locator("body[data-lf-covering-surface]")).to_have_count(
+        expect(page.locator("html[data-lf-covering-surface]")).to_have_count(
             1 if window < {"asks": 620, "threads": 740}[surface] else 0
         )
         presented = geometry()
@@ -1482,15 +1482,15 @@ def test_a_broken_optional_page_interface_does_not_withhold_presentation(
     assert len(matching) == 1, errors
 
 
-def test_a_current_auxiliary_choice_replaces_a_persisted_tray_during_replay(
+def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     browser, serve
 ):
     """Restored chrome may neither publish stale asks nor replace a current choice.
 
-    The tray was open on the prior visit and the log has since accepted its one
+    The drawer was open on the prior visit and the log has since accepted its one
     suggestion. Holding the first replay makes the dangerous interval deterministic:
     discussion stays available, but the stale count, row, and bulk action stay withheld.
-    Opening Threads during that interval replaces the remembered tray. Replay leaves
+    Opening Threads during that interval replaces the remembered drawer. Replay leaves
     that Thread panel standing while it paints the accepted state and exposes the completed
     Ask as a closed route for review.
     """
@@ -1763,7 +1763,7 @@ def test_a_page_the_suite_opens_has_read_the_log(browser, serve):
 
     Only a press can state it. A read lives through the interval, since `expect` re-decisions
     for five seconds and the retry lands in two; a keystroke into a page that has no
-    versions yet is gone, and the chooser never opens."""
+    versions yet is gone, and the picker never opens."""
     url = serve(LONG_PAGE)
     _publish(
         serve.page_dir,
@@ -3436,9 +3436,11 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         "data-lf-agent-workflow", re.compile(".+")
     )
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
+    # The turn ended with both updates still the agent's to answer, so they are overdue
+    # and the remedy is the user's.
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude isn't watching right now. 2 updates are saved. "
-        "It picks them up next turn."
+        "Claude last checked in just now. 2 updates are saved. "
+        "Nothing is answering them, so nudge it in the terminal."
     )
     with service_model.PageTransaction(d) as transaction:
         transaction.open_turn("s")
@@ -3468,6 +3470,21 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_workflow).to_have_count(1)
     expect(other_workflow).to_have_count(1)
     expect(other_workflow).to_have_text("Sent")
+    # The panel keeps one thread open. A folded row names the stage, since it shows no
+    # message; the open one's message names it beside itself, so its summary does not
+    # say it a second time.
+    header_status = held_thread.locator(":scope > .lf-thread-summary .lf-thread-status")
+    held_summary = held_thread.locator(":scope > .lf-thread-summary")
+    expect(held_thread).to_have_js_property("open", True)
+    expect(header_status).to_have_text("Working")
+    expect(header_status).to_be_hidden()
+    other_thread.locator(":scope > .lf-thread-summary").click()
+    expect(held_thread).to_have_js_property("open", False)
+    expect(header_status).to_be_visible()
+    held_summary.click()
+    expect(held_thread).to_have_js_property("open", True)
+    expect(header_status).to_be_hidden()
+    expect(held_workflow).to_be_visible()
     # The move's state is metadata on the exact outgoing message, closing that row
     # rather than taking a full-width row of its own. Resolve settles the thread, not
     # the message, so it stands in the thread's corner and the row ends here.
@@ -3534,7 +3551,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # in the compact card. It does not invent an unasked message workflow.
     status("working", "re-running it against the rolling deploy", "--on", held)
     expect(held_workflow).to_have_count(0)
-    expect(held_thread.locator(".lf-thread-status")).to_have_text("Working")
+    expect(header_status).to_have_text("Working")
+    # No message carries this work, so the open card's summary still says it.
+    expect(header_status).to_be_visible()
     expect(held_thread.locator(":scope > .lf-msg-sending")).to_have_count(0)
     expect(workflows).to_have_count(1)
 

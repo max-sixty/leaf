@@ -89,7 +89,7 @@ def _render_version_attempt(
     drawing's fit to its box shrinks its labels past reading; and then, resizing that
     loaded page through every width from 360px to 1920px, the sideways readings again:
     a version holds at each of them, not only at the two it renders. There it also
-    reads whether a workspace stacks its panes while the Layout still holds the window,
+    reads whether a workspace stacks its panes while the Layout still fills the window,
     which only the widths between the two viewports show. That pass also
     finds each width where the page's margin content changes (a sidebar, contents map
     or note first standing in the margin), and the gate renders the page there too, in

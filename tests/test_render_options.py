@@ -657,7 +657,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     # reading goes green over the travel it is about; the assertion before the presses says
     # so rather than leaving it to the window's height to be right. Chrome's focus
     # scroll moves a stop only when it stands wholly outside the padded band, so the
-    # window is one where the arrival leaves the field wholly under the bottom band.
+    # window is one where the arrival leaves the field wholly under the bottom bar.
     page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
     resized(page, 390, 600)
     clearance = """() => document.querySelector('.lf-shortcut-bar').getBoundingClientRect().top

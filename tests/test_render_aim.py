@@ -287,10 +287,10 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     expect(thread).to_be_focused()
 
 
-def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve):
-    """The Asks tray stands over the page without moving its coordinate plane.
+def test_an_aimed_comment_keeps_its_place_with_the_asks_drawer_open(browser, serve):
+    """The Asks drawer stands over the page without moving its coordinate plane.
 
-    A broad authored rule may position ordinary divs, and the tray may arrive over a
+    A broad authored rule may position ordinary divs, and the drawer may arrive over a
     target without another pointer event. Neither may move the chrome's document origin or
     leave its reading of the page behind. Keep the whole comment route on the item the
     user pointed at.
@@ -309,7 +309,7 @@ def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve
     target.hover()
     page.keyboard.down("Alt")
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
-    # Open by script so the pointer remains parked on the target while the tray arrives.
+    # Open by script so the pointer remains parked on the target while the drawer arrives.
     page.locator(".lf-asks").evaluate("node => node.click()")
     edge_settled(page, EDGES[1])
     aligned = page.evaluate(
@@ -1162,8 +1162,8 @@ def test_a_covering_auxiliary_surface_holds_design_paint_beneath_it(browser, ser
     page.keyboard.press("l")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     resized(page, 560, 900)
-    tray = page.locator(".lf-asks-panel")
-    expect(tray).to_be_visible()
+    drawer = page.locator(".lf-asks-panel")
+    expect(drawer).to_be_visible()
 
     target = page.locator("#lq-keep")
     target_box = target.bounding_box()
@@ -1174,21 +1174,21 @@ def test_a_covering_auxiliary_surface_holds_design_paint_beneath_it(browser, ser
     }
     page.mouse.move(point["x"], point["y"])
     expect(page.locator(".lf-aim")).to_be_hidden()
-    tray_box = tray.bounding_box()
-    assert tray_box is not None
-    page.mouse.move(tray_box["x"] + 12, tray_box["y"] + 12)
+    drawer_box = drawer.bounding_box()
+    assert drawer_box is not None
+    page.mouse.move(drawer_box["x"] + 12, drawer_box["y"] + 12)
     expect(page.locator(".lf-aim")).to_be_hidden()
     planes = page.evaluate(
         """() => ({
-          tray: Number(getComputedStyle(document.querySelector('.lf-asks-panel')).zIndex),
+          drawer: Number(getComputedStyle(document.querySelector('.lf-asks-panel')).zIndex),
           legend: Number(getComputedStyle(
             document.querySelector('.lf-legend-box[data-for="lq-keep"]')).zIndex),
         })"""
     )
-    assert planes["legend"] < planes["tray"], planes
+    assert planes["legend"] < planes["drawer"], planes
 
     page.mouse.click(point["x"], point["y"])
-    expect(tray).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(drawer).not_to_have_class(re.compile(r"\bopen\b"))
     expect(page.locator(".lf-composer")).to_be_hidden()
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
 
@@ -1850,7 +1850,7 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
 
 def test_design_mode_leaves_the_chrome_working(browser, serve):
     """Design mode comments on what the agent made; Leaf's own chrome works as it does
-    outside the mode, as it does for the target chooser.
+    outside the mode, as it does for the target picker.
 
     A remark on the banner or a panel has no reader who can act on it, and a mode that
     took the chrome took the way out of the panel its own send opened: on a phone that
@@ -2173,31 +2173,31 @@ def test_an_authored_drawing_offers_each_named_group_to_a_comment(browser, serve
                 """
 <h1 id="t">Drawing</h1>
 <figure id="fig"><svg viewBox="0 0 240 60" width="240" height="60" role="img"
-aria-label="A tray beside a page"><g id="fig-tray"><rect x="2" y="2" width="100"
-height="56" fill="#ddd"></rect><text x="52" y="34" text-anchor="middle">Tray</text></g>
+aria-label="A drawer beside a page"><g id="fig-drawer"><rect x="2" y="2" width="100"
+height="56" fill="#ddd"></rect><text x="52" y="34" text-anchor="middle">Drawer</text></g>
 <rect x="130" y="2" width="100" height="56" fill="#ddd"></rect></svg></figure>
 """,
             )
         ),
     )
-    tray = page.locator("#fig-tray rect")
+    drawer = page.locator("#fig-drawer rect")
     corner = {"x": 8, "y": 8}
-    tray.hover(position=corner)
+    drawer.hover(position=corner)
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "fig-tray")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "fig-drawer")
     page.keyboard.up("Alt")
     page.locator("#fig svg > rect").hover()
     page.keyboard.down("Alt")
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "fig")
     page.keyboard.up("Alt")
 
-    tray.click(modifiers=["Alt"], position=corner)
+    drawer.click(modifiers=["Alt"], position=corner)
     open_compact_comment(page, "wider")
-    with sending(page, "the comment on the tray"):
+    with sending(page, "the comment on the drawer"):
         page.keyboard.press("Enter")
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["kind"] == "comment"
-    assert sent["anchor"] == {"section": "fig-tray"}
+    assert sent["anchor"] == {"section": "fig-drawer"}
 
 
 def test_a_visual_part_aim_follows_its_drawn_svg_shape(browser, serve):

@@ -124,28 +124,28 @@
   --lf-safe-bottom: env(safe-area-inset-bottom, 0px);
   --lf-safe-left: env(safe-area-inset-left, 0px);
   --lf-banner-h: calc(42px + var(--lf-safe-top));
-  /* The bottom band: the keyboard's line and the status, held at the window's foot at one
-     stated height, as the banner is at its head. The page ends above it and a held
-     workspace is the window less the two, so nothing about the page's size is measured
+  /* The bottom bar: the keyboard's line and the status, held at the window's foot at one
+     stated height, as the banner is at its head. The page ends above it and a
+     full-height workspace is the window less the two, so nothing about the page's size is measured
      off the chrome (chrome.css, at the shortcut bar). */
-  --lf-band-h: calc(44px + var(--lf-safe-bottom));
+  --lf-bottom-bar-h: calc(44px + var(--lf-safe-bottom));
   /* What a page reads of the chrome, and only where it needs a number: a box that fills
      the window takes --lf-view-height, and a box that sticks stops at --lf-top, below
      the banner. Ordinary content never sees either band; the document already keeps
      clear of both (html[data-lf-live], below). */
-  --lf-view-height: calc(100dvh - var(--lf-banner-h) - var(--lf-band-h));
+  --lf-view-height: calc(100dvh - var(--lf-banner-h) - var(--lf-bottom-bar-h));
   --lf-top: var(--lf-banner-h);
   /* Stacking: one ascending ladder for everything the runtime lifts over the page.
      A number local to a component's own stacking context stays where it is written. */
   --lf-z-page-paint: 8890;        /* paint on a page element */
   --lf-z-margin-raised: 8895;     /* the margin item under pointer or focus */
-  --lf-z-surface: 8900;           /* a standing tray or thread panel */
+  --lf-z-surface: 8900;           /* a standing drawer or thread panel */
   --lf-z-shortcut-bar: 8940;
   --lf-z-menu: 8950;              /* a door's menu */
   --lf-z-banner: 9000;
   --lf-z-scrim: 9010;             /* the wash under a covering surface */
   --lf-z-covering-surface: 9020;  /* that surface */
-  --lf-z-covering-band: 9025;     /* the bottom band over a covering tray */
+  --lf-z-covering-band: 9025;     /* the bottom bar over a covering drawer */
   --lf-z-bottom-status: 9030;
   --lf-z-escaped-control: 9050;   /* a focused control that leaves the flow to be seen */
   --lf-z-chrome-paint: 9060;      /* paint whose target is inside the chrome */
@@ -213,7 +213,7 @@
      with the focus ring's room at the outer edge. A cluster that unfolds past it stands
      over whatever lies beyond. The rule that spends it is beside .lf-margin-cluster
      below. */
-  --rail: calc(2 * var(--margin-entry) + 4px + 22px + var(--here-ring-room));
+  --rail: calc(2 * var(--margin-entry) + 4px + 22px + var(--focus-ring-room));
   /* A sidenote's strip: a column of text plus its gutter, chosen rather than measured
      off anything the way --rail is. The 360px it leaves the note sets about fifty-six
      characters of --t-5 serif. The rule that spends it is beside aside.sidenote below.
@@ -266,12 +266,12 @@
   /* The chrome's line box, said once, because one control in the banner cannot be
      told it. Chrome computes a select's inner height from its own metrics and
      refuses line-height outright — the computed value stays normal however the
-     rule is written — so the chooser stood 3.3px shorter than every button beside
+     rule is written — so the picker stood 3.3px shorter than every button beside
      it, centred, and read as sunk into the row. Its height is stated instead, from
-     this and its own padding (see the chooser's rule), which is the same number
+     this and its own padding (see the picker's rule), which is the same number
      .lf-btn arrives at through the line box. Stated in one place so the two cannot
      come apart: a third copy of 1.45 is exactly the drift the reserve comment in
-     chrome.css is about, and this one would show as the chooser sinking again. */
+     chrome.css is about, and this one would show as the picker sinking again. */
   --lf-ui-lh: 1.45;
   /* The ladder, body at --t-4. Measured on Charter at 17px: 7.9px a character, so
      the column below holds about 74 of them. The numbered rungs are the prose's hierarchy;
@@ -339,9 +339,9 @@
      someone reacted to reads as touched and a passage someone commented on reads as
      annotated, and the two never look alike side by side. */
   --react: light-dark(#dfd1ed40, #6152a036);
-  /* The compact "you are here" ring: a control or bounded decision receiving the
-     user's next press wears one consistent band. A large composite surface would
-     turn that band into a second box around the box; it instead uses a quiet ground.
+  /* The focus ring: a control or bounded decision receiving the user's next press
+     wears one consistent band. A large composite surface would turn that band into a
+     second box around the box; it instead uses a quiet ground.
      Its geometry distinguishes a target from a current region. The
      gap is what the ring wants outside a box that stands on its own; a control packed
      into a list states its own inset instead.
@@ -349,13 +349,13 @@
      The width is a token of its own because the ring is drawn outside the box it
      names, so a scroll region has to reserve room for it: a shorthand cannot be
      read back in a calc, and the number was therefore being retyped wherever the
-     room was worked out. --here-ring is composed from it, --here-ring-room adds
+     room was worked out. --focus-ring is composed from it, --focus-ring-room adds
      the gap to it, and every control that insets its ring by one width negates
      it, so there is still one place the band's thickness is decided. */
-  --here-ring-w: 2px;
-  --here-ring: var(--here-ring-w) solid var(--accent); --here-ring-gap: 3px;
-  --here-ring-room: calc(var(--here-ring-w) + var(--here-ring-gap));
-  --here-surface: color-mix(in srgb, var(--accent) 4%, var(--card));
+  --focus-ring-w: 2px;
+  --focus-ring: var(--focus-ring-w) solid var(--accent); --focus-ring-gap: 3px;
+  --focus-ring-room: calc(var(--focus-ring-w) + var(--focus-ring-gap));
+  --focus-surface: color-mix(in srgb, var(--accent) 4%, var(--card));
   /* The same band cast as a shadow, for the boxes that cannot spend an outline on it:
      the anchored response bar, whose focused states already write `outline: none` so
      the field and its choices keep one silhouette, and an item hint, a chip in a layer
@@ -366,9 +366,9 @@
      ring all but vanished where every other control wore the solid band.
 
      Naming this token is how a shadow-drawn ring joins the population the corpus floor
-     divides by, exactly as naming --here-ring is for an outline-drawn one; the ring
+     divides by, exactly as naming --focus-ring is for an outline-drawn one; the ring
      itself is still what the box paints, not what it names. */
-  --here-shadow: 0 0 0 var(--here-ring-w) var(--accent);
+  --focus-shadow: 0 0 0 var(--focus-ring-w) var(--accent);
   --target-trace-w: 1.5px;
   --target-trace-ink: color-mix(in srgb, var(--ink-2) 42%, var(--paper));
   /* A keyboard badge's box: the line box, which is a ratio of the font, plus
@@ -440,15 +440,15 @@
 }
 /* Only a live page draws the banner. Without one, what sticks below the banner sticks
    to the top of the window. */
-html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-band-h: 0px; }
+html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-bottom-bar-h: 0px; }
 /* A touch screen has no keys to hint, so it draws no band (chrome.css); a status that
    shows there stands over the page like any other passing notice. */
-@media screen and (pointer: coarse) { :root { --lf-band-h: 0px; } }
+@media screen and (pointer: coarse) { :root { --lf-bottom-bar-h: 0px; } }
 /* The other half of --aim-floor and --entry-floor, and the whole of what a coarse pointer
    changes about how small a control, or the words typed in one, may be. Every rule that
    states a floor reads its token, so a control joins both answers by joining one of them. */
 @media (pointer: coarse) { :root { --aim-floor: 44px; --entry-floor: 16px; } }
-/* Which here ring this is, said by the rule that draws it. An outline carries no word
+/* Which focus ring this is, said by the rule that draws it. An outline carries no word
    for which of the layer's rules put it there — so a user that had to know worked it
    back from the selectors, matching the layer's own rules against the document by hand.
    To ask `querySelectorAll` anything it first had to resolve nesting, join `@scope`
@@ -474,7 +474,7 @@ html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-band-h: 0px; }
    Naming is not how the layer says a ring is there; the outline is, and nothing the
    product ships reads this. What holds the layer to naming what it draws is the corpus
    floor, in the suite, which divides by these names and credits what the page paints. */
-@property --lf-here-ring {
+@property --lf-focus-ring {
   syntax: "<custom-ident>";
   inherits: false;
   initial-value: none;
@@ -597,9 +597,9 @@ html { background: var(--paper); }
     overflow-x: hidden;
     overflow-y: scroll;
     /* A page tab strip sticks under the banner and declares the room it covers on the
-     * root (lf-tabs.js, `declareCoverRoom`). */
+     * root (lf-tabs.js, `declareStickyHeaders`). */
     scroll-padding-top: calc(var(--lf-banner-h) + var(--lf-root-tab-clear, 0px) + 12px);
-    scroll-padding-bottom: calc(var(--lf-band-h) + max(12px, var(--here-ring-room)));
+    scroll-padding-bottom: calc(var(--lf-bottom-bar-h) + max(12px, var(--focus-ring-room)));
     body { min-height: 100%; }
     body::before { content: ""; display: block; height: var(--lf-banner-h); }
   }
@@ -612,14 +612,14 @@ html { background: var(--paper); }
    * one changes nothing about the containing page's layout. */
   html[data-lf-live][data-lf-contained] {
     --lf-banner-h: 48px;
-    --lf-band-h: 0px;
+    --lf-bottom-bar-h: 0px;
     overflow-y: hidden;
     body { min-height: 0; }
     main { padding-block: 24px; }
   }
 }
-/* The auxiliary surfaces — the Asks tray on the left, the thread panel on the right, the
- * Leaves tray — stand over the page and never take room from it. The page's geometry is
+/* The auxiliary surfaces — the Asks drawer on the left, the thread panel on the right, the
+ * Leaves drawer — stand over the page and never take room from it. The page's geometry is
  * the author's, and a surface the user raises for a moment does not reflow it: the shell
  * is the same width with a surface up as without one, so every container query, rail and
  * wide exhibit reads what the author laid out.
@@ -642,7 +642,7 @@ html { background: var(--paper); }
  * runtime's shared modality boundary states this independently of which workspace is
  * open, including Leaves, whose overlay posture does not depend on viewport width. */
 @media screen {
-  html[data-lf-live]:has(body[data-lf-covering-surface]) { overflow-y: hidden; }
+  html[data-lf-live][data-lf-covering-surface] { overflow-y: hidden; }
 }
 /* `100vw` counts the root's scrollbar, as `innerWidth` does: the covering boundary locks
  * the root's scroll and a classic scrollbar leaves with it, so a reading that grew by the
@@ -652,7 +652,7 @@ html { background: var(--paper); }
  * CSS has no comparison, so the clamp is one: the scaled difference is far past the
  * surface's width wherever the page keeps its 320 whole pixels (every width here is whole)
  * and below zero wherever it does not. Where the selected surface states no width — none
- * is selected, or it is the Leaves tray — the room is nothing. Registered so the runtime
+ * is selected, or it is the Leaves drawer — the room is nothing. Registered so the runtime
  * reads it as one resolved length; not inherited, so it restyles body alone as an edge
  * moves. */
 @property --lf-auxiliary-beside {
@@ -667,7 +667,7 @@ body {
 }
 @media screen {
   html[data-lf-live] body[data-lf-auxiliary-surface="asks"] {
-    --lf-auxiliary-width: var(--lf-tray-slot-width, 300px);
+    --lf-auxiliary-width: var(--lf-drawer-slot-width, 300px);
   }
   html[data-lf-live] body[data-lf-auxiliary-surface="threads"] {
     --lf-auxiliary-width: var(--lf-thread-panel-width, 420px);
@@ -702,7 +702,7 @@ body {
 .lf-held-keys {
   position: fixed; z-index: var(--lf-z-bottom-status); pointer-events: none;
   right: calc(18px + var(--lf-safe-right));
-  bottom: calc(var(--lf-safe-bottom) + (var(--lf-band-h) - var(--lf-safe-bottom)) / 2);
+  bottom: calc(var(--lf-safe-bottom) + (var(--lf-bottom-bar-h) - var(--lf-safe-bottom)) / 2);
   translate: 0 50%; margin: 0; padding: 5px 10px;
   max-width: calc(100vw - 36px - var(--lf-safe-left) - var(--lf-safe-right));
   overflow: hidden; display: flex; gap: 0.4em; align-items: center;
@@ -739,13 +739,13 @@ body {
   background: var(--card); color: var(--ink); }
 :where(select, input:not([type=checkbox], [type=radio], [type=range], [type=color],
        [type=file], [type=button], [type=submit], [type=reset], [type=image])).lf-ui:focus-visible {
-  outline: var(--here-ring); --lf-here-ring: text-box; outline-offset: 0;
+  outline: var(--focus-ring); --lf-focus-ring: text-box; outline-offset: 0;
   border-color: transparent; }
 .lf-ui :is(input, textarea)::placeholder,
 :is(input, textarea).lf-ui::placeholder { color: var(--muted); opacity: 1; }
 .lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)):is(:focus, .lf-focus),
-:is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input)):is(:focus, .lf-focus) { outline: var(--here-ring);
-  --lf-here-ring: text-box; outline-offset: 0; border-color: transparent; }
+:is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input)):is(:focus, .lf-focus) { outline: var(--focus-ring);
+  --lf-focus-ring: text-box; outline-offset: 0; border-color: transparent; }
 /* `main` has no layout until the page gives it one: a Layout class (layouts.css) or the
  * page's own CSS. What stays here is what Leaf's chrome coordinates with: the frame its
  * first and last blocks trim against, the name a margin resident asks the page's readings
@@ -1233,7 +1233,7 @@ section.panel > :last-child { margin-bottom: 0; }
    holds it (margin-layout.js, `settleResidency`), moving the column over where one side
    lacks it. Each names the postures it may take, in order of preference; the stylesheet
    reads the answer off `main`'s `data-lf-margin`, one token per posture standing. Screen
-   only: paper has no tray and no margin to grant. A sidebar in the margin stands sticky
+   only: paper has no drawer and no margin to grant. A sidebar in the margin stands sticky
    below the banner in the room its --sidebar takes left of the column box. A contents
    map rests as a spine a few pixels wide and reveals its labels over the page, so with a
    fine pointer a sidebar holding one stands as the map alone, in --map, where the
@@ -1540,7 +1540,7 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
     top: calc(anchor(top, -9999px) + var(--lf-inset-top, 0px) + var(--lf-push, 0px));
     position-visibility: anchors-visible;
     display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
-    padding-right: var(--here-ring-room); pointer-events: auto; }
+    padding-right: var(--focus-ring-room); pointer-events: auto; }
 .lf-margin-cluster[data-lf-place="rail"] {
     left: calc(anchor(--lf-page right, -9999px) + var(--rail-hang) + var(--lf-step, 0px)); }
 .lf-margin-cluster[data-lf-place="pin"] {
@@ -1601,7 +1601,7 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
   background: var(--lf-entry-tint, var(--paper)); color: var(--ink-2); flex: 0 0 auto;
   display: inline-flex; align-items: center; justify-content: center; gap: 0;
   font: 600 var(--t-6)/1 var(--sans); white-space: nowrap;
-  scroll-margin-block: var(--here-ring-room);
+  scroll-margin-block: var(--focus-ring-room);
 }
 .lf-margin-entry[hidden] { display: none; }
 /* A margin entry carries one of three promises on the same paper surface.
@@ -1657,7 +1657,7 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
    add the one outer ring that says where input will land. */
 .lf-margin-entry[data-lf-target-selected] { border-color: var(--accent); }
 .lf-margin-entry:is(:focus-visible, .lf-focus-visible) {
-  outline: var(--here-ring); --lf-here-ring: margin-entry; outline-offset: 1px;
+  outline: var(--focus-ring); --lf-focus-ring: margin-entry; outline-offset: 1px;
 }
 .lf-margin-entry[aria-disabled="true"] { cursor: default; }
 .lf-margin-entry.lf-react[aria-pressed="true"] {
@@ -1822,11 +1822,13 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
     font: 600 10px/14px var(--sans); text-align: center; }
 /* Margin rows stand where the page leaves room for them, measured beside `main` by the
  * runtime (margin-layout.js), and as pins where it leaves none. A page that wants them
- * in one column declares a rail, `data-rail="right"` on `main`: the shell gives up the
+ * in one column declares a rail, `data-rail="right"` on `body`: the shell gives up the
  * rail's width on its right, so the page's own layout sees a narrower window and every
- * row stands in the strip. A block may still run under it on purpose, and its rows pin. */
+ * row stands in the strip. A block may still run under it on purpose, and its rows pin.
+ * The declaration stands on the shell it pads rather than on `main`: a `:has()` on the
+ * body re-checks it on every write below (assets/AGENTS.md). */
 @media screen {
-  html[data-lf-live] body:has(> main[data-rail="right"]) {
+  html[data-lf-live] body[data-rail="right"] {
     padding-inline-end: var(--rail);
   }
 }
@@ -1886,7 +1888,7 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
  * grid row's minimum is its content's: a body that scrolls contributes nothing and the
  * row takes what the header and footer leave, while a body that doesn't holds the row at
  * its full height. Whether a body scrolls is the stylesheet's: the workspace Layout
- * scrolls pane bodies where it holds the window (layouts.css), and `reading-regions.js`
+ * scrolls pane bodies where it fills the window (layouts.css), and `reading-regions.js`
  * reads which box scrolls from the result.
  *
  * A widget that composes regions out of boxes it generates, such as a playground's
@@ -1930,8 +1932,8 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
 }
 [data-lf-reading-role="pane"]:has(> :not(header, footer):is(:focus-visible, .lf-focus-visible))::after {
   content: ""; grid-row: 2; grid-column: 1; z-index: 1; pointer-events: none;
-  outline: var(--here-ring); --lf-here-ring: pane-body;
-  outline-offset: calc(-1 * var(--here-ring-w));
+  outline: var(--focus-ring); --lf-focus-ring: pane-body;
+  outline-offset: calc(-1 * var(--focus-ring-w));
 }
 :where([data-lf-reading-role="pane"]) {
   border: 1px solid var(--rule);

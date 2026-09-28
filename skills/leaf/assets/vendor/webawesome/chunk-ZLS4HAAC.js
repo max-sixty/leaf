@@ -39,7 +39,7 @@ import{registerWidgetStyles as na}from"/runtime/shadow-stage.js";na("Web Awesome
   /* Leaf draws one focus band and theme.css keeps its thickness in one token, so a
      vendored control wears that band rather than the vendor's own wider one. */
   --wa-focus-ring-style: solid;
-  --wa-focus-ring-width: var(--here-ring-w);
+  --wa-focus-ring-width: var(--focus-ring-w);
   --wa-form-control-activated-color: var(--accent);
   --wa-form-control-background-color: var(--field);
   --wa-form-control-border-color: var(--border-2);
@@ -79,12 +79,12 @@ wa-select::part(combobox) {
 
 /* A text field's Tab stop and the box that rings it both sit inside the vendor's shadow
    root, where the host rule a Leaf control wears reaches neither. The band is therefore
-   drawn and named on the field's own part: --lf-here-ring does not inherit, and the
+   drawn and named on the field's own part: --lf-focus-ring does not inherit, and the
    layer credits a ring to the rule that names it. Leaf enables none of the buttons the
    field can carry beside its input, so focus inside it is focus in the input. */
 :is(wa-input, wa-textarea, wa-number-input):focus-within::part(base) {
-  outline: var(--here-ring);
-  --lf-here-ring: text-entry;
+  outline: var(--focus-ring);
+  --lf-focus-ring: text-entry;
 }
 
 /* A slider's unfilled track is the scale the value is read against, so it carries a

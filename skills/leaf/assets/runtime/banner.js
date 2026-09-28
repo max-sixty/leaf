@@ -9,9 +9,9 @@ import {
   registerBannerControl,
   showBannerControl,
   showNews,
-} from "./banner-shelf.js";
-import { latestChip, versionBtn } from "./version-chooser.js";
-import { asksBtn, othersBtn } from "./trays.js";
+} from "./banner-toolbar.js";
+import { latestChip, versionBtn } from "./version-picker.js";
+import { asksBtn, othersBtn } from "./drawers.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { repaint } from "./repaint.js";
 import { announce, notice } from "./notifications.js";
@@ -62,7 +62,7 @@ approveBtn.title = "Approve this work; the page stays open for follow-up";
 // the user has not seen yet. The face states that refusal from its first reading.
 const approvalFace = createBannerApprovalFace(approveBtn);
 
-// The shelf owns this complete order from typed contributions rather than discovering
+// The toolbar owns this complete order from typed contributions rather than discovering
 // or reconstructing it from whichever nodes happen to be in the row.
 registerBannerControl({
   key: "leaves",
@@ -120,7 +120,7 @@ const WORK_WORDS = {
   replying: "replying",
 };
 export const countUpdates = (count) => `${count} update${count === 1 ? "" : "s"}`;
-// What the banner and the leaves tray both read off one page's server-owned `activity`
+// What the banner and the leaves drawer both read off one page's server-owned `activity`
 // before either words it. Each seat keeps its own sentences; a fact they share changes
 // here once:
 //
@@ -629,8 +629,8 @@ export const isSignoffDeclared = () =>
 
 let signoff = false;
 
-// The banner's row mounts after the version chooser and trays exist. Its complete
-// inventory and order already belong to the shelf's explicit registrations above.
+// The banner's row mounts after the version picker and drawers exist. Its complete
+// inventory and order already belong to the toolbar's explicit registrations above.
 export function mountBanner({ approveVersion, paintApproval }) {
   signoff = isSignoffDeclared() && runtime.currentStamp !== null;
   showBannerControl(approveBtn, signoff);

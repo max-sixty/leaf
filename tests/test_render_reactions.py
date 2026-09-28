@@ -83,7 +83,7 @@ def select_paragraph(page, selector):
 
 NEAREST_HINT = """(selector) => {
   const target = document.querySelector(selector).getBoundingClientRect();
-  return [...document.querySelectorAll('.lf-target-chooser-hint')]
+  return [...document.querySelectorAll('.lf-target-picker-hint')]
     .sort((a, b) => {
       const ar = a.getBoundingClientRect(), br = b.getBoundingClientRect();
       return Math.hypot(ar.left - target.left, ar.top - target.top)
@@ -101,7 +101,7 @@ def hint_code(page, selector, hints):
     no hint to be nearest to.
     """
     page.keyboard.press("s")
-    expect(page.locator(".lf-target-chooser-hint")).to_have_count(hints)
+    expect(page.locator(".lf-target-picker-hint")).to_have_count(hints)
     return page.evaluate(NEAREST_HINT, selector)
 
 
@@ -783,7 +783,7 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_users_focus(browser, s
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
 def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve, scheme):
-    """The response bar casts its here ring as a shadow, and cast it at a quarter of
+    """The response bar casts its focus ring as a shadow, and cast it at a quarter of
     the accent: a faint 2px halo, all but invisible in dark, where every other control
     the keyboard stands on wears the solid band. The shadow is the band's own token,
     ink and all, so the two carriers cannot drift apart."""
@@ -805,7 +805,7 @@ def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve, scheme
       const accent = getComputedStyle(ink).color;
       ink.remove();
       const band = getComputedStyle(document.documentElement)
-        .getPropertyValue('--here-ring-w').trim();
+        .getPropertyValue('--focus-ring-w').trim();
       return {shadow: getComputedStyle(node).boxShadow, accent, band};
     }""")
     assert ring["shadow"].startswith(f"{ring['accent']} 0px 0px 0px {ring['band']}"), (
@@ -1656,7 +1656,7 @@ def test_a_drawing_names_its_proxies_and_keeps_its_place_among_the_page(browser,
     drawing names as its details, so a screen reader reaches them from it. Nothing
     stands beside the drawing: the page's `svg + p` rule still finds its paragraph and
     moves nothing. The proxies are no Tab stops, since from the chrome they would come
-    after the whole page; the target chooser reaches the drawing from the keyboard."""
+    after the whole page; the target picker reaches the drawing from the keyboard."""
     page_markup = leaf_page(
         "picture gallery",
         """

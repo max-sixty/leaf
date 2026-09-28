@@ -31,7 +31,7 @@ legendRoot.setAttribute("aria-hidden", "true");
  * margin entry, which stands for a page item or is a widget's own action, and a widget
  * the agent sent in a reply. Leaf's own chrome — the banner and More, a panel, its
  * close and its edge — works as it does outside the mode, as it does for the target
- * chooser: a remark on it has no reader who can act on it, and a mode that took it
+ * picker: a remark on it has no reader who can act on it, and a mode that took it
  * would take the way out of whatever the mode's own send opened. Prose keeps the
  * browser's selection — words are still the way to point at words — and a plain click on
  * prose comments on the block it is in. `designModeOn` is the state; the body marker, the banner's
@@ -48,7 +48,7 @@ export function createDesignMode({
   closePreview,
   marginTargetAt,
   closeDrawMode,
-  closeTargetChooser,
+  closeTargetPicker,
   closeReactionMode,
   banner,
   announce,
@@ -62,11 +62,11 @@ export function createDesignMode({
     // Design mode reinterprets presses on the page and its margin as interface comments,
     // so retire the thread card rather than leave a thread up that no press can work.
     // The page is in one mode at a time, as Draw mode's own setter keeps it. A finger
-    // reaches this from More while the chooser or Draw mode holds, where no key could.
+    // reaches this from More while the picker or Draw mode holds, where no key could.
     if (on) {
       closePreview();
       closeDrawMode();
-      closeTargetChooser();
+      closeTargetPicker();
       closeReactionMode();
     }
     designModeOn = on;

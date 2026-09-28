@@ -133,6 +133,22 @@ export const deepFocus = (at = document.activeElement) => {
 // batch's that commits, costs nothing: the one listener below counts placements for
 // every hold, and a hold compares the count it began at.
 let restoring = false;
+// A chrome placement moving a box the user may be standing in: the focus it takes off
+// and hands straight back inside `move` is the layer's own, not the user going anywhere.
+// Stated here rather than beside the one placer, because what has to know is every
+// reader of where the user stands, and they ask `placingChrome()` from their focus
+// listeners.
+let placing = false;
+export const placingChrome = () => placing;
+export function placeChrome(move) {
+  const was = placing;
+  placing = true;
+  try {
+    return move();
+  } finally {
+    placing = was;
+  }
+}
 let placements = 0;
 // Where the user last stood. A change that removes or hides the node they stand on puts
 // focus on the body and fires no `focusin`, so this still names that node afterwards.
@@ -329,7 +345,7 @@ export function controlNavigationKeys(node) {
 // letting go asks the covering surface before the page.
 //
 // Two readings, not one. The surface is the whole of what covers, and answers whether the
-// user is already somewhere inside it — a tray's close button, the panel's find box —
+// user is already somewhere inside it — a drawer's close button, the panel's find box —
 // where nothing is owed them. The landing is the one place within it that takes a user
 // who is nowhere. Both are the modality's, which is the thing that inerted the page: a
 // layout predicate of its own would be a second answer, disagreeing with it across a
@@ -389,10 +405,10 @@ export function letGo() {
 }
 
 // Handing the user back when a layer closes with them inside it. The closer names where,
-// most particular first — the control whose press opened the layer, the proxy the
-// layer's subject has on the page, the door a folded shelf shows in a control's place —
-// and the user lands on the first that takes focus. The page's body is nowhere: an
-// opener read while nothing held focus names no place to return to.
+// most particular first — the control whose press opened the layer, the proxy the layer's
+// subject has on the page, the door a folded toolbar shows in a control's place — and the
+// user lands on the first that takes focus. The page's body is nowhere: an opener read
+// while nothing held focus names no place to return to.
 //
 // A destination still in the document may not take focus yet: reconciliation can
 // replace a control in the same task, and the paint the close asked for may still hold

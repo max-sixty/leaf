@@ -122,7 +122,7 @@ export const readingRegionFor = (node) => {
 // the user's last press, wheel, touch or arrival does, which is the platform's own rule
 // for Space and PageDown: with nothing focused, Chrome scrolls from the node last
 // pressed. A click on a pane's words focuses nothing, so without this a pane the user had
-// just clicked into was no answer at all, and `d` scrolled a page a held workspace keeps
+// just clicked into was no answer at all, and `d` scrolled a page a full-height workspace keeps
 // still. Anything on the page outside every region names the page, which is `undefined`
 // here as it is for `readingRegionFor`, and so does the body, where a let-go
 // (`releaseFocus`) or a press on nothing puts the user. Anything in the chrome names

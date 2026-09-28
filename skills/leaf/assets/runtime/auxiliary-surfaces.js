@@ -22,7 +22,7 @@
    Travel asks this owner to clear whatever surface hides a destination (`clearFor`),
    so every trip that promises to show one closes the same surfaces by the same rule.
 
-   A surface that stands under the bottom band, as a tray does (its list ends above the
+   A surface that stands under the bottom bar, as a drawer does (its list ends above the
    band's stated height), keeps that band over it in the covering posture too: the band
    is the one always-visible guide to the keys the surface answers, and its More control
    stays live, so this owner leaves it out of the inert background and marks it
@@ -128,7 +128,7 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
     controller.role = controller.surface.getAttribute("role");
     controller.surface.setAttribute("role", "dialog");
     controller.surface.setAttribute("aria-modal", "true");
-    document.body.dataset.lfCoveringSurface = controller.surface.id;
+    document.documentElement.dataset.lfCoveringSurface = controller.surface.id;
     band.toggleAttribute("data-lf-over-covering", controller.underBand);
     scrim.hidden = false;
     backgroundMutations.observe(document.body, { childList: true });
@@ -148,7 +148,7 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
     if (controller.role === null) controller.surface.removeAttribute("role");
     else controller.surface.setAttribute("role", controller.role);
     controller.surface.removeAttribute("aria-modal");
-    delete document.body.dataset.lfCoveringSurface;
+    delete document.documentElement.dataset.lfCoveringSurface;
     band.removeAttribute("data-lf-over-covering");
     scrim.hidden = true;
     active = null;

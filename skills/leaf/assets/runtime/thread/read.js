@@ -90,7 +90,7 @@ function visibleInterval(body, clips, band) {
   const modal = document.querySelector("dialog:modal");
   if (modal && !under(body, modal)) return null;
   const box = body.getBoundingClientRect();
-  // Sticky covers, the open thread panel standing over the right of the page, and the
+  // Sticky headers, the open thread panel standing over the right of the page, and the
   // banner and shortcut bar are left out of what is seen (geometry.js), so a message any
   // part of which is under one has not been shown whole, and the full-width rule below
   // withholds it.

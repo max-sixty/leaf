@@ -136,7 +136,7 @@ export function placeThreadEdge(thread, edge) {
 //
 // The page the step measures is the one the user can see: the scroller's landing band.
 // The document's box lends its top edge to the fixed banner and its bottom edge to the
-// foot band, and its scroll-padding — read exactly so by scrollToElement — is where the
+// bottom bar, and its scroll-padding — read exactly so by scrollToElement — is where the
 // box already says how much of itself stands covered, so a reading-page step is 60% of
 // what is left rather than 60% of the box, which is the answer the user wants — a step
 // that landed them under the banner would be a step onto words they cannot read.

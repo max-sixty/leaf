@@ -350,6 +350,9 @@ export function mountApplication(dependencies) {
     activeActionAnchor: dependencies.activeActionAnchor,
     renderMargin: margin.renderMargin,
     renderSurfaces,
+    // Where a thread stands now, put up for a user carried there from a box a surface
+    // stopped drawing: the surface drawing it, its margin card, or the panel.
+    openThread: (id) => margin.openPageThread(id, { travel: false }),
     read,
   });
   const registerThreadPanel = ({ controller, threadsBox, view, required = false }) => {

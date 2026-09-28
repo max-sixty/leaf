@@ -422,6 +422,7 @@
          stage is narrower than its columns. */
       .query-results {
         display: table;
+        table-layout: fixed;
         width: 100%;
         min-width: 30rem;
       }
@@ -507,7 +508,7 @@
             const toolbar = document.createElement("div");
             toolbar.className = "query-toolbar";
             toolbar.append(document.createTextNode("Filters run from top to bottom."));
-            const add = offer("button", "lf-btn", "Add filter");
+            const add = offer("button", "lf-btn query-add", "Add filter");
             add.addEventListener("click", () => {
               const id = `filter-${this.#next++}`;
               this.#state.rows.push({
@@ -532,7 +533,7 @@
             const table = document.createElement("table");
             table.className = "query-results";
             table.innerHTML =
-              "<thead><tr><th>Service</th><th>Region</th><th>Risk</th><th>Owner</th></tr></thead>";
+              "<thead><tr><th>Service</th><th>Region</th><th class='num'>Risk</th><th>Owner</th></tr></thead>";
             table.append(this.#results);
             const tableFrame = document.createElement("div");
             tableFrame.className = "query-table-frame";
@@ -603,7 +604,8 @@
             this.#changed();
             queueMicrotask(() => {
               const rows = this.querySelectorAll(".query-row");
-              rows[Math.min(index, rows.length - 1)]?.querySelector("input")?.focus();
+              const next = rows[Math.min(index, rows.length - 1)];
+              (next?.querySelector("input") ?? this.querySelector(".query-add")).focus();
             });
           }
 
@@ -686,6 +688,7 @@
                 for (const value of Object.values(release)) {
                   const cell = document.createElement("td");
                   cell.textContent = value;
+                  if (typeof value === "number") cell.className = "num";
                   row.append(cell);
                 }
                 return row;

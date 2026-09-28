@@ -7790,7 +7790,9 @@ def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve, widt
     ), (before, after)
 
 
-@pytest.mark.parametrize("transform", ["translate(30px, 40px)", "scale(1.2)"])
+@pytest.mark.parametrize(
+    "transform", ["translate(30px, 40px)", "scale(1.2)", "scale(0.25)"]
+)
 def test_a_card_under_a_containing_block_stands_beside_its_cluster(
     browser, serve, transform
 ):

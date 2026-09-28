@@ -468,6 +468,12 @@ const REACH = 12;
 // seated first is one the next keeps off. A pin inside a shadow tree stays at its corner:
 // the words around it are the tree's, which this walk does not read. Each entry's rect
 // becomes the seat, which packing then only moves off what it still stands on.
+//
+// A pin under the pointer or holding focus keeps the seat it had, measured from the box
+// it anchors to: unfolding its options widens it, and a seat taken again at that width
+// could move the control the user is pressing. It grows leftward from that seat, and is
+// seated afresh once the user leaves it.
+const seats = new WeakMap();
 function seatPins(standing, { bands, shell, regions, pinInset }) {
   const main = marginColumn();
   const seated = [];
@@ -483,10 +489,20 @@ function seatPins(standing, { bands, shell, regions, pinInset }) {
       continue;
     }
     const height = entry.rect.bottom - entry.rect.top;
-    const reach = height + REACH + GAP;
+    const width = entry.rect.right - entry.rect.left;
+    const { row, box } = read;
+    const held = seats.get(row);
+    if (held && row.matches(":hover, :focus-within")) {
+      const right = box.right - held.right;
+      const top = box.top + held.top;
+      entry.rect = { left: right - width, right, top, bottom: top + height };
+      seated.push(entry.rect);
+      continue;
+    }
+    const around = height + REACH + GAP;
     const band = {
-      top: Math.min(...parts.map((part) => part.top)) - reach,
-      bottom: Math.max(...parts.map((part) => part.bottom)) + reach,
+      top: Math.min(...parts.map((part) => part.top)) - around,
+      bottom: Math.max(...parts.map((part) => part.bottom)) + around,
     };
     const region = read.scroller === pageScroller ? null : regions.get(read.scroller);
     const home = entry.rect;
@@ -500,7 +516,7 @@ function seatPins(standing, { bands, shell, regions, pinInset }) {
     const seat = inline
       ? {
           left: end.right + GAP,
-          right: end.right + GAP + home.right - home.left,
+          right: end.right + GAP + width,
           top: (end.top + end.bottom - height) / 2,
           bottom: (end.top + end.bottom + height) / 2,
         }
@@ -518,6 +534,10 @@ function seatPins(standing, { bands, shell, regions, pinInset }) {
       },
       reach: REACH,
       gap: GAP,
+    });
+    seats.set(row, {
+      top: entry.rect.top - box.top,
+      right: box.right - entry.rect.right,
     });
     seated.push(entry.rect);
   }

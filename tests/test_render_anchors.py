@@ -2095,7 +2095,11 @@ rename to new-name.js
 diff --git "a/old\\tname.js" "b/new\\tname.js"
 similarity index 100%
 rename from "old\\tname.js"
-rename to "new\\tname.js"'''
+rename to "new\\tname.js"
+diff --git "a/\\357\\273\\277old.js" "b/\\357\\273\\277new.js"
+similarity index 100%
+rename from "\\357\\273\\277old.js"
+rename to "\\357\\273\\277new.js"'''
     page = open_page(browser, serve(_diff_page(("mixed-rename-diff", escape(source)))))
     result = page.evaluate("""async () => {
       const host = document.querySelector('#mixed-rename-diff');
@@ -2103,6 +2107,7 @@ rename to "new\\tname.js"'''
       const renames = [...(shadow?.querySelectorAll('.lf-diff-rename') ?? [])];
       const rename = renames[0];
       const quotedRename = renames[1];
+      const bomRename = renames[2];
       const { says, wrote } = await window.__lfRuntimeImport('/runtime/widget-api.js');
       return {
         rendered: host.classList.contains('lf-rendered'),
@@ -2118,6 +2123,8 @@ rename to "new\\tname.js"'''
         quotedFrom:
           quotedRename?.querySelector('.lf-diff-before')?.textContent ?? null,
         quotedTo: quotedRename?.querySelector('.lf-diff-after')?.textContent ?? null,
+        bomFrom: bomRename?.querySelector('.lf-diff-before')?.textContent ?? null,
+        bomTo: bomRename?.querySelector('.lf-diff-after')?.textContent ?? null,
         lines: [...(shadow?.querySelectorAll('[data-line]') ?? [])]
           .map(line => line.textContent),
         saysRename: says(document).includes('old-name.js → new-name.js'),
@@ -2129,7 +2136,7 @@ rename to "new\\tname.js"'''
         "error": None,
         "details": 1,
         "diffs": 1,
-        "renameCount": 2,
+        "renameCount": 3,
         "from": "old-name.js",
         "to": "new-name.js",
         "stat": "renamed",
@@ -2137,6 +2144,8 @@ rename to "new\\tname.js"'''
         "saidOverride": False,
         "quotedFrom": "old\tname.js",
         "quotedTo": "new\tname.js",
+        "bomFrom": "\ufeffold.js",
+        "bomTo": "\ufeffnew.js",
         "lines": ["const value = 1;", "const value = 2;"],
         "saysRename": True,
         "wroteRename": False,

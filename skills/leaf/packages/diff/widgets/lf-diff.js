@@ -355,7 +355,7 @@ function gitPath(path) {
   }
   if (bytes.includes(0)) return null;
   try {
-    return new globalThis.TextDecoder("utf-8", { fatal: true }).decode(
+    return new globalThis.TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
       new Uint8Array(bytes),
     );
   } catch {

@@ -2869,7 +2869,9 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
     chip hung on the mark's corner, 10px higher, with the mark showing under it. The mark
     now takes the digit's box, and every card wears its own digit. A chosen card is filled
     in the tint of an ok chip, so its "recommended" chip keeps a ground of its own there."""
-    page = open_page(browser, serve(next(p for p in EXAMPLES if p.stem == "alert-review")))
+    page = open_page(
+        browser, serve(next(p for p in EXAMPLES if p.stem == "alert-review"))
+    )
     resized(page, 1440, 900)
     page.keyboard.press("a")
     expect(page.locator("#ar-canary-decision")).to_be_focused()
@@ -2890,7 +2892,9 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
     )
     assert all(seat["worn"] and seat["seat"] for seat in seats), seats
     assert len({round(seat["top"]) for seat in seats}) == 1, seats
-    expect(page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")).to_have_count(0)
+    expect(
+        page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")
+    ).to_have_count(0)
     page.keyboard.press("1")
     chosen = page.locator("#ar-canary-consecutive")
     expect(chosen).to_have_attribute("chosen", "")

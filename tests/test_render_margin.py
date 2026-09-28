@@ -1179,9 +1179,9 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
     # takes its right corner.
     for control, chip in zip(geometry["controls"], geometry["chips"], strict=True):
         assert abs(control["y"] - chip["y"]) <= 2, geometry
-        assert min(
-            abs(control["x"] - chip["x"]), abs(control["right"] - chip["x"])
-        ) <= 2, geometry
+        assert (
+            min(abs(control["x"] - chip["x"]), abs(control["right"] - chip["x"])) <= 2
+        ), geometry
     first, second = geometry["chips"]
     assert abs(first["x"] - geometry["controls"][0]["x"]) <= 2, geometry
     assert abs(second["x"] - geometry["controls"][1]["right"]) <= 2, geometry

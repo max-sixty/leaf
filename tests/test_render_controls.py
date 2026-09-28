@@ -897,19 +897,24 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     url = serve(html)
     page = open_page(browser, url)
 
+    # Each control reserves its widest words in the face it wears in each band: the
+    # phone band's narrower inset takes the same words less its padding, and the desk's
+    # takes them back on return.
     button_widths = (
-        "() => ['.lf-threads-toggle', '.lf-signoff'].map(selector => "
-        "document.querySelector(selector).offsetWidth)"
+        "() => ['.lf-threads-toggle', '.lf-signoff'].map(selector => {"
+        " const el = document.querySelector(selector); const style = getComputedStyle(el);"
+        " return el.offsetWidth - parseFloat(style.paddingLeft)"
+        " - parseFloat(style.paddingRight); })"
     )
     resized(page, 1200, 844)
     wide_widths = page.evaluate(button_widths)
     resized(page, 320, 844)
     phone_widths = page.evaluate(button_widths)
-    assert phone_widths == wide_widths, (
-        f"primary padding changed their reserved widths: {wide_widths}, {phone_widths}"
+    assert phone_widths == pytest.approx(wide_widths, abs=1), (
+        f"the reserved words changed with the band: {wide_widths}, {phone_widths}"
     )
     resized(page, 1200, 844)
-    assert page.evaluate(button_widths) == wide_widths, (
+    assert page.evaluate(button_widths) == pytest.approx(wide_widths, abs=1), (
         "button reservations did not return to their wide measurements after the "
         "covering row was left"
     )
@@ -1524,6 +1529,57 @@ STATUS_FIT = """() => {
           title: status.title, text: status.textContent,
           actions: {shown: actions.clientWidth, needed: actions.scrollWidth}};
 }"""
+
+
+def test_every_more_row_wears_one_face_and_rings_inside_the_menu(browser, serve):
+    """The developer preview stands in More at every width, so it is one of More's
+    rows and wears their face: a badge's smaller type and padding made it a 24px row
+    among 30px ones. Every row is packed 4px from the menu's border, so a row's ring
+    is drawn inside it; outside, it stood a pixel from the border."""
+    url = serve(
+        SUGGESTION_PAGE,
+        preview={
+            "kind": "example",
+            "example": "feature-gallery",
+            "checkout": "leaf.menu-rows",
+            "commit": "c79736ebfcc7",
+            "interaction": "author",
+            "started": "2026-09-06T12:00:00+00:00",
+        },
+    )
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    page.locator(".lf-banner-more").focus()
+    page.keyboard.press("Enter")
+    menu = page.locator(".lf-banner-menu")
+    expect(menu).to_be_visible()
+    rows = page.evaluate(
+        """() => [...document.querySelectorAll('.lf-banner-menu .lf-btn')]
+          .filter((row) => row.checkVisibility())
+          .map((row) => {
+            const style = getComputedStyle(row);
+            return [row.className, row.getBoundingClientRect().height, style.fontSize,
+                    style.paddingInlineStart];
+          })"""
+    )
+    assert any("lf-preview" in row[0] for row in rows), rows
+    assert len({tuple(row[1:]) for row in rows}) == 1, rows
+    preview = page.locator(".lf-banner-menu .lf-preview")
+    expect(preview).to_be_focused()
+    ring = preview.evaluate(
+        """row => {
+          const style = getComputedStyle(row);
+          const width = parseFloat(style.outlineWidth);
+          const offset = parseFloat(style.outlineOffset);
+          const box = row.getBoundingClientRect();
+          const menu = row.closest('.lf-banner-menu');
+          const edge = menu.getBoundingClientRect();
+          const border = parseFloat(getComputedStyle(menu).borderTopWidth);
+          return {matches: row.matches(':focus-visible'),
+                  clear: box.top - offset - width - (edge.top + border)};
+        }"""
+    )
+    assert ring["matches"] and ring["clear"] >= 2, ring
 
 
 def test_preview_diagnostics_keep_their_fixed_banner_overflow_seat(browser, serve):
@@ -2814,6 +2870,43 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     expect(btn).to_be_hidden()  # closing the panel keeps the button in its fixed menu
     expect(btn).to_have_text("All leaves (2)")  # and the count
     expect(btn).to_have_text("All leaves (2)")
+
+
+def test_the_band_stays_over_the_covering_leaves_tray(browser, serve, other_leaf):
+    """A tray stands under the bottom band, its list ending above the band's height, and
+    the Leaves tray, which always covers the page, is no exception: the band states the
+    keys the tray answers and stays over it and its scrim, its More control live. The
+    covering tray used to stand over the band, hiding the hints it painted for the tray
+    ("open it in a tab", "close leaves") under the tray and the scrim, where the Asks
+    tray, standing beside the page, left them in view."""
+    page = open_page(browser, serve(LONG_PAGE))
+    resized(page, 1440, 900)
+    expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+l")
+    tray = page.locator(".lf-others-panel")
+    expect(tray).to_have_attribute("aria-modal", "true")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("close leaves")
+    reading = page.evaluate(
+        """() => {
+          const band = document.querySelector('.lf-shortcut-bar');
+          const more = band.querySelector('.lf-shortcut-more');
+          const box = more.getBoundingClientRect();
+          const hit = document.elementFromPoint(box.x + box.width / 2,
+                                                box.y + box.height / 2);
+          const z = (selector) =>
+            Number(getComputedStyle(document.querySelector(selector)).zIndex);
+          return {more: more.contains(hit), inert: Boolean(band.closest('[inert]')),
+                  over: z('.lf-shortcut-bar') > Math.max(
+                    z('.lf-others-panel'), z('.lf-auxiliary-scrim'))};
+        }"""
+    )
+    assert reading == {"more": True, "inert": False, "over": True}, reading
+    page.keyboard.press("Escape")
+    expect(tray).not_to_be_visible()
+    expect(page.locator(".lf-shortcut-bar")).not_to_have_attribute(
+        "data-lf-over-covering", ""
+    )
 
 
 def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(

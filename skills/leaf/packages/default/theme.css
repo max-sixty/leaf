@@ -412,9 +412,17 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
    & > lf-option::before { content: ""; float: inline-end;
                      width: var(--lf-card-state-room); height: 22px;
                      pointer-events: none; }
+   /* The mark's box is the whole seat the binding badge takes in its place, the mark
+    * centred in it as the badge's digit is. A margin pin standing in the card's corner
+    * steps below the controls it finds there, and it found the 11px mark alone: it stood
+    * over the lower edge of the badge once the badge came, which then gave way to a
+    * chip on the mark's corner, 10px higher, with the mark's ring showing under it. */
    & > lf-option > .lf-pick {
                      left: auto; inset-inline-end: var(--sp-2);
-                     top: var(--sp-2); bottom: auto; z-index: 1; }
+                     top: var(--sp-2); bottom: auto; z-index: 1;
+                     min-width: var(--lf-key-badge-size);
+                     min-height: var(--lf-key-badge-size);
+                     justify-content: center; }
    & > lf-option[chosen] > .lf-pick {
                      padding: var(--chip-pad); border-radius: var(--chip-r);
                      background: var(--ok); color: var(--card);
@@ -662,6 +670,10 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
     & > lf-option:is(:hover, :has(> .lf-pick:is(:focus-visible, .lf-focus-visible))) {
                      background: color-mix(in srgb, var(--fill) 92%, var(--ink)); }
     & > lf-option[chosen] { --fill: var(--ok-tint); }
+    /* An ok chip is drawn in the same tint the pick fills its cell with, so on the chosen
+     * cell a "recommended" chip lost its ground and read as loose green words. There
+     * it stands on the card's ground instead, keeping its tone in its ink. */
+    & > lf-option[chosen] > lf-chip[tone="ok"] { background: var(--card); }
     /* The add form is the group's own child, so joining the group takes it inside the
      * border too, butted against the last cell by the hairline every child shares. It is
      * a cell rather than a footer: it creates the option the user writes when none of

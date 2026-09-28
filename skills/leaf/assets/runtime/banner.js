@@ -59,8 +59,7 @@ const approveBtn = el("button", "lf-btn primary lf-signoff");
 approveBtn.title = "Approve this work; the page stays open for follow-up";
 // The page's decision is not actionable until the page itself is present. Discussion chrome
 // stays live during replay, but approving hidden authored content would decide a version
-// the user has not seen yet.
-approveBtn.disabled = true;
+// the user has not seen yet. The face states that refusal from its first reading.
 const approvalFace = createBannerApprovalFace(approveBtn);
 
 // The shelf owns this complete order from typed contributions rather than discovering
@@ -641,6 +640,11 @@ export function mountBanner({ approveVersion, paintApproval }) {
   reserveBannerControls();
   approveBtn.onclick = async () => {
     if (approving) return;
+    // A refused press answers with its reason where every user sees it.
+    if (approvalFace.reason) {
+      notice(approvalFace.reason);
+      return;
+    }
     approving = true;
     approveBtn.setAttribute("aria-busy", "true");
     paintApproval();
@@ -689,24 +693,23 @@ export function paintApproval(pendingApprovals, blockingAsks, acceptedApprovals)
   // surface that could have told a user what pressing it would do next went on
   // describing a press they had already made. Approved, it says the state and the way
   // out of it, which is `z` like every other user gesture.
-  approvalFace.present(
-    Object.freeze({
-      disabled:
-        !signoff ||
-        approving ||
+  // Why a press is refused now, or null where it approves. A press already in flight
+  // is refused silently: its aria-busy says so.
+  const reason = approved
+    ? "Approved. Press z to take it back while it is still your last gesture"
+    : !signoff ||
         runtime.currentStamp === null ||
         !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) ||
-        blockingAsks === null ||
-        blockingAsks.length > 0 ||
-        approved,
+        blockingAsks === null
+      ? "Approval waits until this page has read its current state"
+      : blockingAsks.length
+        ? "Answer every Ask before approving this work"
+        : null;
+  approvalFace.present(
+    Object.freeze({
+      reason: reason ?? (approving ? "Approving this version" : null),
       text: approved ? "✓ Version approved" : "Approve version",
-      title: approved
-        ? "Approved. Press z to take it back while it is still your last gesture"
-        : blockingAsks === null
-          ? "Approval waits until this page has read its current state"
-          : blockingAsks.length
-            ? "Answer every Ask before approving this work"
-            : "Approve this work; the page stays open for follow-up",
+      title: reason ?? "Approve this work; the page stays open for follow-up",
     }),
   );
   repaint();

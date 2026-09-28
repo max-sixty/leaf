@@ -145,6 +145,7 @@
   --lf-z-banner: 9000;
   --lf-z-scrim: 9010;             /* the wash under a covering surface */
   --lf-z-covering-surface: 9020;  /* that surface */
+  --lf-z-covering-band: 9025;     /* the bottom band over a covering tray */
   --lf-z-bottom-status: 9030;
   --lf-z-escaped-control: 9050;   /* a focused control that leaves the flow to be seen */
   --lf-z-chrome-paint: 9060;      /* paint whose target is inside the chrome */

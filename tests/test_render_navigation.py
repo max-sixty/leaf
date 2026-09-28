@@ -1211,15 +1211,15 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
     banner_control(page, ".lf-threads-toggle").click()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
-    pending_title = page.locator(
+    # The agent opened this thread without a title and nothing is naming it, so its
+    # row reads the question rather than a placeholder.
+    untitled = page.locator(
         '.lf-thread[data-id="72e031c5bf0d485ba9054628e09869d4"] .lf-thread-topic'
     )
     expect(page.locator("#bg-thread-states")).to_be_visible()
-    expect(pending_title).to_have_text("Generating title")
-    animation = pending_title.evaluate(
-        "element => getComputedStyle(element).animationName"
+    expect(untitled).to_have_text(
+        "Is lunch provided, or should attendees make their own plans?"
     )
-    assert animation != "none"
     expect(page.locator('[data-filter-value="resolved"]')).not_to_have_text("Resolved")
     page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()

@@ -81,7 +81,14 @@ export function threadReading(
   return Object.freeze({
     key: threadKey(thread),
     summary: threadSummary(thread),
-    titlePending: thread.title == null,
+    // A title comes from the agent's answer or beside it, so an untitled thread
+    // waits for one only while the agent's work on it is under way. A turn that
+    // ended, stalled or was never picked up sends none, and the thread reads its
+    // opening words.
+    titlePending:
+      thread.title == null &&
+      thread.attention?.kind === "waiting" &&
+      thread.attention.reason === "workflow",
     unreadCount: thread.unread.length,
     id: thread.id,
     // The message a reply or settlement addresses, which is not the thread's id where
@@ -124,8 +131,8 @@ function navigationSummary(navigation, model) {
   const status = model.resolved ? "Resolved" : model.attention?.label || "";
   const draft = Boolean(loadDraft("reply:" + model.key));
   const hasMeta = draft || status || model.unreadCount;
-  // Until the agent names the thread, the title slot says so in words drawn apart from
-  // any title; the theme sweeps a highlight through them while the naming is under way.
+  // While a title is on its way, the title slot says so in words drawn apart from any
+  // title; the theme sweeps a highlight through them while the naming is under way.
   // The meta row digests a folded card. What the open card shows elsewhere is marked
   // `data-lf-folded`: the draft stands in the reply box and the unread messages behind
   // their boundary, so typing or an arriving reply doesn't grow the row and move the

@@ -2405,6 +2405,41 @@ def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_pag
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before_sheet
 
 
+def test_the_page_map_dialog_walks_its_rows_from_the_search(browser, serve):
+    """The dialog is a list under a search: Down leaves the search for the first row,
+    Up and Down then step between rows rather than scrolling the page behind the modal,
+    and Enter in the search opens the first row it matches."""
+    page = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
+    resized(page, 1440, 600)
+    before = page.evaluate("() => document.scrollingElement.scrollTop")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    rows = dialog.locator("button.lf-page-map-action")
+    search = dialog.get_by_role(
+        "searchbox", name="Find an action, status, or location in Page Map"
+    )
+    expect(search).to_be_focused()
+
+    page.keyboard.press("ArrowDown")
+    expect(rows.nth(0)).to_be_focused()
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("ArrowDown")
+    expect(rows.nth(2)).to_be_focused()
+    page.keyboard.press("ArrowUp")
+    expect(rows.nth(1)).to_be_focused()
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == before
+
+    search.fill("Map note 12")
+    search.focus()
+    page.keyboard.press("Enter")
+    expect(dialog).to_be_hidden()
+    # The row's own press: its thread opens with the user in its reply box.
+    expect(
+        page.locator(".lf-thread", has_text="Map note 12").locator("leaf-text")
+    ).to_be_focused()
+
+
 def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
     """A late action-only location is reachable while it is visible."""
     page = open_page(browser, serve(FEATURE_GALLERY))

@@ -1897,7 +1897,7 @@ export function createMarginProjection({
         );
         const optionsId = `lf-margin-options-${++optionsOrdinal}`;
         host = clusterViews.createPage(marker, more, optionsId);
-        keys(host, "In the Page Map", marginKeys, () => marginKeysAvailable);
+        keys(host, "In the margin", marginKeys, () => marginKeysAvailable);
         host.lfEntry = entry;
         more.setAttribute("aria-controls", optionsId);
         more.onclick = () => {
@@ -2430,7 +2430,7 @@ export function createMarginProjection({
   // surface's old local listener did, without another keydown listener of its own.
   const pageMapRung = (atFocus = true) => keyboardRung({ atFocus }) ?? null;
   pageScope("page map", {
-    title: "In the Page Map",
+    title: "In the margin",
     root: () => pageMapRung()?.root ?? document,
     when: () => Boolean(pageMapRung(false)),
     at: () => Boolean(pageMapRung()),

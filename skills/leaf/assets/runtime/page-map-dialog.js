@@ -12,6 +12,9 @@
    place focus synchronously, set `closeOwnsFocus`, and prevent the later close event from
    overwriting that route.
 
+   The dialog is a list with a search above it. Up and Down walk its rows, Down or Enter
+   in the search enters the list at the first match, and a row's Enter is its own press.
+
    Boot supplies margin commands and readings to one constructed map owner. Its
    mount attaches the dialog and binds controls; importing the module does not
    install application callbacks or activate the map. */
@@ -21,7 +24,8 @@ import { blockAt, says } from "./passages.js";
 import { handBack, holdFocus, letGo } from "./focus.js";
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import { iconTemplate } from "./icons.js";
-import { paintKeys } from "./keyboard/scopes.js";
+import { keys, paintKeys } from "./keyboard/scopes.js";
+import { rowWalk } from "./walk-position.js";
 import { el, keepsText, offer } from "./widget-elements.js";
 import { placeKeeper } from "./user-place.js";
 import {
@@ -83,6 +87,13 @@ const dialogEmpty = el(
 dialogEmpty.hidden = true;
 dialogEmpty.setAttribute("role", "status");
 dialog.append(dialogHead, dialogSearch, dialogList, dialogEmpty);
+
+// The rows a walk or the search's Enter can land on: every pressable entry the search
+// has not hidden. A status is words beside the rows, not a stop among them.
+const mapRows = () =>
+  [...dialogList.querySelectorAll("button.lf-page-map-action")].filter((row) =>
+    row.checkVisibility(),
+  );
 
 export function createPageMapDialog({
   activeInMargin,
@@ -365,8 +376,19 @@ export function createPageMapDialog({
     dialog.close();
   }
 
+  // The page has the map's keys while the map has entries, open or not, so the command
+  // reference can say what the dialog's keys do before the user opens it; they answer
+  // only from inside it, where focus puts the user.
+  const mapHasEntries = () => entries.length > 0;
+
   function mount(root) {
     dialogSearch.addEventListener("input", renderSheet);
+    keys(
+      dialog,
+      "In the Page Map",
+      rowWalk({ id: "map", noun: "Entry", plural: "entries", rows: mapRows }),
+      mapHasEntries,
+    );
     mapButton.onclick = enterPageMap;
     // Escape is one step of the page's unwind, and a modal's parent is the page it
     // stands over, so this press lands the user there. Leaf performs the whole step
@@ -393,6 +415,37 @@ export function createPageMapDialog({
     });
     dialogClose.onclick = () => dialog.close();
     root.append(dialog);
+    dialogSearch.updateComplete.then(declareSearchKeys);
+  }
+
+  // The search box's own keys, declared on the exact input so they stand before its
+  // typing, which keeps Down and Enter as caret and form keys that do nothing in a
+  // one-line box. Escape stays the dialog's.
+  function declareSearchKeys() {
+    const hasRows = () => mapRows().length > 0;
+    keys(
+      dialogSearch.input,
+      "In the Page Map's search",
+      [
+        {
+          id: "map.search.enter",
+          keys: ["ArrowDown"],
+          does: "Go from the search to the first entry",
+          line: "to the entries",
+          when: hasRows,
+          run: () => mapRows()[0].focus(),
+        },
+        {
+          id: "map.search.open",
+          keys: ["Enter"],
+          does: "Open the first matching entry",
+          line: "open first",
+          when: hasRows,
+          run: () => mapRows()[0].click(),
+        },
+      ],
+      mapHasEntries,
+    );
   }
   return {
     pageMapIsActive,

@@ -5387,12 +5387,13 @@ def test_the_margin_reply_pinned_to_the_card_foot_shows_its_whole_ring(browser, 
     assert standing_ring(page)["cuts"] == []
 
 
-def test_a_card_s_thread_ring_closes_under_its_reply_row(browser, serve):
-    """The thread the keyboard opens a card onto wears its ring on all four sides.
+def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):
+    """The card is the thread's one frame. The thread the keyboard opens a card onto
+    fills it with no tint and no ring of its own, and the card wears the ring, whole,
+    at its own edge. The reply field keeps its box, standing at the card's padding.
 
-    The reply row is pinned to the transcript's foot and paints the thread's surface,
-    so it stands over anything its thread draws beneath it, the thread's own inset
-    ring included.
+    It used to ring and tint the thread inside the card's border, a frame in a frame
+    with the reply field a third box inside that.
     """
     page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
     page.emulate_media(reduced_motion="reduce")
@@ -5406,10 +5407,35 @@ def test_a_card_s_thread_ring_closes_under_its_reply_row(browser, serve):
     assert thread.evaluate("node => node.matches(':focus-visible')")
     rendered(page)
     drawn = rings_drawn(page)
-    assert any(seen["focused"] and seen["here"] for seen in drawn), drawn
+    worn = [(seen["ring"], seen["who"].split(" ")[0]) for seen in drawn if seen["here"]]
+    assert worn == [("page-thread", "aside.lf-ui.lf-margin-preview")], drawn
     assert not (faults := ring_faults(drawn, "on a card the keyboard opened")), (
         "\n".join(faults)
     )
+    frame = page.locator(".lf-margin-preview").evaluate(
+        """(card) => {
+        const thread = card.querySelector('.lf-page-thread');
+        const words = thread.querySelector('.lf-page-thread-body');
+        const field = thread.querySelector('leaf-text');
+        const x = (node) => {
+            const box = node.getBoundingClientRect();
+            return [Math.round(box.left), Math.round(box.right)];
+        };
+        return {card: Math.round(card.getBoundingClientRect().left),
+                ground: getComputedStyle(thread).backgroundColor,
+                paper: getComputedStyle(card).backgroundColor,
+                words: x(words), field: x(field),
+                fieldBorder: getComputedStyle(field).borderTopStyle,
+                inset: Math.round(words.getBoundingClientRect().left
+                                  - card.getBoundingClientRect().left)};
+    }"""
+    )
+    assert frame["ground"] == frame["paper"], frame
+    assert frame["fieldBorder"] == "solid", frame
+    # The field's box at the card's border and padding, and the words one field
+    # inset in from it, where they used to stand inside a second frame at 25px.
+    assert frame["field"][0] - frame["card"] == 13, frame
+    assert frame["inset"] == 21, frame
 
 
 # Whether a message stands wholly between the transcript's top and the reply row pinned

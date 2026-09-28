@@ -8,6 +8,7 @@ import "../vendor/webawesome.esm.js";
 import {
   cancelRender,
   commands,
+  describeDifference,
   compoundReadingRegionId,
   consumeThreads,
   failSoft,
@@ -709,6 +710,8 @@ customElements.define(
         record: null,
         index: 0,
         total: 0,
+        // The shown lf-shot's `difference`, once it has read its pair.
+        difference: undefined,
       };
       this.#registerCaseRegion(id, entry);
       return entry;
@@ -736,10 +739,7 @@ customElements.define(
       entry.index = index;
       entry.total = total;
       this.#paintOption(entry);
-      setText(
-        entry.article.querySelector(".lf-vr-case-position"),
-        `Case ${index + 1} of ${total} · ${CLASSIFICATION[record.classification]}`,
-      );
+      this.#paintPosition(entry);
       setText(entry.article.querySelector(".lf-vr-case-title"), record.title);
       setText(entry.article.querySelector(".lf-vr-path"), record.path);
       setText(entry.article.querySelector(".lf-vr-action"), record.action);
@@ -801,8 +801,50 @@ customElements.define(
         shot.setAttribute("before", before);
         shot.setAttribute("after", after);
         shot.setAttribute("alt", alt);
+        shot.toggleAttribute("outlines", true);
         entry.shotHost.replaceChildren(shot);
+        entry.difference = undefined;
+        this.#paintPosition(entry);
+        // A refused or failed comparison is lf-shot's to report, in its own box.
+        shot.difference.then(
+          (reading) => {
+            if (entry.shotHost.querySelector("lf-shot") !== shot) return;
+            entry.difference = reading;
+            this.#paintPosition(entry);
+          },
+          () => {},
+        );
       }
+    }
+
+    // lf-shot's rail stays hidden outside Flip, and a focus crop hides the outlines,
+    // so the case's own position line states the reading in every view, with the
+    // changes the focus leaves out: a focus authored on an area that did not change
+    // says so here.
+    #paintPosition(entry) {
+      const { record, index, total, difference } = entry;
+      const parts = [
+        `Case ${index + 1} of ${total}`,
+        CLASSIFICATION[record.classification],
+      ];
+      if (difference) {
+        const ratio = record.capture.deviceScaleFactor;
+        const focus = record.focus;
+        const outside = focus
+          ? difference.regions.filter(
+              (region) =>
+                region.x >= (focus.x + focus.width) * ratio ||
+                region.x + region.width <= focus.x * ratio ||
+                region.y >= (focus.y + focus.height) * ratio ||
+                region.y + region.height <= focus.y * ratio,
+            ).length
+          : 0;
+        parts.push(
+          describeDifference(difference) +
+            (outside ? ` (${outside} outside the focus)` : ""),
+        );
+      }
+      setText(entry.article.querySelector(".lf-vr-case-position"), parts.join(" · "));
     }
 
     #syncCaptureWidth(entry) {

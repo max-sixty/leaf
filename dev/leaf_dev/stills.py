@@ -13,10 +13,12 @@ tab there (`DRIVERS`, which `leaf-dev probe --do drive:NAME` also runs). The cat
 (`STATES`) covers states a user reaches by acting, not only pages at rest; add one
 where a change touches a surface it does not reach.
 
-A state changed when any pixel differs. Each state's directory under `.tmp/stills/`
-holds `base.png` and `head.png`, and for a change `base-crop.png` and `head-crop.png`
-cropped to the changed region, ready to hand off as an `lf-shot` pair, and `diff.png`
-marking the changed pixels.
+Whether a state changed, and where, is `lf-shot`'s reading of its two stills, from the
+module that owns the rule (`runtime/image-difference.js`), loaded into the browser.
+Each state's directory under `.tmp/stills/` holds `base.png` and `head.png`, and for a
+change `base-crop.png` and `head-crop.png` cropped to the union of its regions (or
+whole, when the reading names none), ready to hand off as an `lf-shot` pair, and
+`diff.png` outlining each region.
 """
 
 import shutil
@@ -27,7 +29,7 @@ from pathlib import Path
 
 import click
 from leaf.render_checks import PageNotReady
-from PIL import Image, ImageChops
+from PIL import Image, ImageDraw
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page
 
@@ -37,6 +39,9 @@ from leaf_dev.harness import build_pair, serving_source
 
 OUT = ROOT / ".tmp" / "stills"
 CROP_MARGIN = 32
+DIFFERENCE = ROOT / "skills" / "leaf" / "assets" / "runtime" / "image-difference.js"
+# Where `differences` serves the stills and the module that compares them.
+ORIGIN = "http://stills.invalid"
 OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
 
 
@@ -162,30 +167,69 @@ def capture(browser, address: str, state: State, path: Path) -> None:
         page.screenshot(path=path)
 
 
-def compare(folder: Path) -> int:
-    """How many pixels the two stills in `folder` differ by; where they differ, write
-    the crops and the diff."""
+def differences(browser, names: list[str]) -> dict[str, dict]:
+    """`lf-shot`'s reading of each named state's two stills, from the module that
+    owns it, served beside them to a blank page."""
+
+    def serve(route) -> None:
+        path = route.request.url.removeprefix(ORIGIN)
+        if path == "/image-difference.js":
+            route.fulfill(path=DIFFERENCE, content_type="text/javascript")
+        elif path.endswith(".png"):
+            route.fulfill(path=OUT / path.lstrip("/"))
+        else:
+            route.fulfill(body="<!doctype html>", content_type="text/html")
+
+    context = browser.new_context()
+    try:
+        context.route(f"{ORIGIN}/**", serve)
+        page = context.new_page()
+        page.goto(f"{ORIGIN}/")
+        return {
+            name: page.evaluate(
+                """async (name) => {
+                  const { compareImages } = await import("/image-difference.js");
+                  const load = async (arm) => {
+                    const image = new Image();
+                    image.src = `/${name}/${arm}.png`;
+                    await image.decode();
+                    return image;
+                  };
+                  return compareImages(await load("base"), await load("head"));
+                }""",
+                name,
+            )
+            for name in names
+        }
+    finally:
+        context.close()
+
+
+def crop(folder: Path, regions: list[dict]) -> None:
+    """Write the crops of the two stills in `folder` around `regions`, and the diff."""
     base = Image.open(folder / "base.png").convert("RGB")
     head = Image.open(folder / "head.png").convert("RGB")
-    # A pixel's largest difference in any one channel.
-    red, green, blue = ImageChops.difference(base, head).split()
-    largest = ImageChops.lighter(ImageChops.lighter(red, green), blue)
-    mask = largest.point(lambda v: 255 if v else 0)
-    changed = mask.histogram()[255]
-    if changed:
-        left, top, right, bottom = mask.getbbox()
-        box = (
-            max(left - CROP_MARGIN, 0),
-            max(top - CROP_MARGIN, 0),
-            min(right + CROP_MARGIN, head.width),
-            min(bottom + CROP_MARGIN, head.height),
+    box = (
+        (
+            max(min(r["x"] for r in regions) - CROP_MARGIN, 0),
+            max(min(r["y"] for r in regions) - CROP_MARGIN, 0),
+            min(max(r["x"] + r["width"] for r in regions) + CROP_MARGIN, head.width),
+            min(max(r["y"] + r["height"] for r in regions) + CROP_MARGIN, head.height),
         )
-        base.crop(box).save(folder / "base-crop.png")
-        head.crop(box).save(folder / "head-crop.png")
-        faded = Image.blend(head, Image.new("RGB", head.size, "white"), 0.6)
-        faded.paste(Image.new("RGB", head.size, (220, 0, 0)), mask=mask)
-        faded.crop(box).save(folder / "diff.png")
-    return changed
+        if regions
+        else (0, 0, head.width, head.height)
+    )
+    base.crop(box).save(folder / "base-crop.png")
+    head.crop(box).save(folder / "head-crop.png")
+    faded = Image.blend(head, Image.new("RGB", head.size, "white"), 0.6)
+    draw = ImageDraw.Draw(faded)
+    for r in regions:
+        draw.rectangle(
+            (r["x"] - 3, r["y"] - 3, r["x"] + r["width"] + 2, r["y"] + r["height"] + 2),
+            outline=(220, 0, 0),
+            width=2,
+        )
+    faded.crop(box).save(folder / "diff.png")
 
 
 @click.command()
@@ -219,14 +263,20 @@ def stills(base_ref: str | None) -> None:
                                 failed[state.name] = (
                                     f"on {arm}: {str(error).splitlines()[0]}"
                                 )
+            read = differences(
+                browser, [state.name for state in STATES if state.name not in failed]
+            )
     click.echo(f"base {commits['base'][:10]} vs head {commits['head'][:10]}")
     unchanged = 0
     for state in STATES:
         folder = OUT / state.name
         if state.name in failed:
             click.echo(f"  failed  {state.name} {failed[state.name]}")
-        elif changed := compare(folder):
-            click.echo(f"  changed {state.name}: {changed} px -> {folder}")
+        elif (difference := read[state.name])["changed"]:
+            crop(folder, difference["regions"])
+            click.echo(
+                f"  changed {state.name}: {difference['changed']} px -> {folder}"
+            )
         else:
             unchanged += 1
     click.echo(f"{unchanged} of {len(STATES)} states unchanged")

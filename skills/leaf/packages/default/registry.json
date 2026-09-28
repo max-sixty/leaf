@@ -624,7 +624,7 @@
     "x-example": "<lf-chart id=\"review-latency\" kind=\"line\" y=\"hours to first review\"><pre>\nweek, backend, frontend\n2026-05-04, 31, 18\n2026-05-11, 26, 21\n2026-05-18, 19, 14\n2026-05-25, 12, 11\n</pre></lf-chart>"
   },
   "lf-shot": {
-    "description": "A before/after pair of screenshots under one draggable divider. Drag the divider or use its Arrow, Home, and End keys; click the image to switch endpoints, choose Before or After from the rail above it, or use the target’s round margin entry. The margin entry’s split circle fills the left half for before and the right half for after, and its hover label names the next endpoint. `before` and `after` are served image paths that `leaf page media` prints (see `authoring-evidence.md`, Source files and media). `alt` says what the pair shows, for a user who can't see it. The element takes no content: what the page has to say about the change is ordinary prose written around it, where the user can quote it. Where the change is what a decision turns on, the pair goes inside the lf-option proposing it, so the user compares it and presses in one place. Reach for it when the change reads at page scale — layout, spacing, a component swapped out. Below that scale the column's width is against you: crop the pair to the part that moved, or show the element itself before and after at real size.",
+    "description": "A before/after pair of screenshots under one draggable divider. Drag the divider or use its Arrow, Home, and End keys; click the image to switch endpoints, choose Before or After from the rail above it, or use the target’s round margin entry. The margin entry’s split circle fills the left half for before and the right half for after, and its hover label names the next endpoint. Once the page presents, the rail between the labels says when the pair has nothing to point at: \"identical\", \"only slight changes\" where no pixel moved far (a redrawn shadow, a small contrast shift, re-encoding), or \"changed throughout\" for a change over most of the image. With `outlines`, both frames also outline each region where the two images differ, and the rail counts them, so a reader of either side, or of a screenshot of the page, sees where the change is. `before` and `after` are served image paths that `leaf page media` prints; `authoring-evidence.md` (Source files and media) covers them and when to leave `outlines` off. `alt` says what the pair shows, for a user who can't see it. The element takes no content: what the page has to say about the change is ordinary prose written around it, where the user can quote it. Where the change is what a decision turns on, the pair goes inside the lf-option proposing it, so the user compares it and presses in one place. Reach for it when the change reads at page scale — layout, spacing, a component swapped out. Below that scale the column's width is against you: crop the pair to the part that moved, or show the element itself before and after at real size.",
     "type": "object",
     "properties": {
       "id": {
@@ -641,6 +641,9 @@
       },
       "alt": {
         "type": "string"
+      },
+      "outlines": {
+        "type": "boolean"
       }
     },
     "required": [
@@ -653,7 +656,7 @@
     "x-content": "empty",
     "x-upgrade": true,
     "x-visual": "whole",
-    "x-example": "<h3>The option cards</h3>\n<p>The chips now sit above the title, so a scanning eye reads cost before prose.</p>\n<lf-shot id=\"shot-cards\" alt=\"the decision page's option cards\" before=\"/media/0f2c91a4b7de3105.png\" after=\"/media/6b40ac7719ee5d82.png\"></lf-shot>"
+    "x-example": "<h3>The option cards</h3>\n<p>The chips now sit above the title, so a scanning eye reads cost before prose.</p>\n<lf-shot id=\"shot-cards\" outlines alt=\"the decision page's option cards\" before=\"/media/0f2c91a4b7de3105.png\" after=\"/media/6b40ac7719ee5d82.png\"></lf-shot>"
   },
   "lf-board": {
     "description": "A kanban board the user edits directly: cards move between columns or reorder within one — dragged by the grip, moved with direct column buttons on phones, or moved by keyboard (the grip is a button: Enter grabs, arrows move, Enter drops) — and each completed move reaches the agent as a `move` action naming the card, target column, and the card's rank there. Children are lf-column elements only. A version that changes a moved card's column writes the card where the move put it, and later versions keep it there unless they mark it `restated` (`authoring-revisions.md`, Honor user state); the restatement gate refuses one that moves it silently. The user-origin reading and version diff compare a card's column only: a reorder within one column is not called out as a separate state change. A move rests on its card, so a rewrite retracts it through the card (see lf-card), never the board.",

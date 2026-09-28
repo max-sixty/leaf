@@ -12339,7 +12339,7 @@ def test_session_end_does_not_start_uv_before_the_plugin_environment_exists(tmp_
     tools = tmp_path / "tools"
     tools.mkdir()
     uv = tools / "uv"
-    uv.write_text("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$UV_CALLED\"\n")
+    uv.write_text('#!/bin/sh\nprintf \'%s\\n\' "$@" > "$UV_CALLED"\n')
     uv.chmod(0o755)
     called = tmp_path / "uv-called"
     env = {k: v for k, v in os.environ.items() if k != "UV_PROJECT_ENVIRONMENT"} | {

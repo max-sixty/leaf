@@ -52,7 +52,9 @@ def main() -> None:
     try:
         payload = sys.stdin.read()
         event = json.loads(payload).get("hook_event_name")
-        environment = Path(os.environ.get("UV_PROJECT_ENVIRONMENT") or PROJECT / ".venv")
+        environment = Path(
+            os.environ.get("UV_PROJECT_ENVIRONMENT") or PROJECT / ".venv"
+        )
         if not environment.is_absolute():
             environment = PROJECT / environment
         # A session that never ran this plugin cannot hold a claim created by it.

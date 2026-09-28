@@ -21,7 +21,7 @@ two tools need, such as building an arm or serving a page, lives in one module h
 and the others import it; a script under `scripts/` imports it too.
 
 - `harness.py`: arms (the plugin payload at a ref, or as the working tree has it) and
-  an A/B's pair of them, whose base defaults to the merge base with `origin/main`
+  an A/B's pair of them, whose base defaults to the merge base with `main`
   (`base_ref`); pages served from an authored source on an arm; the machine's load
   average a timed command prints; the isolated `claude -p` children evals run; and
   the throwaway Codex homes a Codex child runs under.

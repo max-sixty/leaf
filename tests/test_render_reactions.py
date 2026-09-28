@@ -29,6 +29,7 @@ from render_cases_widgets import (
 from render_harness import (
     FEATURE_GALLERY,
     ROOT,
+    accessible_details,
     holding,
     leaf_page,
     open_page,
@@ -1269,14 +1270,18 @@ def test_a_declared_visual_and_its_figure_keep_their_own_targets(browser, serve)
     expect(page.locator("#caption")).to_have_class(re.compile(r"\blf-pending\b"))
     expect(page.locator("#flow")).not_to_have_class(re.compile(r"\blf-pending\b"))
     expect(page.locator("#frame")).not_to_have_class(re.compile(r"\blf-pending\b"))
-    assert page.locator(".lf-visual-action").evaluate_all(
+    anchors = page.locator(".lf-visual-action").evaluate_all(
         "controls => controls.map(control => control.lfAnchor)"
-    ) == [
-        {"section": "flow"},
-        {"section": "flow", "visual": "node:S"},
-        {"section": "flow", "visual": "node:H"},
-        {"section": "frame"},
-    ]
+    )
+    assert sorted(anchors, key=json.dumps) == sorted(
+        [
+            {"section": "flow"},
+            {"section": "flow", "visual": "node:S"},
+            {"section": "flow", "visual": "node:H"},
+            {"section": "frame"},
+        ],
+        key=json.dumps,
+    )
     page.keyboard.press("Escape")
     page.keyboard.type(hint_code(page, "#caption", 6))
     expect(page.locator("#caption")).to_have_class(re.compile(r"\blf-pending\b"))
@@ -1570,6 +1575,38 @@ def landed(page):
             node.tagName.toLowerCase()
           );
         }"""
+    )
+
+
+def test_a_drawing_names_its_proxies_and_keeps_its_place_among_the_page(browser, serve):
+    """A drawing's response proxies stand on the chrome's details shelf, which the
+    drawing names as its details, so a screen reader reaches them from it. Nothing
+    stands beside the drawing: the page's `svg + p` rule still finds its paragraph and
+    moves nothing. The proxies are no Tab stops, since from the chrome they would come
+    after the whole page; the target chooser reaches the drawing from the keyboard."""
+    page_markup = leaf_page(
+        "picture gallery",
+        """
+<style>svg + p { margin-top: 40px; }</style>
+<h1 id="top">Picture gallery</h1>
+<section id="gallery">
+  <h2>Gallery</h2>
+  <svg id="pic" viewBox="0 0 20 20" width="40" height="40"><circle cx="10" cy="10" r="8" /></svg>
+  <p id="caption">The drawing's caption.</p>
+</section>
+""",
+    )
+    page = open_page(browser, serve(page_markup))
+    control = page.locator(".lf-visual-action")
+    expect(control).to_have_count(1)
+    expect(page.locator("#pic + p")).to_have_count(1)
+    assert (
+        page.locator("#caption").evaluate("p => getComputedStyle(p).marginTop")
+        == "40px"
+    )
+    assert accessible_details(page, "#pic") == ["Responses to pic"]
+    assert control.evaluate(
+        "button => button.closest('.lf-chrome') !== null && button.tabIndex === -1"
     )
 
 

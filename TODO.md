@@ -205,19 +205,6 @@ and its chrome coordinate.
   explains who owes the next move. Keep explicit agent status available when the
   Ask alone does not explain the wait.
 
-### Shared definitions
-
-- **Keep the visual-action proxies out of authored structure.** `anchor-controls.js`
-  puts a `span.lf-visual-actions` after each drawing that takes visual comments,
-  holding one hidden "Respond to …" button per drawing and per declared part. It
-  changes which of its parent's children is last and what follows the drawing, so page
-  rules such as `:last-child` or `svg + p` stop matching. The buttons are Tab stops placed
-  after their drawing so Tab reaches them there, and a screen reader meets them beside
-  it. Moving them to the chrome and naming them from the drawing through
-  `ariaDetailsElements`, as the comment note is, keeps the screen-reader route and
-  leaves `s` (the target chooser, which lists every declared part) as the keyboard
-  route, at the cost of those Tab stops.
-
 ## Etc
 
 Revisit these when their stated trigger becomes real; they are not an active queue.

@@ -279,10 +279,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
 :is(.lf-mark-el, .lf-react-el, .lf-action-target).lf-projected-mark {
   outline: none;
 }
-/* Keyboard access to a picture is runtime chrome beside the provider's drawing rather
-   than a role written onto that drawing. Resting it is a conventional clipped control;
-   focus gives it a skip-link-style face under the banner. */
-.lf-visual-actions { display: contents; }
+/* A picture's response proxies stand on the details shelf rather than as a role written
+   onto the provider's drawing. Resting, each is a conventional clipped control; focus
+   gives it a skip-link-style face under the banner. */
 .lf-visual-action { pointer-events: none; }
 .lf-visual-action:focus-visible { position: fixed; z-index: var(--lf-z-escaped-control);
   top: calc(var(--lf-banner-h) + 6px); left: 8px;

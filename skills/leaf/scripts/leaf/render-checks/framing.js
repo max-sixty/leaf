@@ -1,4 +1,5 @@
-import { inChrome } from "/runtime/widget-api.js";
+import { declarationFor, inChrome } from "/runtime/widget-api.js";
+import { at } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
 // A box that draws an inset and shows a different one. A child's outer margin normally
@@ -215,4 +216,33 @@ export function splitEdges() {
       }
     }
   return found;
+}
+
+// The runtime's own apparatus standing among the elements the page wrote. A page's rules
+// read its structure: which child is first, last, or only, and what an `h2 + p` rule
+// finds next. An element the runtime adds beside the page's own changes those answers for
+// as long as it stands, so the page's own rules restyle and move its content, which
+// nothing Leaf draws may do (assets/AGENTS.md, "Space and scrolling"). What the runtime
+// says about an element stands in the chrome instead (details-shelf.js).
+//
+// The page's own elements are the document tree under `main`, the authored content root,
+// outside any declared element: a widget's module arranges what stands inside it, and
+// nothing marks which of those elements the page wrote. An inline box's children are its
+// run of words, where the question is not which block comes first or next, so a code
+// block's highlighting or the mark ending a link's words is not this.
+export function apparatusAmongAuthored() {
+  const generated = ".lf-ui, [data-lf-gen]";
+  const declared = (el) => {
+    for (let at = el; at && at.localName !== "main"; at = at.parentElement)
+      if (declarationFor(at, "type")) return true;
+    return false;
+  };
+  const found = new Set();
+  for (const el of document.querySelectorAll(`main :is(${generated})`)) {
+    const parent = el.parentElement;
+    if (parent.closest(generated) || inChrome(parent) || declared(parent)) continue;
+    if (getComputedStyle(parent).display === "inline") continue;
+    found.add(`${at(el)} stands among the children of ${at(parent)}`);
+  }
+  return [...found];
 }

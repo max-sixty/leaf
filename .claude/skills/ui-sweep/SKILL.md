@@ -56,7 +56,7 @@ viewport.
 ## Observe
 
 Use `serve` and `open_page` from `tests/render_harness.py`, or
-`scripts/preview.py <example>` run as a background task.
+`uv run leaf-dev preview <example>` run as a background task.
 These process-owned servers exercise the real HTTP and event-log loop without
 delivering user feedback to the task. Give independent runs separate page state.
 Drive with real input and confirm each intended transition occurred.

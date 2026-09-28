@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "cd .. && uv run leaf-dev site",
-    "deploy:dev": "../scripts/deploy-site-dev.sh",
+    "deploy:dev": "./deploy-dev.sh",
     "dev": "npm run build && wrangler dev",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"

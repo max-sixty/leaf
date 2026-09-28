@@ -6,7 +6,7 @@
 # plugin are the same tree — and this runs that project: uv keeps one
 # environment per installed version and syncs it in place on first use.
 # `--no-dev` because the project's dev group is the test suite and the
-# repository scripts, recorded in the shipped lock but never a host's to
+# `leaf-dev` tooling, recorded in the shipped lock but never a host's to
 # install. `-q` because an agent reads stderr back and an ordinary sync has
 # nothing to say; a failed resolve is reported either way.
 #

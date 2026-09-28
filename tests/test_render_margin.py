@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import pytest
 from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
+from interact_support import record_claim
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
@@ -2422,7 +2423,7 @@ def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
     )
     margins_laid_out(page)
     page.locator("body").focus()
-    show_after = page.get_by_role(
+    show_after = page.locator('[data-lf-margin-for="bg-shot"]').get_by_role(
         "button", name="Show after — a sample run list with and without a status column"
     )
     # The hint layer offers the locations on screen, so that is the premise, and the
@@ -2438,7 +2439,7 @@ def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
     )
     page.keyboard.type(address_code(page, "Margin entry", target))
     expect(
-        page.get_by_role(
+        page.locator('[data-lf-margin-for="bg-shot"]').get_by_role(
             "button",
             name="Show before — a sample run list with and without a status column",
         )
@@ -3435,6 +3436,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
       return result;
     }""")
 
+    record_claim(serve.page_dir)
     with service_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, roots)
     told(page)
@@ -3702,6 +3704,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(browser, serve):
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     ]
+    record_claim(serve.page_dir)
     with service_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, roots)
     told(page)

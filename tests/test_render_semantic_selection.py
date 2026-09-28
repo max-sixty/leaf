@@ -185,6 +185,8 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     panel.get_by_role("button", name="Close threads").tap()
     expect(panel).to_be_hidden()
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    # A finger does not hover, so no name stays where the last tap was.
+    expect(page.locator(".lf-inspect")).to_be_hidden()
 
     # Prose still selects in Design mode. The selection is the nearer gesture, so its step
     # takes the narrowest phone row until the words are let go, and the mode's returns.
@@ -212,9 +214,14 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     )
     next_match.tap()
     expect(page.locator(".lf-live")).to_contain_text("Match 2 of 3")
-    row.get_by_role("button", name="Close search", exact=True).tap()
+    # Select takes the match as the selection, whose own step then stands on the row.
+    row.get_by_role("button", name="Select", exact=True).tap()
     expect(box).to_be_hidden()
     expect(next_match).to_have_count(0)
+    expect(comment).to_be_visible()
+    assert page.evaluate("getSelection().toString()") == "mounts"
+    page.evaluate("getSelection().removeAllRanges()")
+    expect(comment).to_be_hidden()
 
     # Searching inside a mode puts search's steps on the row in place of the mode's, and
     # the mode's way out returns when search closes.
@@ -225,7 +232,7 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     expect(next_match).to_be_visible()
     expect(exit_draw).to_be_hidden()
     expect(row.locator(".lf-btn:visible").filter(has_not_text="⋯")).to_have_text(
-        ["Previous", "Next", "Close search"]
+        ["Select", "Previous", "Next", "Close search"]
     )
     row.get_by_role("button", name="Close search", exact=True).tap()
     exit_draw.tap()

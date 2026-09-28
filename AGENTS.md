@@ -128,9 +128,9 @@ and Codex install the tracked tree whole.
   `tests/runtime/` the runtime's folds, which Node runs without a browser;
 - `build/`: the browser framework's TypeScript and the builds of every committed
   browser bundle;
-- `scripts/`: preview, site, demo, corpus, and measurement tooling;
-- `dev/`: the `leaf_dev` package those scripts share, and the `leaf-dev` commands
-  that probe, screenshot, and compare versions of Leaf;
+- `dev/`: the `leaf_dev` package, whose `leaf-dev` commands preview, build, verify,
+  and generate what the repository needs, and probe, screenshot, and compare
+  versions of Leaf;
 - `worker/`: the Cloudflare Worker behind <https://leaf.page/>, which routes each
   example to the Python server (the `leaf_website` package) in a per-user container;
   `worker/README.md` names its tokens and how an unattended agent loads one;
@@ -145,8 +145,8 @@ Read the scoped instructions for the area being changed:
 `skills/leaf/assets/AGENTS.md` (browser runtime, widgets, registry, theme),
 `skills/leaf/scripts/AGENTS.md` (Python owners and protocol references),
 `examples/AGENTS.md` (pages and corpus), `tests/AGENTS.md` (setup and evidence),
-`scripts/AGENTS.md` (tooling and generated outputs), `build/AGENTS.md` (committed
-bundles), and `dev/AGENTS.md` (the `leaf-dev` package).
+`build/AGENTS.md` (committed bundles), and `dev/AGENTS.md` (the `leaf-dev` package
+and generated outputs).
 
 For any work whose subject is Leaf itself, load `/developing-leaf`, including
 research and prototypes that change no tracked code. The shipped `/leaf` skill is
@@ -292,12 +292,12 @@ pre-commit do not reach. Both landing paths run all of them: a pull request in i
 each command. `wt hook pre-merge` runs that local gate without landing, on a committed
 tree, since the bundle check fails on any uncommitted change. The website's delivery
 checks — the site build, the Worker's dry-run deploy, and
-`scripts/verify_site.py wrangler` — run on a pull request and in `publish-site` before it
+`leaf-dev verify-site wrangler` — run on a pull request and in `publish-site` before it
 deploys, not in `wt merge`.
 
 For a change that can alter browser startup, compare base and candidate at the
 boundary it affects: served previews for a runtime change,
-`scripts/verify_site.py wrangler` for site delivery, Worker routing, or containers.
+`leaf-dev verify-site wrangler` for site delivery, Worker routing, or containers.
 Read the comparison as a phase profile: document receipt, widget upgrade,
 authoritative presentation, and the requests and bytes loaded by presentation.
 Compare requests and bytes directly; elapsed time is diagnostic. A change that

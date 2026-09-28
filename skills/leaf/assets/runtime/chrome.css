@@ -279,19 +279,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
 :is(.lf-mark-el, .lf-react-el, .lf-action-target).lf-projected-mark {
   outline: none;
 }
-/* Keyboard access to a picture is runtime chrome beside the provider's drawing rather
-   than a role written onto that drawing. Resting it is a conventional clipped control;
-   focus gives it a skip-link-style face under the banner. */
-.lf-visual-actions { display: contents; }
-.lf-visual-action { pointer-events: none; }
-.lf-visual-action:focus-visible { position: fixed; z-index: var(--lf-z-escaped-control);
-  top: calc(var(--lf-banner-h) + 6px); left: 8px;
-  width: auto; height: auto; max-width: calc(100vw - 16px); padding: 6px 10px;
-  overflow: visible; clip-path: none; pointer-events: auto; white-space: normal;
-  border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
-  color: var(--ink); box-shadow: 0 8px 24px var(--shade);
-  outline: var(--here-ring); --lf-here-ring: visual-target;
-  outline-offset: calc(-1 * var(--here-ring-w)); }
 .lf-ins-block { background: var(--add-tint); box-shadow: 0 0 0 4px var(--add-tint); border-radius: 2px; }
 /* A marked block becomes one inline text diff when its Change disclosure opens
    (version.js). Its block wash steps back so the insertion highlight can identify only
@@ -382,10 +369,22 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      itself, which is why this can't be written at document level without widening
      the shared vocabulary by a class only the runtime ever wears. */
   @media print { :scope { display: none; } }
-  /* A comment note rests where its focused face stands. It lives here after the whole
-     page, so a note focused while it rested in flow would scroll the page to the
+  /* The details shelf rests where its notes' focused faces stand. It stands after the
+     whole page, so a note focused while it rested in flow would scroll the page to the
      chrome's end; fixed, focus moves nothing. */
-  .lf-mark-note { position: fixed; top: calc(var(--lf-banner-h) + 6px); left: 8px; }
+  .lf-details-shelf { position: fixed; top: calc(var(--lf-banner-h) + 6px); left: 8px; }
+  /* A picture's response proxies stand on the details shelf rather than as a role written
+     onto the provider's drawing. Resting, each is a conventional clipped control; focus
+     gives it a skip-link-style face under the banner. */
+  .lf-visual-action { pointer-events: none; }
+  .lf-visual-action:focus-visible { position: fixed; z-index: var(--lf-z-escaped-control);
+    top: calc(var(--lf-banner-h) + 6px); left: 8px;
+    width: auto; height: auto; max-width: calc(100vw - 16px); padding: 6px 10px;
+    overflow: visible; clip-path: none; pointer-events: auto; white-space: normal;
+    border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
+    color: var(--ink); box-shadow: 0 8px 24px var(--shade);
+    outline: var(--here-ring); --lf-here-ring: visual-target;
+    outline-offset: calc(-1 * var(--here-ring-w)); }
   /* The hand only where the press lands. An element anchor wears its outline
      wherever its element stands, the layer's own parts included — that is what lets
      a design comment about the banner point at the banner, and a thread about a

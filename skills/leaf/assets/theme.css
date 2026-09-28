@@ -1160,14 +1160,10 @@ dd { margin: 0 0 8px 0; }
            color: var(--muted); font-weight: 500; margin: 0 0 10px; }
 /* An eyebrow and the heading below it are one title: the heading level's large top
    margin belongs before the pair, while the eyebrow's bottom margin owns the small gap
-   inside it. The contents map may put its zero-height fragment target between the two;
-   generated navigation must not change the authored rhythm. */
-.eyebrow:has(+ h2), .eyebrow:has(+ .lf-toc-target + h2) { margin-top: 48px; }
-.eyebrow:has(+ h3), .eyebrow:has(+ .lf-toc-target + h3) { margin-top: 32px; }
-.eyebrow + :is(h2, h3),
-.eyebrow + .lf-toc-target + :is(h2, h3) { margin-top: 0; }
-/* The contents map's fragment target, which it writes just before a heading. */
-.lf-toc-target { display: block; width: 1px; height: 0; }
+   inside it. */
+.eyebrow:has(+ h2) { margin-top: 48px; }
+.eyebrow:has(+ h3) { margin-top: 32px; }
+.eyebrow + :is(h2, h3) { margin-top: 0; }
 /* The one paragraph a user is guaranteed to read, so it is set as one: larger
    than the body, looser, and in the ink the body isn't. */
 .lede { color: var(--ink-2); font-size: var(--t-3); line-height: 1.5;
@@ -1224,6 +1220,10 @@ section.panel > :last-child { margin-bottom: 0; }
 aside.sidebar { display: flow-root; margin: var(--sp-4) 0 30px; }
 aside.sidebar > :first-child { margin-top: 0; }
 aside.sidebar > :last-child { margin-bottom: 0; }
+/* An empty map-only slot is already in its eventual margin posture: no margin
+ * and no formatting context separating the blocks on either side of it. */
+main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has(> lf-toc:only-child:empty) {
+  display: block; margin-block: 0; }
 main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; }
 main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-resident: sidebar; }
 main.layout-column aside.sidenote { --lf-resident: note; }
@@ -1873,7 +1873,14 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
  * role and takes these same rules, so no package keeps a copy of them. They are the
  * kernel's rather than the default package's for that reason: a package's rules reach
  * only its own widgets (layer.py, `widget_confinement`), and these reach every
- * package's. */
+ * package's.
+ *
+ * The grammar (the rows, and which child stands in which) carries the role's own weight,
+ * so it holds over what a widget declares for itself, such as a board's block margin
+ * when the board is a pane's body. The look (frame, paper, padding, the header's voice)
+ * is a default inside :where(), so a package that draws its generated pane another way,
+ * the visual review framing its evidence with the review's own border, does so with one
+ * class rather than by outranking the attribute. */
 [data-lf-reading-role="pane"] {
   display: grid;
   grid-template-rows: auto 1fr auto;
@@ -1890,12 +1897,12 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
 [data-lf-reading-role="pane"] > :not(header, footer) {
   grid-row: 2; min-width: 0; margin: 0;
 }
-[data-lf-reading-role="pane"] {
+:where([data-lf-reading-role="pane"]) {
   border: 1px solid var(--rule);
   border-radius: var(--r);
   background: var(--paper);
 }
-[data-lf-reading-role="pane"] > header {
+:where([data-lf-reading-role="pane"]) > header {
   padding: 10px 14px;
   border-bottom: 1px solid var(--rule);
   font: 600 var(--t-5)/1.4 var(--sans);
@@ -1904,14 +1911,14 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
 /* A pane is a region of a workspace, so its name takes a panel's voice (section.panel,
  * theme.css): small capitals that rank below the page's title and the pane's own
  * headings, where a bare h2 drew the region's label larger than anything it held. */
-[data-lf-reading-role="pane"] > header > :is(h2, h3, h4, h5, h6) {
+:where([data-lf-reading-role="pane"]) > header > :is(h2, h3, h4, h5, h6) {
   margin: 0;
   font: 600 var(--t-6)/1.3 var(--sans);
   letter-spacing: .06em;
   text-transform: uppercase;
   color: var(--muted);
 }
-[data-lf-reading-role="pane"] > footer {
+:where([data-lf-reading-role="pane"]) > footer {
   padding: 10px 14px;
   border-top: 1px solid var(--rule);
   --lf-block-frame: 1;
@@ -1928,7 +1935,7 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
  * width from what it holds, so a framed box placed where its width would come from its
  * content (an auto flex basis, a `fit-content` track) is only as wide as its other
  * parts there; the page gives it a width. */
-[data-lf-reading-role="pane"] > :not(header, footer) {
+:where([data-lf-reading-role="pane"]) > :not(header, footer) {
   padding: 14px;
   container-type: inline-size;
   --lf-block-frame: 1;

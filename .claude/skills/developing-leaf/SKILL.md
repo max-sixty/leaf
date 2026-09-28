@@ -47,7 +47,7 @@ shipped examples and `notes/` for an exploration of the same surface, and extend
 its playground when it owns the same decision.
 
 A playground is one HTML file, like a standalone sketch. Write it under `.tmp/`
-and serve it with `scripts/preview.py --source <file> --user` ("Preview a
+and serve it with `uv run leaf-dev preview --source <file> --user` ("Preview a
 page"), which builds the page from that file alone. Its CSS reads the live
 theme's tokens, and the `playground` package's elements
 (`<root>/skills/leaf/packages/playground/guidance/author.md`) wrap the
@@ -100,8 +100,8 @@ id) and stays running.
 
 ## Preview a page
 
-`scripts/preview.py <example> --export` writes one file that opens offline.
-`scripts/preview.py <example>` serves a live page at `.tmp/previews/<example>`
+`uv run leaf-dev preview <example> --export` writes one file that opens offline.
+`uv run leaf-dev preview <example>` serves a live page at `.tmp/previews/<example>`
 in the foreground, like a dev server, so run it as a long-running command
 (`run_in_background` in Claude Code). `--source <file>` serves any authored HTML
 file in place of a shipped example. It follows source and runtime edits at one
@@ -130,17 +130,17 @@ idle a preview to quiet the loop; `idle` closes the page in the browser.
 
 ## Test the hosted website agent
 
-`uv run <root>/scripts/verify_site.py local` builds the site, starts the website
-adapter against the host's Codex login, asks for one heading edit, and verifies
-the publication, reply, and changed page in Chrome. It bypasses the Cloudflare
-Worker, container limits, and credential proxy. When a change touches those and
-`OPENAI_API_KEY` is exported, run the same check through Wrangler's local
+`uv run --project <root> leaf-dev verify-site local` builds the site, starts the
+website adapter against the host's Codex login, asks for one heading edit, and
+verifies the publication, reply, and changed page in Chrome. It bypasses the
+Cloudflare Worker, container limits, and credential proxy. When a change touches
+those and `OPENAI_API_KEY` is exported, run the same check through Wrangler's local
 container:
 
 ```bash
 npm ci --prefix <root>/worker
 npm run build --prefix <root>/worker
-uv run <root>/scripts/verify_site.py wrangler --agent
+uv run --project <root> leaf-dev verify-site wrangler --agent
 ```
 
 The `publish-site` workflow's run against the deployed release is the only
@@ -148,8 +148,8 @@ production reading.
 
 ## Test a terminal Codex task
 
-`uv run <root>/scripts/verify_codex_task.py` runs a real Codex task, with this
-working tree installed as its plugin, through the App Server adapter `leaf codex
+`uv run --project <root> leaf-dev verify-codex-task` runs a real Codex task, with
+this working tree installed as its plugin, through the App Server adapter `leaf codex
 start` leaves running, and checks each comment it posts is answered once and each
 turn is closed under App Server's id. Run it after a change to `codex.py`,
 `codex_adapter.py`, `hooks.py`, `hook_carrier.py`, or the claim's turn in
@@ -175,13 +175,13 @@ as separate long-running commands, adding `--user` to both when their URLs go to
 the user:
 
 ```bash
-"$candidate_root/scripts/preview.py" --source <baseline-source.html> \
+uv run --project "$candidate_root" leaf-dev preview --source <baseline-source.html> \
   --runtime "$baseline_root" \
   --slot <slot>-baseline
 ```
 
 ```bash
-"$candidate_root/scripts/preview.py" --source <candidate-source.html> \
+uv run --project "$candidate_root" leaf-dev preview --source <candidate-source.html> \
   --runtime "$candidate_root" \
   --slot <slot>-candidate
 ```
@@ -258,11 +258,10 @@ there, it is the branch's. Use the base SHA's
 GitHub Actions run as the control, not a local container or a green run a few
 commits back. `uv run leaf-dev ci-failures` makes that comparison for the pushed
 HEAD, or `HEAD^2` in a pull request's CI checkout, which sits on GitHub's merge
-commit. Its exit 0 proves that every branch job has a result and that each failure
-also fails on the base: a test by node id, but any other step only by name, so
-read both logs for each step it lists as matched by name. Main holds one nightly
-slot, so a base commit may carry no nightly result; the command then prints the
-dispatch that makes one. A case can differ between Linux and a Mac, or between
+commit. Its exit 0 proves that each failed job failed only with tests that also
+fail, by node id, in the base's same job; every other case lists the jobs to read
+by hand. Main holds one nightly slot, so a base commit may carry no nightly result;
+the command then prints the dispatch that makes one. A case can differ between Linux and a Mac, or between
 the full suite under `-n 2` and a run alone.
 
 `wt merge --no-hooks` lands past a red local hook whose failures reproduce on the

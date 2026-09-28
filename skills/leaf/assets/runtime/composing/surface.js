@@ -694,7 +694,7 @@ export function createResponseSurface({
     return true;
   }
   // Where a bar on this anchor hands the user back: the control the gesture stood them
-  // on, or the margin's own proxy for the same anchor where that control has gone, found
+  // on, or the visual proxy for the same anchor where that control has gone, found
   // by identity so a repaint cannot strand it. A bar no gesture stood them on has nowhere
   // of its own and the user lands on the page — the element the bar is about is not a
   // landing merely for being named, an ⌥-aimed press having never stood them on it.

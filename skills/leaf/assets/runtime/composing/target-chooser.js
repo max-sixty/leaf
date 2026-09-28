@@ -408,7 +408,11 @@ export function createTargetChooser({
     setTargetChooser(false);
     selectMatch(segments);
     announce(
-      `Selected match: ${quote}. Press n for next, Shift+n for previous, or c to comment.`,
+      `Selected match: ${quote}. ${
+        coarsePointer.matches
+          ? "Comment on selection on the banner comments on it."
+          : "Press n for next, Shift+n for previous, or c to comment."
+      }`,
     );
   }
 
@@ -681,6 +685,7 @@ export function createTargetChooser({
         keys: ["Enter"],
         does: "Select the current search match",
         line: "select match",
+        touch: "Select",
         when: () => matches.length > 0,
         run: chooseMatch,
       },

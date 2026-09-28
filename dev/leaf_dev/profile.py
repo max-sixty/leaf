@@ -3,32 +3,21 @@
     uv run leaf-dev profile SOURCE TRANSITION
 
 `leaf-dev bench-latency` says how long a transition takes; this says where the time
-goes. It serves `examples/SOURCE.html` from this checkout's runtime and server exactly
-as the benchmark does (`leaf_dev.bench_latency.served`), runs TRANSITION (`comment`,
-`move`, `reply`, `status` or `revision`) RUNS times on a freshly loaded page, and
-records each from just before it starts until its result is painted: a V8 CPU profile
-sampled every 100 µs and a Chrome trace with style invalidation tracking.
+goes. It drives TRANSITION on this checkout's page exactly as the benchmark does
+(`leaf_dev.bench_latency.served`), RUNS times, each under a V8 CPU profile and a
+Chrome trace with style invalidation tracking, and reads the window from the last
+keydown (or the recording's start, for an agent write) to the frame the benchmark's
+probe marks as painting the result. It prints each run's main-thread tasks with the
+JS that dominated them, then per run: style and layout time and how much of it script
+forced, the forced style recalculations and the writes that invalidated style with
+the JS behind each, and JS by self and inclusive time.
 
-The clock starts at the last keydown the trace holds for a gesture, and at the start
-of the recording for a write, and runs to the painted frame; work after that frame
-delays nothing the user is waiting on. The report, per run and then summed over runs:
-
-- the main-thread tasks in that window, each with the JS that dominated it;
-- style and layout, and how much of each script forced synchronously (a read of
-  geometry, selection, or computed style after a write), with the element count of
-  each forced style recalculation and the JS that forced it;
-- the writes that invalidated style, by node and cause, with the JS that made them;
-- JS functions by self and by inclusive time.
-
-Invalidation tracking and stack capture slow the page, so read proportions and counts
-here and durations from the benchmark. Each run's `.trace.json` opens in Chrome
-DevTools' Performance panel or Perfetto, and its `.cpuprofile` in DevTools, under
-`.tmp/profile/`. For time spent in the server, profile
-`PageStateService(page_dir).page_state()` in-process with cProfile.
+Tracing slows the page, so read proportions here and durations from the benchmark.
+Each run's `.trace.json` (DevTools or Perfetto) and `.cpuprofile` land in
+`.tmp/profile/`.
 """
 
 import json
-import statistics
 import tempfile
 from collections import Counter
 from contextlib import contextmanager
@@ -75,8 +64,6 @@ OPAQUE = (
     "(anon) browser-runtime",
     "l browser-runtime",
 )
-# A main-thread task's trace event, by Chrome version.
-TASKS = {"RunTask", "ThreadControllerImpl::RunTask"}
 TASK_MIN_MS = 2
 TOP = 12
 
@@ -182,7 +169,7 @@ def attribute(trace: Path, profile: Profile) -> dict:
             profile.dominant(max(e["ts"], start), min(e["ts"] + e["dur"], end)),
         )
         for e in spans
-        if e["name"] in TASKS and inside(e) >= TASK_MIN_MS * 1000
+        if e["name"] == "RunTask" and inside(e) >= TASK_MIN_MS * 1000
     ]
     render, forced, recalcs = Counter(), Counter(), Counter()
     open_spans = []  # (name, end) of the spans enclosing the current one
@@ -310,6 +297,4 @@ def profile(source: str, transition: str) -> None:
             session.recording = lambda name=name: recorded(session, browser, name, runs)
             getattr(session, transition)(run)
     show(runs)
-    click.echo(
-        f"\nwindows: {statistics.median(ms(r['window']) for r in runs)} ms median; files in {OUT}"
-    )
+    click.echo(f"\nfiles in {OUT}")

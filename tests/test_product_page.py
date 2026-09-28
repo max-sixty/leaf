@@ -541,7 +541,7 @@ def test_demo_waiter_preserves_the_reason_a_wait_delivered_nothing():
 
     with pytest.raises(
         RuntimeError,
-        match="the demo waiter exited 2 with 0 page batches instead of one\\n"
+        match="the demo waiter exited 2 without one batch of user events\\n"
         "the page closed while waiting",
     ):
         waiter.receive()

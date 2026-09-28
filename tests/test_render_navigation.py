@@ -1359,7 +1359,8 @@ def test_the_feature_gallery_sections_are_stable_preview_destinations(
     assert len({target["href"] for target in targets}) == len(targets), targets
 
     target = page.locator(destination)
-    expect(page).to_have_url(root + destination)
+    # The handover key is exchanged for a cookie before the address is shown.
+    expect(page).to_have_url(root.split("?", 1)[0] + destination)
     expect(page.locator(":target")).to_have_attribute("id", destination[1:])
     expect(target).to_be_in_viewport()
 
@@ -1811,8 +1812,8 @@ def test_an_external_link_says_and_opens_where_it_goes(
     expect(page.locator("#svg-external")).not_to_have_attribute("target", "_blank")
 
     tab = opened_tab(page, destination, external.click)
-    expect(tab).to_have_url(destination)
-    expect(page).to_have_url(url)
+    expect(tab).to_have_url(f"{other_url}/")
+    expect(page).to_have_url(url.split("?", 1)[0])
 
 
 def test_an_addressed_link_leaves_the_user_at_its_destination(
@@ -1854,7 +1855,7 @@ def test_an_addressed_link_leaves_the_user_at_its_destination(
     page.keyboard.press("g")
     external_code = address_code(page, "Link", "external")
     tab = opened_tab(page, destination, lambda: page.keyboard.type(external_code))
-    expect(tab).to_have_url(destination)
+    expect(tab).to_have_url(f"{other_url}/")
     expect(page.locator(".lf-live")).to_have_text("Opened Leaf guide in a new tab")
 
 

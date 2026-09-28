@@ -1,3 +1,4 @@
+# Guardrail for shot-pair-matches (#1344): both arms passed 3 of 3.
 schema_version: '1.0'
 name: shot-pair-differs
 description: "Source files and media, guardrail: a pair whose captures show the change goes on the page as one lf-shot described by what it shows."

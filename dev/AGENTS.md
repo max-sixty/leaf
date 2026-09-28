@@ -35,6 +35,14 @@ and the others import it; a script under `scripts/` imports it too.
 - `leaf-dev stills [BASE_REF]` screenshots a catalogue of UI states, at rest and
   reached by input, on a base runtime and HEAD's, and crops each state that changed
   into a before/after pair under `.tmp/stills/`.
+- `suite.py` runs a selection of the suite in a checkout and reads each test's
+  outcome, by phase, from pytest's report log, refusing a selection pytest would not
+  run; its runs time out and stop with their command.
+- `leaf-dev flake NODEID...` runs tests from the working tree as 18 copies, six at a
+  time, and prints every failure's message, since a load flake never shows serially.
+- `leaf-dev bugback [NODEID...]` runs the branch's new or changed tests on HEAD and
+  with the branch's change reverted, or with each `--flip` patch, in a scratch
+  worktree, and reports which went red.
 - `leaf-dev bench-latency [BASE_REF]` times an open page's answer to a gesture, an
   agent write, and a revision in Chrome, with the traffic each causes, for a base
   runtime and HEAD's.
@@ -43,13 +51,17 @@ and the others import it; a script under `scripts/` imports it too.
   recalculations and the writes that invalidated them, and JS by function.
 - `leaf-dev bench-check [BASE_REF]` times `leaf page check --render` on a few
   examples, base plugin against HEAD's, with no model: wall time and a phase
-  breakdown traced by `tracer/sitecustomize.py`.
+  breakdown traced by `tracer/traced_leaf.py`.
 - `leaf-dev delivery-ab [BASE_REF]` compares how a live Claude Code agent handles a
   comment through `leaf wait`, and what the page shows meanwhile, between a base plugin
   and HEAD's. Its children cost about a dollar each.
 - `leaf-dev guidance-ab [CASE]...` runs the guidance cases in `evals/` on the merge
   base's guidance and the working tree's at once, and prints each case's passes per
-  arm and a Record row (`evals/README.md`).
+  arm (`/developing-leaf`, "Score a guidance change").
+- `leaf-dev ci-failures [REF]` reads the failing tests and steps in REF's `ci` runs
+  and in its merge base's, and says whether the branch may land red
+  (`.claude/skills/developing-leaf/SKILL.md`, "Land a change"); `--run ID` lists
+  one run's failures.
 
 ## Website and demo
 

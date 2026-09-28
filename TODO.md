@@ -62,10 +62,6 @@ has tried; settle that before building it.
   - `pyproject.toml`'s pytest `pythonpath = ["scripts"]`, so that tests can import
     `preview`, `verify_site`, `corpus`, and `keydocs`. Move those four into `leaf_dev`
     as commands, as `site.py` moved, then delete the setting.
-  - `leaf-dev bench-check` puts `leaf_dev/tracer/` on a child's `PYTHONPATH` so its
-    `sitecustomize.py` runs inside another arm's environment. Replace it with
-    something that doesn't change the child's import path, such as running the child
-    under `python -c` with a launcher that installs the tracer first.
   - `test_interact_layer.py` and `test_interact_session.py` set `PYTHONPATH` to put an
     older copy of `leaf` first, to stand in for a stale plugin install. Build that
     install as an environment of its own instead.

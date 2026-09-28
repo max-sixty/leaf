@@ -1,3 +1,5 @@
+# Added with page CSS narrowed off Leaf's controls (#1278): 0 of 3 on main, 3 of 3
+# on the change.
 schema_version: '1.0'
 name: page-css-names-leaf-controls
 description: "Restyling Leaf's controls: a page rule reaches the controls a widget builds only when it names the widget or Leaf's class, so a request about those controls is answered by naming them, not with a bare element rule."

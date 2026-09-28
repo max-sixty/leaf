@@ -4656,6 +4656,62 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     assert accessible_details(page, "#p2")[0].startswith("1 comment on ")
 
 
+def test_the_details_shelf_keeps_every_note_and_the_pages_own_details(browser, serve):
+    """Two kinds of note on one element (a drawing's comment note and its response
+    proxies) are both named after whatever the element's own `aria-details` names. Taking
+    one off keeps the other named, a pass that finds nothing changed writes nothing, a
+    revision's new `aria-details` is kept ahead of the notes, and the last note leaving
+    gives the element back the attribute the page wrote."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "shelf",
+                '<h1 id="t">Shelf</h1><p id="held" aria-details="own">Held.</p>'
+                '<p id="own">The page own details.</p><p id="later">Later.</p>',
+            )
+        ),
+    )
+    readings = page.evaluate(
+        """async () => {
+          const { shelve, unshelve } = await window.__lfRuntimeImport(
+            '/runtime/details-shelf.js');
+          const held = document.getElementById('held');
+          const named = () => (held.ariaDetailsElements ?? []).map(
+            (node) => node.id || node.className);
+          const one = Object.assign(document.createElement('button'), {className: 'one'});
+          const two = Object.assign(document.createElement('div'), {className: 'two'});
+          let writes = 0;
+          new MutationObserver((records) => { writes += records.length; })
+            .observe(held, {attributes: true, attributeFilter: ['aria-details']});
+          const settle = () => new Promise((resolve) => setTimeout(resolve));
+          shelve(held, one);
+          shelve(held, two);
+          const both = named();
+          unshelve(held, one);
+          const left = named();
+          await settle();
+          const before = writes;
+          shelve(held, two);
+          shelve(held, two);
+          await settle();
+          const idle = writes - before;
+          held.setAttribute('aria-details', 'later');
+          shelve(held, two);
+          const revised = named();
+          unshelve(held, two);
+          return {both, left, idle, revised, restored: held.getAttribute('aria-details')};
+        }"""
+    )
+    assert readings == {
+        "both": ["own", "one", "two"],
+        "left": ["own", "two"],
+        "idle": 0,
+        "revised": ["later", "two"],
+        "restored": "later",
+    }, readings
+
+
 def test_a_revision_keeps_a_block_naming_its_comment_note(browser, serve):
     """A revision that keeps a commented block and changes its own `aria-details` writes
     the new source's value over the block's name for its note. The next pass names the

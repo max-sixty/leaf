@@ -18,20 +18,23 @@
  *
  * Every writer of the relation goes through here, so an element holding notes of more
  * than one kind names all of them, and whatever its own `aria-details` names stays ahead
- * of them. A revision that keeps the element patches its attributes to the new source and
- * takes the relation off with it, so `shelve` is asked on every pass rather than once:
- * where the relation this module wrote no longer stands, the element's current value is
- * the authored one to keep, and the one to restore when its last note goes.
+ * of them. Writing the relation leaves the content attribute empty, so an attribute that
+ * is anything else was written by the page: first as authored, or by a revision that
+ * keeps the element and patches its attributes to the new source, which takes the
+ * relation off with it. `shelve` is therefore asked on every pass rather than once, and
+ * the value it finds is the authored one to keep ahead of the notes and to restore when
+ * the last of them goes.
  *
  * Nothing on the shelf is a Tab stop: from the chrome it would come after the whole
  * page, away from the element it is about, so each owner takes its controls out of the
- * Tab order. Focus on a note stands at its element (standing-target.js).
+ * Tab order. The shelf stands fixed under the banner, so a note focused at rest moves
+ * nothing (chrome.css). Focus on a note stands at its element (standing-target.js).
  */
 import { chromeRoot } from "./chrome.js";
 import { declareSide } from "./standing-target.js";
 import { offer } from "./widget-elements.js";
 
-// element -> { notes, authored, authoredElements, written }; a note's element, read back.
+// element -> { notes, authored }; a note's element, read back.
 const records = new Map();
 const owners = new WeakMap();
 let shelf = null;
@@ -47,19 +50,23 @@ declareSide((node) => {
 const same = (left, right) =>
   left.length === right.length && left.every((node, index) => node === right[index]);
 
-const standing = (element, record) =>
-  record.written !== null && same(element.ariaDetailsElements ?? [], record.written);
+// The elements an authored `aria-details` names, looked up where the element stands.
+const authoredDetails = (element, value) =>
+  (value ?? "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((id) => element.getRootNode().getElementById?.(id))
+    .filter(Boolean);
+
+// The relation this module wrote still stands where the attribute is the empty value
+// writing it leaves.
+const written = (element) => element.getAttribute("aria-details") === "";
 
 function name(element, record) {
-  if (!standing(element, record)) {
-    record.authored = element.getAttribute("aria-details");
-    record.authoredElements = element.ariaDetailsElements ?? [];
-    record.written = null;
-  }
-  const wanted = [...record.authoredElements, ...record.notes];
-  if (record.written && same(record.written, wanted)) return;
+  if (!written(element)) record.authored = element.getAttribute("aria-details");
+  const wanted = [...authoredDetails(element, record.authored), ...record.notes];
+  if (written(element) && same(element.ariaDetailsElements ?? [], wanted)) return;
   element.ariaDetailsElements = wanted;
-  record.written = element.ariaDetailsElements ?? [];
 }
 
 // Stand `note` on the shelf and have `element` name it. Idempotent, and meant to be asked
@@ -71,7 +78,7 @@ export function shelve(element, note) {
   owners.set(note, element);
   let record = records.get(element);
   if (!record) {
-    record = { notes: [], authored: null, authoredElements: [], written: null };
+    record = { notes: [], authored: null };
     records.set(element, record);
   }
   if (!record.notes.includes(note)) record.notes.push(note);
@@ -79,21 +86,20 @@ export function shelve(element, note) {
 }
 
 // Take `note` off the shelf and out of `element`'s relation. The element's authored
-// `aria-details` comes back with its last note, unless a revision has since written the
-// attribute, which is then the authored value already.
+// `aria-details` comes back with its last note.
 export function unshelve(element, note) {
+  const record = records.get(element);
+  if (record?.notes.includes(note)) {
+    record.notes = record.notes.filter((held) => held !== note);
+    if (record.notes.length) name(element, record);
+    else {
+      if (written(element)) {
+        if (record.authored === null) element.removeAttribute("aria-details");
+        else element.setAttribute("aria-details", record.authored);
+      }
+      records.delete(element);
+    }
+  }
   note.remove();
   owners.delete(note);
-  const record = records.get(element);
-  if (!record?.notes.includes(note)) return;
-  record.notes = record.notes.filter((held) => held !== note);
-  if (record.notes.length) {
-    name(element, record);
-    return;
-  }
-  if (standing(element, record)) {
-    if (record.authored === null) element.removeAttribute("aria-details");
-    else element.setAttribute("aria-details", record.authored);
-  }
-  records.delete(element);
 }

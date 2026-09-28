@@ -225,22 +225,32 @@ export function splitEdges() {
 // nothing Leaf draws may do (assets/AGENTS.md, "Space and scrolling"). What the runtime
 // says about an element stands in the chrome instead (details-shelf.js).
 //
-// The page's own elements are the document tree under `main`, the authored content root,
-// outside any declared element: a widget's module arranges what stands inside it, and
-// nothing marks which of those elements the page wrote. An inline box's children are its
-// run of words, where the question is not which block comes first or next, so a code
+// The page's own elements are the document tree under `main`, the authored content root.
+// A widget's own children are its module's to arrange, whether the layer declares it or
+// the page defines it, and so is everything inside one whose content is not the page's
+// markup; inside a markup container, such as a tab's panel, the page's elements are the
+// page's again. The developer gallery's section asks for the runtime's replay controls
+// (`data-interaction-gallery`), so its row is furniture the page requested. An inline box's children are
+// its run of words, where the question is not which block comes first or next, so a code
 // block's highlighting or the mark ending a link's words is not this.
 export function apparatusAmongAuthored() {
   const generated = ".lf-ui, [data-lf-gen]";
-  const declared = (el) => {
-    for (let at = el; at && at.localName !== "main"; at = at.parentElement)
-      if (declarationFor(at, "type")) return true;
+  const declared = (el) =>
+    declarationFor(el, "type") !== undefined || customElements.get(el.localName);
+  const modules = (parent) => {
+    if (declared(parent) || parent.matches("[data-interaction-gallery]")) return true;
+    for (
+      let at = parent.parentElement;
+      at && at.localName !== "main";
+      at = at.parentElement
+    )
+      if (declared(at)) return declarationFor(at, "x-content") !== "markup";
     return false;
   };
   const found = new Set();
   for (const el of document.querySelectorAll(`main :is(${generated})`)) {
     const parent = el.parentElement;
-    if (parent.closest(generated) || inChrome(parent) || declared(parent)) continue;
+    if (parent.closest(generated) || inChrome(parent) || modules(parent)) continue;
     if (getComputedStyle(parent).display === "inline") continue;
     found.add(`${at(el)} stands among the children of ${at(parent)}`);
   }

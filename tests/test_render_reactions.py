@@ -1535,7 +1535,7 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
 
 def test_one_semantic_visual_target_gets_one_keyboard_proxy(browser, serve):
     """Sibling anonymous pictures under one authored item are one durable target. Leaf
-    exposes one Tab stop for that anchor and returns Escape to the control that opened it."""
+    offers one proxy for that anchor and returns Escape to the control that opened it."""
     page_markup = leaf_page(
         "picture gallery",
         """

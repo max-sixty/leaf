@@ -1,7 +1,7 @@
 /* The transient keyboard hint session, and the code and placement policy under it.
 
    Two vocabularies stand on this one interaction: the Go-to sequence's map of visible
-   page targets, and the target chooser's map of addressable elements. Arming reads a
+   page targets, and the target picker's map of addressable elements. Arming reads a
    scene, gives each member an opaque prefix-free code, and paints a chip on it. Typed
    letters narrow the map, Tab walks it aloud, Enter takes the one just heard, and
    Escape gives a letter back. A letter that names nothing is reported and the standing
@@ -91,7 +91,7 @@ function spreadHints(
 ) {
   const band =
     parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue("--here-ring-w"),
+      getComputedStyle(document.documentElement).getPropertyValue("--focus-ring-w"),
     ) || 0;
   const faces = hints.map(({ chip, target, belowTarget = false }) => ({
     start: chip.getBoundingClientRect(),
@@ -129,7 +129,7 @@ export function seatHints(
   { barriers: fixedBarriers = [], lineBox, band, viewport },
 ) {
   const gap = 2;
-  // The browsed hint wears the layer's band (--here-shadow, theme.css), which a face's
+  // The browsed hint wears the layer's band (--focus-shadow, theme.css), which a face's
   // own rectangle does not report. Any chip can become the browsed one as the user
   // types, so the pass seats every face as though it were, keeping the one layout. A
   // window edge takes the whole band, because a band drawn past it is clipped away. A

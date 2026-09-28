@@ -49,7 +49,7 @@ turn also proves generic activity before its first work declaration; the receipt
 itself remains Picked up. `counts.overdue` counts the owed moves that stalled with
 the agent to act, still Sent past the pickup grace or left by a turn that ended or
 was interrupted before answering; over an `away` page they are when the banner asks
-the user to nudge the session. The banner and Leaves tray consume this same reading
+the user to nudge the session. The banner and Leaves drawer consume this same reading
 and present delivery counts separately.
 
 `workflows` is the shared projection for exact user inputs and proactive subject

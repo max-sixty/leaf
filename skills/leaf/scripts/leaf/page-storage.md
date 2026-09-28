@@ -90,7 +90,8 @@ other page files and the external state listed below.
 
 - `status.json` — work declarations, observed activity, and reply bindings.
   [session-lifetime.md](session-lifetime.md) owns their writers and lifetimes;
-  `thread.py` owns response reservations and their release.
+  `thread.py` owns response reservations and their release. Every reader loads it
+  through `service.read_status`, which reads a missing file as no declaration.
 
 - `waiter.lock` — bare-shell wait lease, present only while held; host sessions instead
   use `<state-home>/sessions/<session>.wait`. See [session-lifetime.md](session-lifetime.md).

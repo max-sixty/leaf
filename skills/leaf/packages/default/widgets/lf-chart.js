@@ -32,12 +32,13 @@ import {
   widgetController,
 } from "/runtime/widget-api.js";
 
-/* A calendar day or month, which is the whole of what an x column may say about time. A
- * finer instant would need a timezone to mean anything, and a page that carries one writes
- * it as a category. The month and day are spelled out rather than left as two digits
- * because a label like 2021-22 — a winter, on a chart of winters — otherwise reads as
- * month 22 and lands in the autumn of the following year. */
-const ISO_DATE = /^(\d{4})-(0[1-9]|1[0-2])(?:-(0[1-9]|[12]\d|3[01]))?$/;
+/* An x value that names a point in time: an ISO month (2026-06), day (2026-06-01), or a
+ * moment on a day that states its zone (2026-06-01T14:00Z, 2026-06-01T14:00+02:00). Date
+ * reads each as the instant it names, a month or a day as UTC midnight, which is how Plot
+ * reads the ISO strings it is handed. A moment without a zone is left a category, because
+ * Date reads it in the viewer's own zone and two readers would see two instants. */
+const ISO_TIME =
+  /^\d{4}-\d{2}(?:-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2}))?)?$/;
 
 let plotReady;
 const loadPlot = () => (plotReady ??= import("/vendor/plot.esm.js"));
@@ -107,26 +108,21 @@ function readTable(text) {
   return { xName: rows[0][0], labels, series };
 }
 
-/* What the x column is, which the column itself answers: every value a calendar date, or
- * every value a number, or neither — and neither is a category. Dates are read into UTC
- * from their own parts rather than through Date's string parsing, which reads a bare
- * `2026-06-01` as UTC midnight and then draws it under May 31 for a user west of
- * Greenwich. A UTC scale keeps the axis saying what the body says.
+/* What the x column is, which the column itself answers: every value a point in time, or
+ * every value a number, or neither — and neither is a category. Plot draws strings as
+ * categories whatever they say, so the column is typed here and Plot is handed Dates. The
+ * scale is UTC, which draws a day on the day the body wrote wherever the reader is (a
+ * local scale puts UTC midnight under the day before, west of Greenwich), and labels a
+ * moment in UTC.
  *
  * Only a line and a scatter ask. A bar chart's x is one slot per row by construction, so
  * bars, rows and stack band the labels exactly as written, whatever they look like. */
 function readAxis(labels) {
-  const dates = labels.map((label) => ISO_DATE.exec(label));
-  // All to the same granularity or none: a column holding both 2026-01 and 2026-01-01
-  // would read the month as the first of it and put two rows on one instant.
-  const months = dates.filter(Boolean).filter(([, , , day]) => !day).length;
-  if (dates.every(Boolean) && (months === 0 || months === dates.length))
-    return {
-      type: "utc",
-      values: dates.map(
-        ([, year, month, day]) => new Date(Date.UTC(+year, +month - 1, day ? +day : 1)),
-      ),
-    };
+  const times = labels.map((label) => (ISO_TIME.test(label) ? new Date(label) : null));
+  // Date is also the check: a label shaped like a month that names none, such as 2021-22
+  // (a winter, on a chart of winters), is an Invalid Date and leaves the column a category.
+  if (times.every((time) => time && !Number.isNaN(+time)))
+    return { type: "utc", values: times };
   const numbers = labels.map(Number);
   if (numbers.every(Number.isFinite)) return { type: "linear", values: numbers };
   return { type: "band", values: labels };
@@ -212,10 +208,12 @@ const spread = (values) => {
  * over four days it chooses hours: a chart of four daily totals came out under eight ticks
  * reading 12 AM and 12 PM, naming instants the body never mentions. A short run says its
  * own ticks — the user's dates, and no others — and a long one keeps Plot's choosing
- * while being held to a day at the finest. */
+ * while being held to a day at the finest. More than ten rows inside ten days can only be
+ * moments, so there Plot's hours are the body's own grain and it chooses freely. */
 function timeTicks(values) {
   if (values.length <= 10) return values;
   const days = (Math.max(...values) - Math.min(...values)) / 86400000;
+  if (days < 10) return undefined;
   return days > 730 ? "year" : days > 180 ? "month" : days > 45 ? "week" : "day";
 }
 
@@ -383,6 +381,16 @@ function build(Plot, { kind, table, axis, label, width, font, line, grow, held }
     });
   }
 
+  // A continuous axis puts each row at its value, so two labels with one value, such as
+  // 2026-06 and 2026-06-01, or 1 and 1.0, would draw two rows at one x: the refusal
+  // readTable gives two rows that share a label. A bar keeps a slot per label, so only
+  // a line or a scatter reaches this.
+  if (axis.type !== "band") {
+    const at = axis.values.map(Number);
+    const twice = at.findIndex((x, i) => at.indexOf(x) !== i);
+    if (twice >= 0) throw new Error(`${labels[twice]} is the same x as another row`);
+  }
+
   const marginLeft = Math.round(room(drawn)) + 14 + grow.left;
   // A band domain is stated rather than left to Plot, which sorts an ordinal domain it was
   // not given: a run written Nov, Dec, Jan, Feb came out Dec, Feb, Jan, Nov — drawn in an
@@ -547,7 +555,7 @@ customElements.define(
         this.paint(Plot, table, axis);
         this.classList.add("lf-rendered");
         // Everything after the first draw is the room changing under it: a window
-        // resized, the Asks tray opening and taking its strip out of the column. The
+        // resized, the Asks drawer opening and taking its strip out of the column. The
         // drawing would scale with the box and take its labels below legibility with it,
         // while a diagram keeps its renderer-defined geometry. A chart can simply be
         // drawn again. Only the width is watched, and only when it lands on a new

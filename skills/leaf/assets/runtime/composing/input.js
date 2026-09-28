@@ -105,8 +105,8 @@ export const draftOf = (ta) => inputDrafts.get(ta)?.value() ?? ta?.value ?? "";
 export function createCompositionInputs({ uploadMedia, inputHint }) {
   // The standing paint paints every box whose own state changed since it last ran, and
   // the previous and current box for focus and for the contextual-entry hint, since
-  // either may need to lose or gain its hint. A focus move asks for that paint itself
-  // (keyboard/controller.js).
+  // either may need to lose or gain its hint. The repaint owner asks for that paint on
+  // every focus move (repaint.js).
   const inputPaints = new WeakMap();
   const stale = new Set();
   let paintedInput = null;

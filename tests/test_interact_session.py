@@ -66,6 +66,7 @@ from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import event_meaning as event_meaning_model
 from leaf import files as files_model
+from leaf import hook_carrier as hook_carrier_model
 from leaf import hooks as hooks_model
 from leaf import host as host_model
 from leaf import hosting as hosting_model
@@ -112,7 +113,7 @@ def woken(output: str, session: str | None = None) -> tuple[dict, dict, list[dic
     """`delivered`, for a wait whose output the test already holds, and for a
     session other than the one the test runs as."""
     assert "has new input" in output, output
-    payload = session_model.take_input(
+    payload = delivery_model.take_input(
         session or session_model.session_harness().session
     )
     assert payload["format"] == delivery_model.DELIVERY_FORMAT
@@ -217,7 +218,7 @@ def delivery_through(page_dir: Path, seq: int) -> str:
 
 def receive_through(page_dir: Path, seq: int) -> None:
     service_model.claim_page(page_dir)
-    session_model.receive_delivery(delivery_through(page_dir, seq))
+    delivery_model.receive_delivery(delivery_through(page_dir, seq))
 
 
 def test_delivery_ids_are_short_and_rerolled_under_the_store_lock(monkeypatch):
@@ -5850,8 +5851,8 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(
     assert not any(
         event["kind"] == "pickup" for event in events_model.read_events(page_dir)
     )
-    session_model.receive_delivery(payload["id"])
-    session_model.receive_delivery(payload["id"])  # retries are harmless
+    delivery_model.receive_delivery(payload["id"])
+    delivery_model.receive_delivery(payload["id"])  # retries are harmless
     assert files_model.read_json(page_dir / "cursor.json")["seq"] == delivered_through
     assert page_state(page_dir)["pending"] == 1
 
@@ -7209,7 +7210,7 @@ def test_receipt_uses_an_immutable_delivery_and_advances_monotonically(page_dir)
     assert combined.exit_code == 2
     assert files_model.read_json(page_dir / "cursor.json") is None
     for payload in (newer, newer, older):
-        assert session_model.receive_delivery(payload["id"]) == [page_dir]
+        assert delivery_model.receive_delivery(payload["id"]) == [page_dir]
         assert files_model.read_json(page_dir / "cursor.json") == {"seq": 2}
     pickups = [
         event
@@ -7231,12 +7232,12 @@ def test_interrupted_pickup_leaves_the_delivery_unreceived(page_dir, monkeypatch
         raise OSError("pickup write interrupted")
 
     with monkeypatch.context() as patch:
-        patch.setattr(session_model, "record_pickup", failed_pickup)
+        patch.setattr(delivery_model, "record_pickup", failed_pickup)
         with pytest.raises(OSError, match="pickup write interrupted"):
-            session_model.receive_delivery(payload["id"])
+            delivery_model.receive_delivery(payload["id"])
     assert files_model.read_json(page_dir / "cursor.json") is None
     assert page_state(page_dir)["pending"] == 1
-    session_model.receive_delivery(payload["id"])
+    delivery_model.receive_delivery(payload["id"])
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
     [pickup] = [
         event
@@ -7261,7 +7262,7 @@ def test_receipt_refuses_a_delivery_from_a_replaced_log(page_dir):
     [replacement] = events_model.read_events(page_dir)
     assert replacement["seq"] == payload["batches"][0]["through_seq"]
     with pytest.raises(RuntimeError):
-        session_model.receive_delivery(payload["id"])
+        delivery_model.receive_delivery(payload["id"])
     assert files_model.read_json(page_dir / "cursor.json") is None
     assert events_model.read_events(page_dir) == [replacement]
 
@@ -7283,7 +7284,7 @@ def test_receiving_a_delivery_keeps_each_pages_response_obligation(page_dir, tmp
     later = events_model.append_event(
         other, {"kind": "comment", "author": "user", "text": "Later"}
     )
-    assert session_model.receive_delivery(payload["id"]) == [page_dir, other]
+    assert delivery_model.receive_delivery(payload["id"]) == [page_dir, other]
     for page in (page_dir, other):
         assert files_model.read_json(page / "cursor.json") == {"seq": 1}
         obligations = page_state(page)["activity"]["obligations"]
@@ -7324,9 +7325,9 @@ def test_concurrent_receipts_open_sibling_turns_without_nesting_page_locks(
     arrivals = [tmp_path / f"sweep-{number}" for number in range(2)]
     probe = """\
 import time
-from leaf import session
+from leaf import delivery
 
-original_open = session.open_session_turn
+original_open = delivery.open_session_turn
 def synchronized_open(*args, **kwargs):
     Path(os.environ["ARRIVAL"]).write_text("ready", encoding="utf-8")
     release = Path(os.environ["RELEASE"])
@@ -7334,8 +7335,8 @@ def synchronized_open(*args, **kwargs):
         time.sleep(0.01)
     return original_open(*args, **kwargs)
 
-session.open_session_turn = synchronized_open
-session.receive_delivery(os.environ["DELIVERY"])
+delivery.open_session_turn = synchronized_open
+delivery.receive_delivery(os.environ["DELIVERY"])
 """
     consumers = [
         spawn_probe(
@@ -7385,13 +7386,13 @@ def test_receipt_checks_the_owner_after_acquiring_the_page_lock(
             spawn,
             page_dir,
             """
-from leaf import service, session
+from leaf import delivery, service
 original_enter = service.PageTransaction.__enter__
 def entered(transaction):
     print("locking", flush=True)
     return original_enter(transaction)
 service.PageTransaction.__enter__ = entered
-session.receive_delivery(os.environ["DELIVERY"])
+delivery.receive_delivery(os.environ["DELIVERY"])
 """,
             DELIVERY=payload["id"],
         )
@@ -7405,7 +7406,7 @@ session.receive_delivery(os.environ["DELIVERY"])
         item["kind"] == "pickup" for item in events_model.read_events(page_dir)
     )
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "successor")
-    assert session_model.receive_delivery(payload["id"]) == [page_dir]
+    assert delivery_model.receive_delivery(payload["id"]) == [page_dir]
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
 
 
@@ -7779,6 +7780,40 @@ def test_a_revival_that_does_not_hold_ends_the_wait(
         f"{page_dir}: server is not running; restart it with "
         f"`leaf server start {page_dir}`"
     ) in capsys.readouterr().err
+
+
+def test_a_page_without_a_declaration_leaves_the_sessions_wait_running(
+    page_dir, tmp_path
+):
+    """A claimed page whose agent has declared nothing, such as a copy served
+    before any `leaf status`, reads as waiting on its user: the session's wait
+    passes over it and still delivers a sibling page's comment, and the copy's
+    own state reads as listening. The copy sorts ahead of the page, so a pass
+    that stumbled on it would end before reaching the comment."""
+    publish(page_dir)
+    serving(page_dir, 1)
+    service_model.claim_page(page_dir)
+    copy = tmp_path / "copy"
+    shutil.copytree(page_dir, copy)
+    (copy / schema_model.STATUS_FILE).unlink()
+    serving(copy, 1)
+    service_model.claim_page(copy)
+    assert service_model.owned_pages(session_model.session_harness().session) == [
+        copy.resolve(),
+        page_dir.resolve(),
+    ]
+    comment = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "still there?"},
+    )
+
+    waited = CliRunner().invoke(cli_model.cli, ["wait"])
+
+    assert waited.exit_code == 0, waited.output
+    _, batch, shown = woken(waited.output)
+    assert batch["page"] == str(page_dir.resolve())
+    assert [event["id"] for event in shown] == [comment["id"]]
+    assert page_state(copy)["activity"]["kind"] == "listening"
 
 
 @pytest.mark.parametrize("wait", ["named", "session"])
@@ -10321,7 +10356,7 @@ def test_a_codex_session_id_with_no_codex_above_it_is_refused(page_dir, monkeypa
 
 
 def test_a_claim_records_where_the_session_is_working(page_dir, tmp_path, monkeypatch):
-    """What tells one leaf from another on the tray is the work behind it, which
+    """What tells one leaf from another on the drawer is the work behind it, which
     neither the title somebody wrote nor the state directory nobody chose says — so
     the claim records the directory the claiming command ran in, the same reading
     `layer_dirs` already takes cwd to be. Every seat gets it through `presence`, and a
@@ -11185,7 +11220,7 @@ def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
         )
         for page in (moved, claimed)
     }
-    compose = hooks_model.compose
+    compose = hook_carrier_model.compose
 
     def compose_then_transfer(batches, attention):
         composed = compose(batches, attention)
@@ -11194,7 +11229,7 @@ def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
         monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s1")
         return composed
 
-    monkeypatch.setattr(hooks_model, "compose", compose_then_transfer)
+    monkeypatch.setattr(hook_carrier_model, "compose", compose_then_transfer)
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     answer = json.loads(capsys.readouterr().out)
     assert answer["decision"] == "block"
@@ -11232,7 +11267,7 @@ def test_input_too_large_for_the_turn_goes_as_a_pointer_the_model_confirms(
         {
             "kind": "comment",
             "author": "user",
-            "text": "x" * hooks_model.HOOK_CONTEXT_LIMIT,
+            "text": "x" * hook_carrier_model.HOOK_CONTEXT_LIMIT,
         },
     )
 
@@ -11240,7 +11275,7 @@ def test_input_too_large_for_the_turn_goes_as_a_pointer_the_model_confirms(
     answer = json.loads(capsys.readouterr().out)
     assert answer["decision"] == "block"
     reason = answer["reason"]
-    assert len(reason) < hooks_model.HOOK_CONTEXT_LIMIT
+    assert len(reason) < hook_carrier_model.HOOK_CONTEXT_LIMIT
     [delivery_id] = re.findall(r"`leaf delivery read (\w+)`", reason)
     assert files_model.read_json(claimed / "cursor.json") is None
     assert all(e["kind"] != "pickup" for e in events_model.read_events(claimed))
@@ -11251,7 +11286,7 @@ def test_input_too_large_for_the_turn_goes_as_a_pointer_the_model_confirms(
     [batch] = pointer["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
     # Confirming it is what `leaf wait --ack` does first.
-    session_model.receive_delivery(delivery_id)
+    delivery_model.receive_delivery(delivery_id)
     assert files_model.read_json(claimed / "cursor.json") == {
         "seq": last_deliverable_seq(claimed)
     }
@@ -11278,7 +11313,7 @@ def test_a_wait_only_wakes_a_session_its_hooks_have_run_for(
     assert payload["carrier"] == "wait"
     assert f"leaf wait --ack {payload['id']}" in payload["acknowledge"]
     assert [event["id"] for event in payload["batches"][0]["events"]] == [first["id"]]
-    session_model.receive_delivery(payload["id"])
+    delivery_model.receive_delivery(payload["id"])
 
     hooks_model.cmd_hook(
         {"hook_event_name": "UserPromptSubmit", "session_id": "unhooked"}
@@ -11464,7 +11499,8 @@ def test_hook_drops_a_page_transferred_after_ownership_discovery(claimed, monkey
     hold_status_read(status_path)
     answers = []
     hook = threading.Thread(
-        target=lambda: answers.append(hooks_model.unattended_pages("s1")), daemon=True
+        target=lambda: answers.append(hook_carrier_model.unattended_pages("s1")),
+        daemon=True,
     )
     hook.start()
     writer = fifo_writer(status_path, "the hook never reached its held status read")
@@ -12348,6 +12384,43 @@ def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tm
     )
 
 
+def test_a_hook_in_a_session_holding_no_page_imports_no_page_reading_or_server():
+    """A host runs Leaf's hooks at every turn of every session the plugin is
+    installed in, and most hold no page. Each waits on `import leaf.hooks`, so
+    that import, and a prompt or Stop hook in a session holding nothing, loads
+    neither the page servers nor page reading: markup, registry schemas, and
+    anchor capture. Run in a fresh interpreter, whose `sys.modules` is the hook's."""
+    probe = """\
+import json, sys
+from leaf.hooks import cmd_hook
+imported = sorted(sys.modules)
+for event in ("UserPromptSubmit", "Stop"):
+    cmd_hook({"hook_event_name": event, "session_id": "holds-nothing"})
+print(json.dumps([imported, sorted(sys.modules)]))
+"""
+    done = subprocess.run(
+        [sys.executable, "-c", probe],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=True,
+    )
+    heavy = (
+        "uvicorn",
+        "leaf.hosting",
+        "leaf.http",
+        "leaf.hook_carrier",
+        "leaf.served_state.page",
+        "leaf.event_contracts",
+        "leaf.anchor_capture",
+        "jsonschema",
+        "markdown_it",
+        "turbohtml",
+    )
+    for loaded in json.loads(done.stdout):
+        assert [module for module in heavy if module in loaded] == []
+
+
 def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
     """`leaf status` reads its transition back so a silent success cannot pass for a
     no-op. Canonical activity keeps showing an unanswered user move over a `waiting`
@@ -12432,7 +12505,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     # same user is still waiting, and now nothing will raise the comment again,
     # so idle holds until the thread has something under it.
     assert CliRunner().invoke(cli_model.cli, ["wait", str(claimed)]).exit_code == 0
-    assert session_model.take_input("s1")
+    assert delivery_model.take_input("s1")
     refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
     assert refused.exit_code == 1
     assert "1 acknowledged user move with no answer" in refused.output

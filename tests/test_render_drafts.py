@@ -108,11 +108,11 @@ def choose_comment_target(page, selector):
     """Choose one visible element through the user's target-hint route."""
     page.locator(selector).scroll_into_view_if_needed()
     page.keyboard.press("s")
-    expect(page.locator(".lf-target-chooser-hint")).not_to_have_count(0)
+    expect(page.locator(".lf-target-picker-hint")).not_to_have_count(0)
     code = page.evaluate(
         """selector => {
           const top = document.querySelector(selector).getBoundingClientRect().top;
-          return [...document.querySelectorAll('.lf-target-chooser-hint')]
+          return [...document.querySelectorAll('.lf-target-picker-hint')]
             .sort((a, b) => Math.abs(a.getBoundingClientRect().top - top)
                           - Math.abs(b.getBoundingClientRect().top - top))[0]
             .dataset.lfHintCode;
@@ -1691,11 +1691,11 @@ def test_a_held_comment_send_leaves_a_later_keyboard_comment_open(held_events, s
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fab-input")).to_be_hidden()
     page.keyboard.press("s")
-    expect(page.locator(".lf-target-chooser-hint")).not_to_have_count(0)
+    expect(page.locator(".lf-target-picker-hint")).not_to_have_count(0)
     target_code = page.evaluate(
         """() => {
           const top = document.querySelector('#p2').getBoundingClientRect().top;
-          return [...document.querySelectorAll('.lf-target-chooser-hint')]
+          return [...document.querySelectorAll('.lf-target-picker-hint')]
             .sort((a, b) => Math.abs(a.getBoundingClientRect().top - top)
                           - Math.abs(b.getBoundingClientRect().top - top))[0]
             .dataset.lfHintCode;
@@ -2696,7 +2696,7 @@ def test_an_explicit_target_does_not_overwrite_its_existing_draft(
     Two passages may already hold independent work. Choosing the second from the first
     tab should therefore reopen the draft at the chosen destination and leave the source
     draft where it was, rather than tombstoning the source and replacing the destination.
-    The target chooser is the real explicit gesture whose carry path owns that choice.
+    The target picker is the real explicit gesture whose carry path owns that choice.
     """
     url = serve(LONG_PAGE)
     first = open_page(browser, url, context=one_user)
@@ -2869,7 +2869,8 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
     and walks back by posting another ordinary edit. A second tab proves restore is
     durable replay rather than local history state; copy mode proves the local history
     does not survive without its handlers."""
-    page = open_page(browser, serve(JOURNEY_V1))
+    url = serve(JOURNEY_V1)
+    page = open_page(browser, url)
     draft = page.locator("#draft-ops")
     edits = [
         "Run the migration before deploying. It takes one minute.",
@@ -2943,7 +2944,8 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
     assert [text for _, text in sequence] == [edits[0], edits[1], edits[0]]
     assert [seq for seq, _ in sequence] == sorted(seq for seq, _ in sequence)
 
-    other = open_page(browser, page.url)
+    # The handover URL, since the key it carries has left this tab's address.
+    other = open_page(browser, url)
     expect(other.locator("#draft-ops .lf-draft-body")).to_have_text(edits[0])
     expect(other.locator("#draft-ops .lf-draft-history > summary")).to_have_text(
         "Changes · 3 edits"
@@ -3121,7 +3123,7 @@ def test_registered_control_keys_activate_once(browser, serve):
           return {
             host: {outline: hs.outlineStyle, width: parseFloat(hs.outlineWidth)},
             editor: {outline: es.outlineStyle, shadow: es.boxShadow,
-                     ring: es.getPropertyValue('--lf-here-ring').trim()},
+                     ring: es.getPropertyValue('--lf-focus-ring').trim()},
           };
         }"""
     )

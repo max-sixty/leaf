@@ -134,8 +134,7 @@ def serving_source(arm: Path, source: Path, scratch: Path):
 
 def merge_base(ref: str = "HEAD") -> str:
     """The commit `ref` branched from the local `main`: the base an A/B command
-    compares HEAD against unless it is handed another, and the control
-    `leaf-dev ci-failures` reads a branch's CI against."""
+    compares HEAD against unless it is handed another."""
     return subprocess.run(
         ["git", "-C", ROOT, "merge-base", ref, "main"],
         capture_output=True,

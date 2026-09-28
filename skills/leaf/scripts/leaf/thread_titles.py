@@ -46,7 +46,7 @@ from .codex import (
 from .event_log import EventRefused
 from .events import build_threads, spoken_turns
 from .host import IDENTITY_VARIABLES
-from .leases import session_state_path
+from .leases import titles_log
 from .revision_artifact import active_enclosing
 from .service import PageTransaction
 from .thread import name_untitled
@@ -344,12 +344,6 @@ def name_untitled_threads(
     thread apiece, and return at once."""
     for page_dir, thread in untitled_threads(payload):
         _start(generate, page_dir, thread, session_id, record)
-
-
-def titles_log(session_id: str) -> Path:
-    """Where a session's page servers record the titles they asked for, until the
-    session ends."""
-    return session_state_path(session_id, "titles.log")
 
 
 def name_opened_thread(

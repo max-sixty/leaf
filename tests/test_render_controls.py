@@ -867,7 +867,7 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
     assert page.locator(".lf-banner").evaluate("element => element.localName") == (
         "header"
     )
-    # Read the run that stands, not the shelf's whole inventory: a control registered
+    # Read the run that stands, not the toolbar's whole inventory: a control registered
     # for another device is in the row's markup with no presence, and the fact here is
     # that nothing the user can press follows Threads.
     expect(page.locator(".lf-banner-actions > *:visible").last).to_have_class(
@@ -966,14 +966,14 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
         f"a Tab walk across the phone row missed the reading loop: {walk}"
     )
     ring_room = """el => {
-      const shelf = el.parentElement.getBoundingClientRect();
+      const toolbar = el.parentElement.getBoundingClientRect();
       const button = el.getBoundingClientRect();
       const style = getComputedStyle(el);
       const outset = parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset);
-      return {top: button.top - outset - shelf.top,
-              left: button.left - outset - shelf.left,
-              right: shelf.right - button.right - outset,
-              bottom: shelf.bottom - button.bottom - outset};
+      return {top: button.top - outset - toolbar.top,
+              left: button.left - outset - toolbar.left,
+              right: toolbar.right - button.right - outset,
+              bottom: toolbar.bottom - button.bottom - outset};
     }"""
     room = page.locator(".lf-threads-toggle").evaluate(ring_room)
     assert all(space >= -0.01 for space in room.values()), (
@@ -981,19 +981,19 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     )
 
     # Every secondary contribution stays behind the door in registration order. The
-    # identities do not matter to the layout contract; register them through the shelf's
+    # identities do not matter to the layout contract; register them through the toolbar's
     # internal contribution boundary, just as asynchronous Ask and Page Map owners do.
     page.evaluate(
         """async () => {
-          const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
+          const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
           for (let i = 0; i < 7; i++) {
             const button = document.createElement('button');
             button.className = 'lf-ui lf-btn lf-secondary-destination';
             button.textContent = `Secondary destination ${i + 1}`;
-            shelf.registerBannerControl({
+            toolbar.registerBannerControl({
               key: `test-secondary-${i}`,
               control: button,
-              rank: shelf.BANNER_CONTROL_RANK.blanket + (i + 1) / 10,
+              rank: toolbar.BANNER_CONTROL_RANK.blanket + (i + 1) / 10,
             });
           }
         }"""
@@ -1007,20 +1007,20 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
         f"secondary controls changed seats with viewport width: {behind}"
     )
     # Take the synthetic controls away. The Leaf version remains deliberately behind
-    # the door at every width. The shelf retains
+    # the door at every width. The toolbar retains
     # each registered native island in one Lit root; hiding one changes its presentation,
     # not its identity or connection to the document.
     page.evaluate(
         """async () => {
-          const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
+          const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
           for (const control of document.querySelectorAll('.lf-secondary-destination'))
-            shelf.showBannerControl(control, false);
+            toolbar.showBannerControl(control, false);
         }"""
     )
     resized(page, 1600, 844)
     expect(page.locator(".lf-banner-more")).to_be_visible()
     # Open the door and read what stands behind it rather than counting the menu's
-    # markup: the shelf keeps a control registered for another device in that list with
+    # markup: the toolbar keeps a control registered for another device in that list with
     # no presence, so inventory and what the user meets are different readings.
     page.locator(".lf-banner-more").click()
     expect(page.locator(".lf-banner-menu")).to_be_visible()
@@ -1092,18 +1092,18 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     )
     positions = pinned.evaluate(
         """async () => {
-          const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
+          const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
           const chip = document.querySelector('.lf-latest-chip');
           const threads = document.querySelector('.lf-threads-toggle');
           const door = document.querySelector('.lf-banner-more');
           const x = () => threads.getBoundingClientRect().x;
           const shown = x();
-          shelf.showNews(chip, false);
+          toolbar.showNews(chip, false);
           await Promise.resolve();
           const quiet = {
             x: x(), door: door.checkVisibility(), news: door.hasAttribute('data-lf-news'),
           };
-          shelf.showNews(chip, true);
+          toolbar.showNews(chip, true);
           await Promise.resolve();
           return {shown, quiet, returned: x()};
         }"""
@@ -1224,7 +1224,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     expect(reference).to_be_hidden()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-shortcut-bar")).to_have_attribute(
-        "data-lf-shelf-open", "false"
+        "data-lf-expanded", "false"
     )
     for width in (1280, 841, 390):
         resized(page, width, 900)
@@ -1716,8 +1716,8 @@ def test_one_version_opens_a_menu_with_its_version(browser, serve):
 def test_the_versions_menu_uses_the_banner_panel_and_its_doors_edge(browser, serve):
     """Versions shares the banner panel's fixed top and its door's horizontal edge."""
     page = open_page(browser, serve(LONG_PAGE))
-    chooser = page.locator(".lf-version")
-    expect(chooser).to_be_enabled()
+    picker = page.locator(".lf-version")
+    expect(picker).to_be_enabled()
     banner_control(page, ".lf-version").click()
     menu = page.locator(".lf-version-menu")
     expect(menu).to_be_visible()
@@ -1781,14 +1781,14 @@ def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other
     page = open_page(browser, url)
     resized(page, 390, 800)
 
-    shelf = page.evaluate(
+    toolbar = page.evaluate(
         """() => {
           const actions = document.querySelector('.lf-banner-actions');
           return {shown: actions.clientWidth, needed: actions.scrollWidth};
         }"""
     )
-    assert shelf["shown"] == shelf["needed"], (
-        f"the phone row still hid controls off its own edge: {shelf}"
+    assert toolbar["shown"] == toolbar["needed"], (
+        f"the phone row still hid controls off its own edge: {toolbar}"
     )
     assert root_overflow(page) == 0, (
         "the phone banner made the page itself scroll sideways"
@@ -1869,20 +1869,20 @@ def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
     assert order == [
         "map",
         "blanket",
-    ], f"the shelf changed the established Map-before-blanket order: {order}"
+    ], f"the toolbar changed the established Map-before-blanket order: {order}"
 
     page.evaluate(
         """async () => {
-          const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
+          const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
           for (let i = 0; i < 3; i++) {
             const control = document.createElement('button');
             control.className = `lf-ui lf-btn lf-focus-candidate-${i}`;
             control.textContent = `Focus candidate ${i + 1}`;
             control.disabled = i === 1;
-            shelf.registerBannerControl({
+            toolbar.registerBannerControl({
               key: `test-focus-candidate-${i}`,
               control,
-              rank: shelf.BANNER_CONTROL_RANK.blanket + i + 1,
+              rank: toolbar.BANNER_CONTROL_RANK.blanket + i + 1,
             });
           }
         }"""
@@ -1892,8 +1892,8 @@ def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
     retiring.focus()
     page.evaluate(
         """async control => {
-          const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
-          shelf.showBannerControl(control, false);
+          const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
+          toolbar.showBannerControl(control, false);
         }""",
         retiring.element_handle(),
     )
@@ -1905,8 +1905,8 @@ def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
     answer_all.focus()
     page.evaluate(
         """async button => {
-          const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
-          shelf.showNews(button, false);
+          const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
+          toolbar.showNews(button, false);
         }""",
         answer_all.element_handle(),
     )
@@ -2106,7 +2106,7 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
     page.get_by_role("button", name="Close threads").tap()
     panel_settled(page, open=False)
 
-    # Across the covering boundary the banner fits the same touch aims. Its shelf and
+    # Across the covering boundary the banner fits the same touch aims. Its toolbar and
     # a keyboard ring remain inside the derived edge rather than centred through it.
     for width in (840, 841, 900, 1200, 1440):
         resized(page, width, 844)
@@ -2114,17 +2114,17 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
         geometry = page.locator(".lf-threads-toggle").evaluate(
             """control => {
                   const banner = control.closest('.lf-banner').getBoundingClientRect();
-                  const shelf = control.parentElement.getBoundingClientRect();
+                  const toolbar = control.parentElement.getBoundingClientRect();
                   const box = control.getBoundingClientRect();
                   const style = getComputedStyle(control);
                   const outset = parseFloat(style.outlineWidth) +
                     parseFloat(style.outlineOffset);
                   return {banner: {top: banner.top, bottom: banner.bottom},
-                          shelf: {top: shelf.top, bottom: shelf.bottom},
+                          toolbar: {top: toolbar.top, bottom: toolbar.bottom},
                           ring: {top: box.top - outset, bottom: box.bottom + outset}};
                 }"""
         )
-        for item in ("shelf", "ring"):
+        for item in ("toolbar", "ring"):
             assert (
                 geometry[item]["top"] >= geometry["banner"]["top"] - 0.01
                 and geometry[item]["bottom"] <= geometry["banner"]["bottom"] + 0.01
@@ -2142,15 +2142,15 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
     actions = page.locator(".lf-banner-actions")
     page.evaluate(
         """async () => {
-              const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
+              const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
               for (let i = 0; i < 3; i++) {
                 const button = document.createElement('button');
                 button.className = 'lf-ui lf-btn';
                 button.textContent = `Secondary touch destination ${i + 1}`;
-                shelf.registerBannerControl({
+                toolbar.registerBannerControl({
                   key: `test-touch-secondary-${i}`,
                   control: button,
-                  rank: shelf.BANNER_CONTROL_RANK.blanket + (i + 1) / 10,
+                  rank: toolbar.BANNER_CONTROL_RANK.blanket + (i + 1) / 10,
                 });
               }
             }"""
@@ -2169,22 +2169,22 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
     _touch_drag(cdp, x, y, dy=-160)
     page.wait_for_function("() => document.scrollingElement.scrollTop > 200")
     vertical = page.evaluate(
-        "() => ({shelf: document.querySelector('.lf-banner-actions').scrollLeft,"
+        "() => ({toolbar: document.querySelector('.lf-banner-actions').scrollLeft,"
         " page: document.scrollingElement.scrollTop,"
         " overflow: getComputedStyle(document.scrollingElement).overflowY})"
     )
     assert (
-        vertical["shelf"] == 0
+        vertical["toolbar"] == 0
         and vertical["page"] > 200
         and vertical["overflow"] != "hidden"
     ), f"a vertical touch over the row never reached the page: {vertical}"
     page.evaluate("() => { document.scrollingElement.scrollTop = 200; }")
     _touch_drag(cdp, x, y, dx=-160)
     horizontal = page.evaluate(
-        "() => ({shelf: document.querySelector('.lf-banner-actions').scrollLeft,"
+        "() => ({toolbar: document.querySelector('.lf-banner-actions').scrollLeft,"
         " page: document.scrollingElement.scrollTop})"
     )
-    assert horizontal["shelf"] == 0, (
+    assert horizontal["toolbar"] == 0, (
         f"the row still had a strip of itself to drag along: {horizontal}"
     )
 
@@ -2259,7 +2259,7 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
 
     # At the product's 320px floor the comment sheet has no possible width to move
     # through, so it offers no inert separator. A user standing on the grip lands on
-    # its surviving close control before it disappears; the narrower tray still moves.
+    # its surviving close control before it disappears; the narrower drawer still moves.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     comments_edge = page.locator(".lf-thread-panel > .lf-edge")
@@ -2295,7 +2295,7 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         == width_before
     )
 
-    # The tray still has range at 320px, and its grip finishes sliding on screen.
+    # The drawer still has range at 320px, and its grip finishes sliding on screen.
     page.get_by_role("button", name="Close threads").click()
     panel_settled(page, open=False)
     banner_control(page, ".lf-asks").click()
@@ -2338,7 +2338,7 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
             ".lf-asks",
             ".lf-asks-panel",
             ".lf-asks-panel > .lf-edge",
-            ".lf-asks-panel .lf-tray-list",
+            ".lf-asks-panel .lf-drawer-list",
             -36,
         ),
     ):
@@ -2596,7 +2596,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     which decides who pays. A control that grows moves itself and everything to its
     *left*; everything to its right keeps its place. So `Open threads: 9` becoming
     `Open threads: 10` — a comment posted from the terminal while the user reads —
-    slid the version chooser 6px left, and the Accept all a second tab's decision puts
+    slid the version picker 6px left, and the Accept all a second tab's decision puts
     away took the New-version chip with it.
 
     Driven by writing the events a real one would leave, since that is what the page
@@ -2752,7 +2752,7 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     browser, serve, other_leaf, one_user, tmp_path
 ):
     """The leaves panel, end to end: the banner counts the machine's live pages,
-    this one included, a press slides out a left tray headed by this page's own
+    this one included, a press slides out a left drawer headed by this page's own
     marked, unlinked row, each neighbour is a link named by its title and saying what
     that page is doing — the same judgment its own banner would show, from the same facts — and a
     link opens that page in a tab of its own, leaving this one where it was, panel
@@ -2789,7 +2789,7 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     # and the fact no row draws is the work behind the page, which is what tells two
     # rows apart when the titles somebody wrote for them are alike. Both rows carry it,
     # from the one gatherer that answers for this page and for its neighbours
-    # (`presence`): the tray's account of a neighbour is the account that page gives
+    # (`presence`): the drawer's account of a neighbour is the account that page gives
     # of itself.
     expect(self_row).to_have_attribute(
         "title", re.compile(rf"^long\n{re.escape(str(tmp_path / 'self-work'))}\n")
@@ -2806,7 +2806,7 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     # The arrival leaves the key in the cookie and the bare address in the tab.
     expect(tab).to_have_url(f"{other_url}/")
     tab.close()
-    # The press left this tab alone, tray still standing.
+    # The press left this tab alone, drawer still standing.
     expect(others_panel).to_be_visible()
     page.keyboard.press("Escape")
     expect(others_panel).not_to_be_visible()
@@ -2845,9 +2845,9 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
     def actions():
         return page.evaluate(
             """() => {
-                 const shelf = document.querySelector('.lf-banner-actions');
+                 const toolbar = document.querySelector('.lf-banner-actions');
                  const menu = document.querySelector('.lf-banner-menu');
-                 return [...menu.children, ...shelf.children].map(el =>
+                 return [...menu.children, ...toolbar.children].map(el =>
                    [['others', 'lf-others'], ['latest', 'lf-latest-chip'],
                     ['asks', 'lf-asks'], ['version', 'lf-version'],
                     ['comments', 'lf-threads-toggle'], ['signoff', 'lf-signoff']]
@@ -3099,12 +3099,12 @@ def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
     }
 
 
-def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
-    """A closed leaf leaves the tray on the poll that says so. Its server stays
+def test_a_closed_leaf_clears_itself_off_the_drawer(browser, serve, other_leaf):
+    """A closed leaf leaves the drawer on the poll that says so. Its server stays
     up — a standing one for good — so the row would otherwise stand forever and the
     count a user glances at to find who needs them would become a tally of
     everything that has ever run here. This page's own row never drops — a user
-    looking at a closed page is still looking at it — so a tray with nothing live
+    looking at a closed page is still looking at it — so a drawer with nothing live
     left on it still says where the user is, and the count says (1) for it."""
     _, other_dir = other_leaf
     page = open_page(browser, serve(LONG_PAGE))
@@ -3309,13 +3309,13 @@ def test_a_failed_leaves_restore_keeps_application_presentation_pending(
     )
 
 
-def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf, one_user):
-    """The tray is a list, and a user walks it without reaching for the mouse: g L
+def test_the_leaves_drawer_takes_the_keyboard(browser, serve, live_leaf, one_user):
+    """The drawer is a list, and a user walks it without reaching for the mouse: g L
     opens it and lands on the first neighbour, up and down step between them and clamp
     at the ends, Home and End reach the ends, Enter opens the focused one in its own tab, and Esc gives that press
     back — the user is returned to the reading place they pressed `g L` from, not left
-    holding the button that names the tray. The go-to menu names the panel, and the shortcut bar names
-    the tray's own keys once focus is inside it — the promise and the press being one
+    holding the button that names the drawer. The go-to menu names the panel, and the shortcut bar names
+    the drawer's own keys once focus is inside it — the promise and the press being one
     scene — and the "?" reference carries the same rows."""
     live_leaf("second", "A second leaf")
     other_url, _ = live_leaf("other", "The other leaf")
@@ -3331,10 +3331,10 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf, one_user)
     shortcut_bar = page.locator(".lf-shortcut-bar")
     # The go-to menu carries the panel only while there is another leaf to show.
     page.keyboard.press("g")
-    expect(shortcut_bar).to_contain_text("Leaves tray")
+    expect(shortcut_bar).to_contain_text("Leaves drawer")
     page.keyboard.press("Shift+l")
     rows = page.locator("a.lf-others-row")
-    # Titles order the tray, so the walk has a stated first row to start from.
+    # Titles order the drawer, so the walk has a stated first row to start from.
     expect(rows.first.locator(".lf-others-title")).to_have_text("A second leaf")
     expect(rows.first).to_be_focused()
     expect(shortcut_bar).to_contain_text("walk the leaves")
@@ -3361,14 +3361,14 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf, one_user)
     page.keyboard.press("Escape")
     expect(page.locator(".lf-others-panel")).not_to_be_visible()
     # One press in, one Escape out, and what the Escape gives back is exactly what the
-    # press took: the reading place `g L` was pressed from. Landing on the tray's own
+    # press took: the reading place `g L` was pressed from. Landing on the drawer's own
     # button instead would leave a user who never touched it holding a control, one
     # press from reopening what they had just put down.
     assert page.evaluate("() => document.activeElement === document.body")
     page.keyboard.press("?")
     page.keyboard.press("?")
     help_el = page.locator(".lf-command-reference")
-    expect(help_el).to_contain_text("In the leaves tray")
+    expect(help_el).to_contain_text("In the leaves drawer")
     expect(help_el).to_contain_text("Previous leaf")
     expect(help_el).to_contain_text("Next leaf")
     expect(help_el).to_contain_text("First leaf")
@@ -3485,7 +3485,7 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
 def test_auxiliary_surfaces_replace_each_other_and_name_the_open_one(
     browser, serve, other_leaf, width
 ):
-    """Threads and trays are alternate auxiliary surfaces at every width.
+    """Threads and drawers are alternate auxiliary surfaces at every width.
 
     The open auxiliary surface keeps its semantic expanded state and also wears the banner's
     active face. Its peers return to rest as it takes their place, so the tint names
@@ -3759,8 +3759,8 @@ def test_a_covering_auxiliary_surface_keeps_a_replacement_document_inert(
     assert not page.locator("main").evaluate("el => el.inert")
 
 
-def test_a_covering_tray_uses_the_same_auxiliary_modality_boundary(browser, serve):
-    """The Asks tray gets the covering auxiliary surface contract rather than a tray-specific
+def test_a_covering_drawer_uses_the_same_auxiliary_modality_boundary(browser, serve):
+    """The Asks drawer gets the covering auxiliary surface contract rather than a drawer-specific
     focus trap. Its exact Ask and reading place survive both responsive crossings, its
     reading keys move its own list, and closing returns to its door without moving the
     document behind it."""
@@ -3769,67 +3769,67 @@ def test_a_covering_tray_uses_the_same_auxiliary_modality_boundary(browser, serv
     page.evaluate("() => document.scrollingElement.scrollTop = 180")
     document_at = page.evaluate("() => document.scrollingElement.scrollTop")
     banner_control(page, ".lf-asks").click()
-    tray = page.locator(".lf-asks-panel")
-    expect(tray).to_have_class(re.compile(r"\bopen\b"))
+    drawer = page.locator(".lf-asks-panel")
+    expect(drawer).to_have_class(re.compile(r"\bopen\b"))
     assert page.locator("main").evaluate("el => el.inert")
-    expect(tray).to_have_attribute("role", "dialog")
-    expect(tray).to_have_attribute("aria-modal", "true")
+    expect(drawer).to_have_attribute("role", "dialog")
+    expect(drawer).to_have_attribute("aria-modal", "true")
 
-    rows = tray.locator(".lf-asks-row")
+    rows = drawer.locator(".lf-asks-row")
     row = rows.nth(8)
     row.focus()
     row.evaluate("el => el.scrollIntoView({block: 'start'})")
     identity = row.get_attribute("data-lf-at")
-    list_box = tray.locator(".lf-tray-list")
+    list_box = drawer.locator(".lf-drawer-list")
     list_at = list_box.evaluate("el => el.scrollTop")
     assert identity and list_at > 0, "the fixture established no Ask reading place"
 
     for _ in range(rows.count() + 3):
         page.keyboard.press("Tab")
-        assert tray.evaluate("el => el.contains(document.activeElement)"), (
-            "Tab reached a control behind the covering Asks tray"
+        assert drawer.evaluate("el => el.contains(document.activeElement)"), (
+            "Tab reached a control behind the covering Asks drawer"
         )
 
     list_box.evaluate("el => el.scrollTop = 0")
     rows.first.focus()
     page.keyboard.press("d")
     page.wait_for_function(
-        "() => document.querySelector('.lf-asks-panel .lf-tray-list').scrollTop > 0"
+        "() => document.querySelector('.lf-asks-panel .lf-drawer-list').scrollTop > 0"
     )
-    scroll_settled(page, scroller=".lf-asks-panel .lf-tray-list")
+    scroll_settled(page, scroller=".lf-asks-panel .lf-drawer-list")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == document_at
 
-    row = tray.locator(f'.lf-asks-row[data-lf-at="{identity}"]')
+    row = drawer.locator(f'.lf-asks-row[data-lf-at="{identity}"]')
     row.focus()
     list_at = list_box.evaluate("el => el.scrollTop")
     resized(page, 900, 640)
     assert not page.locator("main").evaluate("el => el.inert")
     expect(row).to_be_focused()
-    expect(tray).not_to_have_attribute("aria-modal", "true")
-    expect(tray).not_to_have_attribute("role", "dialog")
+    expect(drawer).not_to_have_attribute("aria-modal", "true")
+    expect(drawer).not_to_have_attribute("role", "dialog")
     assert list_box.evaluate("el => el.scrollTop") == pytest.approx(list_at, abs=1)
     resized(page, 500, 640)
     assert page.locator("main").evaluate("el => el.inert")
     expect(row).to_be_focused()
-    expect(tray).to_have_attribute("aria-modal", "true")
-    expect(tray).to_have_attribute("role", "dialog")
+    expect(drawer).to_have_attribute("aria-modal", "true")
+    expect(drawer).to_have_attribute("role", "dialog")
 
     page.keyboard.press("Escape")
-    expect(tray).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(drawer).not_to_have_class(re.compile(r"\bopen\b"))
     assert page.evaluate("() => document.activeElement === document.body")
     assert not page.locator("main").evaluate("el => el.inert")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == document_at
 
 
-def test_covering_trays_have_a_pointer_route_back_to_their_banner_controls(
+def test_covering_drawers_have_a_pointer_route_back_to_their_banner_controls(
     browser, serve, other_leaf
 ):
-    """Each tray can be dismissed from inside the modal surface by pointer.
+    """Each drawer can be dismissed from inside the modal surface by pointer.
 
     Pointer entry starts in the list rather than on its dismissal furniture. The banner
-    controls are inert while a tray covers the document, so they cannot be the only
-    pointer route out. Closing either tray returns focus to the control that opened it,
-    ready to reopen the same tray.
+    controls are inert while a drawer covers the document, so they cannot be the only
+    pointer route out. Closing either drawer returns focus to the control that opened it,
+    ready to reopen the same drawer.
     """
     page = open_page(browser, serve(MANY_ASKS_PAGE))
     resized(page, 500, 640)
@@ -3844,14 +3844,14 @@ def test_covering_trays_have_a_pointer_route_back_to_their_banner_controls(
     ):
         door = banner_control(page, selector)
         door.click()
-        tray = page.locator(panel)
-        expect(tray).to_have_class(re.compile(r"\bopen\b"))
+        drawer = page.locator(panel)
+        expect(drawer).to_have_class(re.compile(r"\bopen\b"))
         assert page.locator("main").evaluate("el => el.inert")
         expect(page.locator(".lf-banner-menu")).not_to_be_visible()
-        expect(tray.locator(first_destination).first).to_be_focused()
+        expect(drawer.locator(first_destination).first).to_be_focused()
 
         page.get_by_role("button", name=f"Close {name}").click()
-        expect(tray).not_to_have_class(re.compile(r"\bopen\b"))
+        expect(drawer).not_to_have_class(re.compile(r"\bopen\b"))
         expect(page.locator(".lf-banner-more")).to_be_focused()
         assert not page.locator("main").evaluate("el => el.inert")
 
@@ -3878,8 +3878,8 @@ def test_the_shared_auxiliary_scrim_marks_and_dismisses_a_covering_surface(
           const bannerBox = banner.getBoundingClientRect();
           const scrimBox = scrim.getBoundingClientRect();
           const surface = document.querySelector('.lf-others-panel');
-          const tray = document.querySelector('.lf-others-panel').getBoundingClientRect();
-          const point = {x: Math.max(tray.right + 20, innerWidth * .75), y: innerHeight / 2};
+          const drawer = document.querySelector('.lf-others-panel').getBoundingClientRect();
+          const point = {x: Math.max(drawer.right + 20, innerWidth * .75), y: innerHeight / 2};
           const bannerPoint = {
             x: bannerBox.left + bannerBox.width / 2,
             y: bannerBox.top + bannerBox.height / 2,
@@ -3995,25 +3995,25 @@ def test_threads_covering_a_page_holds_while_its_lock_takes_the_scrollbar(
 
 def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(browser, serve):
     """Auxiliary placement does not retire a live return; closing its surface does. The
-    Asks tray is the surface that crosses between covering and beside."""
+    Asks drawer is the surface that crosses between covering and beside."""
     page = open_page(browser, serve(MANY_ASKS_PAGE))
     resized(page, 500, 640)
     origin = page.locator("main .lf-pick").first
     origin.focus()
-    tray = page.locator(".lf-asks-panel")
+    drawer = page.locator(".lf-asks-panel")
     opened = re.compile(r"\bopen\b")
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+a")
-    expect(tray).to_have_class(opened)
+    expect(drawer).to_have_class(opened)
     assert page.locator("main").evaluate("el => el.inert")
 
     resized(page, 1000, 640)
     assert not page.locator("main").evaluate("el => el.inert")
-    expect(tray).to_have_class(opened)
+    expect(drawer).to_have_class(opened)
 
     page.keyboard.press("Escape")
-    expect(tray).not_to_have_class(opened)
+    expect(drawer).not_to_have_class(opened)
     # The surface's parent is the document, so that is the landing whichever width it
     # was left at and whatever the user was standing on before they asked for it.
     assert page.evaluate("() => document.activeElement === document.body")
@@ -4021,18 +4021,18 @@ def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+a")
     page.get_by_role("button", name="Close asks").click()
-    expect(tray).not_to_have_class(opened)
+    expect(drawer).not_to_have_class(opened)
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body"), (
         "closing the auxiliary surface left its keyboard return frame live"
     )
 
 
-def test_a_walk_down_the_tray_stops_clear_of_the_shortcut_bar_text(
+def test_a_walk_down_the_drawer_stops_clear_of_the_shortcut_bar_text(
     browser, serve, live_leaf
 ):
-    """The tray is the page's other scroll region and the shortcut bar stands over its
-    bottom-left corner, so the tray reserves the line's room — for the walk, which
+    """The drawer is the page's other scroll region and the shortcut bar stands over its
+    bottom-left corner, so the drawer reserves the line's room — for the walk, which
     scrolls no further than it must, and for the wheel, which runs to the end. Both
     are asserted because they take their room from different places, and the walk's
     clearance without one is only however far the browser happens to overshoot: a
@@ -4042,7 +4042,7 @@ def test_a_walk_down_the_tray_stops_clear_of_the_shortcut_bar_text(
         live_leaf(f"n{i}", title)
     page = open_page(browser, serve(LONG_PAGE))
     expect(page.locator(".lf-others")).to_have_text(f"All leaves ({len(names) + 1})")
-    # Short enough that the rows overflow the tray, which is the only shape in which
+    # Short enough that the rows overflow the drawer, which is the only shape in which
     # the reservation is the difference between a clear last row and a covered one.
     resized(page, 900, 320)
     page.keyboard.press("g")
@@ -4051,36 +4051,40 @@ def test_a_walk_down_the_tray_stops_clear_of_the_shortcut_bar_text(
     for _ in names:
         page.keyboard.press("ArrowDown")
     expect(rows.last).to_be_focused()
-    tray = page.locator(".lf-others-panel .lf-tray-list")
+    drawer = page.locator(".lf-others-panel .lf-drawer-list")
     assert page.evaluate(
-        "() => { const b = document.querySelector('.lf-others-panel .lf-tray-list');"
+        "() => { const b = document.querySelector('.lf-others-panel .lf-drawer-list');"
         "        return b.scrollHeight > b.clientHeight; }"
-    ), "the tray never overflowed, so the walk had nothing to scroll and proves nothing"
+    ), (
+        "the drawer never overflowed, so the walk had nothing to scroll and proves nothing"
+    )
     last = rows.last.bounding_box()
     line = page.locator(".lf-shortcut-bar").bounding_box()
     assert last["y"] + last["height"] <= line["y"], (
         f"the walk parked the last row at {last} under the shortcut bar at {line}"
     )
-    # And a user who scrolls the tray to its end by hand lands in the same place:
+    # And a user who scrolls the drawer to its end by hand lands in the same place:
     # scroll-padding answers the walk, the padding under it answers the wheel.
-    tray.evaluate("(b) => b.scrollTo({top: b.scrollHeight})")
+    drawer.evaluate("(b) => b.scrollTo({top: b.scrollHeight})")
     last = rows.last.bounding_box()
     assert last["y"] + last["height"] <= line["y"], (
-        f"scrolled to its end the tray put its last row at {last}, under the key "
+        f"scrolled to its end the drawer put its last row at {last}, under the key "
         f"line at {line}"
     )
 
 
-def test_a_walk_down_the_asks_tray_stops_clear_of_the_shortcut_bar_text(browser, serve):
-    """The leaves tray's reading above, made of the tray beside it. The room is one
+def test_a_walk_down_the_asks_drawer_stops_clear_of_the_shortcut_bar_text(
+    browser, serve
+):
+    """The leaves drawer's reading above, made of the drawer beside it. The room is one
     fact — the shortcut bar stands in the corner both lists reach — and it was written to one
-    list, so the Asks tray's walk parked its last row 47px under the line. Nothing said
-    so, because no example ships enough Asks to fill a tray and the walk that would have
+    list, so the Asks drawer's walk parked its last row 47px under the line. Nothing said
+    so, because no example ships enough Asks to fill a drawer and the walk that would have
     shown it had only ever been made down the other one.
 
-    So both lists end above the same band (`--lf-band-h`), and this is the half of that the
-    leaves reading could not cover: a fact stated per tray is a fact the second tray
-    goes without, and the second tray is the one nobody looks at."""
+    So both lists end above the same band (`--lf-bottom-bar-h`), and this is the half of that the
+    leaves reading could not cover: a fact stated per drawer is a fact the second drawer
+    goes without, and the second drawer is the one nobody looks at."""
     page = open_page(browser, serve(MANY_ASKS_PAGE))
     resized(page, 900, 420)
     banner_control(page, ".lf-asks").click()
@@ -4098,22 +4102,24 @@ def test_a_walk_down_the_asks_tray_stops_clear_of_the_shortcut_bar_text(browser,
     expect(rows.first).to_be_focused()
     page.keyboard.press("End")
     expect(rows.last).to_be_focused()
-    tray = page.locator(".lf-asks-panel .lf-tray-list")
+    drawer = page.locator(".lf-asks-panel .lf-drawer-list")
     assert page.evaluate(
-        "() => { const b = document.querySelector('.lf-asks-panel .lf-tray-list');"
+        "() => { const b = document.querySelector('.lf-asks-panel .lf-drawer-list');"
         "        return b.scrollHeight > b.clientHeight; }"
-    ), "the tray never overflowed, so the walk had nothing to scroll and proves nothing"
+    ), (
+        "the drawer never overflowed, so the walk had nothing to scroll and proves nothing"
+    )
     last = rows.last.bounding_box()
     line = page.locator(".lf-shortcut-bar").bounding_box()
     assert last["y"] + last["height"] <= line["y"], (
         f"the walk parked the last row at {last} under the shortcut bar at {line}"
     )
-    # And a user who scrolls the tray to its end by hand lands in the same place:
+    # And a user who scrolls the drawer to its end by hand lands in the same place:
     # scroll-padding answers the walk, the padding under it answers the wheel.
-    tray.evaluate("(b) => b.scrollTo({top: b.scrollHeight})")
+    drawer.evaluate("(b) => b.scrollTo({top: b.scrollHeight})")
     last = rows.last.bounding_box()
     assert last["y"] + last["height"] <= line["y"], (
-        f"scrolled to its end the tray put its last row at {last}, under the key "
+        f"scrolled to its end the drawer put its last row at {last}, under the key "
         f"line at {line}"
     )
 
@@ -4319,7 +4325,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     browser, serve, other_leaf, color_scheme, width
 ):
     """The feature-gallery sweep above reads broad authored UI with the chrome shut: it
-    never presses a key, so the thread panel, its box, the trays, the versions
+    never presses a key, so the thread panel, its box, the drawers, the versions
     menu, the command reference and the sequence's chips are surfaces four readings pass
     straight over. A `role="list"` whose children were not all list items shipped
     through it, green every time.
@@ -4359,13 +4365,13 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
-    # A tray on the far edge, which the sweep above never opens either. Waited out rather
+    # A drawer on the far edge, which the sweep above never opens either. Waited out rather
     # than pressed past: the close is animated, so the next surface would otherwise be read
     # with this one still sliding away behind it.
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     expect(page.locator(".lf-others-panel")).to_have_class(re.compile("open"))
-    sweep("standing in the leaves tray")
+    sweep("standing in the leaves drawer")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-others-panel")).not_to_have_class(re.compile("open"))
 
@@ -4664,7 +4670,7 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
 
 
 def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, serve):
-    """The bottom band keeps the inset tokens stated by the stylesheet: it stands on the
+    """The bottom bar keeps the inset tokens stated by the stylesheet: it stands on the
     window's foot, grows by the bottom inset, and holds its hints inside the side insets.
     The insets are stated on the root, where the band's own height reads them."""
     page = open_page(browser, serve(LONG_PAGE))
@@ -4804,14 +4810,14 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
       box.classList.add('probe-target');
       box.classList.remove('lf-mark-el', 'lf-mark-hover', 'lf-focus-visible');
       box.style.outline = '';
-      box.style.removeProperty('--lf-here-ring');
+      box.style.removeProperty('--lf-focus-ring');
       if (how === 'mark') box.classList.add('lf-mark-el', 'lf-mark-hover');
       if (how === 'focused mark') box.classList.add('lf-mark-el', 'lf-focus-visible');
-      if (how === 'the ring itself') box.style.outline = 'var(--here-ring)';
+      if (how === 'the ring itself') box.style.outline = 'var(--focus-ring)';
       if (how === 'unregistered focused mark') {
         box.classList.add('lf-mark-el');
-        box.style.outline = 'var(--here-ring)';
-        box.style.setProperty('--lf-here-ring', 'none');
+        box.style.outline = 'var(--focus-ring)';
+        box.style.setProperty('--lf-focus-ring', 'none');
         box.tabIndex = -1;
         box.focus();
       }
@@ -4844,7 +4850,7 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
     style, _width, colour = mark_paint
     assert style == "solid", "the element comment lost its complete contour"
     assert not claimed(), (
-        f"the reading counted the mark ({colour}) as a here ring: {claimed()}"
+        f"the reading counted the mark ({colour}) as a focus ring: {claimed()}"
     )
 
     _style, _width, colour = page.evaluate(plant, "focused mark")
@@ -4912,11 +4918,11 @@ def test_the_ring_reading_sees_and_measures_a_ring_cast_as_a_shadow(browser, ser
         width: 120px; height: 30px; box-sizing: border-box; margin: 0`;
       if (how === 'a lift') box.style.boxShadow = '0 2px 8px var(--shade)';
       if (how === 'an inset wash')
-        box.style.boxShadow = 'inset var(--here-shadow) var(--accent)';
+        box.style.boxShadow = 'inset var(--focus-shadow) var(--accent)';
       if (how === 'a wider band')
-        box.style.boxShadow = '0 0 0 calc(var(--here-ring-w) + 1px) var(--accent)';
+        box.style.boxShadow = '0 0 0 calc(var(--focus-ring-w) + 1px) var(--accent)';
       if (how === 'the band itself')
-        box.style.boxShadow = 'var(--here-shadow) var(--accent)';
+        box.style.boxShadow = 'var(--focus-shadow) var(--accent)';
       const cs = getComputedStyle(box);
       return [cs.boxShadow, cs.outlineStyle, box.getBoundingClientRect().bottom,
               innerHeight];
@@ -4945,7 +4951,7 @@ def test_the_ring_reading_sees_and_measures_a_ring_cast_as_a_shadow(browser, ser
             "was asked about a box other than the one this is written against"
         )
         assert reading() is None, (
-            f"the reading counted {how} ({shadow}) as the here ring: {reading()}"
+            f"the reading counted {how} ({shadow}) as the focus ring: {reading()}"
         )
 
     shadow, outline, bottom, foot = page.evaluate(plant, "the band itself")
@@ -4958,7 +4964,7 @@ def test_the_ring_reading_sees_and_measures_a_ring_cast_as_a_shadow(browser, ser
     # foot, so the width reported outside it is the whole of the band and nothing else.
     width = page.evaluate(
         "() => parseFloat(getComputedStyle(document.documentElement)"
-        "  .getPropertyValue('--here-ring-w'))"
+        "  .getPropertyValue('--focus-ring-w'))"
     )
     assert any(
         f"its bottom edge is {width:g}px outside the window" in cut
@@ -5225,7 +5231,7 @@ def test_a_user_who_asked_for_no_motion_gets_a_ring_that_does_not_arrive(
             moving: el.getAnimations().map(
               (a) => a.transitionProperty || a.animationName || 'animation'),
             ring: [cs.outlineWidth, cs.outlineStyle, cs.outlineOffset],
-            want: cs.getPropertyValue('--here-ring').trim(),
+            want: cs.getPropertyValue('--focus-ring').trim(),
           };
         }"""
     )
@@ -5432,8 +5438,8 @@ RING_CASES = (
     # shows a token nobody has pressed only while it is open, so a walk of the panel
     # that never opens one stands on the trigger and nothing under it.
     ("a reaction palette", (), {"ship-review": ((".lf-react", "chip"),)}),
-    ("the Asks tray", (), {"ship-review": ((".lf-asks-row", "asks-row"),)}),
-    ("the leaves tray", ("g", "Shift+l"), {"corpus": ((None, "others-row"),)}),
+    ("the Asks drawer", (), {"ship-review": ((".lf-asks-row", "asks-row"),)}),
+    ("the leaves drawer", ("g", "Shift+l"), {"corpus": ((None, "others-row"),)}),
     ("page status", (), {"corpus": ((None, "status-detail"),)}),
     # The menu's own route after the key that opens it: an open lands on the version being
     # read, which is the first row, and the comparison press beside a row is a Tab forward
@@ -5499,7 +5505,7 @@ RING_EXAMPLE_FILES = {
 # paint so an unrelated ring with the same name cannot credit the sample.
 RING_REMOTE_CARRIER = {
     "ask": None,
-    "target-hint": ".lf-target-chooser-hint.lf-current",
+    "target-hint": ".lf-target-picker-hint.lf-current",
 }
 
 
@@ -5532,10 +5538,10 @@ RING_SCOPE_SURFACE = {
     # Each is the mode's own state rather than a box that merely exists: the chips are
     # rebuilt from nothing on every open, and the bar is in the document from the first
     # frame and shows only for an anchor.
-    "target hints": (".lf-target-chooser-hint.lf-current", None),
+    "target hints": (".lf-target-picker-hint.lf-current", None),
     "the response bar": (".lf-fab-bar .lf-composer[data-lf-open]", None),
-    "the Asks tray": (".lf-asks-panel.open", ".lf-asks"),
-    "the leaves tray": (".lf-others-panel.open", ".lf-others"),
+    "the Asks drawer": (".lf-asks-panel.open", ".lf-asks"),
+    "the leaves drawer": (".lf-others-panel.open", ".lf-others"),
     "the versions menu": (".lf-version-menu:popover-open", None),
     "the command reference": (".lf-command-reference.open", None),
     "page status": (".lf-status-detail:popover-open", None),
@@ -5543,7 +5549,7 @@ RING_SCOPE_SURFACE = {
 }
 RING_SCOPE_OPENER = {
     "an inline response": "#pr-exact-patch .lf-diff-file-comment",
-    "the Asks tray": ".lf-asks",
+    "the Asks drawer": ".lf-asks",
     "a thread card": '.lf-margin-marker[data-lf-kinds~="comment"]',
     "the Page Map dialog": ".lf-page-map-toggle",
     "a reaction palette": ".lf-react-strip > .lf-react-trigger",
@@ -5596,7 +5602,7 @@ RING_NEW_STOP = f"""() => {{
 # `summary`, a widget's own native control — and replacing it everywhere would be a
 # change to how the product looks rather than a thing this test is owed.
 #
-# The layer's here ring is the second, on the stop or on an ancestor: a `choose` group
+# The layer's focus ring is the second, on the stop or on an ancestor: a `choose` group
 # takes the ring for the pick mark inside it, whose own rule states `outline: none`
 # exactly so the two do not both draw, and the user sees the group.
 #
@@ -5635,7 +5641,7 @@ SEEN_STOP = f"""() => {{
   if (!e) return null;
   const {{ accent, mixed }} = ({ACCENT_SWATCH})();
   const ringed = (cs) => cs.outlineStyle === 'solid'
-    && cs.outlineWidth === cs.getPropertyValue('--here-ring-w').trim()
+    && cs.outlineWidth === cs.getPropertyValue('--focus-ring-w').trim()
     && cs.outlineColor === accent;
   // A box whose own content paints over its outline draws the same ring on a later
   // pseudo-element instead: the scrolling thread list's frame, a page thread over its
@@ -5644,7 +5650,7 @@ SEEN_STOP = f"""() => {{
   const overlaid = (el) => {{
     const cs = getComputedStyle(el, '::after');
     return cs.content !== 'none' && ringed(cs)
-      && cs.getPropertyValue('--lf-here-ring').trim() !== 'none';
+      && cs.getPropertyValue('--lf-focus-ring').trim() !== 'none';
   }};
   const shown = (el) => {{
     const cs = getComputedStyle(el);
@@ -5657,7 +5663,7 @@ SEEN_STOP = f"""() => {{
   // do not. An element mark's contour is the case: it is not a named
   // outline, so neither answers the keyboard's question for every stop underneath it.
   const named = (el) =>
-    getComputedStyle(el).getPropertyValue('--lf-here-ring').trim() !== 'none';
+    getComputedStyle(el).getPropertyValue('--lf-focus-ring').trim() !== 'none';
   if (shown(e) || overlaid(e)) return null;
   for (let el = e.parentElement ?? e.getRootNode().host ?? null; el;
        el = el.parentElement ?? el.getRootNode().host ?? null)
@@ -5851,7 +5857,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             # one was handed. Before the panel, the room a floor is measured against is
             # the room the panel was still taking.
             posture = RING_SCOPE_WIDTH.get(scope)
-            # Three rungs, because a scope can be three deep: a tray, menu, or narrowing
+            # Three rungs, because a scope can be three deep: a drawer, menu, or narrowing
             # over the panel, then the panel, then the page. The panel is reopened below,
             # so every scope starts from the same page.
             for _ in range(3):
@@ -6059,13 +6065,13 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     # nothing to the floor below until both agree it stands for one drawn ring.
     unnamed_rules = rings.pop("", [])
     assert not unnamed_rules, (
-        f"{len(unnamed_rules)} rules draw the here ring and name none of them, so the "
+        f"{len(unnamed_rules)} rules draw the focus ring and name none of them, so the "
         "floor below divides by a population short of them and says nothing about "
-        "it — declare --lf-here-ring in the rule that draws the ring:\n  "
+        "it — declare --lf-focus-ring in the rule that draws the ring:\n  "
         + "\n  ".join(sorted(unnamed_rules))
     )
     assert not unnamed, (
-        "the corpus paints a here ring on boxes no rule named, so no reading can say "
+        "the corpus paints a focus ring on boxes no rule named, so no reading can say "
         "which rule drew it: " + ", ".join(sorted(unnamed))
     )
     # Both halves of the division, before it is taken. An empty population makes every
@@ -6302,7 +6308,7 @@ def _each_aim_surface(page, page_dir):
     yield
     page.keyboard.press("Escape")
 
-    # Twice: the first press unfolds the shelf, the second opens the reference.
+    # Twice: the first press expands the shortcut bar, the second opens the reference.
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference-command").first).to_be_visible()

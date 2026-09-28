@@ -1,5 +1,5 @@
 /* This module owns captured presses for modifier aim, Design mode, and the target
- * chooser. Each claims a complete press before authored controls can act on it. */
+ * picker. Each claims a complete press before authored controls can act on it. */
 import { spell } from "../keyboard/bindings.js";
 import { pageCommand } from "../keyboard/register.js";
 import { pointerAt, pressIsKeyboardActivation } from "../pointer.js";
@@ -21,7 +21,7 @@ export function createAim({
   standDown,
   drawModeActive,
   designMode,
-  targetChooser,
+  targetPicker,
 }) {
   let aiming = false;
   // Design is the active input mode, so the sequence is unavailable while it stands. Keep
@@ -145,9 +145,9 @@ export function createAim({
       // builds its own, and where two boxes share an edge — every cell of a joined group,
       // which butt with no gap between them — nothing makes the two tie-break the same way.
       // A user ⌥-pressing on that seam was outlined one option and commented on the next.
-      const choosing = targetChooser.active() && !leafSurface(pressed);
+      const choosing = targetPicker.active() && !leafSurface(pressed);
       claimedPress = choosing
-        ? { chooser: aimTargetAt(pressed) }
+        ? { picker: aimTargetAt(pressed) }
         : designTarget
           ? { designMode: designMode.target(pressed) }
           : aim
@@ -165,7 +165,7 @@ export function createAim({
     if (ev.type === "mousedown" || ev.type === "click") ev.preventDefault();
     ev.stopPropagation();
     if (ev.type !== "click") return;
-    if (claimedPress.chooser) targetChooser.choose(claimedPress.chooser);
+    if (claimedPress.picker) targetPicker.choose(claimedPress.picker);
     else if (claimedPress.aim) commentOnTarget(claimedPress.aim);
     else if (claimedPress.designMode) designMode.open(claimedPress.designMode);
   }

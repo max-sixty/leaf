@@ -117,7 +117,7 @@ export function createDrawingController({
   openAnchoredDrawing,
   openPageDrawing,
   setDesignMode,
-  closeTargetChooser,
+  closeTargetPicker,
   closeReactionMode,
   banner,
   announce,
@@ -148,7 +148,7 @@ export function createDrawingController({
     on = Boolean(on);
     if (on) {
       setDesignMode(false, { spoken: false });
-      closeTargetChooser();
+      closeTargetPicker();
       closeReactionMode();
     }
     drawModeOn = on;
@@ -159,7 +159,7 @@ export function createDrawingController({
       // press through its compatibility click; only the drawing itself stops.
       if (claimedPointer === null) claimThroughClick = false;
     }
-    document.body.toggleAttribute("data-lf-draw-mode", on);
+    document.documentElement.toggleAttribute("data-lf-draw-mode", on);
     banner.toggleAttribute("data-lf-draw-mode", on);
     refreshAim();
     if (spoken)
@@ -465,7 +465,7 @@ export function createDrawingController({
     session = null;
     claimThroughClick = false;
     claimedPointer = null;
-    document.body.removeAttribute("data-lf-draw-mode");
+    document.documentElement.removeAttribute("data-lf-draw-mode");
     banner.removeAttribute("data-lf-draw-mode");
   }
 

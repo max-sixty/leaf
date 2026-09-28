@@ -209,6 +209,12 @@ def hooks_path(session_id: str) -> Path:
     return session_state_path(session_id, "hooks")
 
 
+def titles_log(session_id: str) -> Path:
+    """Where this session's page servers record the thread titles they asked for
+    (`thread_titles`), until the session ends."""
+    return session_state_path(session_id, "titles.log")
+
+
 def mark_hooks(session_id: str) -> None:
     """Record that the host ran a Leaf hook for this session. The mark stands for
     the session's life, and its SessionEnd hook removes it."""

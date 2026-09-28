@@ -295,7 +295,7 @@ export const elementOver = (n) => {
 // A widget riding a message stands inside the thread panel, so the panel is `.lf-ui`
 // over every word it says — and read straight, a question an agent asked in a reply says
 // nothing whatever. That silence did not read as one: it read as an empty slot, so the
-// group named its options by their ids in the accessibility tree, the Asks tray named the
+// group named its options by their ids in the accessibility tree, the Asks drawer named the
 // question by its id, and every widget reading its own words in a message got "" and fell
 // back to something else.
 //
@@ -1000,7 +1000,7 @@ export function fencePassageParts(root) {
 // replaces them.
 //
 // A pass is not the bound, though, because the passes are frequent and the walk grows with
-// the page: the painter, the capture, the target chooser and the selection surface each
+// the page: the painter, the capture, the target picker and the selection surface each
 // take one, and a drag-select takes one per pointer move. At a few thousand elements that
 // is the better part of a second apiece, which is a page that stutters while it is only
 // being read. So the reading stands until something it is built out of moves.

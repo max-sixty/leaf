@@ -86,11 +86,6 @@ export const runtime = {
   get lastEventSeq() {
     return readApplication().authoritative?.browser.basis.through_seq ?? null;
   },
-  // A chrome placement is moving a box the user may be standing in, so the focus it
-  // takes off and hands straight back is the layer's own, not the user going
-  // anywhere. Standing here rather than beside the one placer, because what has to know
-  // is every reader of where the user stands.
-  placingChrome: false,
   get reading() {
     return readApplication().authoritative?.reading ?? null;
   },

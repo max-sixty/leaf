@@ -460,7 +460,7 @@ SHORT_SUGGESTION = leaf_page(
 # Every animation the page starts, held at time zero so a test can read it rather than
 # race it. What it catches is everything through `motion()`, which is the layer's only
 # caller of `animate` — folds and the board's FLIP, each started synchronously inside
-# the gesture that causes it. Opening a panel or tray starts none. CSS animations run outside it
+# the gesture that causes it. Opening a panel or drawer starts none. CSS animations run outside it
 # and are never seen, `grow` among them. Installed before anything runs, so the first
 # frame is already held.
 #
@@ -664,9 +664,9 @@ ASK_IN_A_CARD_PAGE = leaf_page(
 # shows through — every shipped widget draws one, and a wrapper a page styles boxless
 # hangs it on the boxes its contents make — so what says the walk is in one place is
 # the outermost page element wearing it, never the count of elements that do. Scoped to
-# main because the Asks tray's row mirrors the same fact in the chrome.
+# main because the Asks drawer's row mirrors the same fact in the chrome.
 STANDING_ASK = "main [data-lf-ask]:not([data-lf-ask] [data-lf-ask])"
-# Where the tray's rows say their decision's own words, which is the half of a row a static
+# Where the drawer's rows say their decision's own words, which is the half of a row a static
 # lint can never read: the words are whatever the page renders, after every upgrade.
 # Every widget that measures a number off a live box, authored into the page and sent in
 # a reply, so the two readings of each can be compared instead of pinned to a number. The

@@ -1,7 +1,8 @@
 /* A delayed completion may move the user only while the gesture that started it
    remains their latest intent. Runtime-owned repaint and focus changes do not supersede
-   that intent; a later user input, leaving the window, or focus moving away from the
-   surface that began the work does.
+   that intent, including a repaint dropping focus on a container of the surface that
+   began the work; a later user input, leaving the window, or focus moving anywhere else
+   does.
 
    Intent is captured at the gesture and handed to what the work later does: `reveal`
    takes it as a required argument, so no delayed caller can take a fresh one after its
@@ -35,6 +36,12 @@ for (const type of ["focusin", "keydown"])
   });
 export const recentPlaceInput = () => placeInput;
 
+// Focus a repaint took from the source and dropped on a container holding it, as a
+// list takes it from a card that folds. Focus that went anywhere else went somewhere
+// in particular, as a widget handing it on does.
+const displaced = (source, at) =>
+  source instanceof Node && Boolean(at?.contains(source));
+
 // Capture before the first asynchronous step. Pass this same predicate into nested
 // reveals; capturing again after a wait gives stale work a newer gesture's authority.
 export function retainUserIntent({
@@ -50,9 +57,11 @@ export function retainUserIntent({
     return (
       available() &&
       retained === intent &&
-      (at === document.body || at === fallback || withinSource)
+      (at === document.body || at === fallback || withinSource || displaced(source, at))
     );
   };
+  // The surface the work belongs to still stands, whoever holds focus.
+  current.available = available;
   // Synchronous work may already have transferred focus, as a connected widget can
   // during replacement. Keep that destination instead of running the old focus move,
   // and adopt it for subsequent continuity without renewing the input generation.

@@ -31,13 +31,14 @@ export function createThreadActions({ post, withdraw, sendReaction, currentRevis
     });
   };
 
-  const settle = (key, resolved) => {
+  const settle = (key, resolved, { attempt } = {}) => {
     const thread = find(key);
     if (!thread || Boolean(thread.resolved) === resolved || thread.settling)
       return null;
     return post({
       kind: resolved ? "resolve" : "unresolve",
       parent: thread.root.id,
+      ...(attempt && { attempt }),
     });
   };
 
@@ -66,8 +67,8 @@ export function createThreadActions({ post, withdraw, sendReaction, currentRevis
 
   return Object.freeze({
     reply,
-    resolve: (key) => settle(key, true),
-    reopen: (key) => settle(key, false),
+    resolve: (key, options) => settle(key, true, options),
+    reopen: (key, options) => settle(key, false, options),
     toggleReaction,
   });
 }

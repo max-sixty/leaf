@@ -6223,6 +6223,8 @@ AIM_BOXES = """(floor) => {
     seen.add(el);
     const style = getComputedStyle(el);
     if (!['pointer', 'grab'].includes(style.cursor)) continue;
+    // A box that takes no press is not an aim, however its cursor reads.
+    if (style.pointerEvents === 'none') continue;
     if (!el.checkVisibility({ visibilityProperty: true, opacityProperty: true })) continue;
     if (style.display === 'inline') continue;
     // The option mark is the one control held out, and it is a handover rather than an

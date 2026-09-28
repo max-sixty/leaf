@@ -77,9 +77,18 @@ export function selectionAnchor(sel) {
 // A selection of the page's own words, as against none, a bare caret, or one made inside
 // the runtime's own layer. That is the line between a user reaching for a passage and
 // one working the chrome, and it is the question every caller here is really asking.
+//
+// Whether anything is selected is asked of the range the user drew (`pageRange`), not of
+// `isCollapsed`. A drag wholly inside an x-shadow widget comes back from Chrome with both
+// ends clamped to the host's one place in the light DOM, so the selection reports itself
+// collapsed while it paints and copies the words: code dragged across in a rendered diff
+// raised no Comment field, and `c` opened a comment on the page with no passage at all.
+// The anchor's side is still read off the clamped node, which is the host's place, and
+// so answers for the widget the words are in.
+const drawn = (sel) => Boolean(sel?.rangeCount) && !pageRange(sel).collapsed;
 export const pageSelection = () => {
   const sel = getSelection();
-  return sel && !sel.isCollapsed && pageWords(sel.anchorNode) ? sel : null;
+  return drawn(sel) && pageWords(sel.anchorNode) ? sel : null;
 };
 // Where a selection ends, as against where it began: the near end is what `pageSelection`
 // asks about, and the far end is the one a drag can throw. The layer stands after and to
@@ -95,7 +104,7 @@ export const pageSelection = () => {
 // (composing/surface.js, where a drag that left the document is put back to what it had
 // inside it).
 export const leftThePage = (sel = getSelection()) =>
-  Boolean(sel) && !sel.isCollapsed && !pageWords(sel.focusNode);
+  drawn(sel) && !pageWords(sel.focusNode);
 // A drag stops where the hand stopped, not where the user aimed: a release two glyphs
 // short of a word's end meant the word, and the capture would store the fragment as if
 // the fragment were the point. The pointer path therefore grows outward to word

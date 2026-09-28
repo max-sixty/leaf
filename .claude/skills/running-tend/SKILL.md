@@ -66,7 +66,8 @@ replaces the one waiting, which GitHub records as a cancelled run whose `nightly
 job has no runner (`runner_id` 0); that is not a regression. A `nightly` that
 held a runner and still ended cancelled hit its timeout, and that is a failure.
 `uv run leaf-dev ci-failures SHA` lists a main commit's failed or cancelled jobs,
-with each one's failing tests by node id.
+with each one's failing tests by node id, and marks a job the queue replaced
+`cancelled before a runner`.
 
 ## Cloudflare logs
 

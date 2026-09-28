@@ -84,7 +84,11 @@ def failures(job: dict | None) -> set[str]:
 def state(job: dict | None) -> str:
     if job is None:
         return "no result"
-    return f"{job['conclusion'] or job['status']} {job['html_url']}"
+    reading = job["conclusion"] or job["status"]
+    if reading == "cancelled" and not job["runner_id"]:
+        # A newer commit replaced it in the queue (running-tend's SKILL.md).
+        reading = "cancelled before a runner"
+    return f"{reading} {job['html_url']}"
 
 
 @click.command("ci-failures")
@@ -138,7 +142,7 @@ def ci_failures(ref: str) -> None:
         for test in sorted(ids - controlled):
             click.echo(f"  {test}")
         if not ids and job["conclusion"] == "failure":
-            click.echo("  no failing test in a report: read the log")
+            click.echo("  no failing pytest ids: read the log")
         if (
             name == "nightly"
             and base != sha

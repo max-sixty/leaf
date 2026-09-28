@@ -29,7 +29,7 @@ from pathlib import Path
 import click
 
 # xdist's `loadgroup` appends `@<group>` to the node id of a test in an xdist_group.
-XDIST_GROUP = re.compile(r"@\w+$")
+XDIST_GROUP = re.compile(r"@[^@\]]+$")
 
 
 @dataclass(frozen=True)
@@ -91,7 +91,7 @@ def run(
     )
     outcomes = read_junit(report) if report.exists() else {}
     # No path in the message, so `flake`'s copies that ended alike group as one.
-    missing = Outcome("not run", f"pytest exited {status} before reporting it")
+    missing = Outcome("not run", f"not in the report (pytest exited {status})")
     # A module that did not import is reported under its path.
     return {
         item: outcomes.get(item) or outcomes.get(item.partition("::")[0], missing)
@@ -118,8 +118,9 @@ def read_junit(report: Path) -> dict[str, Outcome]:
             outcome = Outcome("skipped")
         else:
             outcome = Outcome("passed")
-        # A passing test's teardown error comes as a second case, which wins.
-        if nodeid not in outcomes or outcome.result in ("failed", "error"):
+        # A failed call's teardown error comes as a second case; the call's reading
+        # stands, and the error replaces only a pass or a skip.
+        if nodeid not in outcomes or outcomes[nodeid].result in ("passed", "skipped"):
             outcomes[nodeid] = outcome
     return outcomes
 

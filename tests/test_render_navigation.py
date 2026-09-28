@@ -11893,3 +11893,23 @@ def test_an_ask_in_a_reply_is_where_the_user_stands_once_answered(browser, serve
     page.keyboard.press("1")
     round_trip(page)
     expect(page.locator("#cache-disk")).not_to_have_attribute("chosen", "")
+
+
+def test_a_page_element_named_host_leaves_the_keyboard_climb_at_the_document(
+    browser, serve
+):
+    """A document names its `<form name="host">` as `document.host`. The climb that
+    measures how far a scope's root stands above the focused control took any `host` it
+    met for a shadow host, so past the document it walked back into the page and around
+    again, for good, as soon as the open panel's Escape step stood outside the focus."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page("Named host", '<form name="host"></form><p>Words to read.</p>')
+        ),
+    )
+    assert page.evaluate("document.host instanceof HTMLFormElement")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)

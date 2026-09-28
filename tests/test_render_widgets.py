@@ -4757,6 +4757,71 @@ def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(
     )
 
 
+def test_a_playground_dresses_each_sample_child_and_never_its_own_page(browser, serve):
+    """A candidate that restyles a whole page lives in a sample's template and keys on
+    that child's root. Each child the sample presents, the first and one a reset makes,
+    wears the playground's values from its first paint, and the page around the
+    playground keeps its own styling."""
+    source = leaf_page(
+        "sample playground",
+        """
+<h1>Tone playground</h1>
+<p id="host-note">The page around the playground.</p>
+<lf-ask id="tone-ask">
+  <h2>Which tone?</h2>
+  <lf-playground id="tone-playground">
+    <lf-playground-control name="tone" label="Tone" kind="choice" value="quiet">
+      <lf-playground-choice value="quiet" label="Quiet"></lf-playground-choice>
+      <lf-playground-choice value="loud" label="Loud"></lf-playground-choice>
+    </lf-playground-control>
+    <lf-playground-preview>
+      <lf-sample id="tone-sample" label="tone sample">
+        <template id="tone-page" data-sample>
+          <style>:root[data-playground-tone="loud"] p { color: rgb(200, 0, 0); }</style>
+          <h1 id="child-title">Child page</h1>
+          <p id="child-note">The page the candidate restyles.</p>
+        </template>
+      </lf-sample>
+    </lf-playground-preview>
+    <lf-playground-output id="tone-instruction">Use the
+      <lf-playground-value for="tone"></lf-playground-value> tone.</lf-playground-output>
+  </lf-playground>
+</lf-ask>
+""",
+    )
+    page = open_page(browser, serve(source))
+    child = page.frame_locator("#tone-sample iframe")
+    expect(child.locator(":root")).to_have_attribute("data-playground-tone", "quiet")
+
+    page.get_by_role("radio", name="Quiet", exact=True).press("ArrowRight")
+    expect(child.locator(":root")).to_have_attribute("data-playground-tone", "loud")
+    expect(child.locator("#child-note")).to_have_css("color", "rgb(200, 0, 0)")
+    assert (
+        page.locator("#host-note").evaluate("note => getComputedStyle(note).color")
+        != "rgb(200, 0, 0)"
+    )
+
+    # Every frame of the child a Reset makes that draws the note draws it loud.
+    painted = page.locator("#tone-sample").evaluate(
+        """async sample => {
+          const frames = [];
+          let sampling = true;
+          const tick = () => {
+            const note = sample.querySelector('iframe').contentDocument
+              ?.getElementById('child-note');
+            if (note) frames.push(getComputedStyle(note).color);
+            if (sampling) requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+          await sample.reset();
+          sampling = false;
+          return frames;
+        }"""
+    )
+    assert painted and set(painted) == {"rgb(200, 0, 0)"}
+    expect(child.locator(":root")).to_have_attribute("data-playground-tone", "loud")
+
+
 def test_targeting_selects_names_previews_reverts_and_submits_structured_changes(
     browser, serve
 ):

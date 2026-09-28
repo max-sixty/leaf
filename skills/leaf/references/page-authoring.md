@@ -454,7 +454,9 @@ the sample without that thread. Their anchored content must exist in the
 child. Reset copies those threads again from the parent; subsequent child
 replies remain independent.
 
-A page module can await the element's `ready` promise to receive the child
+The child is a document of its own: a `<style>` or module script in the template
+applies to the child alone, and the surrounding page's styles and scripts do not
+reach it. A page module can await the element's `ready` promise to receive the child
 `Document`, and await `reset()` to replace it. Author child content in the
 template rather than copying rendered controls from the parent. Ordinary
 `lf-sample` children, without a template, remain static quoted material.

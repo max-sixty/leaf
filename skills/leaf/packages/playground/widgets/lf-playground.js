@@ -10,7 +10,8 @@
  * and call the returned notifier after a gesture. Every working-state change then
  * dispatches `lf-playground-change` with the same aggregate snapshot at
  * `event.detail.values`. Simple previews need neither: they read the reflected
- * `--playground-NAME` properties and `data-playground-NAME` attributes.
+ * `--playground-NAME` properties and `data-playground-NAME` attributes, which this
+ * element carries and the root of each sample child under it wears (`dressSamples`).
  *
  * Projection is deliberately separate from working state. A repeated projection must
  * not erase local edits, while a newly chosen action or its undo must replace them.
@@ -19,6 +20,7 @@
 import {
   commands,
   compoundReadingRegionId,
+  dressSamples,
   failSoft,
   holdFocus,
   keeps,
@@ -655,6 +657,21 @@ customElements.define(
       return `${value}${control.getAttribute("unit") ?? ""}`;
     }
 
+    // One reflection of the values: this element carries it for candidates in this
+    // document, and the root of each sample child under it wears it, so a candidate that
+    // restyles a whole page keys on that child's root and never reaches this page.
+    #reflection() {
+      const attributes = {};
+      const properties = {};
+      for (const [name, value] of Object.entries(this.#values)) {
+        const control = this.#controlByName.get(name);
+        if (!control) continue;
+        attributes[`data-playground-${name}`] = String(value);
+        properties[`--playground-${name}`] = this.#cssValue(control, value);
+      }
+      return { attributes, properties };
+    }
+
     #cssValue(control, value) {
       const formatted = this.#formatted(control, value);
       return control.getAttribute("kind") === "text"
@@ -671,11 +688,14 @@ customElements.define(
         contributor.apply(structuredClone(values[name]));
       for (const [name, value] of Object.entries(values)) {
         const control = this.#controlByName.get(name);
-        if (!control) continue;
-        this.#setInput(control, value);
-        this.style.setProperty(`--playground-${name}`, this.#cssValue(control, value));
-        keeps(this, `data-playground-${name}`, value);
+        if (control) this.#setInput(control, value);
       }
+      const reflection = this.#reflection();
+      for (const [name, value] of Object.entries(reflection.attributes))
+        keeps(this, name, value);
+      for (const [name, value] of Object.entries(reflection.properties))
+        this.style.setProperty(name, value);
+      void dressSamples(this, reflection);
       this.#renderOutput();
       this.#syncCopy();
       this.#paintPresets();

@@ -15,6 +15,10 @@ export async function mountSample(frame, options) {
   const owner = await import("./sample.js");
   return owner.mountSample(frame, options);
 }
+export async function dressSamples(element, dress) {
+  const owner = await import("./sample.js");
+  owner.dressSamples(element, dress);
+}
 
 export { USER_VIEW_RESTORE_CASES } from "./restore-state.js";
 export {

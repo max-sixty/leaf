@@ -4,10 +4,40 @@
  * focus from the page; this owner releases a live child once it presents, and after
  * that focus entering the frame is entry, the way it is for any iframe. The child's
  * final Escape asks the frame's owner to take focus back with `lf-sample-return`. Passive demonstrations use the
- * same host and remain inert throughout their playback. */
+ * same host and remain inert throughout their playback.
+ *
+ * An element can dress the children of the frames under it: attributes and custom
+ * properties each child's root wears, so a candidate that restyles a whole page keys on
+ * that child's root and never on the page holding the frame. A frame's nearest dressed
+ * ancestor decides. The child's bootstrap takes its dress before it paints, reset
+ * children included, and a new dress reaches every child already standing. */
 import { layerHeaders } from "./layer-client.js";
 import { pageUrl } from "./context.js";
 import { discardPageStorage } from "./storage.js";
+
+const dresses = new WeakMap();
+
+function dressFor(frame) {
+  for (let node = frame.parentElement; node; node = node.parentElement)
+    if (dresses.has(node)) return dresses.get(node);
+  return null;
+}
+
+function wear(root, dress) {
+  if (!dress) return;
+  for (const [name, value] of Object.entries(dress.attributes))
+    if (root.getAttribute(name) !== value) root.setAttribute(name, value);
+  for (const [name, value] of Object.entries(dress.properties))
+    root.style.setProperty(name, value);
+}
+
+export function dressSamples(owner, dress) {
+  dresses.set(owner, dress);
+  for (const frame of owner.querySelectorAll("iframe[data-lf-contained]")) {
+    const root = frame.contentDocument?.documentElement;
+    if (root && dressFor(frame) === dress) wear(root, dress);
+  }
+}
 
 async function request(url, body) {
   const response = await fetch(url, {
@@ -77,6 +107,7 @@ export function mountSample(frame, { template, passive = false }) {
   let loading = null;
   frame.inert = passive;
   frame.toggleAttribute("data-lf-contained", true);
+  frame.lfDressRoot = (root) => wear(root, dressFor(frame));
 
   const release = (url) => request(new URL("api/release", url), {});
 

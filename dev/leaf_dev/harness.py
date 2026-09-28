@@ -408,23 +408,15 @@ class PageClient:
             ) from error
 
 
-def tool_calls(record: dict) -> list[tuple[str, str]]:
-    """Each tool call in one stream record: its id, and what it runs, or the tool
-    and its file."""
+def commands(record: dict) -> list[str]:
+    """What each tool call in one stream record runs, or the tool and its file."""
     content = (record.get("message") or {}).get("content")
     return [
-        (
-            block["id"],
-            block["input"].get("command")
-            or " ".join(filter(None, [block["name"], block["input"].get("file_path")])),
-        )
+        block["input"].get("command")
+        or " ".join(filter(None, [block["name"], block["input"].get("file_path")]))
         for block in (content if isinstance(content, list) else ())
         if block.get("type") == "tool_use"
     ]
-
-
-def commands(record: dict) -> list[str]:
-    return [ran for _, ran in tool_calls(record)]
 
 
 def waits_started(record: dict) -> list[str]:

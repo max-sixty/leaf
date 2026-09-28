@@ -3,36 +3,22 @@ show which ones changed.
 
     uv run leaf-dev stills [BASE_REF]
 
-BASE_REF defaults to the merge base of HEAD and `main`. Each arm is the plugin payload
-at its commit (`leaf_dev.harness.build_pair`), so commit what you want compared. Every
-page is built from this checkout's example source by the arm's own launcher and served
-by that arm's `leaf server run --temporary`, so only the runtime, theme and server
-differ between the two stills of a state.
+BASE_REF defaults to the merge base of HEAD and `main`; each arm is the payload at its
+commit (`leaf_dev.harness.build_pair`), so commit what you want compared. Each page is
+built from this checkout's example source and served by the arm's own launcher, so
+only the runtime, theme and server differ between the two stills of a state.
 
-A state is an example, a viewport and color scheme, and the input that brings the page
-there from a fresh load (`DRIVERS`): a margin card opened by pointer or by keyboard, a
-reply being drafted, the Threads panel open, a board card grabbed, a code block
-focused. `leaf-dev probe --do drive:NAME` runs the same input. The catalogue (`STATES`)
-covers states a user reaches by acting, not only the page at rest, because a change
-can move what one of those states draws: a padding moved for layout covered the ring
-of a thread the keyboard had focused, which no resting page shows. Add a state where a
-change touches a surface the catalogue does not reach.
+A state is an example, a viewport and color scheme, and the input that brings a fresh
+tab there (`DRIVERS`, which `leaf-dev probe --do drive:NAME` also runs). The catalogue
+(`STATES`) covers states a user reaches by acting, not only pages at rest; add one
+where a change touches a surface it does not reach.
 
-Each state is captured from a fresh tab once the page is ready and settled, with
-reduced motion, at the viewport. States on one example share its page and run in the
-same order on both arms, so whatever an earlier state left in the log, both arms see.
-A state whose input fails on one arm is reported as failed there, with its error.
-
-A state changed when any pixel differs: two arms with the same runtime capture every
-state here identically, pixel for pixel. For each changed state the report crops both
-stills to the changed region, with a margin, and marks the changed pixels over the
-candidate. Everything lands in `.tmp/stills/`: `index.html` shows the changed states
-first, and each state's directory holds `base.png`, `head.png`, and for a change
-`base-crop.png`, `head-crop.png` and `diff.png`, ready to hand off as an `lf-shot`
-pair.
+A state changed when any pixel differs. Each state's directory under `.tmp/stills/`
+holds `base.png` and `head.png`, and for a change `base-crop.png` and `head-crop.png`
+cropped to the changed region, ready to hand off as an `lf-shot` pair, and `diff.png`
+marking the changed pixels.
 """
 
-import html
 import shutil
 import tempfile
 from collections.abc import Callable
@@ -167,33 +153,18 @@ STATES = (
 )
 
 
-def capture(browser, address: str, state: State, path: Path) -> str | None:
-    """Bring a fresh tab to `state` and screenshot its viewport to `path`; return
-    the error if the state's input failed."""
-    try:
-        with tab(browser, state.viewport, state.scheme) as page:
-            load(page, address)
-            state.drive(page)
-            settle(page)
-            page.screenshot(path=path)
-    except (PlaywrightError, PageNotReady) as error:
-        return str(error).splitlines()[0]
-    return None
+def capture(browser, address: str, state: State, path: Path) -> None:
+    """Bring a fresh tab to `state` and screenshot its viewport to `path`."""
+    with tab(browser, state.viewport, state.scheme) as page:
+        load(page, address)
+        state.drive(page)
+        settle(page)
+        page.screenshot(path=path)
 
 
-@dataclass
-class Compared:
-    state: State
-    failed: dict
-    changed: int = 0
-    box: tuple | None = None
-
-
-def compare(state: State, folder: Path, failed: dict) -> Compared:
-    """Read the two stills and, where they differ, write the crops."""
-    result = Compared(state, failed)
-    if failed:
-        return result
+def compare(folder: Path) -> int:
+    """How many pixels the two stills in `folder` differ by; where they differ, write
+    the crops and the diff."""
     base = Image.open(folder / "base.png").convert("RGB")
     head = Image.open(folder / "head.png").convert("RGB")
     # A pixel's largest difference in any one channel.
@@ -201,70 +172,20 @@ def compare(state: State, folder: Path, failed: dict) -> Compared:
     largest = ImageChops.lighter(ImageChops.lighter(red, green), blue)
     mask = largest.point(lambda v: 255 if v else 0)
     changed = mask.histogram()[255]
-    if not changed:
-        return result
-    left, top, right, bottom = mask.getbbox()
-    box = (
-        max(left - CROP_MARGIN, 0),
-        max(top - CROP_MARGIN, 0),
-        min(right + CROP_MARGIN, head.width),
-        min(bottom + CROP_MARGIN, head.height),
-    )
-    result.changed, result.box = changed, box
-    base.crop(box).save(folder / "base-crop.png")
-    head.crop(box).save(folder / "head-crop.png")
-    faded = Image.blend(head, Image.new("RGB", head.size, "white"), 0.6)
-    faded.paste(Image.new("RGB", head.size, (220, 0, 0)), mask=mask)
-    faded.crop(box).save(folder / "diff.png")
-    return result
-
-
-def report(results: list[Compared], commits: dict) -> Path:
-    def figure(label: str, src: str) -> str:
-        return (
-            f"<figure><figcaption>{label}</figcaption>"
-            f'<a href="{src}"><img src="{src}" alt="{label}"></a></figure>'
+    if changed:
+        left, top, right, bottom = mask.getbbox()
+        box = (
+            max(left - CROP_MARGIN, 0),
+            max(top - CROP_MARGIN, 0),
+            min(right + CROP_MARGIN, head.width),
+            min(bottom + CROP_MARGIN, head.height),
         )
-
-    sections = []
-    for r in sorted(results, key=lambda r: not r.failed and not r.changed):
-        name = html.escape(r.state.name)
-        title = (
-            f"{name}: {r.state.source}, {r.state.viewport[0]}x"
-            f"{r.state.viewport[1]}, {r.state.scheme}, "
-            f"{html.escape(r.state.drive.__doc__.strip())}"
-        )
-        if r.failed:
-            body = "".join(
-                f"<p>failed on {arm}: {html.escape(error)}</p>"
-                for arm, error in r.failed.items()
-            )
-        elif r.changed:
-            body = (
-                f"<p>{r.changed} pixels changed in {r.box}.</p><div class=pair>"
-                + figure("base", f"{name}/base-crop.png")
-                + figure("head", f"{name}/head-crop.png")
-                + figure("changed pixels", f"{name}/diff.png")
-                + "</div>"
-                + f'<p><a href="{name}/base.png">base viewport</a> · '
-                f'<a href="{name}/head.png">head viewport</a></p>'
-            )
-        else:
-            body = "<p>Unchanged.</p>"
-        sections.append(f"<section><h2>{title}</h2>{body}</section>")
-    page = OUT / "index.html"
-    page.write_text(
-        "<!doctype html><meta charset=utf-8><title>Stills</title><style>"
-        "body{font:14px system-ui;margin:24px;color:#222}"
-        "h2{font-size:15px;margin:28px 0 6px}"
-        ".pair{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start}"
-        "figure{margin:0}figcaption{color:#666;margin-bottom:4px}"
-        "img{max-width:100%;border:1px solid #ddd}"
-        "</style>"
-        f"<h1>Stills: base {commits['base'][:10]} vs head {commits['head'][:10]}</h1>"
-        + "".join(sections)
-    )
-    return page
+        base.crop(box).save(folder / "base-crop.png")
+        head.crop(box).save(folder / "head-crop.png")
+        faded = Image.blend(head, Image.new("RGB", head.size, "white"), 0.6)
+        faded.paste(Image.new("RGB", head.size, (220, 0, 0)), mask=mask)
+        faded.crop(box).save(folder / "diff.png")
+    return changed
 
 
 @click.command()
@@ -275,47 +196,37 @@ def stills(base_ref: str | None) -> None:
     if OUT.exists():
         shutil.rmtree(OUT)
     OUT.mkdir(parents=True)
-    failures: dict[str, dict] = {state.name: {} for state in STATES}
+    failed: dict[str, str] = {}
     with tempfile.TemporaryDirectory(prefix="leaf-stills-") as built:
         scratch = Path(built)
         arms, commits = build_pair(base_ref, scratch)
         with chrome() as browser:
             for source in dict.fromkeys(state.source for state in STATES):
-                states = [state for state in STATES if state.source == source]
                 for arm, arm_dir in arms.items():
                     with serving_source(
                         arm_dir,
                         ROOT / "examples" / f"{source}.html",
                         scratch / f"{arm}-{source}",
                     ) as address:
-                        for state in states:
+                        for state in STATES:
+                            if state.source != source:
+                                continue
                             folder = OUT / state.name
                             folder.mkdir(exist_ok=True)
-                            error = capture(
-                                browser, address, state, folder / f"{arm}.png"
-                            )
-                            if error:
-                                failures[state.name][arm] = error
-                            click.echo(
-                                f"{state.name} {arm}"
-                                + (f": failed: {error}" if error else ""),
-                                err=True,
-                            )
-    results = [
-        compare(state, OUT / state.name, failures[state.name]) for state in STATES
-    ]
-    changed = [r for r in results if r.changed]
-    failed = [r for r in results if r.failed]
-    click.echo(
-        f"base {commits['base'][:10]} vs head {commits['head'][:10]}: "
-        f"{len(changed)} of {len(STATES)} states changed, {len(failed)} failed"
-    )
-    for r in changed:
-        click.echo(
-            f"  changed {r.state.name}: {r.changed} px in {r.box} -> "
-            f"{OUT / r.state.name}"
-        )
-    for r in failed:
-        for arm, error in r.failed.items():
-            click.echo(f"  failed {r.state.name} on {arm}: {error}")
-    click.echo(f"report: {report(results, commits)}")
+                            try:
+                                capture(browser, address, state, folder / f"{arm}.png")
+                            except (PlaywrightError, PageNotReady) as error:
+                                failed[state.name] = (
+                                    f"on {arm}: {str(error).splitlines()[0]}"
+                                )
+    click.echo(f"base {commits['base'][:10]} vs head {commits['head'][:10]}")
+    unchanged = 0
+    for state in STATES:
+        folder = OUT / state.name
+        if state.name in failed:
+            click.echo(f"  failed  {state.name} {failed[state.name]}")
+        elif changed := compare(folder):
+            click.echo(f"  changed {state.name}: {changed} px -> {folder}")
+        else:
+            unchanged += 1
+    click.echo(f"{unchanged} of {len(STATES)} states unchanged")

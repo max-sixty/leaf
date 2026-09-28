@@ -53,8 +53,8 @@ and the others import it; a script under `scripts/` imports it too.
   examples, base plugin against HEAD's, with no model: wall time and a phase
   breakdown traced by `tracer/traced_leaf.py`.
 - `leaf-dev delivery-ab [BASE_REF]` compares how a live Claude Code agent handles a
-  comment through `leaf wait`, and what the page shows meanwhile, between a base plugin
-  and HEAD's. Its children cost about a dollar each.
+  comment through `leaf wait` between a base plugin and HEAD's. Its children cost about
+  a dollar each.
 - `leaf-dev guidance-ab [CASE]...` runs the guidance cases in `evals/` on the merge
   base's guidance and the working tree's at once, and prints each case's passes per
   arm (`/developing-leaf`, "Score a guidance change").

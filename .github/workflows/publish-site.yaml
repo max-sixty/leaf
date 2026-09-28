@@ -21,6 +21,7 @@ on:
       - 'example-previews.json'
       - 'dev/pyproject.toml'
       - 'dev/leaf_dev/__init__.py'
+      - 'dev/leaf_dev/browser.py'
       - 'dev/leaf_dev/harness.py'
       - 'dev/leaf_dev/example_data.py'
       - 'dev/leaf_dev/example_assets.py'

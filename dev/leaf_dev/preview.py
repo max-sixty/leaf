@@ -343,25 +343,38 @@ def refresh_preview(
     page: Path,
     launcher: Path,
     runtime: Path,
-    seed: dict,
+    state: dict,
     service: PreviewService,
     vendor: bool,
 ) -> bool:
     """Carry an edit into the live page, keeping its log; False if refused.
 
     `vendor` says a layer input changed; that, or a changed package selection,
-    re-copies the layer, and only a re-copy takes a process-owned server down. A source edit is written into
-    `index.html` and stamped, the way an agent revises a page, so it arrives in the
-    tab the user is standing in.
+    re-copies the layer, and only a re-copy takes a process-owned server down. A
+    source edit is written into `index.html` and stamped, the way an agent revises a
+    page, so it arrives in the tab the user is standing in. Only a source edit
+    touches `index.html`, so an agent's own revision of a `--user` preview survives
+    a runtime edit; a source edit over such a revision is refused rather than
+    replacing it.
     """
-    if fixture_seed(source) != seed:
+    if fixture_seed(source) != state["seed"]:
         return refused(
             "seeded history changed; restart the preview to rebuild the page "
             "from it, which discards this page's feedback"
         )
     try:
         incoming = source.read_bytes()
+        incoming_digest = hashlib.sha256(incoming).hexdigest()
+        source_changed = incoming_digest != state["source_digest"]
         authored = page / "index.html"
+        if source_changed and digest(authored) not in (
+            state["source_digest"],
+            incoming_digest,
+        ):
+            return refused(
+                "both the fixture and the preview's index.html changed; "
+                "reconcile them before retrying"
+            )
         packages = source_packages(source)
         selection_args = package_selection_args(packages)
         # The page's own package selection is vendored too, so a source that changed which
@@ -373,8 +386,8 @@ def refresh_preview(
             with service.replacing():
                 leaf(launcher, runtime, "page", "init", *selection_args, str(page))
         refresh_media(source, page)
-        previous = authored.read_bytes()
-        if incoming != previous:
+        if source_changed:
+            previous = authored.read_bytes()
             authored.write_bytes(incoming)
             try:
                 leaf(
@@ -389,6 +402,7 @@ def refresh_preview(
             except BaseException:
                 authored.write_bytes(previous)
                 raise
+            state["source_digest"] = incoming_digest
         mark_preview(source, page, runtime, service.user)
     except (LeafFailed, ValueError, OSError) as error:
         return refused(error)
@@ -543,8 +557,9 @@ def serve_preview(
     from leaf.files import read_json
     from leaf.layer import layer_inputs
 
-    # The seeded history the page was built with, which later edits may not change.
-    seed = fixture_seed(source)
+    # The seeded history the page was built with, which later edits may not change,
+    # and the source last stamped into it.
+    state = {"seed": fixture_seed(source), "source_digest": digest(source)}
     service = PreviewService(page, user)
     changes = None
     try:
@@ -558,7 +573,7 @@ def serve_preview(
         roots = layer_inputs(
             tuple(read_json(page / "registry.json")["$layer"]["packages"])
         )
-        watched = watch_paths(source, runtime, roots, seed)
+        watched = watch_paths(source, runtime, roots, state["seed"])
         changes = watch_changes(watched)
         print(
             preparation_note(
@@ -578,18 +593,18 @@ def serve_preview(
                 continue  # the idle wake-up that carried the check above
             # An added input is only in the reading taken after it arrived, and a
             # deleted one only in the reading taken while it was still there.
-            current = watch_paths(source, runtime, roots, seed)
+            current = watch_paths(source, runtime, roots, state["seed"])
             if not reported & (watched.paths | current.paths):
                 continue
             vendored = bool(reported & (watched.layer | current.layer))
             refreshed = refresh_preview(
-                source, page, launcher, runtime, seed, service, vendored
+                source, page, launcher, runtime, state, service, vendored
             )
             if refreshed:
                 roots = layer_inputs(
                     tuple(read_json(page / "registry.json")["$layer"]["packages"])
                 )
-                rebuilt = watch_paths(source, runtime, roots, seed)
+                rebuilt = watch_paths(source, runtime, roots, state["seed"])
             else:
                 rebuilt = current
             if rebuilt.roots != watched.roots:

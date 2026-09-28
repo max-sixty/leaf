@@ -1065,7 +1065,9 @@ def built_release() -> str:
 @click.command()
 @click.argument("target", default="https://leaf.page")
 @click.option(
-    "--release", help="Require this release (default: the one `leaf-dev site` built)."
+    "--release",
+    help="Require this release (default: the one `leaf-dev site` built; with "
+    "`--agent` at an origin, whichever it serves). `local` checks its own build.",
 )
 @click.option(
     "--agent",

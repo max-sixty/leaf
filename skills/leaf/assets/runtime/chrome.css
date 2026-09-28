@@ -887,7 +887,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   leaf-thread-narrowing { display: contents; }
   .lf-find { display: flex; gap: 8px; align-items: center; padding: 12px 16px 6px; }
   .lf-find-box { flex: 1; min-width: 0; }
-  .lf-thread-filter-toggle { flex: none; color: var(--muted); font-size: 13px; }
+  /* The chrome's own button face and type, which the panel's other buttons wear. */
+  .lf-thread-filter-toggle { flex: none; color: var(--muted); }
   .lf-thread-filter-toggle[aria-expanded="true"] { color: var(--ink); background: var(--chip); }
   .lf-thread-filter-reset { flex: none; font-size: var(--t-6); }
   .lf-thread-view { display: flex; align-items: baseline; gap: 8px;
@@ -1037,9 +1038,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-summary-expand:is(:focus-visible, .lf-focus-visible) {
     outline: var(--here-ring); --lf-here-ring: summary-fold;
     outline-offset: calc(-1 * var(--here-ring-w)); }
-  /* Drafts begin at the sent message's text edge. Send shares the field's row;
-     right padding keeps draft text clear of it as the field grows. */
-  .lf-thread-compact > .lf-compose { margin: 16px 0 8px; }
+  /* The reply box stands on the inset the quote and messages share, the column the
+     find box and the page composer also stand on, and its words start inside it as the
+     page composer's do. Standing wider so its draft began at the sent messages' text
+     edge put the one bordered field in the list 7px past every other box on both sides.
+     Send shares the field's row; right padding keeps draft text clear of it as the
+     field grows. */
+  .lf-thread-compact > .lf-compose { margin: 16px 8px 8px; }
   .lf-thread-compact > .lf-compose .lf-compose-field {
     border: 1px solid var(--border-2); border-radius: 6px; background: var(--card);
   }
@@ -1048,7 +1053,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     border-color: transparent;
   }
   .lf-thread-compact > .lf-compose .lf-compose-field > leaf-text {
-    font-size: 13px; line-height: 1.5; padding: 10px 7px 7px;
+    font-size: 13px; line-height: 1.5; padding: 10px 10px 7px;
     padding-inline-end: calc(var(--lf-icon-action-hit) + 12px);
     border: 0; border-radius: 0; background: transparent;
     max-height: min(50vh, 35cqh);

@@ -7742,3 +7742,46 @@ def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
     expect(
         page.locator(f'.lf-threads > .lf-thread[data-id="{root}"] .lf-thread-topic')
     ).to_have_text("Terrace accessibility")
+
+
+def test_the_panel_boxes_share_one_column_and_one_button_face(browser, serve):
+    """Every bordered box in the Threads panel stands on one column: the find box, an
+    open thread's messages and its reply box, and the page composer at the foot. The
+    reply box once stood 7px wider on each side, so its words started at the messages'
+    text edge while its border overhung the column everything else keeps. The View
+    button beside the find box wears the chrome's own button type, as the rest of the
+    panel's buttons do."""
+    page = open_page(browser, serve(LONG_PAGE, comments=1))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(".lf-threads > .lf-thread").first
+    if thread.get_attribute("open") is None:
+        thread.locator(":scope > .lf-thread-summary").click()
+    expect(thread.locator(".lf-compose-field")).to_be_visible()
+    boxes = page.evaluate(
+        """() => {
+          const box = (selector, end = selector) => [
+            document.querySelector(selector).getBoundingClientRect().left,
+            document.querySelector(end).getBoundingClientRect().right,
+          ];
+          return {
+            message: box('.lf-thread[open] > .lf-msg'),
+            reply: box('.lf-thread[open] > .lf-compose .lf-compose-field'),
+            find: box('.lf-find-box', '.lf-thread-filter-toggle'),
+            general: box('.lf-general .lf-compose-field'),
+          };
+        }"""
+    )
+    left, right = boxes["message"]
+    for name, (at, to) in boxes.items():
+        # The find box and the page composer stand on the panel's padding, a thread's
+        # boxes one transparent border inside the list's; a pixel is that border.
+        assert at == pytest.approx(left, abs=1.01), (name, boxes)
+        assert to == pytest.approx(right, abs=1.01), (name, boxes)
+    faces = page.evaluate(
+        """() => ['.lf-thread-filter-toggle', '.lf-threads-toggle'].map((selector) => {
+          const style = getComputedStyle(document.querySelector(selector));
+          return [style.fontSize, style.lineHeight];
+        })"""
+    )
+    assert faces[0] == faces[1], faces

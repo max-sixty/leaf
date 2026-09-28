@@ -171,7 +171,14 @@ const softKeyboard = () => coarsePointer.matches;
 export const submitBindings = () =>
   softKeyboard() ? ["Mod+Enter"] : ["Enter", "Mod+Enter"];
 export const submitLabel = () => spell(submitBindings()[0]);
-export const submitHint = () => (softKeyboard() ? "" : submitLabel());
+// Whether a surface advertises keys: a key drawn where the user has no keyboard names a
+// press they cannot make, and costs room on the smallest window there is. The same
+// finger reading hides the shortcut bar (chrome.css, `(pointer: coarse)`); every
+// runtime surface that paints a key it was not asked for — a field's send key, the
+// contextual key that enters it — asks this rather than the pointer. A map the user
+// armed from a keyboard (Go-to, the target chooser) is an answer, not an advert, and
+// draws regardless.
+export const advertisesKeys = () => !coarsePointer.matches;
 // Speech keeps every declared modifier explicit. A compact keycap may show Shift+t as T,
 // which is the keyboard's face, while a listener needs the physical press because many
 // speech configurations do not distinguish letter case.

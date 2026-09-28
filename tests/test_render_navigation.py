@@ -10567,6 +10567,27 @@ def test_touch_return_keeps_newlines_until_the_user_taps_submit(browser, serve):
     expect(page.locator("#plan .lf-draft-body")).to_contain_text("Second paragraph")
 
 
+def test_a_field_names_no_key_to_a_finger(browser, serve):
+    """A touch screen hides the shortcut bar because its keys name presses the user
+    cannot make, and a text field's placeholder is the same advert: the Threads panel
+    said "Comment on the page c" and a thread's box "Reply c" to a phone. Whether a
+    surface advertises keys is one reading (`advertisesKeys`), asked for the key that
+    enters a box as well as the one that sends it."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True
+    )
+    page = open_page(browser, serve(INLINE_PAGE, comments=2), context=context)
+    assert page.evaluate("() => matchMedia('(pointer: coarse)').matches")
+    page.locator(".lf-threads-toggle").click()
+    general = page.locator(".lf-general leaf-text")
+    expect(general).to_be_visible()
+    expect(general).to_have_attribute("placeholder", "Comment on the page")
+    general.focus()
+    expect(general).to_be_focused()
+    expect(general).to_have_attribute("placeholder", "Comment on the page")
+    expect(page.locator(".lf-compose-placeholder")).to_have_count(0)
+
+
 def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     """Every surface naming a key promises the press does something now. One table
     kept the words from drifting and not the surfaces: the shortcut bar asked `when`,

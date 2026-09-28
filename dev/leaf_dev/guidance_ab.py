@@ -1,5 +1,5 @@
 """Score a guidance change: the cases in `evals/` on the base's guidance and on the
-working tree's, run together, read into one table and a Record row.
+working tree's, run together, read into one table.
 
     uv run leaf-dev guidance-ab pin-takes-no-page-room --runs 1
 
@@ -14,7 +14,8 @@ Both arms get the same cases: the working tree's case directories whose names ma
 CASE glob, or every case. Copying them in, rather than passing `--case`, lets several
 globs select, and puts a case newer than the base on the base too.
 
-Both runs start at once, with `evals/README.md`'s flags, since batches an hour apart
+Both runs start at once, with the flags `claude plugin eval` needs here (`FLAGS`,
+`/developing-leaf`, "Score a guidance change"), since batches an hour apart
 drift. Each runs in a process group of its own, which its `claude -p` children join,
 and however the runs or this command end, SIGTERM included, it stops whatever is left
 in both groups, since those children bill while they run. Each run's
@@ -25,9 +26,6 @@ A case's count on an arm is the runs `claude plugin eval` passed, and it names t
 that errored, such as on a rate limit or a timeout, since those measured nothing about
 the guidance. A run stopped early (the aggregate's `partial`) is warned about. The
 cost is the children's and the judges', which the aggregate's `costUsd` leaves out.
-
-The Record row it prints leaves "Tried" for the author and states the result as counts,
-which the author rewrites as what the runs did.
 """
 
 import fnmatch
@@ -148,7 +146,7 @@ def guidance_ab(case_globs: tuple[str, ...], base: str | None, runs: int | None)
 
     Runs the cases in evals/ matching the CASE globs, or all of them, on the guidance
     at --base, else the merge base with main, and the working tree's at once. Prints
-    each case's passes per arm, the cost, and a Record row."""
+    each case's passes per arm and the cost."""
     cases = select_cases(case_globs)
     started = datetime.now().astimezone()
     OUT.mkdir(parents=True, exist_ok=True)
@@ -190,10 +188,3 @@ def guidance_ab(case_globs: tuple[str, ...], base: str | None, runs: int | None)
     click.echo(f"\ncost ${cost:.2f}")
     for arm in ARMS:
         click.echo(f"{arm} report:\nfile://{out / arm / 'report.html'}")
-    named = ", ".join(f"`{case}`" for case in cases) if case_globs else "All cases"
-    per_case = {len(v) for arm in ARMS for v in results[arm].values()}
-    times = f" ×{per_case.pop()} per arm" if len(per_case) == 1 else ""
-    measured = f"{named}{times}; base at {commits['base'][:9]}, candidate the working "
-    measured += "tree, run together"
-    result = "; ".join(f"`{case}` {before} to {after}" for case, before, after in rows)
-    click.echo(f"\n| {started:%m-%d} |  | {measured} | {result}. ${cost:.2f} |")

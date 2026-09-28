@@ -1,6 +1,6 @@
 # From session 786842ae, whose design page argued for its pick and asked questions
 # only the pick raised. Main at d088065f5 failed 0 of 3; the authoring-asks.md
-# paragraph on pages for choosing an approach passed 3 of 3.
+# paragraph on pages for choosing an approach passed 4 of 4.
 schema_version: '1.0'
 name: approach-page-leaves-the-choice-open
 description: "Asks: a page for the user to choose an approach is built around that choice, not the author's pick, and asks nothing that only the pick raises."

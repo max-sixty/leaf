@@ -49,7 +49,7 @@ and the others import it; a script under `scripts/` imports it too.
   and HEAD's. Its children cost about a dollar each.
 - `leaf-dev guidance-ab [CASE]...` runs the guidance cases in `evals/` on the merge
   base's guidance and the working tree's at once, and prints each case's passes per
-  arm and a Record row (`evals/README.md`).
+  arm (`/developing-leaf`, "Score a guidance change").
 - `leaf-dev ci-failures [REF]` reads the failing tests and steps in REF's `ci` runs
   and in its merge base's, and says whether the branch may land red
   (`.claude/skills/developing-leaf/SKILL.md`, "Land a change"); `--run ID` lists

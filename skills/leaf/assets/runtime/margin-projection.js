@@ -785,6 +785,7 @@ export function createMarginProjection({
           reference,
           { middleware: [threadCardMiddleware(cluster, target)] },
           ({ middlewareData }) => middlewareData.threadCard?.geometry?.plane,
+          cluster,
         );
       })
       .then((position) => {
@@ -794,10 +795,12 @@ export function createMarginProjection({
         previewHold = geometry.hold;
         previewAway = geometry.away;
         // An unchanged declaration is the browser's own no-op, and `keeps` is the rest's.
-        preview.style.left = `${position.x}px`;
         // A card held by its foot writes its foot, so growth before the next placement
         // moves its top.
-        preview.style.top = `${position.y + (drafting ? geometry.height / scale.y : 0)}px`;
+        previewPlacement.stand(
+          position.x,
+          position.y + (drafting ? geometry.height / scale.y : 0),
+        );
         // Leaving with its cluster, the card passes under the chrome, which stacks over
         // it, and a reading region cuts it at the region's edge as it cuts the words.
         if (region) {

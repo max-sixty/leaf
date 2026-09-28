@@ -682,37 +682,25 @@ export function createResponseSurface({
                     },
                   },
                 }),
-                // Where the bar landed in client coordinates, which the attachments
-                // below are kept in, whatever the plane's positioning space.
-                {
-                  name: "client",
-                  fn: ({ x, y, rects }) => ({
-                    data: {
-                      x: x - rects.reference.x + keepClear.left,
-                      y: y - rects.reference.y + keepClear.top,
-                    },
-                  }),
-                },
               ],
             },
             plane,
+            owner ?? document.documentElement,
           );
         },
       )
       .then((position) => {
         if (!position) return;
         const { x, y, placement } = position;
-        const client = position.middlewareData.client;
         if (!stillCurrent()) return;
         fabPlacement ??= placement;
         const beside = /^(left|right)/.test(placement);
         const height = fabBar.getBoundingClientRect().height;
-        if (beside) fabSideFootOffset ??= client.y + height - target.top;
-        else fabInlineConnection ??= client.x - keepClear.right;
+        if (beside) fabSideFootOffset ??= y + height - target.top;
+        else fabInlineConnection ??= x - keepClear.right;
         fabPlacementInput = placementInput;
         keeps(fabBar, "data-lf-placement", fabPlacement);
-        fabBar.style.left = `${x}px`;
-        fabBar.style.top = `${y + (beside ? height : 0)}px`;
+        fabPosition.stand(x, y + (beside ? height : 0));
         fabBar.style.removeProperty("visibility");
         answerFabPosition(true);
         return true;

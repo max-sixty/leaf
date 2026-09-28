@@ -156,8 +156,9 @@ lf-command-readings > section.panel { margin: 0; }
    it a cell of its own, and a goal ending "Last worktree: <a>atlas/dedupe-attempt</a>."
    stood on three rows with its full stop alone on the last. The generated chips lead
    the goal (lf-command.js) and float to its right, level with the title, which wraps
-   short of them. */
-lf-command [data-lf-command-goal] { display: flow-root; }
+   short of them. Containing the float makes the goal a frame its children's margins
+   stop at, so it says so and the theme trims them there. */
+lf-command [data-lf-command-goal] { display: flow-root; --lf-block-frame: 1; }
 lf-command [data-lf-command-goal] > strong { display: block; }
 lf-command [data-lf-command-goal] > .lf-task-meta { float: right;
   display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end;

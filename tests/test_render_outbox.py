@@ -2882,7 +2882,10 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
         timeout=1_000,
     )
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
+    # The user's comment after the accept is their newest gesture, and a comment is not
+    # taken back, so `z` offers nothing; the suggestion's own Undo still reaches it.
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
+    expect(suggestion_control(page, "sug-refill", "undo")).to_be_enabled()
     expect(suggestion_control(page, "sug-refill", "undo")).to_be_enabled()
     assert take_browser_errors(page) == [
         "leaf: State presentation failed: injected wake candidate fault",

@@ -4850,6 +4850,10 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # Primary buttons keep the authored theme's accent action face when they
         # enter chrome rows whose quiet controls deliberately clear that paint.
         "primary",
+        # Under a finger a reaction trigger meets the aim floor and an agent message's
+        # head row holds it (shadow.css), since both stand in declared widget trees too.
+        "lf-msg",
+        "lf-react",
     }, "the authored-theme class surface changed: widen the exception on purpose"
     # Every one of these is worn by something the runtime puts inside the page rather
     # than inside its own container: a scoped rule cannot reach the copy in the page.

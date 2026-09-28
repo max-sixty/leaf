@@ -1,6 +1,6 @@
 schema_version: '1.0'
 name: shot-pair-live-data
-description: "Source files and media: a pair whose outlines would mostly mark live data that moved between captures that cannot be retaken is `unmarked`, and its prose says where to look."
+description: "Source files and media: a pair whose outlines would mostly mark live data that moved between captures that cannot be retaken is marked `no-outlines`, and its prose says where to look."
 tags:
 - evidence
 context:
@@ -36,9 +36,9 @@ graders:
   type: tool_used
   tool: Read
   input_match: authoring-evidence
-- name: pair-unmarked
+- name: pair-without-outlines
   type: regex
-  pattern: <lf-shot\b(?=[^>]*\bbefore=["'][^"']*dash-before\.png)(?=[^>]*\bafter=["'][^"']*dash-after\.png)(?=[^>]*\sunmarked\b)
+  pattern: <lf-shot\b(?=[^>]*\bbefore=["'][^"']*dash-before\.png)(?=[^>]*\bafter=["'][^"']*dash-after\.png)(?=[^>]*\sno-outlines(?:=""|\s|/?>))
   flags: i
 - name: judgment
   type: llm

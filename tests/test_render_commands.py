@@ -793,8 +793,8 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
     where a pair differs, or that it differs nowhere: a handoff once shipped a pair
     whose sides matched in every part its prose described. So the widget outlines each
     changed region over both frames, at the same place, and says on the rail what they
-    add up to, including a difference too slight to point at, unless the author marks
-    the pair `unmarked`."""
+    add up to, including a difference too slight to point at. An author can hide the
+    outlines and their count with `no-outlines`."""
     plain = solid_png(600, 300, (210, 220, 235))
     patched = solid_png(
         600, 300, (210, 220, 235), patch=(420, 200, 60, 40, (30, 30, 30))
@@ -816,8 +816,10 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
                  before="{sources[plain]}" after="{sources[plain]}"></lf-shot>
                <lf-shot id="shot-tint" alt="a slight tint"
                  before="{sources[plain]}" after="{sources[tinted]}"></lf-shot>
-               <lf-shot id="shot-unmarked" unmarked alt="a dark square, unmarked"
+               <lf-shot id="shot-quiet" no-outlines alt="a dark square"
                  before="{sources[plain]}" after="{sources[patched]}"></lf-shot>
+               <lf-shot id="shot-quiet-same" no-outlines alt="nothing"
+                 before="{sources[plain]}" after="{sources[plain]}"></lf-shot>
                </main>""",
         ),
         media={source: data for data, source in sources.items()},
@@ -848,15 +850,15 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
         assert left < 420 and right > 480 and top < 200 and bottom > 240
         assert right - left < 80 and bottom - top < 60
 
-    # An author can hide the outlines and the reading, and give them back, in place.
-    unmarked = page.locator("#shot-unmarked")
-    expect(unmarked.locator(".lf-shotdelta")).to_be_attached()
-    expect(unmarked.locator(".lf-shotdelta")).to_be_hidden()
-    expect(unmarked.locator(".lf-shotdiff > span")).to_have_count(2)
-    expect(unmarked.locator(".lf-shotdiff").first).to_be_hidden()
-    unmarked.evaluate("shot => shot.removeAttribute('unmarked')")
-    expect(unmarked.locator(".lf-shotdelta")).to_have_text("1 changed area")
-    expect(unmarked.locator(".lf-shotdiff > span").first).to_be_visible()
+    # An author can hide the outlines and their count, but not the word that a pair
+    # has nothing to point at.
+    quiet = page.locator("#shot-quiet")
+    expect(quiet.locator(".lf-shotdiff > span")).to_have_count(2)
+    expect(quiet.locator(".lf-shotdiff").first).to_be_hidden()
+    expect(quiet.locator(".lf-shotdelta")).to_have_text("1 changed area")
+    expect(quiet.locator(".lf-shotdelta")).to_be_hidden()
+    expect(page.locator("#shot-quiet-same .lf-shotdelta")).to_have_text("identical")
+    expect(page.locator("#shot-quiet-same .lf-shotdelta")).to_be_visible()
 
 
 def test_a_shot_refuses_a_pair_shot_at_two_widths(browser, serve):

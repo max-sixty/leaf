@@ -17,8 +17,9 @@
  * then still sees where the pair differs, that it changed throughout, or that nothing
  * but slight redrawing, or nothing at all, differs. `difference` is that reading, in
  * the images' own pixels, or null for a pair the widget refused; a parent that hides
- * the rail states it from there. An authored `unmarked` hides the outlines and the
- * reading in CSS, so a revision can turn them on and off in place.
+ * the rail states it from there. An authored `no-outlines` hides the outlines and the
+ * count of changed areas; a reading with no outlines to hide, "identical" among them,
+ * stays on the rail.
  * Pairs compare one per frame, so a page of large captures does not hold input for the
  * whole batch.
  *
@@ -35,6 +36,7 @@ import {
   commandScope,
   compareImages,
   describeDifference,
+  differenceKind,
   once,
   offer,
   failSoft,
@@ -317,7 +319,7 @@ customElements.define(
       }
       const count = document.createElement("span");
       count.className = "lf-shotdelta";
-      count.dataset.lfShotDelta = regions.length ? "changed" : "identical";
+      count.dataset.lfShotDelta = differenceKind(reading);
       relabel(count, describeDifference(reading), { says: false });
       this.#captions.get("before").after(count);
       return reading;

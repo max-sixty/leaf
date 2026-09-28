@@ -49,5 +49,5 @@ graders:
     The captures differ: before, the reply box is short and scrolled to show only
     lines 17 to 29; after, the box is much taller and shows all thirty lines. Read
     the reply. Pass if the HTML shows the pair as one lf-shot and its prose or alt
-    describes that difference. Fail if it leaves the pair out, marks it `unmarked`,
+    describes that difference. Fail if it leaves the pair out, marks it `no-outlines`,
     or says the captures match or do not show the change.

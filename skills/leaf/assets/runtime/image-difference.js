@@ -159,13 +159,24 @@ const largest = (one, i, other, j) =>
     Math.abs(one[i + 3] - other[j + 3]),
   );
 
-/* The reading in a few words: "identical", "only slight changes", "changed
- * throughout", or how many regions changed. */
-export function describeDifference({ changed, throughout, regions }) {
+/* Which of four readings a difference is: "identical", "throughout", "slight" (it
+ * changed, but nowhere far enough to point at), or "areas", the one with regions. */
+export function differenceKind({ changed, throughout, regions }) {
   if (!changed) return "identical";
-  if (throughout) return "changed throughout";
-  if (!regions.length) return "only slight changes";
-  return `${regions.length} changed ${regions.length === 1 ? "area" : "areas"}`;
+  if (throughout) return "throughout";
+  return regions.length ? "areas" : "slight";
+}
+
+/* The reading in a few words: "identical", "changed throughout", "only slight
+ * changes", or how many regions changed. */
+export function describeDifference(reading) {
+  const { length } = reading.regions;
+  return {
+    identical: "identical",
+    throughout: "changed throughout",
+    slight: "only slight changes",
+    areas: `${length} changed ${length === 1 ? "area" : "areas"}`,
+  }[differenceKind(reading)];
 }
 
 /* `differingRegions` for two decoded images: HTMLImageElements, ImageBitmaps, or any

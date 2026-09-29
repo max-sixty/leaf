@@ -1273,7 +1273,7 @@ export function createResponseSurface({
     // passage's first line, which a block taller than the window would not bring back;
     // inline, it is in flow and the browser's own reveals reach it.
     declareOffFlowSurface(fabBar, {
-      away: () => Boolean(fabAnchor && fabFloating && !seenRect(fabBar, new Map())),
+      floats: () => Boolean(fabAnchor && fabFloating),
       bringBack: (behavior) => {
         const found = resolveAnchor(fabAnchor, pageText());
         const start = fabAnchor.quote && found && targetSegments(found)[0]?.node;

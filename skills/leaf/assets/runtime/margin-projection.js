@@ -2904,7 +2904,6 @@ export function createMarginProjection({
     });
     // Carried away with its cluster, the card comes back with it.
     declareOffFlowSurface(preview, {
-      away: () => previewAway,
       bringBack: (behavior) =>
         scrollToElement(
           targetFor(previewEntry) ?? previewMarginEntry,

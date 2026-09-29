@@ -1796,6 +1796,26 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
         "() => document.activeElement.closest('.lf-margin-preview') !== null"
     )
     page.wait_for_function(shown)
+    # A card the page has carried half under the banner, Reply with it, is as unseen
+    # there as one scrolled off: a landing in it brings it back all the same.
+    reply.evaluate(
+        """async (box) => {
+          const head = document.querySelector('.lf-banner').getBoundingClientRect().bottom;
+          const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+          while (box.getBoundingClientRect().top >= head) {
+            scrollBy(0, 10);
+            await frame();
+          }
+        }"""
+    )
+    rendered(page)
+    assert page.evaluate(
+        "() => document.querySelector('.lf-margin-preview').getBoundingClientRect().bottom"
+        " > document.querySelector('.lf-banner').getBoundingClientRect().bottom"
+    )
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+    page.wait_for_function(shown)
 
 
 def test_a_pane_frame_comment_preview_is_not_confined_to_its_body(browser, serve):

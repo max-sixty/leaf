@@ -357,6 +357,49 @@ def test_live_samples_keep_real_gestures_and_drafts_inside_the_child(browser, se
     )
 
 
+def test_a_window_sample_is_a_whole_leaf_window_that_scrolls_inside(browser, serve):
+    """A block sample is as tall as its page and keeps only the Threads row of its
+    chrome; a window sample keeps a window's height, its full chrome, and scrolls."""
+    filler = "".join(
+        f'<p id="filler-{i}">Line {i} of a long page.</p>' for i in range(60)
+    )
+    source = leaf_page(
+        "window sample",
+        f"""
+<h1>Window sample</h1>
+<lf-sample id="window-sample" label="a whole window" window>
+  <template id="window-page" data-sample><h1>Child</h1>{filler}</template>
+</lf-sample>
+""",
+    )
+    page = open_page(browser, serve(source))
+    sample = page.locator("#window-sample")
+    child = sample.evaluate(
+        """async sample => {
+          const doc = await sample.ready;
+          await new Promise(requestAnimationFrame);
+          await new Promise(requestAnimationFrame);
+          return {
+            block: doc.documentElement.hasAttribute('data-lf-sample-block'),
+            bar: getComputedStyle(doc.querySelector('.lf-shortcut-bar')).display,
+          };
+        }"""
+    )
+    assert not child["block"]
+    assert child["bar"] != "none"
+    frame = sample.locator("iframe")
+    viewport = page.viewport_size
+    expected = min(0.75 * viewport["height"], 48 * 16)
+    assert abs(frame.bounding_box()["height"] - expected) <= 2
+
+    box = frame.bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.wheel(0, 300)
+    content = page.frame_locator("#window-sample iframe").locator(":root")
+    expect(content).to_have_js_property("scrollTop", 300)
+    assert frame.bounding_box()["height"] == box["height"]
+
+
 def test_live_samples_retire_before_navigation_and_coalesce_reset(browser, serve):
     """A held replacement navigation cannot keep a released child alive."""
     page = open_page(browser, serve(LIVE_SAMPLES_PAGE))

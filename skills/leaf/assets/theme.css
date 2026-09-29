@@ -601,14 +601,14 @@ html { background: var(--paper); }
     body { min-height: 100%; }
     body::before { content: ""; display: block; height: var(--lf-banner-h); }
   }
-  /* A live sample is a block of its containing page, and its frame takes the body's
+  /* A block sample stands in its containing page, and its frame takes the body's
    * height (lf-sample.js). So the body keeps to its content rather than filling the
    * frame, which would hold the frame at its tallest, nothing scrolls inside, and a
    * wheel reaches the containing page. The page's rhythm is set for a window; a block
    * takes a block's. The banner keeps only its one row of actions (chrome.css). An open
    * auxiliary surface covers the sample at the height its page already has: opening
    * one changes nothing about the containing page's layout. */
-  html[data-lf-live][data-lf-contained] {
+  html[data-lf-live][data-lf-sample-block] {
     --lf-banner-h: 48px;
     --lf-bottom-bar-h: 0px;
     overflow-y: hidden;

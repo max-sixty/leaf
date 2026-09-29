@@ -4,7 +4,9 @@
  * focus from the page; this owner releases a live child once it presents, and after
  * that focus entering the frame is entry, the way it is for any iframe. The child's
  * final Escape asks the frame's owner to take focus back with `lf-sample-return`. Passive demonstrations use the
- * same host and remain inert throughout their playback.
+ * same host and remain inert throughout their playback. A child is a block of the
+ * page holding it unless it is asked for as a window: then it is a whole Leaf window,
+ * chrome included, at the frame's size.
  *
  * An element can dress the children of the frames under it: attributes and custom
  * properties each child's root wears, so a candidate that restyles a whole page keys on
@@ -98,7 +100,10 @@ function presented(frame, url, signal) {
   });
 }
 
-export function mountSample(frame, { template, passive = false }) {
+export function mountSample(
+  frame,
+  { template, passive = false, window: asWindow = false },
+) {
   if (!template) throw new Error("a sample needs an authored template id");
   let current = null;
   let destroyed = false;
@@ -130,7 +135,11 @@ export function mountSample(frame, { template, passive = false }) {
   async function replace() {
     await retire();
     if (destroyed) throw new DOMException("sample destroyed", "AbortError");
-    const { url } = await request(pageUrl("api/samples"), { template, passive });
+    const { url } = await request(pageUrl("api/samples"), {
+      template,
+      passive,
+      window: asWindow,
+    });
     current = new URL(url, location.href).href;
     try {
       if (destroyed) throw new DOMException("sample destroyed", "AbortError");

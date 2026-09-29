@@ -106,8 +106,9 @@ custom property is a quoted CSS string; its data attribute contains the unquoted
 
 A candidate that restyles a whole page, such as Leaf's own Asks, focus rings, or chrome,
 or a library whose stylesheet is global, needs a page of its own: put an `lf-sample` in
-the preview (`references/page-authoring.md`, "Live samples") and the candidate's CSS in a
-`<style>` inside its template, keyed on the child's root
+the preview (`references/page-authoring.md`, "Live samples"), a `window` one when the
+candidate reaches Leaf's chrome, and the candidate's CSS in a `<style>` inside its
+template, keyed on the child's root
 (`:root[data-playground-format="status strip"]`). Each child the sample presents,
 including after Reset, wears the same properties and attributes on its root from its
 first paint. The surrounding page holds the playground the user is operating, so its

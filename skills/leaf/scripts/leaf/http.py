@@ -699,6 +699,7 @@ class PageEndpoint:
         child.path = inside or "/"
         child.parent = self
         child.passive = sample.passive
+        child.window = sample.window
         child.asset_root = sample.asset_root
         child.frame_ancestors_policy = (
             "frame-ancestors 'self'" if self.frame_ancestors_policy else None
@@ -1039,13 +1040,15 @@ class PageEndpoint:
         if path == "/api/samples":
             template = self.posted.get("template")
             passive = self.posted.get("passive", False)
+            window = self.posted.get("window", False)
             if (
                 not isinstance(template, str)
                 or not template
                 or not isinstance(passive, bool)
+                or not isinstance(window, bool)
             ):
                 return self._refuse(
-                    "sample requires a template id and a boolean passive value"
+                    "sample requires a template id and boolean passive and window values"
                 )
             revision = view_revision or active_revision
             if revision is None:
@@ -1072,6 +1075,7 @@ class PageEndpoint:
                     data,
                     template,
                     passive,
+                    window,
                     asset_root,
                 )
             except ValueError as error:
@@ -1111,13 +1115,14 @@ class SampleEndpoint(PageEndpoint):
         return self.asset_root
 
     def _delivery(self, artifact: RevisionArtifact, revision: int) -> Delivery:
-        # A live child lays out as a block of its containing page (theme.css). Every
+        # A child lays out as a block of its containing page (theme.css), unless it
+        # demonstrates a whole window, chrome and all, at its frame's size. Every
         # child arrives inert, so its startup cannot take focus from the page; the
-        # host releases a live one once it presents. A passive replay demonstrates a
-        # whole window and never takes input.
+        # host releases a live one once it presents. A passive replay never takes
+        # input.
         return replace(
             super()._delivery(artifact, revision),
-            html_attributes=({} if self.passive else {"data-lf-contained": ""})
+            html_attributes=({} if self.window else {"data-lf-sample-block": ""})
             | {"data-lf-user-scope": self.page_root + "/"},
             body_attributes={"inert": ""}
             | ({"data-lf-sample-passive": ""} if self.passive else {}),

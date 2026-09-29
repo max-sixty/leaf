@@ -269,7 +269,7 @@ def test_samples_use_captured_resources_and_independent_event_logs(server, page_
     assert f'data-lf-entry="{root}/leaf.js"'.encode() in document
     assert f'data-lf-page-root="{child.removeprefix(server)}"'.encode() in document
     served = structure_model.SourceDocument(document.decode()).tree
-    assert "data-lf-contained" in served.find("html").attrs
+    assert "data-lf-sample-block" in served.find("html").attrs
     assert "inert" in served.find("body").attrs
     assert fetch(child + "/theme.css") == (200, captured_theme)
     [module_path] = re.findall(rb'src="([^"]+/page/sample.js)"', document)
@@ -451,6 +451,31 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
     status, raw = fetch(f"{server}/api/samples", data=b'{"template":"missing"}')
     assert status == 400 and "unknown sample template" in json.loads(raw)["error"]
     assert fetch(children[0] + "/api/state", token=None)[0] == 403
+
+
+def test_a_sample_is_a_block_of_its_page_unless_it_is_asked_for_as_a_window(
+    server, page_dir
+):
+    template = '<template id="practice" data-sample><h1>Practice</h1></template>'
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
+    publish(page_dir)
+
+    def child_root(body):
+        status, raw = fetch(f"{server}/api/samples", data=body)
+        assert status == 200, raw
+        document = fetch(server + json.loads(raw)["url"])[1].decode()
+        return document[
+            document.index("<html") : document.index(">", document.index("<html"))
+        ]
+
+    assert "data-lf-sample-block" in child_root(b'{"template":"practice"}')
+    assert "data-lf-sample-block" not in child_root(
+        b'{"template":"practice","window":true}'
+    )
+    status, raw = fetch(
+        f"{server}/api/samples", data=b'{"template":"practice","window":"yes"}'
+    )
+    assert status == 400 and "boolean passive and window" in json.loads(raw)["error"]
 
 
 def test_sample_template_lookup_stays_within_the_requesting_page(server, page_dir):

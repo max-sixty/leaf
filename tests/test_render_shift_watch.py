@@ -30,9 +30,7 @@ def test_typing_that_carries_its_field_fails_at_the_last_keystroke(browser):
     page = field_page(browser, "carry")
     page.locator("#field").fill("a")
     judge_shifts()
-    consume_browser_errors(
-        page, "typing in textarea#field moved textarea#field"
-    )
+    consume_browser_errors(page, "typing in textarea#field moved textarea#field")
 
 
 def test_typing_may_grow_its_field(browser):

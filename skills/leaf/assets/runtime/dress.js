@@ -6,7 +6,7 @@
  * a whole page keys on that child's root and never on the page holding the frame. A
  * child takes its dress in its bootstrap, before it paints, reset children included,
  * and a new dress reaches every child already standing. */
-import { keeps } from "./widget-elements.js";
+import { keeps } from "./keeps.js";
 
 const worn = new WeakMap();
 const dresses = new WeakMap();
@@ -20,8 +20,7 @@ export function wear(element, dress) {
   for (const [name, value] of Object.entries(dress.attributes))
     keeps(element, name, value);
   for (const [name, value] of Object.entries(dress.properties))
-    if (element.style.getPropertyValue(name) !== value)
-      element.style.setProperty(name, value);
+    element.style.setProperty(name, value);
   worn.set(element, dress);
 }
 

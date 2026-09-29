@@ -10120,7 +10120,7 @@ def test_a_column_of_moments_is_time_only_where_each_states_its_zone(browser, se
     that column stays the words the body wrote, as does one shaped like months that names
     none. Two labels naming one instant would draw two rows at one x on a line, and are
     refused like two rows sharing a label; a bar chart keeps a slot per label, so there
-    they are two bars."""
+    they are two bars, and a row chart draws its dated rows as the labels they are."""
     hours = "".join(f"2026-06-01T{h:02}:00Z, {h}\n" for h in range(12))
     source = leaf_page(
         "moments",
@@ -10149,6 +10149,11 @@ day, depth
 2026-06, 4
 2026-06-01, 7
 </pre></lf-chart>
+<lf-chart id="c-rows" kind="rows" y="queue depth"><pre>
+day, depth
+2026-06-01, 4
+2026-06-02, 7
+</pre></lf-chart>
 """,
     )
     context = browser.new_context(
@@ -10169,6 +10174,7 @@ day, depth
         "2026-06-01 is the same x as another row"
     )
     assert page.evaluate(ticks, "c-bars") == ["2026-06", "2026-06-01"]
+    expect(page.locator("#c-rows [data-lf-part=bar] rect")).to_have_count(2)
 
 
 def test_a_redraw_keeps_the_words_the_runtime_hung_on_the_chart(browser, serve):

@@ -245,8 +245,12 @@ const marked = (index, options) => ({
 
 function build(Plot, { kind, table, axis, label, width, font, line, grow, held }) {
   const { labels, series, xName } = table;
-  const points = (s) =>
-    axis.values.map((x, i) => ({ x, v: s.values[i] })).filter((d) => d.v !== null);
+  // A series as (x, value) pairs, at the x the axis reads: the labels as written on a
+  // band, and the Dates or numbers autoType read on a continuous axis. A row chart bands
+  // its labels whatever they say, so handed a continuous reading its domain of labels
+  // matched none of its values and it drew no bars at all.
+  const points = (s, xs) =>
+    xs.map((x, i) => ({ x, v: s.values[i] })).filter((d) => d.v !== null);
   const room = (values) =>
     textWidth(
       values.map((v) => `${v}`),
@@ -305,7 +309,7 @@ function build(Plot, { kind, table, axis, label, width, font, line, grow, held }
         ...series.map((s, i) => {
           const [before, after] = inset(i);
           return Plot.barX(
-            points(s),
+            points(s, labels),
             marked(i, { y: "x", x: "v", insetTop: before, insetBottom: after }),
           );
         }),
@@ -424,7 +428,7 @@ function build(Plot, { kind, table, axis, label, width, font, line, grow, held }
       y: { ...y, domain: spread(drawn) },
       marks: series.map((s, i) =>
         Plot.lineY(
-          points(s),
+          points(s, axis.values),
           marked(i, {
             x: "x",
             y: "v",
@@ -461,7 +465,7 @@ function build(Plot, { kind, table, axis, label, width, font, line, grow, held }
       y: { ...y, nice: true, inset: DOT_ROOM, domain: spread(drawn) },
       marks: series.map((s, i) =>
         Plot.dot(
-          points(s),
+          points(s, axis.values),
           marked(i, { x: "x", y: "v", r: 3.2, fill: "currentColor" }),
         ),
       ),

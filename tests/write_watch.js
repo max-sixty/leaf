@@ -47,9 +47,12 @@
     // as they update, and restate what their own shadow trees hold.
     /^[\w-]+ on wa-/,
     /^(children of|[\w-]+ on) .* in wa-[\w-]+/,
-    // The contents map decides whether it needs its crowded face by measuring its labels
-    // without it, on every measure.
-    /^data-lf-compact on lf-toc/,
+    // The contents map decides which face it needs, roomy, compact or an open outline,
+    // by measuring its labels in each; a label's height is where it wraps in that face.
+    /^data-lf-(compact|outline) on lf-toc/,
+    // Sortable takes a dragged card's ghost class off and puts it back as the drag
+    // crosses into another lane.
+    /^class on .*\.lf-ghost/,
   ];
   const reported = new Set();
   const report = (what) => {
@@ -61,30 +64,34 @@
     record.type === "attributes"
       ? record.target.getAttribute(record.attributeName)
       : record.target.data;
-  // Writes that pass through a value and come back for a reason of their own, by the
-  // values they passed through. The render gate resolves a paint through a custom
-  // property it sets on the element and takes off again (render-checks/widgets.js),
-  // which is the instrument's write, not the page's. And an arrival lends an element
-  // a tab stop to move where the next Tab starts, which it gives back on the blur
-  // (focus.js, `lendStop`), at once where the element will not take the focus.
+  // An arrival lends an element a tab stop to move where the next Tab starts, and gives
+  // it back on the blur (focus.js, `lendStop`), at once where the element will not take
+  // the focus.
   const lent = ({ record, through }) =>
-    (through.some((value) => value?.includes("--_leaf-render-")) &&
-      through.every((value) => !value || value.includes("--_leaf-render-"))) ||
-    (record.attributeName === "tabindex" &&
-      record.oldValue === null &&
-      through.every((value) => value === "-1"));
+    record.attributeName === "tabindex" &&
+    record.oldValue === null &&
+    through.every((value) => value === "-1");
   // The first write to each place in this task, with each value the place passed
   // through after it.
   const started = new Map();
+  // An element reference set through reflection (`ariaDetailsElements`, and the rest of
+  // the aria-*Elements family) writes an empty attribute whatever the elements are, so
+  // an empty value that stays empty says nothing about whether the relation changed.
+  const reflected = (record) =>
+    record.attributeName?.startsWith("aria-") && record.oldValue === "";
   const judge = () => {
     for (const write of started.values()) {
       const { record, through } = write;
-      if (valueOf(record) === record.oldValue && !(through.length && lent(write)))
+      if (
+        valueOf(record) === record.oldValue &&
+        !reflected(record) &&
+        !(through.length && lent(write))
+      )
         report(`${record.attributeName ?? "text"} on ${place(record.target)}`);
     }
     started.clear();
   };
-  const observer = new MutationObserver((records) => {
+  const watch = (records) => {
     for (const record of records) {
       const key = `${number(record.target)} ${record.type} ${record.attributeName}`;
       if (record.type === "childList") {
@@ -105,7 +112,8 @@
         });
     }
     judge();
-  });
+  };
+  const observer = new MutationObserver(watch);
   const options = {
     subtree: true,
     attributes: true,
@@ -115,6 +123,33 @@
     characterDataOldValue: true,
   };
   observer.observe(document, options);
+  // The render gate's probes read a page by changing it and putting it back: a paint
+  // resolved through a custom property set on the element, a widget rendered at its
+  // authored baseline and restored. Those are the instrument's writes, not the page's,
+  // so what a probe call writes is dropped. Probes are synchronous (render-checks/
+  // driver.js), so everything it wrote is still pending when it returns.
+  const probing = (driver) =>
+    driver &&
+    Object.freeze({
+      ...driver,
+      call(request) {
+        watch(observer.takeRecords());
+        try {
+          return driver.call(request);
+        } finally {
+          observer.takeRecords();
+        }
+      },
+    });
+  // The driver may be installed before this script or after it.
+  let driver = probing(globalThis.__leafRenderDriver);
+  Object.defineProperty(globalThis, "__leafRenderDriver", {
+    configurable: true,
+    get: () => driver,
+    set: (installed) => {
+      driver = probing(installed);
+    },
+  });
   const attachShadow = Element.prototype.attachShadow;
   Element.prototype.attachShadow = function (init) {
     const root = attachShadow.call(this, init);

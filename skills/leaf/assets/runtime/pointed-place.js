@@ -12,17 +12,17 @@
    inside its target and never the target itself, that is a line or a block of its own
    (a diff's line, a paragraph in a section, a table's row), decided by how it lays out.
    Words, a link or code inline in the target's own lines have none, nor does a drawing's
-   shape, nor a press on the target's own box or a gesture with no pointer (`c`, a
-   selection): those stand at the target's top. Its box is read afresh at every
-   placement, so a reflow carries the place with the row.
+   shape, nor the target's first line, where the target's own margin row already stands,
+   nor a press on the target's own box or a gesture with no pointer (`c`, a selection):
+   those stand at the target's top. Which line a point is comes from the document, and
+   only its box is read afresh at every placement, so a reflow carries the place with the
+   row and never moves a comment from one margin row to another.
 
    A point belongs to one comment. The composing surface holds a draft's point while the
    box is up; a send hands its point over under its thread's key (`threadKey`, the
    attempt that survives the log's answer), with the row's words as a passage
    (`rangeAnchor`), the identity the page already resolves quotes by. Comments pointed at
-   one row share that row's key, the first one's, so they stand as one margin row; one
-   pointed at a line within a row's height of the target's top joins the target's own
-   margin row (`margin-projection.js`, `standsApart`).
+   one row share that row's key, the first one's, so they stand as one margin row.
 
    Anchor paint's pass is the one writer of the points (`placePoints`, beside its
    resolution of every thread's anchor): it takes in what sends handed over, keeps a row
@@ -32,6 +32,7 @@
    else reads the result off the placement record. A point whose words no longer
    resolve, or that had none, stands at the target's top; a reload keeps none. */
 import { resolveAnchor } from "./anchor-resolution.js";
+import { inChrome } from "./passages.js";
 import { clamp } from "./rect.js";
 import { targetSegments } from "./resolved-target.js";
 import { upFrom, under } from "./shadow.js";
@@ -51,6 +52,12 @@ const WITHIN_A_LINE = /^(inline|contents$)/;
 //
 // Inside a table's cell the line is the cell's row, whatever blocks the cell holds, so
 // the climb goes on past a block it found to see whether a cell holds it.
+//
+// The target's first line is none either: the target's own margin row stands there
+// already, so a comment pointed at an Ask's heading joins the Ask's row rather than
+// standing as a second one pushed below it. First is read off the document, as nothing
+// drawn coming before it in the target, so no reflow, zoom or font moves a comment
+// between the two rows.
 function rowIn(target, node) {
   let at = node?.nodeType === Node.ELEMENT_NODE ? node : (node?.parentElement ?? null);
   if (!target || target instanceof SVGElement || !at || !under(at, target)) return null;
@@ -58,12 +65,32 @@ function rowIn(target, node) {
   for (; at && at !== target; at = upFrom(at)) {
     if (at instanceof SVGElement) continue;
     const display = getComputedStyle(at).display;
-    if (display === "table-row") return at;
+    if (display === "table-row") {
+      line = at;
+      break;
+    }
     if (display === "table-cell") line = null;
     else if (!line && !WITHIN_A_LINE.test(display)) line = at;
   }
-  return line;
+  return line && !opens(target, line) ? line : null;
 }
+
+// Whether `line` is the first thing `target` draws: no words and no box the page draws
+// come before it inside the target. Leaf's own chrome seated there is not the page's.
+function opens(target, line) {
+  for (let at = line; at && at !== target; at = upFrom(at))
+    for (let before = at.previousSibling; before; before = before.previousSibling)
+      if (drawn(before)) return false;
+  return true;
+}
+
+const drawn = (node) =>
+  node.nodeType === Node.TEXT_NODE
+    ? Boolean(node.data.trim()) && Boolean(node.parentElement?.checkVisibility())
+    : node.nodeType === Node.ELEMENT_NODE &&
+      !inChrome(node) &&
+      node.checkVisibility() &&
+      [...node.getClientRects()].some((box) => box.width && box.height);
 
 // The row a press on `node` points at inside `target`, or null for none.
 export const pointInto = rowIn;

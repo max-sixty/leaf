@@ -1419,6 +1419,57 @@ def test_comments_pointed_within_one_line_share_its_row(browser, serve, case):
         assert "“Row 30 first cell Row 30" in name, name
 
 
+def test_a_reflow_keeps_a_pointed_comment_in_its_row_and_its_card_open(browser, serve):
+    """Which margin row a pointed comment stands in is the document's to say, so a
+    reflow that moves its line further from the target's top moves the row with it and
+    changes nothing else: the row is the same element, and the card the user is
+    writing in stays up with the words and the focus in it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Reflow",
+                # Set close, so the pointed line starts within a margin row of the
+                # section's top at full width and further than that once narrow.
+                '<h1>Reflow</h1><section id="s"><p style="margin: 0">'
+                + "An opening line that fits the column at full width and wraps when"
+                ' narrow.</p><p style="margin: 0">The second paragraph,'
+                " which the comment points at.</p></section>",
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    first = page.locator("#s p").first
+    one_line = first.bounding_box()["height"]
+    second = page.locator("#s p").nth(1)
+    second.click(modifiers=["Alt"], position={"x": 20, "y": 5})
+    write(open_compact_comment(page), "About the second paragraph.")
+    with sending(page, "the pointed comment"):
+        page.keyboard.press("Enter")
+    page.keyboard.press("Escape")
+    rendered(page)
+    rows = page.evaluate(ROWS_ON, ["s"])
+    assert len(rows) == 1, f"the comment on the section stands in no row of it: {rows}"
+    page.keyboard.press("t")
+    reply = page.locator(".lf-margin-preview leaf-text")
+    expect(reply).to_be_visible()
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+    page.keyboard.type("Still writing")
+
+    resized(page, 560, 900)
+    rendered(page)
+    assert first.bounding_box()["height"] > one_line * 1.5, (
+        "the opening line must wrap for the reflow to move the pointed line"
+    )
+    after = page.evaluate(ROWS_ON, ["s"])
+    assert [index for index, _ in after] == [index for index, _ in rows], (
+        f"the reflow moved the comment to another margin row: {rows} then {after}"
+    )
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", "Still writing")
+
+
 def test_undoing_a_settle_brings_a_pointed_comment_back_to_its_row(browser, serve):
     """Settling a pointed comment and taking that back returns it where it stood, next to
     its line, whatever else is open on the target."""

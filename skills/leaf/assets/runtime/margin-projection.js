@@ -80,7 +80,6 @@ import { excerptWords, labelWords, spokenSubject } from "./margin-entry-model.js
 import {
   mountMarginLayer,
   registerMarginRow,
-  rowPitch,
   scheduleMarginEntryLabels,
   scheduleMarginLayout,
   unregisterMarginRow,
@@ -182,7 +181,7 @@ import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
 import { bannerControlDoor } from "./banner-toolbar.js";
 import { coarsePointer } from "./pointer.js";
 import { threadCardGeometry } from "./thread-card-geometry.js";
-import { shownExtent, shownWindow, skipped } from "./geometry.js";
+import { shownWindow, skipped } from "./geometry.js";
 import { floatingPlacement, floatingUi, heldByWindow } from "./floating.js";
 import { placeKeeper } from "./user-place.js";
 import {
@@ -313,13 +312,6 @@ export function createMarginProjection({
   const pointName = (words) => {
     const excerpt = words && excerptWords(words, 32);
     return excerpt ? `“${excerpt}”` : null;
-  };
-  // A point level with its target's own row, closer than packing lets one row stand
-  // below another, would only be pushed down beside that row: it is no place of its
-  // own, and its comment joins the target's row.
-  const standsApart = (target, point) => {
-    const extent = shownExtent(target);
-    return !extent || pointBand(extent, point).top - extent.top >= rowPitch();
   };
   const sourceItem = (item) => itemSources.get(item);
   function captureItem(item) {
@@ -1013,10 +1005,9 @@ export function createMarginProjection({
       const unread = thread.unread.length;
       const placement = placedAt(id);
       const point = standingPoint(target, placement?.point);
-      const pointed =
-        point && standsApart(target, point)
-          ? { key: placement.pointRow, element: point, words: placement.pointWords }
-          : null;
+      const pointed = point
+        ? { key: placement.pointRow, element: point, words: placement.pointWords }
+        : null;
       add(
         groups,
         target,

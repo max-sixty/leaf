@@ -42,7 +42,7 @@ import { overlaps } from "./rect.js";
 import { pointBand } from "./pointed-place.js";
 import { anchorElement, anchorReading, nameAnchor } from "./anchor-names.js";
 import { repaintPage } from "./repaint.js";
-import { keeps } from "./keeps.js";
+import { keeps, layoutPx } from "./keeps.js";
 
 const rows = new Map();
 const GAP = 4;
@@ -988,7 +988,7 @@ export function layoutMarginRows() {
           [right, region.bottom],
           [region.left - ring, region.bottom],
         ]
-          .map(([x, y]) => `${x - at.left}px ${y - at.top}px`)
+          .map(([x, y]) => `${layoutPx(x - at.left)} ${layoutPx(y - at.top)}`)
           .join(", ")})`
       : "polygon(0 0)";
     if (clips.get(lane) !== clip) {

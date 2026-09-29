@@ -382,7 +382,7 @@ export function createStateFeed({
     const initialPresentation = readAndPresent();
     if (offlineInteractive) return;
     initialPresentation.finally(() => {
-      // A contained page is a fixed sample controlled by its parent gallery. It needs
+      // A passive sample is a fixed replay controlled by its parent gallery. It needs
       // the first reading to render production chrome, but another news stream and
       // heartbeat would duplicate the outer page's connection for a picture that cannot
       // accept user input or durable updates.

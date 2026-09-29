@@ -24,12 +24,12 @@ it covers no words and no other box that paints its own extent, clear of neighbo
 blocks where its target has room of its own (`pinSpot`, `coverIn`), and otherwise
 inside its target's corner.
 
-The rail and a pin are different kinds. The rail is room: a strip right of the
-centred column, present wherever the window holds it, which never moves, narrows, or
-indents the column; `data-rail` on `body` withholds it or reserves it
-(`margin-layout.js`). Only the left resident and the notes move the column over
-(`settleResidency`). A pin, a passage mark, and everything else in the annotation layer is an
-overlay: it covers what lies under it and takes no room. No rule pads, indents,
+The rail and a pin are different kinds. The rail is room: a strip right of `main`
+that sits wherever the window has room for it. It never moves, narrows, or indents
+the column, and `data-rail` on `body` withholds or reserves it (`margin-layout.js`).
+Only the left resident and the notes move the column over (`settleResidency`). A pin,
+a passage mark, and everything else in the annotation layer is an overlay: it covers
+what lies under it and takes no room. No rule pads, indents,
 widens, or reflows a block, heading, or line to clear a pin, and nothing moves when a
 marker arrives, leaves, or changes place, including a marker that always accompanies
 its target, such as an Ask's. Reserved room would make the page's geometry depend on

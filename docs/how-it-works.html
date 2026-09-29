@@ -1066,8 +1066,8 @@ flowchart TD
           <section id="layouts">
             <h2>Layouts</h2>
             <p id="layouts-lede">
-              A class on a page's <code>main</code> element sets the page's arrangement.
-              Leaf's theme calls these classes Layouts:
+              A Layout is a class that arranges the box it is on. On <code>main</code> it
+              shapes the page, and on a block it arranges that block's children.
             </p>
             <table id="layouts-table">
               <thead>
@@ -1414,8 +1414,8 @@ flowchart TD
             <h2>The reading column</h2>
             <p id="column-measure">
               On a <code>layout-column</code> page, headings, paragraphs, lists and code
-              sit in a 720px column centred in the window. No Leaf page sets text wider
-              than 720px, whatever its Layout.
+              sit in a 720px column centred in the window. Under every Layout, Leaf's
+              theme keeps paragraphs, list items and headings to 720px.
             </p>
             <p id="column-widths-lede">
               A block that needs more room, such as a diagram, a board or a wide table,
@@ -1512,8 +1512,8 @@ flowchart TD
               makes a wide page. A wide page fills the window up to 1600px, inside a
               gutter that grows from 24px to 64px. Every block, the title included,
               starts at the same left edge, and paragraphs still wrap at 720px. The
-              title is set larger than on a column page, except in a workspace, whose
-              header is a single row.
+              title is set larger than on a column page; a workspace sets it smaller, so
+              its header stays one row.
             </p>
             <p id="wide-page-tracks">
               <code>layout-wide</code> holds a single flow at that width.
@@ -1527,8 +1527,9 @@ flowchart TD
             </p>
             <p id="wide-page-panels">
               The side column is unrelated to <code>aside.sidebar</code>, the margin
-              sidebar of a column page. Each region of a wide page is usually a
-              <code>section.panel</code>, a bordered card with a short heading.
+              sidebar of a column page. The theme draws a <code>section.panel</code> as
+              a bordered card with a short heading, which sets one region apart from the
+              next.
             </p>
             <pre id="wide-page-markup"><code>&lt;main class="layout-sidebar"&gt;
   &lt;header&gt;&lt;h1&gt;Release 4.2 rollout&lt;/h1&gt;&lt;/header&gt;
@@ -1558,9 +1559,9 @@ flowchart TD
               reach.
             </p>
             <p id="workspace-queue">
-              A queue whose items open one at a time, such as tickets or findings, is an
-              <code>lf-tabs list="side"</code> set as the body. The tab list is the
-              queue, and the selected item opens beside it.
+              An <code>lf-tabs list="side"</code> set as the body shows its tab list as
+              a queue, such as tickets or findings, with the selected item open beside
+              it.
             </p>
             <p id="workspace-small">
               The workspace holds the window's height only in a window at least 720px
@@ -1849,9 +1850,9 @@ flowchart TD
           <section id="page-tabs">
             <h2>Page tabs</h2>
             <p id="page-tabs-what">
-              A page with several views uses one <code>lf-tabs</code> set as page tabs,
-              as this page does. The tab strip sticks under the banner, and one panel
-              shows at a time. Every panel belongs to the same page. It has the page's
+              An <code>lf-tabs</code> set at the top of a page makes page tabs, as on
+              this page. The tab strip sticks under the banner, and one panel shows at a
+              time. Every panel belongs to the same page. It has the page's
               width and Layout, and it shares the page's threads and version history.
             </p>
           </section>
@@ -1871,16 +1872,19 @@ flowchart TD
               bar.
             </p>
             <p id="chrome-markers">
-              On a column page, markers sit in the rail. On a wide page, inside a
-              pane, and in a window too narrow for the rail, a marker is a small pin
-              over the page beside its target, placed where it covers no text or control
-              if the page has room. The <kbd>o</kbd> key, or Hide annotations in the
+              Markers sit in the rail wherever the window leaves room for it to the
+              right of <code>main</code>: on a column page from a window about 960px
+              wide, and on a wide page from about 1920px, or at any width where the page
+              sets <code>data-rail="right"</code>. Elsewhere, and inside a pane, a marker
+              is a small pin over the page beside its target, placed where it covers no
+              text or control if the page has room. The <kbd>o</kbd> key, or Hide annotations in the
               banner's More menu on a touch screen, hides every pin and passage
               highlight to show what lies under them.
             </p>
             <p id="chrome-surfaces-what">
-              A thread card opens beside its marker. It uses the rail where the rail is
-              wide enough and extends into the column only as far as it has to. The
+              A thread card opens beside its marker, in the room to the right of the
+              text it is about. Where that room is narrower than the card, the card
+              crosses into the column by the difference. The
               Threads panel and the Asks drawer open over the page's edges, one at a
               time.
             </p>
@@ -2100,9 +2104,9 @@ flowchart TD
                   </g>
                 </svg>
                 <figcaption id="cap-chrome-card">
-                  <strong>A thread card</strong>It opens beside its marker and extends
-                  into the column only where the rail is too narrow for it. Nothing
-                  below it moves.
+                  <strong>A thread card</strong>It opens right of the text it is about
+                  and crosses into the column only by what that room lacks. Nothing below
+                  it moves.
                 </figcaption>
               </figure>
             </div>
@@ -2111,27 +2115,12 @@ flowchart TD
           <section id="narrow">
             <h2>Narrow windows</h2>
             <p id="narrow-what">
-              In a phone-width window a page's regions stack in the order they are
-              written:
+              In a phone-width window every Layout reduces to one column, and a page's
+              regions stack in the order they are written: margin asides return to the
+              column, a side column goes above or below the body, and a workspace's
+              panes take their natural height. Tiles keep more than one to a row: on a
+              390px phone, two tiles stay side by side and four go two by two.
             </p>
-            <ul id="narrow-layouts">
-              <li id="narrow-column">
-                A column page has no rail, and its sidebar and sidenotes sit where they
-                were written.
-              </li>
-              <li id="narrow-sidebar">
-                <code>layout-sidebar</code> stacks the side column above or below the
-                body, in the order written.
-              </li>
-              <li id="narrow-workspace">
-                <code>layout-workspace</code> gives its panes their natural height, and
-                the page scrolls.
-              </li>
-              <li id="narrow-tiles">
-                <code>layout-tiles</code> fits fewer cells to a row. On a 390px phone,
-                two tiles stay side by side and four go two by two.
-              </li>
-            </ul>
 
             <figure class="fig" id="narrow-figure">
               <svg class="drawing" viewBox="0 0 360 190" role="img">
@@ -2183,7 +2172,7 @@ flowchart TD
                 </g>
               </svg>
               <figcaption id="cap-narrow">
-                <strong>Source order is reading order</strong>The side column stacks
+                <strong>A side column on a phone</strong>The side column stacks
                 under the body, so region 3 follows region 2.
               </figcaption>
             </figure>
@@ -2394,8 +2383,9 @@ flowchart TD
               that key grants access to every Leaf page on the machine.
             </p>
             <p id="serving-host">
-              When the default address is unreachable, the agent re-serves the page with
-              <code>leaf server start --host NAME</code> on a hostname you can reach.
+              When the default address is unreachable, the agent stops the server and
+              starts it again with <code>leaf server start --host NAME</code> on a
+              hostname you can reach.
               Leaf uses the machine's existing networks and opens no public tunnel. The
               <a
                 href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/serving-pages.md"

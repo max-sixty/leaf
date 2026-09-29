@@ -250,8 +250,8 @@ def patch_registry(skill: Path) -> None:
         "; a note they lose nothing by skipping goes in the margin (aside.sidenote)",
         (
             " An authored occurrence may override the default with"
-            " data-width=column|wide|available; the runtime resolves that choice into"
-            " data-lf-space and the theme allocates it without moving the prose axis."
+            " data-width=column|wide|available; delivery paints that choice into the"
+            " served document as data-lf-space and the theme allocates it without moving the prose axis."
         ),
     ):
         if text.count(old) != 1:

@@ -2357,12 +2357,12 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 2")
     stranded = page.locator(".lf-thread-panel .lf-quote.detached").all_text_contents()
     assert stranded == [], f"outlined on screen, reported missing: {stranded}"
-    # The projected contour the pointer raises stays above the figure's own paint
+    # The projected contour an open thread raises stays above the figure's own paint
     # without putting any paint over its contents.
     figure = page.locator("#fig")
     expect(figure).to_have_class(re.compile(r"\blf-mark-el\b"))
     figure.scroll_into_view_if_needed()
-    figure.hover()
+    figure.click()
     expect(figure).to_have_class(re.compile(r"\blf-projected-mark\b"))
     mark = page.locator('.lf-visual-mark[data-for="fig"]')
     expect(mark).to_be_visible()
@@ -2603,11 +2603,12 @@ def test_taking_words_inside_a_mark_keeps_them_and_a_press_still_opens_the_threa
 
 def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     """A pointer press briefly moves focus from an open thread to the page before its
-    click lands back in the thread. The mark must not look deselected in that gap.
+    click lands back in the thread. Nothing that says where the user stands may look
+    deselected in that gap: not the element's contour, which the pointer on the page no
+    longer raises, and not the margin entry's selection.
 
-    Hover and current therefore resolve to the same accent contour for the whole
-    down/up gesture, while the element's comment and reaction draw nothing at rest. The
-    reaction beside the comment is the case that first showed the gap.
+    So standing holds across the whole press, every frame from mouse-down until after
+    the click. The reaction beside the comment is the case that first showed the gap.
     """
     url = serve(INLINE_PAGE)
     events_model.append_event(
@@ -2650,18 +2651,38 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     assert thread_a_press_opened(page) is not None, "the press opened no thread"
     selected = mark.evaluate(look)
 
+    assert selected == {"line": "solid", "width": "2px"}
+    expect(page.locator("[data-lf-target-selected]")).to_have_count(1)
+
+    # Every frame of the press and a few after it, read where the user sees them.
+    page.evaluate(
+        """() => {
+          window.lfFrames = [];
+          const sample = () => {
+            window.lfFrames.push({
+              contour: Boolean(document.querySelector(
+                '.lf-visual-mark-here[data-for="fig"]')),
+              entry: document.querySelectorAll('[data-lf-target-selected]').length,
+            });
+            if (window.lfFrames.length < 400) requestAnimationFrame(sample);
+          };
+          requestAnimationFrame(sample);
+        }"""
+    )
     page.mouse.move(*point)
     page.mouse.down()
     page.evaluate(
         "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
     )
-    pressed = mark.evaluate(look)
     page.mouse.up()
-
-    assert selected == pressed, (
-        f"the selected contour changed during mouse-down: {selected} -> {pressed}"
+    page.evaluate(
+        "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
     )
-    assert selected == {"line": "solid", "width": "2px"}
+    frames = page.evaluate("() => window.lfFrames.splice(0)")
+    lost = [frame for frame in frames if not frame["contour"] or frame["entry"] != 1]
+    assert not lost, (
+        f"standing blinked during the press: {lost} of {len(frames)} frames"
+    )
 
 
 def test_a_tap_on_a_quote_opens_its_thread(browser, serve):

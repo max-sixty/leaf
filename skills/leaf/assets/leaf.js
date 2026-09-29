@@ -78,7 +78,7 @@ import {
 } from "./runtime/thread/landing.js";
 import { createPanelComposer } from "./runtime/thread/panel.js";
 import { focusSurface } from "./runtime/thread/surfaces.js";
-import { heldThreadId } from "./runtime/thread/focus.js";
+import { standingThreadId } from "./runtime/thread/focus.js";
 import { createThreadListController } from "./runtime/thread/thread-list.js";
 import { createThreadNarrowing } from "./runtime/thread/narrowing.js";
 import { createThreadPanelElements } from "./runtime/thread/panel-elements.js";
@@ -259,7 +259,7 @@ const hintChrome = {
 const anchorPaint = createAnchorPaint({
   targetPaint: targetPaintCaps,
   pointer: pointerAt,
-  focusedAnchorThreadId: heldThreadId,
+  standingThreadId,
   hoveredPanelThreadId: () => {
     const { x, y } = pointerAt();
     const thread = document.elementFromPoint(x, y)?.closest(".lf-thread");
@@ -710,7 +710,7 @@ const standing = createStanding({
       { kind: "ask", target: asks.standingIn() },
       {
         kind: "comment",
-        target: anchorPaint.placedAt(heldThreadId())?.element,
+        target: anchorPaint.placedAt(standingThreadId())?.element,
       },
     ]),
   paintTouchControls,

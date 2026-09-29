@@ -235,18 +235,18 @@ html[data-lf-draw-mode] main * { cursor: crosshair !important; }
 html[data-lf-draw-mode] main .lf-thread-seat,
 html[data-lf-draw-mode] main .lf-thread-seat * { cursor: auto !important; }
 /* An element holding threads draws no contour at rest: its margin entry says so, and a
-   box means "this, now". A contour appears for a moment — a draft on it, the pointer on
-   its thread, the thread the user stands in — and is one hollow line. Unlike a text
-   highlight, an element mark is projected above everything the target draws, so any
-   interior paint can obscure the target's own words or picture. The target painter
-   keeps the contour above those descendants; the declarations below are the no-JS
-   fallback. The element still takes a press that opens its thread. */
+   box means "this, now". A contour appears for a moment — a draft on it, the pointer
+   on its row in Threads, the thread the user stands in — and is one hollow line.
+   Unlike a text highlight, an element mark is projected above everything the target
+   draws, so any interior paint can obscure the target's own words or picture. The
+   target painter keeps the contour above those descendants; the declarations below
+   are the no-JS fallback. The element still takes a press that opens its thread. */
 .lf-mark-el { cursor: pointer; }
 /* The annotation layer hidden (`o`): the element's threads are out of reach, so the
    hand that promises one goes too, while a gesture's own contour stays. */
 :root[data-lf-annotations="hidden"]
-  .lf-mark-el:not(.lf-pending, .lf-mark-hover, .lf-mark-here,
-    :focus-visible, .lf-focus-visible) { cursor: auto; }
+  .lf-mark-el:not(.lf-pending, .lf-mark-here, :focus-visible, .lf-focus-visible) {
+    cursor: auto; }
 /* The glyphs of the reactions standing on a target — a margin entry per reaction,
    revealing a separately named removal action. */
 .lf-react-mark { text-align: center; }
@@ -254,10 +254,8 @@ html[data-lf-draw-mode] main .lf-thread-seat * { cursor: auto !important; }
    whenever this is. */
 .lf-mark-el.lf-pending { outline: 2px solid var(--accent); outline-offset: -2px;
   cursor: auto; }
-/* Hover and the current thread use one accent contour. A press can temporarily move
-   focus from the thread to the page; keeping hover visually equivalent means that
-   ordinary pointer transition does not make selection flicker. Keyboard focus is the
-   distinct state that earns a complete outer ring. */
+/* The pointer on the thread's row in Threads and the current thread use one accent
+   contour. Keyboard focus is the distinct state that earns a complete outer ring. */
 .lf-mark-el.lf-mark-hover { outline: 2px solid var(--accent); outline-offset: -2px; }
 .lf-mark-el:not(.lf-projected-mark):is(:focus-visible, .lf-focus-visible) {
   outline: var(--focus-ring);

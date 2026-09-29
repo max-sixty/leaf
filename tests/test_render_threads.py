@@ -5024,7 +5024,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-over-mark",
         "lf-mark-el",
         "lf-projected-mark",  # an element mark projects above authored paint
-        "lf-mark-hover",  # the same element mark, for the one the pointer indicates
+        "lf-mark-hover",  # the same element mark, for the row the pointer is on
         "lf-mark-here",  # the same element mark, for the comment the user is in
         "lf-pending",
         "lf-ins-block",

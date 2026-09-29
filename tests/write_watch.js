@@ -44,10 +44,9 @@
     // the tab-size style that element already holds among them.
     /^style on div\.cm-content/,
     // Web Awesome's components reflect each property onto the attribute it came from
-    // as they first update, and its icon redraws its SVG.
+    // as they update, and restate what their own shadow trees hold.
     /^[\w-]+ on wa-/,
-    /^[\w-]+ on svg in wa-icon/,
-    /^children of svg in wa-icon/,
+    /^(children of|[\w-]+ on) .* in wa-[\w-]+/,
     // The contents map decides whether it needs its crowded face by measuring its labels
     // without it, on every measure.
     /^data-lf-compact on lf-toc/,

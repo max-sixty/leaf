@@ -88,6 +88,15 @@ const POSTURES = {
 // (`scheduleResidency`): a second ask in a frame already read waits for the next. A change
 // brings this module's pass, since a moved column moves every margin row, and a page
 // repaint; this pass reads the answer off `main`.
+//
+// The reading is of the page as its widgets present it. Before they upgrade, the
+// authored fallback shows what the upgrade hides, such as every panel of a set of tabs
+// and so a sidenote in a tab not chosen, and a reading then moved the column over for a
+// resident the upgrade took away a moment later. So no ask is answered until startup has
+// upgraded the document (`openResidency`, leaf.js), which takes the first reading there
+// and then: it answers every ask made before it, and the margin rows that presentation
+// places stand in the posture it decided rather than moving to it a frame later.
+let residencyOpen = false;
 let residencyPending = 0;
 let residencyRead = -1;
 function residencyPass(time) {
@@ -97,12 +106,19 @@ function residencyPass(time) {
     return;
   }
   residencyRead = time;
+  readResidency();
+}
+function readResidency() {
   if (!settleResidency()) return;
   scheduleMarginLayout();
   repaintPage();
 }
 export function scheduleResidency() {
-  residencyPending ||= nextRender(residencyPass);
+  if (residencyOpen) residencyPending ||= nextRender(residencyPass);
+}
+export function openResidency() {
+  residencyOpen = true;
+  readResidency();
 }
 
 function settleResidency() {

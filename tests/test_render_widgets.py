@@ -746,6 +746,16 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     )
     rendered(page)
     assert page.evaluate("document.scrollingElement.scrollTop") == before
+    # Back is made from wherever the user reads, so it lands the set's start rather than
+    # leaving them partway down, or at the end of, a view that is not the one they read.
+    page.evaluate("document.scrollingElement.scrollTop = 1600")
+    page.go_back()
+    expect(page.get_by_role("tab", name="Ticket b", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    rendered(page)
+    top = page.evaluate("document.getElementById('queue').getBoundingClientRect().top")
+    assert 0 <= top < 200, top
 
 
 def test_root_tab_targets_remain_global(browser, serve):

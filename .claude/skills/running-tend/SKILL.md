@@ -7,12 +7,16 @@ description: Project-specific guidance loaded by tend workflows alongside AGENTS
 
 ## Landing
 
-Tend uses `merge: yolo`. Merge a pull request without waiting for maintainer
-approval when it makes a modest change that fixes tests, the relevant CI checks
-pass on the exact pull request head, and the claimed fix is verified by those
-checks. This includes test-owned failures and small product fixes needed to make
-the tests pass. Changes to workflows, Tend's configuration, CODEOWNERS, or agent
-instructions require the control-plane owner's fresh approval.
+Tend uses `merge: yolo`. Merge a pull request that fixes tests, without waiting
+for maintainer approval, once each test it claims to fix failed before the change
+and passes after it (a skipped or deleted test has not passed), and `monitor-ci`'s
+poll exits 0 on the exact head. Pull requests don't run nightly tests, so run the
+claimed ones yourself. `test` outlasts one poll, so poll up to twice more; a check
+still pending after that leaves the fix unverified.
+
+Merge a fix that is correct but incomplete, and open an issue for what it leaves.
+Changes to workflows, Tend's configuration, CODEOWNERS, or agent instructions
+require the control-plane owner's fresh approval.
 
 Merging squashes with `PR_TITLE` / `PR_BODY`, so the description becomes `main`'s
 commit message; hold its claims to the standard the diff is held to.
@@ -56,6 +60,12 @@ several boundaries after its cause. Two test-owned failures recur:
   history (`git log -L`); a set that keeps growing describes the suite's own
   noise, and the fix is against the test (`tests/AGENTS.md`, **A test cannot
   assert over noise it makes itself**).
+
+## Fix every failure in a red run
+
+Every failure in the run is the session's, including those earlier runs also hit;
+a tracking issue records a failure but doesn't fix it. Open one pull request per
+cause that no open pull request already covers.
 
 ## A red `ci` on main is live
 

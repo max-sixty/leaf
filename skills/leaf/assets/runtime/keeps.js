@@ -19,7 +19,15 @@
    The comparison is against what the node would read back, not what the caller held:
    `getAttribute` and `textContent` answer with a string and their setters stringify,
    so a boolean or a count compared raw is never equal to what already stands and
-   rewrites on every pass. */
+   rewrites on every pass.
+
+   A length measured off the page is written to a style property through `layoutPx`.
+   Layout resolves lengths to 1/64px, but a length recombined from client coordinates and
+   a fractional scroll offset (geometry.js, `documentPoint`) differs below that from one
+   pass to the next on a box that has not moved. The style serializer keeps six
+   significant digits, so the property reads back the same while the set still rewrites
+   the style attribute. A custom property keeps its text verbatim instead, and the same
+   drift there is a write of different text, so it falls outside this rule. */
 
 // Null or undefined says the attribute is absent: one spelling for "none", where an
 // empty value beside a missing one would be two, and a caller would otherwise branch
@@ -43,3 +51,7 @@ export function keepsText(node, text) {
   const said = String(text ?? "");
   if (node && node.textContent !== said) node.textContent = said;
 }
+
+export const atLayoutPrecision = (length) => Math.round(length * 64) / 64;
+
+export const layoutPx = (length) => `${atLayoutPrecision(length)}px`;

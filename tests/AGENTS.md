@@ -31,7 +31,8 @@ uv run pytest --regtest-reset -n0 <node-id>
 Mark a test `nightly` when a pull request can land without it, including any test that
 needs the network; expense alone does not make a test nightly. Broad discovery skips
 nightly tests, and an explicit file, node id, `-k`, `-m`, or `--lf` runs what it
-names. Before handing over a browser-facing change, run its whole browser file, the
+names. Both landing gates pass `--nightly-changed-since`, which adds the nightly tests
+in the test files the change touches. Before handing over a browser-facing change, run its whole browser file, the
 everyday gate, and the smallest nightly selection covering it. Run a new or changed
 browser test through `uv run leaf-dev flake NODEID`, which runs it as concurrent
 copies: a serial rerun samples only the idle machine that already passes it. The

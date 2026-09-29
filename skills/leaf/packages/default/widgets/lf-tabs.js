@@ -24,7 +24,8 @@
  * measures itself against, and a switch leaves the page where it stands. `list="side"`
  * stands the list beside the panels, a queue beside the item it opens, walked up and
  * down as well as across (theme.css says where it stacks); a side list is a box even as
- * the root set, which keeps the root's history.
+ * the root set, which keeps the root's history, and Back or Forward there lands the
+ * set's start when the user stood below it.
  *
  * Every tab's accessible name is its label; what else the tab shows describes it. A
  * side list's row adds the panel's `summary` under the name. Every tab wears two
@@ -321,6 +322,7 @@ customElements.define(
         }
         this.#active = active;
         if (switched) this.#open(active, from);
+        else if (reason === "history") this.#land();
         if (remember) tabStore.set(TAB_KEY + this.id, active.id);
         const presentation = [];
         for (const panel of [previous, active].filter(Boolean)) {
@@ -470,6 +472,16 @@ customElements.define(
       }
       pageScroller.scrollTop = place ? start : Math.min(from, start);
       if (place) restorePlace(place);
+    }
+
+    // A box's views have no places of their own, and Back or Forward is made from wherever
+    // the user reads: left where it stood, a view shorter than the one it replaced puts
+    // them at the page's end, partway down it. So a traversal lands the set's start, as a
+    // page-flow view without a place lands at its own, and leaves a set already in view
+    // where it is.
+    #land() {
+      if (this.getBoundingClientRect().top < 0)
+        this.scrollIntoView({ block: "start", behavior: "instant" });
     }
 
     #placeKey(panel) {

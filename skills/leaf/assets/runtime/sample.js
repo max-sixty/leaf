@@ -4,10 +4,16 @@
  * focus from the page; this owner releases a live child once it presents, and after
  * that focus entering the frame is entry, the way it is for any iframe. The child's
  * final Escape asks the frame's owner to take focus back with `lf-sample-return`. Passive demonstrations use the
- * same host and remain inert throughout their playback. */
+ * same host and remain inert throughout their playback.
+ *
+ * A live child is a block of the page holding it (`data-lf-sample-block` on its root)
+ * unless it is asked for as a window; a passive replay always is one. A window is a
+ * whole Leaf window, chrome included, at the frame's size. The child's bootstrap asks
+ * its frame for that marker and its dress (dress.js) before it paints. */
 import { layerHeaders } from "./layer-client.js";
 import { pageUrl } from "./context.js";
 import { discardPageStorage } from "./storage.js";
+import { dressFor, wear } from "./dress.js";
 
 async function request(url, body) {
   const response = await fetch(url, {
@@ -68,7 +74,10 @@ function presented(frame, url, signal) {
   });
 }
 
-export function mountSample(frame, { template, passive = false }) {
+export function mountSample(
+  frame,
+  { template, passive = false, window: asWindow = false },
+) {
   if (!template) throw new Error("a sample needs an authored template id");
   let current = null;
   let destroyed = false;
@@ -77,6 +86,11 @@ export function mountSample(frame, { template, passive = false }) {
   let loading = null;
   frame.toggleAttribute("inert", passive);
   frame.toggleAttribute("data-lf-contained", true);
+  frame.lfDressRoot = (root) => {
+    root.toggleAttribute("data-lf-sample-block", !(passive || asWindow));
+    const dress = dressFor(frame);
+    if (dress) wear(root, dress);
+  };
 
   const release = (url) => request(new URL("api/release", url), {});
 

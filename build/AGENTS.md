@@ -26,5 +26,7 @@ Rebuild after `npm install` moves a pin or the lock, or after changing registry
 input a bundle reads. `package.json` pins every JavaScript version that ships.
 `lit-html` is held at 3.3.0, below what `lit` would take: from 3.3.1, `repeat` leaves
 a comment behind for each item it removes (lit/lit#5298), so a list the chrome redraws
-grows for as long as the page is open. Lift it to a release that carries lit/lit#5299;
-`test_a_closed_surface_leaves_the_page_as_it_found_it` fails while the leak stands.
+grows for as long as the page is open. The releases it skips carry typings and a fix
+to the `ref` directive, which neither Leaf nor Web Awesome uses. Lift it to a release
+that carries lit/lit#5299; `test_a_closed_surface_leaves_the_page_as_it_found_it` fails
+while the leak stands.

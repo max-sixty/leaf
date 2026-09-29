@@ -1997,11 +1997,11 @@ def state_changes(before, after):
     ]
 
 
-def live_nodes(page):
-    """How many DOM nodes the page's renderer holds after a full collection: every node
-    in its documents, comments included, and every detached node something still
-    retains. A count that climbs across repetitions of one gesture is a leak whether the
-    nodes pile up in the page or behind it."""
+def live_counts(page):
+    """What the page's renderer holds after a full collection, as {what: count}: its DOM
+    nodes, those in its documents, comments included, and every detached node something
+    still retains, and its event listeners. A count that climbs across repetitions of one
+    gesture is a leak whether what it counts piles up in the page or behind it."""
     session = page.context.new_cdp_session(page)
     try:
         session.send("HeapProfiler.collectGarbage")
@@ -2009,7 +2009,8 @@ def live_nodes(page):
         metrics = session.send("Performance.getMetrics")["metrics"]
     finally:
         session.detach()
-    return next(metric["value"] for metric in metrics if metric["name"] == "Nodes")
+    counted = {"Nodes": "nodes", "JSEventListeners": "event listeners"}
+    return {counted[m["name"]]: m["value"] for m in metrics if m["name"] in counted}
 
 
 def still_page(browser, url, width=1200):
@@ -2046,7 +2047,9 @@ _REST_ARM = """() => {
   const rest = (window.lfRest = { frames: {}, focus: 0 });
   const request = window.requestAnimationFrame;
   window.requestAnimationFrame = (callback) => {
-    const site = (new Error().stack.split("\\n")[2] ?? "").trim();
+    // The first caller past the runtime's scheduler, which is whose loop it is.
+    const site = new Error().stack.split("\\n").slice(2)
+      .find((line) => !line.includes("/runtime/rendering.js"))?.trim() ?? "";
     return request.call(window, (time) => {
       rest.frames[site] = (rest.frames[site] ?? 0) + 1;
       callback(time);

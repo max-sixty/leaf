@@ -312,8 +312,7 @@ customElements.define(
 
     // A shot offers its own flip controls only in Flip.
     #paintShotControls(shot) {
-      if (this.#mode === "flip") shot.removeAttribute("data-lf-shot-controls");
-      else keeps(shot, "data-lf-shot-controls", "off");
+      keeps(shot, "data-lf-shot-controls", this.#mode === "flip" ? null : "off");
     }
 
     #paintInspector() {

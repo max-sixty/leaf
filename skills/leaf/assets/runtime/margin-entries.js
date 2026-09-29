@@ -188,8 +188,7 @@ function paintAgentDescription(control) {
       ["aria-description", reading.description],
       ["title", reading.title],
     ]) {
-      if (value === null) control.removeAttribute(attribute);
-      else keeps(control, attribute, value);
+      keeps(control, attribute, value);
     }
     return;
   }
@@ -231,13 +230,13 @@ export function syncMarginAgentWorkflow(control, receipt) {
     paintedStage,
   );
   const reading = agentWorkflowDescription(control);
-  if (paintedStage) {
-    Object.assign(reading, { stage: paintedStage, detail: receipt.detail });
-    keeps(control, "data-lf-agent-workflow", paintedStage);
-  } else {
-    control.removeAttribute("data-lf-agent-workflow");
-    Object.assign(reading, { stage: null, detail: null });
-  }
+  keeps(control, "data-lf-agent-workflow", paintedStage || null);
+  Object.assign(
+    reading,
+    paintedStage
+      ? { stage: paintedStage, detail: receipt.detail }
+      : { stage: null, detail: null },
+  );
   paintAgentDescription(control);
 }
 

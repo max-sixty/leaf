@@ -509,6 +509,28 @@ export function createMarginProjection({
   const inlineHosts = new Map();
   let optionsOrdinal = 0;
   let pageInventory = [];
+  // How far down the page each entry's target stands, in whole percent, as its marker's
+  // name last said. A target in skipped content (a tab not chosen) stands nowhere down
+  // the page, and asking would force that content's style and layout (`skipped`).
+  let spokenPositions = [];
+  function readSpokenPositions(inventory) {
+    const main = document.querySelector("main");
+    const mainRect = main?.getBoundingClientRect();
+    const mainHeight = main?.scrollHeight ?? 0;
+    return inventory.map((entry) =>
+      targetFor(entry) &&
+      !skipped(targetFor(entry)) &&
+      !readingRegionFor(targetFor(entry)) &&
+      mainRect &&
+      mainHeight
+        ? Math.round(
+            ((targetFor(entry).getBoundingClientRect().top - mainRect.top) /
+              mainHeight) *
+              100,
+          )
+        : null,
+    );
+  }
   let previewEntry = null;
   let previewThreadItem = null;
   let previewLatest = null;
@@ -1896,11 +1918,9 @@ export function createMarginProjection({
     const threadOwnerHeld =
       transferThreadFocus || document.activeElement === previewMarginEntry;
     transferThreadFocus = false;
-    const main = document.querySelector("main");
     // Before the card, which anchors to its rows (`mount`).
     if (!nav.isConnected)
       chromeRoot.insertBefore(nav, preview.parentNode === chromeRoot ? preview : null);
-    const mainRect = main?.getBoundingClientRect();
     presentingMarginContributions();
     syncInlineOffers();
     pageInventory = collectEntries();
@@ -2077,24 +2097,9 @@ export function createMarginProjection({
     workflowCarriers = nextWorkflowCarriers;
     // Geometry is one read-only batch after every row has reconciled. Reading a target
     // between two marker writes forced one full document layout per Page Map entry —
-    // including on the two-second heartbeat. The spoken positions use the main rect
-    // already read above and one final scroll height, then write every name together.
-    // A target in skipped content (a tab not chosen) stands nowhere down the page, and
-    // asking would force that content's style and layout (`skipped`).
-    const mainHeight = main?.scrollHeight ?? 0;
-    const positions = pageInventory.map((entry) =>
-      targetFor(entry) &&
-      !skipped(targetFor(entry)) &&
-      !readingRegionFor(targetFor(entry)) &&
-      mainRect &&
-      mainHeight
-        ? Math.round(
-            ((targetFor(entry).getBoundingClientRect().top - mainRect.top) /
-              mainHeight) *
-              100,
-          )
-        : null,
-    );
+    // including on the two-second heartbeat. Every name is then written together.
+    spokenPositions = readSpokenPositions(pageInventory);
+    const positions = spokenPositions;
     const walked = pageInventory
       .map((entry, index) => ({ entry, position: positions[index] }))
       .filter(({ entry }) => entryHasMarginHost(entry));
@@ -2944,6 +2949,11 @@ export function createMarginProjection({
     document.addEventListener("lf-margin-layout", () => {
       placeThreadPreview();
       scheduleMarginEntryLabels();
+      // A layout that moved a target down the page, as a new width does, moves what its
+      // marker's name says; the render that writes names says it anew.
+      const moved = readSpokenPositions(pageInventory);
+      if (moved.some((position, index) => position !== spokenPositions[index]))
+        renderMargin.refresh();
     });
     for (const event of ["pointerover", "focusin"])
       document.addEventListener(event, scheduleMarginEntryLabels, { capture: true });

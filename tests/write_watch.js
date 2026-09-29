@@ -78,17 +78,16 @@
   // Writes that take a value away and put it back for a reason of their own, by the
   // values they passed through. An arrival lends an element a tab stop to move where the
   // next Tab starts, and gives it back on the blur (focus.js, `lendStop`), at once where
-  // the element will not take the focus, as often as one script moves the focus there.
-  // And the margin shows a withheld row for the moment it takes to measure where the
-  // row would stand, which a row withheld as `display: none` cannot answer, and
-  // withholds it again where that is outside what its pane shows (margin-layout.js,
-  // `layoutMarginRows`).
+  // the element will not take the focus. And the margin shows a withheld row for the
+  // moment it takes to measure where the row would stand, which a row withheld as
+  // `display: none` cannot answer, and withholds it again where that is outside what
+  // its pane shows (margin-layout.js, `layoutMarginRows`).
   const tokens = (value) => new Set([...(value ?? "").split(" "), "lf-withheld"]);
   const sameTokens = (a, b) => a.size === b.size && [...a].every((t) => b.has(t));
   const putBack = ({ record, through }) =>
     (record.attributeName === "tabindex" &&
       record.oldValue === null &&
-      through.every((value) => value === "-1" || value === null)) ||
+      through.every((value) => value === "-1")) ||
     (record.attributeName === "class" &&
       record.target.matches(".lf-margin-cluster") &&
       through.every((value) => sameTokens(tokens(value), tokens(record.oldValue))));

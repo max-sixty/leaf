@@ -121,13 +121,16 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
   // Focus is moved in only from elsewhere in this document. Where the document holds no
   // focus at all, the user is in another one — the page around a sample, a sibling
   // sample, another window — and moving it in would pull them back into this frame: four
-  // samples with open panels did so to each other on every frame.
+  // samples with open panels did so to each other on every frame. The boundary takes the
+  // focus when the document does instead.
   const outside = (controller) =>
     document.hasFocus() && !controller.surface.contains(document.activeElement);
-  const focusMutations = new MutationObserver(() => {
+  const recover = () => {
     if (active && outside(active) && !nativeLayerContains(document.activeElement))
       place(active.focus() ?? active.surface);
-  });
+  };
+  const focusMutations = new MutationObserver(recover);
+  addEventListener("focus", recover);
 
   // The covering boundary moves in one step, from the surface holding it to `next` or to
   // none. What both boundaries say — the inert background they share, the scrim, the
@@ -139,8 +142,7 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
     if (previous) {
       backgroundMutations.disconnect();
       focusMutations.disconnect();
-      if (previous.role === null) previous.surface.removeAttribute("role");
-      else keeps(previous.surface, "role", previous.role);
+      keeps(previous.surface, "role", previous.role);
       previous.surface.removeAttribute("aria-modal");
     }
     active = next;

@@ -47,13 +47,8 @@ class BannerApprovalFace extends LitElement {
     const control = this.parentElement;
     if (!(control instanceof HTMLButtonElement)) return;
     const { reason, title } = this.model;
-    if (reason) {
-      keeps(control, "aria-disabled", "true");
-      keeps(control, "aria-description", reason);
-    } else {
-      control.removeAttribute("aria-disabled");
-      control.removeAttribute("aria-description");
-    }
+    keeps(control, "aria-disabled", reason ? "true" : null);
+    keeps(control, "aria-description", reason || null);
     keeps(control, "title", title);
   }
 

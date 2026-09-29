@@ -100,7 +100,7 @@ from render_harness import (
     consume_browser_errors,
     leaf_page,
     left_alone,
-    live_nodes,
+    live_counts,
     open_page,
     page_state,
     pane_posture,
@@ -2604,25 +2604,30 @@ def test_a_scroll_writes_only_what_it_changes(browser, serve, source):
 
 @pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
 def test_a_page_at_rest_does_nothing(browser, serve, source):
-    """A page nobody touches writes nothing, asks for no frame, and runs no animation
-    without end, for a reader who asked for reduced motion. Its clock still ticks, to
-    read the server and age what it shows, and a tick that changed nothing writes
-    nothing. A loop that keeps the page awake costs the reader's battery for as long as
-    the tab stays open, and with a quoted comment on the page each write repaints the
-    whole document."""
+    """A page nobody touches writes nothing, asks for no frame, moves no focus, and runs
+    no animation without end, in its own document or any it frames. Its clock still
+    ticks, to read the server and age what it shows, and a tick that changed nothing
+    writes nothing. A loop that keeps the page awake costs the reader's battery for as
+    long as the tab stays open, and with a quoted comment on the page each write repaints
+    the whole document.
+
+    The reader has asked for reduced motion, which is when a page owes stillness: one who
+    allows motion may be shown a page's own film playing itself (rust-sort's)."""
     findings = at_rest(still_page(browser, serve(source)))
     assert findings == [], "\n".join(findings)
 
 
-# Each surface a page-level key opens, by the keys that open it from the page, and for a
-# drawer the banner control that offers it, since a page with nothing to put in one has
-# none. Escape unwinds any of them to the page (keyboard/AGENTS.md); the ones Go-to opens
-# take the most presses.
+# Each surface a page-level key opens, by the keys that open it from the page, and the
+# control that shows the page has one to open: a page with no thread has no card, and a
+# page with nothing for a drawer has no door to it. Escape unwinds any of them to the
+# page (keyboard/AGENTS.md); the ones Go-to opens take the most presses. A new surface
+# joins by its keys.
 SURFACES = {
     "composer": (["c"], None),
     "target picker": (["s"], None),
     "page search": (["/"], None),
     "go-to": (["g"], None),
+    "thread card": (["t"], '.lf-threads-toggle:text-matches("Open threads: [1-9]")'),
     "threads panel": (["g", "Shift+t"], None),
     "asks drawer": (["g", "Shift+a"], ".lf-btn.lf-asks"),
     "leaves drawer": (["g", "Shift+l"], ".lf-btn.lf-others"),
@@ -2640,11 +2645,13 @@ AGAIN = 3
 
 @pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
 def test_a_closed_surface_leaves_the_page_as_it_found_it(browser, serve, source):
-    """Opening a surface from the page and closing it again leaves the page as the first
-    time did, and a leak shows as a count of nodes that climbs on every round trip. The
-    first time may build what the surface keeps for next time; after that nothing it
-    leaves behind accumulates over a long session: no attribute left on the page, no
-    marker a list forgot, no node a closed surface still holds.
+    """Opening a surface from the page and closing it again returns the page the first
+    round trip left, and holds no more than it did. The first trip may build what the
+    surface keeps for next time and leave what it changed on purpose, such as threads
+    read or the last announcement; a later trip that leaves more is leaving something
+    behind, and a count of nodes or listeners that climbs on every trip is a leak.
+    Nothing a surface leaves behind accumulates over a long session: no attribute left
+    on the page, no marker a list forgot, no node a closed surface still holds.
 
     Each surface the page offers must open, so a key that stopped opening one fails
     here rather than passing for having left nothing behind. The keys start from the
@@ -2662,60 +2669,67 @@ def test_a_closed_surface_leaves_the_page_as_it_found_it(browser, serve, source)
         for _ in range(UNWIND):
             page.keyboard.press("Escape")
             rendered(page)
-        return opened, page_state(page), live_nodes(page)
+        return opened, page_state(page), live_counts(page)
 
     findings = []
     for surface, (keys, door) in SURFACES.items():
-        if door and not page.locator(door).is_visible():
+        if door and not page.locator(door).first.is_visible():
             continue
-        opened, first, nodes = round_trip(keys)
+        opened, first, counts = round_trip(keys)
         if not opened:
             findings.append(f"{'+'.join(keys)} opened no {surface}")
             continue
-        counts = [nodes]
+        trips = [counts]
         for _ in range(AGAIN):
-            _, again, nodes = round_trip(keys)
-            counts.append(nodes)
+            _, again, counts = round_trip(keys)
+            trips.append(counts)
             if changes := state_changes(first, again):
                 findings.append(
-                    f"the {surface} closed leaving\n" + "\n".join(changes[:12])
+                    f"the {surface} closed again leaving\n" + "\n".join(changes[:12])
                 )
                 break
-        if all(later > earlier for earlier, later in itertools.pairwise(counts)):
-            findings.append(
-                f"the {surface} leaks nodes: {counts} after each round trip"
-            )
+        for what in trips[0]:
+            held = [trip[what] for trip in trips]
+            if all(later > earlier for earlier, later in itertools.pairwise(held)):
+                findings.append(
+                    f"the {surface} leaks {what}: {held} after each round trip"
+                )
     assert findings == [], "\n".join(findings)
 
 
-# From the widest window the corpus is read at down to a phone's, and back.
+# From the widest window the corpus is read at down to a phone's.
 RESIZE_PATH = tuple(range(1200, 439, -80))
 
 
 @pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
 def test_a_resized_page_comes_back_as_it_was(browser, serve, source):
-    """A page taken through a resize and back to the width it opened at is the page it
-    was: what the page says at a width depends on the width, not on the widths it
-    passed through. Both ends are tried, since a state written on the way down and one
-    written on the way up are cleared by different widths.
+    """What a page says at a width depends on the width, not on the widths it passed
+    through: a page taken through a resize and back says at each width on the way back
+    what it said there on the way out. Both ends are tried, since a state written on the
+    way down and one written on the way up are cleared by different widths.
 
-    What changes at each width is the browser's to lay out; a write that restates what
-    stood is already failed wherever it happens (`write_watch.js`)."""
+    Unlike a scroll, a resize lays the whole page out again and repaints it, so what it
+    writes at each step costs nothing beside that; a write that restates what stood is
+    failed wherever it happens (`write_watch.js`)."""
     url = serve(source)
     findings = []
     for path in (RESIZE_PATH, RESIZE_PATH[::-1]):
         page = still_page(browser, url, width=path[0])
         left_alone(page)
-        opened = page_state(page)
-        for width in (*path[1:], *path[-2::-1]):
+        said = {path[0]: page_state(page)}
+        for width in path[1:]:
             resized(page, width, 900)
             rendered(page)
-        changes = state_changes(opened, page_state(page))
-        if changes:
-            findings.append(
-                f"opened at {path[0]}px and taken to {path[-1]}px and back:\n"
-                + "\n".join(changes[:12])
-            )
+            said[width] = page_state(page)
+        for width in path[-2::-1]:
+            resized(page, width, 900)
+            rendered(page)
+            if changes := state_changes(said[width], page_state(page)):
+                findings.append(
+                    f"opened at {path[0]}px, taken to {path[-1]}px and back to {width}px:\n"
+                    + "\n".join(changes[:12])
+                )
+                break
     assert findings == [], "\n\n".join(findings)
 
 

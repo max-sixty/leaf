@@ -1,6 +1,6 @@
 /* Keyboard reachability and continuation paint for scrollable page and shadow content. */
 
-import { TAB_STOP, TEXT_BOX } from "./focus.js";
+import { TAB_STOP, TEXT_BOX, wearsLentStop } from "./focus.js";
 import { skipped } from "./geometry.js";
 import { afterScript, sizeObserver } from "./rendering.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
@@ -65,9 +65,10 @@ import { keeps } from "./keeps.js";
 const overflows = (el) =>
   el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight;
 const holdsOwnStop = (el) => el.querySelector(TAB_STOP) !== null;
-// Each candidate with the `tabindex` its author gave it, or null for none, which is what
-// it wears again once nothing in it is out of sight: a box that stops scrolling is the
-// box it was before, not one a click can now focus.
+// Each candidate with the `tabindex` its author gave it, or null for none. The pass
+// writes only the stop it lends, `0`, and takes back only that, to the author's value:
+// a box that stops scrolling is the box it was before, not one a click can now focus,
+// and a `-1` another owner lends it for an arrival (focus.js) stays that owner's.
 const mayScroll = new Map();
 // The same measurement spent on the eye. Scrolling is the layer's honest degrade for a
 // box whose content is wider than the room it was given — a diagram at the size it was
@@ -111,7 +112,7 @@ const readingScrolled = (event) => paintReadingReach(event.currentTarget);
 const sidewaysScrolled = (event) => paintSidewaysReach(event.currentTarget);
 export function reachReadingScroller(el) {
   downwards.add(el);
-  reachSizes.observe(el);
+  watchReach(el);
   el.addEventListener("scroll", readingScrolled, { passive: true });
   paintReadingReach(el);
   // A host moved in one script lets go of its body and registers it again before the
@@ -119,7 +120,7 @@ export function reachReadingScroller(el) {
   // by then loses it.
   return () => {
     downwards.delete(el);
-    if (!watched(el)) reachSizes.unobserve(el);
+    if (!watched(el)) unwatchReach(el);
     el.removeEventListener("scroll", readingScrolled);
     afterScript(() => {
       if (!downwards.has(el)) el.removeAttribute(PAGE_PAINT_ATTRIBUTE.moreBelow);
@@ -211,22 +212,45 @@ function classify(el) {
     !sideways.has(el)
   ) {
     sideways.add(el);
-    reachSizes.observe(el);
+    watchReach(el);
     el.addEventListener("scroll", sidewaysScrolled, { passive: true });
   }
   // A box that already carries a stop of its own is somewhere the user can be put,
   // whoever put it there; this pass neither adds to it nor takes it away.
   if (!mayScroll.has(el)) {
     if (el.tabIndex >= 0) return;
-    mayScroll.set(el, el.getAttribute("tabindex"));
+    mayScroll.set(el, wearsLentStop(el) ? null : el.getAttribute("tabindex"));
   }
   // The box itself, not the page's: a candidate's own resize is exactly the moment
   // its answer can change, and asking it there is one observation per candidate
   // rather than a sweep per layout pass. Watching body instead read the old width —
   // the observation arrives after the frame that resized, and axe was already
   // looking.
-  reachSizes.observe(el);
+  watchReach(el);
 }
+// What a box holds moves its overflow as much as its own size does, and can move
+// without it: text rewrapping at a new width inside a pane of fixed height, frames a
+// widget sizes a pass after its host. So a candidate's children are watched beside it,
+// as they stand when it is first classified; a widget that replaces them says so
+// through the layout signal.
+const heldChildren = new WeakMap();
+function watchReach(el) {
+  reachSizes.observe(el);
+  if (heldChildren.has(el)) return;
+  const children = [...el.children];
+  heldChildren.set(el, children);
+  for (const child of children) reachSizes.observe(child);
+}
+function unwatchReach(el) {
+  reachSizes.unobserve(el);
+  for (const child of heldChildren.get(el) ?? []) reachSizes.unobserve(child);
+  heldChildren.delete(el);
+}
+const depth = (el) => {
+  let levels = 0;
+  for (let node = el; node; node = node.parentNode ?? node.host) levels++;
+  return levels;
+};
 const watched = (el) =>
   mayScroll.has(el) || sideways.has(el) || downwards.has(el) || waiting.has(el);
 // Re-read each candidate after layout moves it. A user who widens the window is owed
@@ -258,7 +282,7 @@ function gone(el) {
   if (sideways.delete(el)) el.removeEventListener("scroll", sidewaysScrolled);
   downwards.delete(el);
   waiting.delete(el);
-  reachSizes.unobserve(el);
+  unwatchReach(el);
   return true;
 }
 // A box that comes to stand in skipped content keeps what it last wore until it is drawn
@@ -267,9 +291,12 @@ function gone(el) {
 const unpainted = (el) => gone(el) || skipped(el);
 function paintReach() {
   for (const el of waiting) if (!unpainted(el)) sweep(el);
-  for (const [el, authored] of mayScroll) {
+  // A box holding a scroller that takes a stop holds a stop, so an outer box's answer
+  // waits on its inner boxes': the deepest are asked first, and each box is written once.
+  for (const [el, authored] of [...mayScroll].sort(([a], [b]) => depth(b) - depth(a))) {
     if (unpainted(el)) continue;
-    keeps(el, "tabindex", overflows(el) && !holdsOwnStop(el) ? 0 : authored);
+    if (overflows(el) && !holdsOwnStop(el)) keeps(el, "tabindex", 0);
+    else if (el.getAttribute("tabindex") === "0") keeps(el, "tabindex", authored);
   }
   for (const el of sideways) if (!unpainted(el)) paintSidewaysReach(el);
   for (const el of downwards) if (!unpainted(el)) paintReadingReach(el);

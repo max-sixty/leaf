@@ -22,7 +22,14 @@
 import { closestAcross, elementFromPointAcross, inChrome } from "../passages.js";
 import { PRESSES } from "../widget-elements.js";
 import { bottomChromeBoxes } from "./shortcut-bar.js";
-import { bannerFoot, shownParts, shownRect, startsAt } from "../geometry.js";
+import {
+  bannerFoot,
+  boxAt,
+  placeChip,
+  shownParts,
+  shownRect,
+  startsAt,
+} from "../geometry.js";
 import { clamp, overlaps } from "../rect.js";
 import { under } from "../shadow.js";
 import { setChildren } from "../dom-children.js";
@@ -211,13 +218,13 @@ export function keyBadgePlacement() {
   }
 
   // Attach every Ask chip in one write and measure them before moving or hiding any.
-  // Each seat names its chip, the control it labels, and the corner box the chip was
-  // anchored at; a chip moves to the first corner of that box whose place, pulled back
-  // inside the window, covers no other control and no chrome or badge, and failing every
-  // one keeps the first corner's place where that is free. The authored CSS anchor is
-  // adjusted by the move. A chip already standing stays where it is in the layer, and
-  // one with no room is hidden rather than removed, so a pass that changes nothing
-  // writes nothing.
+  // Each seat names its chip, the control it labels, the corner box the chip hangs off,
+  // and the place `at` in the layer that hangs it there; a chip moves to the first corner
+  // of that box whose place, pulled back inside the window, covers no other control and
+  // no chrome or badge, and failing every one keeps the first corner's place where that is
+  // free. Each chip is read at its anchor where it stands and written once, to its seat. A
+  // chip already standing stays where it is in the layer, and one with no room is hidden
+  // rather than removed, so a pass that changes nothing writes nothing.
   function paint(layer, seats) {
     setChildren(
       layer,
@@ -225,19 +232,18 @@ export function keyBadgePlacement() {
     );
     const right = document.documentElement.clientWidth;
     const bottom = document.documentElement.clientHeight;
-    const measured = seats.map(({ chip, owner, corner }) => ({
+    const measured = seats.map(({ chip, owner, corner, at }) => ({
       chip,
       owner,
       corner,
-      start: chip.getBoundingClientRect(),
-      left: Number.parseFloat(chip.style.left),
-      top: Number.parseFloat(chip.style.top),
+      at,
+      start: boxAt(chip, at),
     }));
     const free = (box) =>
       box.right > box.left &&
       box.bottom > box.top &&
       !kept.some((standing) => overlaps(box, standing));
-    for (const { chip, owner, corner, start, left, top } of measured) {
+    for (const { chip, owner, corner, at, start } of measured) {
       const places = [
         [corner.left, corner.top],
         [corner.right, corner.top],
@@ -260,9 +266,7 @@ export function keyBadgePlacement() {
         continue;
       }
       chip.style.removeProperty("visibility");
-      if (box.left !== start.left)
-        chip.style.left = `${left + box.left - start.left}px`;
-      if (box.top !== start.top) chip.style.top = `${top + box.top - start.top}px`;
+      placeChip(chip, at.left + box.left - start.left, at.top + box.top - start.top);
     }
   }
 

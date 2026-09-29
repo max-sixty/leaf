@@ -23,6 +23,7 @@
    introduces no ownership cycle through the shortcut bar. */
 import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
 import { clamp, overlaps, overlapsAcross } from "../rect.js";
+import { boxAt, placeChip } from "../geometry.js";
 import { announce } from "../notifications.js";
 import { repaint } from "../repaint.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
@@ -75,7 +76,8 @@ function nearestOpenTop(box, preferred, barriers, top, bottom, gap) {
 }
 
 // Read every face before moving one, keeping the pass to one layout. Callers append all
-// chips first and provide the visible rectangle each chip names. `belowTarget` makes
+// chips first and provide the visible rectangle each chip names and the place `at` it is
+// drawn from; each face is read there and written once, to its seat. `belowTarget` makes
 // that edge the preferred seat and the target an obstacle. The returned boxes can be
 // barriers for a following pass.
 function spreadHints(
@@ -93,8 +95,8 @@ function spreadHints(
     parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue("--focus-ring-w"),
     ) || 0;
-  const faces = hints.map(({ chip, target, belowTarget = false }) => ({
-    start: chip.getBoundingClientRect(),
+  const faces = hints.map(({ chip, at, target, belowTarget = false }) => ({
+    start: boxAt(chip, at),
     target,
     belowTarget,
   }));
@@ -109,13 +111,10 @@ function spreadHints(
       bottom: viewportBottom,
     },
   });
-  hints.forEach(({ chip }, index) => {
+  hints.forEach(({ chip, at }, index) => {
     const { start } = faces[index];
     const box = placed[index];
-    if (box.left !== start.left)
-      chip.style.left = `${parseFloat(chip.style.left) + box.left - start.left}px`;
-    if (box.top !== start.top)
-      chip.style.top = `${parseFloat(chip.style.top) + box.top - start.top}px`;
+    placeChip(chip, at.left + box.left - start.left, at.top + box.top - start.top);
   });
   return placed;
 }
@@ -348,12 +347,12 @@ export function createHintSession({
       layer,
     );
     const chips = [...layer.children];
-    const seated = plans.map((drawn, index) => {
-      const chip = chips[index];
-      chip.style.left = `${drawn.left}px`;
-      chip.style.top = `${drawn.top}px`;
-      return { chip, target: drawn.target, belowTarget: drawn.belowTarget };
-    });
+    const seated = plans.map((drawn, index) => ({
+      chip: chips[index],
+      at: { left: drawn.left, top: drawn.top },
+      target: drawn.target,
+      belowTarget: drawn.belowTarget,
+    }));
     // Fixed chips stay where the caller put them and reserve their own pixels; the
     // coded map is spread around them, the standing chrome, and the key line.
     const reserved = extraPlans.length

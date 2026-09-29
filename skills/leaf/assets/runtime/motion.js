@@ -108,18 +108,20 @@ export function slide(el, side, direction) {
   const running = slides.get(el);
   const at = running && { transform: getComputedStyle(el).transform };
   running?.cancel();
-  el.toggleAttribute(LEAVING, direction === "out");
-  el.toggleAttribute("inert", direction === "out");
   const away = { transform: `translateX(${side === "left" ? "-100%" : "100%"})` };
   const home = { transform: "translateX(0)" };
   const played =
     direction === "in"
       ? motion(el, [at ?? away, home], SLIDE_IN_MS)
       : motion(el, [at ?? home, away], SLIDE_OUT_MS);
+  // Only an exit that plays leaves: one the user's motion preference skips is over as
+  // it starts, and marking it for no time at all would write both marks and take them
+  // back in one task.
+  const leaving = Boolean(played) && direction === "out";
+  el.toggleAttribute(LEAVING, leaving);
+  el.toggleAttribute("inert", leaving);
   if (!played) {
     slides.delete(el);
-    el.removeAttribute(LEAVING);
-    el.toggleAttribute("inert", false);
     return null;
   }
   slides.set(el, played);

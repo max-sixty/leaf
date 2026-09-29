@@ -216,8 +216,8 @@ export function createSelectionComposer({
     }
     return best;
   }
-  // The kept draft an address can offer: startup reopens whatever it finds and lets
-  // placement decide, while a press promising a destination has to know there is one.
+  // The kept draft an address can offer: startup reopens the latest draft where its
+  // passage stands, while a press promising a destination has to know there is one.
   const keptDraft = () => pendingComposer((record) => anchorStands(record.anchor));
   let composerEpoch = 0;
   // What the box holds that a user would miss, asked once. The complete draft, because a
@@ -456,7 +456,6 @@ export function createSelectionComposer({
     );
     if (text) syncComposer.load(text);
     suggestCheck.checked = Boolean(suggest);
-    syncSuggestMode();
     // Chromium may collapse the native page Selection before dispatching the field's
     // focus event. Mark the handoff before showing the surface so that an intermediate
     // selectionchange cannot dismiss the durable passage this composer is opening on.
@@ -465,7 +464,10 @@ export function createSelectionComposer({
     else endFabFocus();
     showComposer(true);
     showFab(anchor);
-    syncComposer();
+    // The suggest mode renders against the bar once it stands on this anchor with the box
+    // open: rendered before, its response choices would follow the bar's previous
+    // anchor and flip as the bar arrived.
+    syncSuggestMode();
     // The landing waits on the placement this open is about to ask for, so it is set up
     // after the surface is shown rather than against the previous anchor's placement.
     if (focus) {
@@ -544,9 +546,11 @@ export function createSelectionComposer({
   // The one place a stored composer record becomes an open box. Startup reopens the most
   // recently touched draft through it, and the address below returns to that same record
   // mid-session; two hand-written copies of "what a record means" would be free to drift
-  // about the mode a draft was written in.
+  // about the mode a draft was written in. A record whose passage does not stand opens
+  // nothing: the box would go straight back down, saying its words were kept, and they
+  // return when the passage does.
   function openDraft(record = pendingComposer()) {
-    if (!record) return false;
+    if (!record || !anchorStands(record.anchor)) return false;
     openComposer(record.anchor, record.text, {
       suggest: Boolean(record.suggest),
       about: record.about ?? null,

@@ -3063,12 +3063,18 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
         if event["kind"] == "comment"
     ]
 
+    # The readout takes no pointer, so the probe lends it one to hit-test it, in a task of
+    # its own: lent and taken back in one, the probe would be a write that changes nothing.
     def position_is_front():
+        page.evaluate(
+            """() => {
+              document.querySelector('.lf-walk-position').style.pointerEvents = 'auto';
+            }"""
+        )
         return page.evaluate(
             """() => {
               const readout = document.querySelector('.lf-walk-position');
               const box = readout.getBoundingClientRect();
-              readout.style.pointerEvents = 'auto';
               const front = document.elementFromPoint(
                 (box.left + box.right) / 2,
                 (box.top + box.bottom) / 2,
@@ -5684,7 +5690,8 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
         assert room["band"] > 0 and room["reserved"] == room["band"], room
         geometry = line.evaluate(
             """node => {
-              const visible = [...node.children].filter(el => el.checkVisibility());
+              const visible = [...node.children]
+                .filter(el => el.checkVisibility({visibilityProperty: true}));
               const tops = [];
               const tolerance = Math.min(...visible.map(el => el.offsetHeight)) / 2;
               for (const el of visible)
@@ -8305,7 +8312,8 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
 
     # Native focusing steps may synchronously open a newer modal. Recording the first
     # opening before those steps preserves that order, while an idempotent call on the
-    # older dialog does not move it back to the top.
+    # older dialog does not move it back to the top. The modals close in a later task:
+    # opened and closed in one, they would be a write that changes nothing.
     assert page.evaluate(
         """async () => {
           const { nativeLayers } = await window.__lfRuntimeImport('/runtime/keyboard/layer-stack.js');
@@ -8321,10 +8329,12 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
           const nested = nativeLayers().at(-1)?.root === second;
           first.showModal();
           const idempotent = nativeLayers().at(-1)?.root === second;
-          second.close();
-          first.close();
+          window.__lfOrderedModals = [second, first];
           return nested && idempotent;
         }"""
+    )
+    page.evaluate(
+        "() => { for (const modal of window.__lfOrderedModals) modal.close(); }"
     )
 
     # Modal entry dismisses a light-DOM auto popover and pruning retires its stack entry.
@@ -8344,15 +8354,22 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     )
 
     # A closed inner layer is retired rather than mistaken for one covered by the older
-    # modal now visible beneath it, so the outer layer is the top of the stack again.
-    assert page.evaluate(
-        """async () => {
-          const { nativeLayers } = await window.__lfRuntimeImport('/runtime/keyboard/layer-stack.js');
+    # modal now visible beneath it, so the outer layer is the top of the stack again. The
+    # inner one closes in a later task than it opened in, as a user closes it.
+    page.evaluate(
+        """() => {
           const outer = document.createElement('dialog');
           const inner = document.createElement('dialog');
           document.body.append(outer, inner);
           outer.showModal();
           inner.showModal();
+          window.__lfNestedModals = {outer, inner};
+        }"""
+    )
+    assert page.evaluate(
+        """async () => {
+          const { nativeLayers } = await window.__lfRuntimeImport('/runtime/keyboard/layer-stack.js');
+          const {outer, inner} = window.__lfNestedModals;
           inner.close();
           const restored = nativeLayers().at(-1)?.root === outer;
           outer.close();
@@ -8882,7 +8899,8 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     resized(page, 420, 800)
     compact = line.evaluate(
         """node => {
-          const visible = [...node.children].filter(el => el.checkVisibility());
+          const visible = [...node.children]
+            .filter(el => el.checkVisibility({visibilityProperty: true}));
           const tops = [];
           const tolerance = Math.min(...visible.map(el => el.offsetHeight)) / 2;
           for (const el of visible)
@@ -9587,7 +9605,8 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
         assert more_node.evaluate("button => button === window.__lfShortcutMore")
         geometry = line.evaluate(
             """node => {
-              const visible = [...node.children].filter(el => el.checkVisibility());
+              const visible = [...node.children]
+                .filter(el => el.checkVisibility({visibilityProperty: true}));
               const boxes = visible.map(el => el.getBoundingClientRect());
               const tolerance = Math.min(...visible.map(el => el.offsetHeight)) / 2;
               const rows = [];

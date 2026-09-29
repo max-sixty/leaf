@@ -5,33 +5,42 @@
    grows from the edge it holds until the visible boundary stops it, and leaves with its
    cluster on a scroll rather than closing.
 
+   The card is as wide as its thread: as wide as its widest unwrapped line, floored at
+   its minimum measure and capped at the `room` its spot gives. A one-line question
+   takes the minimum and a paragraph the whole room, so the card is never mostly empty,
+   and a turn that needs more room widens it as it arrives, from whichever edge it holds
+   (below). The reply the user is writing never sizes it: the reply wraps inside
+   whatever width the thread gives. The stylesheet fits the card between the minimum
+   and the room (chrome.css), and this module reads the width back.
+
    Beside the words it is about is preferred (`right`), top edge on its cluster's: the
-   card's lane runs from the `target`'s right edge, or the cluster's where the thread has
-   no target, to the visible edge, and the card is as wide as that lane allows up to its
-   preferred measure. Within the lane it stands as far right as that width lets it, so it
-   clears its cluster where the lane has room for both and covers the cluster where it
-   does not: the transcript's width outranks the rail's other entries, which the card
-   gives back when it closes. When the lane is under the card's minimum measure, the card
-   takes that minimum with its right edge on the visible edge, crossing the reading
-   column by no more than the lane's shortfall, and stands under the cluster when its
-   whole height fits there (`below`), else over it when it fits there (`above`), else
-   under it again. Where that crossing reaches the target, under and over are measured
-   from the target and cluster together, so a user standing on the target sees it and
-   its threads at once.
+   card's lane runs from the `target`'s right edge, or the cluster's where the thread
+   has no target, to the visible edge, and the card is as wide as that lane allows up to
+   the width its thread takes. Within the lane it stands as far right as that width lets
+   it, so it clears its cluster where the lane has room for both and covers the cluster
+   where it does not: the transcript's width outranks the rail's other entries, which
+   the card gives back when it closes. When the lane is under the card's minimum
+   measure, the card takes that minimum with its right edge on the visible edge,
+   crossing the reading column by no more than the lane's shortfall, and stands under
+   the cluster when its whole height fits there (`below`), else over it when it fits
+   there (`above`), else under it again. Where that crossing reaches the target, under
+   and over are measured from the target and cluster together, so a user standing on the
+   target sees it and its threads at once.
 
    Choosing its spot, the card is never shortened to make any of that true. Its height is
    capped by the boundary alone, and the spot is then clamped inside the boundary, so a
    card too tall for the room under or over its cluster slides across the controls that
    opened it rather than shrinking to spare them.
 
-   Every result carries the `hold` it leaves: its side and width, the offsets of its top
-   and foot from the cluster's top, its height, its transcript's height, and whether its
-   cluster has been `seen` in the scrollport since the card was placed. A top chosen here is the spot's own,
-   before the boundary clamped it, so a card opened low in the window rises back to its
-   cluster once a scroll gives it room; every other offset is where the card stood. The
-   caller passes the hold back on every later placement, saying whether the user is
-   `drafting` a reply in it. The card keeps its side and one edge at its offset, and
-   grows from it; which edge is whichever holds still what the user is working in.
+   Every result carries the `hold` it leaves: its side and the width its `room` gives, the
+   offsets of its top and foot from the cluster's top, its height, its transcript's
+   height, and whether its cluster has been `seen` in the scrollport since the card was
+   placed. A top chosen here is the spot's own, before the boundary clamped it, so a
+   card opened low in the window rises back to its cluster once a scroll gives it room;
+   every other offset is where the card stood. The caller passes the hold back on every
+   later placement, saying whether the user is `drafting` a reply in it. The card keeps
+   its side and one edge at its offset, and grows from it; which edge is whichever holds
+   still what the user is working in.
 
    - Drafting, a new line of the reply holds the top, so neither the lines the user has
      written nor the thread they are answering move: the card extends downward, as an
@@ -70,15 +79,18 @@
    clears `seen` for the same reason. The boundary can be smaller than the scrollport
    where pinch zoom or a phone's software keyboard hides part of the window; a cluster in
    the hidden part has not been scrolled away, so the card stays in what the user sees. A
-   hold whose side or width the room no longer gives, as after a resize, gives way to a
-   fresh choice, whose hold the caller keeps from then on: at another width the card's
-   words reflow, so neither of its edges holds what the user was reading or writing.
+   hold whose side or room the boundary no longer gives, as after a resize, gives way to
+   a fresh choice, whose hold the caller keeps from then on: at another width the page's
+   words reflow too, so neither of the card's edges holds what the user was reading or
+   writing. A thread that widens its card in the same room keeps the hold, since the
+   turn that widened it is one the held edge already answers for.
 
    The inputs are client rectangles and lengths and the module reads no DOM, so the rule
-   is arithmetic a test can state. It takes two measurements, which the caller reads
-   from the live card at that width: `heightAt(width, cap)`, the card's rendered height
-   under that height cap, and `transcriptAt(width)`, the height of the thread's turns
-   without the reply row. */
+   is arithmetic a test can state. It takes three measurements, which the caller reads
+   from the live card: `widthAt(minimum, room)`, its rendered width between those
+   bounds, and at the width that gives, `heightAt(room, cap)`, its rendered height under
+   that height cap, and `transcriptAt(room)`, the height of the thread's turns without
+   the reply row. */
 
 import { clamp } from "./rect.js";
 
@@ -90,19 +102,21 @@ export function threadCardGeometry({
   gap,
   minWidth,
   preferredWidth,
+  widthAt,
   heightAt,
   transcriptAt,
   drafting = false,
   hold = null,
 }) {
-  const preferred = Math.min(preferredWidth, boundary.width);
-  const minimum = Math.min(minWidth, preferred);
+  const measure = Math.min(preferredWidth, boundary.width);
+  const minimum = Math.min(minWidth, measure);
   const lane = (target ?? cluster).right + gap;
   const beside = boundary.right - lane >= minimum;
+  const room = beside ? Math.min(measure, boundary.right - lane) : minimum;
+  const width = widthAt(minimum, room);
   const x = beside
-    ? clamp(boundary.right - preferred, lane, cluster.right + gap)
+    ? clamp(boundary.right - width, lane, cluster.right + gap)
     : boundary.right - minimum;
-  const width = beside ? Math.min(preferred, boundary.right - x) : minimum;
   // The boundary holds the card in only while its cluster is inside the scrollport, once
   // the cluster has been there.
   const seen =
@@ -127,7 +141,7 @@ export function threadCardGeometry({
           : "page",
       hold: {
         placement,
-        width,
+        room,
         top: y - cluster.top,
         foot: y + height - cluster.top,
         height,
@@ -138,8 +152,8 @@ export function threadCardGeometry({
     };
   };
 
-  if (hold && (hold.placement === "right") === beside && hold.width === width) {
-    const transcript = transcriptAt(width);
+  if (hold && (hold.placement === "right") === beside && hold.room === room) {
+    const transcript = transcriptAt(room);
     const turned = Math.abs(transcript - hold.transcript) > 0.5;
     const held = drafting
       ? turned
@@ -159,7 +173,7 @@ export function threadCardGeometry({
         : drafting
           ? boundary.height
           : boundary.bottom - clamp(at, boundary.top, boundary.bottom - last);
-    const height = heightAt(width, cap);
+    const height = heightAt(room, cap);
     return holding(
       hold.placement,
       held === "foot" ? at - height : at,
@@ -168,7 +182,7 @@ export function threadCardGeometry({
       { [held]: hold[held] },
     );
   }
-  const height = heightAt(width, boundary.height);
+  const height = heightAt(room, boundary.height);
   const clears = !beside && target && x < target.right ? [cluster, target] : [cluster];
   const under = Math.max(...clears.map((box) => box.bottom)) + gap;
   const over = Math.min(...clears.map((box) => box.top)) - gap - height;
@@ -178,7 +192,7 @@ export function threadCardGeometry({
       ? "below"
       : "above";
   const spot = { right: cluster.top, below: under, above: over }[placement];
-  return holding(placement, spot, height, transcriptAt(width), {
+  return holding(placement, spot, height, transcriptAt(room), {
     top: spot - cluster.top,
   });
 }

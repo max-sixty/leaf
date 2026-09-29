@@ -235,7 +235,8 @@
      than as a page with a margin. */
   --note: 384px;
   /* A page thread's card is read as prose, so its preferred measure is the column's,
-     720px at 17px, at the card's 14px face. It takes the room right of the words it is
+     720px at 17px, at the card's 14px face. A thread whose lines are shorter takes only
+     their width, down to the minimum. It takes the room right of the words it is
      about down to the minimum, covering its margin cluster where it must; with less
      than that it stands under or over the cluster at the minimum, its right edge on the
      visible edge, so it crosses the column by only what that room lacks. Its height is

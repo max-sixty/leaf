@@ -1967,6 +1967,13 @@ lf-sample[data-lf-sample-live] > [data-lf-said="label"]::before { content: "live
 .lf-sample-frame { display: block; box-sizing: border-box; width: 100%; height: 32rem;
                     border: 1px solid var(--border-2); border-radius: var(--r);
                     background: var(--paper); }
+/* A window sample keeps a window's height rather than its page's, and scrolls inside.
+ * Three quarters of the viewport leaves its label, Reset, and the containing page's
+ * banner and bottom bar in view with the whole frame. */
+lf-sample[window] > .lf-sample-frame { height: min(75vh, 48rem); }
+/* Inside a block sample the viewport follows the content, so there a window takes a
+ * fixed height rather than a share of the frame it is growing. */
+html[data-lf-sample-block] lf-sample[window] > .lf-sample-frame { height: 32rem; }
 @media print {
   .lf-sample-controls, .lf-sample-frame { display: none; }
 }

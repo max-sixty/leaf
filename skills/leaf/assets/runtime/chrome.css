@@ -1741,10 +1741,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     .lf-shortcut-bar { display: none; }
     .lf-bottom-status { bottom: calc(14px + var(--lf-safe-bottom)); translate: none; }
   }
-  /* A sample has no agent attending it, and its fixed bar would stand over its own
-     last block, since its window is exactly as tall as its page. Its banner keeps the
-     one row of actions (theme.css sizes the room); the keys remain behind `?`. */
-  html[data-lf-contained] :scope {
+  /* A block sample stands in its page as a block with no agent of its own, and its
+     fixed bar would stand over its own last block, since its window is exactly as tall
+     as its page. Its banner keeps the one row of actions (theme.css sizes the room); the
+     keys remain behind `?`. A window sample keeps its whole chrome. */
+  html[data-lf-sample-block] :scope {
     .lf-banner-status, .lf-shortcut-bar { display: none; }
     .lf-bottom-status { bottom: calc(14px + var(--lf-safe-bottom)); translate: none; }
   }

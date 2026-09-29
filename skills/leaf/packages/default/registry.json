@@ -869,7 +869,7 @@
     "x-example": "<lf-draft id=\"note-cli\"><pre>\nAdds --dry-run to every mutating command.\n</pre></lf-draft>"
   },
   "lf-sample": {
-    "description": "A sample of page content. Ordinary children render as static quotation: a muted gutter and a small-caps quoted label, with widget actions disabled. For an operable complete Leaf page, put its main content in one direct template[data-sample] with a stable id. The optional label names the sample and its frame. Keep invented content visibly fictional. See page-authoring.md, Live samples, for child-page authoring, interaction, reset, and isolation.",
+    "description": "A sample of page content. Ordinary children render as static quotation: a muted gutter and a small-caps quoted label, with widget actions disabled. For an operable complete Leaf page, put its main content in one direct template[data-sample] with a stable id. The optional label names the sample and its frame. The boolean window attribute shows a live sample as a whole Leaf window, chrome included, at a fixed height that scrolls inside. Keep invented content visibly fictional. See page-authoring.md, Live samples, for child-page authoring, interaction, reset, and isolation.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -879,6 +879,9 @@
       },
       "label": {
         "type": "string"
+      },
+      "window": {
+        "type": "boolean"
       }
     },
     "required": [

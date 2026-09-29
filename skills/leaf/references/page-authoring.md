@@ -442,10 +442,12 @@ instructions that belong to the demonstrated page remain inside it.
 
 The child uses the parent's selected layer and starts with its own event log. It
 stands in the surrounding page as a block as tall as its content, with only the
-Threads row of its chrome. A click or Tab reaches the child directly; its normal
-widget controls, keyboard routes, comments, and replies work there. Escape closes
-the child's open controls before returning to the surrounding page. Reset creates a
-fresh page from the template.
+Threads row of its chrome. When the window itself is what the sample shows, such as
+Leaf's banner, bottom bar, or drawers, the boolean `window` attribute makes the child
+a whole Leaf window instead, chrome included, at a fixed height that scrolls inside.
+A click or Tab reaches the child directly; its normal widget controls, keyboard
+routes, comments, and replies work there. Escape closes the child's open controls
+before returning to the surrounding page. Reset creates a fresh page from the template.
 Child decisions and comments do not change the parent's log or Ask inventory.
 The child is temporary: use an ordinary Leaf page when its history must outlive
 the sample. A live sample needs a server, so a page declaring one cannot be
@@ -459,7 +461,9 @@ the sample without that thread. Their anchored content must exist in the
 child. Reset copies those threads again from the parent; subsequent child
 replies remain independent.
 
-A page module can await the element's `ready` promise to receive the child
+The child is a document of its own: a `<style>` or module script in the template
+applies to the child alone, and the surrounding page's styles and scripts do not
+reach it. A page module can await the element's `ready` promise to receive the child
 `Document`, and await `reset()` to replace it. Author child content in the
 template rather than copying rendered controls from the parent. Ordinary
 `lf-sample` children, without a template, remain static quoted material.

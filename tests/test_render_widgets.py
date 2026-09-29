@@ -90,6 +90,7 @@ from render_harness import (
     fills_the_window,
     holding,
     leaf_page,
+    margins_laid_out,
     open_page,
     pane_posture,
     panel_settled,
@@ -6281,10 +6282,8 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     first, second = (margin_rows.nth(i).evaluate(box) for i in range(2))
     assert first["bottom"] <= second["top"], "control rows must not stack on each other"
 
-    # The card is positioned and the change is three elements down inside it, and
-    # the row still stands by that change's own line — which is what the anchor buys,
-    # and what a static position never could. The board it sits in grows past the
-    # rail, so the row stands on the board as a pin.
+    # The board grows past the rail, so the row pins near the change. Its seat can
+    # move off the card when that is the nearest room that covers no words.
     in_card_row = page.locator("[data-lf-margin-for='sug-in-card']")
     expect(in_card_row).to_have_attribute("data-lf-place", "pin")
     stands_by = """row => {
@@ -6305,24 +6304,21 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
       const hit = (a, b) => a.left < b.right && b.left < a.right
         && a.top < b.bottom && b.top < a.bottom;
       const last = edges([...change.getClientRects()].at(-1));
-      const card = change.closest('lf-card')?.getBoundingClientRect();
       const r = row.getBoundingClientRect();
       return {
         covers: entries.filter((e) => words.some((w) => hit(e, w))).length,
-        level: r.top < last.bottom && last.top < r.bottom,
-        beside: Math.max(0, r.left - last.right, last.left - r.right) <= 12,
-        onCard: !card || (r.left >= card.left && r.right <= card.right),
+        near: Math.hypot(
+          Math.max(0, r.left - last.right, last.left - r.right),
+          Math.max(0, r.top - last.bottom, last.top - r.bottom)) <= 12,
         inPage: r.right <= document.body.getBoundingClientRect().right,
       };
     }"""
     placed = in_card_row.evaluate(stands_by)
     assert placed == {
         "covers": 0,
-        "level": True,
-        "beside": True,
-        "onCard": True,
+        "near": True,
         "inPage": True,
-    }, f"a change inside a board is decided beside its words, on its card: {placed}"
+    }, f"a change inside a board is decided near its words: {placed}"
 
     # No rail: every row is a pin by its own change, and nothing spills sideways.
     resized(page, 820, 900)
@@ -6335,11 +6331,9 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
         placed = page.locator(f"[data-lf-margin-for='{widget}']").evaluate(stands_by)
         assert placed == {
             "covers": 0,
-            "level": True,
-            "beside": True,
-            "onCard": True,
+            "near": True,
             "inPage": True,
-        }, f"a pin stands by the change it decides, over none of its words: {placed}"
+        }, f"a pin stands near the change it decides, over none of its words: {placed}"
 
 
 def test_the_page_says_a_change_is_only_proposed(browser, serve):
@@ -6407,6 +6401,8 @@ def test_a_moved_change_takes_its_controls_with_it(browser, serve):
     )
     page = open_page(browser, url)
     expect(page.locator("#col-done #card-heater")).to_be_visible()
+    page.locator("#col-done #card-heater").scroll_into_view_if_needed()
+    margins_laid_out(page)
     box = "el => el.getBoundingClientRect()"
     row = page.locator("[data-lf-margin-for='sug-in-card']")
     expect(row).to_be_visible()

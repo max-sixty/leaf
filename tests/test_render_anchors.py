@@ -3590,12 +3590,11 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
     expect(page.locator(".lf-version-row")).to_have_count(1)
     page.keyboard.press("Escape")
     expect(menu).not_to_be_visible()
-    assert page.evaluate("() => document.activeElement === document.body")
+    expect(page.locator(".lf-version")).to_be_focused()
+    expect(page.locator(".lf-banner-menu")).to_be_visible()
 
-    # A menu opened from the keyboard leaves the same way one opened by pointer does:
-    # the menu is a layer over the page, so its one press lands the user on the page
-    # rather than on the picker that is its implementation door — or on the heading
-    # they happened to be standing on when they asked for it.
+    # A menu opened from the keyboard returns to its banner door, just as one opened
+    # by pointer does, rather than to the heading that held focus before the shortcut.
     origin = page.locator("h1")
     origin.evaluate("node => node.tabIndex = -1")
     origin.focus()
@@ -3603,7 +3602,8 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
     expect(menu).to_be_visible()
     page.keyboard.press("Escape")
     expect(menu).not_to_be_visible()
-    assert page.evaluate("() => document.activeElement === document.body")
+    expect(page.locator(".lf-version")).to_be_focused()
+    expect(page.locator(".lf-banner-menu")).to_be_visible()
 
     # The pointer's door reaches the same layer and Escape still ends it. A one-row menu
     # offers neither a walk nor an exact-version shortcut that would reopen the page the
@@ -3687,8 +3687,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     expect(page.locator(".lf-banner-menu")).to_be_hidden()
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
-    assert page.evaluate("() => document.activeElement === document.body")
-    page.locator(".lf-banner-more").click()
+    expect(btn).to_be_focused()
     expect(page.locator(".lf-banner-menu")).to_be_visible()
     expect(btn).to_be_visible()
     page.keyboard.press("Escape")
@@ -3799,13 +3798,10 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     expect(btn).to_have_text("v2")
     expect(btn).to_have_class(re.compile(r"\bon\b"))
 
-    # Escape closes the menu and lands the user on the page it stood over, whatever
-    # door they came through. A popover restores focus to whatever had it when it
-    # showed, which for a menu opened from the page is the body; Leaf performs the whole
-    # step instead, so the landing is the same one every time.
+    # Escape closes the menu and returns to its banner control.
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
-    assert page.evaluate("() => document.activeElement === document.body")
+    expect(btn).to_be_focused()
 
     # g V opens it from anywhere on the page, the way g L opens the leaves drawer, and lands
     # where the walk should carry on from, so that walk is the next press rather than a
@@ -3833,10 +3829,10 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     expect(btn).to_have_text("v2")
     expect(btn).not_to_have_class(re.compile(r"\bon\b"))
     # Inside the menu the letter is the menu's own — the newest version, tested where
-    # it navigates — so Escape is what closes this, onto the page the menu stood over.
+    # it navigates — so Escape closes this and returns to the banner control.
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
-    assert page.evaluate("() => document.activeElement === document.body")
+    expect(btn).to_be_focused()
     open_versions(page)
     expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
     page.keyboard.press("Escape")

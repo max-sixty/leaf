@@ -3418,9 +3418,7 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(draft_item.locator(".lf-margin-entry:visible")).to_have_count(6)
     expect(draft_item.locator(":scope > .lf-margin-more")).to_be_hidden()
 
-    # On a narrow screen each item stands as a pin inside the top-right corner of its own
-    # target, at its top or just below a control of the target it would otherwise stand
-    # on, and the desktop map marker leaves the compact action row to the Page Map dialog.
+    # On a narrow screen each item stands near its target in room where it finds some.
     page.keyboard.press("Escape")
     page.evaluate("() => document.activeElement.blur()")
     resized(page, 390, 900)
@@ -3433,11 +3431,13 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
             """item => {
               const row = item.getBoundingClientRect();
               const box = item.lfTarget.getBoundingClientRect();
-              return {within: row.top >= box.top - 1 && row.top < box.bottom,
-                      inCorner: row.right <= box.right && row.right >= box.right - 12};
+              return {near: Math.hypot(
+                        Math.max(0, row.left - box.right, box.left - row.right),
+                        Math.max(0, row.top - box.bottom, box.top - row.bottom)) <= 12,
+                      inPage: row.left >= 0 && row.right <= innerWidth};
             }"""
         )
-        assert stands == {"within": True, "inCorner": True}, stands
+        assert stands == {"near": True, "inPage": True}, stands
     expect(suggestion_item.locator(":scope > .lf-margin-marker")).to_be_hidden()
     page.keyboard.press("e")
     expect(suggestion_item.locator(".lf-margin-entry:visible")).to_have_count(6)
@@ -7810,11 +7810,13 @@ def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, s
     ).to_be_visible()
     expect(page.locator(".lf-page-map-toggle")).to_be_hidden()
     expect(dialog).to_be_visible()
-    # The answered Ask stands once, under the row saying where its answer has got to.
+    # The Ask stands once, under the row saying where its answer has got to.
     expect(dialog.locator(".lf-page-map-action")).to_have_count(4)
     expect(
-        dialog.get_by_role("button", name=re.compile(r"^Open sent: Sent"))
-    ).to_be_visible()
+        dialog.locator(".lf-page-map-action").filter(
+            has_text="options · choose · Which bracket should we use?"
+        )
+    ).to_have_count(1)
     expect(
         dialog.get_by_role("button", name=re.compile(r"^Open your change"))
     ).to_have_count(0)

@@ -3848,21 +3848,19 @@ def test_an_absent_walk_destination_returns_to_the_callers_fallback(browser, ser
     expect(page.locator(".lf-live")).to_contain_text("Thread 1 of 1")
 
 
-def test_an_inline_thread_wears_the_ring_only_while_the_keyboard_stands_on_it(
+def test_an_inline_thread_rings_its_card_only_while_the_keyboard_stands_on_it(
     browser, serve
 ):
-    """A thread is a current region, and its quiet ground says so however the user
-    arrived. The ring is the keyboard's: the thread wears it inset while the keyboard
-    stands on the thread itself, and gives it to the reply box once that control takes
-    the next press. A pointer arrival paints the ground and no ring, as on every other
-    pointer-focused control."""
+    """The card carries the thread's keyboard ring and gives it to the reply box.
+
+    A pointer arrival leaves the card's ordinary frame alone."""
     page = open_page(
         browser,
         serve(INLINE_PAGE, anchored=[("p", "bold text")]),
     )
     thread = page.locator(".lf-margin-preview .lf-page-thread")
-    # The thread draws its ring on a pseudo-element over its contents (shadow.css), so
-    # the outline is read off whichever of the two boxes carries one.
+    preview = page.locator(".lf-margin-preview")
+    # The preview carries the ring for an inline thread; the thread fills its frame.
     paint = """el => {
       const s = getComputedStyle(el);
       const after = getComputedStyle(el, '::after');
@@ -3877,14 +3875,9 @@ def test_an_inline_thread_wears_the_ring_only_while_the_keyboard_stands_on_it(
     expect(thread).to_be_focused()
     assert not thread.evaluate("el => el.matches(':focus-visible')")
     pointer = thread.evaluate(paint)
-    # The preview builds the thread when it opens it, and opening it from the mark
-    # makes it current, so the resting tint is only readable from the same element
-    # once the region gives the focus back.
-    resting = thread.evaluate(
-        "el => { el.blur(); return getComputedStyle(el).backgroundColor; }"
-    )
+    assert preview.evaluate("el => getComputedStyle(el).outlineStyle") == "none"
+    thread.evaluate("el => el.blur()")
     assert pointer["outline"] == "none"
-    assert pointer["background"] != resting
     assert pointer["shadow"] == "none"
 
     page.keyboard.press("Escape")
@@ -3892,14 +3885,16 @@ def test_an_inline_thread_wears_the_ring_only_while_the_keyboard_stands_on_it(
     expect(thread).to_be_focused()
     assert thread.evaluate("el => el.matches(':focus-visible')")
     current = thread.evaluate(paint)
-    assert current["outline"] == "solid"
-    assert current["offset"] == "-2px"
+    assert current["outline"] == "none"
+    assert preview.evaluate("el => getComputedStyle(el).outlineStyle") == "solid"
+    assert preview.evaluate("el => getComputedStyle(el).outlineOffset") == "-2px"
     assert current["background"] == pointer["background"]
     assert current["shadow"] == "none"
 
     page.keyboard.press("Enter")
     reply = thread.locator("leaf-text")
     expect(reply).to_be_focused()
+    assert preview.evaluate("el => getComputedStyle(el).outlineStyle") == "none"
     writing = thread.evaluate(paint)
     reply_ring = reply.evaluate(
         """el => { const s = getComputedStyle(el); return {

@@ -175,6 +175,18 @@ and its chrome coordinate.
 
 ### The agent's text interface
 
+- **Wake the agent only for input that changes what it owes.** `leaf wait` ends
+  on every event `requires_agent_attention` admits, so input that asks nothing
+  still costs the agent a turn. Comments, replies and a move that finishes an Ask
+  owe an answer; `done`, `report` and `error` owe work; a move that answers no Ask
+  owes nothing but carries a receipt that reads Sent until it is picked up. Only
+  `resolve`, `unresolve` and `undo` owe nothing and carry no receipt, and each can
+  still change what the agent owes: a resolve withdraws a pending answer and the
+  work begun on it, an unresolve can reopen an unanswered message, and an undo can
+  withdraw a Done or a pick the agent is acting on. So the test is whether the
+  event changes the page's obligations or claims, not its kind. In this machine's
+  page logs from the last 30 days, 40 of 204 deliveries held only resolves, and
+  32 of those resolves closed a thread whose last word was already the agent's.
 - **Read the render checks after handover.** `page check --render` blocks the
   agent for the whole browser pass, so quick pages skip it and get none of its
   advice. Run the render readings on the server when a version goes live and

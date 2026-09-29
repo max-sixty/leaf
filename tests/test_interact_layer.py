@@ -825,7 +825,7 @@ def test_the_payload_is_text_outside_its_binary_homes():
     """Every tracked byte ships in every install and stays in history, so the tree
     keeps no screenshot, recording or other binary outside the homes whose readers
     need the bytes (`AGENTS.md`, "The install runs this tree"). Screenshots came in
-    under `notes/` twice, 4.0M of a probe's evidence and then 1.8M of a design
+    under `notes/` twice, 5.6M of a probe's evidence and then 1.8M of a design
     study's before/after pairs, each by a maintainer's `git add` that no test of a
     tool's output path sees coming. An image Leaf generates lives in
     max-sixty/leaf-assets, and evidence in `.tmp/`."""

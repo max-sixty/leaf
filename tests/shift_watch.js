@@ -7,10 +7,12 @@
 // and names the elements that moved (the five that moved most, in a frame that moved
 // more). It also says whether the user gave the page input in the half second before
 // the frame (`hadRecentInput`; a key, a press or a resize is input, a script's click or
-// a server's news is not). Text inserted without a key, as Playwright's `fill` and
+// a server's news is not). It credits none to a frame nested in another page, where a
+// trusted key or press in the frame's own document counts the same way. Text inserted without a key, as Playwright's `fill` and
 // `insert_text` and a committed composition do, is not input to Chrome, but its trusted
-// `beforeinput` is typing here: for as long as Chrome counts a key, no frame after it is
-// without input, and the second rule judges the ones it can. Two rules read the API:
+// `beforeinput` is typing here: a frame of that keystroke's rendering (below) is the
+// second rule's alone, and a frame after it is judged like any other. Two rules read the
+// API:
 //
 // - Nothing moves without input. News, a page loading, and whatever a timer or a
 //   server's answer changes may repaint a box or grow it into free room, but a shift
@@ -41,17 +43,17 @@
 // may move the field: another key or press (a key the page answers without editing,
 // such as Enter sending a reply, fires no `beforeinput`); news, the page adopting a
 // server reading (`data-lf-reading`, runtime/presentation.js), after which a reply
-// arriving above the box moves it for its own reason; a scroll of the document or an
-// element holding the field, which moves every box after the reading at the key; and a
-// frame that finds still running an animation that moves a box, which was running on
+// arriving above the box moves it for its own reason; and a scroll of the document or
+// an element holding the field, which moves every box after the reading at the key. A
+// frame that finds still running an animation that moves a box, one already running on
 // the field or an element holding it at the key, as a panel's slide is when the user
-// types into it before it stops: that motion is the gesture's that began it.
+// types into it before it stops, leaves the rest of the rendering to neither rule: that
+// motion is the gesture's that began it.
 //
 // Each finding is reported on the console as a browser problem, which fails the test
 // like any other.
 (() => {
   const WINDOW = 1000;
-  // How long Chrome counts a key as recent input (`hadRecentInput`).
   const RECENT = 500;
   const GEOMETRY =
     /^(transform|translate|scale|rotate|inset|top|left|right|bottom|width|height|margin|padding)/;
@@ -83,8 +85,9 @@
     // A sample frame, its clip, and the thread panel's foot
     // (tests/test_render_read_state.py).
     /iframe\.lf-sample-frame|div#read-clip|lf-thread-panel-foot/,
-    // The gallery's column and its tabs, sideways (tests/test_render_semantic_news.py).
-    /main\.layout-column|lf-tabs#bg-gallery-tabs/,
+    // The feature gallery's column, sideways, and its sections as its tabs and options
+    // draw (tests/test_render_semantic_news.py).
+    /main\.layout-column|#bg-/,
     // Thread cards in the panel as a reply arrives above thirty later ones
     // (test_incoming_reply_follows_a_selected_thread_before_later_cards).
     /^details\.lf-thread-compact\.lf-thread moved/,
@@ -129,9 +132,12 @@
     cancelAnimationFrame(frame);
   };
   const watch = (at) => {
-    // Motion the key found under way carries the field for the gesture that began it.
-    if (open.moving.some(({ playState }) => playState === "running")) return close();
-    open.frames.push({ at, boxes: boxes(open.found.keys()) });
+    // Motion the key found under way carries the field for the gesture that began it,
+    // so from the first frame that finds it still running no reading is the typing's:
+    // the rendering's frames are its own, and none of them is judged.
+    if (open.moving?.some(({ playState }) => playState === "running"))
+      open.moving = null;
+    if (open.moving) open.frames.push({ at, boxes: boxes(open.found.keys()) });
     judge(open.waiting.splice(0));
     if (open.last || at - open.start > WINDOW) return close();
     // A settled reading here counts updates before this one; this frame's own
@@ -174,14 +180,22 @@
     subtree: true,
     attributeFilter: ["data-lf-reading"],
   });
+  // Chrome credits no input to a frame nested in another page, so a trusted key or
+  // press in this document counts for as long as Chrome counts one (`hadRecentInput`).
+  let pressed = -Infinity;
   for (const type of ["keydown", "pointerdown"])
     document.addEventListener(
       type,
       (event) => {
-        if (event.isTrusted) close();
+        if (!event.isTrusted) return;
+        pressed = event.timeStamp;
+        close();
       },
       true,
     );
+  const input = (entry) =>
+    entry.hadRecentInput ||
+    (pressed <= entry.startTime && entry.startTime - pressed < RECENT);
   const reported = new Set();
   const report = (what, detail) => {
     if (reported.has(what)) return;
@@ -225,9 +239,6 @@
       );
     }
   };
-  // A trusted `beforeinput` is input for as long as Chrome counts a key.
-  const typing = (time) =>
-    renderings.some(({ start }) => start <= time && time - start < RECENT);
   const judge = (entries) => {
     for (const entry of entries) {
       const rendering = renderings.find(
@@ -235,8 +246,9 @@
       );
       const painted = rendering?.frames.find(({ at }) => at > entry.startTime);
       if (painted) typed(entry, rendering, painted.boxes);
-      else if (rendering && rendering === open) rendering.waiting.push(entry);
-      else if (!entry.hadRecentInput && !typing(entry.startTime)) unasked(entry);
+      else if (rendering === open && open) open.waiting.push(entry);
+      // A frame the keystroke's rendering ended before reading is no one's to judge.
+      else if (!rendering && !input(entry)) unasked(entry);
     }
   };
   const observer = new PerformanceObserver((list) => judge(list.getEntries()));

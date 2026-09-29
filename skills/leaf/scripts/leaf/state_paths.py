@@ -34,17 +34,18 @@ def session_file(session_id: str, suffix: str) -> Path:
 
 
 def end_session(session_id: str) -> None:
-    """Release this session's claims under each page's transaction lock, and
+    """Release this session's claims under each page's transaction lock, then
     remove the files that end with it.
 
     SessionEnd does not need the claim's lifetime reading: the host has ended
     the session, so any unreleased record still naming it may be closed. A
     successor is checked after taking the same log lock as claim transitions.
+    The files go last because a page server writes the titles log only under
+    that lock while the session holds the page (`thread_titles`), so none is
+    written after this removes it.
     """
     if not session_id:
         return
-    for suffix in (HOOKS_SUFFIX, TITLES_SUFFIX):
-        session_file(session_id, suffix).unlink(missing_ok=True)
 
     from .event_log import flocked, now_iso
     from .files import write_json
@@ -74,3 +75,5 @@ def end_session(session_id: str) -> None:
                     write_json(path, {**current, "released": now_iso()})
         except (OSError, ValueError, TypeError):
             continue
+    for suffix in (HOOKS_SUFFIX, TITLES_SUFFIX):
+        session_file(session_id, suffix).unlink(missing_ok=True)

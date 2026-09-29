@@ -380,7 +380,16 @@ def name_opened_thread(
 
     def record(event: str, **fields) -> None:
         line = {"event": event, "ts": datetime.now().astimezone().isoformat()}
-        with log.open("a") as output:
-            output.write(json.dumps({**line, "page": str(page_dir), **fields}) + "\n")
+        # Only while the session holds the page, under the lock SessionEnd releases
+        # the claim under before it removes the log, so a request that outlives
+        # its session leaves no log behind.
+        with PageTransaction(page_dir) as page:
+            claim = page.claim
+            if claim is None or claim["id"] != session_id or claim["released"]:
+                return
+            with log.open("a") as output:
+                output.write(
+                    json.dumps({**line, "page": str(page_dir), **fields}) + "\n"
+                )
 
     _start(generate, page_dir, thread, session_id, record)

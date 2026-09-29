@@ -1582,6 +1582,31 @@ def test_a_comment_on_a_claude_code_page_is_named_as_it_arrives(
     assert not log.exists()
 
 
+def test_a_title_request_that_outlives_its_session_leaves_no_log(claimed):
+    """SessionEnd removes the session's titles log, and a request still waiting on
+    the model when it runs finishes after that; it writes neither the title nor a
+    new log."""
+    comment = events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "Tighten the intro"}
+    )
+    answered = threading.Event()
+
+    def generate(request: str, page_dir: Path) -> dict:
+        answered.wait(timeout=10)
+        return {"title": "Intro"}
+
+    thread_titles.name_opened_thread(generate, claimed, comment["id"], "s1")
+    hooks_model.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "s1"})
+    answered.set()
+    for worker in threading.enumerate():
+        if worker.name == "leaf-thread-title":
+            worker.join(timeout=10)
+
+    assert not leases_model.titles_log("s1").exists()
+    kinds = [e["kind"] for e in events_model.read_events(claimed)]
+    assert "thread_title" not in kinds
+
+
 def test_both_hosts_are_asked_for_a_title_in_the_same_words(
     page_dir, app_server, tmp_path, monkeypatch, snapshot
 ):

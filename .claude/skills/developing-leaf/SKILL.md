@@ -51,9 +51,8 @@ and serve it with `uv run leaf-dev preview --source <file> --user` ("Preview a
 page"), which builds the page from that file alone. Its CSS reads the live
 theme's tokens, and the `playground` package's elements
 (`<root>/skills/leaf/packages/playground/guidance/author.md`) wrap the
-candidates: a `choice` control naming them, the candidates in its preview, and
-an output saying what to build. Add presets and further controls only where the
-user tunes more than the choice.
+candidates: the controls and presets the user explores them with, the
+candidates in its preview, and an output saying what to build.
 
 When the subject already exists and the candidates are to be implemented,
 implement each in the runtime and theme that own the surface and present it

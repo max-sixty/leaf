@@ -12,7 +12,7 @@ request or page that reports the run, and a follow-up for each defect in the bac
 
 ## State of the harness
 
-It is early: two runs, and it needs work. A session that runs it improves it in the
+It is early: three runs, and it needs work. A session that runs it improves it in the
 same change, fixing what broke and adding what the run showed it lacked, and updates
 this section. What the runs left:
 

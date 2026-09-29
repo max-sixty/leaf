@@ -1158,7 +1158,7 @@ def test_a_page_loads_from_the_external_origins_as_written(server, page_dir):
     directives = {
         name: sources for name, *sources in (part.split() for part in policy.split(";"))
     }
-    for name in ("default-src", "style-src", "script-src", "img-src"):
+    for name in ("default-src", "style-src", "script-src"):
         assert set(EXTERNAL_ORIGINS) <= set(directives[name]), name
     module = re.search(rb'src="([^"]*/page/app\.js)"', body).group(1).decode()
     assert fetch(f"{server}{module}")[1].decode() == f'import "{chart}";\n'
@@ -1211,8 +1211,12 @@ def test_server_round_trip(server, page_dir):
         '<meta name="lf-version" data-lf-runtime content="1">'
     ).encode()
     artifact_root = f"/revisions/{files_model.revision_path(page_dir, 2).stem}"
+    # The runtime entry carries the delivery's nonce, which every module it imports
+    # inherits.
+    nonce = re.search(rb"nonce-([A-Za-z0-9_-]+)", body).group(1)
     entry = (
-        f'<script type="module" src="{artifact_root}/leaf.js" data-lf-runtime></script>'
+        f'<script type="module" nonce="{nonce.decode()}" src="{artifact_root}/leaf.js" '
+        "data-lf-runtime></script>"
     ).encode()
     assert marker in body
     assert b"base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;" in body

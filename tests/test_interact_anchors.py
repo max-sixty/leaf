@@ -1744,6 +1744,26 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
     ] == [("ps-q", "choose", {"options": ["ps-cookie"]}, thread)]
 
 
+def test_neither_a_page_nor_a_message_may_refresh_itself_elsewhere(page_dir):
+    """A refresh navigates wherever it is inserted, a message body included, and the
+    page policy governs fetches rather than navigation. Quoted markup carrying one
+    would send what its URL holds to another origin with no gesture."""
+    published(page_dir)
+    refresh = '<meta http-equiv="Refresh" content="0;url=https://outside.invalid/?q=x">'
+    widget = (
+        '<lf-ask id="d1-decision"><h3>Choose one</h3><lf-options id="d1" choose>'
+        '<lf-option id="d1-a">A</lf-option></lf-options></lf-ask>'
+    )
+    refused = comment(page_dir, "--text", "look:", "--markup", refresh + widget)
+    assert refused.exit_code != 0 and "refresh" in refused.output
+    assert comment(page_dir, "--text", "look:", "--markup", widget).exit_code == 0
+
+    version = page_dir / "index.html"
+    version.write_text(version.read_text().replace("</main>", refresh + "</main>"))
+    result = check(page_dir)
+    assert result.exit_code == 1 and "http-equiv=refresh" in result.output
+
+
 def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
     """A Claude comment's markup lands in the panel exactly as a reply's does, so it
     validates the same way and claims ids from the same pool."""

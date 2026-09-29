@@ -85,11 +85,7 @@ from .served_state import reading as served_reading
 from .served_state.service import PageStateService
 from .server import preview_metadata
 from .service import PageTransaction
-from .structure import (
-    EXTERNAL_SOURCES,
-    FRAME_ANCESTORS_CSP,
-    PAGE_CSP,
-)
+from .structure import FRAME_ANCESTORS_CSP, page_policy
 
 # How long an open news stream, which re-reads the page every `LOOK_S`, may go without
 # a word before saying it is still there.
@@ -184,21 +180,9 @@ def page_delivery(
             f"{bootstrap}</script>"
         )
 
-    # 'unsafe-eval' is delivered for the drivers rather than for the page. An
-    # automated browser compiles a wait predicate with eval on each poll — Playwright
-    # keeps a compiled function but recompiles a bare expression — and only the poll
-    # that runs inside the driver's own evaluate call inherits permission from it. A
-    # script-src without the allowance therefore refuses any wait whose fact is not
-    # already true when the poll is installed, which surfaces as an intermittent red
-    # suite rather than as a policy refusal. Leaf's own runtime never evals, so the
-    # nonce still decides which script runs. Published documents carry the allowance
-    # to users no driver polls.
     return Delivery(
         address=address,
-        policy=lambda nonce: (
-            PAGE_CSP
-            + f"; script-src 'self' 'nonce-{nonce}' 'unsafe-eval' {EXTERNAL_SOURCES}"
-        ),
+        policy=lambda nonce: page_policy(nonce, "'self'"),
         import_map=layer_import_map(assets),
         runtime=runtime,
         page_root=page_root,

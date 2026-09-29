@@ -13,8 +13,8 @@ the file inside it, and where it lands — so those are rows in COPIES. Where
 nothing published is loadable as it stands, or what Leaf ships is cut down to
 what its registry declares, vendoring is a program, so those are functions.
 Either way, what comes out passes through `build/browser/shipped.mjs`, the
-owner `build/browser/build.mjs` shares: it refuses a module the page CSP
-forbids and writes the bundle's license notices (`vendor`).
+owner `build/browser/build.mjs` shares: it refuses a module whose imports no
+page resolves and writes the bundle's license notices (`vendor`).
 
 Every version they carry is the one `package-lock.json` resolved: `package.json`
 names each package a bundle's entry imports, the lock settles the rest of the
@@ -224,8 +224,8 @@ def build_codemirror(work: Path) -> list[Path]:
 def build_agentic_mermaid(work: Path) -> list[Path]:
     """Bundle Agentic Mermaid's SVG renderer and ELK into one browser-native ESM file.
 
-    Upstream's ESM keeps `entities`, `elkjs` and `yaml` as bare imports. Leaf loads one
-    self-contained file under its self-only CSP, so esbuild resolves the locked
+    Upstream's ESM keeps `entities`, `elkjs` and `yaml` as bare imports. Leaf pages have no
+    package resolver and load one self-contained file, so esbuild resolves the locked
     dependency set and leaves no runtime chunk or package lookup behind. The package
     entry also exports PNG, CLI and agent tooling; importing only `renderMermaidSVG`
     keeps the native rasterizer and the code-mode parser out of the bundle.
@@ -258,8 +258,8 @@ def build_floating_ui(work: Path) -> list[Path]:
     """Bundle the browser's anchored-positioning primitive.
 
     Floating UI's DOM package publishes browser ESM, but leaves its core and utility
-    packages as bare imports. Leaf pages run under a self-only CSP and have no package
-    resolver, so the three packages become one browser-native module. Only the
+    packages as bare imports. Leaf pages have no package resolver,
+    so the three packages become one browser-native module. Only the
     positioning and lifecycle middleware used by Leaf's floating chrome are exported;
     esbuild drops the rest.
     """
@@ -468,7 +468,7 @@ def vendor(name: str) -> list[Path]:
     """Make one bundle, then pass it through `build/browser/shipped.mjs`.
 
     That module owns what a committed bundle must be and carry: it refuses a module
-    the page CSP forbids, and writes `<bundle>.LICENSES.txt` from the packages the
+    whose imports no page resolves, and writes `<bundle>.LICENSES.txt` from the packages the
     build's `meta.json` says reached it. The MCP App's resource is HTML that its host
     reads under the host's own policy, so it has no module to check and still takes
     notices.

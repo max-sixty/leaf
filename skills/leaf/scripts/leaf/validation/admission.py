@@ -18,6 +18,7 @@ from .markup import (
     fragment_style_errors,
     id_errors,
     media_errors,
+    refresh_errors,
     text_media_errors,
 )
 
@@ -190,6 +191,7 @@ def check_markup(
             else []
         )
         + fragment_style_errors(frag)
+        + refresh_errors(frag)
         + media_errors(frag, page_dir)
         + data_binding_errors(
             page_dir,

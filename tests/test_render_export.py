@@ -33,7 +33,7 @@ from leaf.structure import UTF8_BOM
 from leaf_dev import preview as preview_model
 from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
-from render_cases_interaction import ASK_PAGE
+from render_cases_interaction import ASK_PAGE, live_url
 from render_cases_navigation import (
     source_revision,
 )
@@ -1828,6 +1828,94 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
         ).count()
         == 0
     )
+
+
+# What a page's own module may do and what it may not, attempted in turn.
+POLICY_ATTEMPTS = """\
+const image = (src) => new Promise((resolve) => {
+  const img = new Image();
+  img.onload = () => resolve("ran");
+  img.onerror = () => resolve("refused");
+  img.src = src;
+});
+const attempts = {
+  eval: () => eval("'ran'"),
+  wasm: async () => {
+    await WebAssembly.compile(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0]));
+    return "ran";
+  },
+  "blob worker": () => new Promise((resolve) => {
+    const source = new Blob(["postMessage('ran')"], {type: "text/javascript"});
+    const worker = new Worker(URL.createObjectURL(source));
+    worker.onmessage = (event) => resolve(event.data);
+    worker.onerror = () => resolve("refused");
+  }),
+  "blob image": async () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 1;
+    return image(URL.createObjectURL(await new Promise((r) => canvas.toBlob(r))));
+  },
+  "remote image": () => image("https://outside.invalid/pixel.png"),
+  "unmarked script": () => new Promise((resolve) => {
+    const script = document.createElement("script");
+    script.src = "data:text/javascript,window.unmarkedRan=true";
+    script.onload = () => resolve(window.unmarkedRan ? "ran" : "loaded");
+    script.onerror = () => resolve("refused");
+    document.head.append(script);
+  }),
+};
+window.policyOutcomes = (async () => {
+  const outcomes = {};
+  for (const [name, attempt] of Object.entries(attempts)) {
+    try {
+      outcomes[name] = await attempt();
+    } catch (error) {
+      outcomes[name] = error.name;
+    }
+  }
+  return outcomes;
+})();
+"""
+
+
+def test_served_and_exported_pages_run_under_one_policy(browser, serve, tmp_path):
+    """The page's own module, loaded from its own file, may compile at run time, run a
+    blob: worker, and draw a blob: image, in the served page and its export alike, so
+    a library that does any of them draws in both or neither. A data: script element
+    runs in neither, and neither loads an image from an origin the page may not use."""
+    source = leaf_page(
+        "One policy",
+        "<h1>One policy</h1>",
+        head='<script type="module" src="/page/attempts.js"></script>',
+    )
+    version = serve(source, page_files={"attempts.js": POLICY_ATTEMPTS})
+    out = tmp_path / "offline.html"
+    exporting_model.cmd_export(serve.page_dir, out, None)
+    expected = {
+        "eval": "ran",
+        "wasm": "ran",
+        "blob worker": "ran",
+        "blob image": "ran",
+        "remote image": "refused",
+        "unmarked script": "refused",
+    }
+    for url in (live_url(version), out.as_uri()):
+        page = open_page(
+            browser,
+            url,
+            init_script="""
+              window.refusedBy = [];
+              document.addEventListener('securitypolicyviolation', (event) => {
+                window.refusedBy.push(event.effectiveDirective);
+              });
+            """,
+        )
+        assert page.evaluate("() => window.policyOutcomes") == expected, url
+        assert sorted(page.evaluate("() => window.refusedBy")) == [
+            "img-src",
+            "script-src-elem",
+        ], url
+        consume_browser_errors(page, "violates the following Content Security Policy")
 
 
 def test_an_export_keeps_the_non_fetch_policy(browser, serve, tmp_path):

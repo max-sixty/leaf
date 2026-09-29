@@ -468,7 +468,7 @@ def compose_document(
     reserve the banner a sign-off page will draw before the runtime draws it. The
     import map precedes every script, since a browser
     reads no map once a module has begun to load. With a policy, one nonce per
-    document marks delivery's scripts and every inline script the source arrived
+    document marks delivery's scripts and every script the source arrived
     with, placed after addressing so its offsets are the ones the browser reads. A
     document written once and served many times (`live_shell`) shares its nonce with
     every reader, so it keeps out only markup that cannot read the page.
@@ -510,7 +510,7 @@ def compose_document(
             else ""
         )
         + delivery.head
-        + f'<script type="module" src="{html.escape(delivery.address("/leaf.js"), quote=True)}" data-lf-runtime></script>'
+        + f'<script type="module"{marked} src="{html.escape(delivery.address("/leaf.js"), quote=True)}" data-lf-runtime></script>'
         + (
             f'<link rel="canonical" href="{html.escape(delivery.page_root, quote=True)}/" data-lf-runtime>'
             if delivery.page_root is not None
@@ -521,7 +521,8 @@ def compose_document(
     insertions = [(head_end, head)]
     if nonce:
         insertions += [
-            (script["start_tag_end"] - 1, marked) for script in document.inline_scripts
+            (script["start_tag_end"] - 1, marked)
+            for script in document.inline_scripts + document.external_scripts
         ]
     root = dict(delivery.html_attributes)
     if (review := review_mode(document)) is not None:

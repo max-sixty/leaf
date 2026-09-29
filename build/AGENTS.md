@@ -6,8 +6,8 @@ Installation, page init, and export consume that committed output and never run 
 compiler, so nothing here runs on a host.
 
 - `browser/` is the TypeScript browser framework, its Node tests, and `build.mjs`,
-  which compiles it and `lit.js`. `browser/shipped.mjs` refuses a module the page
-  CSP forbids and writes each bundle's license notices; every build here passes its
+  which compiles it and `lit.js`. `browser/shipped.mjs` refuses a module whose
+  imports no page resolves and writes each bundle's license notices; every build here passes its
   output through it. `browser/generated/` holds the source maps and manifest.
 - `vendor.py` rebuilds every other bundle. Where upstream publishes a loadable file
   it copies it; `pierre/`, `webawesome/`, and `mcp-app/` are the inputs of the

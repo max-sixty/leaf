@@ -85,7 +85,7 @@ LF_META = {"lf-review": frozenset({"sign-off"})}
 # The public CDNs a page may load from, the set a Claude artifact page is given:
 # Google Fonts' stylesheets and font files, and the script CDNs. A reference to
 # one of these is served from there as written; capture neither reads nor
-# refuses it, and every fetch directive of every policy below admits it.
+# refuses it, and every fetch directive of `page_policy` admits it.
 EXTERNAL_ORIGINS = (
     "https://fonts.googleapis.com",
     "https://fonts.gstatic.com",
@@ -107,17 +107,39 @@ def external_reference(reference: str) -> bool:
     return f"{parsed.scheme}://{parsed.netloc}" in EXTERNAL_ORIGINS
 
 
-# The one CSP delivery gives every page. Delivery adds a nonce and writes it onto the
-# runtime bootstrap and every authored module block, so only the inline scripts it
-# composed run. 'self' is the immutable page layer whole; base-uri and form-action
-# need their own directives because default-src governs only fetches. data: admits
-# the images `page export` inlines. 'unsafe-inline' admits the <style> block a
-# page writes its own CSS in, and the one the theme arrives in on export.
-PAGE_CSP = (
-    f"default-src 'self' {EXTERNAL_SOURCES}; base-uri 'none'; form-action 'none'; "
-    f"img-src 'self' data: {EXTERNAL_SOURCES}; "
-    f"style-src 'self' 'unsafe-inline' {EXTERNAL_SOURCES}"
-)
+def page_policy(nonce: str, origin: str) -> str:
+    """The one CSP every page runs under, served or exported.
+
+    `origin` is where the page's own files come from: `'self'`, the immutable page
+    layer, for a served page, and nothing for an export, which embeds every file as a
+    data: URL and must not reach the reader's disk.
+
+    The runtime entry and every script the page's source places carry the delivery's
+    nonce, and every module they import inherits it. Beyond the nonce, script-src
+    names only the page's own files and EXTERNAL_ORIGINS; data: and blob: stay out,
+    since either would let a string become a script element. The script CDNs serve
+    any npm package, so a `<script src>` injected into markup and naming one would
+    still run: what keeps injected scripts out is that message markup is inserted
+    where no script runs, and that `page check` refuses every script but a module.
+    base-uri and form-action need their own directives because default-src governs
+    only fetches.
+
+    Fetches reach the page's own files, data: and blob: URLs, and EXTERNAL_ORIGINS, so
+    markup quoted into a page cannot load a tracking image. The author's code may
+    compile at run time (eval, Function, WebAssembly, a blob: worker): it is trusted,
+    and markup reaches a compiler only through a library the author chose that
+    evaluates markup. 'unsafe-inline' admits the <style> block a page writes its CSS in.
+    """
+    own = f"{origin} " if origin else ""
+    fetches = f"{own}data: blob: {EXTERNAL_SOURCES}"
+    return (
+        f"default-src {fetches}; base-uri 'none'; form-action 'none'; "
+        f"object-src 'none'; style-src {fetches} 'unsafe-inline'; "
+        f"script-src {own}'nonce-{nonce}' 'unsafe-eval' {EXTERNAL_SOURCES}; "
+        f"worker-src {own}blob:"
+    )
+
+
 # A meta policy cannot govern the document's ancestors. The ordinary server adds this
 # separate header policy, and the site manifest carries it to the Worker; the
 # capability-scoped MCP transport is deliberately frameable.
@@ -237,9 +259,9 @@ class SourceDocument:
         # placement belong to the asset record: parallel lists made one fact several
         # representations and let a later parser edit silently misalign them.
         self.external_scripts = []
-        # Exact text of each inline script, plus where its start tag ends: the capture
-        # digests the text, and delivery inserts the CSP nonce that authorizes the
-        # block at that offset. Validation admits only authored modules; keeping the
+        # Exact text of each inline script: the capture digests it. Every script
+        # records where its start tag ends, where delivery inserts the CSP nonce that
+        # authorizes it. Validation admits only authored modules; keeping the
         # parser neutral lets it report the actual attributes on anything else.
         self.inline_scripts = []
         # Executable behavior has one visible source form: a module block. Event
@@ -409,26 +431,21 @@ class SourceDocument:
         in_head = "head" in ancestors
         in_main = "main" in ancestors
         if tag == "script":
+            start_tag = element.source_location.start_tag
             script = {
                 "attrs": attrs,
                 "parent": parent_tag,
                 "position": (line, column),
                 "early_head": in_head and before_body,
                 "line": line,
+                "start_tag_end": self._source_index(
+                    start_tag.end_line, start_tag.end_col
+                ),
             }
             if attrs.get("src"):
                 self.external_scripts.append(script)
             else:
-                start_tag = element.source_location.start_tag
-                self.inline_scripts.append(
-                    {
-                        **script,
-                        "body": element.text,
-                        "start_tag_end": self._source_index(
-                            start_tag.end_line, start_tag.end_col
-                        ),
-                    }
-                )
+                self.inline_scripts.append({**script, "body": element.text})
         for name, value in attrs.items():
             if (len(name) > 2 and name.startswith("on")) or (
                 name in SCRIPT_URL_ATTRIBUTES

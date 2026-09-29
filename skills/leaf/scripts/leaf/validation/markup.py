@@ -125,6 +125,18 @@ def structure_errors(parser: SourceDocument) -> list:
     return errors
 
 
+def refresh_errors(parser: SourceDocument) -> list:
+    """A refresh navigates wherever it is inserted, a message body included, so markup
+    quoting one would send what its URL holds to another origin with no gesture, past
+    every fetch the page policy refuses."""
+    return [
+        f"<meta http-equiv=refresh> (line {meta['line']}) navigates the page by "
+        "itself; link to where the reader should go"
+        for meta in parser.http_equivs
+        if meta["equiv"].strip().lower() == "refresh"
+    ]
+
+
 def page_boundary_errors(parser: SourceDocument) -> list:
     """Authored content lies under the page's one main content boundary."""
     errors = []

@@ -4304,8 +4304,7 @@ def test_the_shared_auxiliary_scrim_marks_and_dismisses_a_covering_surface(
 
 
 # A classic scrollbar, which the headless shell hides unless both its flag is dropped
-# and the page styles one. A constructed sheet, because the page's CSP refuses an
-# injected <style>.
+# and the page styles one, here through a constructed sheet.
 CLASSIC_SCROLLBAR = """
   document.addEventListener('DOMContentLoaded', () => {
     const sheet = new CSSStyleSheet();

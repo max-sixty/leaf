@@ -40,6 +40,7 @@ from leaf.validation.markup import (
     id_errors,
     media_errors,
     page_boundary_errors,
+    refresh_errors,
     structure_errors,
     unarranged_main,
     unpointable_blocks,
@@ -147,6 +148,7 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
             f"<meta http-equiv=Content-Security-Policy> (line {policy['line']}) "
             "belongs to delivery"
         )
+    errors.extend(refresh_errors(parser))
 
     for encoding in parser.encoding_metas:
         errors.append(

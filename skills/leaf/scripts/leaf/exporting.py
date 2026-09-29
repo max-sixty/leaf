@@ -36,10 +36,7 @@ from leaf.revision_delivery import (
     rebase_css,
 )
 from leaf.served_state.service import PageStateService
-from leaf.structure import (
-    EXTERNAL_SOURCES,
-    SourceDocument,
-)
+from leaf.structure import SourceDocument, page_policy
 from leaf.thread_context import logged_fragment
 
 ResourceReader = Callable[[str], Resource]
@@ -252,14 +249,7 @@ def export_document(
                 modules[path] if path in modules else inliner.address(path)
             ),
             inline_stylesheet=inliner.stylesheet,
-            policy=lambda nonce: (
-                "default-src 'none'; base-uri 'none'; form-action 'none'; "
-                f"object-src 'none'; connect-src data: {EXTERNAL_SOURCES}; "
-                f"img-src data: {EXTERNAL_SOURCES}; media-src data: {EXTERNAL_SOURCES}; "
-                f"font-src data: {EXTERNAL_SOURCES}; "
-                f"style-src 'unsafe-inline' data: {EXTERNAL_SOURCES}; "
-                f"script-src data: 'nonce-{nonce}' {EXTERNAL_SOURCES}"
-            ),
+            policy=lambda nonce: page_policy(nonce, ""),
             import_map={
                 "imports": {
                     f"leaf:{path}": url for path, url in sorted(modules.items())

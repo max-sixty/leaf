@@ -1,6 +1,6 @@
 /*
  * Shiki's public entry, cut to Leaf's declared languages and the JavaScript regex
- * engine. The Oniguruma engine loads WebAssembly, which the page CSP will not fetch.
+ * engine. The Oniguruma engine adds a WebAssembly binary the JavaScript engine does without.
  */
 import {
   createBundledHighlighter,

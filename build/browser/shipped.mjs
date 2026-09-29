@@ -4,23 +4,24 @@
  *
  * Both builders consume this module: `build.mjs` for the browser framework and Lit,
  * `build/vendor.py` for every other bundle, including the files it copies as
- * published. So one parser decides whether an output runs under the page CSP, and one
+ * published. So one parser decides whether an output can load on every page, and one
  * writer states the licenses of the packages that reached it.
  *
- * The interactive export's CSP admits neither runtime compilation nor a module it did
- * not embed, and both are one careless import away: d3 carries a `new Function` in
- * d3-dsv's CSV parser, and a bundler splits a chunk out behind every `import()`. A
- * bundle that breaks either rule draws in a developer's served page, whose policy
- * allows eval for the test drivers, and refuses in a user's export. So the check reads
- * the parsed module rather than its text: a grammar that carries `import(` as data,
- * as Pierre's TextMate grammars do, is ordinary.
+ * An export embeds each module it knows as a data: URL, and nothing resolves a
+ * specifier no page serves, so a bundle must name its whole module graph statically.
+ * A bundler splits a chunk out behind every `import()`, and a bare specifier or a
+ * `require` needs a package resolver no page has. A bundle that breaks either rule draws in a
+ * developer's served page and fails in a user's export. So the check reads the parsed
+ * module rather than its text: a grammar that carries `import(` as data, as Pierre's
+ * TextMate grammars do, is ordinary. Compiling at run time is not refused: the page
+ * policy admits it (`structure.page_policy`).
  *
  * A static import may name only a local path. Whether its target exists is a fact of
  * the served layout rather than of the bundle, and capturing a revision refuses a
  * missing one (`revision_artifact.captured_imports`).
  *
  * Run as `node build/browser/shipped.mjs METAFILE NOTICES [MODULE...]` from the
- * build's working directory: it refuses the first module the page CSP forbids, then
+ * build's working directory: it refuses the first module no page could load, then
  * writes NOTICES from the packages METAFILE (esbuild's) says reached the bundle.
  */
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -28,38 +29,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "acorn";
 
-const COMPILERS = new Set(["eval", "Function", "require"]);
-// A timer given a string compiles it, as eval does; given a function, it does not.
-const TIMERS = new Set(["setTimeout", "setInterval"]);
-const GLOBALS = new Set(["globalThis", "window", "self"]);
 const LOCAL = /^(?:\/(?!\/)|\.{1,2}\/)/;
 
-/** Whether an expression is a string the source states: literal, template, or sum. */
-function isString(node) {
-  if (!node) return false;
-  if (node.type === "Literal") return typeof node.value === "string";
-  if (node.type === "TemplateLiteral") return true;
-  return (
-    node.type === "BinaryExpression" &&
-    node.operator === "+" &&
-    (isString(node.left) || isString(node.right))
-  );
-}
-
-/** The function a call reaches by name, through `(0, eval)` or `globalThis.eval`. */
-function calleeName(node) {
-  if (node.type === "SequenceExpression") return calleeName(node.expressions.at(-1));
-  if (node.type === "Identifier") return node.name;
-  if (
-    node.type === "MemberExpression" &&
-    node.object.type === "Identifier" &&
-    GLOBALS.has(node.object.name)
-  )
-    return node.computed ? node.property.value : node.property.name;
-  return undefined;
-}
-
-/** Refuse a module that compiles code at run time or imports what no page serves. */
+/** Refuse a module that imports what no page serves. */
 export function checkModule(source, name = "<module>") {
   const parsed = parse(source, {
     ecmaVersion: "latest",
@@ -68,7 +40,7 @@ export function checkModule(source, name = "<module>") {
   });
   const refuse = (node, reason) => {
     throw new Error(
-      `${name}:${node.loc.start.line}: ${reason}, which the page CSP forbids`,
+      `${name}:${node.loc.start.line}: ${reason}, which no page resolves`,
     );
   };
   function visit(node) {
@@ -83,12 +55,8 @@ export function checkModule(source, name = "<module>") {
       !LOCAL.test(node.source.value)
     )
       refuse(node, `it imports ${JSON.stringify(node.source.value)}, not a local path`);
-    if (["CallExpression", "NewExpression"].includes(node.type)) {
-      const callee = calleeName(node.callee);
-      if (COMPILERS.has(callee)) refuse(node, `it calls ${callee}`);
-      if (TIMERS.has(callee) && isString(node.arguments[0]))
-        refuse(node, `it passes ${callee} a string to compile`);
-    }
+    if (node.type === "CallExpression" && node.callee.name === "require")
+      refuse(node, "it calls require");
     for (const value of Object.values(node)) {
       if (Array.isArray(value)) value.forEach(visit);
       else visit(value);

@@ -75,7 +75,7 @@ export function mountSample(frame, { template, passive = false }) {
   let operation = null;
   let closing = null;
   let loading = null;
-  frame.inert = passive;
+  frame.toggleAttribute("inert", passive);
   frame.toggleAttribute("data-lf-contained", true);
 
   const release = (url) => request(new URL("api/release", url), {});
@@ -105,7 +105,7 @@ export function mountSample(frame, { template, passive = false }) {
       if (destroyed) throw new DOMException("sample destroyed", "AbortError");
       loading = new AbortController();
       const doc = await presented(frame, current, loading.signal);
-      if (!passive) doc.body.inert = false;
+      if (!passive) doc.body.toggleAttribute("inert", false);
       return doc;
     } catch (error) {
       await retire();

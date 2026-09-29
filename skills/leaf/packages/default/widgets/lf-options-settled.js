@@ -4,6 +4,8 @@ import {
   DISCLOSE,
   HIDDEN,
   commands,
+  keeps,
+  keepsText,
   relabel,
   selectableOffer,
   tabStore,
@@ -60,30 +62,30 @@ export class SettledOptions {
     this.#host.prepend(this.#row);
     this.#host.addEventListener("beforematch", () => this.#open(true, true), true);
     this.#host.addEventListener("lf-reveal", () => this.#open(true, true), true);
-    this.#host.classList.add("lf-rendered");
+    this.#host.classList.toggle("lf-rendered", true);
     this.#open(tabStore.get(SETTLED_KEY + this.#host.id) === "1", false);
   }
 
   #open(open, remember) {
     this.#isOpen = open;
     this.sync();
-    this.#row.setAttribute("aria-expanded", open ? "true" : "false");
+    keeps(this.#row, "aria-expanded", open);
     if (remember) tabStore.set(SETTLED_KEY + this.#host.id, open ? "1" : "0");
   }
 
   sync() {
     const options = [...this.#host.querySelectorAll(":scope > lf-option")];
-    this.#count.textContent = `${options.length} option${options.length === 1 ? "" : "s"}`;
-    this.#row.setAttribute(
-      "aria-controls",
-      options.map((option) => option.id).join(" "),
+    keepsText(
+      this.#count,
+      `${options.length} option${options.length === 1 ? "" : "s"}`,
     );
+    keeps(this.#row, "aria-controls", options.map((option) => option.id).join(" "));
     for (const el of [
       ...options,
       ...this.#host.querySelectorAll(":scope > :is(.lf-another, lf-options-done)"),
     ])
       if (this.#isOpen) el.removeAttribute("hidden");
-      else el.setAttribute("hidden", HIDDEN);
+      else keeps(el, "hidden", HIDDEN);
 
     const names = options
       .filter((option) => option.hasAttribute("chosen"))
@@ -95,12 +97,14 @@ export class SettledOptions {
   }
 
   #delta() {
-    this.#row.querySelector(".lf-settled-diff")?.remove();
+    let chip = this.#row.querySelector(".lf-settled-diff");
     const n = this.#host.querySelectorAll(".lf-ins-block").length;
-    if (!n) return;
-    const chip = document.createElement("span");
-    chip.className = "lf-settled-diff";
-    chip.textContent = `Δ${n}`;
-    this.#row.append(chip);
+    if (!n) return chip?.remove();
+    if (!chip) {
+      chip = document.createElement("span");
+      chip.className = "lf-settled-diff";
+      this.#row.append(chip);
+    }
+    keepsText(chip, `Δ${n}`);
   }
 }

@@ -7,7 +7,7 @@ import { userStore } from "./storage.js";
 import { el } from "./widget-elements.js";
 import { keys } from "./keyboard/scopes.js";
 import { setRuntimeRootStyle } from "./root-state.js";
-import { keeps } from "./keeps.js";
+import { keeps, keepsHidden } from "./keeps.js";
 
 // The step an arrow takes, in the column's own gutter: the smallest move that shows in a
 // page of prose.
@@ -74,7 +74,7 @@ export function drawnEdge({ side, noun, wide, min, prop, key, when, land }) {
       const fixed = cap() <= min;
       if (fixed && handle === document.activeElement)
         handle.lfFixedFocus().focus({ preventScroll: true });
-      handle.hidden = fixed;
+      keepsHidden(handle, fixed);
     }
   }
   // The user's answer, taken and kept. Held to the window on the way in, because a drag

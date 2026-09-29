@@ -594,7 +594,8 @@ export function responseAction(
 ) {
   if (Boolean(String(glyph ?? "").trim()) === Boolean(icon))
     throw new TypeError("A response action needs exactly one glyph or icon");
-  control.classList.add("lf-response-control", "lf-response-action");
+  control.classList.toggle("lf-response-control", true);
+  control.classList.toggle("lf-response-action", true);
   keeps(control, "data-lf-behavior", behavior);
   control.toggleAttribute("data-lf-collapse", collapse);
   if (behavior !== "action" && !control.hasAttribute("aria-expanded"))

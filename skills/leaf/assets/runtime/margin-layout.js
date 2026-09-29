@@ -228,7 +228,7 @@ function placeMarginEntryLabel(control) {
     ) ??
     candidates.find(fits) ??
     candidates[0];
-  control.dataset.lfLabelSide = choice.name;
+  keeps(control, "data-lf-label-side", choice.name);
   label.style.setProperty(
     "--lf-label-x",
     `${choice.rect.left - marginEntryBox.left}px`,
@@ -568,7 +568,7 @@ export function registerMarginRow(row, options = {}) {
 export function unregisterMarginRow(row) {
   rows.delete(row);
   if (row) {
-    row.classList.remove("lf-withheld");
+    row.classList.toggle("lf-withheld", false);
     row.removeAttribute("data-lf-place");
     row.removeAttribute("data-lf-parked");
     for (const property of [
@@ -589,12 +589,6 @@ export function unregisterMarginRow(row) {
     observedColumn = null;
   }
   scheduleMarginLayout();
-}
-
-// `add` and `remove` re-serialize the class attribute whether or not the token changes,
-// and this pass runs on the heartbeat, so ask before marking.
-function mark(row, name, on) {
-  if (row.classList.contains(name) !== on) row.classList.toggle(name, on);
 }
 
 function setStyle(row, property, value) {
@@ -834,7 +828,7 @@ export function layoutMarginRows() {
   // to show. Its insets are written once packing has said where it stands.
   const px = (length) => (length ? `${length}px` : null);
   for (const { row, naming, shown, place, box, extent } of reads) {
-    mark(row, "lf-withheld", !shown);
+    row.classList.toggle("lf-withheld", !shown);
     if (!naming) continue;
     setStyle(row, "position-anchor", nameAnchor(naming));
     if (row.dataset.lfPlace !== place) row.dataset.lfPlace = place;
@@ -869,13 +863,13 @@ export function layoutMarginRows() {
         read,
       };
     });
-  for (const { key: row, stranded, read } of placed)
+  for (const { key: row, stranded, read } of placed) {
+    row.toggleAttribute("data-lf-parked", stranded);
     if (stranded) {
       parked.set(row, read.anchor);
-      row.setAttribute("data-lf-parked", "");
-      mark(row, "lf-withheld", true);
-    } else if (row.hasAttribute("data-lf-parked"))
-      row.removeAttribute("data-lf-parked");
+      row.classList.toggle("lf-withheld", true);
+    }
+  }
   const standing = placed.filter(({ stranded }) => !stranded);
   seatPins(standing, { bands, shell, pinInset });
   const packed = packRows(standing, GAP);
@@ -894,8 +888,7 @@ export function layoutMarginRows() {
     // A pin seated beside its target can stand outside what its pane shows though the
     // target is inside it, so a seated pin is withheld by where it stands.
     if (read.place === "pin")
-      mark(
-        row,
+      row.classList.toggle(
         "lf-withheld",
         !targetShown(
           read.target,

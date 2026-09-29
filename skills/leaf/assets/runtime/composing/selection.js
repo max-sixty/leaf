@@ -18,7 +18,7 @@
    capabilities. Importing this module exposes only passive nodes and live draft
    readings. mount binds the field and its controls after those owners exist. */
 import { el, responseAction } from "../widget-elements.js";
-import { keeps } from "../keeps.js";
+import { keeps, keepsHidden } from "../keeps.js";
 
 import {
   clearDraft,
@@ -65,7 +65,6 @@ export const fab = responseAction(el("button", "lf-ui lf-fab"), {
   behavior: "disclosure",
 });
 fab.id = "lf-comment-button";
-fab.setAttribute("aria-label", "Comment");
 fab.title = "Comment";
 const fabMore = responseAction(el("button", "lf-ui lf-response-more"), {
   icon: "more",
@@ -80,7 +79,6 @@ fabOptions.id = "lf-response-options";
 fabOptions.setAttribute("role", "group");
 fabOptions.setAttribute("aria-label", "Other responses");
 fabMore.setAttribute("aria-controls", fabOptions.id);
-fabMore.setAttribute("aria-expanded", "false");
 const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
   icon: "edit",
   label: "Suggest",
@@ -346,12 +344,15 @@ export function createSelectionComposer({
   }
 
   function syncResponseOptions(anchor = fabAnchorAt()) {
-    fabSuggest.hidden = !(
-      anchor?.quote &&
-      !designModeActive() &&
-      (!composerOpen || (!pendingAbout && !pendingDrawing))
+    keepsHidden(
+      fabSuggest,
+      !(
+        anchor?.quote &&
+        !designModeActive() &&
+        (!composerOpen || (!pendingAbout && !pendingDrawing))
+      ),
     );
-    fabMore.hidden = !anchor || !responseOptionsAvailable();
+    keepsHidden(fabMore, !anchor || !responseOptionsAvailable());
     if (responseOptionsOpen && !responseOptionsAvailable())
       setResponseOptions(false, { place: false });
   }
@@ -448,7 +449,11 @@ export function createSelectionComposer({
     if (previousCtx !== ctx || drawingSupplied)
       pendingDrawing = validDrawing(drawing) ? drawing : null;
     const target = pendingAnchor?.section ? elementById(pendingAnchor.section) : null;
-    fabBar.dataset.lfPaintPlane = target && inChrome(target) ? "chrome" : "page";
+    keeps(
+      fabBar,
+      "data-lf-paint-plane",
+      target && inChrome(target) ? "chrome" : "page",
+    );
     if (text) syncComposer.load(text);
     suggestCheck.checked = Boolean(suggest);
     syncSuggestMode();

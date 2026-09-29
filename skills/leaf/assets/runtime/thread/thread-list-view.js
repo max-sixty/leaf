@@ -12,6 +12,7 @@ import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
 import { layoutChanged } from "../widget-elements.js";
 import { foldOut, finishFold, isFolding } from "./folding.js";
+import { keeps } from "../keeps.js";
 
 const TAG = "leaf-thread-list";
 const EMPTY_MODEL = Object.freeze({ rows: Object.freeze([]), pageSeats: new Map() });
@@ -175,7 +176,7 @@ class ThreadListView extends RetainedFace {
         if (view.node.contains(focused())) this.focus({ preventScroll: true });
       }
       if (folding) view.node.removeAttribute("name");
-      else view.node.setAttribute("name", this.#commands.card.detailsGroup);
+      else keeps(view.node, "name", this.#commands.card.detailsGroup);
       view.setNavigation({
         draftChanged: () => view.present(view.model),
       });

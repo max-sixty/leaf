@@ -324,17 +324,12 @@ export function presentMarginEntry(control, offered, options = {}) {
   const record = presentMarginEntryHost(control, offered, options);
   if (Object.hasOwn(options, "selected"))
     syncMarginEntrySelection(control, options.selected);
-  if (!control.classList.contains("lf-margin-entry"))
-    control.classList.add("lf-margin-entry");
+  control.classList.toggle("lf-margin-entry", true);
   const priorClasses = contributorClasses.get(control) ?? [];
   const nextClasses = record.className?.split(/\s+/).filter(Boolean) ?? [];
-  if (
-    priorClasses.length !== nextClasses.length ||
-    priorClasses.some((name, index) => name !== nextClasses[index])
-  ) {
-    control.classList.remove(...priorClasses);
-    if (nextClasses.length) control.classList.add(...nextClasses);
-  }
+  for (const name of priorClasses)
+    if (!nextClasses.includes(name)) control.classList.toggle(name, false);
+  for (const name of nextClasses) control.classList.toggle(name, true);
   contributorClasses.set(control, nextClasses);
   const visibleLabel = visibleMarginEntryLabel(record);
   const glyph = record.icon

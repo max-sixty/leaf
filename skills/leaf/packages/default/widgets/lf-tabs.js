@@ -42,6 +42,7 @@ import {
   commands,
   declareStickyHeaders,
   keeps,
+  keepsText,
   openAsks,
   layoutChanged,
   listWalkPosition,
@@ -270,10 +271,8 @@ customElements.define(
       for (const [panel, btn] of this.#buttons) {
         const changed = panel.querySelectorAll(".lf-ins-block").length;
         const asks = owed.filter((element) => panel.contains(element)).length;
-        const show = (kind, text) => {
-          const chip = btn.querySelector(`:scope > .${kind}`);
-          if (chip.textContent !== text) chip.textContent = text;
-        };
+        const show = (kind, text) =>
+          keepsText(btn.querySelector(`:scope > .${kind}`), text);
         show("lf-tabdiff", changed ? `Δ${changed}` : "");
         show("lf-tabowed", asks ? String(asks) : "");
         const description = [
@@ -283,7 +282,7 @@ customElements.define(
         ]
           .filter(Boolean)
           .join(". ");
-        if (description) btn.setAttribute("aria-description", description);
+        if (description) keeps(btn, "aria-description", description);
         else btn.removeAttribute("aria-description");
       }
     }
@@ -365,7 +364,7 @@ customElements.define(
         Boolean(main?.matches("body > main")) &&
         main.querySelector(":scope > lf-tabs") === this;
       this.#pageFlow = this.#root && !this.#side;
-      this.dataset.lfTabsFlow = this.#pageFlow ? "page" : "box";
+      keeps(this, "data-lf-tabs-flow", this.#pageFlow ? "page" : "box");
       if (!this.#root) {
         this.#historyEvents?.abort();
         this.#historyEvents = null;

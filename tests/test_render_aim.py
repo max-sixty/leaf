@@ -1316,6 +1316,115 @@ def test_a_pointed_row_is_announced_where_it_stands_and_by_its_words(browser, se
     assert "let value_50 = compute(50);" in spoken["name"], spoken
 
 
+POINTED_WITHIN = {
+    # A paragraph's own lines: a comment on its words and one on code inline in its third
+    # line both stand at the paragraph.
+    "code": (
+        '<p id="within" style="width: 260px">'
+        + "Words the paragraph runs through at length. " * 3
+        + "<code>inline_code()</code> "
+        + "and more words after it, to a fourth line. " * 2
+        + "</p>",
+        ["#within", "#within code"],
+        0,
+    ),
+    # A drawing's shapes: the figure is one target however far down its picture stands.
+    "drawing": (
+        (
+            '<figure id="within"><figcaption>A caption above the picture, which stands '
+            "below it.</figcaption><svg viewBox='0 0 240 200' width='240' height='200'>"
+            "<rect x='2' y='2' width='100' height='190' fill='#ddd'></rect></svg>"
+            "</figure>"
+        ),
+        ["#within svg rect", "#within svg"],
+        0,
+    ),
+    # A table's row: two cells of one row are the one line the user pointed at.
+    "table": (
+        '<table id="within">'
+        + "".join(
+            f"<tr><td>Row {n} first cell</td><td>Row {n} second cell</td></tr>"
+            for n in range(40)
+        )
+        + "</table>",
+        ["#within tr >> nth=30 >> td >> nth=0", "#within tr >> nth=30 >> td >> nth=1"],
+        "#within tr >> nth=30",
+    ),
+}
+
+
+@pytest.mark.parametrize("case", POINTED_WITHIN)
+def test_comments_pointed_within_one_line_share_its_row(browser, serve, case):
+    """A point is a line of the target, decided by how the page lays it out: words, a
+    link or code inside the target's own lines stand at the target, a drawing's shapes
+    have no lines, and a table's cells stand on their row. So two comments pointed
+    within one line stand as one margin row, where that line is."""
+    body, presses, line = POINTED_WITHIN[case]
+    page = open_page(browser, serve(leaf_page("Within", f"<h1>Within</h1>{body}")))
+    resized(page, 1440, 900)
+    for n, press in enumerate(presses):
+        pressed = page.locator(press)
+        pressed.scroll_into_view_if_needed()
+        rendered(page)
+        pressed.click(modifiers=["Alt"], position={"x": 4, "y": 4})
+        write(open_compact_comment(page), f"Comment {n}.")
+        with sending(page, f"comment {n}"):
+            page.keyboard.press("Enter")
+        page.keyboard.press("Escape")
+        rendered(page)
+    depth = (
+        page.locator(line).evaluate(
+            "(row) => Math.round(row.getBoundingClientRect().top"
+            " - document.getElementById('within').getBoundingClientRect().top)"
+        )
+        if line
+        else 0
+    )
+    rows = page.evaluate(ROWS_ON, ["within"])
+    assert len(rows) == 1 and abs(rows[0][1] - depth) <= 8, (
+        f"two comments within one line stand at {rows}, not as one row at {depth}"
+    )
+
+
+def test_undoing_a_settle_brings_a_pointed_comment_back_to_its_row(browser, serve):
+    """Settling a pointed comment and taking that back returns it where it stood, next to
+    its line, whatever else is open on the target."""
+    url = serve(TALL_DIFF_PAGE)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Another thread, still open on the diff.",
+            "anchor": {"section": "whole"},
+        },
+    )
+    page = open_page(browser, live_url(url))
+    resized(page, 1440, 900)
+    expect(page.locator("lf-diff.lf-rendered")).to_have_count(1)
+    point_a_comment(page, "Why this line?")
+    pointed = page.evaluate(ROWS_ON, ["whole"])
+    assert len(pointed) == 2, pointed
+    root = events_model.read_events(serve.page_dir)[-1]
+    assert root["kind"] == "comment", root
+    settle = events_model.append_event(
+        serve.page_dir, {"kind": "resolve", "author": "user", "parent": root["id"]}
+    )
+    told(page)
+    rendered(page)
+    assert len(page.evaluate(ROWS_ON, ["whole"])) == 1
+    events_model.append_event(
+        serve.page_dir, {"kind": "undo", "author": "user", "undoes": settle["id"]}
+    )
+    told(page)
+    rendered(page)
+    back = page.evaluate(ROWS_ON, ["whole"])
+    assert sorted(top for _, top in back) == pytest.approx(
+        sorted(top for _, top in pointed), abs=8
+    ), f"the undone settle stood the comment at {back}, not {pointed}"
+
+
 def test_a_comment_rechooses_after_target_width_reflow(browser, serve):
     """New horizontal room invalidates the old fallback instead of detaching it."""
     page = open_page(

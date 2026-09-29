@@ -8,25 +8,27 @@
    presentation, not an event fact: the anchor stays the target, and nothing the log or
    the agent reads changes.
 
-   The point is the row the press landed in: the nearest box around the pressed node
-   that lays out as a line or a block rather than inline, inside its target and never
-   the target itself. A press on the target's own box, or a gesture with no pointer (`c`,
-   a selection), has none and stands at the target's top. Its box is read afresh at every
+   The point is the line the press landed on: the nearest box around the pressed node,
+   inside its target and never the target itself, that is a line or a block of its own
+   (a diff's line, a paragraph in a section, a table's row), decided by how it lays out.
+   Words, a link or code inline in the target's own lines have none, nor does a drawing's
+   shape, nor a press on the target's own box or a gesture with no pointer (`c`, a
+   selection): those stand at the target's top. Its box is read afresh at every
    placement, so a reflow carries the place with the row.
 
    A point belongs to one comment. The composing surface holds a draft's point while the
-   box is up; a sent comment's is committed here under its thread's key (`threadKey`, the
+   box is up; a send hands its point over under its thread's key (`threadKey`, the
    attempt that survives the log's answer), with the row's words as a passage
    (`rangeAnchor`), the identity the page already resolves quotes by. Comments pointed at
    one row share that row's key, the first one's, so they stand as one margin row.
 
-   Anchor paint's pass is the one writer of where each point stands now (`placePoints`,
-   beside its resolution of every thread's anchor): a row still standing keeps its
-   element, and one a re-render or a revision replaced is found again by its words, once
-   per page reading. Everything else reads the result off the placement record. Points of
-   threads no longer open, settled or a refused send's, are dropped there too. A
-   point whose words no longer resolve, or that had none, stands at the target's top; a
-   reload keeps none. */
+   Anchor paint's pass is the one writer of the points (`placePoints`, beside its
+   resolution of every thread's anchor): it takes in what sends handed over, keeps a row
+   still standing, finds one a re-render or a revision replaced again by its words, once
+   per page reading, and forgets the points of threads the log does not hold. A settled
+   thread keeps its point, so undoing the settle brings it back where it stood. Everything
+   else reads the result off the placement record. A point whose words no longer
+   resolve, or that had none, stands at the target's top; a reload keeps none. */
 import { resolveAnchor } from "./anchor-resolution.js";
 import { clamp } from "./rect.js";
 import { targetSegments } from "./resolved-target.js";
@@ -34,18 +36,27 @@ import { upFrom, under } from "./shadow.js";
 
 // A sent comment's point by its thread's key: `{ element, passage, row, readFor }`.
 const points = new Map();
+// Points a send has handed over (`commitPoint`), until the pass takes them in.
+const handed = new Map();
 
-// The row `node` lies in inside `target`: the nearest element around it that is not laid
-// out inline, short of the target itself.
+// Boxes that are not a line of their own: laid out within one, drawing no box, or one
+// cell of a table's row, which is the line the user sees.
+const WITHIN_A_LINE = /^(inline|contents$|table-cell$)/;
+
+// The line `node` lies on inside `target`: the nearest element around it that lays out
+// as a line or a block of its own, short of the target itself. Words, a link or code
+// inline in the target's own lines have none, and neither does a drawing's shape, whose
+// `display` says nothing about lines.
 function rowIn(target, node) {
   let at = node?.nodeType === Node.ELEMENT_NODE ? node : (node?.parentElement ?? null);
-  if (!target || !at || at === target || !under(at, target)) return null;
-  for (let up = upFrom(at); up && up !== target; up = upFrom(up)) {
-    const display = getComputedStyle(at).display;
-    if (!display.startsWith("inline") && display !== "contents") break;
-    at = up;
-  }
-  return at;
+  if (!target || target instanceof SVGElement || !at || !under(at, target)) return null;
+  for (; at && at !== target; at = upFrom(at))
+    if (
+      !(at instanceof SVGElement) &&
+      !WITHIN_A_LINE.test(getComputedStyle(at).display)
+    )
+      return at;
+  return null;
 }
 
 // The row a press on `node` points at inside `target`, or null for none.
@@ -62,22 +73,28 @@ export function standingPoint(target, point) {
     : null;
 }
 
-// Where the thread `key` stands: `element`, and `passage`, its words or null. A comment
-// pointed at a row another comment already stands at shares that row's key.
+// A send hands its thread's point over: `element`, and `passage`, its words or null.
 export function commitPoint(key, element, passage) {
-  const beside = [...points.values()].find(
-    (held) => held.element === element && element.isConnected,
-  );
-  points.set(key, { element, passage, row: beside?.row ?? key, readFor: null });
+  handed.set(key, { element, passage });
 }
 
 // Where each of `threads` pointed into its target stands on this page reading `text`:
 // `{ key, target }` in, and `key → { element, row }` out for each that stands. The one
-// writer, run by anchor paint's pass. `known` is the key of every open thread the log
-// holds, and a point whose thread is not among them, settled or refused, is forgotten;
-// a pass with none, offline or before the log is read, says nothing about which
-// threads the log holds and forgets nothing.
+// writer of the points, run by anchor paint's pass. It takes in what sends handed over,
+// a comment pointed at a row another stands at sharing that row's key. `known` is the key
+// of every thread the log holds, settled ones included, so undoing a settle finds its
+// point again; a point whose thread the log does not hold, a refused send's, is
+// forgotten. A pass with none, before the log is read, says nothing about which threads
+// it holds and forgets nothing.
 export function placePoints(threads, known, text) {
+  for (const [key, { element, passage }] of handed) {
+    if (!known.has(key)) continue;
+    handed.delete(key);
+    const beside = [...points.values()].find(
+      (held) => held.element === element && element.isConnected,
+    );
+    points.set(key, { element, passage, row: beside?.row ?? key, readFor: null });
+  }
   const placed = new Map();
   for (const { key, target } of threads) {
     const point = points.get(key);
@@ -92,7 +109,8 @@ export function placePoints(threads, known, text) {
     if (element) placed.set(key, { element, row: point.row });
   }
   if (known.size)
-    for (const key of points.keys()) if (!known.has(key)) points.delete(key);
+    for (const store of [points, handed])
+      for (const key of store.keys()) if (!known.has(key)) store.delete(key);
   return placed;
 }
 

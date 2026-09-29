@@ -68,7 +68,9 @@ export function createAim({
   // target taller than the window stands where the user pointed (pointed-place.js).
   function pointedTarget(at) {
     const target = at && aimTargetAt(at);
-    return target && { ...target, point: pointInto(target.element, at) };
+    // A drawing's part already names where on the picture it is.
+    const point = target?.anchor.visual ? null : pointInto(target?.element, at);
+    return target && { ...target, point };
   }
   function setAiming(on) {
     aiming = on;

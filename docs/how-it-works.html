@@ -1153,10 +1153,9 @@ flowchart TD
           <section id="one-kind">
             <h2>Every page is a stack of blocks</h2>
             <p id="one-kind-lede">
-              A Leaf page has one kind: blocks read top to bottom in the reading column.
-              A wide block grows past the column by declaring the width it needs, and a
-              Layout class on <code>main</code> arranges the whole page: a wide page's
-              body beside its status, or a workspace that fills the window.
+              A Leaf page is blocks read top to bottom. A Layout class on
+              <code>main</code> sets the page's shape: the reading column, a wide page,
+              or a workspace that fills the window.
             </p>
 
             <div class="panels" id="kind-figure">
@@ -1247,40 +1246,76 @@ flowchart TD
                   </g>
                 </svg>
                 <figcaption id="cap-kind-column">
-                  <strong>Prose and wide blocks</strong>Nothing is declared on the page.
-                  Text keeps the column, and a block that declares a width, such as a
-                  diagram, grows past it.
+                  <strong>A column page</strong><code>layout-column</code> on
+                  <code>main</code>. Text keeps the column, and a block that declares a
+                  width, such as a diagram, grows past it.
                 </figcaption>
               </figure>
               <figure id="kind-wide">
                 <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>
-                    A wide page: main declares a width, and its regions share one left
-                    edge
+                    A wide page: main declares a width, and every block starts at one
+                    left edge
                   </title>
                   <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
                   <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
                   <g id="kind-wide-main">
                     <rect class="attr" x="8" y="18" width="224" height="136" rx="3" />
-                    <text class="mono" x="14" y="30">main.layout-sidebar</text>
+                    <text class="mono" x="14" y="30">main.layout-wide</text>
                   </g>
                   <rect class="line" x="14" y="37" width="80" height="8" rx="2" />
-                  <g id="kind-wide-body">
-                    <rect class="box" x="14" y="52" width="136" height="50" rx="3" />
-                    <rect class="box" x="14" y="108" width="136" height="40" rx="3" />
-                    <text class="small" x="22" y="66">body</text>
+                  <g id="kind-wide-text">
+                    <rect
+                      class="line soft"
+                      x="14"
+                      y="51"
+                      width="130"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="14"
+                      y="59"
+                      width="120"
+                      height="4"
+                      rx="2"
+                    />
                   </g>
-                  <g id="kind-wide-status">
-                    <rect class="box" x="156" y="52" width="70" height="30" rx="3" />
-                    <rect class="box" x="156" y="88" width="70" height="28" rx="3" />
-                    <rect class="box" x="156" y="122" width="70" height="26" rx="3" />
-                    <text class="small" x="164" y="66">status</text>
+                  <g id="kind-wide-body">
+                    <rect
+                      class="box hot"
+                      x="14"
+                      y="70"
+                      width="212"
+                      height="54"
+                      rx="3"
+                    />
+                    <text x="120" y="101" text-anchor="middle">wide widget</text>
+                  </g>
+                  <g id="kind-wide-more">
+                    <rect
+                      class="line soft"
+                      x="14"
+                      y="132"
+                      width="130"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="14"
+                      y="140"
+                      width="104"
+                      height="4"
+                      rx="2"
+                    />
                   </g>
                 </svg>
                 <figcaption id="cap-kind-wide">
-                  <strong>A wide page</strong><code>layout-sidebar</code> on
-                  <code>main</code> widens the page and sets its body beside its status.
-                  Every block starts at one left edge, and text keeps its measure.
+                  <strong>A wide page</strong><code>layout-wide</code> on
+                  <code>main</code> widens the page. Every block starts at one left
+                  edge, and text keeps its measure.
                 </figcaption>
               </figure>
               <figure id="kind-workspace">
@@ -1444,12 +1479,19 @@ flowchart TD
               </figure>
             </div>
 
+            <p id="one-kind-arrange">
+              Two more Layouts arrange a box's children rather than the page, so they go
+              on any block: <code>layout-sidebar</code> sets a body beside its
+              <code>aside</code>, and <code>layout-tiles</code> sets equal cells, as
+              many to a row as fit. On <code>main</code>, either one also makes the page
+              wide, so a dashboard is <code>&lt;main class="layout-sidebar"&gt;</code>.
+            </p>
             <p id="one-kind-grows">
-              A page grows without changing kind: a report that gains live status gains
-              a row of tiles, and its comments and anchors stay where they were.
+              A page grows without changing its Layout: a report that gains live status
+              gains a row of tiles, and its comments and anchors stay where they were.
             </p>
             <p id="one-kind-tabs">
-              Page tabs don't make another kind. They are navigation over sections of
+              Page tabs don't make another shape. They are navigation over sections of
               one page: the strip sticks under the banner, one panel shows at a time,
               and each panel takes the page's width like any other block, so a Layout on
               <code>main</code> shapes every tab.
@@ -1862,21 +1904,24 @@ flowchart TD
           </section>
 
           <section id="wide-page">
-            <h2>A wide page lays its regions on two tracks</h2>
+            <h2>A sidebar lays a wide page's regions on two tracks</h2>
             <p id="wide-page-what">
               When the regions are the page, such as a release in progress, a board and
               its status, or a review whose verdict stays beside the diff,
-              <code>&lt;main class="layout-sidebar"&gt;</code> widens the whole page.
-              Every block, the title included, starts at one left edge, one gutter in
-              from the window, and text inside a region keeps the reading measure.
+              <code>&lt;main class="layout-sidebar"&gt;</code> widens the whole page as
+              <code>layout-wide</code> does. Every block, the title included, starts at
+              one left edge, one gutter in from the window, and text inside a region
+              keeps the reading measure.
             </p>
             <p id="wide-page-tracks">
               A wide page reads as one structure when its regions stand on the same
               vertical lines. The sidebar Layout gives it two: the page's header runs
-              across, the first block beneath is a wide body and the last a narrow
-              column of status, and each stacks its regions as panels. Where the window
-              can't hold both side by side, the status column wraps below the body. A
-              new grid per row puts each row's split somewhere new.
+              across, the body takes the wide track and the <code>aside</code> the
+              narrow one, a column of status, and each stacks its regions as panels. An
+              <code>aside</code> written after the body stands on its right, and one
+              written before it on its left. Where the window can't hold both side by
+              side, they stack in the order they are written. A new grid per row puts
+              each row's split somewhere new.
             </p>
 
             <div class="panels two" id="tracks-figure">
@@ -2232,10 +2277,10 @@ flowchart TD
           <section id="narrow">
             <h2>On a phone, every page is one column</h2>
             <p id="narrow-what">
-              A sidebar's status column wraps below its body, tiles fit fewer to a row,
-              and a workspace's panes flow once the window cannot hold them, so on a
-              phone every page becomes one scrolling column in source order. Write
-              regions in an order that reads top to bottom.
+              A sidebar's body and aside stack, tiles fit fewer to a row, and a
+              workspace's panes flow once the window cannot hold them, so on a phone
+              every page becomes one scrolling column in source order. Write regions in
+              an order that reads top to bottom.
             </p>
             <figure class="fig" id="narrow-figure">
               <svg class="drawing" viewBox="0 0 360 190" role="img">

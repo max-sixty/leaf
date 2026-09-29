@@ -262,10 +262,11 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **Claude Code tool observation:** consider a cheap hook for sessions holding
   pages if status evaluations show that agent declarations are insufficient.
 - **A cheap `leaf hook`:** every hook Leaf registers pays `uv run leaf hook`,
-  and the host waits for it. In a session holding no page it now costs about
-  0.15s warm (2.5s cold, after a plugin update leaves uv to sync), mostly uv and
-  Python startup: `leaf.hooks` imports in about 25ms. A session holding a page
-  adds about 0.1s to import page reading. That cost is why the `PostToolUse`
+  and the host waits for it. In a session holding no page it costs about 50ms
+  warm on an idle machine (2.5s cold, after a plugin update leaves uv to sync):
+  uv adds about 15ms, Python startup about 10ms, and importing the CLI about
+  15ms. A session holding a page adds about 0.1s to import page reading and
+  read each page's state, so its prompt and Stop hooks cost about 0.15s. That cost is why the `PostToolUse`
   registration keeps its `if` prefilter, and it limits what else hooks can
   carry. Consider a `leaf` filter in front of every tool-result hook, so Leaf
   can answer more events itself. Rewriting the hook path in a compiled language

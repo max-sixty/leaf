@@ -50,7 +50,7 @@ button {
 .app.page-mode {
   height: 100vh;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
 }
 
@@ -111,6 +111,7 @@ body:has(.page-mode) {
   font-size: 11px;
 }
 
+/* The badge leads the title, so a title the page renames moves nothing beside it. */
 .stage {
   flex: none;
   border: 1px solid var(--app-line);
@@ -125,6 +126,23 @@ body:has(.page-mode) {
 .actions {
   display: flex;
   gap: 6px;
+}
+
+/* Controls that differ by mode share one place, sized for the widest of them, so the
+   bar holds still when a complete page falls back to its snapshot. The mode the app is
+   in shows its own; the other keeps its room without paint, presses, or focus. */
+.alternates {
+  display: inline-grid;
+  place-items: center;
+}
+
+.alternates > * {
+  grid-area: 1 / 1;
+}
+
+.page-mode .for-snapshot,
+.app:not(.page-mode) .for-page {
+  visibility: hidden;
 }
 
 .btn {
@@ -169,12 +187,19 @@ textarea:focus {
   position: relative;
 }
 
+/* A page still opening lays out at the size it will show at, under the line saying it
+   is opening: a page first laid out in a frame with no size measures its controls in
+   the wrong face and corrects them in front of the user. */
 #leaf-page {
   width: 100%;
   height: 100%;
   display: block;
   border: 0;
   background: var(--app-paper);
+}
+
+#leaf-page.opening {
+  visibility: hidden;
 }
 
 #page-host {
@@ -188,26 +213,31 @@ textarea:focus {
 #page-loading {
   position: absolute;
   inset: 0;
-  display: grid;
-  margin: 0;
-  place-items: center;
 }
 
 .empty {
+  margin: 0;
   padding: 36px 18px;
   color: var(--app-muted);
   text-align: center;
 }
 
-.composer {
+/* What the app says stands after the page, where a line that comes or goes grows into
+   free room and moves nothing above it, and ahead of the composer: the composer opens
+   below it, and pinned to the frame's foot it stays put as the line grows up. */
+.foot {
+  display: flow-root;
   position: sticky;
   z-index: 3;
   bottom: 0;
+  background: var(--app-paper);
+}
+
+.composer {
   display: none;
   gap: 8px;
   padding: 10px 12px;
   border-top: 1px solid var(--app-line);
-  background: var(--app-paper);
 }
 
 .composer.open {
@@ -243,8 +273,19 @@ textarea {
 }
 
 .status {
-  display: none;
-  margin: 10px 12px 0;
+  margin: 10px 12px;
+}
+
+.status:not(.show) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.status.show {
   border: 1px solid var(--app-line);
   border-radius: 9px;
   padding: 9px 10px;
@@ -252,9 +293,6 @@ textarea {
   font-size: 12px;
   /* A refused anchor answers with the occurrences it found, one per line. */
   white-space: pre-line;
-}
-
-.status.show {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -297,8 +335,7 @@ textarea {
 
 @media print {
   .bar,
-  .status,
-  .composer {
+  .foot {
     display: none !important;
   }
 

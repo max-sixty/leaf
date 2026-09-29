@@ -470,6 +470,8 @@ window.authoredModulePattern = (/api/);
     expect(nested.locator(".lf-version-menu")).to_be_hidden()
     assert "Leaf page loaded" not in app.locator("#status").text_content()
     expect(app.locator("#status")).to_contain_text("Complete Leaf page ready")
+    # Said to a listener and drawn nowhere: the page showing is its own news.
+    expect(app.locator("#status")).to_have_class("status")
     assert not [
         call
         for call in page.evaluate("window.calls")
@@ -786,11 +788,9 @@ def test_snapshot_app_renders_general_and_anchored_feedback_without_claiming_del
     assert str(page_dir) in full_page["params"]["content"][0]["text"]
     assert "Asked Codex to open" in app.locator("#status").text_content()
 
-    page.emulate_media(media="print")
-    assert (
-        app.locator(".bar").evaluate("bar => getComputedStyle(bar).display") == "none"
-    )
-    assert app.locator("#page-host").is_visible()
+    _, printed = open_snapshot_app(browser, page_dir, media="print")
+    expect(printed.locator(".bar")).to_have_css("display", "none")
+    expect(printed.locator("#page-host")).to_be_visible()
 
 
 def test_mcp_app_keeps_authored_css_without_running_authored_code(browser, page_dir):
@@ -857,8 +857,6 @@ def test_mcp_app_keeps_authored_css_without_running_authored_code(browser, page_
     )
     heading = app.locator("#page-host").get_by_role("heading", name="Plan", exact=True)
     expect(heading).to_have_css("letter-spacing", "1px")
-    page.emulate_media(media="print")
-    expect(heading).to_have_css("color", "rgb(78, 90, 12)")
     assert (
         app.locator("#page-host").evaluate(
             "host => host.shadowRoot.querySelectorAll('script').length"
@@ -866,6 +864,10 @@ def test_mcp_app_keeps_authored_css_without_running_authored_code(browser, page_
         == 0
     )
     assert app.evaluate("window.authoredCodeRan") is None
+    _, printed = open_snapshot_app(browser, page_dir, media="print")
+    expect(
+        printed.locator("#page-host").get_by_role("heading", name="Plan", exact=True)
+    ).to_have_css("color", "rgb(78, 90, 12)")
 
 
 def test_mcp_snapshot_contains_hostile_navigation_and_authored_css(browser, page_dir):
@@ -1026,15 +1028,20 @@ SNAPSHOT_READING_PAGE = leaf_page(
 )
 
 
-def open_snapshot_app(browser, page_dir):
-    """The snapshot resource in a host frame, showing the page's active revision."""
+def open_snapshot_app(browser, page_dir, media="screen"):
+    """The snapshot resource in a host frame, showing the page's active revision.
+
+    Print is the media a page opens under, as a browser lays out a document to print
+    it: switching a painted screen to print moves everything on it, which no reader
+    can do."""
     _, private = app_snapshot(str(page_dir))
     host = browser.new_page(viewport={"width": 1100, "height": 900})
+    host.emulate_media(media=media)
     host.set_content(HOST)
     host.evaluate("leaf => window.currentLeaf = leaf", private)
     host.locator("#app").evaluate("(frame, html) => frame.srcdoc = html", app_html())
     app = next(frame for frame in host.frames if frame.parent_frame == host.main_frame)
-    app.locator("#title").wait_for()
+    app.locator("#page-host").wait_for()
     return host, app
 
 

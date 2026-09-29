@@ -90,11 +90,19 @@ def pinned_assets(root: Path = ROOT) -> Path:
     return target
 
 
+def assets_lock(path: Path) -> Path | None:
+    """The pin governing `path`: the `leaf-assets.json` of the checkout holding it, or
+    None outside any checkout that pins assets, such as a scratch source."""
+    return next((up / LOCK for up in path.parents if (up / LOCK).is_file()), None)
+
+
 def pinned_copy(path: Path) -> Path | None:
     """Where the pinned assets hold `path`, a path in a checkout that keeps its bytes
-    there; None outside any checkout that pins assets, such as a scratch source."""
-    root = next((up for up in path.parents if (up / LOCK).is_file()), None)
-    return None if root is None else pinned_assets(root) / path.relative_to(root)
+    there. The copy never changes under a pin, so its pin is what a watcher follows."""
+    lock = assets_lock(path)
+    if lock is None:
+        return None
+    return pinned_assets(lock.parent) / path.relative_to(lock.parent)
 
 
 def run(*args: str, cwd: Path) -> str:

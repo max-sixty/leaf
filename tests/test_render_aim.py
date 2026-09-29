@@ -4,6 +4,7 @@ import io
 import math
 import re
 from datetime import datetime, timedelta
+from itertools import pairwise
 
 import pytest
 from interact_support import (
@@ -747,11 +748,27 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
     assert abs(returned["height"] - compact["height"]) <= 1, (compact, returned)
 
 
+# Where the side comment and what it holds stand: the bar's edges, the field's top and
+# its scroll (the first line stands at that top only while the field is unscrolled), and
+# Send's top.
+SIDE_COMMENT = """() => {
+  const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();
+  const field = document.querySelector('.lf-fab-input');
+  const send = document.querySelector('.lf-fab-bar .lf-compose-submit');
+  return {top: bar.top, bottom: bar.bottom, field: field.getBoundingClientRect().top,
+          height: field.getBoundingClientRect().height, scrolled: field.scrollTop,
+          send: send.getBoundingClientRect().top};
+}"""
+
+
 @pytest.mark.parametrize("shift, placement", [(0, "right-start"), (250, "left-start")])
-def test_side_comment_keeps_its_submit_steady_as_the_field_grows(
+def test_a_side_comment_grows_down_from_the_line_it_was_opened_on(
     browser, serve, shift, placement
 ):
-    """A side comment expands above the action the user is composing beside."""
+    """Beside a passage, a draft that wraps keeps what the user has written where they
+    wrote it: the field's top holds and its foot, with Send, moves down a line per wrap,
+    as in an editor. Enter sends, so a hand on the keys never chases Send. (#1159 held
+    the foot and raised the words above it; the user chose this instead.)"""
     page = open_page(
         browser,
         serve(
@@ -769,31 +786,32 @@ def test_side_comment_keeps_its_submit_steady_as_the_field_grows(
     field = open_compact_comment(page)
     bar = page.locator(".lf-fab-bar")
     assert bar.get_attribute("data-lf-placement") == placement
-    resting = bar.bounding_box()
-    submit = bar.locator(".lf-compose-submit")
-    resting_submit = submit.bounding_box()
+    resting = page.evaluate(SIDE_COMMENT)
 
-    write(field, "First line\nSecond line\nThird line")
-    rendered(page)
-    grown = bar.bounding_box()
-    grown_submit = submit.bounding_box()
-    assert grown["height"] > resting["height"] + 20, (resting, grown)
-    assert grown["y"] < resting["y"] - 20, (resting, grown)
-    assert grown["y"] + grown["height"] == pytest.approx(
-        resting["y"] + resting["height"], abs=1
-    ), (resting, grown)
-    assert grown_submit["y"] == pytest.approx(resting_submit["y"], abs=1), (
-        resting_submit,
-        grown_submit,
-    )
+    # Word by word until the field has wrapped twice, reading every keystroke's result.
+    readings = [resting]
+    words = iter(("the words keep coming as the user writes " * 12).split())
+    while len({round(reading["height"]) for reading in readings}) < 3:
+        page.keyboard.type(next(words) + " ")
+        rendered(page)
+        readings.append(page.evaluate(SIDE_COMMENT))
+    for reading in readings:
+        assert reading["top"] == pytest.approx(resting["top"], abs=0.5), reading
+        assert reading["field"] == pytest.approx(resting["field"], abs=0.5), reading
+        assert reading["scrolled"] == 0, reading
+    for before, after in pairwise(readings):
+        assert after["bottom"] >= before["bottom"] - 0.5, (before, after)
+    grown = readings[-1]
+    assert grown["bottom"] > resting["bottom"] + 30, (resting, grown)
+    assert grown["send"] > resting["send"] + 30, (resting, grown)
 
     write(field, "Short again")
     rendered(page)
-    shortened = bar.bounding_box()
-    assert shortened["y"] + shortened["height"] == pytest.approx(
-        resting["y"] + resting["height"], abs=1
-    ), (resting, shortened)
+    shortened = page.evaluate(SIDE_COMMENT)
+    assert shortened["top"] == pytest.approx(resting["top"], abs=0.5), shortened
+    assert shortened["bottom"] == pytest.approx(resting["bottom"], abs=0.5), shortened
 
+    # A restored draft opens from the same line, its lines under it.
     write(field, "First line\nSecond line\nThird line")
     page.reload()
     rendered(page)
@@ -801,13 +819,56 @@ def test_side_comment_keeps_its_submit_steady_as_the_field_grows(
     field = open_compact_comment(page)
     expect(field).to_have_js_property("value", "First line\nSecond line\nThird line")
     rendered(page)
-    restored = bar.bounding_box()
-    write(field, "Short again")
+    restored = page.evaluate(SIDE_COMMENT)
+    assert restored["top"] == pytest.approx(resting["top"], abs=1), restored
+    assert restored["bottom"] > resting["bottom"] + 30, restored
+
+
+def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
+    browser, serve
+):
+    """With no room left under it, the field rises by what its next line needs, its
+    foot on the window's, and scrolls only once it fills the window."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "A low passage",
+                '<div style="height: 1200px"></div>'
+                '<p id="passage">This passage has room beside it for a response.</p>'
+                '<div style="height: 700px"></div>',
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    passage = page.locator("#passage")
+    passage.evaluate(
+        """node => scrollBy({
+          top: node.getBoundingClientRect().top - (innerHeight - 140),
+          behavior: 'instant'
+        })"""
+    )
     rendered(page)
-    shortened = bar.bounding_box()
-    assert shortened["y"] + shortened["height"] == pytest.approx(
-        restored["y"] + restored["height"], abs=1
-    ), (restored, shortened)
+    passage.click(modifiers=["Alt"])
+    field = open_compact_comment(page)
+    bar = page.locator(".lf-fab-bar")
+    assert bar.get_attribute("data-lf-placement") == "right-start"
+    resting = page.evaluate(SIDE_COMMENT)
+    foot = page.evaluate(
+        """async () => (await window.__lfRuntimeImport('/runtime/geometry.js'))
+          .shownWindow({gap: 8}).bottom"""
+    )
+    assert resting["bottom"] < foot - 20, (resting, foot)
+    write(field, "\n".join(f"Line {n}" for n in range(6)))
+    rendered(page)
+    risen = page.evaluate(SIDE_COMMENT)
+    assert risen["bottom"] == pytest.approx(foot, abs=1), (risen, foot)
+    assert risen["top"] < resting["top"] - 20, (resting, risen)
+    assert risen["scrolled"] == 0, risen
+    write(field, "\n".join(f"Line {n}" for n in range(80)))
+    rendered(page)
+    assert field.evaluate("node => node.scrollHeight > node.clientHeight")
+    assert page.evaluate(SIDE_COMMENT)["bottom"] <= foot + 0.5
 
 
 def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):

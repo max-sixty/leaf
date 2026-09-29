@@ -1241,12 +1241,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-fab-bar { position: fixed; display: none; width: max-content;
     align-items: flex-end; gap: 4px; white-space: nowrap;
     max-width: var(--lf-float-w, calc(100vw - 16px)); }
-  /* A side response and a thread card whose reply is being drafted both write top as
-     their foot. Intrinsic field growth moves their top edge upward in the same layout
-     pass. */
-  :is(.lf-fab-bar:is([data-lf-placement^="right"], [data-lf-placement^="left"]),
-    .lf-margin-preview[data-lf-thread-held]) {
-    translate: 0 -100%; }
   .lf-fab-bar[data-lf-margin-raised] { display: none !important; }
   /* A floating surface anchored in the page's plane (floating.js) shows wherever its
      placement puts it, its anchor scrolled away or not. */

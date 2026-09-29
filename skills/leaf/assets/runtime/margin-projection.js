@@ -34,15 +34,18 @@
    chrome, which stacks over it, and a reading region clips it at its edge. The card contains the complete
    inline thread view; the Threads panel remains the complete index and takes over when
    already open. Once placed, the card keeps its side and holds one edge at its distance
-   from the cluster (the geometry's `hold`): its foot, and the editor pinned to it,
-   while the reply has focus or draft text, and its top while the thread is read,
-   whatever the draft, an arriving turn, or a send does to its height. Opening it on
+   from the cluster (the geometry's `hold`): its top, so a turn arriving or the reply
+   gaining a line leaves the transcript and the reply's first lines where the user reads
+   them, and the reply's foot and Send move down a line per wrap; its foot, with the
+   reply row on it, where a turn joins the transcript while the user drafts, and where
+   the card stands over its cluster and is read. Opening it on
    another cluster lets it choose its spot afresh. A scroll never closes it: the card
    leaves with its cluster and comes back with it.
 
-   The reply editor grows with its words until the card fills the room from its held
-   edge to the boundary, and the transcript above it gives up its room to that growth
-   down to a few lines of the turn being answered; only then does the editor scroll.
+   The reply editor grows with its words, the card downward until its foot meets the
+   boundary's and upward from there, until the card fills the boundary; then the
+   transcript above it gives up its room to that growth down to a few lines of the turn
+   being answered, and only then does the editor scroll.
 
    The card is margin chrome, not a native layer: it shows the threads of the target the
    user stands at, from the target, its cluster, or the card itself, so standing on an
@@ -634,7 +637,6 @@ export function createMarginProjection({
     previewHold = null;
     previewAway = false;
     delete preview.dataset.lfThreadPlacement;
-    delete preview.dataset.lfThreadHeld;
     preview.style.removeProperty("clip-path");
     preview.style.opacity = "0";
     preview.style.pointerEvents = "none";
@@ -697,6 +699,21 @@ export function createMarginProjection({
     }
     fitThreadCardEditors();
     return preview.getBoundingClientRect().height;
+  }
+  // The thread's turns, without the reply row pinned under them: what an arriving or a
+  // sent turn changes and a new line of the reply does not. Unrounded, since the row's
+  // height is fractional and a rounded difference moves with it.
+  const boxHeight = (node) => node.getBoundingClientRect().height;
+  function measureTranscript(width) {
+    preview.style.setProperty("--lf-thread-width", `${width}px`);
+    return [...previewList.querySelectorAll(".lf-margin-thread")].reduce(
+      (sum, thread) =>
+        [...thread.querySelectorAll(".lf-say")].reduce(
+          (turns, row) => turns - boxHeight(row),
+          sum + boxHeight(thread),
+        ),
+      0,
+    );
   }
   // How many lines of the turn being answered stay in view under the transcript's sticky
   // head while the reply grows over it.
@@ -775,7 +792,8 @@ export function createMarginProjection({
           minWidth: parseFloat(style.getPropertyValue("--thread-card-min")),
           preferredWidth: parseFloat(style.getPropertyValue("--thread-card")),
           heightAt: (width, cap) => measureThreadCard(width / scale.x, cap / scale.y),
-          edge: drafting ? "foot" : "top",
+          transcriptAt: (width) => measureTranscript(width / scale.x),
+          drafting,
           hold: previewHold,
         });
         return {
@@ -783,7 +801,6 @@ export function createMarginProjection({
           y: rects.reference.y + (geometry.y - clusterBox.y) / scale.y,
           data: {
             geometry,
-            drafting,
             scale,
             region: regionBounds(target),
             // Held at a reading region's edge, the card goes where the page takes that
@@ -826,16 +843,11 @@ export function createMarginProjection({
       .then((position) => {
         const placed = position?.middlewareData.threadCard;
         if (!placed?.geometry || !stillCurrent()) return;
-        const { geometry, drafting, scale, region } = placed;
+        const { geometry, scale, region } = placed;
         previewHold = geometry.hold;
         previewAway = geometry.away;
         // An unchanged declaration is the browser's own no-op, and `keeps` is the rest's.
-        // A card held by its foot writes its foot, so growth before the next placement
-        // moves its top.
-        previewPlacement.stand(
-          position.x,
-          position.y + (drafting ? geometry.height / scale.y : 0),
-        );
+        previewPlacement.stand(position.x, position.y);
         // Leaving with its cluster, the card passes under the chrome, which stacks over
         // it, and a reading region cuts it at the region's edge as it cuts the words.
         if (region) {
@@ -850,7 +862,6 @@ export function createMarginProjection({
           preview.style.clipPath = `inset(${inset.map(length).join(" ")})`;
         } else preview.style.removeProperty("clip-path");
         keeps(preview, "data-lf-thread-placement", geometry.placement);
-        preview.toggleAttribute("data-lf-thread-held", drafting);
         preview.style.removeProperty("opacity");
         preview.style.removeProperty("pointer-events");
         answerThreadPreviewPosition(true);

@@ -25,24 +25,34 @@
    opened it rather than shrinking to spare them.
 
    Every result carries the `hold` it leaves: its side and width, the offsets of its top
-   and foot from the cluster's top, its height, and whether its cluster has been `seen`
-   in the scrollport since the card was placed. A top chosen here is the spot's own,
+   and foot from the cluster's top, its height, its transcript's height, and whether its
+   cluster has been `seen` in the scrollport since the card was placed. A top chosen here is the spot's own,
    before the boundary clamped it, so a card opened low in the window rises back to its
    cluster once a scroll gives it room; every other offset is where the card stood. The
-   caller passes the hold back on every later placement, with the `edge` the user's
-   attention is on: the foot while the reply is being drafted, the top while the thread
-   is read. The card keeps its side and keeps that edge at its offset, and grows from
-   it. Drafting, a new line pushes the lines above the caret up, as a chat composer
-   does, so the caret's line stays under the user's hand. Reading, a turn arriving
-   extends the card away from its cluster, so the words being read stay where they are
-   and the card never grows across what it is about: downward beside or under the
-   cluster, and upward over it, where the card holds its foot instead. Once the card
-   meets the boundary the transcript, which scrolls inside the card, takes the turn
-   instead. Its height is capped by the room from the held edge to the boundary's far
-   edge, so from there the transcript gives up its room to further growth. Switching
-   edges leaves the card where it stands, since the other edge's offset is always where
-   the card last stood, and from then on the card keeps that place relative to its
-   cluster; only the room the new edge opens can grow it.
+   caller passes the hold back on every later placement, saying whether the user is
+   `drafting` a reply in it. The card keeps its side and one edge at its offset, and
+   grows from it; which edge is whichever holds still what the user is working in.
+
+   - Drafting, a new line of the reply holds the top, so neither the lines the user has
+     written nor the thread they are answering move: the card extends downward, as an
+     editor's page does, and Send moves down a line per wrap, over the cluster too
+     where the card stands above it. Only at the boundary's foot does the card rise to
+     keep the reply in view, as the comment box does (composing/surface.js), and only
+     once it fills the whole boundary does the transcript give up its room. The hold's
+     transcript tells a new line from a turn joining the transcript, one that arrives
+     or the one the user just sent; that holds the foot, with the reply row on it, so
+     the box they type in stays put and the transcript rises by the turn.
+   - Read, a turn arriving holds the top, so the words being read stay where they are:
+     the card extends downward, beside or under its cluster. A card over its cluster
+     holds its foot instead, the edge toward its cluster, so it grows upward rather
+     than across what it is about.
+
+   Otherwise, once the card meets the boundary the transcript, which scrolls inside the
+   card, takes the growth instead: its height is capped by the room from the held edge
+   to the boundary's far edge, so from there the transcript gives up its room to further
+   growth. Switching edges leaves the card where it stands, since the other edge's
+   offset is always where the card last stood, and from then on the card keeps that
+   place relative to its cluster; only the room the new edge opens can grow it.
 
    A scroll carries the held edge with its cluster, and the boundary clamps it there: the
    whole card, at its last height, stays inside the boundary for as long as the cluster
@@ -65,9 +75,10 @@
    words reflow, so neither of its edges holds what the user was reading or writing.
 
    The inputs are client rectangles and lengths and the module reads no DOM, so the rule
-   is arithmetic a test can state. `heightAt(width, cap)` is the one measurement: the
-   card's rendered height at that width under that height cap, which the caller reads
-   from the live card under that width and cap. */
+   is arithmetic a test can state. It takes two measurements, which the caller reads
+   from the live card at that width: `heightAt(width, cap)`, the card's rendered height
+   under that height cap, and `transcriptAt(width)`, the height of the thread's turns
+   without the reply row. */
 
 import { clamp } from "./rect.js";
 
@@ -80,7 +91,8 @@ export function threadCardGeometry({
   minWidth,
   preferredWidth,
   heightAt,
-  edge = "top",
+  transcriptAt,
+  drafting = false,
   hold = null,
 }) {
   const preferred = Math.min(preferredWidth, boundary.width);
@@ -100,7 +112,7 @@ export function threadCardGeometry({
   const head = boundary.top - gone(scrollport.top - cluster.bottom);
   const foot = boundary.bottom + gone(cluster.top - scrollport.bottom);
   // `spot` is where the card stands relative to its cluster, before the boundary clamps it.
-  const holding = (placement, spot, height, kept = {}) => {
+  const holding = (placement, spot, height, transcript, kept = {}) => {
     const y = clamp(spot, head, foot - height);
     return {
       placement,
@@ -120,26 +132,41 @@ export function threadCardGeometry({
         foot: y + height - cluster.top,
         height,
         seen,
+        transcript,
         ...kept,
       },
     };
   };
 
   if (hold && (hold.placement === "right") === beside && hold.width === width) {
-    // Read, a card over its cluster holds its foot, the edge toward its cluster.
-    const held = edge === "top" && hold.placement === "above" ? "foot" : edge;
+    const transcript = transcriptAt(width);
+    const turned = Math.abs(transcript - hold.transcript) > 0.5;
+    const held = drafting
+      ? turned
+        ? "foot"
+        : "top"
+      : hold.placement === "above"
+        ? "foot"
+        : "top";
     const last = Math.min(hold.height, boundary.height);
     const at = cluster.top + hold[held];
     // The room from the held edge to the boundary's far edge, with the edge inside the
-    // boundary as the cluster's being there would put it.
+    // boundary as the cluster's being there would put it. A card whose reply is growing
+    // may rise off its top at the boundary's foot, so it has the whole boundary.
     const cap =
       held === "foot"
         ? clamp(at, boundary.top + last, boundary.bottom) - boundary.top
-        : boundary.bottom - clamp(at, boundary.top, boundary.bottom - last);
+        : drafting
+          ? boundary.height
+          : boundary.bottom - clamp(at, boundary.top, boundary.bottom - last);
     const height = heightAt(width, cap);
-    return holding(hold.placement, held === "foot" ? at - height : at, height, {
-      [held]: hold[held],
-    });
+    return holding(
+      hold.placement,
+      held === "foot" ? at - height : at,
+      height,
+      transcript,
+      { [held]: hold[held] },
+    );
   }
   const height = heightAt(width, boundary.height);
   const clears = !beside && target && x < target.right ? [cluster, target] : [cluster];
@@ -151,5 +178,7 @@ export function threadCardGeometry({
       ? "below"
       : "above";
   const spot = { right: cluster.top, below: under, above: over }[placement];
-  return holding(placement, spot, height, { top: spot - cluster.top });
+  return holding(placement, spot, height, transcriptAt(width), {
+    top: spot - cluster.top,
+  });
 }

@@ -25,8 +25,10 @@
    the page can make room there. The field keeps that side and moves the reading
    region only enough to keep the passage
    and field visible together; it finally scrolls internally. Beside a target, the
-   action-bearing foot stays in place while the field grows upward, until the visible
-   boundary limits it.
+   field's top stays at the target's line while the field grows downward, as an
+   editor's page does, so the lines already written stay where the user wrote them and
+   Send moves down a line per wrap. Only at the visible boundary's foot does the field
+   rise to stay in view, and past the whole boundary it scrolls.
    The target chooses a placement from the field's minimum footprint once. Later
    content and margin controls cannot re-seat it. A region too small for
    the compact control yields to the viewport so the user keeps their response.
@@ -193,7 +195,6 @@ export function createResponseSurface({
   let fabInlineOutlet = null;
   let fabPlacement = null;
   let fabInlineConnection = null;
-  let fabSideFootOffset = null;
   let fabPlacementInput = null;
   let fabMinimumWidth = null;
   let fabMinimumComposer = null;
@@ -254,7 +255,6 @@ export function createResponseSurface({
     if (!repositioning) answerFabPosition(false);
     fabPlacement = null;
     fabInlineConnection = null;
-    fabSideFootOffset = null;
     fabPlacementInput = null;
     fabMinimumWidth = null;
     fabMinimumComposer = null;
@@ -477,7 +477,6 @@ export function createResponseSurface({
     ) {
       fabPlacement = null;
       fabInlineConnection = null;
-      fabSideFootOffset = null;
       fabContentHeight = null;
     }
 
@@ -570,10 +569,6 @@ export function createResponseSurface({
     const epoch = fabPosition.begin();
     const initial = fabPlacement === null;
     const stillCurrent = () => fabPosition.current(epoch) && fabAnchor && fabFloating;
-    const sideTop = (height) =>
-      fabSideFootOffset === null
-        ? target.top - 6
-        : target.top + fabSideFootOffset - height;
     // Above or below, the field starts where the compact control would, ended on the
     // passage's right edge, and grows rightward from there. The start is the minimum's,
     // not the bar's first measured width, which a restored draft's words widen: one draft
@@ -588,23 +583,9 @@ export function createResponseSurface({
           // position: shifted there and not limited back to the passage, the bar stands
           // in the window's plane (floating.js).
           let heldIn = false;
-          const attachment = limitShift(({ placement, rects }) => {
+          const attachment = limitShift(({ placement }) => {
             const vertical = /^(top|bottom)/.test(placement);
-            // A short field may sit below the reference's own bottom while its
-            // action stays at the established foot. Keep just that extra room in
-            // the attachment limit; the bar still leaves with its passage.
-            return {
-              mainAxis: !vertical,
-              crossAxis: vertical,
-              offset: vertical
-                ? 0
-                : {
-                    mainAxis: -Math.max(
-                      0,
-                      sideTop(rects.floating.height) - keepClear.bottom,
-                    ),
-                  },
-            };
+            return { mainAxis: !vertical, crossAxis: vertical };
           });
           // Held at a reading region's edge, the bar goes where the page takes the region.
           const plane = ({ y, middlewareData }) =>
@@ -623,11 +604,11 @@ export function createResponseSurface({
                   const beside = /^(left|right)/.test(placement);
                   return {
                     mainAxis: 6,
-                    // The paragraph chooses the horizontal lane. Beside it, keep the
-                    // action-bearing foot at its initial attachment as the field grows;
-                    // above or below, preserve the initial inline start.
+                    // The paragraph chooses the horizontal lane and the selected line
+                    // where in it the field's top stands, which it keeps as the field
+                    // grows downward; above or below, preserve the initial inline start.
                     crossAxis: beside
-                      ? sideTop(rects.floating.height) - keepClear.top
+                      ? target.top - 6 - keepClear.top
                       : inlineConnection() + rects.floating.width,
                   };
                 }),
@@ -696,13 +677,11 @@ export function createResponseSurface({
         const { x, y, placement } = position;
         if (!stillCurrent()) return;
         fabPlacement ??= placement;
-        const beside = /^(left|right)/.test(placement);
-        const height = fabBar.getBoundingClientRect().height;
-        if (beside) fabSideFootOffset ??= y + height - target.top;
-        else fabInlineConnection ??= x - keepClear.right;
+        if (!/^(left|right)/.test(placement))
+          fabInlineConnection ??= x - keepClear.right;
         fabPlacementInput = placementInput;
         keeps(fabBar, "data-lf-placement", fabPlacement);
-        fabPosition.stand(x, y + (beside ? height : 0));
+        fabPosition.stand(x, y);
         fabBar.style.removeProperty("visibility");
         answerFabPosition(true);
         return true;

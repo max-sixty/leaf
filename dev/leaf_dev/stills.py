@@ -133,6 +133,11 @@ def pane_focused(page: Page) -> None:
     page.locator("#sort-source").focus()
 
 
+def element_thread(page: Page) -> None:
+    """An element holding a thread, in view, with nothing indicating it."""
+    page.locator("#off-t-vendor").evaluate("el => el.scrollIntoView({block: 'center'})")
+
+
 def go_to(page: Page) -> None:
     """The Go-to sequence armed from the keyboard, its destinations on the line."""
     page.keyboard.press("g")
@@ -152,6 +157,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         card_grabbed,
         code_focused,
         pane_focused,
+        element_thread,
         go_to,
     )
 }
@@ -186,6 +192,7 @@ STATES = (
     State("triage-grabbed", "triage-board", card_grabbed),
     State("walkthrough-code", "pr-walkthrough", code_focused),
     State("walkthrough-code-dark", "pr-walkthrough", code_focused, scheme="dark"),
+    State("ship-thread", "ship-review", element_thread),
     State("sort", "rust-sort", at_rest),
     State("sort-pane", "rust-sort", pane_focused),
     State("sort-pane-dark", "rust-sort", pane_focused, scheme="dark"),

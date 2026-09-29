@@ -539,6 +539,7 @@ selectionComposer = createSelectionComposer({
   anchorTargetAt: (...args) => responseSurface.anchorTargetAt(...args),
   bringForward: (...args) => responseSurface.bringForward(...args),
   fabAnchorAt: (...args) => responseSurface.fabAnchorAt(...args),
+  fabPointAt: (...args) => responseSurface.fabPointAt(...args),
   fabPositioned: (...args) => responseSurface.fabPositioned(...args),
   beginFabFocus: (...args) => responseSurface.beginFabFocus(...args),
   endFabFocus: (...args) => responseSurface.endFabFocus(...args),

@@ -15,6 +15,7 @@
 import { cancelRender, nextRender, sizeObserver } from "../rendering.js";
 import { setChildren } from "../dom-children.js";
 import { shownBox } from "../geometry.js";
+import { atLayoutPrecision } from "../keeps.js";
 import { el } from "../widget-elements.js";
 import { anchorElement, anchorName } from "../anchor-names.js";
 import { validDrawing } from "./drawing-record.js";
@@ -39,9 +40,6 @@ function drawingFrame(drawing) {
     height,
   };
 }
-
-// Insets at the browser's layout precision, so a mark described twice reads the same.
-const px = (value) => Math.round(value * 64) / 64;
 
 // One path, one subpath per stroke: each stroke lifts the pen with its own move.
 const pathData = (drawing) =>
@@ -86,8 +84,8 @@ export function createDrawingPaint({ anchors, activeDrawing, draftDrawings }) {
       : (document.querySelector("main") ?? document.body);
     const at = holder.getBoundingClientRect();
     const anchor = anchorName(holder);
-    const left = px(box.left + frame.x - at.left);
-    const top = px(box.top + frame.y - at.top);
+    const left = atLayoutPrecision(box.left + frame.x - at.left);
+    const top = atLayoutPrecision(box.top + frame.y - at.top);
     const data = pathData(drawing);
     const described = JSON.stringify([
       className,

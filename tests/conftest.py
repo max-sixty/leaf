@@ -241,6 +241,11 @@ def pytest_addoption(parser):
         default=False,
         help="Also run the complete browser and published-site integration suites",
     )
+    parser.addoption(
+        "--nightly-changed-since",
+        metavar="REF",
+        help="Also run the nightly-marked tests in the test files changed since REF",
+    )
 
 
 @pytest.hookimpl(wrapper=True)
@@ -255,7 +260,11 @@ def pytest_runtest_call(item):
 
 
 def pytest_collection_modifyitems(config, items):
-    """Broad discovery stays cheap; explicit selections run what they name."""
+    """Broad discovery stays cheap; explicit selections run what they name.
+
+    A change that moves a browser behaviour usually edits the test that holds it, so both
+    landing gates add the nightly tests in the test files the change touches
+    (`--nightly-changed-since`): those run before it lands rather than on main after."""
     selected = (
         config.getoption("keyword")
         or config.getoption("markexpr")
@@ -264,8 +273,25 @@ def pytest_collection_modifyitems(config, items):
     )
     if config.getoption("--run-nightly") or selected:
         return
-    nightly = [item for item in items if "nightly" in item.keywords]
-    items[:] = [item for item in items if "nightly" not in item.keywords]
+    changed = set()
+    if since := config.getoption("--nightly-changed-since"):
+        diff = subprocess.run(
+            ["git", "diff", "--name-only", f"{since}...HEAD", "--", "tests"],
+            cwd=config.rootpath,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if diff.returncode:
+            raise pytest.UsageError(
+                f"--nightly-changed-since {since}: {diff.stderr.strip()}"
+            )
+        changed = {config.rootpath / path for path in diff.stdout.split()}
+    kept, nightly = [], []
+    for item in items:
+        skipped = "nightly" in item.keywords and item.path not in changed
+        (nightly if skipped else kept).append(item)
+    items[:] = kept
     config.hook.pytest_deselected(items=nightly)
 
 

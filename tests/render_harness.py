@@ -27,6 +27,7 @@ Playwright's default Chromium launch selects its separate headless shell. The
 matching build is installed once with `playwright install chromium --only-shell`.
 """
 
+import difflib
 import itertools
 import json
 import math
@@ -1970,3 +1971,158 @@ def scroll_followers(writes):
         if len(steps) > 2:
             found.append(f"{what} follows the scroll, written on {len(steps)} steps")
     return found
+
+
+# The page as its DOM states it: `<html>`'s attributes, then each element in the body and
+# in every open shadow tree by where it stands, with its attributes sorted, and the words
+# of each text node. Comments are Lit's markers, which `live_counts` counts instead.
+# `data-lf-traffic` is the runtime's request ledger, which the page's clock moves. An
+# inline style is a set of declarations, read sorted: a property taken off and set again
+# stands last in the attribute's text and says the same.
+PAGE_STATE = """() => {
+  const said = (node) => (a) => a.name === "style"
+    ? `style=${JSON.stringify([...node.style].map((property) =>
+        `${property}: ${node.style.getPropertyValue(property)}` +
+        (node.style.getPropertyPriority(property) ? " !important" : "")).sort().join("; "))}`
+    : `${a.name}=${JSON.stringify(a.value)}`;
+  const lines = [[...document.documentElement.attributes]
+    .filter((a) => a.name !== "data-lf-traffic")
+    .map(said(document.documentElement)).sort().join(" ")];
+  const walk = (parent, path) => {
+    for (const node of parent.childNodes) {
+      if (node.nodeType === Node.TEXT_NODE && node.data.trim())
+        lines.push(`${path} ${JSON.stringify(node.data.trim())}`);
+      if (node.nodeType !== Node.ELEMENT_NODE) continue;
+      const here = `${path} > ${node.localName}${node.id ? "#" + node.id : ""}`;
+      lines.push(`${here} ${[...node.attributes].map(said(node)).sort().join(" ")}`);
+      if (node.shadowRoot) walk(node.shadowRoot, `${here} ::shadow`);
+      walk(node, here);
+    }
+  };
+  walk(document.body, "body");
+  return lines;
+}"""
+
+
+def page_state(page):
+    """The page as its DOM states it (`PAGE_STATE`), one line per element and text."""
+    return page.evaluate(PAGE_STATE)
+
+
+def state_changes(before, after):
+    """The lines of `page_state` one reading holds and the other does not, marked `-`
+    for the first and `+` for the second."""
+    return [
+        line
+        for line in difflib.unified_diff(before, after, lineterm="", n=0)
+        if not line.startswith(("---", "+++", "@@"))
+    ]
+
+
+def live_counts(page):
+    """What the page's renderer holds after a full collection, as {what: count}: its DOM
+    nodes, those in its documents, comments included, and every detached node something
+    still retains, and its event listeners. A count that climbs across repetitions of one
+    gesture is a leak whether what it counts piles up in the page or behind it."""
+    session = page.context.new_cdp_session(page)
+    try:
+        session.send("HeapProfiler.collectGarbage")
+        session.send("Performance.enable")
+        metrics = session.send("Performance.getMetrics")["metrics"]
+    finally:
+        session.detach()
+    counted = {"Nodes": "nodes", "JSEventListeners": "event listeners"}
+    return {counted[m["name"]]: m["value"] for m in metrics if m["name"] in counted}
+
+
+def still_page(browser, url, width=1200):
+    """The page at `url` for a reader who asked for reduced motion, under a clock that
+    stays on one instant, so what changes on it is what the test did: no film plays
+    itself and no age ticks over to the next minute while the test reads."""
+    context = browser.new_context(
+        viewport={"width": width, "height": 900}, reduced_motion="reduce"
+    )
+    context.clock.set_fixed_time(time.time())
+    return open_page(browser, url, context=context)
+
+
+# Two of the page's clock ticks and room to spare (`TICK_MS`, state-feed.js): at rest the
+# clock is all that runs, and a tick that wrote would write inside the window.
+REST_SECONDS = 5
+
+
+def left_alone(page):
+    """Wait until the page has finished arriving: rendered, with any notice it opened
+    with gone and the pointer off its controls, so nothing the arrival started is still
+    changing it when a test begins its own reading."""
+    rendered(page)
+    expect(page.locator(".lf-notice.show")).to_have_count(0)
+    page.mouse.move(2, 300)
+    rendered(page)
+
+
+# Armed in each of the page's documents: its writes (`write_watch.js`), the frames it asks
+# for, counted where they are asked for, and each time the focus lands in it.
+_REST_ARM = """() => {
+  window.lfWrites = [];
+  window.lfWriteStep = null;
+  const rest = (window.lfRest = { frames: {}, focus: 0 });
+  const request = window.requestAnimationFrame;
+  window.requestAnimationFrame = (callback) => {
+    // The first caller past the runtime's scheduler, which is whose loop it is.
+    const site = new Error().stack.split("\\n").slice(2)
+      .find((line) => !line.includes("/runtime/rendering.js"))?.trim() ?? "";
+    return request.call(window, (time) => {
+      rest.frames[site] = (rest.frames[site] ?? 0) + 1;
+      callback(time);
+    });
+  };
+  document.addEventListener("focusin", () => rest.focus++, { capture: true });
+}"""
+_REST_READ = """() => {
+  const writes = window.lfWrites;
+  window.lfWrites = null;
+  const endless = document.getAnimations()
+    .filter((animation) => animation.playState === "running" &&
+      animation.effect?.getComputedTiming().iterations === Infinity)
+    .map((animation) => `${animation.animationName ?? animation.id} on ` +
+      `${animation.effect.target.localName}.${[...animation.effect.target.classList].join(".")}`);
+  return { writes, ...window.lfRest, endless };
+}"""
+
+
+def at_rest(page):
+    """What the page does while nobody touches it, as findings: each place it writes,
+    each frame it asks for, each time it moves the focus, and each animation it runs
+    without end, in its own document and each one it frames, such as a live sample.
+
+    It starts once the page is `left_alone` and watches for `REST_SECONDS`. Frames are
+    counted where they are asked for, so a loop that writes nothing but still wakes the
+    page every frame is named too."""
+    left_alone(page)
+    frames = page.frames
+    for frame in frames:
+        frame.evaluate(_REST_ARM)
+    time.sleep(REST_SECONDS)
+    findings = []
+    for frame in frames:
+        rest = frame.evaluate(_REST_READ)
+        where = "" if frame == page.main_frame else f" in {urlsplit(frame.url).path}"
+        places = {
+            f"{w['type']} {w['attribute'] or ''} on {w['target']}"
+            for w in rest["writes"]
+        }
+        findings += [
+            *(f"{place} written at rest{where}" for place in sorted(places)),
+            *(
+                f"a frame asked for {site} ran {n} times at rest{where}"
+                for site, n in rest["frames"].items()
+            ),
+            *(
+                [f"the focus moved {rest['focus']} times at rest{where}"]
+                if rest["focus"]
+                else []
+            ),
+            *(f"{animation} runs without end{where}" for animation in rest["endless"]),
+        ]
+    return findings

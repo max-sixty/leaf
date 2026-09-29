@@ -29,10 +29,11 @@ worker-node = "npm ci --prefix worker"
 [[pre-merge]]
 bundles = 'uv run build/vendor.py > /dev/null && git status --porcelain && test -z "$(git status --porcelain)"'
 
-# Broad discovery keeps the local gate quick. CI runs the nightly-marked tests after
+# Broad discovery keeps the local gate quick, adding only the nightly-marked tests in the
+# test files the branch changes, as a pull request's gate does. CI runs the rest after
 # main moves.
 [[pre-merge]]
-tests = "uv run pytest tests"
+tests = "uv run pytest tests --nightly-changed-since main"
 folds = "npm run test:runtime"
 browser = "npm run check:browser && npm run test:browser"
 worker = "npm run typecheck --prefix worker && npm test --prefix worker"

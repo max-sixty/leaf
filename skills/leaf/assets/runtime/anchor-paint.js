@@ -26,7 +26,8 @@ import {
   pageWords,
   rangeOf,
 } from "./passages.js";
-import { bareReaction } from "./thread/model.js";
+import { bareReaction, threadKey } from "./thread/model.js";
+import { placePoints } from "./pointed-place.js";
 import { shadowHost, under } from "./shadow.js";
 import { annotationsHidden } from "./annotation-layer.js";
 
@@ -43,7 +44,6 @@ export function createAnchorPaint({
   hoveredPanelThreadId,
   panelThreadForId,
 }) {
-  const reacted = new Map();
   const marked = new Map();
   const placed = new Map();
   const visualTargets = new Map();
@@ -59,7 +59,6 @@ export function createAnchorPaint({
   let mounted = false;
 
   const marksFor = (id) => marked.get(id) ?? [];
-  const allMarks = () => [...marked.values()].flat();
   const elementMarks = (where) =>
     [...where].flat().filter((mark) => mark instanceof Element);
 
@@ -69,9 +68,10 @@ export function createAnchorPaint({
     if (element && surface) visualTargets.set(element, surface);
   };
 
+  // An element's threads and reactions draw nothing on it at rest: its margin entry
+  // already says it holds them, and a contour means "this, now". Only a moment projects
+  // one — a draft, an action, the pointer, the thread the user stands in.
   function paintVisualStates() {
-    const comments = new Set(elementMarks(marked.values()));
-    const reactions = new Set(elementMarks(reacted.values()));
     const pending = new Set(pendingOutline);
     const action = new Set(actionOutline);
     const hover = new Set(elementMarks(hoverParts));
@@ -79,7 +79,7 @@ export function createAnchorPaint({
     // Paint every element state in the chrome plane. A declared visual substitutes its
     // registered surface so compound pictures keep their contour.
     const elements = new Set(
-      [comments, reactions, pending, action, hover, here]
+      [pending, action, hover, here]
         .flatMap((states) => [...states])
         .filter((element) => element instanceof Element),
     );
@@ -89,8 +89,6 @@ export function createAnchorPaint({
       ),
     );
     const sources = [
-      ["comment", comments],
-      ["reaction", reactions],
       ["pending", pending],
       ["action", action],
       ["hover", hover],
@@ -109,18 +107,12 @@ export function createAnchorPaint({
   }
 
   const outlined = () =>
-    new Set([
-      ...elementMarks(marked.values()),
-      ...elementMarks(reacted.values()),
-      ...pendingOutline,
-      ...actionOutline,
-    ]);
+    new Set([...elementMarks(marked.values()), ...pendingOutline, ...actionOutline]);
 
   // Each element's outline classes follow the current record. Toggling the last pass's
   // elements with this one's writes only the classes that moved.
   function paintOutlines(before) {
     const marks = new Set(elementMarks(marked.values()));
-    const reactions = new Set(elementMarks(reacted.values()));
     const pending = new Set(pendingOutline);
     const action = new Set(actionOutline);
     for (const element of new Set([...before, ...outlined()])) {
@@ -129,7 +121,6 @@ export function createAnchorPaint({
         marks.has(element) || pending.has(element),
       );
       element.classList.toggle(PENDING, pending.has(element));
-      element.classList.toggle("lf-react-el", reactions.has(element));
       element.classList.toggle("lf-action-target", action.has(element));
     }
   }
@@ -226,7 +217,6 @@ export function createAnchorPaint({
 
     const before = outlined();
     marked.clear();
-    reacted.clear();
     placed.clear();
     pendingOutline = [];
     actionOutline = [];
@@ -238,34 +228,42 @@ export function createAnchorPaint({
     const reactionSeats = new Map();
     const notes = new Map();
 
+    const pointable = [];
     for (const thread of threads) {
       if (!thread.anchor) continue;
       const found = resolveAnchor(thread.anchor, text);
       if (!found) continue;
       // Placement includes resolved threads and remains distinct from paint. The panel
-      // orders from this record instead of resolving the same coordinate again.
+      // orders from this record instead of resolving the same coordinate again. A
+      // pointed thread's record also carries the row it stands by (`point`), the key of
+      // the margin row it shares with others pointed there (`pointRow`), and the row's
+      // words as the page reads them (`pointWords`), below.
+      const target = targetElement(found) ?? found.place;
       placed.set(thread.id, {
         datumElement: null,
         exact: true,
         status: "exact",
         ...found,
-        target: targetElement(found) ?? found.place,
+        target,
         element: found.place,
+        point: null,
+        pointRow: null,
+        pointWords: null,
       });
+      // A drawing's part names where on the picture it is; a point is for a target that
+      // names no place inside itself.
+      if (!thread.resolved && !thread.anchor.quote && !thread.anchor.visual && target)
+        pointable.push({ id: thread.id, key: threadKey(thread), target });
       if (found.status === "outdated" || thread.resolved) continue;
 
       if (bareReaction(thread)) {
         let at;
         let before;
         if (targetElement(found)) {
-          const parts = targetParts(found);
-          rememberVisual(found);
-          reacted.set(thread.id, parts);
           [at, before] = [found.place, true];
         } else {
           const segments = targetSegments(found);
           const ranges = segments.map((segment) => rangeOf([segment]));
-          reacted.set(thread.id, ranges);
           reactions.push(...ranges);
           const block = annotationAt(segments[0].node);
           const host = shadowHost(block?.getRootNode());
@@ -301,6 +299,19 @@ export function createAnchorPaint({
         if (holder && !inChrome(holder))
           notes.set(holder, [...(notes.get(holder) ?? []), thread.id]);
     }
+    // Where each open thread a pointing gesture stood at a row inside its target stands
+    // in this reading (pointed-place.js), found with the anchors it lies inside. Every
+    // thread the log holds, settled ones too, keeps its point.
+    const pointed = placePoints(pointable, new Set(threads.map(threadKey)), text);
+    for (const { id, key } of pointable) {
+      const point = pointed.get(key);
+      if (point)
+        Object.assign(placed.get(id), {
+          point: point.element,
+          pointRow: point.row,
+          pointWords: point.words,
+        });
+    }
 
     const resolvedDraft =
       draft.open && draft.anchor ? resolveAnchor(draft.anchor, text) : null;
@@ -320,11 +331,7 @@ export function createAnchorPaint({
         : [];
     if (resolvedDraft) rememberVisual(resolvedDraft);
     const pending = [];
-    if (targetElement(resolvedDraft)) {
-      const taken = allMarks();
-      for (const part of pendingMarks)
-        if (!taken.includes(part)) pendingOutline.push(part);
-    }
+    if (targetElement(resolvedDraft)) pendingOutline = pendingMarks;
     if (targetSegments(resolvedDraft).length) pending.push(...pendingMarks);
 
     const active = draft.open ? null : actionAnchor;
@@ -371,7 +378,6 @@ export function createAnchorPaint({
     hoverFrame = 0;
     const before = outlined();
     marked.clear();
-    reacted.clear();
     pendingOutline = [];
     actionOutline = [];
     paintOutlines(before);

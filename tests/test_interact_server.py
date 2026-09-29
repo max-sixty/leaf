@@ -269,7 +269,6 @@ def test_samples_use_captured_resources_and_independent_event_logs(server, page_
     assert f'data-lf-entry="{root}/leaf.js"'.encode() in document
     assert f'data-lf-page-root="{child.removeprefix(server)}"'.encode() in document
     served = structure_model.SourceDocument(document.decode()).tree
-    assert "data-lf-contained" in served.find("html").attrs
     assert "inert" in served.find("body").attrs
     assert fetch(child + "/theme.css") == (200, captured_theme)
     [module_path] = re.findall(rb'src="([^"]+/page/sample.js)"', document)

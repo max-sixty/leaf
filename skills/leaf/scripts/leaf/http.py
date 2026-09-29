@@ -1111,14 +1111,13 @@ class SampleEndpoint(PageEndpoint):
         return self.asset_root
 
     def _delivery(self, artifact: RevisionArtifact, revision: int) -> Delivery:
-        # A live child lays out as a block of its containing page (theme.css). Every
-        # child arrives inert, so its startup cannot take focus from the page; the
-        # host releases a live one once it presents. A passive replay demonstrates a
-        # whole window and never takes input.
+        # Every child arrives inert, so its startup cannot take focus from the page;
+        # the host releases a live one once it presents. A passive replay never takes
+        # input. Whether the child lays out as a block or a window is its frame's to
+        # say (sample.js), which its bootstrap asks before it paints.
         return replace(
             super()._delivery(artifact, revision),
-            html_attributes=({} if self.passive else {"data-lf-contained": ""})
-            | {"data-lf-user-scope": self.page_root + "/"},
+            html_attributes={"data-lf-user-scope": self.page_root + "/"},
             body_attributes={"inert": ""}
             | ({"data-lf-sample-passive": ""} if self.passive else {}),
         )

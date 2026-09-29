@@ -39,9 +39,10 @@ import { boundedBlockOf } from "./bounds.js";
 import { pageScroller } from "./scrolling.js";
 import { packRows, rowPosture, seatRows } from "./margin-placement.js";
 import { overlaps } from "./rect.js";
+import { pointBand } from "./pointed-place.js";
 import { anchorElement, anchorReading, nameAnchor } from "./anchor-names.js";
 import { repaintPage } from "./repaint.js";
-import { keeps } from "./keeps.js";
+import { keeps, layoutPx } from "./keeps.js";
 
 const rows = new Map();
 const GAP = 4;
@@ -174,7 +175,7 @@ function settleResidency() {
   const changed =
     (main.getAttribute("data-lf-margin") ?? "") !== tokens || shift !== written;
   if (!changed) return false;
-  keeps(main, "data-lf-margin", tokens);
+  keeps(main, "data-lf-margin", tokens || null);
   setStyle(main, "--lf-shift", shift ? `${shift}px` : null);
   return true;
 }
@@ -382,12 +383,18 @@ function blockOf(target) {
   return el;
 }
 
-// What a pin may not stand on across a band of the page: every run of words in its
-// target's block, each box that paints what no text node says (an image, a drawing, a
-// widget's shadow tree, the target's own if it is one), every control, and every other
-// block whole. A box that holds the target is not one to avoid, since the pin stands on
-// it. The walk leaves any subtree whose box misses the band, so a long page costs what
-// lies near the target.
+// What a pin may not stand on across a band of the page (`cover`): every run of words,
+// each box that paints what no text node says (an image, a drawing, a widget's shadow
+// tree, the target's own if it is one), every control, and, whole, every other box that
+// paints its own extent (`paintsItsBox`). A box that draws a fill, a rule or a shadow
+// reads as one thing, so a pin anywhere on it, even over its empty end, reads as that
+// box's: a card, a callout, a framed table or code block. Every other block that paints
+// nothing is a `neighbour`: it covers only by its words, so the empty end of a short
+// heading or line beside the target is room, but a pin there can read as that block's,
+// and `pinSpot` takes it only where the target has no room of its own. Inside the
+// target's own block nothing counts whole, since that is the pin's own. A box that holds
+// the target is not one to avoid, since the pin stands on it. The walk leaves any
+// subtree whose box misses the band, so a long page costs what lies near the target.
 //
 // The controls come back apart as well, since packing keeps the pin off them, a pin left
 // at its corner too (`packRows`, `fixed`): a pin at a card's top-right would otherwise
@@ -397,8 +404,30 @@ function blockOf(target) {
 // pane body's options scrolled behind the pane's footer, but a control scrolled with the
 // pin counts whole, so the pane's scroll never moves the pin's seat.
 const OPAQUE = "img, svg, canvas, video, iframe, object, embed";
+
+// Whether an element draws its own extent: a fill, a rule on any side, or a shadow. An
+// inline box paints along its lines of words, which count already, and a `display:
+// contents` element has no box to paint.
+const SIDES = ["Top", "Right", "Bottom", "Left"];
+const unseen = (color) =>
+  color === "transparent" || /^rgba\(.*,\s*0\)$|\/\s*0\)$/.test(color);
+function paintsItsBox(style) {
+  if (style.display === "inline" || style.display === "contents") return false;
+  return (
+    style.backgroundImage !== "none" ||
+    style.boxShadow !== "none" ||
+    !unseen(style.backgroundColor) ||
+    SIDES.some(
+      (side) =>
+        parseFloat(style[`border${side}Width`]) > 0 &&
+        !unseen(style[`border${side}Color`]),
+    )
+  );
+}
+
 function coverIn(root, band, target, block, bands, stop) {
   const cover = [];
+  const neighbours = [];
   const controls = [];
   const meets = (box) => box.bottom > band.top && box.top < band.bottom;
   const edges = ({ left, top, right, bottom }) => ({ left, top, right, bottom });
@@ -431,11 +460,13 @@ function coverIn(root, band, target, block, bands, stop) {
       }
       if (node instanceof SVGElement) continue;
       if (!boxless && !holds && !block.contains(node)) {
-        const display = getComputedStyle(node).display;
-        if (!display.startsWith("inline") && display !== "contents") {
+        const style = getComputedStyle(node);
+        if (paintsItsBox(style)) {
           cover.push(edges(box));
           continue;
         }
+        if (!style.display.startsWith("inline") && style.display !== "contents")
+          neighbours.push(edges(box));
       }
       // A closed disclosure draws only its summary; reading the rest would force its
       // skipped content's layout (`skipped`).
@@ -448,7 +479,7 @@ function coverIn(root, band, target, block, bands, stop) {
     }
   };
   visit(root);
-  return { cover, controls };
+  return { cover, neighbours, controls };
 }
 
 // The whole content a scroller scrolls, wherever it is scrolled to: a pin in a pane is
@@ -483,7 +514,7 @@ function seatPins(standing, { bands, shell, pinInset }) {
   for (const entry of standing) {
     const { read } = entry;
     if (read.place !== "pin") continue;
-    const { target, row, box } = read;
+    const { target, point, row, box } = read;
     const home = entry.rect;
     const height = home.bottom - home.top;
     const width = home.right - home.left;
@@ -497,7 +528,10 @@ function seatPins(standing, { bands, shell, pinInset }) {
             bottom: box.top + held.top + height,
           }
         : null;
-    const parts = target.getRootNode() === document ? partsOf(target) : [];
+    // A pin level with a pointed row keeps to that row, as a pin keeps to its target;
+    // the row's boxes are read wherever it is drawn, a widget's shadow tree included,
+    // since the walk below reads the room around the target, which is the document's.
+    const parts = target.getRootNode() === document ? partsOf(point ?? target) : [];
     const around = height + REACH + GAP;
     const band = {
       top: Math.min(home.top, ...parts.map((part) => part.top)) - around,
@@ -507,7 +541,7 @@ function seatPins(standing, { bands, shell, pinInset }) {
     // header, standing still above it, would enter the band as the pane scrolled the
     // target up to it, and seat the pin differently at that scroll.
     const stop = read.scroller;
-    const { cover, controls } = coverIn(
+    const { cover, neighbours, controls } = coverIn(
       stop === pageScroller ? main : stop,
       band,
       target,
@@ -521,6 +555,7 @@ function seatPins(standing, { bands, shell, pinInset }) {
     // drawing, whose `display` says nothing about lines.
     const end = parts.at(-1);
     const inline =
+      !point &&
       target instanceof HTMLElement &&
       getComputedStyle(target).display.startsWith("inline");
     const within = stop === pageScroller ? null : contentBox(stop);
@@ -535,6 +570,7 @@ function seatPins(standing, { bands, shell, pinInset }) {
       held: entry.held,
       parts,
       cover,
+      neighbours,
       seat: inline
         ? {
             left: end.right + GAP,
@@ -577,9 +613,10 @@ function observeLayout() {
   observer.observe(observedColumn);
 }
 
-// Each row states its target (`anchor`), its place among the others in the layer
-// (`order`), its packing priority, and how to move it between lanes without dropping the
-// focus it holds (`move`).
+// Each row states its target (`anchor`), the row inside it it stands level with, if any
+// (`point`, pointed-place.js), its place among the others in the layer (`order`), its
+// packing priority, and how to move it between lanes without dropping the focus it holds
+// (`move`).
 export function registerMarginRow(row, options = {}) {
   rows.set(row, options);
   observeLayout();
@@ -681,6 +718,13 @@ function scheduleScrollReading() {
       const target = options.anchor();
       if (!target?.isConnected || parked.has(row)) continue;
       const anchor = anchorElement(target);
+      // A box scrolled inside the anchor moves a pointed row against the box the row is
+      // inset from, as it moves a target inside its host.
+      const point = options.point?.();
+      if (point && boxes.some((box) => under(point, box) && under(box, anchor))) {
+        scheduleMarginLayout();
+        return;
+      }
       const moving = boxes.filter((box) => under(target, box));
       if (!moving.length) continue;
       if (anchor !== target && moving.some((box) => under(box, anchor))) {
@@ -710,6 +754,7 @@ export function layoutMarginRows() {
   const main = marginColumn();
   const page = anchorReading(main, PAGE_ANCHOR);
   const columnRect = main.getBoundingClientRect();
+  const columnHeight = main.scrollHeight;
   const shell = shellRight();
   const stands = railStands(main);
   const rootStyle = getComputedStyle(document.documentElement);
@@ -757,8 +802,11 @@ export function layoutMarginRows() {
       continue;
     }
     const anchor = anchorElement(target);
+    // Level with the row a gesture pointed into, where the row's comment has one
+    // (pointed-place.js); otherwise level with the target's top.
+    const point = options.point?.() ?? null;
     for (
-      let root = target.getRootNode();
+      let root = (point ?? target).getRootNode();
       shadowHost(root);
       root = root.host.getRootNode()
     )
@@ -768,21 +816,24 @@ export function layoutMarginRows() {
     const rootLane = scroller === pageScroller;
     const box = anchor.getBoundingClientRect();
     const extent = shownExtent(target);
+    const top = extent && point ? pointBand(extent, point).top : extent?.top;
+    const level = point ? top : box.top;
     const place = rowPosture({
       railStands: stands,
       besideRail: railBeside(scroller),
       blockRight: reach(anchor, box, main, reaches),
       railInner,
       half: size / 2,
-      noted: notes.some((note) => note.top < box.top + size && note.bottom > box.top),
+      noted: notes.some((note) => note.top < level + size && note.bottom > level),
     });
     const shown =
       !parked.has(row) &&
-      targetShown(target, extent, place === "pin" ? null : { top: extent?.top }, bands);
+      targetShown(target, extent, place === "pin" ? null : { top }, bands);
     reads.push({
       row,
       options,
       target,
+      point,
       anchor,
       naming: anchorReading(anchor),
       scroller,
@@ -791,6 +842,7 @@ export function layoutMarginRows() {
       place,
       box,
       extent,
+      top,
     });
   }
   // What each lane's region shows, cut by the scrollers around it but not by the window,
@@ -843,18 +895,19 @@ export function layoutMarginRows() {
   // A withheld row is anchored too, so that when its target comes into view it has only
   // to show. Its insets are written once packing has said where it stands.
   const px = (length) => (length ? `${length}px` : null);
-  for (const { row, naming, shown, place, box, extent } of reads) {
+  for (const { row, naming, shown, place, box, extent, top } of reads) {
     row.classList.toggle("lf-withheld", !shown);
     if (!naming) continue;
     setStyle(row, "position-anchor", nameAnchor(naming));
     if (row.dataset.lfPlace !== place) row.dataset.lfPlace = place;
     if (shown) continue;
-    setStyle(row, "--lf-inset-top", px(extent && extent.top - box.top));
+    setStyle(row, "--lf-inset-top", px(extent && top - box.top));
     setStyle(row, "--lf-inset-right", px(extent && box.right - extent.right));
   }
 
   // Packing reads where each row stands with no push, then writes every push together.
-  // Each row stands level with its target's top, and a pin `--pin-inset` inside its right
+  // Each row stands level with its target's top, or the row inside it its comment
+  // pointed at, and a pin `--pin-inset` inside its right
   // edge, so where it will stand is worked out from the target rather than read back; only
   // its size and whether the browser took its anchor are read off the row.
   const placed = reads
@@ -872,8 +925,8 @@ export function layoutMarginRows() {
               ? read.extent.right - pinInset - box.width
               : box.left - step,
           right: read.place === "pin" ? read.extent.right - pinInset : box.right - step,
-          top: read.extent.top,
-          bottom: read.extent.top + box.height,
+          top: read.top,
+          bottom: read.top + box.height,
         },
         priority: read.options.priority ?? 0,
         read,
@@ -936,7 +989,7 @@ export function layoutMarginRows() {
           [right, region.bottom],
           [region.left - ring, region.bottom],
         ]
-          .map(([x, y]) => `${x - at.left}px ${y - at.top}px`)
+          .map(([x, y]) => `${layoutPx(x - at.left)} ${layoutPx(y - at.top)}`)
           .join(", ")})`
       : "polygon(0 0)";
     if (clips.get(lane) !== clip) {
@@ -944,7 +997,13 @@ export function layoutMarginRows() {
       clips.set(lane, clip);
     }
   }
-  document.dispatchEvent(new CustomEvent("lf-margin-layout"));
+  // With the column's box and height as the pass read them, so a listener measuring
+  // against the column need not read it again.
+  document.dispatchEvent(
+    new CustomEvent("lf-margin-layout", {
+      detail: { column: columnRect, height: columnHeight },
+    }),
+  );
 }
 
 export { scheduleMarginLayout };

@@ -48,8 +48,7 @@ function paintThreadCounts() {
   const unread = unreadThreads
     ? `${unreadThreads} unread ${unreadThreads === 1 ? "thread" : "threads"}`
     : null;
-  if (unread) keeps(toggleBtn, "aria-label", `${toggleBtn.textContent}, ${unread}`);
-  else toggleBtn.removeAttribute("aria-label");
+  keeps(toggleBtn, "aria-label", unread && `${toggleBtn.textContent}, ${unread}`);
   keeps(
     toggleBtn,
     "data-lf-key-title",

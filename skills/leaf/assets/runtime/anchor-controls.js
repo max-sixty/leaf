@@ -323,8 +323,7 @@ export function createAnchorControls({
       const id = fragmentId(href);
       const alive = Boolean(fragmentTarget(href));
       anchor.classList.toggle("detached", !alive);
-      if (alive) anchor.removeAttribute("aria-disabled");
-      else keeps(anchor, "aria-disabled", "true");
+      keeps(anchor, "aria-disabled", alive ? null : "true");
       keeps(
         anchor,
         "title",

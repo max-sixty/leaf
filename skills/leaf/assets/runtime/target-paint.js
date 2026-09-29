@@ -1,20 +1,20 @@
 /* Element-target paint in Leaf's chrome layer.
  *
- * Every element annotation contributes its shown box. A declared visual widget, or a
- * registered visual part, can substitute its drawn surface and, for SVG, painted
- * geometry that Leaf clones into chrome. The projection keeps hollow contours above
- * package-owned descendants without changing document layout or painting over their
- * contents. The painter owns geometry caching: scroll only moves cached paint; a layout,
- * resize, source replacement, or target change rebuilds it. */
+ * Every element target a moment holds (anchor-paint.js) contributes its shown box. A
+ * declared visual widget, or a registered visual part, can substitute its drawn surface
+ * and, for SVG, painted geometry that Leaf clones into chrome. The projection keeps
+ * hollow contours above package-owned descendants without changing document layout or
+ * painting over their contents. The painter owns geometry caching: scroll only moves
+ * cached paint; a layout, resize, source replacement, or target change rebuilds it. */
 
 import { cancelRender, nextRender } from "./rendering.js";
 import { documentPoint, pagePlaneRect, shownBox } from "./geometry.js";
 import { el } from "./widget-elements.js";
-import { keeps } from "./keeps.js";
+import { atLayoutPrecision, keeps, layoutPx } from "./keeps.js";
 import { inChrome } from "./passages.js";
 
-// Persistent pointer-inert projections for every element target. A semantic visual
-// part can replace the ordinary box with its provider-owned drawing.
+// Pointer-inert projections for every element target a moment holds. A semantic
+// visual part can replace the ordinary box with its provider-owned drawing.
 export const visualMarkLayer = el("div", "lf-ui lf-visual-marks");
 visualMarkLayer.setAttribute("aria-hidden", "true");
 export const targetTraceBox = el("div", "lf-ui lf-target-trace lf-target-paint");
@@ -26,8 +26,6 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 const SHAPE_STROKE_ROOM = 2;
 const PROJECTED = "lf-projected-mark";
 const STATE_CLASSES = {
-  comment: "lf-visual-mark-comment",
-  reaction: "lf-visual-mark-reaction",
   pending: "lf-visual-mark-pending",
   action: "lf-visual-mark-action",
   hover: "lf-visual-mark-hover",
@@ -85,7 +83,7 @@ function geometryClone(source, left, top, property) {
   }
   clone.setAttribute(
     "transform",
-    `matrix(${matrix.a} ${matrix.b} ${matrix.c} ${matrix.d} ${matrix.e - left} ${matrix.f - top})`,
+    `matrix(${matrix.a} ${matrix.b} ${matrix.c} ${matrix.d} ${atLayoutPrecision(matrix.e - left)} ${atLayoutPrecision(matrix.f - top)})`,
   );
   clone.style.setProperty("fill", property === "fill" ? "white" : "none", "important");
   clone.style.setProperty(
@@ -108,8 +106,8 @@ function geometryClone(source, left, top, property) {
 function paintShape(host, geometry, { left, top, right, bottom }, options = {}) {
   if (!geometry) return false;
   const { maskId = "", veil = false } = options;
-  const width = right - left;
-  const height = bottom - top;
+  const width = atLayoutPrecision(right - left);
+  const height = atLayoutPrecision(bottom - top);
   const fill = veil
     ? geometry.fill.map((shape) => geometryClone(shape, left, top, "fill"))
     : [];
@@ -153,6 +151,20 @@ function paintShape(host, geometry, { left, top, right, bottom }, options = {}) 
   )
     host.replaceChildren(...paint);
   return true;
+}
+
+// A paint box stands over `rect`, placed in the document at layout precision, so a
+// target that has not moved places it with the same words (keeps.js).
+function standOver(box, rect, borderRadius) {
+  const at = documentPoint(rect.left, rect.top);
+  Object.assign(box.style, {
+    display: "block",
+    left: layoutPx(at.left),
+    top: layoutPx(at.top),
+    width: layoutPx(rect.right - rect.left),
+    height: layoutPx(rect.bottom - rect.top),
+    borderRadius,
+  });
 }
 
 function placement(surface, shaped) {
@@ -221,15 +233,7 @@ export function paintAim(element, surface = null) {
   if (!shaped) aimShape.replaceChildren();
   keeps(aimBox, "data-for", element.id);
   keeps(aimBox, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-  const at = documentPoint(rect.left, rect.top);
-  Object.assign(aimBox.style, {
-    display: "block",
-    left: `${at.left}px`,
-    top: `${at.top}px`,
-    width: `${rect.right - rect.left}px`,
-    height: `${rect.bottom - rect.top}px`,
-    borderRadius: getComputedStyle(surface ?? element).borderRadius,
-  });
+  standOver(aimBox, rect, getComputedStyle(surface ?? element).borderRadius);
   return rect;
 }
 
@@ -276,18 +280,13 @@ function drawTrace(
   if (!shaped) targetTraceShape.replaceChildren();
   traceShapeKey = shaped ? shapeKey : "";
   targetTraceBox.classList.toggle("lf-shaped", shaped);
-  if (element.id) keeps(targetTraceBox, "data-for", element.id);
-  else targetTraceBox.removeAttribute("data-for");
+  keeps(targetTraceBox, "data-for", element.id || null);
   keeps(targetTraceBox, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-  const at = documentPoint(rect.left, rect.top);
-  Object.assign(targetTraceBox.style, {
-    display: "block",
-    left: `${at.left}px`,
-    top: `${at.top}px`,
-    width: `${rect.right - rect.left}px`,
-    height: `${rect.bottom - rect.top}px`,
-    borderRadius: shaped ? "0" : getComputedStyle(surface).borderRadius,
-  });
+  standOver(
+    targetTraceBox,
+    rect,
+    shaped ? "0" : getComputedStyle(surface).borderRadius,
+  );
 }
 
 export function paintTrace(element, surface = element) {
@@ -340,8 +339,7 @@ function paintTargets(rebuildGeometry = true) {
     const { overlay, shape } = record;
     const { rect, shapeKey } = placed;
     element.classList.toggle(PROJECTED, true);
-    if (element.id) keeps(overlay, "data-for", element.id);
-    else overlay.removeAttribute("data-for");
+    keeps(overlay, "data-for", element.id || null);
     overlay.classList.toggle("lf-shaped", Boolean(geometry));
     if (
       rebuildGeometry ||
@@ -354,15 +352,11 @@ function paintTargets(rebuildGeometry = true) {
       record.shapeKey = shapeKey;
     }
     keeps(overlay, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-    const at = documentPoint(rect.left, rect.top);
-    Object.assign(overlay.style, {
-      display: "block",
-      left: `${at.left}px`,
-      top: `${at.top}px`,
-      width: `${rect.right - rect.left}px`,
-      height: `${rect.bottom - rect.top}px`,
-      borderRadius: geometry ? "0" : getComputedStyle(target.surface).borderRadius,
-    });
+    standOver(
+      overlay,
+      rect,
+      geometry ? "0" : getComputedStyle(target.surface).borderRadius,
+    );
   }
   syncStates();
 }

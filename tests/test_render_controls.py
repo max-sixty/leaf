@@ -358,6 +358,48 @@ def test_live_samples_keep_real_gestures_and_drafts_inside_the_child(browser, se
     )
 
 
+def test_a_window_sample_is_a_whole_leaf_window_that_scrolls_inside(browser, serve):
+    """A block sample is as tall as its page and keeps only the Threads row of its
+    chrome; a window sample keeps a window's height, its full chrome, and scrolls."""
+    filler = "".join(
+        f'<p id="filler-{i}">Line {i} of a long page.</p>' for i in range(60)
+    )
+    source = leaf_page(
+        "window sample",
+        f"""
+<h1>Window sample</h1>
+<lf-sample id="window-sample" label="a whole window" window>
+  <template id="window-page" data-sample><h1>Child</h1>{filler}</template>
+</lf-sample>
+""",
+    )
+    page = open_page(browser, serve(source))
+    sample = page.locator("#window-sample")
+    child = sample.evaluate(
+        """async sample => {
+          const doc = await sample.ready;
+          await new Promise(requestAnimationFrame);
+          await new Promise(requestAnimationFrame);
+          return {
+            block: doc.documentElement.hasAttribute('data-lf-sample-block'),
+            bar: getComputedStyle(doc.querySelector('.lf-shortcut-bar')).display,
+            page: doc.documentElement.scrollHeight,
+          };
+        }"""
+    )
+    assert not child["block"]
+    assert child["bar"] != "none"
+    frame = sample.locator("iframe")
+    assert frame.bounding_box()["height"] < child["page"] / 2
+
+    box = frame.bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.wheel(0, 300)
+    content = page.frame_locator("#window-sample iframe").locator(":root")
+    expect(content).to_have_js_property("scrollTop", 300)
+    assert frame.bounding_box()["height"] == box["height"]
+
+
 def test_live_samples_retire_before_navigation_and_coalesce_reset(browser, serve):
     """A held replacement navigation cannot keep a released child alive."""
     page = open_page(browser, serve(LIVE_SAMPLES_PAGE))
@@ -2699,8 +2741,11 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
     assert [event["action"] for event in actions(serve.page_dir)] == ["settle"]
 
 
-def test_a_marked_element_uses_a_complete_contour(browser, serve):
-    """Element comments and keyboard focus both keep a complete visible boundary."""
+def test_a_marked_element_draws_nothing_at_rest_and_a_complete_hover_contour(
+    browser, serve
+):
+    """An element's comment draws no contour until the pointer indicates it, and then
+    one complete boundary that the element's own children do not paint over."""
     context = browser.new_context(
         viewport={"width": 1201, "height": 900},
         color_scheme="light",
@@ -2720,6 +2765,7 @@ def test_a_marked_element_uses_a_complete_contour(browser, serve):
         )
     page = open_page(browser, url, context=context)
     ink = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--mark-ink")))
+    accent = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--accent")))
     for ident in ("approach", "col-doing"):
         target = page.locator(f"#{ident}")
         expect(target).to_have_class(re.compile(r"\blf-mark-el\b"))
@@ -2727,21 +2773,22 @@ def test_a_marked_element_uses_a_complete_contour(browser, serve):
             "node => node.scrollIntoView({block: 'center', inline: 'nearest', "
             "behavior: 'instant'})"
         )
-        edges = mark_edges(page, ident, ink)
-        assert all(seen == {2} for seen in edges.values()), (
-            f"the comment contour on #{ident} was incomplete: {edges}"
+        page.mouse.move(0, 0)
+        expect(page.locator(f'.lf-visual-mark[data-for="{ident}"]')).to_have_count(0)
+        rest = mark_edges(page, ident, ink)
+        assert all(seen == {0} for seen in rest.values()), (
+            f"the comment on #{ident} drew a contour at rest: {rest}"
         )
 
-    target = page.locator("#approach")
-    target.evaluate("node => { node.tabIndex = 0; node.focus(); }")
-    expect(page.locator('.lf-visual-mark[data-for="approach"]')).to_have_class(
-        re.compile(r"\blf-visual-mark-focus\b")
-    )
-    accent = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--accent")))
-    focused = mark_edges(page, "approach", accent)
-    assert all(seen == {4} for seen in focused.values()), (
-        f"keyboard focus did not restore a complete ring: {focused}"
-    )
+        box = target.bounding_box()
+        page.mouse.move(box["x"] + 6, box["y"] + box["height"] / 2)
+        expect(page.locator(f'.lf-visual-mark[data-for="{ident}"]')).to_have_class(
+            re.compile(r"\blf-visual-mark-hover\b")
+        )
+        edges = mark_edges(page, ident, accent)
+        assert all(seen == {4} for seen in edges.values()), (
+            f"the hover contour on #{ident} was incomplete: {edges}"
+        )
 
 
 def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
@@ -5950,8 +5997,8 @@ RING_NEW_STOP = f"""() => {{
 # reading of the wash has to come with the corpus case that shows it.
 #
 # A marked element answers the keyboard with the same named accent ring as any other
-# focusable passage. Its resting contour has no focus-ring declaration, so it cannot be
-# mistaken for focus.
+# focusable passage. Its hover and current-thread contours have no focus-ring
+# declaration, so they cannot be mistaken for focus.
 #
 # The band cast as a shadow is the third. The anchored response bar draws it that way —
 # its focused states take the outline off so the field and its choices keep one

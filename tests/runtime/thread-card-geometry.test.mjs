@@ -13,7 +13,13 @@ const cluster = (left, top) => new DOMRect(left, top, 37, 32);
 // The words a cluster is about end 46px left of it, as a column's do.
 const words = (at) => new DOMRect(at.left - 586, at.top, 540, at.height);
 // A card of `natural` height, rendered as the browser renders it under the cap.
-const place = (width, at, natural, { target = words(at), hold = null, edge } = {}) =>
+// `transcript` is the height of the thread's turns, which a turn joining it changes.
+const place = (
+  width,
+  at,
+  natural,
+  { target = words(at), hold = null, drafting, transcript = 100 } = {},
+) =>
   threadCardGeometry({
     cluster: at,
     target,
@@ -22,8 +28,9 @@ const place = (width, at, natural, { target = words(at), hold = null, edge } = {
     minWidth: 320,
     preferredWidth: 460,
     heightAt: (_width, cap) => Math.min(natural, cap),
+    transcriptAt: () => transcript,
     hold,
-    edge,
+    drafting,
   });
 const ask = (width, at, natural, target = words(at)) =>
   place(width, at, natural, { target });
@@ -74,8 +81,8 @@ test("room exactly the card's minimum is still room beside its words", () => {
   assert.deepEqual([exact.placement, exact.x, exact.width], ["right", 1112, 320]);
 });
 
-test("a drafting card keeps its side and its foot as its reply grows", () => {
-  // Beside the cluster, the foot holds and the top rises.
+test("a drafting card keeps its side and its top as its reply grows", () => {
+  // Beside the cluster, the top holds and the foot moves down.
   const rail = ask(1920, cluster(934, 160), 160);
   assert.deepEqual(rail.hold, {
     placement: "right",
@@ -84,31 +91,72 @@ test("a drafting card keeps its side and its foot as its reply grows", () => {
     foot: 160,
     height: 160,
     seen: true,
+    transcript: 100,
   });
-  const grown = place(1920, cluster(934, 160), 180, { hold: rail.hold, edge: "foot" });
+  const grown = place(1920, cluster(934, 160), 180, {
+    hold: rail.hold,
+    drafting: true,
+  });
   assert.deepEqual(
     [grown.placement, grown.y, grown.y + grown.height],
-    ["right", 140, 320],
+    ["right", 160, 340],
   );
 
-  // Grown past the room over its cluster, a card choosing again would stand under it.
-  // Held, it stays over, and its height stops at the boundary's head.
-  const over = ask(1024, cluster(871, 700), 300);
-  assert.deepEqual([over.placement, over.y + over.height], ["above", 692]);
-  assert.equal(ask(1024, cluster(871, 700), 700).placement, "below");
-  const tall = place(1024, cluster(871, 700), 700, { hold: over.hold, edge: "foot" });
-  assert.deepEqual([tall.placement, tall.y, tall.height], ["above", 50, 642]);
-
-  // Under its cluster, the card grows upward across it rather than down.
+  // Under its cluster, the card grows down, away from it.
   const under = ask(1024, cluster(871, 100), 300);
   const longer = place(1024, cluster(871, 100), 340, {
     hold: under.hold,
-    edge: "foot",
+    drafting: true,
   });
   assert.deepEqual(
     [longer.placement, longer.y, longer.y + longer.height],
-    ["below", 100, under.y + under.height],
+    ["below", under.y, under.y + 340],
   );
+
+  // Over its cluster, too, the drafted lines hold still and the card grows down across
+  // the cluster. Grown past the room over it, a card choosing again would stand under
+  // it; held, it stays over, and at the boundary's foot it rises to keep the reply in
+  // view.
+  const over = ask(1024, cluster(871, 700), 300);
+  assert.deepEqual([over.placement, over.y + over.height], ["above", 692]);
+  const across = place(1024, cluster(871, 700), 400, {
+    hold: over.hold,
+    drafting: true,
+  });
+  assert.deepEqual([across.placement, across.y, across.height], ["above", 392, 400]);
+  assert.equal(ask(1024, cluster(871, 700), 700).placement, "below");
+  const tall = place(1024, cluster(871, 700), 700, { hold: over.hold, drafting: true });
+  assert.deepEqual([tall.placement, tall.y, tall.y + tall.height], ["above", 147, 847]);
+  // Filling the whole boundary, it stops there, and the transcript gives up its room.
+  const whole = place(1024, cluster(871, 700), 900, {
+    hold: over.hold,
+    drafting: true,
+  });
+  assert.deepEqual([whole.y, whole.height], [50, 797]);
+});
+
+test("a drafting card keeps its reply row still as a turn joins its transcript", () => {
+  // A turn arriving, or the one the user sent, holds the foot with the reply row on it,
+  // and the card rises by the turn; the next new line holds the top it rose to.
+  const rail = ask(1920, cluster(934, 300), 160);
+  const turn = place(1920, cluster(934, 300), 220, {
+    hold: rail.hold,
+    drafting: true,
+    transcript: 160,
+  });
+  assert.deepEqual([turn.y, turn.y + turn.height], [240, 460]);
+  const line = place(1920, cluster(934, 300), 240, {
+    hold: turn.hold,
+    drafting: true,
+    transcript: 160,
+  });
+  assert.deepEqual([line.y, line.y + line.height], [240, 480]);
+  // Read, the same turn holds the top.
+  const read = place(1920, cluster(934, 300), 220, {
+    hold: rail.hold,
+    transcript: 160,
+  });
+  assert.deepEqual([read.y, read.y + read.height], [300, 520]);
 });
 
 test("a card being read keeps its top as a turn arrives", () => {
@@ -117,13 +165,18 @@ test("a card being read keeps its top as a turn arrives", () => {
   const reading = ask(1440, cluster(934, 600), 200);
   const turn = place(1440, cluster(934, 600), 400, { hold: reading.hold });
   assert.deepEqual([turn.y, turn.height], [600, 247]);
-  // Starting to draft holds the foot where the card stands, with the editor on it, and
-  // the transcript takes the room over the card that its top held it out of.
+  // A reply growing there has no room below, so the card rises by what it gains, and
+  // settles back to its top as the reply shrinks.
   const drafting = place(1440, cluster(934, 600), 400, {
     hold: turn.hold,
-    edge: "foot",
+    drafting: true,
   });
-  assert.deepEqual([drafting.y + drafting.height, drafting.height], [847, 400]);
+  assert.deepEqual([drafting.y, drafting.height], [447, 400]);
+  const shorter = place(1440, cluster(934, 600), 200, {
+    hold: drafting.hold,
+    drafting: true,
+  });
+  assert.deepEqual([shorter.y, shorter.height], [600, 200]);
 });
 
 test("a card over its cluster grows upward as a turn arrives", () => {
@@ -138,7 +191,7 @@ test("a card over its cluster grows upward as a turn arrives", () => {
 test("a scroll carries the held card inside the boundary and never squeezes it", () => {
   const over = ask(1024, cluster(871, 700), 300);
   // Scrolled up, the foot stops where the whole card still fits under the head.
-  const up = place(1024, cluster(871, 200), 300, { hold: over.hold, edge: "foot" });
+  const up = place(1024, cluster(871, 200), 300, { hold: over.hold });
   assert.deepEqual([up.y, up.height], [50, 300]);
   const read = place(1024, cluster(871, 100), 300, { hold: over.hold });
   assert.deepEqual([read.y, read.height], [50, 300]);
@@ -167,11 +220,9 @@ test("the card leaves with its cluster and comes back with it", () => {
     [at(100), at(30), at(0), at(-400)].map((placed) => placed.plane),
     ["page", "window", "page", "page"],
   );
-  // Through the foot the same way, whichever edge is held.
-  const foot = (top) =>
-    place(1440, cluster(934, top), 300, { hold: open.hold, edge: "foot" });
-  assert.deepEqual([foot(900).y, foot(900).height], [600, 300]);
-  assert.deepEqual([foot(700).plane, foot(900).plane], ["window", "page"]);
+  // Through the foot the same way.
+  assert.deepEqual([at(900).y, at(900).height], [600, 300]);
+  assert.deepEqual([at(700).plane, at(900).plane], ["window", "page"]);
 });
 
 test("a card opened with its cluster out of the window stands in it", () => {
@@ -201,8 +252,9 @@ test("a keyboard hiding the cluster keeps the card in what the user sees", () =>
     minWidth: 320,
     preferredWidth: 460,
     heightAt: (_width, cap) => Math.min(300, cap),
+    transcriptAt: () => 100,
     hold: open.hold,
-    edge: "foot",
+    drafting: true,
   });
   assert.deepEqual([typing.y, typing.y + typing.height], [100, 400]);
 });
@@ -211,7 +263,7 @@ test("a hold whose side or width the room no longer gives yields to a fresh choi
   const rail = ask(1920, cluster(934, 160), 160);
   const narrowed = place(1024, cluster(871, 160), 160, {
     hold: rail.hold,
-    edge: "foot",
+    drafting: true,
   });
   assert.deepEqual([narrowed.placement, narrowed.hold.placement], ["below", "below"]);
   // Narrower on the same side, a card whose words reflowed taller stands at its spot

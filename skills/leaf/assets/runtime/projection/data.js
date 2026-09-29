@@ -153,10 +153,8 @@ export function createDataProjection({ invalidateDom }) {
       throw new TypeError("projectData snapshot needs a source and revision");
 
     const stampBasis = (node) => {
-      if (snapshot) keeps(node, "data-lf-source", snapshot.source);
-      else delete node.dataset.lfSource;
-      if (snapshot) keeps(node, "data-lf-source-revision", snapshot.revision);
-      else delete node.dataset.lfSourceRevision;
+      keeps(node, "data-lf-source", snapshot?.source ?? null);
+      keeps(node, "data-lf-source-revision", snapshot?.revision ?? null);
     };
     stampBasis(root);
     if (originOf !== null && typeof originOf !== "function")
@@ -239,18 +237,15 @@ export function createDataProjection({ invalidateDom }) {
       keeps(node, "data-lf-projection", root.id);
       keeps(node, "data-lf-datum", key);
       stampBasis(node);
-      if (identify) keeps(node, "data-lf-identity", identity);
-      else delete node.dataset.lfIdentity;
+      keeps(node, "data-lf-identity", identify ? identity : null);
       // The emitter knows which input it transformed. Keep that construction fact,
       // never recover a source path by interpreting its opaque key or displayed words.
       const origin = (originOf ? originOf(record, index) : snapshot?.origin) ?? null;
-      if (origin !== null) {
-        if (typeof origin !== "object" || Array.isArray(origin))
-          throw new TypeError(
-            `projectData(${root.id}) origin ${index} must be an object`,
-          );
-        keeps(node, "data-lf-origin", JSON.stringify(origin));
-      } else delete node.dataset.lfOrigin;
+      if (origin !== null && (typeof origin !== "object" || Array.isArray(origin)))
+        throw new TypeError(
+          `projectData(${root.id}) origin ${index} must be an object`,
+        );
+      keeps(node, "data-lf-origin", origin === null ? null : JSON.stringify(origin));
       wanted.push(node);
       index++;
     }

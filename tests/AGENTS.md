@@ -31,7 +31,8 @@ uv run pytest --regtest-reset -n0 <node-id>
 Mark a test `nightly` when a pull request can land without it, including any test that
 needs the network; expense alone does not make a test nightly. Broad discovery skips
 nightly tests, and an explicit file, node id, `-k`, `-m`, or `--lf` runs what it
-names. Before handing over a browser-facing change, run its whole browser file, the
+names. Both landing gates pass `--nightly-changed-since`, which adds the nightly tests
+in the test files the change touches. Before handing over a browser-facing change, run its whole browser file, the
 everyday gate, and the smallest nightly selection covering it. Run a new or changed
 browser test through `uv run leaf-dev flake NODEID`, which runs it as concurrent
 copies: a serial rerun samples only the idle machine that already passes it. The
@@ -286,12 +287,18 @@ nothing moved straddles a transition that would move without the rule. Check wha
 lower layer already guarantees: a send queue that drops a second POST hides whether
 the widget refused it.
 
-The corpus has three matrices. Return state is anchored on a first visit
+The corpus has these matrices. Return state is anchored on a first visit
 (`arrival_findings`); semantic replay is anchored on a static authored state, applying
-standing actions or reports twice and checking the visible state and idempotence; and a
+standing actions or reports twice and checking the visible state and idempotence; a
 scroll's writes (`scroll_writes`, read by `scroll_followers`) fail where a place is
-written on every step. All three stay
-declaration-driven, so a new widget, verb, or page joins without a case of its own. Run generated-markup probes (`undeclaredAttrs`, `relativeReplays`) through
+written on every step; a page left alone (`at_rest`) fails anything it does; a
+surface's round trips fail where one leaves a different `page_state` than the first,
+or `live_counts` climb on every trip; and a resize fails where a width says something
+other than it said on the way out. The last three read a `still_page`, whose reduced
+motion and stopped clock leave only what the test did. All of them run on every
+corpus page, so a new widget or page joins without a case of its own; a new surface
+joins the round trips by its keys. Run generated-markup probes (`undeclaredAttrs`,
+`relativeReplays`) through
 `leaf.render_checks.evaluate_probe` on fixtures that can trigger them.
 
 ### An absence needs a control and a settled frame

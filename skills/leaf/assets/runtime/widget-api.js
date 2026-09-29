@@ -15,6 +15,7 @@ export async function mountSample(frame, options) {
   const owner = await import("./sample.js");
   return owner.mountSample(frame, options);
 }
+export { dressSamples, wear } from "./dress.js";
 
 export { USER_VIEW_RESTORE_CASES } from "./restore-state.js";
 export { ADDRESSABLE, addressableLabel, addressableWord } from "./anchor-resolution.js";
@@ -176,4 +177,4 @@ export {
   selectableOffer,
   worksInside,
 } from "./widget-elements.js";
-export { keeps, keepsHidden, keepsText } from "./keeps.js";
+export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";

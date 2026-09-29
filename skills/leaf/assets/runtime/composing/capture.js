@@ -35,8 +35,10 @@ const CONTEXT = 24;
 // highlight that shrank to match — silently, on most of the paragraphs a leaf page
 // holds. What the cap was really bounding is the search's pattern, which is where the
 // bound now lives (LEAD_CAP), so nothing has to be given up to keep it cheap.
-export function selectionAnchor(sel) {
-  const range = pageRange(sel);
+export const selectionAnchor = (sel) => rangeAnchor(pageRange(sel));
+// The same anchor for any range of page words: a selection's, or the words of the
+// element a pointing gesture landed on (pointed-place.js).
+export function rangeAnchor(range) {
   const node = range.commonAncestorContainer;
   const holder = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
   // The neighbours come from the same indexed reading the search uses and stop at

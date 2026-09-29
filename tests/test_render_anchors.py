@@ -2357,11 +2357,12 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 2")
     stranded = page.locator(".lf-thread-panel .lf-quote.detached").all_text_contents()
     assert stranded == [], f"outlined on screen, reported missing: {stranded}"
-    # The projected contour stays above the figure's own paint without putting any
-    # paint over its contents.
+    # The projected contour the pointer raises stays above the figure's own paint
+    # without putting any paint over its contents.
     figure = page.locator("#fig")
     expect(figure).to_have_class(re.compile(r"\blf-mark-el\b"))
     figure.scroll_into_view_if_needed()
+    figure.hover()
     expect(figure).to_have_class(re.compile(r"\blf-projected-mark\b"))
     mark = page.locator('.lf-visual-mark[data-for="fig"]')
     expect(mark).to_be_visible()
@@ -2604,10 +2605,9 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     """A pointer press briefly moves focus from an open thread to the page before its
     click lands back in the thread. The mark must not look deselected in that gap.
 
-    A reaction shares this target with the comment because that was the visible failure:
-    losing the current-thread paint exposed the passive reaction contour underneath.
-    Hover and current therefore need to resolve to the same accent contour for the whole
-    down/up gesture, while passive feedback remains the quieter hairline.
+    Hover and current therefore resolve to the same accent contour for the whole
+    down/up gesture, while the element's comment and reaction draw nothing at rest. The
+    reaction beside the comment is the case that first showed the gap.
     """
     url = serve(INLINE_PAGE)
     events_model.append_event(
@@ -2634,15 +2634,12 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     figure = page.locator("#fig")
     figure.scroll_into_view_if_needed()
     mark = page.locator('.lf-visual-mark[data-for="fig"]')
-    expect(mark).to_be_visible()
+    expect(mark).to_have_count(0)
 
     look = """node => { const style = getComputedStyle(node); return {
       line: style.borderStyle,
       width: style.borderWidth,
-      color: style.borderColor,
     }; }"""
-    passive = mark.evaluate(look)
-    assert passive["line"] == "solid"
 
     box = figure.bounding_box()
     point = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
@@ -2664,9 +2661,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     assert selected == pressed, (
         f"the selected contour changed during mouse-down: {selected} -> {pressed}"
     )
-    assert selected["line"] == "solid"
-    assert selected["width"] != passive["width"]
-    assert selected["color"] != passive["color"]
+    assert selected == {"line": "solid", "width": "2px"}
 
 
 def test_a_tap_on_a_quote_opens_its_thread(browser, serve):
@@ -6200,13 +6195,11 @@ def test_every_mark_the_layer_paints_on_words_is_seen_against_the_paper(
 
     The wash cannot be that notice, and no alpha can make it one: --mark composites to
     1.13:1 over the light paper, and its hue does not reach 1.5:1 against that paper at
-    any alpha at all — opaque it stands at 1.38:1. So the layer marks words the way it
-    marks elements, with a line: an element anchor wears a --mark-ink contour at 9:1
-    (.lf-visual-mark), and a passage wears the same ink as an underline.
+    any alpha at all — opaque it stands at 1.38:1. So the layer marks words with a line:
+    a passage wears --mark-ink as an underline, at 9:1.
 
-    A reaction had the element half of that pair and not the text half. On words it was
-    --react alone, 1.08:1 over the light paper — a mark that is in the log and not on the
-    screen. Both names are read here.
+    A reaction on words was once --react alone, 1.08:1 over the light paper — a mark that
+    is in the log and not on the screen. Both names are read here.
 
     Read off the drawn page rather than off the rules, because what a highlight pseudo is
     allowed to carry is the browser's to decide and a declaration that stopped applying

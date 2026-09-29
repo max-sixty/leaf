@@ -1550,7 +1550,8 @@ def test_a_diagram_takes_the_room_and_scrolls_only_past_it(browser, serve):
 
 
 def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve):
-    """A focused visual paints one ring through the projected mark."""
+    """A focused visual paints one ring: its own, since its thread draws nothing at
+    rest. Standing in that thread moves the contour into the projected mark."""
     url = serve(WIDE_DIAGRAM_PAGE)
     events_model.append_event(
         serve.page_dir,
@@ -1569,12 +1570,10 @@ def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve)
     expect(diagram).to_have_attribute("tabindex", "0")
     diagram.focus()
     assert diagram.evaluate("element => element.matches(':focus-visible')")
-    expect(diagram).to_have_css("outline-style", "none")
-
+    expect(diagram).to_have_css("outline-style", "solid")
+    expect(diagram).to_have_css("outline-width", "2px")
     mark = page.locator(".lf-visual-mark")
-    expect(mark).to_have_class(re.compile(r"\blf-visual-mark-focus\b"))
-    expect(mark).to_have_css("border-width", "2px")
-    expect(mark).to_have_css("border-style", "solid")
+    expect(mark).to_have_count(0)
 
     resized(page, 1200, 900)
     page.locator(".lf-threads-toggle").click()

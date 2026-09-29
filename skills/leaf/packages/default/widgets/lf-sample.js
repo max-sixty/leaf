@@ -1,7 +1,9 @@
 /* lf-sample: quoted content, or a complete live page authored in a template.
  * The shared host owns the child page and its independent event log. The frame
  * takes its child's height, so the surrounding page scrolls the sample like any
- * other block and focus moves into it the way it moves into any iframe; the child's
+ * other block and focus moves into it the way it moves into any iframe. A `window`
+ * sample is instead a whole Leaf window at the frame's own height, chrome included,
+ * and scrolls inside itself. The child's
  * final Escape brings focus back to this element. Ordinary children remain static
  * quotation. A disconnect releases the child; moving the retained element within a
  * document does not reset its work. */
@@ -35,7 +37,10 @@ customElements.define(
       if (once(this)) this.#build();
       if (!this.#frame || this.#host || this.#mounting) return;
       this.#mounting = true;
-      const ready = mountSample(this.#frame, { template: this.#template.id }).then(
+      const ready = mountSample(this.#frame, {
+        template: this.#template.id,
+        window: this.hasAttribute("window"),
+      }).then(
         async (host) => {
           this.#mounting = false;
           if (!this.isConnected) {
@@ -128,7 +133,7 @@ customElements.define(
         if (this.#ready !== ready) return doc;
         this.#reset.disabled = false;
         this.#status.textContent = "";
-        this.#follow(doc);
+        if (doc.documentElement.hasAttribute("data-lf-sample-block")) this.#follow(doc);
         return doc;
       });
       this.#ready = ready;

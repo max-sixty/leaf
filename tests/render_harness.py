@@ -60,6 +60,7 @@ from playwright.sync_api import expect
 
 ROOT = Path(__file__).parent.parent
 WRITE_WATCH_SOURCE = Path(__file__).with_name("write_watch.js")
+SHIFT_WATCH_SOURCE = Path(__file__).with_name("shift_watch.js")
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
 EXAMPLES = sorted((ROOT / "examples").glob("*.html"))
 assert EXAMPLES, "no examples found — parametrizing over an empty list tests nothing"
@@ -1076,13 +1077,29 @@ def clean_browser():
     assert problems == [], problems
 
 
+def judge_shifts():
+    """Judge every layout shift each watched page makes, once the frames the test's
+    last act changed have painted (`shift_watch.js`, `lfShiftsJudged`).
+
+    Chrome hands a frame's shifts to the observer only after it paints, so a test whose
+    last act moves the page would end before the report. `conftest.py` calls this as
+    the test body returns, while the pages' servers still answer: a page left painting
+    after its server is gone lets its failed fetches reach the console."""
+    for page, _ in _BROWSER_PROBLEM_LISTS or ():
+        if not page.is_closed():
+            for frame in page.frames:
+                frame.evaluate("() => window.lfShiftsJudged?.()")
+
+
 def watched(page):
     """Collect browser problems into one retained list per page.
 
     Console warnings/errors and uncaught exceptions are joined by window errors
     without exceptions, installed through the same `install_window_errors` helper
-    the render gate uses, and by DOM writes that change nothing (`write_watch.js`).
-    Call before navigation so the init script takes effect.
+    the render gate uses, by DOM writes that change nothing (`write_watch.js`), and
+    by layout shifts without input or that carry a field being typed in
+    (`shift_watch.js`).
+    Call before navigation so the init scripts take effect.
     Repeated calls return the existing list. `tests/AGENTS.md`, "Consume a browser
     error where it is caused", owns consumption and cleanup policy."""
     assert _BROWSER_PROBLEM_LISTS is not None, (
@@ -1102,6 +1119,7 @@ def watched(page):
     page.on("pageerror", lambda e: errors.append(str(e)))
     render_checks_model.install_window_errors(page)
     page.add_init_script(path=WRITE_WATCH_SOURCE)
+    page.add_init_script(path=SHIFT_WATCH_SOURCE)
     # Diagnostics join the document's captured module graph, not the mutable layer.
     page.add_init_script(
         script="""window.__lfRuntimeImport = path => {

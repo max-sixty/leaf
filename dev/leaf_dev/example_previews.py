@@ -1,22 +1,20 @@
 """Regenerate the public catalog's stills from the live example routes.
 
 The public gallery shows a real first viewport for each example, but the site build
-deliberately needs no browser. These JPEGs live in max-sixty/leaf-assets so binary
-history does not ship with Leaf. This command captures them through the website's Leaf
-server with an isolated state home, publishes the asset commit, updates Leaf's exact
-pin and catalog links, then rebuilds the site from the pinned bytes. Host pages are
-not part of the captured scene.
+deliberately needs no browser. These JPEGs live under `examples/` in
+max-sixty/leaf-assets (`leaf_dev.leaf_assets`). This command captures them through the
+website's Leaf server with an isolated state home, publishes the asset commit, updates
+Leaf's exact pin and catalog links, then rebuilds the site from the pinned bytes. Host
+pages are not part of the captured scene.
 
     uv run leaf-dev refresh-previews    (or `wt refresh-previews`)
 """
 
 import hashlib
 import io
-import json
 import os
 import re
 import shutil
-import subprocess
 import tempfile
 import threading
 from collections.abc import Iterator
@@ -32,9 +30,8 @@ from playwright.sync_api import Page, sync_playwright
 
 from leaf_dev import ROOT
 from leaf_dev import site as site_build
-from leaf_dev.example_assets import LOCK, specification
-from leaf_dev.example_assets import example_previews as locked_previews
 from leaf_dev.example_data import catalog_sources
+from leaf_dev.leaf_assets import pinned_assets, publish, stage
 
 DOCS = ROOT / "docs"
 VIEWPORT = {"width": 1120, "height": 700}
@@ -128,64 +125,19 @@ def update_catalog(previews: set[Path]) -> None:
         page.write_text(markup, encoding="utf-8")
 
 
-def run(*args: str, cwd: Path) -> str:
-    """Run a Git command and keep its failure attached to the operation."""
-    completed = subprocess.run(
-        args, cwd=cwd, check=False, capture_output=True, text=True
-    )
-    if completed.returncode:
-        output = f"{completed.stdout}{completed.stderr}".strip()
-        raise RuntimeError(f"{' '.join(args)} failed:\n{output}")
-    return completed.stdout.strip()
-
-
-def stage(captures: dict[str, bytes], staging: Path) -> Path:
-    """Put the complete preview set in a fresh checkout for verification."""
-    repository, _ = specification()
-    checkout = staging / "leaf-assets"
-    run(
-        "git",
-        "clone",
-        f"https://github.com/{repository}.git",
-        str(checkout),
-        cwd=staging,
-    )
-    previews = checkout / "examples"
-    previews.mkdir(exist_ok=True)
-    for stale in previews.glob("example-*.jpg"):
-        if stale.name not in captures:
-            stale.unlink()
-    for name, content in captures.items():
-        (previews / name).write_bytes(content)
-    return checkout
-
-
-def bootstrap_previews(target: Path) -> Path:
-    """Supply an image for every route before newly added stills exist."""
-    current = locked_previews()
-    fallback = next(iter(sorted(current.glob("example-*.jpg"))), None)
+def bootstrap_assets(target: Path) -> Path:
+    """Copy the pinned assets, supplying a preview for every route before newly added
+    stills exist."""
+    shutil.copytree(pinned_assets(), target)
+    previews = target / "examples"
+    fallback = next(iter(sorted(previews.glob("example-*.jpg"))), None)
     if fallback is None:
         raise RuntimeError("the pinned asset revision contains no catalog preview")
-    target.mkdir(parents=True)
     for source in catalog_sources():
-        preview = current / f"example-{source.stem}.jpg"
-        shutil.copy2(preview if preview.is_file() else fallback, target / preview.name)
+        preview = previews / f"example-{source.stem}.jpg"
+        if not preview.is_file():
+            shutil.copy2(fallback, preview)
     return target
-
-
-def publish(checkout: Path) -> str:
-    """Commit and push a verified preview set, then update Leaf's exact pin."""
-    repository, _ = specification()
-    run("git", "add", "-A", cwd=checkout)
-    if run("git", "status", "--porcelain", cwd=checkout):
-        run("git", "commit", "-m", "Refresh generated example previews", cwd=checkout)
-        run("git", "push", cwd=checkout)
-    revision = run("git", "rev-parse", "HEAD", cwd=checkout)
-    LOCK.write_text(
-        json.dumps({"repository": repository, "revision": revision}, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    return revision
 
 
 @click.command("refresh-previews")
@@ -198,9 +150,9 @@ def refresh_previews() -> None:
         sync_playwright() as playwright,
     ):
         staging = Path(raw_site)
-        previews = bootstrap_previews(staging / "previews")
+        assets = bootstrap_assets(staging / "assets")
         site = staging / "site"
-        site_build.build_examples(site, catalog_previews=previews)
+        site_build.build_examples(site, assets=assets)
         browser = playwright.chromium.launch()
         try:
             with serve_examples(site) as origin:
@@ -228,13 +180,9 @@ def refresh_previews() -> None:
             browser.close()
 
     with tempfile.TemporaryDirectory(prefix="leaf-assets-") as raw:
-        checkout = stage(captures, Path(raw))
-        previews = set((checkout / "examples").glob("example-*.jpg"))
-        update_catalog(previews)
-        site_build.build(
-            site_build.OUT,
-            catalog_previews=checkout / "examples",
-        )
-        revision = publish(checkout)
+        checkout = stage("examples", captures, Path(raw))
+        update_catalog(set((checkout / "examples").glob("example-*.jpg")))
+        site_build.build(site_build.OUT, assets=checkout)
+        revision = publish(checkout, "Refresh generated example previews")
         click.echo(f"  max-sixty/leaf-assets@{revision}")
     click.echo(f"✓ {len(catalog_sources())} previews")

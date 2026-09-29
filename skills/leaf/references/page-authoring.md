@@ -108,7 +108,7 @@ the stack from these:
   them as on any page. The `lf-tabs` entry says which placement makes which, and how
   to order and retire views.
 
-A page grows without changing kind: a report that gains live status gains a row of
+A page grows without changing its Layout: a report that gains live status gains a row of
 tiles, and its comments and anchors stay put.
 
 The banner and the bottom bar at the foot of the window are fixed reservations, so
@@ -118,21 +118,26 @@ margin", below).
 
 ### Layouts
 
-A Layout is a class that arranges the box it is on. Put one on `main` to shape the
-page, or on any block to arrange that block's children. `layout-column` on a block keeps
-the measure but gives it no room to break out into, since that room is the page's:
+A Layout is a class that arranges the box it is on. Three set the page's shape, on
+`main`:
+
+| Class | The page |
+| --- | --- |
+| `layout-column` | the reading column, and a block's breakout beside it |
+| `layout-wide` | as wide as the window, up to a cap, holding one flow |
+| `layout-workspace` | fills the window: `header`, one body, `footer` |
+
+Two arrange a box's children, on `main` or on any block:
 
 | Class | Arranges |
 | --- | --- |
-| `layout-column` | the reading column, and a block's breakout beside it |
-| `layout-wide` | a page as wide as the window, up to a cap, holding one flow |
 | `layout-sidebar` | a body beside its `aside`, with a `header` and `footer` across both |
 | `layout-tiles` | equal cells, as many to a row as fit |
-| `layout-workspace` | a page that fills the window: `header`, one body, `footer` |
 
 On `main`, every class but `layout-column` makes a wide page: every block, the title
 included, starts at one left edge and takes the page's width, text keeps the reading
-measure, and the title is set larger.
+measure, and the title is set larger. `layout-column` on a block keeps the measure but
+gives it no room to break out into, since that room is the page's.
 
 A Layout is a starting point. The page's own `<style>` comes after it in the cascade, so
 an ordinary rule adjusts it — a different track share, a gap, an order — and a page

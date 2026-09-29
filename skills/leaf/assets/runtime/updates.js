@@ -11,7 +11,8 @@
    thread work claims from status storage share a common envelope: `id`, typed `target`,
    `source`, `action`, structured `detail`, declared human-readable `text`, `ts`,
    attribution, and `disposition`. Report envelopes also retain their version and
-   sequence; a claim carries `log_floor`, the log sequence it followed.
+   sequence; a claim carries `log_floor`, the log sequence it followed, and `turn`, the
+   claimant's turn that wrote it.
 
    The source discriminator is semantic, not an implementation leak. A report stands
    until a stamped revision's note absorbs or overrules it; a claim stands until the

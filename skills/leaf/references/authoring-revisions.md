@@ -51,14 +51,14 @@ it. From then on your markup places it. Keep it there in later versions too: a v
 keeps a user's placement unless it marks the card `restated`, and `page check`
 refuses one that moves it silently.
 
-A user's answer to a page Ask is the other: it shows as waiting on you, and
-holds your turn open, until a stamped version takes it in. Where the answering
-widget declares a markup form for its state (its `x-state` `record`), that
-version's markup has to show the answer in that form: `chosen` on exactly the
-picked `lf-option` elements, with an option the user added written in as an
-ordinary option under its id and words, or the user's words as the body of a
-`needed` `lf-draft`. The next version you stamp takes in an answer with no such
-form, such as an accepted suggestion or a playground's submitted settings.
+A user's answer to a page Ask is the other: it shows as waiting on you until a
+stamped version takes it in, and until then it holds your turn open unless that turn
+claimed its work. Where the answering widget declares a markup form for its state
+(its `x-state` `record`), that version's markup has to show the answer in that form:
+`chosen` on exactly the picked `lf-option` elements, with an option the user added
+written in as an ordinary option under its id and words, or the user's words as the
+body of a `needed` `lf-draft`. The next version you stamp takes in an answer with no
+such form, such as an accepted suggestion or a playground's submitted settings.
 
 When incorporating a decided suggestion into surrounding prose, retain its
 surviving branch and ids.

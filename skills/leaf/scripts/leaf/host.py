@@ -114,6 +114,14 @@ class Harness:
         prints no delivery; a wait held in a background task is the default."""
         return f"start `leaf wait --ack {delivery_id}` as the next background task"
 
+    @classmethod
+    def continue_turn(cls, message: str) -> dict:
+        """The Stop hook output that keeps the ending turn going with `message` as
+        new context: a block, which every host that runs Leaf's hooks honours. It
+        is Codex's only way, since its Stop output schema (0.156) has no
+        `hookSpecificOutput`."""
+        return {"decision": "block", "reason": message}
+
     def nudge(self, page_dir: Path) -> bool:
         """Put this page's new input in front of the session, and say whether
         anything took it.
@@ -200,6 +208,21 @@ class ClaudeCodeHarness(EnvironmentHarness):
             if record["sessionId"] == self.session:
                 return {"job": str(Path(job).resolve())}
         return {"pid": int(os.environ["CLAUDE_PID"])}
+
+    @classmethod
+    def continue_turn(cls, message: str) -> dict:
+        """Claude Code continues a turn on a Stop hook's `additionalContext` as it
+        does on a block, and labels it "Stop hook additional context" rather than
+        "Stop hook error": its schema calls that field non-error feedback after
+        which the conversation continues, and a probe at 2.1.284 saw the turn go
+        on and the next Stop arrive with `stop_hook_active`. Nothing Leaf's Stop
+        hook says is an error, so it takes this channel."""
+        return {
+            "hookSpecificOutput": {
+                "hookEventName": "Stop",
+                "additionalContext": message,
+            }
+        }
 
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
         return "Leaf's hook puts them in your context at your next turn."

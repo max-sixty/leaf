@@ -9,7 +9,8 @@
 //
 // Chrome's Layout Instability API is the evidence: it compares painted frames, net of
 // scrolling, so it sees a move that paints and is undone before any script could look,
-// and names the elements that moved. What it cannot say is why. A move the step before
+// and names the elements that moved (the five that moved most, in a frame that moved
+// more). What it cannot say is why. A move the step before
 // the keystroke laid out but had not yet painted, such as a widget a test removed by
 // script, paints in the keystroke's first frame and reads as the typing's. So at each
 // keystroke, a trusted `beforeinput` whose composed path names the field (a textarea,

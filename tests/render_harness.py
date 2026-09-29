@@ -1096,7 +1096,7 @@ def watched(page):
     Console warnings/errors and uncaught exceptions are joined by window errors
     without exceptions, installed through the same `install_window_errors` helper
     the render gate uses, by DOM writes that change nothing (`write_watch.js`), and
-    by typing that moves its own field or what stands before it (`typing_watch.js`).
+    by typing that carries the field it types in (`typing_watch.js`).
     Call before navigation so the init scripts take effect.
     Repeated calls return the existing list. `tests/AGENTS.md`, "Consume a browser
     error where it is caused", owns consumption and cleanup policy."""

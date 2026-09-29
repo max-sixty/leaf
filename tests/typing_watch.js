@@ -13,7 +13,12 @@
 //
 // A keystroke is a trusted `beforeinput`, whose composed path names the field: a
 // textarea, an input, or the host of a `leaf-text`'s closed editor. Measuring there
-// reads the layout every earlier change left, and none of the keystroke's own.
+// forces the layout every earlier change left, and none of the keystroke's own, which is
+// why this reads boxes rather than Chrome's Layout Instability API: that API compares
+// painted frames, so a move the step before the keystroke laid out but had not yet
+// painted, such as a widget a test removed, lands in the keystroke's first frame and
+// reads as the typing's. Reading at animation frames, it can miss a move painted and
+// undone between two of them, which the API would see.
 //
 // The watch ends where something other than the keystroke may move the field: another
 // key or press (a key the page answers without editing, such as Enter sending a reply,

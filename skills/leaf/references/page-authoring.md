@@ -132,7 +132,8 @@ the measure but gives it no room to break out into, since that room is the page'
 
 On `main`, every class but `layout-column` makes a wide page: every block, the title
 included, starts at one left edge and takes the page's width, text keeps the reading
-measure, and the title is set larger.
+measure, and the title is set larger, except in a workspace, whose one-row header sets
+it smaller.
 
 A Layout is a starting point. The page's own `<style>` comes after it in the cascade, so
 an ordinary rule adjusts it — a different track share, a gap, an order — and a page
@@ -233,7 +234,7 @@ its last line, keeps that line in view while the user is at the end, and leaves 
 where they scrolled back to otherwise. A newest-first list takes
 `data-bound="start"`, which opens it at the top, as the page's own activity feed
 does. Some widgets bound themselves by default. Don't make a box scroll vertically with page
-CSS: Leaf keeps no reading position in a scroller it did not make, and `version
+CSS: Leaf keeps no reading position in a scroller it did not make, and `page
 check` advises against one.
 
 An individual block or section may request a responsive allocation with

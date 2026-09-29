@@ -16,7 +16,7 @@
     }
   },
   "lf-ask": {
-    "description": "One complete Ask for the user: begin with one direct heading stating the question, so the Ask names itself without the page around it, then include any context or evidence needed to answer it and exactly one non-quoted widget whose declaration names a local Ask through x-awaits or x-request.ask. The nested widget still owns the action or external-request lifecycle and determines whether the Ask is open. The authored heading is the Ask's title: it stays in the document's reading, gives the Asks tray its name, and is where `a`/`A` arrives. Keep an ordinary semantic section around the Ask when the document needs a section landmark. The wrapper adds no frame or caption of its own.",
+    "description": "One complete Ask for the user: begin with one direct heading stating the question, so the Ask names itself without the page around it, then include any context or evidence needed to answer it and exactly one non-quoted widget whose declaration names a local Ask through x-awaits. The nested widget still owns the action and determines whether the Ask is open. The authored heading is the Ask's title: it stays in the document's reading, gives the Asks drawer its name, and is where `a`/`A` arrives. Keep an ordinary semantic section around the Ask when the document needs a section landmark. The wrapper adds no frame or caption of its own.",
     "type": "object",
     "properties": {
       "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
@@ -24,7 +24,6 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "markup",
-    "x-measure": "group",
     "x-ask-surface": true,
     "x-upgrade": false,
     "x-example": "<section id=\"storage-section\">\n  <lf-ask id=\"storage-decision\">\n    <h2>What should a full store do?</h2>\n    <p>The beta never reached the cap. This decides what the first workspace at it sees.</p>\n    <lf-options id=\"full-store\" choose>\n      <lf-option id=\"store-evict\"><strong>Drop the oldest documents</strong> Editing continues. <em>My take: this keeps work moving without losing server data.</em></lf-option>\n      <lf-option id=\"store-stop\"><strong>Pause offline editing</strong> Nothing leaves.</lf-option>\n    </lf-options>\n  </lf-ask>\n</section>"
@@ -117,7 +116,6 @@
     "required": ["id", "source"],
     "additionalProperties": false,
     "x-content": "empty",
-    "x-measure": "surface",
     "x-data": {
       "document": {
         "contract": "text-document",
@@ -129,7 +127,7 @@
     "x-example": "<lf-text-document id=\"leaf-skill\" source=\"leaf-skill\" language=\"markdown\"></lf-text-document>"
   },
   "lf-toc": {
-    "description": "A table of contents derived from the page's h2-h6 headings. `max-level` sets the deepest heading included when lower-level headings are local detail rather than page destinations; omitting it includes every level. A scrolling document with two or more included headings places one in an `aside.sidebar` near the opening by default; omit it when the outline is already visible at a glance. Root workspaces use their region navigation instead of a page-wide contents sidebar, and root page tabs supply their own view navigation. In the roomy margin, the runtime distributes the page title and headings down a full-height spine according to the sections they lead, paints the visible band of the document on that spine, and reveals every generated label on pointer or keyboard entry. Crowded destinations bend together on one fitted scale so every marker and label remains distinct; when the labels cannot physically fit, the widget becomes an ordinary open, scrollable outline. In flow and on paper, it remains an ordinary open outline. A heading that titles an identified section links to the section, keeping an eyebrow and heading together at arrival and giving the public fragment the section's id. Otherwise an existing heading id becomes the target; for an id-less heading, the widget adds a position-derived target beside it without changing the authored heading. Live links reveal headings inside disclosures or tabs, and a copied link returns to the same version's section. A stable authored section or heading id keeps that target across versions. The generated labels are link apparatus rather than a second commentable copy of each heading, and version diffs ignore them as generated navigation. Write the element empty and give it a stable id.",
+    "description": "A table of contents derived from the page's h2-h6 headings. `max-level` sets the deepest heading included when lower-level headings are local detail rather than page destinations; omitting it includes every level. A scrolling document with two or more included headings places one in an `aside.sidebar` near the opening by default; omit it when the outline is already visible at a glance. A workspace page (`main.layout-workspace`) uses its regions for navigation instead of a page-wide contents sidebar, and root page tabs supply their own view navigation. In the roomy margin, the runtime distributes the page title and headings down a full-height spine according to the sections they lead, paints the visible band of the document on that spine, and reveals every generated label on pointer or keyboard entry. Crowded destinations bend together on one fitted scale so every marker and label remains distinct; when the labels cannot physically fit, the widget becomes an ordinary open, scrollable outline. In flow and on paper, it remains an ordinary open outline. A heading that titles an identified section links to the section, keeping an eyebrow and heading together at arrival and giving the public fragment the section's id. Otherwise an existing heading id becomes the target; an id-less heading is lent a position-derived `lf-` id, which is not an address a comment or `page state` uses. Live links reveal headings inside disclosures or tabs, and a copied link returns to the same version's section. A stable authored section or heading id keeps that target across versions. The generated labels are link apparatus rather than a second commentable copy of each heading, and version diffs ignore them as generated navigation. Write the element empty and give it a stable id.",
     "type": "object",
     "properties": {
       "id": {
@@ -146,12 +144,11 @@
     ],
     "additionalProperties": false,
     "x-content": "empty",
-    "x-outline": true,
     "x-upgrade": true,
     "x-example": "<h1>Migration plan</h1>\n<aside class=\"sidebar\" id=\"plan-sidebar\">\n  <lf-toc id=\"plan-contents\"></lf-toc>\n</aside>\n<section><h2>Prepare</h2><p>Take a snapshot.</p><h3>Check capacity</h3><p>Leave headroom for the copy.</p></section>\n<section><h2>Move</h2><p>Shift one cohort at a time.</p></section>"
   },
   "lf-activity": {
-    "description": "A feed of what has happened on the page, newest first, read from the event log. Each row names who moved (You for the user, the agent by its name, Page for a default the page applied), what they did, where, and how long ago: comments and reactions with their opening words, replies, resolutions and reopenings, widget actions worded from each verb's record form in the words of the version the user acted on or, for a verb that creates a child, from the child's words, reports, requests and their receipts, published versions with their changelog, and approvals. A gesture the user took back stays in place marked undone. Read receipts, deliveries, summaries, titles, and errors stay out. The place is the way there: a widget or section row is a fragment link, and a conversation row opens that thread. It shows the latest 50 rows and stores nothing; the log is its only input. Place it when the user will come back to a page that several hands change over time (a working board, a hub, a long review) and needs to see what moved since they last looked; a page read once does not need one. Put it last in the column or in a pane of its own, write the element empty, and give it a stable id.",
+    "description": "A feed of what has happened on the page, newest first, read from the event log. Each row names who moved (You for the user, the agent by its name, Page for a default the page applied), what they did, where, and how long ago: comments and reactions with their opening words, replies, resolutions and reopenings, widget actions worded from each verb's record form in the words of the version the user acted on or, for a verb that creates a child, from the child's words, reports, published versions with their changelog, and approvals. A gesture the user took back stays in place marked undone. Read receipts, deliveries, summaries, titles, and errors stay out. The place is the way there: a widget or section row is a fragment link, and a thread row opens that thread. It shows the latest 50 rows and stores nothing; the log is its only input. Place it when the user will come back to a page that several hands change over time (a working board, a hub, a long review) and needs to see what moved since they last looked; a page read once does not need one. Put it last in the column or in a pane of its own, write the element empty, and give it a stable id.",
     "type": "object",
     "properties": {
       "id": {
@@ -164,14 +161,13 @@
     ],
     "additionalProperties": false,
     "x-content": "empty",
-    "x-measure": "surface",
     "x-bound": "start",
     "x-history": true,
     "x-upgrade": true,
     "x-example": "<section id=\"recent\">\n  <h2>Recent activity</h2>\n  <lf-activity id=\"page-activity\"></lf-activity>\n</section>"
   },
   "lf-options": {
-    "description": "The alternatives in a question the user answers. Put a live group inside lf-ask, where any premise or evidence shared by every alternative leads into the choices; the group itself contains only options and controls. Children are lf-option elements only. An option leading with a <strong> title becomes a full-width card; put its case and decision-relevant evidence or preview there instead of in separate alternative sections. Bare-label options render as compact rows for alternatives that need no case beyond the label. A row may use `for` only when the choice selects among sections or work items that already exist independently of the decision; do not create sections merely to hold the alternatives. With `choose` (which requires an id), the group draws as one control and takes the user's pick by click or keyboard. `multiple` (which requires `choose`) allows a set. It says whether two options can both hold, not whether the user usually picks one: without it a second pick replaces the first and the announcement names only the new pick, so nothing tells the user their first answer is gone. Leave it off only where the options rule each other out; where a set is answerable — work to start, checks to run, risks to accept — allow it. The marks say \"choose one\" or \"choose any\" to a screen reader; do not repeat that instruction in the question. On the page the last cell is an `Another option` field for an answer the author did not list. It takes the next Ask digit after the authored options when one of the nine addresses remains, or Tab reaches it; Shift+Enter writes a newline, and Enter adds the option on physical keyboards. On touch keyboards, Enter writes a newline and the Add control submits. Because that field takes any unlisted answer, author the alternatives you mean and no catch-all beside them: a `Something else` option takes a click where the field takes the answer. Adding sends an `add` action naming the new option's id and words, then selects it through the ordinary `choose` action; it does not start a thread. In a thread the thread's reply box already owns that role, and Enter from an option mark continues there. The pick reaches the agent as a `choose` action naming every picked option. A single-choice pick answers its Ask; a multiple-choice Ask stays open until the user presses Done, whose `answer` action states the set is complete on the page or in a thread. An added option stands on its own: a later pick leaves it in the group, undoing the `add` removes it, and it remains effective across revisions. To ask what one means, open a thread on it with `leaf comment <page> --section <option-id>`; to incorporate one, write it as an ordinary lf-option with the same id and words. An authored `chosen` pick still leaves a multiple-choice Ask waiting for the user's Done. `settled` (also requiring an id) collapses a retired decision to a disclosure naming the chosen option while preserving every option and anchor.",
+    "description": "The alternatives in a question the user answers. Put a live group inside lf-ask, where any premise or evidence shared by every alternative leads into the choices; the group itself contains only options and controls. Children are lf-option elements only. An option leading with a <strong> title becomes a full-width card; put its case and decision-relevant evidence or preview there instead of in separate alternative sections. Bare-label options render as compact rows for alternatives that need no case beyond the label. A row may use `for` only when the choice selects among sections or work items that already exist independently of the decision; do not create sections merely to hold the alternatives. With `choose` (which requires an id), the group draws as one control and takes the user's pick by click or keyboard. `multiple` (which requires `choose`) allows a set. It says whether two options can both hold, not whether the user usually picks one: without it a second pick replaces the first and the announcement names only the new pick, so nothing tells the user their first answer is gone. Leave it off only where the options rule each other out; where a set is answerable — work to start, checks to run, risks to accept — allow it. The marks say \"choose one\" or \"choose any\" to a screen reader; do not repeat that instruction in the question. On the page the last cell is an `Another option` field for an answer the author did not list. It takes the next Ask digit after the authored options when one of the nine addresses remains, or Tab reaches it; Shift+Enter writes a newline, and Enter adds the option on physical keyboards. On touch keyboards, Enter writes a newline and the Add control submits. Because that field takes any unlisted answer, author the alternatives you mean and no catch-all beside them: a `Something else` option takes a click where the field takes the answer. Adding sends an `add` action naming the new option's id and words, then selects it through the ordinary `choose` action; it does not start a thread. In a thread the thread's reply box already owns that role, and Enter from an option mark continues there. The pick reaches the agent as a `choose` action naming every picked option. A single-choice pick answers its Ask; a multiple-choice Ask stays open until the user presses Done, whose `answer` action states the set is complete on the page or in a thread. An added option stands on its own: a later pick leaves it in the group, undoing the `add` removes it, and it remains effective across revisions. To ask what one means, open a thread on it with `leaf thread open <page> --section <option-id>`; to incorporate one, write it as an ordinary lf-option with the same id and words. An authored `chosen` pick still leaves a multiple-choice Ask waiting for the user's Done. `settled` (also requiring an id) collapses a retired decision to a disclosure naming the chosen option while preserving every option and anchor.",
     "type": "object",
     "properties": {
       "id": {
@@ -400,7 +396,7 @@
     "x-upgrade": true
   },
   "lf-chronology": {
-    "description": "A chronology of what happened and when — the incident-report shape. Its members are lf-chronology-entry elements only. Where lf-milestones tracks planned work by status, lf-chronology records observed facts and interventions.",
+    "description": "A chronology of what happened and when — the incident-report shape. Its members are lf-chronology-entry elements only. Where lf-milestones tracks planned work by status, lf-chronology records observed facts and interventions. It shows entries in the order they are written, oldest or newest first; bound it at the end the newest entry is on.",
     "type": "object",
     "properties": {
       "id": {
@@ -460,7 +456,6 @@
     },
     "additionalProperties": false,
     "x-content": "members",
-    "x-measure": "group",
     "x-upgrade": false,
     "x-example": "<lf-compare>\n  <lf-variant id=\"v-cedar\"><strong>Cedar</strong> Weathers silver; no sealant.</lf-variant>\n  <lf-variant id=\"v-pine\"><strong>Pine</strong> Cheaper; seal it yearly.</lf-variant>\n</lf-compare>"
   },
@@ -481,11 +476,10 @@
       "lf-compare"
     ],
     "x-content": "markup",
-    "x-measure": "group",
     "x-upgrade": false
   },
   "lf-metric": {
-    "description": "One headline number as a tile: element text is the label, `value` the headline number, `delta` a signed change (leading + or -), `direction` says which sign is good (up-good, up-bad) so the delta colors honestly; without it the delta stays neutral. A row of metrics is an lf-grid of lf-metric tiles.",
+    "description": "One headline number as a tile: element text is the label, `value` the headline number, `delta` a signed change (leading + or -), `direction` says which sign is good (up-good, up-bad) so the delta colors honestly; without it the delta stays neutral. A row of metrics is lf-metric tiles in a `layout-tiles` block.",
     "type": "object",
     "properties": {
       "id": {
@@ -516,9 +510,8 @@
       "value": "before",
       "delta": "after"
     },
-    "x-measure": "surface",
     "x-upgrade": false,
-    "x-example": "<lf-grid id=\"k-row\">\n  <lf-metric id=\"k-visits\" value=\"312\" delta=\"+41\" direction=\"up-good\">daily visits</lf-metric>\n  <lf-metric id=\"k-refills\" value=\"2.1/wk\" delta=\"+0.4\" direction=\"up-bad\">refills</lf-metric>\n  <lf-metric id=\"k-species\" value=\"14\">species seen</lf-metric>\n</lf-grid>"
+    "x-example": "<div class=\"layout-tiles\">\n  <lf-metric id=\"k-visits\" value=\"312\" delta=\"+41\" direction=\"up-good\">daily visits</lf-metric>\n  <lf-metric id=\"k-refills\" value=\"2.1/wk\" delta=\"+0.4\" direction=\"up-bad\">refills</lf-metric>\n  <lf-metric id=\"k-species\" value=\"14\">species seen</lf-metric>\n</div>"
   },
   "lf-tree": {
     "description": "A file tree from an indent-notation body: one node per line, children indented deeper, a trailing / marking a directory, trailing +N/-N tokens rendering as change badges. Body is data — text inside its <pre>, HTML-escaped (& first, then < and >).",
@@ -534,7 +527,6 @@
     ],
     "additionalProperties": false,
     "x-content": "data",
-    "x-measure": "surface",
     "x-upgrade": true,
     "x-example": "<lf-tree id=\"feeder-tree\"><pre>\nfeeders/\n  mount.py  +2 -2\n  schedule.py  +1\n  sites/\n    north.toml\n</pre></lf-tree>"
   },
@@ -563,7 +555,6 @@
     ],
     "additionalProperties": false,
     "x-content": "data",
-    "x-measure": "surface",
     "x-language": "language",
     "x-lines": [
       "hi"
@@ -599,7 +590,7 @@
     "x-upgrade": false
   },
   "lf-chart": {
-    "description": "A chart drawn from a comma-separated body: the header row names the x column and then one column per series, and every row after it is one x value and its numbers (blank where a series has none). The body is data, not prose: text inside its <pre>, HTML-escaped (& first, then the angle brackets). `kind` says which picture — bars (a group of bars per x value), rows (horizontal bars, for long names or a ranking), stack (bars stacked into a total, so no negatives), line (a run over time or an ordered x), dots (two numbers against each other, x column numeric). `y` names what the numbers are. A bar's x is one slot per row whatever it says; a line or a scatter reads its column, so dates (2026-06-01, or 2026-06 for a month) get a time axis and numbers a numeric one. Two rows may not share an x value, and a series column may not be empty. At most $series.steps series — fold the small ones together or split the chart. There is no pie, because the comparison it asks for is between angles and the comparison bars ask for is between lengths. Comments anchor to the required id, not to text inside the drawing.",
+    "description": "A chart drawn from a comma-separated body: the header row names the x column and then one column per series, and every row after it is one x value and its numbers (blank where a series has none). The body is data, not prose: text inside its <pre>, HTML-escaped (& first, then the angle brackets). `kind` says which picture — bars (a group of bars per x value), rows (horizontal bars, for long names or a ranking), stack (bars stacked into a total, so no negatives), line (a run over time or an ordered x), dots (two numbers against each other, x column numeric). `y` names what the numbers are. A bar's x is one slot per row whatever it says; a line or a scatter reads its column, so ISO dates (2026-06-01, or 2026-06 for a month) and moments that state their zone (2026-06-01T14:00Z) get a time axis, labelled in UTC, and numbers a numeric one; a moment without a zone stays a category. Two rows may not share an x value, and a series column may not be empty. At most $series.steps series — fold the small ones together or split the chart. There is no pie, because the comparison it asks for is between angles and the comparison bars ask for is between lengths. Comments anchor to the required id, not to text inside the drawing.",
 
     "type": "object",
     "properties": {
@@ -628,13 +619,12 @@
     ],
     "additionalProperties": false,
     "x-content": "data",
-    "x-measure": "surface",
     "x-upgrade": true,
     "x-visual": "whole",
     "x-example": "<lf-chart id=\"review-latency\" kind=\"line\" y=\"hours to first review\"><pre>\nweek, backend, frontend\n2026-05-04, 31, 18\n2026-05-11, 26, 21\n2026-05-18, 19, 14\n2026-05-25, 12, 11\n</pre></lf-chart>"
   },
   "lf-shot": {
-    "description": "A before/after pair of screenshots under one draggable divider. Drag the divider or use its Arrow, Home, and End keys; click the image to switch endpoints, choose Before or After from the rail above it, or use the target’s round margin entry. The margin entry’s split circle fills the left half for before and the right half for after, and its hover label names the next endpoint. `before` and `after` are served image paths that `leaf page media` prints (see `authoring-evidence.md`, Source files and media). `alt` says what the pair shows, for a user who can't see it. The element takes no content: what the page has to say about the change is ordinary prose written around it, where the user can quote it. Where the change is what a decision turns on, the pair goes inside the lf-option proposing it, so the user compares it and presses in one place. Reach for it when the change reads at page scale — layout, spacing, a component swapped out. Below that scale the column's width is against you: crop the pair to the part that moved, or show the element itself before and after at real size.",
+    "description": "A before/after pair of screenshots under one draggable divider. Drag the divider or use its Arrow, Home, and End keys; click the image to switch endpoints, choose Before or After from the rail above it, or use the target’s round margin entry. The margin entry’s split circle fills the left half for before and the right half for after, and its hover label names the next endpoint. Once the page presents, the rail between the labels says when the pair has nothing to point at: \"identical\", \"only slight changes\" where no pixel moved far (a redrawn shadow, a small contrast shift, re-encoding), or \"changed throughout\" for a change over most of the image. With `outlines`, both frames also outline each region where the two images differ, and the rail counts them, so a reader of either side, or of a screenshot of the page, sees where the change is. `before` and `after` are served image paths that `leaf page media` prints; `authoring-evidence.md` (Source files and media) covers them and when to leave `outlines` off. `alt` says what the pair shows, for a user who can't see it. The element takes no content: what the page has to say about the change is ordinary prose written around it, where the user can quote it. Where the change is what a decision turns on, the pair goes inside the lf-option proposing it, so the user compares it and presses in one place. Reach for it when the change reads at page scale — layout, spacing, a component swapped out. Below that scale the column's width is against you: crop the pair to the part that moved, or show the element itself before and after at real size.",
     "type": "object",
     "properties": {
       "id": {
@@ -651,6 +641,9 @@
       },
       "alt": {
         "type": "string"
+      },
+      "outlines": {
+        "type": "boolean"
       }
     },
     "required": [
@@ -661,10 +654,9 @@
     ],
     "additionalProperties": false,
     "x-content": "empty",
-    "x-measure": "surface",
     "x-upgrade": true,
     "x-visual": "whole",
-    "x-example": "<h3>The option cards</h3>\n<p>The chips now sit above the title, so a scanning eye reads cost before prose.</p>\n<lf-shot id=\"shot-cards\" alt=\"the decision page's option cards\" before=\"/media/0f2c91a4b7de3105.png\" after=\"/media/6b40ac7719ee5d82.png\"></lf-shot>"
+    "x-example": "<h3>The option cards</h3>\n<p>The chips now sit above the title, so a scanning eye reads cost before prose.</p>\n<lf-shot id=\"shot-cards\" outlines alt=\"the decision page's option cards\" before=\"/media/0f2c91a4b7de3105.png\" after=\"/media/6b40ac7719ee5d82.png\"></lf-shot>"
   },
   "lf-board": {
     "description": "A kanban board the user edits directly: cards move between columns or reorder within one — dragged by the grip, moved with direct column buttons on phones, or moved by keyboard (the grip is a button: Enter grabs, arrows move, Enter drops) — and each completed move reaches the agent as a `move` action naming the card, target column, and the card's rank there. Children are lf-column elements only. A version that changes a moved card's column writes the card where the move put it, and later versions keep it there unless they mark it `restated` (`authoring-revisions.md`, Honor user state); the restatement gate refuses one that moves it silently. The user-origin reading and version diff compare a card's column only: a reorder within one column is not called out as a separate state change. A move rests on its card, so a rewrite retracts it through the card (see lf-card), never the board.",
@@ -728,11 +720,7 @@
         "type": "string"
       },
       "tone": {
-        "enum": [
-          "ok",
-          "warn",
-          "danger"
-        ]
+        "type": "string"
       }
     },
     "required": [
@@ -744,6 +732,7 @@
       "lf-board"
     ],
     "x-content": "members",
+    "x-tone": "tone",
     "x-upgrade": false,
     "x-says": {
       "label": "before"
@@ -773,12 +762,18 @@
     "x-upgrade": false
   },
   "lf-tabs": {
-    "description": "A tab set presenting several views of one page. When it is the final substantive child of main and the only substantive content before it is one native header or nothing, the set becomes borderless page navigation and each tab owns the content area; use this for project-scale views that share one history, Threads panel, Ask inventory, and revision sequence. Any other placement leaves it a framed tabbed section for local alternatives within surrounding content. Put the shared title and lede inside the optional header before a root set, put the primary current view first, and remove an earlier view once the current work no longer depends on it, keeping the context it still needs, and any passage whose id anchors an open thread or holds a standing decision, in a collapsed details inside the relevant tab. Ordering gives the first panel emphasis and makes it the default for a user with no remembered panel or reading position. A saved panel or restored position takes precedence because the open tab is the user's display state — remembered per browser tab like scroll position, never an action, never carried by a version. Each lf-tab is a self-contained view with its own prose and widgets, while Threads, Asks, versions, and sign-off remain global. Links, find-in-page, Ask travel, comment-anchor jumps, and reading-position restore open the owning tab. Switching page tabs puts the panel's id in the URL, so Back and Forward return to earlier views and a fragment naming content inside a panel opens that panel; a switch leaves the strip where it is on screen and reopens each view where the user last read it. Its members are lf-tab elements only; unupgraded, panels stack as labeled sections.",
+    "description": "A tab set presenting several views of one page. The first set placed directly in main becomes borderless page navigation over sections of that page: a strip that sticks under the banner and one panel shown at a time, each at the page's own width, so a header, a sidebar or other blocks may stand in main beside it. Use this for project-scale views that share one history, Threads panel, Ask inventory, and revision sequence. Any other placement leaves it a framed tabbed section for local alternatives within surrounding content. Put the shared title and lede before a root set, put the primary current view first, and remove an earlier view once the current work no longer depends on it, keeping the context it still needs, and any passage whose id anchors an open thread or holds a standing decision, in a collapsed details inside the relevant tab. Ordering gives the first panel emphasis and makes it the default for a user with no remembered panel or reading position. A saved panel or restored position takes precedence because the open tab is the user's display state — remembered per browser tab like scroll position, never an action, never carried by a version. Each lf-tab is a self-contained view with its own prose and widgets, while Threads, Asks, versions, and sign-off remain global. Links, find-in-page, Ask travel, comment-anchor jumps, and reading-position restore open the owning tab. Switching page tabs puts the panel's id in the URL, so Back and Forward return to earlier views and a fragment naming content inside a panel opens that panel; a switch leaves the strip where it is on screen and reopens each view where the user last read it. `list=\"side\"` stands the list of tabs beside the panels, a queue beside the item it opens: a column left of the open panel where the set holds both, a row above it where it does not, as on a phone. A side list is a framed box wherever it stands; as the first set in main it keeps the page's history and fragments, but its list does not stick and a switch leaves the page where it is. Each item is a tab, so one opens at a time, a link or an Ask opens its own, and the choice survives a reload; nothing else selects. Every tab counts the Asks in its panel the user still owes, so the strip says which views wait on an answer. Its members are lf-tab elements only; unupgraded, panels stack as labeled sections.",
     "type": "object",
     "properties": {
       "id": {
         "type": "string",
         "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "list": {
+        "type": "string",
+        "enum": [
+          "side"
+        ]
       }
     },
     "required": [
@@ -786,13 +781,12 @@
     ],
     "additionalProperties": false,
     "x-content": "members",
-    "x-measure": "group",
-    "x-page-navigation": true,
     "x-upgrade": true,
+    "x-patch": "members",
     "x-example": "<lf-tabs id=\"views\">\n  <lf-tab id=\"tab-implementation\" label=\"Implementation\">\n    <p id=\"rollout-plan\">Wire the first site this week.</p>\n  </lf-tab>\n  <lf-tab id=\"tab-vision\" label=\"Vision\">\n    <p id=\"product-vision\">Keep the original outcome and constraints in reach.</p>\n  </lf-tab>\n</lf-tabs>"
   },
   "lf-tab": {
-    "description": "One view in a tab set. `label` names its tab in the strip (and the stacked heading before upgrade). In page navigation, its content is an ordinary document view or one workspace; page tabs in the same set may mix those forms. In a tabbed section, prose, sections, and widgets nest freely. Ids inside share the page's one universe, so keep them distinct across tabs.",
+    "description": "One view in a tab set. `label` names its tab in the strip (and the stacked heading before upgrade). In a side list (`list=\"side\"` on the set) an optional `summary` stands under the name: the few words a queue's row needs to be scanned, such as severity, age and the suggested outcome. In page navigation, its content is an ordinary document view, which the Layout on `main` shapes like every other tab. In a tabbed section, prose, sections, and widgets nest freely. Ids inside share the page's one universe, so keep them distinct across tabs.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -801,6 +795,9 @@
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       },
       "label": {
+        "type": "string"
+      },
+      "summary": {
         "type": "string"
       }
     },
@@ -813,11 +810,10 @@
       "lf-tabs"
     ],
     "x-content": "markup",
-    "x-measure": "group",
     "x-upgrade": false
   },
   "lf-draft": {
-    "description": "A block of text the user owns: they press it (or its ✎ button) to rewrite it in place, and the exact words reach the agent as an `edit` action naming the element. After the first edit, Changes shows a bounded, lossless word-aligned difference from this version, every recorded body in order, and a Restore control for each older body; very large divergent middles appear as one replacement rather than freezing the page. Restoring posts another ordinary `edit`, so it converges across tabs and later versions instead of creating private undo state. The body is the draft text verbatim inside its <pre> (data, HTML-escaped — & first, then < and >; newlines preserved). It carries no Ask chrome of its own — put a draft inside a lf-card where the column is the verdict, or let page sign-off approve the page as a whole. Usable anywhere prose flows. The agent rewriting prose of its own goes in a lf-suggestion instead; a draft is the user's own words, so there is nothing for them to accept. Once they have edited one those words are theirs: re-emit the body you wrote and their edit still stands over it — and `leaf comment` reads it their way, quoting the words their edit left and refusing the ones it replaced. To take the pen back — a fact of yours to fix in a sentence they rewrote — write the new text and mark the element `restated` (see `$restated` in `registry.json`).",
+    "description": "A block of text the user owns: they press it (or its ✎ button) to rewrite it in place, and the exact words reach the agent as an `edit` action naming the element. After the first edit, Changes shows a bounded, lossless word-aligned difference from this version, every recorded body in order, and a Restore control for each older body; very large divergent middles appear as one replacement rather than freezing the page. Restoring posts another ordinary `edit`, so it converges across tabs and later versions instead of creating private undo state. The body is the draft text verbatim inside its <pre> (data, HTML-escaped — & first, then < and >; newlines preserved). It carries no Ask chrome of its own — put a draft inside a lf-card where the column is the verdict, or let page sign-off approve the page as a whole. Usable anywhere prose flows. The agent rewriting prose of its own goes in a lf-suggestion instead; a draft is the user's own words, so there is nothing for them to accept. Once they have edited one those words are theirs: re-emit the body you wrote and their edit still stands over it — and `leaf thread open` reads it their way, quoting the words their edit left and refusing the ones it replaced. To take the pen back — a fact of yours to fix in a sentence they rewrote — write the new text and mark the element `restated` (see `$restated` in `registry.json`).",
     "type": "object",
     "properties": {
       "id": {
@@ -872,8 +868,8 @@
     },
     "x-example": "<lf-draft id=\"note-cli\"><pre>\nAdds --dry-run to every mutating command.\n</pre></lf-draft>"
   },
-  "lf-specimen": {
-    "description": "A specimen of page content. Ordinary children render as static quotation: a muted gutter and a small-caps quoted label, with widget actions disabled. For an operable complete Leaf page, put its main content in one direct template[data-specimen] with a stable id. The optional label names the specimen and its frame. Keep invented content visibly fictional. See page-authoring.md, Live specimens, for child-page authoring, interaction, reset, and isolation.",
+  "lf-sample": {
+    "description": "A sample of page content. Ordinary children render as static quotation: a muted gutter and a small-caps quoted label, with widget actions disabled. For an operable complete Leaf page, put its main content in one direct template[data-sample] with a stable id. The optional label names the sample and its frame. The boolean window attribute shows a live sample as a whole Leaf window, chrome included, at a fixed height that scrolls inside. Keep invented content visibly fictional. See page-authoring.md, Live samples, for child-page authoring, interaction, reset, and isolation.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -883,6 +879,9 @@
       },
       "label": {
         "type": "string"
+      },
+      "window": {
+        "type": "boolean"
       }
     },
     "required": [
@@ -890,55 +889,15 @@
     ],
     "additionalProperties": false,
     "x-content": "markup",
-    "x-measure": "surface",
     "x-says": {
       "label": "before"
     },
     "x-exhibit": true,
     "x-upgrade": true,
-    "x-example": "<lf-specimen id=\"spec-gear\" label=\"next season's kit\">\n  <lf-options>\n    <lf-option id=\"sp-paper\"><lf-chip>effort: low</lf-chip><strong>Paper maps</strong> Nothing to charge.</lf-option>\n    <lf-option id=\"sp-gps\"><lf-chip>effort: med</lf-chip><strong>Dedicated GPS</strong> Offline maps, week-long battery. <em>My take: this is the better field tool.</em></lf-option>\n  </lf-options>\n</lf-specimen>"
-  },
-  "lf-grid": {
-    "description": "Places blocks in two dimensions at the shared wide width, centred on the reading column, or across the whole sheet on a page that is one (`<main data-width=\"available\">`); `data-width=\"available\"` gives it all the room the page shell leaves. Each direct child is one cell, and each cell is a frame: what it holds takes the cell's width, text keeps the reading measure, and a surface fills the cell. Without `columns` the grid fits as many equal columns as the width allows; `columns` takes a count (at most that many equal columns, fewer when the width runs out) or a template of fr tracks such as `1fr 2fr`, which stacks into one column where its narrowest track would be narrower than 16rem (a `2fr 1fr` grid below 51rem). Cells keep authored order and align to their top. Nest a grid in a cell for a cell that spans rows. Let the grid place its cells: page CSS that sets a grid's own `display`, `grid-*`, or `position` fights it, and `version check` says so.",
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
-      "columns": {
-        "type": "string",
-        "pattern": "^(?:[1-6]|(?:[0-9]*\\.?[0-9]+fr)(?: [0-9]*\\.?[0-9]+fr){1,5})$"
-      }
-    },
-    "required": [
-      "id"
-    ],
-    "additionalProperties": false,
-    "x-content": "markup",
-    "x-measure": "group",
-    "x-reading-role": "grid",
-    "x-space": "wide",
-    "x-upgrade": true,
-    "x-verbatim": true,
-    "x-example": "<lf-grid id=\"status\" columns=\"3\"><section><h3>Errors</h3><lf-metric id=\"errors\" value=\"0.11%\">error rate</lf-metric></section><section><h3>Latency</h3><lf-metric id=\"p95\" value=\"184 ms\">p95</lf-metric></section><section><h3>Traffic</h3><lf-metric id=\"traffic\" value=\"25%\">candidate</lf-metric></section></lf-grid>"
-  },
-  "lf-workspace": {
-    "description": "Task regions kept together while the space allows: a sheet whose regions are held in view. As the sole content element of a sheet's main (`<main data-width=\"available\">`), with the page title in its optional direct header, or as the sole content of a page tab, it takes the sheet's width and the window's height: when that height and width hold it, each pane's body scrolls on its own and the header and footer stay in view; when they don't, the panes take their natural height and the page scrolls, with the grid keeping the columns its width allows. Anywhere else it is embedded and stays in document flow. Its direct header and footer frame exactly one body element: an lf-grid of lf-pane regions, one lf-pane, or a widget that arranges its own regions, such as a playground, alone or in an Ask of a heading and that widget. Only those take the height, so a plain div or section around one leaves it flowing. A narrow window stacks the regions in authored order, so choose an order that still reads stacked; a standalone copy keeps the sheet's columns at the copy's width and lets the page scroll.",
-    "type": "object",
-    "properties": {
-      "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
-    },
-    "required": ["id"],
-    "additionalProperties": false,
-    "x-content": "markup",
-    "x-measure": "group",
-    "x-reading-role": "workspace",
-    "x-upgrade": false,
-    "x-example": "<lf-workspace id=\"review-workspace\"><header><h1>Review</h1></header><lf-grid id=\"review-regions\" columns=\"1fr 2fr\"><lf-pane id=\"review-queue\" label=\"Items\"><header><h2>Queue</h2></header><ul><li>First item</li></ul></lf-pane><lf-pane id=\"review-body\" label=\"Proposal\"><div><p>Read the proposal.</p></div></lf-pane></lf-grid></lf-workspace>"
+    "x-example": "<lf-sample id=\"spec-gear\" label=\"next season's kit\">\n  <lf-options>\n    <lf-option id=\"sp-paper\"><lf-chip>effort: low</lf-chip><strong>Paper maps</strong> Nothing to charge.</lf-option>\n    <lf-option id=\"sp-gps\"><lf-chip>effort: med</lf-chip><strong>Dedicated GPS</strong> Offline maps, week-long battery. <em>My take: this is the better field tool.</em></lf-option>\n  </lf-options>\n</lf-sample>"
   },
   "lf-pane": {
-    "description": "One reading region in a workspace: an optional direct header, exactly one body element, and an optional direct footer. Its label names the region accessibly; the header supplies any visible heading. While its workspace holds the window the body scrolls on its own under the header and above the footer; otherwise the pane is an ordinary section and the page scrolls. Wrap several blocks in one div or section to make the body. Put action widgets in its direct footer when they should stay reachable while the body scrolls.",
+    "description": "One reading region, typically in a workspace page's body: an optional direct header, exactly one body element, and an optional direct footer. Its label names the region accessibly; the header supplies any visible heading. While the workspace is full-height, a pane that is the workspace's body, or a direct cell of it, scrolls its body on its own under the header and above the footer; elsewhere the pane is an ordinary section and the page scrolls. Wrap several blocks in one div or section to make the body. Put action widgets in its direct footer when they should stay reachable while the body scrolls.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -948,7 +907,6 @@
     "required": ["id", "label"],
     "additionalProperties": false,
     "x-content": "markup",
-    "x-measure": "group",
     "x-reading-role": "pane",
     "x-upgrade": true,
     "x-verbatim": true,

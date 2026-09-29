@@ -11,29 +11,31 @@ ORPHAN_GRACE_SECS = 1
 # renewing viewed.json. Four hours permits those gaps while retiring abandoned
 # session pages. Claim renewal and service lifetime: session-lifetime.md.
 ACTIVITY_GRACE_SECS = 4 * 60 * 60
-# Harness-neutral label when no claimant supplies a name. context.js uses the
-# same label before a browser has an authoritative state, including exports.
-UNCLAIMED_AGENT = "Agent"
+# The harness-neutral name of an agent nothing names: a page's when no claimant
+# supplies one, and an agent-authored event's that carries no `agent` (`agent_name`).
+UNNAMED_AGENT = "Agent"
 # Non-message gesture kinds eligible for withdrawal; events.undo_error handles
 # reactions. The complete eligibility contract is events.md, "Undo".
 UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done"}
 MESSAGE_KINDS = {"comment", "reply"}
 # The kinds a widget owns, admitted against the page's registry before they append.
-WIDGET_KINDS = {"action", "report", "request"}
+WIDGET_KINDS = {"action", "report"}
 # The operations that settle a user move the agent owes, as `workflows` and
 # `activity` address them and `$events.answering` explains them. A `turn` answer is
 # a thread reply the claimant's turn writes with its own opening and final messages.
-ANSWER_KINDS = ("reply", "turn", "markup", "receipt")
+ANSWER_KINDS = ("reply", "turn", "markup")
 # The answer kinds that post a message in a thread.
 THREAD_ANSWER_KINDS = frozenset({"reply", "turn"})
 ANSWER_ASK_INSTRUCTION = (
-    "Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and conversation history with "
-    "`leaf conversation read <page> <id>`."
+    "Each move takes the answer named for it. Read current obligations with "
+    "`leaf page state <page>` and thread history with `leaf page state <page> <id>`."
 )
 WAIT_BATCH_OUTPUT_INSTRUCTION = (
-    "Print one page's complete ordered batch, conversation context, and response "
+    "Print one page's complete ordered batch, thread context, and response "
     "requirements as an immutable delivery, whose `acknowledge` says how to confirm "
-    "it. `leaf delivery read <id>` reads that same delivery."
+    "it. `leaf delivery read <id>` reads that same delivery. Where the host's hook "
+    "carries input into the turn, as in Claude Code, print one line naming the page "
+    "with new input instead, and end."
 )
 
 HTML_NAME = r"[a-z][a-z0-9-]*"
@@ -44,6 +46,10 @@ WIDGET_NAME_RULE = (
     f"letters and digits, such as `lf-merge-film` ({WIDGET_NAME})"
 )
 ELEMENT_ID = r"[a-z0-9][a-z0-9-]*"
+# An id the log mints for an event. Page ids and event ids are one address space:
+# a command's ID is a widget or a message, whichever the page holds, so an authored
+# id may not take this shape (`validation.markup.id_errors`).
+EVENT_ID = r"[0-9a-f]{8}"
 DATA_SOURCE_NAME = HTML_NAME
 DATA_CONTRACT_NAME = r"[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*"
 # The record forms one vocabulary of declared state draws on ($state in the
@@ -96,7 +102,7 @@ _RECORD_VALUE = {
 
 
 # A `when` predicate selects instances by attribute values (or by a flag's being
-# present or absent). One condition shape serves Asks and conversations because they
+# present or absent). One condition shape serves Asks and threads because they
 # ask the same question of the same authored attributes.
 AWAITING_CONDITION = {
     "type": "object",
@@ -176,8 +182,8 @@ REFERENCE_SCHEMA = {
 
 
 # Each verb is {detail, unit, record}. `writer: "agent"` makes it a verb the agent
-# reports through `leaf report` rather than one the user acts on; absent, the user
-# writes it. The two writers differ in what their state may be, not in its shape.
+# reports through `leaf page report` rather than one the user acts on;
+# absent, the user writes it. The two writers differ in what their state may be, not in its shape.
 STATE_SCHEMA = {
     "type": "object",
     "minProperties": 1,
@@ -221,56 +227,6 @@ STATE_SCHEMA = {
         },
         "else": {"properties": {"update": False}},
     },
-}
-# A request is a one-shot instruction for the host, not state the browser can replay.
-# Its declaration owns the offered verbs and typed payload, but no replay form.
-# Authored holders name child offers; projected holders offer their verbs directly.
-# The linked receipt carries the closed, layer-wide outcome envelope;
-# host-specific evidence belongs in external data.
-REQUEST_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "ask": {"type": "boolean"},
-        # This request supplies the commands but not its own question title.
-        # A matching holder therefore stands inside an x-ask-surface region, whose direct
-        # heading owns the reading and arrival.
-        "region": {"const": True},
-        "records": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        "offers": {
-            "type": "object",
-            "minProperties": 1,
-            "propertyNames": {"pattern": f"^{WIDGET_NAME}$"},
-            "additionalProperties": {
-                "type": "string",
-                "pattern": f"^{HTML_NAME}$",
-            },
-        },
-        "verbs": {
-            "type": "object",
-            "minProperties": 1,
-            "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-            "additionalProperties": {
-                "type": "object",
-                "properties": {
-                    "detail": {"type": "object"},
-                    "unit": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-                    "bind": {
-                        "type": "object",
-                        "minProperties": 1,
-                        "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-                        "additionalProperties": {
-                            "type": "string",
-                            "pattern": f"^{HTML_NAME}$",
-                        },
-                    },
-                },
-                "required": ["detail"],
-                "additionalProperties": False,
-            },
-        },
-    },
-    "required": ["verbs"],
-    "additionalProperties": False,
 }
 AWAITS_SCHEMA = {
     "type": "object",
@@ -343,7 +299,7 @@ EXTENSION_SCHEMA = {
     "properties": {
         "x-ask-surface": {"const": True},
         "x-awaits": AWAITS_SCHEMA,
-        "x-conversation": {
+        "x-thread-seat": {
             "type": "object",
             "properties": {
                 "when": AWAITING_CONDITION,
@@ -361,31 +317,25 @@ EXTENSION_SCHEMA = {
         "x-guidance": GUIDANCE_SCHEMA,
         "x-inline": {"type": "boolean"},
         "x-language": _ATTRIBUTE_NAME,
-        "x-reading-role": {"enum": ["workspace", "pane", "grid"]},
+        "x-reading-role": {"enum": ["pane"]},
         # Attributes holding line references into the nearest data body — the element's
         # own <pre>, or its enclosing data element's (lf-note's `at` names a line of its
         # lf-code) — by the numbers x-numbering gives that body, 1-based without it.
-        # `version check` refuses one outside the body (line_ref_errors).
+        # `page check` refuses one outside the body (line_ref_errors).
         "x-lines": _ATTRIBUTE_LIST,
         "x-numbering": _ATTRIBUTE_NAME,
         "x-measured": MEASURED_SCHEMA,
-        # Whole-page view navigation when the element is the last root after no more
-        # than one native header. The outline advice recognizes this authored shape.
-        "x-page-navigation": {"const": True},
-        # The element that lists the page's own headings. `version check` advises a
-        # page with two or more headings and no such element (missing_outline).
-        "x-outline": {"const": True},
         # Attributes the theme renders as paint alone — a status marker's tint or an
         # event's kind. The runtime speaks each as a clipped word (renderQuiet), the
         # value or, where a flag carries no value, the attribute's own name.
         "x-paints": _ATTRIBUTE_LIST,
+        "x-patch": {"enum": ["members"]},
         "x-owners": {
             "type": "array",
             "items": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
             "minItems": 1,
         },
         "x-refers": REFERENCE_SCHEMA,
-        "x-request": REQUEST_SCHEMA,
         "x-retired-when": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-says": {
             "type": "object",
@@ -423,7 +373,6 @@ EXTENSION_SCHEMA = {
             ]
         },
         "x-space": {"enum": ["wide", "available"]},
-        "x-measure": {"enum": ["surface", "group"]},
         "x-bound": {"enum": ["start", "end"]},
         "x-history": {"const": True},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
@@ -435,6 +384,11 @@ EXTENSION_SCHEMA = {
     "dependentRequired": {
         "x-retired-when": ["x-owners"],
         "x-measured": ["x-data"],
+    },
+    # Only an upgraded container has members its module could leave in place.
+    "if": {"required": ["x-patch"]},
+    "then": {
+        "properties": {"x-content": {"const": "members"}, "x-upgrade": {"const": True}}
     },
     "additionalProperties": False,
 }
@@ -457,6 +411,27 @@ ATTRIBUTE_KEYS = (
     "x-says",
     "x-tone",
 )
+# The declarations a stylesheet reads, each painted on the element as `paint`: the room
+# it takes (x-space), whether it sets inline among words (x-inline), quotes what it holds
+# (x-exhibit), holds its own height (x-bound), and the reading structure it supplies
+# (x-reading-role). A stylesheet cannot read the registry, so each is painted where a
+# selector can ask. `authored` is the attribute an occurrence writes to override its
+# tag's declaration. `message` says whether the mark holds in a thread's message too:
+# each is the element's own fact wherever it renders, except the room, which is the
+# document's to hand out; a message renders in the panel, whose width bounds it.
+#
+# Delivery paints a page's document from this (`revision_delivery.mark_declared`).
+# Composition stamps it into the vocabulary as `$marks` (`registry.layer.
+# stamp_composition`), from which the runtime paints a message it renders and tells the
+# paint from the author's attributes (`isPagePaint`). The paint names are also the
+# theme's contract: the stylesheets that read them spell them out.
+DECLARED_MARKS = {
+    "x-space": {"paint": "data-lf-space", "authored": "data-width", "message": False},
+    "x-inline": {"paint": "data-lf-inline", "message": True},
+    "x-exhibit": {"paint": "data-lf-exhibit", "message": True},
+    "x-bound": {"paint": "data-lf-bound", "authored": "data-bound", "message": True},
+    "x-reading-role": {"paint": "data-lf-reading-role", "message": True},
+}
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent.parent
 PLUGIN_ROOT = SKILL_ROOT.parent.parent
@@ -488,25 +463,37 @@ MEDIA_TYPES = {
     ".webp": "image/webp",
     ".svg": "image/svg+xml",
 }
+# A media file's name is the first MEDIA_DIGEST hex characters of its bytes' SHA-256
+# and a lowercase MEDIA_TYPES suffix: `media.media_name` mints it, `DIR_FILES` serves
+# it, and the agent's reference doors refuse any other name under `/media/`. The
+# browser and the Worker know the directory and never the name.
+MEDIA_DIGEST = 16
 NO_KEY = "open the link leaf printed; it carries the key"
 DATA_FILE = "data.json"
 DATA_DIR = "data"
 EVENTS_FILE = "events.jsonl"
+# The diagnostic request and interaction trace (`interaction_log.py`).
+INTERACTIONS_FILE = "interactions.jsonl"
 PREVIEW_FILE = "preview.json"
 VIEWED_FILE = "viewed.json"
 # One name, because there is one key (`host_key`). Cookies are scoped by host and
 # blind to the port, so every page this machine serves shares a jar — on 127.0.0.1,
 # with every other server the user has running, which is what the prefix is for.
 KEY_COOKIE = "lf_key"
+# How long a bare address stays authorized after the last handover link (`host_key`),
+# the lifetime Jupyter gives its login cookie.
+KEY_COOKIE_MAX_AGE = 30 * 24 * 60 * 60
 STATUS_FILE = "status.json"
 CURSOR_FILE = "cursor.json"
 SERVICE_FILE = "service.json"
 SERVER_LOCK = "server.lock"
 WAITER_LOCK = "waiter.lock"
-PAGE_STATE_FILES = (
-    EVENTS_FILE,
+# What a page records about who is working on it and how it is served, as against what
+# its author wrote (the source) and what it has accumulated (the log and its revisions).
+# Neither validation nor a revision's capture reads these, so a write to one is news to
+# an open tab and never a candidate revision.
+SESSION_FILES = (
     STATUS_FILE,
-    DATA_FILE,
     WAITER_LOCK,
     CURSOR_FILE,
     VIEWED_FILE,
@@ -514,8 +501,24 @@ PAGE_STATE_FILES = (
     SERVER_LOCK,
     PREVIEW_FILE,
 )
+# The files Leaf writes in a page directory as it runs. With the author's index.html,
+# the vendored files, and PAGE_OWNED_DIRS, the whole of page-storage.md's "Files".
+PAGE_STATE_FILES = (EVENTS_FILE, INTERACTIONS_FILE, DATA_FILE, *SESSION_FILES)
 PAGE_OWNED_FILES = ("index.html", *VENDORED_FILES, *PAGE_STATE_FILES)
 PAGE_OWNED_DIRS = ("revisions", *PACKAGE_DIRS, MEDIA_DIR, DATA_DIR, "page")
+# A revision's and a version's file name, without `.html`.
+REVISION_NAME = r"r(?P<revision>[1-9][0-9]*)-[a-f0-9]{16}"
+VERSION_NAME = r"v(?P<version>[1-9][0-9]*)"
+# The directories of a page's URL namespace beneath its root, beside its vendored
+# files: its API, its browser layer, and what its session writes after a publish (the
+# media it adds, the revisions it activates, the versions it stamps). The website
+# adapter routes exactly these and those files to a page, and so does the Worker in
+# front of it, which reads the layer and session kinds from the site manifest
+# `leaf-dev site` writes: a static miss under a session directory is a file the
+# page's container has. `api` is the page server's protocol prefix, which the Worker
+# names with the endpoints under it.
+SESSION_ROUTE_DIRS = (MEDIA_DIR, "revisions", "versions")
+PAGE_ROUTE_DIRS = ("api", *BROWSER_DIRS, *SESSION_ROUTE_DIRS)
 # What the server exposes from a page: the browser layer, media, immutable revisions,
 # and event-backed version addresses. Agent-side guidance stays vendored but is read
 # only through the CLI.
@@ -525,15 +528,17 @@ DIR_FILES = {
     "runtime": r"(?:[a-z0-9-]+/)*[a-z0-9-]+\.(?:js|css)",
     "widgets": r"(?:[a-z0-9-]+/)*[a-z0-9-]+\.js",
     "vendor": (r"(?:(?!\.{1,2}/)[A-Za-z0-9._-]+/)*" r"(?!\.{1,2}$)[A-Za-z0-9._-]+"),
-    MEDIA_DIR: r"[a-f0-9]{16}(?:" + "|".join(re.escape(e) for e in MEDIA_TYPES) + ")",
+    MEDIA_DIR: rf"[a-f0-9]{{{MEDIA_DIGEST}}}(?:"
+    + "|".join(re.escape(e) for e in MEDIA_TYPES)
+    + ")",
 }
 SERVED_PATH = re.compile(
     "/(?:"
     + "|".join(
         [re.escape(f) for f in VENDORED_FILES]
         + [f"{d}/{DIR_FILES[d]}" for d in (*BROWSER_DIRS, MEDIA_DIR)]
-        + [r"versions/v[1-9][0-9]*\.html"]
-        + [r"revisions/r[1-9][0-9]*-[a-f0-9]{16}\.html"]
+        + [rf"versions/{VERSION_NAME}\.html"]
+        + [rf"revisions/{REVISION_NAME}\.html"]
     )
     + ")"
 )
@@ -545,3 +550,14 @@ CONTENT_TYPES = {
     **MEDIA_TYPES,
 }
 BINARY_TYPES = frozenset(MEDIA_TYPES.values()) - {"image/svg+xml"}
+
+
+def agent_name(event: dict) -> str | None:
+    """The name an agent-authored event is shown under, and None for any other
+    author's: its posting session's `agent`, or `UNNAMED_AGENT` where it was written
+    outside a host session and so carries none. The log stores no placeholder
+    (`host.message_identity`); every reading that shows the event names it through
+    here, so the browser, the margin, the activity feed and the transcript agree."""
+    if event["author"] != "agent":
+        return None
+    return event.get("agent") or UNNAMED_AGENT

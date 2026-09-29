@@ -2,8 +2,12 @@
 
 import json
 import re
+from itertools import pairwise
 
 from leaf import event_log as events_model
+from leaf import interaction_log as interaction_model
+from leaf.render_checks import wait_until_ready
+from leaf.schema import ELEMENT_ID
 from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_READING,
@@ -14,7 +18,6 @@ from render_cases_interaction import (
     live_url,
 )
 from render_harness import (
-    BOTH_STAMPS,
     banner_control,
     consume_browser_errors,
     holding,
@@ -29,53 +32,30 @@ from render_harness import (
     take_browser_errors,
     told,
     wait_for_revision,
+    write,
 )
 
 THREAD_READER = r"""
-import {consumeThreads, readThreads, threadSummary, threadTurns} from '/runtime/widget-api.js';
+import {keepsText, watchThreads, readThreads, threadSummary, threadTurns} from '/runtime/widget-api.js';
 customElements.define('lf-thread-reader', class extends HTMLElement {
   connectedCallback() {
     this.output = document.createElement('pre');
     this.append(this.output);
-    this.consumer = consumeThreads(this, (collection, {signal}) => {
-      this.signals ??= [];
-      this.signals.push(signal);
-      const paint = () => {
-        if (signal.aborted) return;
-        this.paints = (this.paints ?? 0) + 1;
-        this.reading = collection;
-        this.sameReading = collection === readThreads();
-        this.output.textContent = collection.threads.map(thread =>
-          threadTurns(thread).map(message => message.body.text).join('\n')
-        ).join('\n');
-        this.topic = collection.threads[0] && threadSummary(collection.threads[0]).topic;
-      };
-      const held = this.held;
-      this.held = null;
-      if (held) {
-        this.dataset.held = 'true';
-        if (held.cancel) signal.addEventListener('abort', held.cancel, {once: true});
-        return held.then(() => { paint(); this.dataset.finished = 'true'; });
-      }
-      paint();
+    this.stop = watchThreads(this, collection => {
+      this.reading = collection;
+      this.sameReading = collection === readThreads();
+      keepsText(this.output, collection.threads.map(thread =>
+        threadTurns(thread).map(message => message.body.text).join('\n')
+      ).join('\n'));
+      this.topic = collection.threads[0] && threadSummary(collection.threads[0]).topic;
     });
   }
-  hold(rejectOnAbort = false) {
-    let cancel;
-    this.held = new Promise((resolve, reject) => {
-      this.release = resolve;
-      cancel = () => reject(new DOMException('Consumer cancelled', 'AbortError'));
-    });
-    if (rejectOnAbort) this.held.cancel = cancel;
-    delete this.dataset.held;
-    delete this.dataset.finished;
-  }
-  disconnectedCallback() { this.consumer.unregister(); }
+  disconnectedCallback() { this.stop(); }
 });
 """
 
 THREAD_READER_DECLARATION = {
-    "description": "A read-only package conversation view.",
+    "description": "A read-only package thread view.",
     "type": "object",
     "properties": {"id": {"type": "string"}},
     "required": ["id"],
@@ -84,6 +64,301 @@ THREAD_READER_DECLARATION = {
     "x-upgrade": True,
     "x-example": '<lf-thread-reader id="reader-example"></lf-thread-reader>',
 }
+
+THREAD_FILTER = r"""
+import {keepsText, openThread, readThreads, threadSummary, watchThreads} from '/runtime/widget-api.js';
+customElements.define('lf-thread-filter', class extends HTMLElement {
+  connectedCallback() {
+    if (!this.input) {
+      this.input = document.createElement('input');
+      this.input.setAttribute('aria-label', `Filter ${this.id}`);
+      this.input.value = this.getAttribute('filter') ?? '';
+      this.list = document.createElement('ul');
+      this.input.addEventListener('input', () => this.paint());
+      this.append(this.input, this.list);
+    }
+    this.stop ??= watchThreads(this, collection => {
+      this.reading = collection;
+      this.sameReading = collection === readThreads();
+      this.updates = (this.updates ?? 0) + 1;
+      this.paint();
+    });
+  }
+  paint() {
+    if (!this.reading) return;
+    const query = this.input.value.toLowerCase();
+    const shown = this.reading.threads
+      .filter(thread => threadSummary(thread).topic.toLowerCase().includes(query));
+    // Each row is kept and says only what changed.
+    const items = [...this.list.children];
+    shown.forEach((thread, index) => {
+      let item = items[index];
+      if (!item) {
+        item = document.createElement('li');
+        item.append(document.createElement('button'));
+        this.list.append(item);
+      }
+      keepsText(item.firstChild, threadSummary(thread).topic);
+      item.firstChild.onclick = () => openThread(thread.id);
+    });
+    for (const item of items.slice(shown.length)) item.remove();
+  }
+  disconnectedCallback() {
+    this.stop?.();
+    this.stop = null;
+  }
+});
+"""
+
+THREAD_FILTER_DECLARATION = {
+    "description": "An instance-local filter over Leaf's shared Thread reading.",
+    "type": "object",
+    "properties": {
+        "id": {"type": "string"},
+        "filter": {"type": "string"},
+    },
+    "required": ["id"],
+    "additionalProperties": False,
+    "x-content": "empty",
+    "x-upgrade": True,
+    "x-example": '<lf-thread-filter id="example"></lf-thread-filter>',
+}
+
+THREAD_MIRROR = r"""
+import {keeps, mountThreadViews, threadSummary} from '/runtime/widget-api.js';
+customElements.define('lf-thread-mirror', class extends HTMLElement {
+  connectedCallback() {
+    if (!this.outlet) {
+      this.input = document.createElement('input');
+      this.input.setAttribute('aria-label', `Filter ${this.id}`);
+      this.input.value = this.getAttribute('filter') ?? '';
+      this.outlet = document.createElement('div');
+      this.append(this.input, this.outlet);
+      this.input.addEventListener('input', () => this.consumer?.update());
+    }
+    this.consumer ??= mountThreadViews(this, (collection, surfaces) => {
+      this.updates = (this.updates ?? 0) + 1;
+      (this.signals ??= []).push(surfaces.signal);
+      if (this.holding) {
+        keeps(this, 'data-held', true);
+        return new Promise(resolve => (this.releases ??= []).push(resolve));
+      }
+      const query = this.input.value.toLowerCase();
+      for (const thread of collection.threads)
+        if (threadSummary(thread).topic.toLowerCase().includes(query))
+          surfaces.render(thread.key, this.outlet);
+    });
+  }
+  disconnectedCallback() {
+    this.consumer?.unregister();
+    this.consumer = null;
+  }
+});
+"""
+
+THREAD_MIRROR_DECLARATION = {
+    "description": "A package-owned mirror of core Thread conversations.",
+    "type": "object",
+    "properties": {"id": {"type": "string"}, "filter": {"type": "string"}},
+    "required": ["id"],
+    "additionalProperties": False,
+    "x-content": "empty",
+    "x-upgrade": True,
+    "x-example": '<lf-thread-mirror id="mirror-example"></lf-thread-mirror>',
+}
+
+
+def test_browser_interactions_are_recorded_beside_server_requests(browser, serve):
+    """A user gesture remains visible even when it changes no semantic page state."""
+    url = serve(
+        leaf_page(
+            "Interaction trace",
+            '<h1>Interaction trace</h1><input id="trace-input" aria-label="Entry">'
+            '<button id="trace-button">Continue</button>',
+        )
+    )
+    page = open_page(browser, url)
+
+    def contains(response, kind):
+        return (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry["type"] == kind
+                for entry in response.request.post_data_json["entries"]
+            )
+        )
+
+    with page.expect_response(lambda response: contains(response, "input")):
+        page.locator("#trace-input").fill("hello")
+    with page.expect_response(lambda response: contains(response, "click")):
+        page.locator("#trace-button").click()
+    page.locator("h1").click()
+    with page.expect_response(lambda response: contains(response, "command")):
+        page.keyboard.press("?")
+    with page.expect_response(lambda response: contains(response, "interaction_part")):
+        page.locator("#trace-input").fill("x" * 50_000)
+
+    rows = [
+        json.loads(line)
+        for line in (serve.page_dir / interaction_model.INTERACTIONS_FILE)
+        .read_text()
+        .splitlines()
+    ]
+    inputs = [row for row in rows if row.get("type") == "input"]
+    clicks = [row for row in rows if row.get("type") == "click"]
+    commands = [row for row in rows if row.get("type") == "command"]
+    parts = [row for row in rows if row.get("type") == "interaction_part"]
+    assert any(
+        row["value"] == "hello"
+        and any("input#trace-input" in part for part in row["target"])
+        for row in inputs
+    )
+    assert any(
+        any("button#trace-button" in part for part in row["target"]) for row in clicks
+    )
+    assert any(row["id"] == "command.reference.open" for row in commands)
+    assert len({row["session"] for row in inputs + clicks + commands}) == 1
+    grouped = [row for row in parts if row["partOf"] == parts[0]["partOf"]]
+    reconstructed = json.loads(
+        "".join(row["json"] for row in sorted(grouped, key=lambda row: row["part"]))
+    )
+    assert reconstructed["type"] in {"beforeinput", "input"}
+    assert "x" * 50_000 in {reconstructed.get("value"), reconstructed.get("data")}
+    assert any(
+        row.get("source") == "server"
+        and row["method"] == "POST"
+        and row["path"] == "/api/interaction"
+        and row["status"] == 204
+        for row in rows
+    )
+
+
+def test_browser_trace_records_where_touch_events_are_not_exposed(browser, serve):
+    """Firefox on a desktop without a touch screen, and Safari on a Mac, expose no
+    `TouchEvent` interface. Chromium and Playwright's WebKit always do, so the page
+    removes it before any module evaluates. A tap's native events still arrive, and
+    the trace still reads their touch points."""
+    url = serve(leaf_page("Trace desktop", '<h1 id="trace-target">Trace desktop</h1>'))
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, has_touch=True
+    )
+    page = open_page(
+        browser, url, context=context, init_script="delete window.TouchEvent"
+    )
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry["type"] == "click"
+                for entry in response.request.post_data_json["entries"]
+            )
+        )
+    ):
+        page.locator("#trace-target").tap()
+
+    rows = [
+        json.loads(line)
+        for line in (serve.page_dir / interaction_model.INTERACTIONS_FILE)
+        .read_text()
+        .splitlines()
+    ]
+    assert any(
+        row.get("type") == "touchstart" and len(row["touches"]) == 1 for row in rows
+    )
+
+
+def test_browser_trace_sheds_repeated_gestures_when_delivery_stalls(browser, serve):
+    url = serve(leaf_page("Trace backlog", '<h1 id="trace-target">Trace backlog</h1>'))
+    page = open_page(browser, url)
+    page.route("**/api/interaction", lambda route: route.fulfill(status=503))
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/interaction") and response.status == 503
+        )
+    ):
+        page.locator("#trace-target").click()
+    page.locator("#trace-target").evaluate("""node => {
+      for (let i = 0; i < 1200; i++)
+        node.dispatchEvent(new PointerEvent('pointermove', {
+          bubbles: true, pointerId: 1, clientX: i,
+        }));
+      node.click();
+    }""")
+    page.unroute("**/api/interaction")
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry["type"] == "click"
+                for entry in response.request.post_data_json["entries"]
+            )
+        ),
+        timeout=15_000,
+    ):
+        page.wait_for_timeout(2500)
+
+    rows = [
+        json.loads(line)
+        for line in (serve.page_dir / interaction_model.INTERACTIONS_FILE)
+        .read_text()
+        .splitlines()
+    ]
+    browser_rows = [row for row in rows if row.get("source") == "client"]
+    assert any(row["type"] == "click" for row in browser_rows)
+    assert sum(row["type"] == "pointermove" for row in browser_rows) < 512
+    sequences = sorted(row["sequence"] for row in browser_rows)
+    assert any(later - earlier > 1 for earlier, later in pairwise(sequences))
+    consume_browser_errors(page, "503")
+
+
+def test_browser_trace_keeps_actions_ahead_of_new_repeated_observations(browser, serve):
+    url = serve(leaf_page("Trace actions", '<h1 id="trace-target">Trace actions</h1>'))
+    page = open_page(browser, url)
+    page.route("**/api/interaction", lambda route: route.fulfill(status=503))
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/interaction") and response.status == 503
+        )
+    ):
+        page.locator("#trace-target").click()
+    page.wait_for_timeout(100)
+    page.locator("#trace-target").evaluate("""node => {
+      for (let i = 0; i < 600; i++)
+        node.dispatchEvent(new MouseEvent('click', {
+          bubbles: true, clientX: i,
+        }));
+      for (let i = 0; i < 100; i++)
+        node.dispatchEvent(new PointerEvent('pointermove', {
+          bubbles: true, pointerId: 1, clientX: i,
+        }));
+    }""")
+    page.unroute("**/api/interaction")
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry["type"] == "click" and entry["pointer"]["x"] == 599
+                for entry in response.request.post_data_json["entries"]
+            )
+        ),
+        timeout=15_000,
+    ):
+        page.wait_for_timeout(2500)
+
+    rows = [
+        json.loads(line)
+        for line in (serve.page_dir / interaction_model.INTERACTIONS_FILE)
+        .read_text()
+        .splitlines()
+    ]
+    browser_rows = [row for row in rows if row.get("source") == "client"]
+    assert sum(row["type"] == "click" for row in browser_rows) == 512
+    assert not any(row["type"] == "pointermove" for row in browser_rows)
+    consume_browser_errors(page, "503")
 
 
 def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
@@ -137,7 +412,8 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     assert '"markup"' not in json.dumps(record) and '"html"' not in json.dumps(record)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(page.locator(".lf-thread-topic")).to_have_text("...")
+    # The agent answered without naming the thread, so it reads its opening words.
+    expect(page.locator(".lf-thread-topic")).to_have_text("Decision")
     page.locator(".lf-thread-summary").click()
     expect(page.locator("#direction")).to_have_count(1)
     with sending(page, "choose North in the authored reply"):
@@ -148,27 +424,25 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    box = page.locator(".lf-general textarea")
-    box.fill("Pending **words**")
+    box = page.locator(".lf-general leaf-text")
+    write(box, "Pending **words**")
     page.locator(".lf-general button").click()
     holding(page, held, 1, "the shared collection's pending root")
     expect(reader).to_contain_text("Pending words")
     pending = reader.evaluate(
         "node => node.reading.threads.find(thread => thread.root.pending)"
     )
-    expect(
-        page.locator(f'.lf-thread[data-id="{pending["root"]["id"]}"]')
-    ).to_have_count(1)
+    expect(page.locator(f'.lf-thread[data-id="{pending["id"]}"]')).to_have_count(1)
     held.pop().continue_()
     round_trip(page)
     admitted = reader.evaluate(
         "(node, key) => node.reading.threads.find(thread => thread.key === key)",
         pending["key"],
     )
-    assert admitted["root"]["id"] != pending["root"]["id"]
+    assert admitted["id"] != pending["id"]
     assert admitted["root"]["key"] == pending["root"]["key"]
 
-    box.fill("Refused words")
+    write(box, "Refused words")
     page.locator(".lf-general button").click()
     holding(page, held, 1, "the shared collection's refused root")
     expect(reader).to_contain_text("Refused words")
@@ -184,97 +458,176 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     )
     round_trip(page)
     expect(reader).not_to_contain_text("Refused words")
-    expect(box).to_have_value("Refused words")
+    expect(box).to_have_js_property("value", "Refused words")
     expect(page.locator('.lf-thread[data-id^="pending:"]')).to_have_count(0)
     consume_browser_errors(page, "400")
     page.unroute("**/api/event")
 
 
-def test_thread_consumers_join_presentation_and_cancel_superseded_work(browser, serve):
-    """A blocked first consumer cancels every old callback before it can repaint."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Thread consumers",
-                '<h1>Thread consumers</h1><lf-thread-reader id="first"></lf-thread-reader><lf-thread-reader id="second"></lf-thread-reader>',
-            ),
-            layer_registry={"lf-thread-reader": THREAD_READER_DECLARATION},
-            layer_widgets={"lf-thread-reader.js": THREAD_READER},
+def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions(
+    browser, serve
+):
+    """Two widget instances observe one Thread collection and route through core."""
+    url = serve(
+        leaf_page(
+            "Thread widget instances",
+            "<h1>Thread widget instances</h1>"
+            '<lf-thread-filter id="first" filter="Alpine"></lf-thread-filter>'
+            '<lf-thread-filter id="second" filter="Bay"></lf-thread-filter>',
         ),
+        layer_registry={"lf-thread-filter": THREAD_FILTER_DECLARATION},
+        layer_widgets={"lf-thread-filter.js": THREAD_FILTER},
     )
-    page.evaluate("""async () => {
-      const {readApplicationPresentation} = await window.__lfRuntimeImport('/runtime/semantic-state.js');
-      window.threadPresentation = readApplicationPresentation;
-    }""")
+    for thread_id, words in [("alpine", "Alpine"), ("bay", "Bay")]:
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "id": thread_id,
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": words,
+            },
+        )
+    page = open_page(browser, url)
     first = page.locator("#first")
     second = page.locator("#second")
-    second.evaluate("node => { node.hold(); node.consumer.update(); }")
-    expect(second).to_have_attribute("data-held", "true")
-    assert page.evaluate("threadPresentation().pending.includes('conversation')")
-    prior_paints = second.evaluate("node => node.paints")
-    first.evaluate("node => { node.hold(); node.consumer.update(); }")
-    expect(first).to_have_attribute("data-held", "true")
-    assert second.evaluate("node => node.signals.at(-1).aborted")
-    second.evaluate("node => node.release()")
-    expect(second).to_have_attribute("data-finished", "true")
-    assert second.evaluate("node => node.paints") == prior_paints
-    first.evaluate("node => node.release()")
-    page.wait_for_function("!threadPresentation().pending.includes('conversation')")
-    second.evaluate("node => { node.hold(true); node.consumer.update(); }")
-    expect(second).to_have_attribute("data-held", "true")
-    removed = second.element_handle()
-    second.evaluate("node => node.remove()")
-    page.wait_for_function("!threadPresentation().pending.includes('conversation')")
-    assert removed.evaluate("node => node.signals.at(-1).aborted")
-    removed.evaluate("node => node.release()")
+    expect(first.locator("li")).to_have_text("Alpine")
+    expect(second.locator("li")).to_have_text("Bay")
+    assert first.evaluate("node => node.sameReading")
+    assert second.evaluate("node => node.sameReading")
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    second.locator("input").fill("Cedar")
+    before = [widget.evaluate("node => node.updates") for widget in (first, second)]
+    with sending(page, "a Thread visible to both package widgets"):
+        write(page.locator(".lf-general leaf-text"), "Cedar")
+        page.locator(".lf-general button").click()
+    expect(second.locator("li")).to_have_text("Cedar")
+    expect(first.locator("li")).to_have_text("Alpine")
+    for widget, count in zip((first, second), before):
+        assert widget.evaluate("node => node.updates") > count
+        assert widget.evaluate(
+            "node => node.reading.threads.some(thread => thread.root.body.text.trim() === 'Cedar')"
+        )
+
+    removed = first.element_handle()
+    first.evaluate("node => node.remove()")
+    stopped_at = removed.evaluate("node => node.updates")
+    second.locator("input").fill("Delta")
+    second_before = second.evaluate("node => node.updates")
+    with sending(page, "another Thread after one widget disconnected"):
+        write(page.locator(".lf-general leaf-text"), "Delta")
+        page.locator(".lf-general button").click()
+    expect(second.locator("li")).to_have_text("Delta")
+    assert second.evaluate("node => node.updates") > second_before
+    assert removed.evaluate("node => node.updates") == stopped_at
+
+    thread_id = second.evaluate(
+        "node => node.reading.threads.find(thread => thread.root.body.text.trim() === 'Delta').id"
+    )
+    second.locator("button", has_text="Delta").click()
+    expect(page.locator(f'.lf-thread[data-id="{thread_id}"]')).to_be_visible()
 
 
-def test_failed_panel_presentation_cancels_its_held_package_render(browser, serve):
-    """A sibling failure aborts package work before rollback, without waiting for it."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Thread rollback",
-                '<h1>Thread rollback</h1><lf-thread-reader id="reader"></lf-thread-reader>',
-            ),
-            layer_registry={"lf-thread-reader": THREAD_READER_DECLARATION},
-            layer_widgets={"lf-thread-reader.js": THREAD_READER},
+def test_package_thread_mirrors_share_core_conversation_without_claiming_placement(
+    browser, serve
+):
+    """Two package containers render one Thread and keep independent lifetimes."""
+    url = serve(
+        leaf_page(
+            "Thread mirrors",
+            '<h1>Thread mirrors</h1><button id="mirror-subject">Subject</button>'
+            '<lf-thread-mirror id="first" filter="Shared"></lf-thread-mirror>'
+            '<lf-thread-mirror id="second" filter="opening"></lf-thread-mirror>',
         ),
+        layer_registry={"lf-thread-mirror": THREAD_MIRROR_DECLARATION},
+        layer_widgets={"lf-thread-mirror.js": THREAD_MIRROR},
     )
-    reader = page.locator("#reader")
-    page.evaluate("""async () => {
-      const {readApplicationPresentation} = await window.__lfRuntimeImport('/runtime/semantic-state.js');
-      window.threadPresentation = readApplicationPresentation;
-      const list = document.querySelector('leaf-thread-list');
-      const present = list.present.bind(list);
-      let failures = 2;
-      list.present = async model => {
-        await present(model);
-        if (failures > 0) {
-          failures -= 1;
-          throw new Error('injected panel failure');
-        }
-      };
-      const reader = document.querySelector('#reader');
-      reader.hold();
-      reader.consumer.update();
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "id": "shared-thread",
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Shared opening",
+            "anchor": {"section": "mirror-subject"},
+        },
+    )
+    page = open_page(browser, url)
+    first = page.locator("#first")
+    second = page.locator("#second")
+    expect(first.locator(".lf-page-thread")).to_contain_text("Shared opening")
+    expect(second.locator(".lf-page-thread")).to_contain_text("Shared opening")
+    assert first.evaluate("node => node.updates")
+    assert second.evaluate("node => node.updates")
+    expect(page.locator('.lf-margin-marker[data-lf-kinds="comment"]')).to_have_count(1)
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    expect(page.locator('.lf-thread[data-id="shared-thread"]')).to_be_visible()
+    page.locator(".lf-threads-toggle").click()
+
+    with sending(page, "a reply from the first package mirror"):
+        write(first.locator(".lf-page-thread .lf-say leaf-text"), "Shared reply")
+        first.locator(".lf-page-thread .lf-say").get_by_role(
+            "button", name="Send"
+        ).click()
+    expect(first.locator(".lf-page-thread")).to_contain_text("Shared reply")
+    expect(second.locator(".lf-page-thread")).to_contain_text("Shared reply")
+    expect(page.locator('.lf-thread[data-id="shared-thread"]')).to_contain_text(
+        "Shared reply"
+    )
+    second.locator("input").fill("Absent")
+    expect(second.locator(".lf-page-thread")).to_have_count(0)
+    expect(first.locator(".lf-page-thread")).to_contain_text("Shared reply")
+    second.locator("input").fill("opening")
+    expect(second.locator(".lf-page-thread")).to_contain_text("Shared reply")
+
+    second.evaluate("node => { node.holding = true; node.consumer.update(); }")
+    expect(second).to_have_attribute("data-held", "true")
+    with sending(page, "a reply while a package mirror is held"):
+        write(first.locator(".lf-page-thread .lf-say leaf-text"), "While held")
+        first.locator(".lf-page-thread .lf-say").get_by_role(
+            "button", name="Send"
+        ).click()
+    expect(first.locator(".lf-page-thread")).to_contain_text("While held")
+    expect(page.locator('.lf-thread[data-id="shared-thread"]')).to_contain_text(
+        "While held"
+    )
+    assert second.evaluate("node => node.signals.at(-2).aborted")
+    assert not page.evaluate(
+        """async () => {
+          const {readApplicationPresentation} = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+          return readApplicationPresentation().pending.includes('thread');
+        }"""
+    )
+    second.evaluate("""node => {
+      node.holding = false;
+      for (const release of node.releases.splice(0)) release();
+      node.removeAttribute('data-held');
+      node.consumer.update();
     }""")
-    expect(reader).to_have_attribute("data-held", "true")
-    page.wait_for_function("document.querySelector('#reader').signals.at(-1).aborted")
-    reported_browser_errors(
-        page,
-        "leaf: Presentation failed: Thread list presentation retry failed: "
-        "injected panel failure; injected panel failure",
-    )
-    paints = reader.evaluate("node => node.paints")
-    reader.evaluate("node => node.release()")
-    expect(reader).to_have_attribute("data-finished", "true")
-    assert reader.evaluate("node => node.paints") == paints
-    reader.evaluate("node => node.consumer.update()")
-    page.wait_for_function("!threadPresentation().pending.includes('conversation')")
-    assert reader.evaluate("node => node.paints") > paints
+    expect(second.locator(".lf-page-thread")).to_contain_text("While held")
+
+    second_handle = second.element_handle()
+    second.evaluate("node => node.remove()")
+    stopped_at = second_handle.evaluate("node => node.updates")
+    with sending(page, "a reply after the second mirror disconnected"):
+        write(first.locator(".lf-page-thread .lf-say leaf-text"), "After removal")
+        first.locator(".lf-page-thread .lf-say").get_by_role(
+            "button", name="Send"
+        ).click()
+    expect(first.locator(".lf-page-thread")).to_contain_text("After removal")
+    assert second_handle.evaluate("node => node.updates") == stopped_at
+    expect(page.locator('.lf-margin-marker[data-lf-kinds="comment"]')).to_have_count(1)
+    page.locator("#mirror-subject").focus()
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("Tab")
+    expect(page.locator("#mirror-subject")).to_be_focused()
+    expect(page.locator(".lf-margin-thread")).to_contain_text("After removal")
 
 
 PAGE_MODULE = """\
@@ -304,7 +657,7 @@ def activation_page(source):
 
 
 PAGE_WIDGET = """\
-import { LitElement, html, layerFact, widgetController } from "/runtime/widget-api.js";
+import { LitElement, html, keeps, layerFact, widgetController } from "/runtime/widget-api.js";
 
 customElements.define("lf-local", class extends LitElement {
   controller = widgetController(this);
@@ -314,11 +667,11 @@ customElements.define("lf-local", class extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     layerFact("$tones");
-    this.dataset.pageWidget = "ready";
+    keeps(this, "data-page-widget", "ready");
     this.stop ??= this.controller.subscribe(reading => {
       this.reading = reading;
       this.dataset.renderOrder = `${this.dataset.renderOrder || ""}subscribe,`;
-      this.dataset.subscriberChoice = this.dataset.renderedChoice;
+      keeps(this, "data-subscriber-choice", this.dataset.renderedChoice);
       this.dataset.readings = String(Number(this.dataset.readings || 0) + 1);
       this.requestUpdate();
     });
@@ -333,7 +686,7 @@ customElements.define("lf-local", class extends LitElement {
   }
 
   choose() {
-    this.dataset.renderOrder = "";
+    keeps(this, "data-render-order", "");
     this.dataset.gestures = String(Number(this.dataset.gestures || 0) + 1);
     const sent = this.controller.dispatch({
       kind: "action",
@@ -342,10 +695,10 @@ customElements.define("lf-local", class extends LitElement {
     });
     if (!sent) return;
     this.reading = sent.reading;
-    this.dataset.delivery = "pending";
+    keeps(this, "data-delivery", "pending");
     this.requestUpdate();
     sent.delivery.then(accepted => {
-      this.dataset.delivery = accepted ? "accepted" : "refused";
+      keeps(this, "data-delivery", accepted ? "accepted" : "refused");
     });
   }
 
@@ -355,7 +708,7 @@ customElements.define("lf-local", class extends LitElement {
         Number(globalThis.__failedLocalRenders || 0) + 1;
       throw new Error("deliberate render failure");
     }
-    this.dataset.renderedChoice = state.choose.value;
+    keeps(this, "data-rendered-choice", state.choose.value);
     this.dataset.renderOrder = `${this.dataset.renderOrder || ""}render,`;
     this.requestUpdate();
   }
@@ -385,9 +738,9 @@ STARTUP_PROJECTION_WIDGET = PAGE_WIDGET.replace(
     }
     const held = globalThis.__heldLocalPresentations?.get(this.id);""",
 ).replace(
-    "    this.dataset.renderedChoice = state.choose.value;",
+    '    keeps(this, "data-rendered-choice", state.choose.value);',
     """\
-    this.dataset.renderedChoice = state.choose.value;
+    keeps(this, "data-rendered-choice", state.choose.value);
     this.dataset.controllerRenders = String(
       Number(this.dataset.controllerRenders || 0) + 1
     );""",
@@ -483,10 +836,7 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
     assert controller_renders == 2
     waiting = page.evaluate(
         """async () => {
-              const entry = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
-              const runtime = await import(
-                new URL('runtime/semantic-state.js', new URL(entry, location.href)).href
-              );
+              const runtime = await window.__lfRuntimeImport('/runtime/semantic-state.js');
               window.readStartupApplication = runtime.readApplication;
               window.readStartupPresentation = runtime.readApplicationPresentation;
               const application = runtime.readApplication();
@@ -496,18 +846,17 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
                 epoch: application.semanticEpoch,
                 presented: presentation.presentedEpoch,
                 pending: presentation.pending,
+                current: runtime.applicationPresented(),
               };
             }"""
     )
     assert waiting["phase"] == "waiting"
     assert waiting["presented"] == waiting["epoch"]
     assert waiting["pending"] == []
-    assert page.evaluate(
-        "document.querySelector('script[data-lf-entry]').lfCurrentPresentationReady()"
-    )
+    assert waiting["current"] is True
 
     held.pop(0).continue_()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(page.locator("#page-local").get_by_role("button")).to_be_enabled()
     expect(page.locator("#page-local")).to_have_attribute(
         "data-controller-renders", str(controller_renders + 1)
@@ -603,7 +952,7 @@ PAGE_DECLARATION = {
         "description": "A page-owned local widget.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
             "choice": {"type": "string"},
             "restated": {"type": "boolean"},
         },
@@ -648,8 +997,8 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
 
     threads = page.locator(".lf-threads-toggle")
     threads.click()
-    draft = page.locator(".lf-general textarea")
-    draft.fill("Keep this recoverable draft in the page instance.")
+    draft = page.locator(".lf-general leaf-text")
+    write(draft, "Keep this recoverable draft in the page instance.")
     threads.click()
 
     page.locator("#live-reading").evaluate(
@@ -708,8 +1057,8 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
     )
     assert abs(restored_top - reading_top) < 2, (reading_top, restored_top)
     threads.click()
-    expect(page.locator(".lf-general textarea")).to_have_value(
-        "Keep this recoverable draft in the page instance."
+    expect(page.locator(".lf-general leaf-text")).to_have_js_property(
+        "value", "Keep this recoverable draft in the page instance."
     )
 
     historical = open_page(browser, version_url, pin=True)
@@ -783,7 +1132,6 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
         """() => {
           pageLocal.id = 'drifted-local';
           const reading = pageLocal.controller.read();
-          pageLocal.id = 'page-local';
           return {
             available: reading.actions.choose.available,
             undo: reading.actions.choose.undo.length,
@@ -791,6 +1139,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
         }"""
     )
     assert drifted == {"available": False, "undo": 0}
+    page.evaluate("pageLocal.id = 'page-local'")
 
     undo = []
     page.route("**/api/event", lambda route: undo.append(route))
@@ -934,8 +1283,12 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     page.evaluate("window.pageLocal = document.querySelector('#page-local')")
     before = int(page.locator("#page-local").get_attribute("data-readings"))
     page.evaluate(
-        "document.body.classList.add('lf-dragging'); "
-        "window.resumeLocal = pageLocal.controller.defer(); true"
+        """async () => {
+          const {dragging} = await window.__lfRuntimeImport(
+            '/runtime/widget-elements.js');
+          dragging(document.body, true);
+          window.resumeLocal = pageLocal.controller.defer();
+        }"""
     )
     page.locator("#page-local").get_by_role("button", name="Choose").click()
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
@@ -945,10 +1298,14 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
         "projection:chrome",
     ]
     page.evaluate(
-        "projectionReady = false; "
-        "whenLeafRegionsPresented(['projection:chrome'], () => true)"
-        ".then(() => { projectionReady = true; }); "
-        "document.body.classList.remove('lf-dragging'); true"
+        """async () => {
+          const {dragging} = await window.__lfRuntimeImport(
+            '/runtime/widget-elements.js');
+          projectionReady = false;
+          whenLeafRegionsPresented(['projection:chrome'], () => true)
+            .then(() => { projectionReady = true; });
+          dragging(document.body, false);
+        }"""
     )
     page.wait_for_function("projectionReady", timeout=3000)
     assert page.evaluate("readLeafPresentation().pending") == [
@@ -967,7 +1324,7 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     )
     page.wait_for_function(
         "attempt => readLeafApplication().unresolved.some("
-        "entry => entry.event.attempt === attempt && entry.answered)",
+        "entry => entry.event.attempt === attempt && entry.state === 'refused')",
         arg=attempt,
     )
     expect(page.locator("#page-local")).to_have_attribute("data-delivery", "refused")
@@ -1045,8 +1402,8 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     ]
 
 
-def test_conversation_presentation_waits_for_its_frozen_widgets_only(browser, serve):
-    """The conversation parent absorbs descendants without joining unrelated page work."""
+def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
+    """The thread parent absorbs descendants without joining unrelated page work."""
     source = LIVE_V1.replace(
         '<h1 id="live-title">Live first</h1>',
         '<h1 id="live-title">Live first</h1>'
@@ -1109,7 +1466,7 @@ def test_conversation_presentation_waits_for_its_frozen_widgets_only(browser, se
             "author": "agent",
             "revision": 1,
             "parent": "frozen-widget-question",
-            "text": "This widget prepares inside the conversation.",
+            "text": "This widget prepares inside the thread.",
             "markup": '<lf-local id="thread-local" choice="idle"></lf-local>',
         },
     )
@@ -1134,21 +1491,21 @@ def test_conversation_presentation_waits_for_its_frozen_widgets_only(browser, se
         """() => {
           const pending = readLeafPresentation().pending;
           return document.querySelector('#thread-local') &&
-            pending.includes('conversation') &&
+            pending.includes('thread') &&
             pending.includes('widget:thread-local:preparation') &&
             pending.includes('widget:page-local:preparation');
         }""",
         timeout=5000,
     )
     page.evaluate(
-        "conversationReady = false; allReady = false; "
-        "whenLeafRegionsPresented(['conversation'], () => true)"
-        ".then(() => { conversationReady = true; }); "
+        "threadReady = false; allReady = false; "
+        "whenLeafRegionsPresented(['thread'], () => true)"
+        ".then(() => { threadReady = true; }); "
         "whenLeafPresented().then(() => { allReady = true; }); true"
     )
-    assert page.evaluate("conversationReady") is False
+    assert page.evaluate("threadReady") is False
     page.evaluate("threadPreparation.release('thread')")
-    page.wait_for_function("conversationReady", timeout=3000)
+    page.wait_for_function("threadReady", timeout=3000)
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
     expect(page.locator("#thread-local")).to_have_attribute(
         "data-rendered-choice", "chosen"
@@ -1197,23 +1554,23 @@ def test_conversation_presentation_waits_for_its_frozen_widgets_only(browser, se
     )
     page.wait_for_function(
         """() => document.querySelector('#thread-failing') &&
-          readLeafPresentation().pending.includes('conversation') &&
+          readLeafPresentation().pending.includes('thread') &&
           readLeafPresentation().pending.includes(
             'widget:thread-failing:preparation'
           )""",
         timeout=5000,
     )
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 2")
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     page.evaluate(
-        "conversationReady = false; "
-        "whenLeafRegionsPresented(['conversation'], () => true)"
-        ".then(() => { conversationReady = true; }); "
+        "threadReady = false; "
+        "whenLeafRegionsPresented(['thread'], () => true)"
+        ".then(() => { threadReady = true; }); "
         "failedThreadPreparation.reject(new Error('frozen descendant failure')); true"
     )
-    page.wait_for_function("conversationReady", timeout=3000)
+    page.wait_for_function("threadReady", timeout=3000)
     expect(page.locator("#thread-failing")).to_have_count(1)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 2")
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     assert take_browser_errors(page) == [
         "leaf: Presentation failed: frozen descendant failure"
@@ -1228,7 +1585,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     widgets = {"lf-local.js": PAGE_WIDGET, "lf-verdict.js": SEATED_ASK_MODULE}
     url = serve(
         leaf_page(
-            "Conversation rollback",
+            "Thread rollback",
             '<h1>Review</h1><lf-verdict id="proposal" asks>Ship it?</lf-verdict>',
         ),
         layer_registry=layer,
@@ -1238,7 +1595,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         serve.page_dir,
         {
             "kind": "comment",
-            "id": "kept-conversation",
+            "id": "kept-thread",
             "author": "user",
             "revision": 1,
             "anchor": {"section": "proposal"},
@@ -1248,11 +1605,9 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     page = open_page(browser, live_url(url))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    inline = page.locator(
-        f'#proposal > .lf-conversation > [data-thread="{kept["id"]}"]'
-    )
-    editor = inline.locator(":scope > .lf-say textarea")
-    editor.fill("draft survives sibling rollback")
+    inline = page.locator(f'#proposal > .lf-thread-seat > [data-thread="{kept["id"]}"]')
+    editor = inline.locator(":scope > .lf-say leaf-text")
+    write(editor, "draft survives sibling rollback")
     editor.evaluate("node => node.setSelectionRange(6, 14, 'backward')")
     expect(editor).to_be_focused()
 
@@ -1272,17 +1627,17 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
             `.lf-thread[data-id="${id}"]`
           );
           window.keptInline = document.querySelector(
-            `#proposal > .lf-conversation > [data-thread="${id}"]`
+            `#proposal > .lf-thread-seat > [data-thread="${id}"]`
           );
-          window.keptEditor = keptInline.querySelector(':scope > .lf-say textarea');
+          window.keptEditor = keptInline.querySelector(':scope > .lf-say leaf-text');
 
           const list = document.querySelector('leaf-thread-list');
           const present = list.present.bind(list);
           let failures = 2;
           let releaseRetry;
           const retry = new Promise(done => { releaseRetry = done; });
-          window.releaseConversationRetry = releaseRetry;
-          window.conversationRetryReleased = false;
+          window.releaseThreadRetry = releaseRetry;
+          window.threadRetryReleased = false;
           list.present = async model => {
             const candidate = model.rows.some(
               row => row.kind === 'thread' &&
@@ -1295,8 +1650,8 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
               window.completeListFailures = 2 - failures;
               throw new Error('injected complete-list failure');
             }
-            if (!window.conversationRetryReleased) {
-              window.conversationRetryHeld = true;
+            if (!window.threadRetryReleased) {
+              window.threadRetryHeld = true;
               await retry;
             }
             return present(model);
@@ -1331,44 +1686,44 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     )
     page.wait_for_function(
         """() => window.completeListFailures === 2 &&
-          window.conversationRetryHeld === true""",
+          window.threadRetryHeld === true""",
         timeout=5000,
     )
 
     assert page.evaluate("() => !window.threadPreparationSettled")
     expect(page.locator("#thread-held")).to_have_count(0)
     expect(page.locator('[data-id="held-widget-thread"]')).to_have_count(0)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 1")
     expect(page.locator(".lf-thread-view-summary")).to_have_text("1 open thread")
     assert page.evaluate(
         """id => {
           const panel = document.querySelector(`.lf-thread[data-id="${id}"]`);
           const inline = document.querySelector(
-            `#proposal > .lf-conversation > [data-thread="${id}"]`
+            `#proposal > .lf-thread-seat > [data-thread="${id}"]`
           );
           return panel === window.keptPanel && inline === window.keptInline &&
-            inline.querySelector(':scope > .lf-say textarea') === window.keptEditor;
+            inline.querySelector(':scope > .lf-say leaf-text') === window.keptEditor;
         }""",
         kept["id"],
     ), "list retention replaced a committed panel card, seat, or editor"
-    expect(editor).to_have_value("draft survives sibling rollback")
+    expect(editor).to_have_js_property("value", "draft survives sibling rollback")
     expect(editor).to_be_focused()
     assert editor.evaluate(
         "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
     ) == [6, 14, "backward"]
-    assert "conversation" in page.evaluate("window.readLeafPresentation().pending")
+    assert "thread" in page.evaluate("window.readLeafPresentation().pending")
 
     # The retry paints the whole candidate again and then reaches the independently
     # held frozen-widget preparation. Only that complete reading may commit.
     page.evaluate(
         """() => {
-          window.conversationRetryReleased = true;
-          window.releaseConversationRetry();
+          window.threadRetryReleased = true;
+          window.releaseThreadRetry();
         }"""
     )
     page.wait_for_function(
         """() => document.querySelector('#thread-held') &&
-          document.querySelector('.lf-threads-toggle')?.textContent === 'Threads (2)' &&
+          document.querySelector('.lf-threads-toggle')?.textContent === 'Open threads: 2' &&
           window.readLeafPresentation().pending.includes(
             'widget:thread-held:preparation'
           )""",
@@ -1377,25 +1732,25 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     page.evaluate("window.threadPreparation.release('prepared')")
     page.wait_for_function("() => window.threadPreparationSettled === true")
     page.wait_for_function(
-        "() => !window.readLeafPresentation().pending.includes('conversation')",
+        "() => !window.readLeafPresentation().pending.includes('thread')",
         timeout=5000,
     )
     expect(page.locator("#thread-held")).to_have_count(1)
     expect(page.locator('[data-id="held-widget-thread"]')).to_have_count(1)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 2")
     expect(page.locator(".lf-thread-view-summary")).to_have_text("2 open threads")
     assert page.evaluate(
         """id => {
           const panel = document.querySelector(`.lf-thread[data-id="${id}"]`);
           const inline = document.querySelector(
-            `#proposal > .lf-conversation > [data-thread="${id}"]`
+            `#proposal > .lf-thread-seat > [data-thread="${id}"]`
           );
           return panel === window.keptPanel && inline === window.keptInline &&
-            inline.querySelector(':scope > .lf-say textarea') === window.keptEditor;
+            inline.querySelector(':scope > .lf-say leaf-text') === window.keptEditor;
         }""",
         kept["id"],
     ), "successful list retry replaced a committed panel card, seat, or editor"
-    expect(editor).to_have_value("draft survives sibling rollback")
+    expect(editor).to_have_js_property("value", "draft survives sibling rollback")
     # One failed candidate, named by each boundary that carried it: the presentation
     # publisher, the reading that was applying it, and the feed that asked for that
     # reading. The feed's word waits on the queued projection retry the failed
@@ -1412,8 +1767,102 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     )
 
 
-def test_conversation_readiness_waits_for_the_keyed_thread_list(browser, serve):
-    """The existing conversation ticket includes Lit ordering without replacing a card."""
+def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(
+    browser, serve
+):
+    """A seat the user left while a reading waited does not pull them back to it.
+
+    Rolling back a refused reading puts back only what the reading itself took: a user
+    who stood in one seat's reply when it began and moved to another seat's box before
+    it failed keeps the box they moved to, caret included."""
+    layer = {**PAGE_DECLARATION, "lf-verdict": SEATED_ASK_ENTRY}
+    widgets = {"lf-local.js": PAGE_WIDGET, "lf-verdict.js": SEATED_ASK_MODULE}
+    url = serve(
+        leaf_page(
+            "Thread rollback",
+            '<h1>Review</h1><lf-verdict id="proposal" asks>Ship it?</lf-verdict>'
+            '<lf-verdict id="other" asks>Hold it?</lf-verdict>',
+        ),
+        layer_registry=layer,
+        layer_widgets=widgets,
+    )
+    kept = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "kept-thread",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "proposal"},
+            "text": "The user starts here.",
+        },
+    )
+    page = open_page(browser, live_url(url))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    left = page.locator(
+        f'#proposal > .lf-thread-seat > [data-thread="{kept["id"]}"]'
+        " > .lf-say leaf-text"
+    )
+    went = page.locator("#other > .lf-thread-seat leaf-text")
+    write(left, "where the user was")
+    expect(left).to_be_focused()
+
+    # The reading that brings the arriving thread waits at a gate, and both its paints
+    # (the attempt and the list's own retry) fail, so the whole reading is refused.
+    page.evaluate(
+        """() => {
+          const list = document.querySelector('leaf-thread-list');
+          const present = list.present.bind(list);
+          let open;
+          window.gate = new Promise(done => { open = done; });
+          window.openGate = open;
+          list.present = async model => {
+            if (!model.rows.some(row => row.descriptor?.id === 'arriving')) {
+              return present(model);
+            }
+            window.waiting = true;
+            await window.gate;
+            throw new Error('injected refusal');
+          };
+        }"""
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "arriving",
+            "author": "user",
+            "revision": 1,
+            "text": "A thread whose reading is refused once.",
+        },
+    )
+    page.wait_for_function("() => window.waiting === true", timeout=5000)
+
+    write(went, "where the user went")
+    went.evaluate("node => node.setSelectionRange(6, 10, 'backward')")
+    page.evaluate("() => window.openGate()")
+    reported_browser_errors(
+        page,
+        (
+            "leaf: Presentation failed: Thread list presentation retry failed: "
+            "injected refusal; injected refusal"
+        ),
+        "leaf: State presentation failed: Thread list presentation retry failed",
+        "leaf: read failed: Thread list presentation retry failed",
+    )
+    expect(page.locator('[data-id="arriving"]')).to_have_count(0)
+
+    expect(went).to_be_focused()
+    expect(went).to_have_js_property("value", "where the user went")
+    assert went.evaluate(
+        "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
+    ) == [6, 10, "backward"]
+    expect(left).to_have_js_property("value", "where the user was")
+
+
+def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
+    """The existing thread ticket includes Lit ordering without replacing a card."""
     url = serve(LIVE_V1)
     events_model.append_event(
         serve.page_dir,
@@ -1429,8 +1878,8 @@ def test_conversation_readiness_waits_for_the_keyed_thread_list(browser, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     page.locator('.lf-thread[data-id="standing-thread"] .lf-thread-summary').click()
-    reply = page.locator('.lf-thread[data-id="standing-thread"] textarea')
-    reply.fill("half a thought")
+    reply = page.locator('.lf-thread[data-id="standing-thread"] leaf-text')
+    write(reply, "half a thought")
     reply.evaluate("input => input.setSelectionRange(4, 4)")
     held_events = []
     page.route("**/api/event", lambda route: held_events.append(route))
@@ -1464,7 +1913,7 @@ def test_conversation_readiness_waits_for_the_keyed_thread_list(browser, serve):
         }"""
     )
     page.wait_for_function(
-        "readLeafPresentation().pending.includes('conversation')", timeout=3000
+        "readLeafPresentation().pending.includes('thread')", timeout=3000
     )
     pending_card = page.locator('.lf-thread[data-attempt="held-thread-list"]')
     expect(pending_card).to_have_count(0)
@@ -1473,7 +1922,7 @@ def test_conversation_readiness_waits_for_the_keyed_thread_list(browser, serve):
           const current = document.querySelector(
             '.lf-thread[data-id="standing-thread"]'
           );
-          const input = current.querySelector('textarea');
+          const input = current.querySelector('leaf-text');
           return current === standingThread && document.activeElement === input &&
             input.value === 'half a thought' && input.selectionStart === 4;
         }"""
@@ -1481,7 +1930,7 @@ def test_conversation_readiness_waits_for_the_keyed_thread_list(browser, serve):
 
     page.evaluate("releaseThreadList()")
     page.wait_for_function(
-        "!readLeafPresentation().pending.includes('conversation')", timeout=3000
+        "!readLeafPresentation().pending.includes('thread')", timeout=3000
     )
     expect(pending_card).to_have_count(1)
     assert page.evaluate(
@@ -1489,7 +1938,7 @@ def test_conversation_readiness_waits_for_the_keyed_thread_list(browser, serve):
           const current = document.querySelector(
             '.lf-thread[data-id="standing-thread"]'
           );
-          const input = current.querySelector('textarea');
+          const input = current.querySelector('leaf-text');
           return current === standingThread && document.activeElement === input &&
             input.value === 'half a thought' && input.selectionStart === 4;
         }"""
@@ -1498,3 +1947,110 @@ def test_conversation_readiness_waits_for_the_keyed_thread_list(browser, serve):
     held_events[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
+
+
+THREAD_ACTIONS = r"""
+import {keeps, threadActions, watchThreads} from '/runtime/widget-api.js';
+customElements.define('lf-thread-actions', class extends HTMLElement {
+  connectedCallback() {
+    this.innerHTML = '<input aria-label="Package reply"><button>Reply</button>' +
+      '<button>Resolve</button><button>Reopen</button><button>React</button>';
+    this.stop = watchThreads(this, collection => {
+      this.thread = collection.threads[0];
+      keeps(this, 'data-resolved', Boolean(this.thread?.resolved));
+      keeps(this, 'data-reacted', Boolean(this.thread?.msgs.some(msg => msg.token === 'keep')));
+    });
+    this.querySelectorAll('button').forEach(button => button.onclick = () => {
+      const key = this.thread.key;
+      const agent = this.thread.msgs.find(message => message.author === 'agent');
+      this.last = button.textContent === 'Reply'
+        ? threadActions.reply(key, this.querySelector('input').value)
+        : button.textContent === 'Resolve'
+          ? threadActions.resolve(key)
+          : button.textContent === 'Reopen'
+            ? threadActions.reopen(key)
+            : threadActions.toggleReaction(key, agent.id, 'keep');
+      keeps(this, 'data-accepted', this.last !== null);
+    });
+  }
+  disconnectedCallback() { this.stop(); }
+});
+"""
+
+THREAD_ACTIONS_DECLARATION = {
+    "description": "A package's own Thread action controls.",
+    "type": "object",
+    "properties": {"id": {"type": "string"}},
+    "required": ["id"],
+    "additionalProperties": False,
+    "x-content": "empty",
+    "x-upgrade": True,
+    "x-example": '<lf-thread-actions id="actions-example"></lf-thread-actions>',
+}
+
+
+def test_package_thread_actions_share_core_admission_and_current_availability(
+    browser, serve
+):
+    """Package controls use the core reply, settlement, reaction and undo paths."""
+    url = serve(
+        leaf_page(
+            "Thread actions",
+            '<h1>Thread actions</h1><lf-thread-actions id="actions"></lf-thread-actions>',
+        ),
+        layer_registry={"lf-thread-actions": THREAD_ACTIONS_DECLARATION},
+        layer_widgets={"lf-thread-actions.js": THREAD_ACTIONS},
+    )
+    for event in [
+        {
+            "id": "thread-action-root",
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Choose an approach.",
+        },
+        {
+            "id": "thread-action-agent",
+            "kind": "reply",
+            "author": "agent",
+            "revision": 1,
+            "parent": "thread-action-root",
+            "text": "I propose one.",
+        },
+    ]:
+        events_model.append_event(serve.page_dir, event)
+    page = open_page(browser, url)
+    actions = page.locator("#actions")
+    expect(actions).to_have_attribute("data-resolved", "false")
+    actions.get_by_role("textbox", name="Package reply").fill("Package answer")
+    with sending(page, "a package reply"):
+        actions.get_by_role("button", name="Reply").click()
+    assert (
+        events_model.read_events(serve.page_dir)[-1]["parent"] == "thread-action-root"
+    )
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    expect(page.locator('.lf-thread[data-id="thread-action-root"]')).to_contain_text(
+        "Package answer"
+    )
+
+    with sending(page, "a package resolution"):
+        actions.get_by_role("button", name="Resolve").click()
+    expect(actions).to_have_attribute("data-resolved", "true")
+    actions.get_by_role("button", name="Reply").click()
+    expect(actions).to_have_attribute("data-accepted", "false")
+    with sending(page, "a package reopen"):
+        actions.get_by_role("button", name="Reopen").click()
+    expect(actions).to_have_attribute("data-resolved", "false")
+
+    with sending(page, "a package reaction"):
+        actions.get_by_role("button", name="React").click()
+    expect(actions).to_have_attribute("data-reacted", "true")
+    with sending(page, "the same reaction withdrawn"):
+        actions.get_by_role("button", name="React").click()
+    expect(actions).to_have_attribute("data-reacted", "false")
+    assert [
+        event["kind"]
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("author") == "user" and event["kind"] != "comment"
+    ] == ["reply", "resolve", "unresolve", "reply", "undo"]

@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from leaf.activity import reply_binding_stands
 from leaf.event_log import (
     _append_event_unlocked,
     _matching_attempt,
@@ -28,12 +29,13 @@ from leaf.host import (
 )
 from leaf.locations import page_key
 from leaf.machine import pid_alive, state_home
-from leaf.registry.layer import bookkeeping_kinds
+from leaf.registry.kernel import bookkeeping_kinds
 from leaf.schema import (
     ACTIVITY_GRACE_SECS,
     EVENTS_FILE,
+    INTERACTIONS_FILE,
     STATUS_FILE,
-    UNCLAIMED_AGENT,
+    UNNAMED_AGENT,
 )
 
 # A repeated live detail carries only liveness. Renew it comfortably before the
@@ -143,16 +145,19 @@ def _touched_recently(page_dir: Path, claimed_at: str) -> bool:
     untouched until the user returns to it. That gap, not the agent's, is what
     ACTIVITY_GRACE_SECS has to clear, and it is why that constant is hours.
 
-    `served_state/reading.py` deliberately excludes `viewed.json` from the
-    page's own reading token, where counting it would have a stream answer its
-    own question. There is no such loop here: ownership feeds the watchdog, not
-    the token.
+    Diagnostic `interactions.jsonl` is excluded: a request alone does not prove
+    a visible reader or active agent. `served_state/reading.py` excludes both it
+    and `viewed.json` from the page's own reading token, where counting either
+    would make a stream answer its own question. There is no such loop here:
+    ownership feeds the watchdog, not the token.
 
     The claim's own timestamp joins the files for the page that has been served
     but not yet written to, whose newest file can predate the claim."""
     newest = datetime.fromisoformat(claimed_at).timestamp()
     try:
         for entry in page_dir.iterdir():
+            if entry.name == INTERACTIONS_FILE:
+                continue
             try:
                 newest = max(newest, entry.stat().st_mtime)
             except OSError:  # replaced under us; the next pass sees its successor
@@ -240,11 +245,15 @@ class PageTransaction:
             "harness": harness.name,
             "agent": harness.agent,
             "cwd": os.getcwd(),
-            # Opaque identity of the currently open agent turn on this page.
-            # Delivery transitions name it, so an unresolved pickup from an old
-            # turn cannot become "being handled" merely because a later prompt
-            # opened another turn in the same session.
+            # Identity of the currently open agent turn on this page: its host's
+            # id where the host names one, and an opaque one Leaf mints otherwise
+            # (`open_turn`). Delivery transitions name it, so an unresolved pickup
+            # from an old turn cannot become "being handled" merely because a
+            # later prompt opened another turn in the same session.
             "turn": previous["turn"] if same_open_turn else secrets.token_hex(8),
+            # When that turn opened, which is how long an open turn can be taken
+            # for one still running when no Stop ever closes it.
+            "turn_opened": previous.get("turn_opened") if same_open_turn else now_iso(),
             # When this session's last turn ended. None until one has, and
             # cleared again when a batch delivered to this session opens the
             # next turn. See close_turn and open_turn.
@@ -290,6 +299,11 @@ class PageTransaction:
         status.json, the line SessionEnd already draws: what the agent said it
         was doing stays the agent's to write, and whether anything is still
         behind those words stays the page's to judge from evidence.
+
+        `turn_id` narrows the close to that turn, for a carrier whose account may
+        arrive after a later turn opened. The Stop hook passes none: whatever turn
+        of the session is open is the one ending, including one a claim taken
+        mid-turn minted before the host named it.
         """
         claim = self.claim
         if (
@@ -321,6 +335,18 @@ class PageTransaction:
         unloaded task leaves standing, so its handoff is not, and it declines
         this.
 
+        A prompt or delivery into a turn that is already open renews its
+        `turn_opened` instead: it is proof the turn runs now, and an interrupt,
+        which runs no hook and so leaves the turn open, would otherwise leave the
+        next prompt's work judged by the interrupted turn's opening.
+
+        The turn's identity is its host's, where the host names one: Codex names
+        each turn to its hooks and on its App Server alike, so the prompt hook and
+        a carrier following the same turn open the same id, and whichever arrives
+        second renews what the first opened. That id ended once `close_turn`
+        stamped it, so opening it again changes nothing. A host that names no turn
+        leaves `turn_id` None, and Leaf mints one when the last has closed.
+
         Nothing else about the claim moves. What the agent said it was doing
         stays the agent's to write, and the fifteen-minute grace on that claim's
         own age still catches a turn that ends without a Stop to stamp it.
@@ -328,34 +354,33 @@ class PageTransaction:
         claim = self.claim
         if not claim or claim["released"] is not None or claim["id"] != session_id:
             return None
-        if turn_id is not None and (
-            claim.get("turn") != turn_id or claim.get("turn_closed") is not None
-        ):
-            claim = {**claim, "turn": turn_id, "turn_closed": None}
-            write_json(claim_path(self.page_dir), claim)
-        elif claim.get("turn_closed") is not None:
-            claim = {
-                **claim,
-                "turn": secrets.token_hex(8),
-                "turn_closed": None,
-            }
-            write_json(claim_path(self.page_dir), claim)
-        return claim.get("turn")
+        ended = claim.get("turn_closed") is not None
+        if turn_id is None:
+            turn_id = secrets.token_hex(8) if ended else claim.get("turn")
+        elif turn_id == claim.get("turn") and ended:
+            return turn_id
+        write_json(
+            claim_path(self.page_dir),
+            {**claim, "turn": turn_id, "turn_opened": now_iso(), "turn_closed": None},
+        )
+        return turn_id
 
-    def note_messaged_turn(self) -> None:
-        """Record that input reaching this page messaged its session while the
-        claim's turn was closed.
+    def note_messaged(self, ending: str) -> None:
+        """Record that input reaching this page messaged its session after a turn
+        ended.
 
-        Browser-event admission sends at most one such message per closed turn
-        (`session-lifetime.md`, Carriers). The turn id is the exact key: an
-        opening mints a new one whenever it clears a closing, so a later closed
-        turn never matches the turn a message already went out in."""
+        Browser-event admission sends at most one such message per ending of a
+        turn (`session-lifetime.md`, Carriers). `ending` names the claim's turn id
+        and its close stamp, or for an interrupted turn its last opening, so a
+        later ending, whether a close under a new id or an interrupt after a new
+        prompt renewed the same one, never matches the ending a message already
+        went out for."""
         claim = self.claim
-        write_json(claim_path(self.page_dir), {**claim, "messaged_turn": claim["turn"]})
+        write_json(claim_path(self.page_dir), {**claim, "messaged_ending": ending})
 
     @property
     def status(self) -> dict:
-        return read_json(self.page_dir / STATUS_FILE)
+        return read_status(self.page_dir)
 
     def set_status(
         self,
@@ -363,10 +388,9 @@ class PageTransaction:
         detail: str,
         *,
         work: dict | None = None,
-        handling: dict | None = None,
-        stated: bool = True,
-    ) -> None:
-        """Write the page declaration and any typed local evidence it renews.
+    ) -> dict:
+        """Write the page declaration and any typed local evidence it renews, and
+        return it as written.
 
         A local line is the same sentence read at a second seat: the page's one
         line says what the agent is doing, and a typed subject says so where the
@@ -375,20 +399,13 @@ class PageTransaction:
         together.
 
         Standing work carries across every other status write, so a page-wide
-        status update does not silently drop what a helper is holding. Exact
-        delivery handling carries until another delivered move replaces it; the
-        interaction fold stops using it as soon as that move is settled.
-        A new claim replaces the old claim on its semantic subject; `idle`
+        status update does not silently drop what a helper is holding. A new
+        claim replaces the old claim on its semantic subject; `idle`
         clears them all with the leaf.
         """
         status = {
             "state": state,
             "detail": detail,
-            # Whether the agent said this. `delivery claim` writes a detail of Leaf's
-            # own so the user hears something the instant their move is taken up, and
-            # a transport watching the session's real steps knows more than that wording
-            # does. An agent's own sentence is the one nothing outranks.
-            **({} if stated else {"stated": False}),
             "ts": now_iso(),
             # Order the agent's declaration against delivery transitions without
             # comparing wall-clock timestamps that are only precise to a second.
@@ -396,44 +413,48 @@ class PageTransaction:
         }
         if state != "idle" and (stream := self.status.get("stream")):
             status["stream"] = stream
-        if state != "idle" and (current_handling := self.status.get("handling")):
-            status["handling"] = current_handling
         claims = [] if state == "idle" else list(self.status.get("work", []))
         if work:
             claims = [held for held in claims if held["subject"] != work["subject"]]
+            voice = self.voice()
+            claim = self.claim
             claims.append(
                 {
                     "id": secrets.token_hex(4),
                     **work,
                     "detail": detail,
                     "ts": status["ts"],
-                    **self.voice(),
+                    **voice,
+                    # The claimant's turn that wrote it, which is how the Stop hook
+                    # tells work this turn declared from work an earlier turn left
+                    # (`activity.turn_obligations`). Another session's claim names
+                    # none. A Claude Code subagent runs as its parent's session, so
+                    # a claim it wrote would name the parent's turn; workers leave
+                    # status to the session driving the page.
+                    "turn": (
+                        claim.get("turn")
+                        if claim and claim["id"] == voice["session"]
+                        else None
+                    ),
                 }
             )
         if claims:
             status["work"] = claims
-        if handling:
-            status["handling"] = {
-                "id": secrets.token_hex(4),
-                **handling,
-                "detail": detail,
-                "ts": status["ts"],
-                **self.voice(),
-            }
         write_json(self.page_dir / STATUS_FILE, status)
+        return status
 
     def voice(self) -> dict:
         """Who a line written on this page speaks as: the posting session where
         one is running, which need not be the claimant, and the page's claimant
         otherwise — a line written by a server speaks in the name of whoever
-        holds the page. `UNCLAIMED_AGENT` covers a page nothing has claimed,
+        holds the page. `UNNAMED_AGENT` covers a page nothing has claimed,
         where there is no name to use and inventing one would put words in a
         program's mouth."""
         identity = message_identity()
         claim = self.claim
         return {
             "agent": identity.get("agent")
-            or (claim["agent"] if claim else UNCLAIMED_AGENT),
+            or (claim["agent"] if claim else UNNAMED_AGENT),
             "session": identity.get("session") or (claim["id"] if claim else None),
         }
 
@@ -537,20 +558,10 @@ class PageTransaction:
             "ts": timestamp or updated_at,
             "updated_at": updated_at,
         }
-        bindings = dict(stream.get("reply_bindings") or {})
-        binding = {"session": session_id, "attempt": attempt}
-        if (
-            (standing_binding := bindings.get(responds))
-            and standing_binding.get("session") == session_id
-            and standing_binding != binding
-        ):
-            raise RuntimeError(
-                f"response {responds!r} is already bound to another delivery"
-            )
-        if standing == reply and bindings.get(responds) == binding:
+        bindings = self._bound(stream, session_id, responds, attempt, turn_id)
+        if standing == reply and bindings == stream.get("reply_bindings"):
             return
         stream["reply"] = reply
-        bindings[responds] = binding
         stream["reply_bindings"] = bindings
         status["stream"] = stream
         write_json(self.page_dir / STATUS_FILE, status)
@@ -561,25 +572,49 @@ class PageTransaction:
         responds: str,
         attempt: str,
     ) -> None:
-        """Reserve one response address before its provider can produce output."""
+        """Reserve one response address before its provider can produce output.
+
+        The reservation names the claim's turn as it stands, since the delivery's
+        own turn does not exist yet; that turn takes the binding over when its
+        reply opens (`set_stream_reply`). Reserving again, as a retried start
+        does, names the claim's turn as it stands then."""
         status = dict(self.status)
         stream = dict(status.get("stream") or {})
-        bindings = dict(stream.get("reply_bindings") or {})
-        binding = {"session": session_id, "attempt": attempt}
-        if (
-            (standing := bindings.get(responds))
-            and standing.get("session") == session_id
-            and standing != binding
-        ):
-            raise RuntimeError(
-                f"response {responds!r} is already bound to another delivery"
-            )
-        if bindings.get(responds) == binding:
+        bindings = self._bound(
+            stream, session_id, responds, attempt, self.claim["turn"]
+        )
+        if bindings == stream.get("reply_bindings"):
             return
-        bindings[responds] = binding
         stream["reply_bindings"] = bindings
         status["stream"] = stream
         write_json(self.page_dir / STATUS_FILE, status)
+
+    def _bound(
+        self,
+        stream: dict,
+        session_id: str,
+        responds: str,
+        attempt: str,
+        turn_id: str,
+    ) -> dict:
+        """The stream's bindings with one response address bound to `attempt`
+        in `turn_id`, refusing an address another delivery's binding holds while
+        it stands (`activity.reply_binding_stands`)."""
+        bindings = dict(stream.get("reply_bindings") or {})
+        standing = bindings.get(responds)
+        claim = self.claim
+        if reply_binding_stands(
+            standing, claim["id"], claim["turn"], claim["turn_closed"]
+        ) and not _held_by(standing, session_id, attempt):
+            raise RuntimeError(
+                f"response {responds!r} is already bound to another delivery"
+            )
+        bindings[responds] = {
+            "session": session_id,
+            "attempt": attempt,
+            "turn": turn_id,
+        }
+        return bindings
 
     def set_stream_reply_state(
         self,
@@ -624,7 +659,7 @@ class PageTransaction:
         status = dict(self.status)
         stream = dict(status.get("stream") or {})
         bindings = dict(stream.get("reply_bindings") or {})
-        if bindings.get(responds) != {"session": session_id, "attempt": attempt}:
+        if not _held_by(bindings.get(responds), session_id, attempt):
             return
         bindings.pop(responds)
         if bindings:
@@ -638,7 +673,7 @@ class PageTransaction:
         write_json(self.page_dir / STATUS_FILE, status)
 
     def clear_stream_reply(self, session_id: str, turn_id: str | None = None) -> None:
-        """Remove this task's provisional reply without changing conversation history."""
+        """Remove this task's provisional reply without changing thread history."""
         status = dict(self.status)
         stream = dict(status.get("stream") or {})
         reply = stream.get("reply")
@@ -648,8 +683,7 @@ class PageTransaction:
             return
         stream.pop("reply")
         bindings = dict(stream.get("reply_bindings") or {})
-        binding = bindings.get(reply["responds"])
-        if binding == {"session": session_id, "attempt": reply["attempt"]}:
+        if _held_by(bindings.get(reply["responds"]), session_id, reply["attempt"]):
             bindings.pop(reply["responds"])
         if bindings:
             stream["reply_bindings"] = bindings
@@ -696,6 +730,15 @@ class PageTransaction:
         if not self.owned_by(harness):
             return "lost"
         return "ended" if self.status["state"] == "idle" else "watching"
+
+
+def _held_by(binding: dict | None, session_id: str, attempt: str) -> bool:
+    """Whether one reply binding is this delivery attempt's, whatever turn it names."""
+    return bool(
+        binding
+        and binding.get("session") == session_id
+        and binding.get("attempt") == attempt
+    )
 
 
 def take_page_claim(page_dir: Path) -> tuple[dict | None, dict] | None:
@@ -746,8 +789,8 @@ def starting_claim(page_dir: Path, *, standing: bool = False):
         raise
 
 
-def open_session_turn(session_id: str) -> None:
-    """Clear the turn-ended stamp on every page one session holds.
+def open_session_turn(session_id: str, turn_id: str | None = None) -> None:
+    """Open one session turn on every page the session holds (`open_turn`).
 
     A turn belongs to the session, not to the page whose batch opened it. The
     Stop hook stamps the ending across `owned_pages`, so an opening that clears
@@ -756,28 +799,43 @@ def open_session_turn(session_id: str) -> None:
     the next leaf tells its own user the agent left when its turn ended and to
     nudge it in the terminal.
 
-    Each page takes its own transaction, the way the Stop hook takes them, and
-    a page the turn never touches still falls to the fifteen-minute grace on its
-    own claim age.
+    This and `close_session_turn` are the one path by which a turn opens and
+    closes, for the prompt and Stop hooks and for every carrier that follows a
+    turn itself. Each page takes its own transaction, and a page the turn never
+    touches still falls to the fifteen-minute grace on its own claim age.
     """
     for page_dir in owned_pages(session_id):
         try:
             with PageTransaction(page_dir) as page:
-                page.open_turn(session_id)
+                page.open_turn(session_id, turn_id)
         except FileNotFoundError:
             continue
 
 
-def close_session_turn(session_id: str) -> bool:
+def close_session_turn(session_id: str, turn_id: str | None = None) -> bool:
     """Stamp the end of a turn across every page one session still holds."""
     pages = owned_pages(session_id)
     for page_dir in pages:
         try:
             with PageTransaction(page_dir) as page:
-                page.close_turn(session_id)
+                page.close_turn(session_id, turn_id)
         except FileNotFoundError:
             continue
     return bool(pages)
+
+
+def read_status(page_dir: Path) -> dict:
+    """The page's work declaration, `status.json`, as every reader takes it.
+
+    A page whose agent has declared nothing, such as a copy served before any
+    `leaf status`, reads as a bare `waiting`: no work under way and nothing ended,
+    so the page waits on its user and a wait keeps watching it. A record without
+    a `state` describes no declaration either, and reads the same (`AGENTS.md`,
+    "Stage"). The first status write replaces it."""
+    record = read_json(page_dir / STATUS_FILE)
+    if record is None or "state" not in record:
+        return {"state": "waiting", "detail": "", "after": 0}
+    return record
 
 
 def owned_pages(session_id: str | None) -> list:
@@ -821,19 +879,33 @@ def requires_agent_attention(event: dict) -> bool:
     ) or event["kind"] in {"report", "error"}
 
 
+# The fields every stored work claim carries (`PageService.set_status`).
+CLAIM_FIELDS = frozenset(
+    {"id", "subject", "after", "detail", "ts", "agent", "session", "turn"}
+)
+
+
 def claim_update_sources(status: dict) -> list[dict]:
     """The status store's work claims at their public boundary.
 
     `status.json` remains the small replace-in-place store its transient claims
     need. The browser and `page state` receive typed source envelopes instead, so
     every downstream consumer reads the same target and lifecycle vocabulary.
+
+    A claim lacking a field `PageService.set_status` writes today, such as the
+    poster's voice, was written by an older leaf and is absent here, so every
+    envelope carries the name its work is shown under.
     """
     sources = []
     for claim in status.get("work", []):
-        target = claim["subject"]
+        target = claim.get("subject", {})
+        required = CLAIM_FIELDS | (
+            {"revision"} if target.get("kind") == "widget" else set()
+        )
+        if not required <= claim.keys():
+            continue
         source = {
-            "id": claim.get("id")
-            or f"claim:{target['kind']}:{target['id']}:{claim['after']}",
+            "id": claim["id"],
             "target": target,
             "source": "claim",
             "action": "working",
@@ -841,31 +913,13 @@ def claim_update_sources(status: dict) -> list[dict]:
             "text": claim["detail"],
             "ts": claim["ts"],
             "log_floor": claim["after"],
-            "agent": claim.get("agent"),
-            "session": claim.get("session"),
+            "agent": claim["agent"],
+            "session": claim["session"],
+            "turn": claim["turn"],
         }
         if event := claim.get("event"):
             source["event"] = event
         if target["kind"] == "widget":
             source["revision"] = claim["revision"]
-        sources.append(source)
-    if handling := status.get("handling"):
-        target = handling["target"]
-        source = {
-            "id": handling["id"],
-            "target": target,
-            "source": "claim",
-            "scope": "interaction",
-            "action": "working",
-            "detail": {"text": handling["detail"]},
-            "text": handling["detail"],
-            "ts": handling["ts"],
-            "log_floor": handling["after"],
-            "event": handling["event"],
-            "agent": handling.get("agent"),
-            "session": handling.get("session"),
-        }
-        if target["kind"] == "widget":
-            source["revision"] = handling["revision"]
         sources.append(source)
     return sources

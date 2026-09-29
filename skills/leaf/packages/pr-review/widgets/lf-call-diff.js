@@ -4,23 +4,18 @@
  * grammar and projects each row as commentable evidence. */
 import {
   announce,
+  el,
+  keeps,
+  keepsHidden,
+  keepsText,
   navigateToDatum,
   offer,
   projectData,
+  setChildren,
   watchData,
 } from "/runtime/widget-api.js";
 
 const LOCATION = /^(.*?)(?: {2,})(\S+:\d+(?:-\d+)?)$/;
-
-const setText = (element, value) => {
-  if (element.textContent !== value) element.textContent = value;
-};
-
-function make(tag, className) {
-  const element = document.createElement(tag);
-  element.className = className;
-  return element;
-}
 
 function parse(text) {
   const lines = text.split(/\r?\n/).filter((line) => line.trim());
@@ -73,23 +68,11 @@ function parse(text) {
   });
 }
 
-function reconcileChildren(parent, wanted) {
-  const retained = new Set(wanted);
-  for (const child of [...parent.childNodes])
-    if (child.nodeType !== Node.ELEMENT_NODE) child.remove();
-  let cursor = parent.firstElementChild;
-  for (const child of wanted) {
-    if (child !== cursor) parent.insertBefore(child, cursor);
-    cursor = child.nextElementSibling;
-  }
-  for (const child of [...parent.children]) if (!retained.has(child)) child.remove();
-}
-
 function buildLine(tag = "div") {
-  const line = make(tag, "lf-call-line");
-  const marker = make("span", "lf-call-marker");
-  const body = make("span", "lf-call-body");
-  const location = make("a", "lf-call-location");
+  const line = el(tag, "lf-call-line");
+  const marker = el("span", "lf-call-marker");
+  const body = el("span", "lf-call-body");
+  const location = el("a", "lf-call-location");
   marker.setAttribute("aria-hidden", "true");
   line.append(marker, body, location);
   return line;
@@ -100,20 +83,21 @@ function updateDisclosureControl(owner) {
   const button = owner.querySelector(":scope > .lf-call-tools .lf-call-toggle");
   if (!button) return;
   const expand = groups.some((group) => !group.open);
-  setText(button, `${expand ? "Expand" : "Collapse"} all`);
-  button.setAttribute(
+  keepsText(button, `${expand ? "Expand" : "Collapse"} all`);
+  keeps(
+    button,
     "aria-label",
     `${expand ? "Expand" : "Collapse"} all ${groups.length} call-tree ${groups.length === 1 ? "root" : "roots"}`,
   );
 }
 
 function buildToolbar(owner) {
-  const toolbar = make("div", "lf-call-tools");
+  const toolbar = el("div", "lf-call-tools");
   // The counts this widget writes are an account of the tree, not words the page holds,
   // so `data-lf-gen` takes them out of the version diff and makes each its own passage
   // cell — the marker `lf-diff` puts on its own injected stat. It does not stop a drag
   // quoting them: that is `.lf-ui`, which `lf-diff` adds beside it on its line numbers.
-  const summary = make("p", "lf-call-summary");
+  const summary = el("p", "lf-call-summary");
   summary.dataset.lfGen = "1";
   // `offer`, not a bare button: the disclosure control is chrome this widget injected,
   // and `offer` gives it the press markers the theme and the keyboard read.
@@ -121,7 +105,7 @@ function buildToolbar(owner) {
   button.addEventListener("click", () => {
     const groups = [...owner.querySelectorAll(":scope > .lf-call-group")];
     const open = groups.some((group) => !group.open);
-    for (const group of groups) group.open = open;
+    for (const group of groups) group.toggleAttribute("open", open);
     updateDisclosureControl(owner);
     announce(`${open ? "Expanded" : "Collapsed"} all call-tree roots`);
   });
@@ -130,10 +114,10 @@ function buildToolbar(owner) {
 }
 
 function buildGroup(owner, key, open) {
-  const group = make("details", "lf-call-group");
+  const group = el("details", "lf-call-group");
   group.open = open;
   const summary = buildLine("summary");
-  const body = make("div", "lf-call-group-body");
+  const body = el("div", "lf-call-group-body");
   group.dataset.callGroup = key;
   summary.classList.add("lf-call-group-summary");
   group.append(summary, body);
@@ -176,23 +160,23 @@ function renderLine(record, prior, owner) {
   const marker = line.querySelector(".lf-call-marker");
   const body = line.querySelector(".lf-call-body");
   const location = line.querySelector(".lf-call-location");
-  line.dataset.status = record.status;
+  keeps(line, "data-status", record.status);
   line.toggleAttribute("data-root", record.root);
   line.toggleAttribute("data-meta", record.meta);
-  setText(
+  keepsText(
     marker,
     record.status === "added" ? "+" : record.status === "removed" ? "−" : " ",
   );
-  setText(body, record.body);
-  setText(location, record.location);
-  location.hidden = !record.location;
+  keepsText(body, record.body);
+  keepsText(location, record.location);
+  keepsHidden(location, !record.location);
   // The header row names no location, so its anchor is hidden — and an `href` on a
   // hidden anchor is a way in that leads nowhere. Worse, `reachScrollers` reads a
   // candidate for a focusable descendant before granting the stop, and a hidden
   // `a[href]` is one: the header's own words run off the side, and the live page
   // answered "there is already a way in here" with a link nobody can reach.
   if (record.location) {
-    location.href = `#${owner.getAttribute("diff")}`;
+    keeps(location, "href", `#${owner.getAttribute("diff")}`);
     location.onclick = async (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -206,9 +190,8 @@ function renderLine(record, prior, owner) {
 }
 
 function renderMessage(prior, message, className = "lf-call-missing") {
-  const line = prior ?? make("div", "lf-call-line lf-call-missing");
-  line.className = `lf-call-line ${className}`;
-  setText(line, message);
+  const line = prior ?? el("div", `lf-call-line ${className}`);
+  keepsText(line, message);
   return line;
 }
 
@@ -240,7 +223,6 @@ customElements.define(
       try {
         records = snapshot?.value ? parse(snapshot.value) : [];
       } catch (error) {
-        this.replaceChildren();
         projectData(
           this,
           [{ key: "invalid", invalid: error.message }],
@@ -256,7 +238,6 @@ customElements.define(
         return;
       }
       if (!records.length) {
-        this.replaceChildren();
         projectData(
           this,
           [{ key: "unavailable", missing: true }],
@@ -274,7 +255,7 @@ customElements.define(
       const roots = records.filter((record) => record.root);
       const added = dataRows.filter((record) => record.status === "added").length;
       const removed = dataRows.filter((record) => record.status === "removed").length;
-      setText(
+      keepsText(
         summary,
         `${roots.length} changed ${roots.length === 1 ? "root" : "roots"} · ${added} added · ${removed} removed · ${dataRows.length} items`,
       );
@@ -298,7 +279,7 @@ customElements.define(
 
       const headerTarget =
         this.querySelector(":scope > .lf-call-line[data-meta]") ?? buildLine();
-      reconcileChildren(this, [
+      setChildren(this, [
         toolbar,
         headerTarget,
         ...[...groups.values()].map(({ group }) => group),
@@ -331,20 +312,20 @@ customElements.define(
         const rootNode = nodesByKey.get(root.key);
         let count = rootNode.querySelector(".lf-call-group-count");
         if (!count) {
-          count = make("span", "lf-call-group-count");
+          count = el("span", "lf-call-group-count");
           count.dataset.lfGen = "1";
           rootNode.append(count);
         }
-        setText(count, groupLabel(groupRecords));
-        reconcileChildren(
+        keepsText(count, groupLabel(groupRecords));
+        setChildren(
           parts.body,
           groupRecords
             .filter((record) => !record.root)
             .map((record) => nodesByKey.get(record.key)),
         );
-        reconcileChildren(parts.group, [rootNode, parts.body]);
+        setChildren(parts.group, [rootNode, parts.body]);
       }
-      reconcileChildren(this, [
+      setChildren(this, [
         toolbar,
         header,
         ...[...groups.values()].map(({ group }) => group),

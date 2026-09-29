@@ -9,28 +9,28 @@ move, or null when it owes nothing. Every consumer that holds the agent to
 something — delivery handling, `page state`, activity counts, the Stop hook,
 `leaf status idle`, and the banner's counts — reads `answer` here rather than
 deciding again what the agent owes. The rule is single: a move with an answer
-blocks the agent until that answer is written, and a null answer holds nobody.
+is owed until that answer is written, and a null answer holds nobody. How long
+an owed move holds the agent's turn is `activity.turn_obligations`'s to say.
 
 Answers are one of:
 
 - `{"kind": "reply", "to": <message>, "for": <event>}` — a thread input, or a
-  move in an answered Ask in frozen thread markup, answered by `leaf reply --for`;
+  move in an answered Ask in frozen thread markup, answered by `leaf thread reply --for`;
 - `{"kind": "turn", "to", "for", "attempt": <reply attempt>}` — the same reply
   once it is bound to the claimant's App Server turn, which writes it with its own
   opening and final messages. The binding lives in the page's stream status, so
-  `activity` routes the answer, and a delivery frozen for App Server routes it
-  ahead of the binding; `leaf reply` refuses every writer but that attempt;
+  `activity` routes the answer while the binding stands
+  (`activity.reply_binding_stands`), and a delivery frozen for App Server routes it
+  ahead of the binding; `leaf thread reply` refuses every writer but that attempt;
 - `{"kind": "markup", "action": <action>}` — a page action that is part of its
   widget's answered Ask and the authored markup does not yet record, answered by
-  a stamped version that writes it in;
-- `{"kind": "receipt", "request": <request>}` — a request, answered by its one
-  terminal receipt.
+  a stamped version that writes it in.
 
 Two kinds of move are delivered with no answer of their own. A user input a
 newer input in the same thread covers is answered through the newest, whose one
 answer settles both. A widget move that answers no Ask, such as an edit to a
 user-owned draft or a moved card, owes nothing: the log carries it onto later
-readings of its document, and `version check` holds the next version to any part
+readings of its document, and `page check` holds the next version to any part
 of it that version must write. Its receipt stands until that document takes it
 in: on the page, until the markup records it or a later version supersedes it
 (`page_action_unsettled`); in frozen thread markup, which no version rewrites,
@@ -43,66 +43,20 @@ composing the answer, and the finishing move carries the receipt. Once the Ask i
 answered, every move on that widget is owed (`asks.part_of_ask`).
 
 A host that gives up on a move writes the failure its answer takes
-(`conversation.fail_answer`), each carrying `failure`: a reply in the
-conversation, a failed receipt, or a failed pickup of a page move. A failed receipt is the
-request's own outcome and settles it; the other two leave the move a workflow
+(`thread.fail_answer`), each carrying `failure`: a reply in the
+thread, or a failed pickup of a page move. Either leaves the move a workflow
 answered with a failed response, whose next actor is the user, until the user
 moves again or the markup records the move anyway.
 """
 
 from .asks import ask_answered, part_of_ask
-from .events import spoken_turns
+from .events import spoken_turns, unanswered_turns
 from .projection import (
     NO_RECORD,
     PageReading,
     canonical_updates,
     recorded_state,
 )
-
-
-def thread_response_batch(turns: list[dict]) -> tuple[list[dict], dict | None]:
-    """Return the consecutive user-input batch and its response address.
-
-    A thread exposes one response obligation, addressed by its newest user
-    input. Before that address is answered every unresponded input retains its
-    own workflow. Answering the newest address settles the batch; answering an
-    older address removes only that input while the newer address remains owed.
-    Independent widget Asks use their own settlement fold and never enter here.
-    """
-    floor = -1
-    newest_before = None
-    for index, message in enumerate(turns):
-        if message["author"] != "agent":
-            newest_before = message
-        elif (
-            newest_before is not None and message.get("responds") == newest_before["id"]
-        ):
-            # Answering the batch's newest address settles every user input
-            # accumulated through it. A later user input starts a fresh batch.
-            floor = index
-            newest_before = None
-    standing = turns[floor + 1 :]
-    newest = next(
-        (message for message in reversed(standing) if message["author"] != "agent"),
-        None,
-    )
-    if newest is None:
-        return [], None
-    responses = {
-        message.get("responds")
-        for message in standing
-        if message["author"] == "agent" and message.get("responds")
-    }
-    if newest["id"] in responses:
-        return [], None
-    return (
-        [
-            message
-            for message in standing
-            if message["author"] != "agent" and message["id"] not in responses
-        ],
-        newest,
-    )
 
 
 def page_action_unsettled(
@@ -146,7 +100,7 @@ def page_action_unsettled(
 def canonical_workflows(
     claims: list,
     threads: dict,
-    conversation,
+    thread_reading,
     *,
     page: PageReading | None = None,
     events: list | None = None,
@@ -159,7 +113,7 @@ def canonical_workflows(
     and authored state settle the source move, so the workflow disappears instead
     of becoming a second outcome surface; a failed response instead keeps an
     answered workflow whose next actor is the user. Consecutive inputs retain distinct
-    workflows even though the conversation's single response obligation is
+    workflows even though the thread's single response obligation is
     addressed to the newest one.
     """
     if page is not None:
@@ -186,13 +140,17 @@ def canonical_workflows(
         for event_id in event["events"]:
             deliveries.setdefault(event_id, {})[event["phase"]] = event
 
-    effective_claims = {
-        (update["target"]["kind"], update["target"]["id"]): update
+    effective = [
+        update
         for update in canonical_updates(None, claims, threads, events)
         if update["disposition"] == "effective"
+    ]
+    effective_claims = {
+        (update["target"]["kind"], update["target"]["id"]): update
+        for update in effective
     }
-    interaction_claims = {
-        claim["event"]: claim for claim in claims if claim.get("scope") == "interaction"
+    claims_by_event = {
+        update["event"]: update for update in effective if update.get("event")
     }
     used_targets = set()
 
@@ -203,9 +161,6 @@ def canonical_workflows(
         *,
         answer: dict | None,
     ) -> dict:
-        claim = interaction_claims.get(source["id"]) or effective_claims.get(
-            (target["kind"], target["id"])
-        )
         delivery = deliveries.get(source["id"], {})
         opened = delivery.get("opened")
         queued = delivery.get("queued")
@@ -213,20 +168,16 @@ def canonical_workflows(
             (entry["seq"] for entry in (opened, queued) if entry),
             default=source["seq"],
         )
-        claim_matches = (
-            claim
-            and claim["target"] == target
-            and (
-                claim.get("scope") == "interaction"
-                or target["kind"] == "widget"
-                or claim.get("event") == source["id"]
-            )
-        )
-        if claim_matches and (
-            claim.get("event") == source["id"] or claim["log_floor"] >= delivery_seq
-        ):
+        # A claim naming this exact input holds it, wherever the claim stands;
+        # widget work also holds every move on that widget delivered before it.
+        claim = claims_by_event.get(source["id"])
+        if claim is None and target["kind"] == "widget":
+            held = effective_claims.get(("widget", target["id"]))
+            if held and held["log_floor"] >= delivery_seq:
+                claim = held
+        if claim:
             stage, evidence = "working", claim
-            used_targets.add((target["kind"], target["id"]))
+            used_targets.add((claim["target"]["kind"], claim["target"]["id"]))
         elif opened:
             stage, evidence = "picked_up", opened
         elif queued:
@@ -234,6 +185,23 @@ def canonical_workflows(
         else:
             stage, evidence = "sent", source
         fallback = opened or queued
+        # Every standing claim over the move, which is how the Stop hook tells a
+        # move the open turn has taken in hand (`activity.claimed_in_turn`): one
+        # naming it, one on its widget, or one on the thread that holds it.
+        held_in = (
+            target["id"]
+            if target["kind"] == "thread"
+            else thread_reading.thread_by_widget.get(target["id"])
+            if thread_reading is not None
+            else None
+        )
+        covering = [
+            update
+            for update in effective
+            if update.get("event") == source["id"]
+            or update["target"] == target
+            or update["target"] == {"kind": "thread", "id": held_in}
+        ]
         return {
             "id": source["id"],
             "input": source["id"],
@@ -261,7 +229,7 @@ def canonical_workflows(
                         "detail": claim["text"],
                         "ts": claim["ts"],
                         "session": claim.get("session"),
-                        "turn": claim.get("turn"),
+                        "turn": claim["turn"],
                     }
                 ]
                 if stage == "working"
@@ -270,6 +238,14 @@ def canonical_workflows(
             "condition": None,
             "next_actor": "agent",
             "response": None,
+            "claimed_by": [
+                {
+                    "session": update["session"],
+                    "turn": update["turn"],
+                    "log_floor": update["log_floor"],
+                }
+                for update in covering
+            ],
         }
 
     def failed(source: dict, target: dict, coordinate: list[str], record: dict) -> dict:
@@ -307,11 +283,10 @@ def canonical_workflows(
     workflows = []
     for thread_id, thread in threads.items():
         turns = spoken_turns(thread)
-        unanswered_inputs, response_address = thread_response_batch(turns)
         if thread["resolved"]:
             continue
-        target = {"kind": "conversation", "id": thread_id}
-        coordinate = ["conversation", thread_id]
+        target = {"kind": "thread", "id": thread_id}
+        coordinate = ["thread", thread_id]
         turns_by_id = {message["id"]: message for message in turns}
         for input_id, response in failed_responses.items():
             source = turns_by_id.get(input_id)
@@ -321,11 +296,13 @@ def canonical_workflows(
             ):
                 continue
             workflows.append(failed(source, target, coordinate, response))
-        if response_address is None:
+        unanswered_inputs = unanswered_turns(thread)
+        if not unanswered_inputs:
             continue
         # Every exact input keeps its own transport/work evidence. The response
         # contract deliberately coalesces consecutive user turns onto the newest
         # address, so only that workflow carries the answer.
+        response_address = unanswered_inputs[-1]
         answer = {
             "kind": "reply",
             "to": response_address["id"],
@@ -366,7 +343,7 @@ def canonical_workflows(
         # than answering. The resolution standing over the thread settles the moves
         # made before it, and the answer that resolved it; a move made after it is
         # delivered like any other and keeps its receipt.
-        thread_id = conversation.thread_by_widget.get(source["widget"])
+        thread_id = thread_reading.thread_by_widget.get(source["widget"])
         thread = threads.get(thread_id)
         if not thread or (
             thread["resolved"] and thread["resolved"]["seq"] >= source["seq"]
@@ -389,12 +366,12 @@ def canonical_workflows(
     documents = []
     if page is not None:
         documents.append((page.projection, page.document.by_id, page.spoken, page_move))
-    if conversation is not None:
+    if thread_reading is not None:
         documents.append(
             (
-                conversation.projection,
-                conversation.by_id,
-                conversation.spoken,
+                thread_reading.projection,
+                thread_reading.by_id,
+                thread_reading.spoken,
                 thread_move,
             )
         )
@@ -449,20 +426,6 @@ def canonical_workflows(
         else:
             workflows.append(workflow(source, target, coordinate, answer=answer))
 
-    # A request is owed its one terminal receipt whatever became of the seat that
-    # offered it, so it reads from the log alone.
-    receipted = {event["request"] for event in events if event["kind"] == "receipt"}
-    for source in events:
-        if source["kind"] == "request" and source["id"] not in receipted:
-            workflows.append(
-                workflow(
-                    source,
-                    {"kind": "widget", "id": source["widget"]},
-                    ["request", source["id"]],
-                    answer={"kind": "receipt", "request": source["id"]},
-                )
-            )
-
     # Keep an explicit claim visible even when there was no preceding user
     # gesture to grow from. This preserves the useful part of `status --on`
     # without inventing pickup evidence.
@@ -490,12 +453,13 @@ def canonical_workflows(
                         "detail": claim["text"],
                         "ts": claim["ts"],
                         "session": claim.get("session"),
-                        "turn": claim.get("turn"),
+                        "turn": claim["turn"],
                     }
                 ],
                 "condition": None,
                 "next_actor": "agent",
                 "response": None,
+                "claimed_by": [],
             }
         )
     return sorted(workflows, key=lambda item: (item["seq"], item["id"]))

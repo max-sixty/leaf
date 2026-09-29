@@ -7,6 +7,17 @@
       content="An interactive film of Worktrunk's wt merge, drawn live from flags and a scenario, beside the steps it runs. Flip a flag to re-plot the run, and comment on any commit, branch or hook."
     />
     <style>
+      /* The film beside the steps it plays, stacked where the workspace flows. */
+      #merge-regions {
+        display: grid;
+        grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+        gap: var(--sp-4);
+      }
+      @media (width < 720px) {
+        #merge-regions {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
       lf-merge-film {
         display: grid;
         gap: 10px;
@@ -186,25 +197,25 @@
     </style>
   </head>
   <body>
-    <main data-width="available">
-      <lf-workspace id="merge-workspace">
-        <header>
-          <h1>Explain how <code>wt merge</code> works</h1>
-          <p id="lede">
-            Worktrunk's <code>wt merge</code> takes a finished branch to main in one
-            command: commit, squash, rebase, test, merge, then clean up. The film draws
-            each step from the flags below it, so ticking <code>--no-ff</code> or a
-            failing test re-plots the run, including the three ways it stops early.
-            Hover a commit, branch, worktree or hook to see what it is; Alt-click one to
-            comment on it.
-          </p>
-        </header>
-        <lf-grid id="merge-regions" columns="2fr 1fr">
-          <lf-pane id="merge-film-pane" label="Film">
-            <lf-merge-film id="merge-film"></lf-merge-film>
-          </lf-pane>
-          <lf-pane id="merge-steps-pane" label="Steps">
-            <header><h2>The steps, as this run takes them</h2></header>
+    <main class="layout-workspace" id="merge-workspace">
+      <header>
+        <h1>Explain how <code>wt merge</code> works</h1>
+      </header>
+      <div id="merge-regions">
+        <lf-pane id="merge-film-pane" label="Film">
+          <lf-merge-film id="merge-film"></lf-merge-film>
+        </lf-pane>
+        <lf-pane id="merge-steps-pane" label="Steps">
+          <header><h2>The steps, as this run takes them</h2></header>
+          <div>
+            <p id="lede">
+              Worktrunk's <code>wt merge</code> takes a finished branch to main in one
+              command: commit, squash, rebase, test, merge, then clean up. The film
+              draws each step from the flags below it, so ticking
+              <code>--no-ff</code> or a failing test re-plots the run, including the
+              three ways it stops early. Hover a commit, branch, worktree or hook to see
+              what it is; Alt-click one to comment on it.
+            </p>
             <lf-merge-steps id="merge-steps" for="merge-film">
               <ol>
                 <li id="step-setup" data-chapter="setup">
@@ -285,9 +296,9 @@
                 </li>
               </ol>
             </lf-merge-steps>
-          </lf-pane>
-        </lf-grid>
-      </lf-workspace>
+          </div>
+        </lf-pane>
+      </div>
     </main>
   </body>
 </html>

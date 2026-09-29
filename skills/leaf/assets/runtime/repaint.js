@@ -1,10 +1,23 @@
 /* One frame for repainting the user's standing and chrome geometry. Boot supplies the
-   fixed phases after every module has evaluated; callers only invalidate the frame.
+   phases after every module has evaluated, in this fixed order; callers only invalidate
+   the frame. A document supplies the phases it has: a live page all five, an
+   interactive export, which attaches no chrome, only the standing geometry its widgets'
+   boxes paint.
 
    Pending work is cleared before the phases run. An invalidation raised by a phase
    therefore queues another repaint, which the rendering loop runs before this frame
-   paints, instead of being lost in the repaint being flushed. */
+   paints, instead of being lost in the repaint being flushed.
 
+   A focus move is the one change in where the user is standing that no state writer
+   sees, so this owner asks for the frame itself, in every document that mounts it: the
+   ring, the line, and a box's focus hint all answer it. Not for a placement, which emits
+   the same pair around a focus that never left: the margin moves a row between lanes
+   when its target's scroller changes, and puts the user back where they stood.
+   Answering that as a move paints the standing chrome, whose layout pass asks for the
+   next placement. The user has not moved and nothing they can see has changed, so there
+   is nothing here to paint. */
+
+import { placingChrome } from "./focus.js";
 import { nextRender } from "./rendering.js";
 
 let phases = null;
@@ -25,6 +38,11 @@ export function mountRepaint({
     pageShifted,
     paintStandingGeometry,
   };
+  const focusMoved = () => {
+    if (!placingChrome()) requestFrame();
+  };
+  document.addEventListener("focusin", focusMoved);
+  document.addEventListener("focusout", focusMoved);
   requestFrame();
 }
 
@@ -37,11 +55,11 @@ function requestFrame() {
     frame = 0;
     const shiftPage = movePage;
     movePage = false;
-    phases.reflectFirstScopes();
-    phases.paintStandingContent();
-    phases.syncLayout();
-    if (shiftPage) phases.pageShifted();
-    phases.paintStandingGeometry();
+    phases.reflectFirstScopes?.();
+    phases.paintStandingContent?.();
+    phases.syncLayout?.();
+    if (shiftPage) phases.pageShifted?.();
+    phases.paintStandingGeometry?.();
   });
 }
 

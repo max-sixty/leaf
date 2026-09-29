@@ -19,20 +19,37 @@
 :host(.lf-rendered) .lf-diff-rename { padding: 7px 10px; font-size: var(--t-5);
                                      font-family: var(--sans); color: var(--code-ink);
                                      background: var(--code-chrome); }
-/* The press is out of the summary's flow, so that line holds a column open for it and a
-   long path wraps above it rather than running underneath, and reaches at least as far
-   down as the bar's foot. A path sets the line at 35px, which already clears a mouse's
-   bar; under a finger the bar is the taller and the line follows it rather than letting
-   it hang over the first row of the patch. */
+/* The disclosure's triangle hangs in a column of its own, and a path too long for the
+   line wraps beside it rather than back under it to the header's left edge: a hanging
+   indent, the first line drawn back by the triangle's own width. An outside marker would
+   say the same thing, but it stands outside the summary's box, where the file's clip
+   cuts it away. */
+:host(.lf-rendered) :where(.lf-diff-file) > details > summary {
+                                     padding-left: 25px; text-indent: -15px; }
+/* The press is out of the summary's flow, so the line reaches at least as far down as
+   the bar's foot. A path sets the line at 35px, which already clears a mouse's bar;
+   under a finger the bar is the taller and the line follows it rather than letting it
+   hang over the first row of the patch. */
 .lf-diff-file:has(> .lf-diff-file-actions > *) > .lf-diff-fold > .lf-diff-head,
 .lf-diff-file:has(> .lf-diff-file-actions > *) .lf-diff-rename {
                                      box-sizing: border-box;
                                      min-height: calc(var(--lf-diff-action-top)
-                                                      + var(--lf-diff-action-h));
-                                     /* The bar's 11px inset less the 1px border it
-                                        stands inside, and 14px between a path and the
-                                        presses. */
-                                     padding-right: calc(var(--lf-diff-actions) + 24px); }
+                                                      + var(--lf-diff-action-h)); }
+/* And the bar's room is taken only beside the bar: a float as wide and as tall as it,
+   so a long path wraps before the presses and then takes the header's whole width
+   under them. A padding held the column open down the whole header, which on a phone
+   left a path with a review press beside it 80px on every line. The width is the bar's
+   11px inset less the 1px border it stands inside and the header's own 10px padding,
+   and 14px between a path and the presses; the height runs from the header's content
+   edge (the border and 7px padding) to the bar's foot, less the 4px of leading above a
+   line's ink, so the line whose ink starts under the bar takes the full width: held to
+   the foot, a path beside a review press on a phone took three lines rather than two. */
+.lf-diff-file:has(> .lf-diff-file-actions > *) > .lf-diff-fold > .lf-diff-head::before,
+.lf-diff-file:has(> .lf-diff-file-actions > *) .lf-diff-rename::before {
+                                     content: ""; float: right;
+                                     width: calc(var(--lf-diff-actions) + 14px);
+                                     height: calc(var(--lf-diff-action-top)
+                                                  + var(--lf-diff-action-h) - 12px); }
 .lf-diff-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
                  margin: 8px 0; padding: 8px 10px; border: 1px solid var(--code-border);
                  border-radius: var(--r); background: var(--code-chrome);
@@ -144,40 +161,51 @@
 .lf-diff-next:is(:focus-visible, .lf-focus-visible),
 .lf-diff-wrap:is(:focus-visible, .lf-focus-visible),
 .lf-diff-review:is(:focus-visible, .lf-focus-visible),
-.lf-diff-comment:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
-                                                         --lf-here-ring: diff-tools;
+.lf-diff-comment:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+                                                         --lf-focus-ring: diff-tools;
                                                          outline-offset: 1px; }
 /* The file's own row, and the box it opens clips (overflow above), so the ring it wears
    is inset — theme.css's rule for a control packed into something rather than standing
    on its own. Outside, its top run was drawn into the border the details draws and lost
    with it. */
-:host(.lf-rendered) .lf-diff-file > details > summary:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: code-summary;
-                                            outline-offset: calc(-1 * var(--here-ring-w)); }
-/* The file header pins under the banner while its own rows go past, which is the thread
-   list's answer to the same question — the name of the part you are reading has to be on
-   screen for the whole of it, not only at its start. Forty-six files at thirty-two
-   thousand pixels is that list's four-thousand-pixel run with a nought on it: opening one
-   file and reading down it left nothing on screen saying which file it was.
-   The slot is the banner's own height, said once at :root and inherited through this
-   boundary, so the two edges cannot drift apart. Opaque already (the summary's
+:host(.lf-rendered) .lf-diff-file > details > summary:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: code-summary;
+                                            outline-offset: calc(-1 * var(--focus-ring-w)); }
+/* A row a hunk step lands on (lf-diff.js, `land`), inset for three reasons at once. The
+   code box clips what it holds (Pierre's overflow and containment), and a row runs the
+   box's whole width, so the outset band the layer draws for any other stop lost both its
+   sides there; each row is positioned, so the row after painted over its lower run; and
+   a landing puts the row flush under the pinned header, which covered its upper run.
+   Outset, a landed row showed no ring at all. */
+:host(.lf-rendered) [data-content] > [data-line]:is(:focus-visible, .lf-focus-visible) {
+                                            outline: var(--focus-ring);
+                                            --lf-focus-ring: code-line;
+                                            outline-offset: calc(-1 * var(--focus-ring-w)); }
+/* The file header pins at the top of what scrolls it while its own rows go past, which is
+   the thread list's answer to the same question — the name of the part you are reading has
+   to be on screen for the whole of it, not only at its start. Forty-six files at
+   thirty-two thousand pixels is that list's four-thousand-pixel run with a nought on it:
+   opening one file and reading down it left nothing on screen saying which file it was.
+   The slot is `--lf-top`, inherited through this boundary: below the banner where the
+   window scrolls, and the pane's own top edge where a workspace pane does (layouts.css),
+   so the header stops where the box holding it starts showing rows. Opaque already (the summary's
    background), because the rows pass underneath it.
    Screen only: paper has no banner and no scroll to pin against. And only where the module says the page's own scroller is the
-   one underneath — inside the panel the pinned slot is the run headings', and a diff in a
-   reply scrolls in that list rather than in the document. */
+   one underneath — a diff in a reply scrolls in the panel's list rather than in the
+   document. */
 @media screen {
   :host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file > details > summary { position: sticky;
-                              top: var(--lf-banner-h, 0px); z-index: 2; }
+                              top: var(--lf-top, 0px); z-index: 2; }
   /* The press with it, as far down the pinned line as it stands at rest: its own gap
      less the 1px border the summary's box starts inside. */
   :host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file-actions { position: sticky;
-                              top: calc(var(--lf-banner-h, 0px)
+                              top: calc(var(--lf-top, 0px)
                                         + var(--lf-diff-action-top) - 1px); }
 }
 /* The room that header takes, so a landing arrives below it rather than behind it. The
    document declares its banner through scroll-padding-top; this is the rest of the same
    sum, measured because a wrapped path makes it a number no stylesheet can work out
-   (declareHeadRoom, lf-diff.js, through the runtime's `declareCoverRoom`, which keeps the
-   thread list's run headings declared under the same name). Only where the header pins:
+   (declareHeadRoom, lf-diff.js, through the runtime's `declareStickyHeaders`). Only where
+   the header pins:
    unpinned, it covers nothing. */
 :host(.lf-rendered[data-lf-diff-pinned]) [data-line] { scroll-margin-top: var(--lf-head-room, 0px); }
 /* The path is evidence — a file's name in the file's own voice — and a shadow tree
@@ -228,9 +256,9 @@
                           border-radius: 0; overflow-x: auto; color: var(--code-ink); }
 /* The scroll region's tab stop (lf-diff.js): reachable is only half — focus has to
    show where it landed, or the stop reads as Tab going nowhere. */
-:host(.lf-rendered) code[data-code]:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
-                          --lf-here-ring: code-pre-shadow;
-                          outline-offset: calc(-1 * var(--here-ring-w)); }
+:host(.lf-rendered) code[data-code]:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+                          --lf-focus-ring: code-pre-shadow;
+                          outline-offset: calc(-1 * var(--focus-ring-w)); }
 /* A Thread occupies one additional Pierre subgrid row. The widget inserts a content
    outlet and a paired gutter spacer at the same line index; matching fills and borders
    make them one full-width review row while preserving the renderer's two columns. */
@@ -250,13 +278,13 @@
                           contain: inline-size; }
 .lf-diff-file-thread-outlet { margin-top: 8px; border: 1px solid var(--rule);
                               border-radius: var(--r); }
-.lf-diff-thread-outlet > .lf-conversation-thread {
+.lf-diff-thread-outlet > .lf-page-thread {
                           max-width: 760px; border: 1px solid var(--border-2);
                           border-radius: 7px; padding: 10px 12px; background: var(--card); }
-.lf-diff-thread-outlet > .lf-conversation-thread + .lf-conversation-thread {
+.lf-diff-thread-outlet > .lf-page-thread + .lf-page-thread {
                           margin-top: 8px; }
-.lf-diff-thread-outlet > details.lf-conversation-thread:not([open]) { padding: 0; }
-.lf-diff-thread-outlet > details.lf-conversation-thread:not([open]) > summary {
+.lf-diff-thread-outlet > details.lf-page-thread:not([open]) { padding: 0; }
+.lf-diff-thread-outlet > details.lf-page-thread:not([open]) > summary {
                           border-radius: inherit; }
 /* Soft wrap. A diff line is `white-space: pre` and the box it sits in scrolls sideways,
    so the only way to read the end of a long line is a scrollbar at the foot of the whole
@@ -295,8 +323,8 @@
   .lf-diff-review:not([data-lf-said]) { display: none !important; }
   .lf-diff-file:not(:has([data-lf-said])) > .lf-diff-file-actions {
                           display: none !important; }
-  .lf-diff-file:not(:has([data-lf-said])) > .lf-diff-fold > .lf-diff-head,
-  .lf-diff-file:not(:has([data-lf-said])) .lf-diff-rename { padding-right: 10px; }
+  .lf-diff-file:not(:has([data-lf-said])) > .lf-diff-fold > .lf-diff-head::before,
+  .lf-diff-file:not(:has([data-lf-said])) .lf-diff-rename::before { display: none; }
   /* The row's pull (above) takes back the press's height, and the press an unreviewed
      file's row is pulled over is gone here: a hidden box has no margins, so a pull on
      the press left with it, but :has() still matches the hidden press, so a pull on the

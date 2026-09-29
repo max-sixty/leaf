@@ -11,6 +11,8 @@ from leaf import event_log as events_model
 from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf.registry.storage import read_page_registry
+from leaf.render_checks import rendered
+from leaf.schema import ELEMENT_ID
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -23,8 +25,8 @@ from render_harness import (
     LONG_PAGE,
     leaf_page,
     panel_settled,
-    rendered,
     told,
+    write,
 )
 
 BINDING_BADGE_PAGE = leaf_page(
@@ -299,9 +301,22 @@ NOTED_PAGE = leaf_page(
 enough for two separate remarks to land in it.</p>
 <p id="p2">A short second passage.</p>
 <figure id="fig"><svg viewBox="0 0 120 40" width="120" height="40" role="img"
-aria-label="specimen"><rect x="2" y="2" width="116" height="36" fill="none"
+aria-label="sample"><rect x="2" y="2" width="116" height="36" fill="none"
 stroke="currentColor"></rect></svg><figcaption>A figure, for element anchors.</figcaption></figure>
 """,
+)
+
+
+# A list whose last item the page's own rule sets apart, for a comment on the list.
+COMMENTED_LIST_PAGE = leaf_page(
+    "commented list",
+    """
+<h1 id="t">Commented list</h1>
+<div id="list" class="list"><p id="one">The first item.</p><p id="two">The second
+item, which the page's rule gives room below.</p></div>
+<p id="after">The paragraph after the list.</p>
+""",
+    head="<style>.list > :last-child { margin-bottom: 80px; }</style>",
 )
 
 
@@ -416,8 +431,8 @@ TARGETS_PAGE = leaf_page(
 <p id="prose">A paragraph with enough words in it to select by dragging across, which
 is what raises the button the key then presses.</p>
 <figure id="fig"><svg viewBox="0 0 240 60" width="240" height="60" role="img"
-aria-label="specimen"><rect x="2" y="2" width="236" height="56" fill="none"
-stroke="currentColor"></rect></svg><figcaption>A specimen.</figcaption></figure>
+aria-label="sample"><rect x="2" y="2" width="236" height="56" fill="none"
+stroke="currentColor"></rect></svg><figcaption>A sample.</figcaption></figure>
 """,
 )
 UNDO_PAGE = leaf_page(
@@ -509,7 +524,7 @@ def bucket_key(request):
 <pre><code class="language-bash"># apply the migration, then run the marked suite
 cd gateway &amp;&amp; alembic upgrade head</code></pre>
 <lf-code id="plain-code"><pre>
-$ leaf version check ./page --render
+$ leaf page check ./page --render
 v1.html: renders clean
 </pre></lf-code>
 </section>
@@ -779,9 +794,8 @@ def _publish(page_dir, version, html, note):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "version",
+            "page",
             "stamp",
-            "--json",
             str(page_dir),
             "--text",
             note,
@@ -817,7 +831,7 @@ def compose(page, passage, text=None):
     page.keyboard.press("c")
     expect(page.locator(".lf-fab-input")).to_be_focused()
     if text is not None:
-        page.locator(".lf-fab-input").fill(text)
+        write(page.locator(".lf-fab-input"), text)
 
 
 # The two presses this asks about, on one page: a draft's ✎ (a thing to do) and a pick
@@ -1013,7 +1027,7 @@ def data_projection_page(serve):
         "description": "A project-supplied live feed.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
             "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
         },
         "required": ["id", "source"],

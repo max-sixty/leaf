@@ -2,8 +2,8 @@
  *
  * The server's history reading is the only input and this list stores nothing: every
  * reading of `watchHistory` restates the whole feed. A row says who moved (You for the
- * user, the agent's own voice for an agent, Page for what the page did by itself), what
- * they did, the thing they did it to, and how long ago.
+ * user, Page for what the page did by itself, and otherwise the name the server serves
+ * the row under), what they did, the thing they did it to, and how long ago.
  *
  * What a move was is the server's: the thread it belongs to and that thread's title,
  * whether a later undo took it back, and for a widget gesture the words its ids had in
@@ -11,14 +11,12 @@
  * version that rewords or removes an option therefore leaves the row as the user made
  * it. This module words those facts and names the places on the page it links to.
  *
- * A place is named on the page the user is reading, since that is where the row leads.
- * An element is named by `addressableName`, the name the authoring contract gives it;
- * where something happened is the nearest element from there up to the column that has
- * one. A quoted passage is named as Threads names its anchor (`anchorLabel`). An element
- * the contract names nowhere is named by its own words (`addressableSays`), cut short.
+ * A place is named on the page the user is reading, since that is where the row leads,
+ * and as the rest of the chrome names it (`addressableLabel`), else by its word. A
+ * quoted passage is named as Threads names its anchor (`anchorLabel`).
  *
  * The thing is the row's way there: a widget or section is an ordinary fragment link,
- * so the browser owns that travel as it does for lf-toc, and a conversation is a button
+ * so the browser owns that travel as it does for lf-toc, and a thread is a button
  * onto `openThread`, which chooses the thread's inline destination or Threads the same
  * way a mark and t/T do. Links and buttons are the keyboard route: each is a Tab stop
  * and a go-to target.
@@ -28,9 +26,8 @@
  * Rows are keyed by event id and only new rows are inserted, so a user tabbing down
  * the feed keeps their place when the log grows or the clock moves a timestamp. */
 import {
-  addressableName,
-  addressableSays,
-  agentName,
+  addressableLabel,
+  addressableWord,
   ago,
   anchorLabel,
   layerFact,
@@ -42,6 +39,9 @@ import {
   openThread,
   relabel,
   watchHistory,
+  keeps,
+  keepsHidden,
+  keepsText,
 } from "/runtime/widget-api.js";
 
 const NAME = 60;
@@ -53,16 +53,11 @@ const clip = (text, length) => {
   return flat.length > length ? `${flat.slice(0, length - 1).trimEnd()}…` : flat;
 };
 
-// Where something happened: the nearest named element from it up to the column, else
-// the thing's own words, else its id.
+// Where something happened, as the chrome names it, else its word.
 function nameOf(id) {
   const element = id ? document.getElementById(id) : null;
   if (!element) return id || "the page";
-  for (let at = element; at && at.localName !== "main"; at = at.parentElement) {
-    const name = clip(addressableName(at), NAME);
-    if (name) return name;
-  }
-  return clip(addressableSays(element), NAME) || id;
+  return clip(addressableLabel(element), NAME) || `the ${addressableWord(element)}`;
 }
 
 // A comment's place: a passage, a drawing's part, a datum, or a design subject as
@@ -83,12 +78,12 @@ const actorOf = (row) =>
     ? "You"
     : row.author === "page"
       ? "Page"
-      : row.agent || (row.author === "agent" ? agentName() : row.author);
+      : (row.agent ?? row.author);
 
 const quoted = (words) => `“${words}”`;
 const named = (words) => quoted(clip(words, NAME));
 
-// The conversation's name as Threads states it: its latest title, else its opening words.
+// The thread's name as Threads states it: its latest title, else its opening words.
 const topicOf = (thread) =>
   !thread
     ? "a thread"
@@ -141,13 +136,6 @@ function describe(row) {
       return { what: gesturePhrase(row.gesture), widget: row.widget };
     case "report":
       return { what: `reported ${quoted(row.value)} on`, widget: row.widget };
-    case "request":
-      return { what: `requested ${quoted(row.operation)} in`, widget: row.widget };
-    case "receipt":
-      return {
-        what: `${row.status === "succeeded" ? "completed" : "failed"} ${quoted(row.operation)} in`,
-        widget: row.widget,
-      };
     case "note":
       return { what: `published v${row.version}` };
     default:
@@ -212,7 +200,7 @@ function fill(item, row) {
     said.textContent = excerpt;
     item.append(said);
   }
-  item.dataset.lfActivityAuthor = row.author;
+  keeps(item, "data-lf-activity-author", row.author);
   item.toggleAttribute("data-lf-undone", row.undone);
 }
 
@@ -283,8 +271,7 @@ customElements.define(
         }
         // Read synchronously, so the shared clock repaints this reading when it turns.
         const time = item.querySelector(".lf-activity-time");
-        const when = ago(row.ts);
-        if (time.textContent !== when) time.textContent = when;
+        keepsText(time, ago(row.ts));
         if (item !== next) this.#list.insertBefore(item, next);
         else next = next.nextElementSibling;
       }
@@ -293,7 +280,7 @@ customElements.define(
           item.remove();
           this.#rows.delete(id);
         }
-      this.#empty.hidden = rows.length > 0;
+      keepsHidden(this.#empty, rows.length > 0);
     }
   },
 );

@@ -6,10 +6,140 @@ page succeeds only when both can recover the same meaning.
 
 ## Current observations
 
+### First baseline, 2026-09-27
+
+`usability-eval/harness.py` ran the first executable slice below and three cases of
+the next paired check, at 387dfed45 with Opus 5.5, three scored runs per case and arm
+after one pilot run that fixed each fixture and scorer. Every run's model call
+completed. Per-run scores are in `usability-eval/results/`: `baseline.json`,
+`paired.json` and `board.json`. The scored runs cost $18.12, and $22.84 with the
+pilots.
+
+No run failed a check, so no failure calls for a new reading interface:
+
+| Case | Checks | Result | Cost and input per run |
+| --- | --- | --- | --- |
+| `cold-report` | skill loaded, page valid, checked, unstamped, no Ask, no sign-off | 3/3 each | $0.33, 192k tokens |
+| `cold-decision` | skill loaded, page valid, one Ask with one single-choice group of three options, gesture named, no sign-off | 3/3 each; the Ask held 8, 6 and 8 of the prompt's 8 measurements | $0.48, 349k tokens |
+| `near-miss` | skill not loaded, no page | 3/3 | $0.05, 15k tokens |
+| `reading` | seven questions, one per surface | 21/21 | $0.16, 100k tokens |
+| `resume` | current date, approach and next step; batch size changed where the comment points; pick marked `chosen` and still standing; thread answered; no `restated`; v3 stamped from a valid source | 3/3 each | $0.92, 752k tokens |
+
+Every reply was also read by hand, and agreed with the regex scorer on all 21 reading
+answers and all nine resume answer lines.
+
+What the traces show:
+
+- **Nobody reads `page state` to answer a question about a page.** In all five
+  `reading` runs (pilots included) the skill never loaded, and every agent answered
+  from `index.html`, `events.jsonl` and `data/*.json`, with 11 to 40 KB of tool
+  output. That was enough for the external value and, in the four runs whose fixture
+  had it, for a pick the user made, replaced, then undid. The skill loads once the task is to resume or revise a page.
+- **The missing view state caused no failure.** Asked which tab the user is looking
+  at, 3 of 3 agents said the page files don't record it and named the first tab
+  only as the default. The fact is missing, not misread: only a browser observation
+  could supply it, and no task here needed one.
+- **The invalid candidate was read correctly.** All nine resume runs reported the
+  active revision's date, named the rejected save and its error, and asked before
+  publishing its unexplained date change. Phase 2's "go ahead" answers the question
+  only loosely, and 2 of 9 runs took it as consent and published the rejected save's
+  date, saying so; a later run should ask for the revision without that ambiguity.
+- **Acknowledgement needs the wait.** A resumed page's pending events stay
+  unacknowledged until `leaf wait` delivers them, even after the agent has answered
+  each one. The headless prompts forbade waiting, so agents reported them as
+  pending; in one run the Stop hook made the agent wait and receive them again.
+- **Lifecycle varies on the decision page.** One of three `cold-decision` runs
+  stamped the page twice; the other two left it unstamped. The headless prompt
+  withholds the handoff, so the status and handoff criteria were not measured here;
+  the second slice's `handoff` measures them.
+
+### Second slice, 2026-09-27
+
+The same harness added five cases at 64186bcb9, three runs each after pilots that fixed
+the fixtures and scorers. In the three live cases the child serves the page from its
+own session and the harness plays the user, posting moves through the served page as a
+tab does, one round each time a turn ends; the other two are headless. The harness
+docstring describes each case. Every run completed. Per-run scores are in
+`usability-eval/results/extension.json`; the scored runs cost $5.71, and $8.76 with the
+pilots. Reading the failing runs by hand corrected four scorer patterns that had
+failed a correct result: an answer that also named the stale record, `&nbsp;` inside a
+duration, a suggestion whose closing tags broke across lines, and a page written by a
+script fed through a heredoc. Both batches were rescored with the corrected scorer.
+
+| Case | What the user does | Checks | Cost and input per run |
+| --- | --- | --- | --- |
+| `handoff` | asks for a drafted page to be handed over, asks for an edit, then asks a question | 54/54 | $0.30, 324k tokens |
+| `mixed` | sends a comment, an Ask's pick, a `shorten` reaction, a card move and its undo, and a page error, in one delivery | 41/42 | $0.38, 362k tokens |
+| `elided` | asks, in a closed 24-message thread, a question whose premise is in the part the delivery leaves out | 27/27 | $0.43, 408k tokens |
+| `package` | asks for a widget that only the page's own package supplies, without naming it | 22/24 | $0.25, 284k tokens |
+| `shared-source` | asks about, then updates, one of two worktree widgets whose shared source also holds a look-alike record | 21/24 | $0.54, 309k tokens |
+
+What the traces show:
+
+- **The live loop runs as the references describe.** Every round reached its agent
+  through the prompt hook, which confirmed receipt, so no agent ran `leaf wait --ack`
+  or invented another acknowledgement. Every turn that took a delivery re-armed the
+  wait, ended on a `waiting` status and repeated the URL. The first handoff's status
+  named the decision ("Pick how the backfill copy runs: …") in 3 of 3, and each edit
+  request was claimed on its thread before the reply.
+- **A mixed batch gets each event's treatment.** No run wrote the undone card move
+  into the markup, every run fixed the non-global regular expression the page error
+  named, and every run answered the pick in markup and stamped it, with `chosen` on
+  the option or `settled` on the group. The `shorten` reaction was handled both ways the guidance
+  allows: shortened in place and closed, or proposed as an `lf-suggestion` that
+  `resolves` it. One run named all four pieces of work in one page-wide status and
+  claimed nothing on the comment's thread, so that comment read Picked up rather than
+  Working until its reply landed.
+- **The elision never bound.** Every agent picking up the page read the closed thread
+  (`leaf page events`, `leaf thread read` or `events.jsonl`) before serving it, and two
+  rewrote the page body to record what the thread had settled, so the question
+  reached an agent that already held the premise. All three answered 22:00 UTC. The
+  delivery's `elided` count and `leaf page state PAGE THREAD` serve an agent that has lost the
+  middle, as a compacted session has; this harness cannot produce one.
+- **Package widgets are used from their entry.** All three found `lf-burn` by listing
+  the page registry and wrote `consumed="0.62"` from the entry's fraction rule, valid
+  on the first check. Two looked at the widget's source before writing, one in the
+  same command that read the entry and one by searching for the package directory;
+  all three read it or tried to, to tell the user what the widget draws, which the
+  entry does not say. The markup did not need it.
+- **The shared-source join is followed, and confirmed in the renderer.** All six
+  answers and three updates took finch's record by its widget id, left the look-alike
+  `tree-finch-old` and wren's record untouched, and put nothing into the markup. Every
+  reading agent also opened `widgets/lf-worktree.js` to confirm the join. None had
+  loaded the skill or read the registry at that point, and the element's description
+  said only that it "projects the matching record".
+
+Three checks failed, and no run gave a wrong answer, wrote to the wrong place or lost
+a user's state. Classified:
+
+- **The unclaimed comment is a guidance miss.** The comment's own `answering` clause
+  asks for a claim `--on` its thread, and the other runs made one, though some folded
+  the rest of the batch's work into that one claim.
+- **The renderer reads on `shared-source` are missing information.** The selection
+  rule, a record keyed by the element's id, is stated in the registry's
+  `lf-worktree` contract and in the renderer. The element's description, which a
+  lookup of the tag returns, says "the matching record".
+- **The source reads on `package` have no Leaf owner.** The entry was enough for the
+  markup; the agents wanted the widget's rendered words, which the fixture's own
+  entry leaves out.
+
+Two fixes were tried as a paired A/B, both arms started together
+(`usability-eval/results/ab.json`, $7.11): the base, and a candidate that added to
+`conversation-loop.md`, "When to write", that each move in a batch takes its own
+claim, and changed the `lf-worktree` description to say it shows "the one record its
+source keys by this element's id". `mixed` ran five times per arm and `shared-source`
+three. Neither changed the result. Both arms claimed the comment on its thread 5 of 5
+times, and both folded the other work into one claim in 2 of 5. The base read the
+renderer in 2 of 3 `shared-source` runs and the candidate in 3 of 3, where every
+candidate run opened the renderer before the registry, so the new description was
+never read first. Both changes were reverted, and the evidence calls for no new
+interface: the join is followed correctly, as the "Measured reading gaps" section
+below asked to establish before adding one.
+
 The former `leaf page catalog` output was 92,130 bytes, 13,058 words, or about
 22,500 tokens under both `o200k_base` and `cl100k_base`. Before selective
 registry reading and phase-specific references, an agent also read the roughly
-1,400-token skill, 3,100-token authoring reference, and 3,800-token conversation
+1,400-token skill, 3,100-token authoring reference, and 3,800-token thread
 reference. That made the required path about 30,800 tokens before the user's
 material or the page itself.
 
@@ -43,17 +173,14 @@ Only the first belongs in every page-authoring turn. Loading the whole file may
 be truncated before the agent reaches the entry it needs. Even when it fits,
 unrelated declarations compete with the page's subject for attention.
 
-Existing-page inspection now joins authored content, standing decisions, and
-declared data inputs in `leaf page state`'s `content` tree. Its construction origins
-identify how to change each part. User decisions survive without being copied
-into source. Invalid mutable source remains distinct from the live revision, and
-large fragmented inputs expose a manifest with an exact payload location. The owning
-contract is `skills/leaf/scripts/leaf/page-storage.md`.
-
-These changes have boundary tests, but their effect on agent comprehension and
-editing still needs the paired reading and resume evaluations below. Opaque
-renderers expose authored inputs; inspection does not claim to describe every
-pixel or interpretation a browser supplies.
+An agent inspects an existing page by reading `leaf page state` beside the active
+revision's HTML: `state` lists the user's standing moves over that HTML,
+`data_bindings` and `data/` hold external values, and `source` keeps an invalid
+candidate distinct from the live revision. User decisions survive without being
+copied into source. The owning contract is `skills/leaf/scripts/leaf/page-storage.md`.
+`page state` used to carry a construction tree of the whole document; it went after
+the paired run below, and `leaf page state PAGE THREAD` keeps that reading for a thread's frozen
+markup.
 
 A context-blind continuation check changed one sentence in a copied feature
 gallery using the public CLI and authoring references. It correctly reported the
@@ -62,24 +189,26 @@ The resulting source diff contained only the requested sentence replacement;
 standing user state and raw data were unchanged. This checks one successful
 edit route, not a paired comparison or a general comprehension score.
 
-Long conversations add a smaller version of the same problem. A delivered batch
-may elide the middle of a thread. The agent has to notice the marker, use the
-thread id from `page state`, and retrieve `leaf events --thread ID` before
-answering a question that depends on the missing records.
+Long threads add a smaller version of the same problem. A delivered batch
+may elide the middle of a thread. An agent that no longer holds that middle has to
+notice the `elided` count and read the thread with `leaf page state PAGE THREAD` before
+answering a question that depends on the missing records. In the second slice every
+agent that picked a page up read the whole thread first, so the elision never bound.
 
 ## Canonical agent access
 
 Keep Leaf's agent-facing surface small and semantic:
 
-- `leaf page state PAGE` reads the effective document with construction origins,
-  source and data revisions, standing actions and reports, decisions, requests,
-  reactions, compact thread state, and an event-log watermark;
-- `leaf page state PAGE --thread THREAD` selects one conversation's current
-  messages and effective frozen markup; its edits continue that conversation;
+- `leaf page state PAGE` reads the active revision, source and data revisions,
+  standing actions and reports, decisions, requests, reactions, compact thread
+  state, and an event-log watermark; the document itself is the HTML `active.file`
+  names;
+- `leaf page state PAGE ID` narrows that reading to what ID names: a thread's current
+  messages and effective frozen markup, whose edits continue that thread, or one page
+  widget's element, standing state, Asks and workflows;
 - `leaf page guidance PAGE [AUDIENCE]` composes explicit operating guidance;
-- `leaf events PAGE [--after SEQ] [--thread THREAD]` prints the append-only JSONL
-  history admitted at validated write boundaries; `--after` is a sequence cursor
-  and `--thread` is one exact semantic identity lookup;
+- `leaf page events PAGE [--after SEQ] [--follow]` prints the append-only JSONL
+  history admitted at validated write boundaries; `--after` is a sequence cursor;
 - `active.file` names the readable canonical HTML when a valid revision exists,
   `source.file` names the mutable author target, `data.file` is always readable,
   and `registry.json` remains the canonical vocabulary.
@@ -149,59 +278,50 @@ solved the agent experience.
 | Read then revise | Plain prose, a user-owned draft, live data, and a pinned capture | The agent changes the correct construction input, preserves user authority, and rebinds a fresh capture when changing pinned data. |
 | Work lands on a handed-over page | A plan, a list of problems found, or a refuted finding, with a user's pick standing, a milestone rail whose next step is now done, prose the user has seen that would read better at half the length, a user-owned draft holding a fact the work moved, and a task line that only asks to note what merged | The title and headings state the present; finished items sit in a collapsed section rather than marked done in the open list; the answered Ask moves there under the words it was picked under and what remains is a new Ask; the rail keeps its done members; the shorter prose is put to the user as an `lf-suggestion` with the current words verbatim in `lf-old`; the draft's moved fact is written into the draft's body with `restated` on the draft, and no suggestion wraps it. |
 | Revise after feedback | A comment changes prose beside an already chosen option | The comment is answered; the prose changes; surviving ids and the choice remain; `restated` appears only if the agent deliberately replaces the decision. |
-| Elided conversation | The decisive premise is in the elided middle of a long thread | The agent uses the thread id to select its raw events before replying and answers from the missing premise. |
+| Elided thread | The decisive premise is in the elided middle of a long thread | The agent uses the thread id to select its raw events before replying and answers from the missing premise. |
 | Mixed event batch | A comment, action, reaction, undo, and page error arrive together | Each event receives its defined treatment; the withdrawn gesture is not carried; acknowledgement advances only after the complete batch is available. |
 
 ## First executable slice
 
-Start with three fixture families:
+`usability-eval/harness.py` runs this slice; its docstring records the runner, model,
+fixture builder, trace format, arm isolation, answer normalization and retention
+choices. The first baseline is under "Current observations".
 
-1. **Cold authoring.** Run the informational and decision prompts against a
-   full-registry arm and a selective-registry arm. This tests discovery,
-   valid output, lifecycle choice, and context cost. Add one near-miss prompt
-   that should receive an ordinary chat answer without creating a page, so the
-   slice measures discovery precision as well as recall.
-2. **Reading parity.** Build one page with six facts, each represented through a
-   different surface: plain HTML, collapsed HTML, an inactive tab, widget data,
-   external data, and standing action state. Ask one direct question per fact and
-   score each answer against a checked answer file. Keep single-surface versions
-   of the fixture so a failure in the combined page can be isolated.
-3. **Resume.** Give the agent only a page directory containing version history,
-   one invalid source candidate, two threads, and a standing choice absent from
-   authored markup. Ask for the current truth and the next action, then one
-   revision. Score the answer, mutation target, and preservation of user state.
+1. **Cold authoring** (`cold-report`, `cold-decision`, `near-miss`). An
+   informational request, a decision request with evidence and three exclusive
+   choices, and a near-miss ("explain the difference between…") that should get an
+   ordinary chat answer. None names Leaf, so the cases measure discovery precision
+   as well as recall. The full-registry arm is gone with `leaf page catalog`, so
+   these run on one arm.
+2. **Reading parity** (`reading`). One page with seven facts: plain HTML, collapsed
+   HTML, an inactive tab, chart data, external data, a standing pick the user
+   replaced and then undid, and which tab the user is looking at, which no page file
+   records. `usability-eval/fixtures/reading-answers.json` is the checked answer
+   file. `reading-<surface>` cuts the page down to one surface, to isolate a failure
+   the combined page shows.
+3. **Resume** (`resume`). A page directory with two stamped versions, an invalid
+   `index.html` candidate that changes a date, a resolved and an open thread, and a
+   pick no markup records. Phase 1 asks for the current truth and the next action;
+   phase 2 asks for the revision.
+4. **The live loop** (`handoff`, `mixed`, `elided`). The child serves the page and
+   waits; the harness posts the user's moves through the served page and scores each
+   delivered round. Results are under "Second slice".
+5. **Unfamiliar vocabulary and shared data** (`package`, `shared-source`), headless.
 
-`ask-placement-eval/` is one authoring case already runnable: it pastes two
-wordings of the ask guidance into a prompt with three subjects and scores where
-each ask lands.
+`arrangement-eval/` is the other authoring case: fresh agents write three subjects
+with and without Leaf's arrangement vocabulary, revise each for a standing
+preference, and a blind reviewer compares screenshots at three widths.
 
-Pair and interleave the authoring arms with the same model and settings. Count a
-run only when the model call completes. The first run of each case is for fixing
-the fixture and scorer; retain a case only after its expected answer is
-unambiguous.
-
-Both authoring arms and the comprehension fixtures can establish a baseline now.
-Before automating the slice, choose the agent runner and host, model settings,
-fixture builder, trace format, arm isolation, answer normalization, and
-result-retention policy.
-
-## Structural authoring advice
-
-`version check` offers optional authoring defaults as non-blocking advice rather
-than one-off hints. The first case is a page with two or more section headings
-and no outline element: it recommends a table of contents and leaves the author
-free to omit one when the outline is already visible. The registry's `x-outline`
-marker names the element, so a layer that ships none draws no advice. Keep any
-further advice structural and deterministic rather than attempting to judge prose
-quality.
+Not yet covered: competing authorities beyond the invalid candidate, and a session
+that has lost a long thread's middle, which only a compacted session can.
 
 ## Evaluate the integrated inspection path
 
-Compare the former HTML-plus-state path with the current construction-linked
-inspection using the same reading and revision tasks. Score correct mutations as
-well as answers: a user who understands a value but edits a derived display has
-not recovered its construction. Measure context cost with large data manifests and
-long conversations, including exact thread selection.
+The first paired run below compared the HTML-plus-state path with the
+construction-linked tree on the same reading and revision tasks, scoring mutations as
+well as answers: a user who understands a value but edits a derived display has not
+recovered its construction. Context cost with large data manifests is still
+unmeasured.
 
 A browser or accessibility snapshot can check the oracle for rendered semantics.
 It omits some inactive content and includes generated presentation, so keep it as
@@ -211,14 +331,9 @@ should remain explicit.
 
 ### Measured reading gaps
 
-The feature-gallery reading inspected on 2026-09-04 contained 6,703 lines:
-184,247 bytes formatted, 79,290 bytes compact, against 26,732 bytes of source
-HTML. Its 314 content nodes held 13,925 bytes of text. Bound input values were
-only 2,258 bytes; repeated structure and edit metadata dominated this example.
-An in-memory variant inheriting ordinary source-edit defaults, including the id
-already present in attributes, reduced compact output to 60,816 bytes without
-removing content. Apply this inheritance before adding a summary interface, and
-retain exceptional event, data, and conversation authorities explicitly.
+The feature-gallery tree inspected on 2026-09-04 was 184,247 bytes formatted
+against 26,732 bytes of source HTML; repeated structure and edit metadata, not the
+page's 13,925 bytes of text, made up most of it.
 
 A separate browser context established a visibility gap:
 
@@ -229,8 +344,8 @@ A separate browser context established a visibility gap:
 
 The tabs keep their selection locally; source and the event log cannot supply
 that observation. Closed disclosures and responsive visibility make the same
-distinction relevant elsewhere. The complete document reading should remain
-available, while questions about the current screen need browser observation.
+distinction relevant elsewhere. The active HTML holds every tab's content, while
+questions about the current screen need browser observation.
 That observation must come from the user's actual browser state or an explicit
 capture of it: opening another preview can select a different tab and cannot
 establish what the user sees.
@@ -241,13 +356,14 @@ widget-summary implementation.
 
 A shared-source discriminator used two `lf-worktree` widgets and an unrelated
 third record, listed first and resembling one widget's record. The browser
-rendered the correct records and stamped their exact paths. The file reading
-repeated all three records under each widget with `path: []`, but its linked
-registry contract explicitly states that records are selected by authored widget
-id. The correct edit target is therefore recoverable without reading widget
-source. This demonstrates an indirect join and duplicated input, not missing
-semantics or a wrong-target ambiguity. Test whether cold agents follow that join
-before adding another abstraction; do not duplicate the renderer in Python.
+rendered the correct records and stamped their exact paths. The former tree
+repeated all three records under each widget with `path: []`; the registry contract
+states that records are selected by authored widget id, and the value file keys each
+record by that id, so the edit target is recoverable without reading widget source.
+This is an indirect join, not missing semantics or a wrong-target ambiguity. The
+second slice's `shared-source` case tested whether cold agents follow it: they did in
+every run, confirming it in the renderer's code, so it needs no further abstraction; do
+not duplicate the renderer in Python.
 
 ### Next paired check
 
@@ -270,3 +386,50 @@ calls for a smaller reading. A concise prose rendering is warranted only when
 the remaining failures show a benefit over these simpler changes. If HTML plus
 compact state performs as well as the expanded tree at lower context cost,
 remove the redundant tree output rather than preserving it as another default.
+
+#### First paired run, 2026-09-27
+
+Two of the three conditions ran, paired and started together, three scored runs each:
+the shipped arm, whose `page state` carries the `content` tree, and an arm built by
+`harness.py arm --without-tree`, whose `page state` drops `content` and whose
+references read the active HTML beside the compact state. No browser-observation
+condition exists to run. The cases were `resume` and `constructs`, a page with a
+draft the user rewrote, a figure stated at one measurement whose source has since
+run again, and a chart. `constructs` asks what each says, then for three changes
+whose owners differ: a date inside the user's draft (their words kept, `restated`),
+the figure (text and `at` from the latest measurement, source untouched) and a chart
+value (its CSV). `board` covers the one join the tree made that the compact state
+leaves to the reader: the user moved two cards into a column at ranks between the
+authored cards and moved a third, then undid that move. It asks for the column's order,
+then for a card added to another column, which obliges the version to write the moved
+cards where the fold puts them. The shared-source record case came later, in the
+second slice.
+
+| Case | Arm | Checks passed | `page state` bytes read per run | Cost per run |
+| --- | --- | --- | --- | --- |
+| `constructs` | tree | 33/33 | 13,151 | $0.63 |
+| `constructs` | without tree | 33/33 | 7,426 | $0.55 |
+| `resume` | tree | 33/33 | 8,006 | $0.81 |
+| `resume` | without tree | 33/33 | 8,385 | $0.97 |
+| `board` | tree | 24/24 | 5,865 | $0.57 |
+| `board` | without tree | 24/24 | 6,368 | $0.55 |
+
+Every failure class is empty, so the arms tie on correctness; without the tree,
+agents ordered the cards from the ranks in `state` themselves. Agents in the tree
+arm often filtered the tree out themselves (`jq 'del(.content)'`), which is why
+their `page state` reads are close on `resume`. Unfiltered, the tree is most of the
+output: without it `page state` shrinks from 24,422 to 4,755 bytes on the reading
+fixture, 11,625 to 4,197 on `constructs`, 58,528 to 4,117 on `review-a-plan` and
+122,280 to 10,360 on `command-hub`, where the page's own HTML is 13,814 bytes. Total
+input tokens per run do not separate the arms; the references a run reads dominate
+them.
+
+HTML plus compact state performed as well as the expanded tree at lower context
+cost, so the condition above held and the page-level tree went: `page state` no
+longer carries `content`, and the references read the active HTML beside `state`.
+`leaf page state PAGE THREAD` keeps its construction reading, since a thread's frozen markup has
+no HTML file to read instead.
+
+The change itself then ran against its base, both arms built from their refs and
+started together, three scored runs of `resume`, `constructs` and `board` each
+(`results/change.json`, $12.55). Both passed all 90 checks.

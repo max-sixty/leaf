@@ -1,26 +1,32 @@
 /* This module owns banner wording, tone, tab-icon paint, and announcing a status kind
  * that has changed. */
+import { html, nothing, render } from "../vendor/browser-runtime.js";
 import { JUST_NOW, ago, clocked } from "./presence.js";
 import { el, offer, reserve } from "./widget-elements.js";
-import { agentName, runtime, runtimeResource } from "./context.js";
+import { keeps, keepsText } from "./keeps.js";
+import { setRuntimeRootAttribute } from "./root-state.js";
+import { runtime, runtimeResource } from "./context.js";
 import {
   BANNER_CONTROL_RANK,
   bannerActions,
   registerBannerControl,
   showBannerControl,
   showNews,
-} from "./banner-shelf.js";
-import { latestChip, versionBtn } from "./version-chooser.js";
-import { asksBtn, othersBtn } from "./trays.js";
+} from "./banner-toolbar.js";
+import { latestChip, versionBtn } from "./version-picker.js";
+import { asksBtn, othersBtn } from "./drawers.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { repaint } from "./repaint.js";
 import { announce, notice } from "./notifications.js";
 import { watchProjection } from "./projection-watch.js";
 import { createBannerApprovalFace } from "./banner-approval.js";
 import { createBannerStatusView } from "./banner-status-view.js";
+import { declareBanner } from "./geometry.js";
+import { nextRender, sizeObserver } from "./rendering.js";
 
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
+declareBanner(banner);
 const bannerStatus = createBannerStatusView(repaint);
 export const dot = bannerStatus.dot;
 
@@ -34,17 +40,22 @@ toggleBtn.setAttribute("aria-expanded", "false");
 let openThreads = null;
 let unreadThreads = 0;
 function paintThreadCounts() {
-  toggleBtn.textContent = openThreads === null ? "Threads" : `Threads (${openThreads})`;
+  keepsText(
+    toggleBtn,
+    openThreads === null ? "Threads" : `Open threads: ${openThreads}`,
+  );
   toggleBtn.toggleAttribute("data-unread-threads", unreadThreads > 0);
   const unread = unreadThreads
     ? `${unreadThreads} unread ${unreadThreads === 1 ? "thread" : "threads"}`
     : null;
-  if (unread)
-    toggleBtn.setAttribute("aria-label", `${toggleBtn.textContent}, ${unread}`);
-  else toggleBtn.removeAttribute("aria-label");
-  toggleBtn.dataset.lfKeyTitle = unread
-    ? `Show or hide the thread panel; ${unread}`
-    : "Show or hide the thread panel";
+  keeps(toggleBtn, "aria-label", unread && `${toggleBtn.textContent}, ${unread}`);
+  keeps(
+    toggleBtn,
+    "data-lf-key-title",
+    unread
+      ? `Show or hide the thread panel; ${unread}`
+      : "Show or hide the thread panel",
+  );
 }
 // Both counts come from the one thread-list reading, so they are painted together.
 export function setThreadCounts(open, unread) {
@@ -56,11 +67,10 @@ const approveBtn = el("button", "lf-btn primary lf-signoff");
 approveBtn.title = "Approve this work; the page stays open for follow-up";
 // The page's decision is not actionable until the page itself is present. Discussion chrome
 // stays live during replay, but approving hidden authored content would decide a version
-// the user has not seen yet.
-approveBtn.disabled = true;
+// the user has not seen yet. The face states that refusal from its first reading.
 const approvalFace = createBannerApprovalFace(approveBtn);
 
-// The shelf owns this complete order from typed contributions rather than discovering
+// The toolbar owns this complete order from typed contributions rather than discovering
 // or reconstructing it from whichever nodes happen to be in the row.
 registerBannerControl({
   key: "leaves",
@@ -107,18 +117,41 @@ const TONE = {
   stalled: "away",
   away: "away",
   unheld: "",
-  unattended: "",
   closed: "",
 };
-export const toneFor = (kind) => TONE[kind];
 const WORK_WORDS = {
   thinking: "thinking",
   tool: "using a tool",
   awaiting_approval: "waiting for approval",
   awaiting_input: "waiting for input",
+  awaiting_user: "waiting for you",
   replying: "replying",
 };
-export const workWords = (kind) => WORK_WORDS[kind] || "working";
+export const countUpdates = (count) => `${count} update${count === 1 ? "" : "s"}`;
+// What the banner and the leaves drawer both read off one page's server-owned `activity`
+// before either words it. Each seat keeps its own sentences; a fact they share changes
+// here once:
+//
+// - `left` says the turn's ending retired the belief, and `silentSince` dates the
+//   silence by the reading's own `ts`, which the server already sets to that ending
+//   for a dropped claim.
+// - `listening` is whether input is still on its way to the agent (pending or queued),
+//   which turns a listening page's standing request into "listening".
+// - `waiting` phrases the queued and pending updates, in that order.
+export function activityFacts({ activity }) {
+  const { counts } = activity;
+  const waiting = [];
+  if (counts.queued) waiting.push(`${countUpdates(counts.queued)} queued`);
+  if (counts.pending) waiting.push(`${countUpdates(counts.pending)} waiting`);
+  return Object.freeze({
+    tone: TONE[activity.kind],
+    work: WORK_WORDS[activity.observed_kind] || "working",
+    left: Boolean(activity.dropped),
+    silentSince: ago(activity.ts),
+    listening: Boolean(counts.pending || counts.queued),
+    waiting: Object.freeze(waiting),
+  });
+}
 // The judgment's third seat. A user keeps a leaf in a tab for days and looks at
 // six of them; the tab strip is the whole of what the browser shows about a page nobody
 // has open, so the state that decides whether to go there belongs in it. Same judgment
@@ -258,6 +291,16 @@ function copyControl(trigger, success, error) {
   return copy;
 }
 
+// How old a Leaf payload is, so a user who meets a problem can tell whether it
+// predates the fixes since. A payload read from Git carries its commit's date; a host's
+// plugin cache, which drops `.git`, carries the time it copied the commit, one update
+// sweep after it landed (`layer.payload_provenance`).
+const payloadAge = (provenance) => ago(provenance.committed ?? provenance.installed);
+const payloadDateLines = (provenance) =>
+  ["committed", "installed"]
+    .filter((kind) => provenance[kind])
+    .map((kind) => `${kind}: ${provenance[kind]}`);
+
 let previewMarginEntry = null;
 let previewMarginEntryCopy = null;
 let previewDiagnostics = "";
@@ -269,7 +312,8 @@ function renderPreview(state) {
   // mode worth marking; an unclaimed preview delivers nothing and needs no warning.
   const kind = preview.interaction === "user" ? "User" : "Preview";
   const stem = `${kind} · ${preview.checkout}${preview.commit ? `@${preview.commit}` : ""}`;
-  const label = preview.commit && preview.dirty ? `${stem}+` : stem;
+  const age = payloadAge(preview);
+  const label = `${preview.commit && preview.dirty ? `${stem}+` : stem}${age ? ` · ${age}` : ""}`;
   const safeUrl = new URL(location.href);
   safeUrl.searchParams.delete("t");
   previewDiagnostics = [
@@ -279,6 +323,7 @@ function renderPreview(state) {
     `interaction: ${preview.interaction}`,
     ...(preview.commit ? [`commit: ${preview.commit}`] : []),
     ...(preview.dirty !== undefined ? [`dirty: ${preview.dirty}`] : []),
+    ...payloadDateLines(preview),
     `started: ${preview.started}`,
     `layer generation: ${state.layer.generation}`,
     ...(state.layer.fingerprint
@@ -297,6 +342,7 @@ function renderPreview(state) {
       "Copied preview diagnostics",
       "Couldn't copy preview diagnostics",
     );
+    previewMarginEntryCopy.copyLabel = "Copy preview diagnostics";
     registerBannerControl({
       key: "preview",
       control: previewMarginEntryCopy,
@@ -305,9 +351,12 @@ function renderPreview(state) {
     });
   }
   previewMarginEntryCopy.value = previewDiagnostics;
-  previewMarginEntryCopy.copyLabel = "Copy preview diagnostics";
-  previewMarginEntry.textContent = label;
-  previewMarginEntry.title = `${preview.example} · started ${preview.started} · copy diagnostics`;
+  keepsText(previewMarginEntry, label);
+  keeps(
+    previewMarginEntry,
+    "title",
+    `${preview.example} · started ${preview.started} · copy diagnostics`,
+  );
 }
 
 // The vendored layer is the Leaf version this page actually runs. It can remain older
@@ -328,12 +377,15 @@ function renderLayerReference(state) {
   const identity = producer.commit
     ? `${producer.commit.slice(0, 8)}${producer.dirty ? "+" : ""}`
     : fullIdentity;
+  const age = payloadAge(producer);
+  const dateLines = payloadDateLines(producer);
   const safeUrl = new URL(location.href);
   safeUrl.searchParams.delete("t");
   layerDiagnostics = [
     "Leaf layer",
     ...(producer.commit ? [`commit: ${producer.commit}`] : []),
     ...(producer.dirty !== undefined ? [`dirty: ${producer.dirty}`] : []),
+    ...dateLines,
     ...(fingerprint ? [`fingerprint: ${fingerprint}`] : []),
     `generation: ${state.layer.generation}`,
     ...(state.active ? [`revision: ${state.active.revision}`] : []),
@@ -355,15 +407,25 @@ function renderLayerReference(state) {
     });
   }
   layerReferenceElementCopy.value = layerDiagnostics;
-  layerReferenceElementCopy.copyLabel = `Leaf ${identity} · copy version`;
-  layerReferenceElement.replaceChildren(
-    "Leaf ",
-    el("code", "lf-layer-version", identity),
+  const named = `Leaf ${identity}${age ? ` · ${age}` : ""}`;
+  layerReferenceElementCopy.copyLabel = `${named} · copy version`;
+  render(
+    html`Leaf <code class="lf-layer-version">${identity}</code>${
+        age ? ` · ${age}` : nothing
+      }`,
+    layerReferenceElement,
   );
-  layerReferenceElement.title = producer.dirty
-    ? "+ means this layer includes uncommitted changes · copy diagnostics"
-    : "Copy Leaf layer version and diagnostics";
-  layerReferenceElement.setAttribute("aria-label", `Leaf ${identity} · copy version`);
+  keeps(
+    layerReferenceElement,
+    "title",
+    [
+      ...dateLines,
+      producer.dirty
+        ? "+ means this layer includes uncommitted changes · copy diagnostics"
+        : "Copy Leaf layer version and diagnostics",
+    ].join("\n"),
+  );
+  keeps(layerReferenceElement, "aria-label", `${named} · copy version`);
 }
 // Status sentences for an unreachable server or a state the page cannot apply.
 const OFFLINE_LINE =
@@ -387,21 +449,17 @@ function statusWords({
   dated,
   shortDate,
   detail,
+  handling,
   kind,
-  pending,
+  listening,
+  overdue,
   progressSummary,
-  quiet,
   saved,
   total,
-  workKind,
+  work,
 }) {
   const savedSummary = total ? ` · ${total} saved` : "";
   if (kind === "closed") return ["Leaf closed", "Leaf closed"];
-  if (kind === "unattended")
-    return [
-      "Browser only · no agent",
-      "Nobody is behind this page. What you do here stays in this browser.",
-    ];
   if (kind === "unheld")
     return [
       `No session${savedSummary}`,
@@ -412,19 +470,25 @@ function statusWords({
   // renewed needs no date; an older one is dated ahead of the detail, because the detail
   // is what the ellipsis eats first and a stale sentence with its date cut off is the one
   // reading this row must not give.
+  //
+  // Until the agent writes that sentence, what Leaf knows is which of the user's
+  // updates its open turn took up, so the row names them rather than standing on a
+  // bare "working", and the disclosure says the agent's own words are still to come.
   if (kind === "working") {
-    const work = workWords(workKind);
-    const said = detail ? " — " + detail : "";
+    const held = handling === 1 ? "your update" : `your ${handling} updates`;
+    const said = detail ? " — " + detail : handling ? " — on " + held : "";
     return [
       `${agent} ${work}${age && age !== JUST_NOW ? " · " + age : ""}${said}${progressSummary}`,
-      `${agent} is ${work}${said}`,
+      detail || !handling
+        ? `${agent} is ${work}${said}`
+        : `${agent} is ${work} on ${held}, and hasn't said what it is doing yet`,
     ];
   }
   // A declared request tells the user what to do. Preserve it on the row when
   // no pending input supersedes it; a generic attendance label would lose that cue.
   if (kind === "listening") {
     const awaits = `${agent} awaits — ${detail || "select text to comment"}`;
-    return pending
+    return listening
       ? [
           `${agent} listening${progressSummary}`,
           `${agent} is listening${detail ? " — " + detail : ""}.`,
@@ -433,10 +497,13 @@ function statusWords({
   }
   if (kind === "stalled")
     return [shortDate, `${dated}${detail ? ": " + detail : ""}. ${saved}`];
-  return quiet
+  // Away is only worth a nudge once input has stalled (`counts.overdue`): the
+  // session's next turn picks up whatever it finds, and Leaf messages a harness it
+  // can reach once it has seen the turn end.
+  return overdue
     ? [
         `Nudge ${agent} in terminal${savedSummary}`,
-        `${dated}. ${saved} Nudge it in the terminal.`,
+        `${dated}. ${saved} Nothing is answering them, so nudge it in the terminal.`,
       ]
     : [
         `${agent} away${savedSummary}`,
@@ -474,12 +541,13 @@ function renderSessionReference() {
   }
   sessionReferenceElementCopy.value = runtime.sessionReference;
   sessionReferenceElementCopy.copyLabel = `${sessionReferenceLabel} · copy reference`;
-  sessionReferenceElement.textContent = sessionReferenceLabel;
-  sessionReferenceElement.setAttribute(
+  keepsText(sessionReferenceElement, sessionReferenceLabel);
+  keeps(
+    sessionReferenceElement,
     "aria-label",
     `${sessionReferenceLabel} · copy reference`,
   );
-  sessionReferenceElement.title = `${sessionReferenceLabel} · copy reference`;
+  keeps(sessionReferenceElement, "title", `${sessionReferenceLabel} · copy reference`);
 }
 
 function renderStatusNow(state) {
@@ -506,26 +574,19 @@ function renderStatusNow(state) {
   renderPreview(state);
   const publication = state.publication;
   if (publication) {
-    presentStatus({
-      kind: "unattended",
-      tone: TONE.unattended,
-      publication,
-    });
+    presentStatus({ kind: "publication", tone: "", publication });
     return;
   }
   const { activity } = state;
-  const { kind, quiet, dropped, detail } = activity;
+  const { kind, detail } = activity;
+  const facts = activityFacts(state);
+  const { agent } = state;
   // What the user's words do meanwhile. The log takes them with nobody on the other
   // end; the only thing attendance changes is when they are read.
   const saved = activity.counts.total
     ? `${activity.counts.total} update${activity.counts.total === 1 ? " is" : "s are"} saved.`
     : "Your comments are saved.";
-  // Dated by whichever fact ended the belief. A dropped claim is dated by the ending
-  // and not by its own last word, because "last checked in just now" under an amber
-  // dot is the line arguing with the dot beside it.
-  const dated = dropped
-    ? `${agentName()} left this when its turn ended ${ago(state.turn_closed)}`
-    : `${agentName()} last checked in ${ago(activity.ts)}`;
+  const checkedIn = `${agent} last checked in ${facts.silentSince}`;
   const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
   const progress = [];
   if (activity.counts.queued) progress.push(`${activity.counts.queued} queued`);
@@ -533,19 +594,20 @@ function renderStatusNow(state) {
   const progressSummary = progress.length ? ` · ${progress.join(" · ")}` : "";
   const [summary, text] = statusWords({
     age,
-    agent: agentName(),
-    dated,
-    shortDate: dropped
-      ? `${agentName()}’s turn ended ${ago(state.turn_closed)}`
-      : `${agentName()} last checked in ${ago(activity.ts)}`,
+    agent,
+    dated: facts.left
+      ? `${agent} left this when its turn ended ${facts.silentSince}`
+      : checkedIn,
+    shortDate: facts.left ? `${agent}’s turn ended ${facts.silentSince}` : checkedIn,
     detail,
+    handling: activity.counts.handling,
     kind,
     total: activity.counts.total,
-    pending: activity.counts.pending || activity.counts.queued,
+    listening: facts.listening,
+    overdue: activity.counts.overdue,
     progressSummary,
-    quiet,
     saved,
-    workKind: activity.observed_kind,
+    work: facts.work,
   });
   let explanation = age ? `${text} (${age})` : text;
   // What a transport can watch for itself, when the sentence beside it was written by
@@ -553,23 +615,20 @@ function renderStatusNow(state) {
   // and the disclosure holds the step proving the session is still moving.
   if (activity.observed && activity.observed !== detail)
     explanation += ` · ${activity.observed}`;
-  const waiting = [];
-  if (activity.counts.queued)
-    waiting.push(
-      `${activity.counts.queued} update${activity.counts.queued === 1 ? "" : "s"} queued`,
-    );
-  if (activity.counts.pending)
-    waiting.push(
-      `${activity.counts.pending} update${activity.counts.pending === 1 ? "" : "s"} waiting`,
-    );
-  if (waiting.length && ["working", "listening"].includes(kind))
-    explanation += `${explanation.endsWith(".") ? "" : "."} ${waiting.join(" · ")}.`;
-  const actionableWork = ["awaiting_approval", "awaiting_input"].includes(
-    activity.observed_kind,
-  )
+  if (facts.waiting.length && ["working", "listening"].includes(kind))
+    explanation += `${explanation.endsWith(".") ? "" : "."} ${facts.waiting.join(" · ")}.`;
+  const actionableWork = [
+    "awaiting_approval",
+    "awaiting_input",
+    "awaiting_user",
+  ].includes(activity.observed_kind)
     ? activity.observed_kind
     : null;
-  presentStatus({ kind, tone: TONE[kind], summary, explanation, actionableWork });
+  // An approval or a question the agent's own window holds is answered there, and
+  // the page is the one place the user may be looking instead.
+  if (actionableWork && kind === "working")
+    explanation += `${explanation.endsWith(".") ? "" : "."} It waits in its own session, not on this page.`;
+  presentStatus({ kind, tone: facts.tone, summary, explanation, actionableWork });
 }
 
 export const renderStatus = clocked(document.body, renderStatusNow);
@@ -588,17 +647,46 @@ export const isSignoffDeclared = () =>
 
 let signoff = false;
 
-// The banner's row mounts after the version chooser and trays exist. Its complete
+// The banner wraps by what it holds (chrome.css), and the browser's wrap is the one
+// decision: this reports which it drew as `data-lf-banner-rows` on the root, where the
+// theme's --lf-banner-h reads it, so the document's head and every surface hung below
+// the banner follow the rows on screen. It watches the two boxes whose widths decide the
+// wrap. The write moves the document's head, and so the body other observers watch, so
+// it waits for the next frame rather than resizing a watched box during delivery; the
+// banner itself is sized by its lines (chrome.css) and is right in the frame it wraps.
+let rowsWrite = null;
+const bannerRows = sizeObserver(() => {
+  rowsWrite ??= nextRender(() => {
+    rowsWrite = null;
+    const wrapped =
+      bannerStatus.getClientRects().length > 0 &&
+      bannerActions.offsetTop > bannerStatus.offsetTop;
+    setRuntimeRootAttribute(
+      document.documentElement,
+      "data-lf-banner-rows",
+      wrapped ? 2 : 1,
+    );
+  });
+});
+
+// The banner's row mounts after the version picker and drawers exist. Its complete
 // inventory and order already belong to the shelf's explicit registrations above.
 export function mountBanner({ approveVersion, paintApproval }) {
-  signoff = isSignoffDeclared() && runtime.currentStamp !== null;
+  signoff = isSignoffDeclared();
   showBannerControl(approveBtn, signoff);
   watchProjection(document.body, paintApproval);
   for (const control of [asksBtn, othersBtn]) showNews(control, false);
   banner.append(bannerStatus, bannerActions);
   reserveBannerControls();
+  bannerRows.observe(bannerStatus);
+  bannerRows.observe(bannerActions);
   approveBtn.onclick = async () => {
     if (approving) return;
+    // A refused press answers with its reason where every user sees it.
+    if (approvalFace.reason) {
+      notice(approvalFace.reason);
+      return;
+    }
     approving = true;
     approveBtn.setAttribute("aria-busy", "true");
     paintApproval();
@@ -614,10 +702,12 @@ export function mountBanner({ approveVersion, paintApproval }) {
 
 // Sign-off belongs to the authored revision, and the head it rides in is the only copy
 // of it: a revision this document takes on in place brings its own, so the reading is
-// taken from the document each time rather than kept beside it. Stamping the document
-// already open can also add or remove this control without any revision change.
+// taken from the document each time rather than kept beside it. The control stands for
+// the declaration alone. A stamp arriving is news, and the banner wraps by what it holds,
+// so a control the stamp put up would move the document; before a stamp the press is
+// refused with its reason (paintApproval) instead.
 export function stateSignoff(next, syncLayout, paintApproval) {
-  const shown = next && runtime.currentStamp !== null;
+  const shown = next;
   if (shown === signoff) return;
   signoff = shown;
   showBannerControl(approveBtn, signoff);
@@ -629,9 +719,9 @@ export function stateSignoff(next, syncLayout, paintApproval) {
 // The two primary controls hold the widest words they can show, so an asynchronous
 // count or approval result cannot move its sibling. Secondary controls can grow inside
 // More without changing the page's reading loop.
-export function reserveBannerControls() {
+function reserveBannerControls() {
   if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
-  reserve(toggleBtn, ["Threads", "Threads (999)"]);
+  reserve(toggleBtn, ["Threads", "Open threads: 999"]);
 }
 
 let approving = false;
@@ -647,24 +737,24 @@ export function paintApproval(pendingApprovals, blockingAsks, acceptedApprovals)
   // surface that could have told a user what pressing it would do next went on
   // describing a press they had already made. Approved, it says the state and the way
   // out of it, which is `z` like every other user gesture.
+  // Why a press is refused now, or null where it approves. A press already in flight
+  // is refused silently: its aria-busy says so.
+  const reason = approved
+    ? "Approved. Press z to take it back while it is still your last gesture"
+    : runtime.currentStamp === null
+      ? "There is no stamped version to approve yet"
+      : !signoff ||
+          !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) ||
+          blockingAsks === null
+        ? "Approval waits until this page has read its current state"
+        : blockingAsks.length
+          ? "Answer every Ask before approving this work"
+          : null;
   approvalFace.present(
     Object.freeze({
-      disabled:
-        !signoff ||
-        approving ||
-        runtime.currentStamp === null ||
-        !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) ||
-        blockingAsks === null ||
-        blockingAsks.length > 0 ||
-        approved,
+      reason: reason ?? (approving ? "Approving this version" : null),
       text: approved ? "✓ Version approved" : "Approve version",
-      title: approved
-        ? "Approved. Press z to take it back while it is still your last gesture"
-        : blockingAsks === null
-          ? "Approval waits until this page has read its current state"
-          : blockingAsks.length
-            ? "Answer every Ask before approving this work"
-            : "Approve this work; the page stays open for follow-up",
+      title: reason ?? "Approve this work; the page stays open for follow-up",
     }),
   );
   repaint();

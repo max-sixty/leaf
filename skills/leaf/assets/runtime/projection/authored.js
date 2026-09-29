@@ -3,8 +3,9 @@
  * upgrade or render it. Those values are inputs to the complete widget projection; no
  * cloned DOM, inverse action, or restoration statement is retained. */
 import { recordedWidgetSelector, stateSpecs } from "../registry.js";
-import { quoteFrom, textNodesUnder } from "../passages.js";
+import { elementReading } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
+import { bodyText } from "../widget-upgrade.js";
 import { authoredRank } from "./model.js";
 
 /* The authored initial condition, read once from validated source before upgrade.
@@ -54,7 +55,7 @@ export function domValue(el, record) {
       .join(" ");
   if (record.kind === "value") return el.getAttribute(record.attr);
   if (record.kind === "position") return el.closest(record.within)?.id ?? null;
-  return quoteFrom(textNodesUnder(el));
+  return elementReading(el);
 }
 
 // `parent` states where a root that is not yet in the document will stand, so the
@@ -70,14 +71,10 @@ export function rememberAuthoredParents(root = document, parent = root.parentEle
 
 // A body record is licensed only for x-content: data, whose validated source is one
 // direct <pre>. Keep the source's words while removing the layout its surrounding HTML
-// needed: one opening newline, trailing whitespace, and the common indentation of its
+// needed: the data body's own trim (`bodyText`), then the common indentation of its
 // nonblank lines.
 function decodeBodyRecord(widget) {
-  const raw = widget
-    .querySelector(":scope > pre")
-    .textContent.replace(/^\n/, "")
-    .replace(/\s+$/, "");
-  const lines = raw.split("\n");
+  const lines = bodyText(widget).split("\n");
   const indents = lines
     .filter((line) => line.trim())
     .map((line) => line.match(/^[ \t]*/)[0].length);

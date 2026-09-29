@@ -24,8 +24,9 @@ leaf package run NAME SCRIPT [ARGS]...
 `package init` creates `registry.json`, `theme.css`, `guidance/`, `runtime/`,
 `widgets/`, and `vendor/` without replacing existing contents. Add `--widget TAG` to
 create one upgraded prose widget at the same time. Leaf adds a valid registry example
-and the matching `widgets/TAG.js` registration/`once` module, checks the resulting
-composition, and leaves a new package's empty theme ready for the widget's presentation.
+and the matching `widgets/TAG.js` module, which registers the element and upgrades it
+`once`; it then checks the resulting composition, and leaves a new package's empty
+theme ready for the widget's presentation.
 An existing theme and other package files remain in place. Leaf refuses a tag or module
 that already exists rather than replacing it. The package author edits that directory,
 then checks its composition before adding the package to a page:
@@ -69,8 +70,8 @@ configuration action; `targeting` lets users select preview elements and submit
 structured, reversible change proposals; `command-hub` adds multi-agent
 orchestration widgets; `pr-review` adds a typed pull-request brief with a safe Markdown
 description and compact checks table, plus a data-backed unified call diff; `monitoring`
-adds a release workspace with current state, checks, a run log, and a bound rollback
-request; `visual-review` adds an ordered website run, aligned before-and-after evidence,
+adds guidance for a release workspace with current state, checks, a run log, and a
+rollback Ask; `visual-review` adds an ordered website run, aligned before-and-after evidence,
 automatic compare orientation, authored focus with full-frame context, local flip and
 overlay, fit and captured-size inspection, exact preview links, and case dispositions. `gallery`
 adds the static gallery of page-edge action controls, disclosure controls, and status
@@ -87,7 +88,7 @@ Every package has the same partial layout:
 ```text
 package/
 ├── registry.json       element declarations and shared $ declarations
-├── theme.css           rules appended to the cascade
+├── theme.css           rules in the layer's shared cascade layer
 ├── shadow.css          rules that also reach declared shadow trees
 ├── guidance/           Markdown guides named for their audiences
 ├── runtime/            browser modules and replacements by vendored path
@@ -99,9 +100,22 @@ package/
 ```
 
 No individual file is required. The kernel supplies the files every complete layer
-needs. Theme files concatenate, and so do shadow files: a declared `x-shadow` root built
-with `shadowStage` receives every package's `shadow.css` in layer order, and the document
-reads each package's `shadow.css` just ahead of its `theme.css`. Runtime, icon, widget,
+needs. Theme files concatenate into one cascade layer, `lf-base`, so a package's rule
+beats the kernel's by specificity and order as it would unlayered, while the Layouts
+and the page's own stylesheet rank above every package rule whatever its specificity.
+A package that declares widgets styles only those widgets: composition narrows each
+rule in its `theme.css` and `shadow.css` to elements that are one of its widgets or
+stand inside one, and in the shadow sheet every declared tree receives, to trees one of
+its widgets hosts. A rule for `p` dresses the paragraphs in its widgets and no other,
+and a rule for the box that holds a widget matches nothing. Composition refuses a rule
+whose subject is `:root`, `html` or `body`, which no widget contains; state a widget's
+tokens on its own element. What several packages' widgets share, such as the pane role
+or a chip row, is the kernel's, and a package without widgets is a theme that reaches
+the whole page as the kernel's does. A widget module's adopted sheet joins the same
+layer. Shadow files concatenate too: a
+declared `x-shadow` root built with `shadowStage` receives every package's `shadow.css`
+in layer order, and the document reads each package's `shadow.css` just ahead of its
+`theme.css`. Runtime, icon, widget,
 and vendor files replace by path. A later package replaces a tag's complete element
 declaration and one member inside a shared `$` declaration. A tag can be added or
 replaced whole, but it has no deletion marker.
@@ -117,7 +131,7 @@ file begins with its first rule rather than a title of its own.
 A widget attaches its own guidance through `x-guidance`, while a data contract may
 carry producer guidance beside its schema. Packages define audiences such as `author`,
 `reviewer`, or `worker`; Leaf does not keep a role list. `leaf page guidance PAGE` lists
-the audiences in the vendored page, and `leaf page guidance PAGE AUDIENCE` composes all
+the audiences in the vendored page as a JSON array, and `leaf page guidance PAGE AUDIENCE` composes all
 three sources. The page author reads the `author` audience when the list includes it;
 that guide ends by naming the page's other audiences, so a package does not point at
 its own.
@@ -152,19 +166,31 @@ under `$idioms` in the package's
 
 A rule that draws a box's inset — padding, border, or tinted field — declares
 `--lf-block-frame: 1` in the same rule. The shared layout uses that declaration to trim child
-margins and bound wide content, and the render gate reports a frame that omits it. The
-runtime exposes declared layout facts as `[data-lf-inline]`, `[data-lf-space]`,
-`[data-lf-measure]`, `[data-lf-bound]`, and `[data-lf-exhibit]`; shared selectors read
-those attributes instead of naming widget tags. The registry's `$keys` entries for
-`x-space`, `x-measure`, and `x-bound` say what each declaration requests; none of them
+margins and bound wide content. The trim follows the frame's edge down through each
+first or last child, so a wrapper between the frame and the margin it trims declares
+nothing. A box that lays its children
+out side by side (a flex row, a grid) declares `--lf-holds-edge: 1`, so the trim stops at
+it rather than taking one item's margin and leaving the others'.
+
+Delivery paints declared layout facts into the served document as `[data-lf-inline]`,
+`[data-lf-space]`, `[data-lf-bound]`, and `[data-lf-exhibit]`; shared selectors read those attributes
+instead of naming widget tags. The registry's `$keys` entries for `x-space` and
+`x-bound` say what each declaration requests; none of them
 chooses the widget's internal layout, which the package arranges inside the allocation.
+How wide the page is, and how its blocks are arranged, is the page's choice, made with a
+Layout class or its own CSS (`page-authoring.md`, "Layouts"); a package's element fills
+the box it is given, and its `x-space` states the width it prefers, which a page may
+override.
+A widget that needs a minimum width to stay usable, such as a board's columns at a
+readable size, states it as `min-inline-size` capped by the box it stands in:
+`min(<its floor>, 100cqi, var(--lf-box-cap, 100vw))`. `100cqi` measures the nearest size
+container, which is the page's shell or a framed box around the widget (a pane's body, a
+card), and a sample, which cannot be one, states `--lf-box-cap`. So in a box
+narrower than the floor the widget scrolls inside itself rather than widening the page.
 When a bounded widget's scroller should be a box inside it, such as a listing under a
 caption that stays in view, the package theme moves the bound there under
 `[data-lf-bound]` and declares `--lf-bound-box: 1` on that box, which is the one Leaf
-keeps on its newest entry. A package whose available surface preserves a drawing's natural
-inline size sets `--lf-natural-inline-size: 1` on that surface so the render gate can
-distinguish honest source overflow from room withheld by the page; Leaf resets the fact
-on every declared surface, so it applies only to the element that states it. A box a
+registers as the block's reading region and keeps on its newest entry. A box a
 package scrolls sideways needs no declaration of its own: the runtime
 measures every scroller on each layout and marks each edge with content beyond it.
 Leaf fades the content at those edges, so a widget that has to scroll says so without
@@ -177,6 +203,8 @@ machine rather than a remote font.
 `body[data-lf-presented]` means the initial authoritative projection, or the deliberate
 offline fallback, is safe for recorded interaction. Authored content is already visible:
 Leaf disables its arrival transitions and durable widget actions before that stamp.
+Printed keys pressed earlier are held and reach the page's key handlers only after the
+stamp lands, in order, so a package's keys need no arrival guard either.
 Package styles need no arrival guard. A package opens a dialog or popover only after that
 stamp or in response to a user gesture; Leaf does not defer top-layer UI during startup.
 A widget that keeps part of its own upgrade off the presentation path — a heavy renderer
@@ -200,17 +228,23 @@ non-empty `description`. Its first plain sentence identifies the widget's purpos
 rest explains its detailed contract. An entry's `x-example` must validate and is the
 markup an author queries with that entry.
 
+A `boolean` attribute is present or absent, as in HTML, so it names what its presence
+means, and the widget's default is its absence: `lf-diff collapsed`,
+`lf-options multiple`, `lf-shot outlines`. A feature a page usually wants is still
+off until the author asks for it, and the guidance that routes to the widget says
+when to ask.
+
 The shipped element declarations are the worked examples. For the keys that reshape a
 widget's role on the page:
 
 | Key                  | Shipped example                                                |
 | -------------------- | -------------------------------------------------------------- |
-| `x-reading-role`     | `lf-workspace`, `lf-pane`, `lf-grid`                           |
+| `x-reading-role`     | `lf-pane`                                                      |
 | `x-required-members` | `lf-swipe-deck` in `swipe`                                     |
-| `x-page-navigation`  | `lf-tabs`                                                      |
 | `x-visual`           | `lf-chart` declares `whole`, `lf-diagram` in `diagram` `parts`  |
 | `x-bound`            | `lf-activity`                                                  |
 | `x-history`          | `lf-activity`                                                  |
+| `x-patch`            | `lf-tabs`                                                      |
 | `x-thread-surface`   | `lf-diff` in `diff`, `lf-visual-review` in `visual-review`     |
 
 A visual with generated part ids declares accepted `x-visual.prefixes` and calls
@@ -292,56 +326,58 @@ value and must be removed when that value returns.
 `widgetController(owner)` is the one semantic interface; callers supply no options.
 Leaf captures the owner's identity and revision-bound declaration before upgrade, so an
 author change to those facts fails closed. Its methods are `read`, `subscribe`,
-`dispatch`, `request`, `defer`, and `present`.
+`dispatch`, `defer`, and `present`.
 
-`read()` returns an immutable `{authored, state, conversation, provenance, actions,
-requests, request, delivery}` snapshot. `authored` is the typed baseline decoded from
+`read()` returns an immutable `{authored, state, thread, provenance, actions}`
+snapshot. `authored` is the typed baseline decoded from
 validated source markup; `state` is that baseline with admitted and unresolved records
-folded over it; `conversation.heldBy` is the unresolved admitted hold root naming this
-widget, or `null`. Each `actions` or `requests` entry carries its availability and
+folded over it; `thread.heldBy` is the `id` of the open, admitted Thread whose root
+holds this widget, or `null`. Each `actions` entry carries its availability and
 exact history or Undo candidates. Guard every optimistic mutation with its entry's
 availability; `dispatch()` repeats the same check.
 
 `subscribe(callback)` invokes immediately, returns cleanup, and should be stopped on
 disconnect; reconnecting subscribes again. For each reading the controller calls the
 module's `renderState(state)` first and these subscribers after. Report-only and quoted
-semantic widgets subscribe too, even with no interactive controls.
+semantic widgets subscribe too, even with no interactive controls. What the declaration
+alone determines, such as a holder's settlement (`x-retired-when`), Leaf paints whether
+or not the module subscribes.
 
-`dispatch({kind: "action" | "request", verb, detail, attempt?})` and
+`dispatch({kind: "action", verb, detail, attempt?})` and
 `dispatch({kind: "undo", target})` return `null` when the newest reading refuses the
 command, otherwise `{reading, delivery}`. The returned reading already holds the
 optimistic result; delivery later yields the admitted event or null, and a refusal
 restores authoritative state. Undo targets only a stable `id` or `attempt` from the
 current entry's candidates. The server remains final admission for every command.
 
-### Reading layouts
+### Reading regions
 
-A structural element declares `x-reading-role` as `workspace`, `pane`, or `grid` and
-keeps `x-content: markup`. A workspace or pane has exactly one direct body element
-between an optional native `header` first and an optional native `footer` last; a grid
-holds its cells as elements. The validator reads roles rather than tag names, and the
-runtime paints each declared role as `data-lf-reading-role`, which the default theme
-lays out, so a package's differently named pane or grid takes the same rules as
-`lf-pane` and `lf-grid`; its module registers the pane's body as described below. The
-page's root workspace is `lf-workspace` itself.
+A pane declares `x-reading-role: pane` and keeps `x-content: markup`: exactly one direct
+body element between an optional native `header` first and an optional native `footer`
+last. The validator reads the role rather than the tag name, and delivery paints it into
+the served document as `data-lf-reading-role`, which the kernel's theme and the
+workspace Layout lay out as a pane from the first paint, so every package's pane takes
+the same rules; its module registers the pane's body as described below.
 
-The default package's theme owns the layout of those roles, bounded posture included:
-whether a workspace holds the window, and so whether each pane's body scrolls or the
-page does, is one container query there, and nothing in a module measures a minimum or
-chooses a posture. The height reaches a pane only through a chain of boxes that pass it
-on, each declaring `--lf-passes-hold: 1` in its theme rule: grids, panes, an Ask of a
-heading and one answer, and a package's own region compound such as a playground. Each
-also declares `min-height: var(--lf-track-min)`, which is `0px` while it is held and
-`auto` otherwise, so it takes its track's height in a bounded workspace and its
-content's everywhere else. A behavior module that composes regions out of boxes it
-generates, such as a playground's controls beside its preview, takes the same rules by
-marking those boxes `data-lf-reading-role="grid"` or `"pane"`, with the pane grammar of
-one header, one body, and one footer. The attribute is the module's to write and never
-an author's, since `version check` refuses `data-lf-` markup. Keep the package theme to
-placement inside that grammar, such as track sizes and chrome; a package copy of a
-bounded rule is a second posture decision that drifts from the first. Generate boxes
-rather than the `lf-pane` or `lf-grid` elements themselves: those are authored words the
-render gate pairs with the file.
+Whether a pane's body scrolls is the workspace Layout's (`layouts.css`). Where the
+window is large enough, the workspace is full-height: it fills the window, and the
+Layout gives its body a definite height, so a pane that is the body or a direct cell of
+it may shrink below its content and scrolls its body; a pane inside a section of the
+body, or inside another pane's body, flows with what holds it, and elsewhere every pane
+takes its content's height. Nothing in a module measures a minimum or chooses a
+posture. While the workspace is full-height, the Layout sets `--lf-full-height: 1` on
+`main`, and a widget that should grow to fill the height it is given, such as a
+playground's stage, keys its rules on `@container style(--lf-full-height: 1)`. A behavior
+module that composes regions out of boxes it generates, such as a playground's controls
+beside its preview, takes the pane rules by marking those boxes
+`data-lf-reading-role="pane"` and `data-lf-generated`, with the pane grammar of one
+header, one body, and one footer. A generated pane scrolls its body wherever it stands in
+a full-height workspace, since its widget sizes it. The attributes are the module's to
+write and never an author's, since `page check` refuses `data-lf-` markup. Keep the
+package theme to placement inside that grammar, such as track sizes and chrome; a
+package copy of the full-height rules is a second posture decision that drifts from the
+Layout's. Generate boxes rather than `lf-pane` elements themselves: those are authored
+words the render gate pairs with the file.
 
 `registerReadingRegion({id, host, body})` binds a region's identity to its host and to
 the body that scrolls it whenever the theme makes it scroll. The host makes focus in a
@@ -370,13 +406,15 @@ moved since (`runtime/reading-place.js`). A widget that adds same-document histo
 entries adds them with `pushEntry(url)` and `replaceEntry(url)`, and places the page
 itself at Back or Forward to one of them by claiming that traversal with
 `claimTraversals(claim, {signal})`. Every other traversal returns the user to the offset
-the entry was left at (`runtime/history.js`).
+the entry was left at (`runtime/history.js`), unless the element the entry's fragment
+names is no longer shown: that one reaches the widget holding it shut as `lf-reveal`
+and lands on it, as a followed link to it does.
 
-A sticky box that covers the top of its scroller declares the room it takes with
-`declareCoverRoom(host, property, covers)`, which keeps `property` on `host` at the
-tallest cover's height for a `scroll-padding` or `scroll-margin` to read, so every
+A sticky header, a sticky box over the top of its scroller, declares the room it takes
+with `declareStickyHeaders(host, property, headers)`, which keeps `property` on `host` at
+the tallest header's height for a `scroll-padding` or `scroll-margin` to read, so every
 landing, native or the runtime's, arrives below it. The same declaration tells the
-runtime that what passes under the cover is not on screen, for read acknowledgement,
+runtime that what passes under the header is not on screen, for read acknowledgement,
 arrival checks, and chrome placement.
 
 A composition allocates a Leaf element's outer box. The package owns how the element's
@@ -397,18 +435,32 @@ continues from there and no `tabindex` is left on the page behind the user. What
 it is a widget's own Escape step landing them back in the thing it took them out of: the
 patch a file filter belongs to, the exhibit a box was about.
 
-A module that takes the user to a conversation calls `openThread(rootId, {focus})`
-with the root comment's id. It opens the thread where the page shows it, inline beside
+A module that moves, hides, or replaces nodes the user may be standing in, as a reorder or
+a re-render does, calls `holdFocus(scope)` before the change and the function it returns
+after it. Moving a focused node drops its focus to the page body; the returned function
+puts the user back on that node, with its caret, or on the first drawn stand-in it is
+passed, such as the replacement keyed on the same identity. It does nothing once focus was
+placed elsewhere in the meantime, and `holdFocus` returns `null` where the user stands
+outside `scope`.
+
+A module that takes the user to a thread calls `openThread(id, {focus})`
+with the Thread's `id`. It opens the thread where the page shows it, inline beside
 its passage or widget, and in Threads when it has no place on the page, the same choice a
 mark and `t` make; `focus: "thread"` lands on the thread and the default `"reply"` lands in
-its reply box. A place on the page is an ordinary fragment link.
+its reply box. A place on the page is an ordinary fragment link; Leaf follows it the
+way it travels to a thread, clearing a panel that covers the page and opening whatever
+holds the element.
 
 A module that names an element away from it, in a feed row or a summary, reads the page's
-shared names rather than its own. `addressableName(element)` is the name the authoring
-contract gives the element: the attribute its entry declares with `x-name`, else a
-leading `<summary>`, heading, or titled member's `<strong>`, inside a leading
-`<header>` too; it is empty where the
-contract gives none, and `addressableSays(element)` is the element's whole words. A
+shared names rather than its own. `addressableLabel(element)` is what the chrome calls
+it: first the name the authoring contract gives it (the attribute its entry declares
+with `x-name`, else a leading `<summary>`, heading, or titled member's `<strong>`,
+inside a leading `<header>` too), else its caption or `aria-label`. An element whose
+words are its own, such as a paragraph or a list item, is otherwise named by those
+words cut short; any other element takes the name of the nearest element holding it
+that has one, so a question's options are named by the question. Past that, plain
+markup is named by its words cut short and a widget by nothing: the label is empty, and
+`addressableWord(element)` is the word for its kind. A
 widget whose title is an attribute, as a column's `label` is, declares `x-name`.
 `anchorLabel(anchor, about)` names a comment's anchor the way Threads does, and
 `markdownWords(text)` is the words a Markdown string renders to.
@@ -473,10 +525,18 @@ surviving key. Keep text fields, history, and other mechanical editing state in 
 widget. Publish only action and status records to the margin, with explicit `element` or
 `entries` relations when a disclosure owns another surface or entry.
 
+A contribution stands in its target's cluster wherever that cluster stands: in the rail
+beside a column page, or as a pin over the page by the target, where an unfolding
+cluster grows leftward. Leaf inserts nothing into the
+page's content for it, so its controls come after the page's content in the tab order;
+the margin's own keyboard routes, `t`, and the Page Map reach them from the target.
+Nothing about the contribution changes with the posture, and a package never places or
+sizes its controls itself.
+
 ### Following a reference
 
 A module reaches another widget through an attribute its entry declares in `x-refers`
-(External requests and receipts, below) rather than looking the id up itself. Leaf
+(References between widgets, below) rather than looking the id up itself. Leaf
 resolves the attribute in the owner's own authored document first, so a widget in a
 reply finds its message's element before a page element with the same id, as the server
 does, and then in the page, which a reply's widget may name. Both verbs below
@@ -488,8 +548,8 @@ whatever its `lfElementsFor(key)` maps to elements under itself. `lf-code` answe
 `hi` grammar, so `"3-5,8"` addresses those lines.
 
 `navigateToDatum(widget, attribute, key, messages)` travels to the first element a key
-addresses. Leaf resolves declared shadow trees, asks the target to hydrate lazy data,
-opens its containing disclosure, focuses that disclosure, updates the fragment, and
+addresses. Leaf resolves declared shadow trees, asks the target to hydrate lazy data or
+draw a visual part it shows only in another state, opens its containing disclosure, focuses that disclosure, updates the fragment, and
 announces the supplied `success` or `missing` message. A lazy target may implement
 `lfRevealDatum(key)` to return its hydration promise and `lfDataDatum(key)` to map a
 semantic key to the rendered projected element.
@@ -565,7 +625,7 @@ contract passes `true` as `offer()`'s fifth `pressable` argument; its tag then s
 same addressable marker as a native control.
 
 When the scope belongs to an Ask, `options.answer` may read its concise current answer for
-the answered row in the Asks tray. Leaf normalizes whitespace and bounds the displayed
+the answered row in the Asks drawer. Leaf normalizes whitespace and bounds the displayed
 answer; the package owns its meaning and words. Attach the answer reader to one stable scope
 owned by the Ask, even when several descendant scopes contribute controls. Answer metadata
 stays readable after a scope's availability condition closes, while the command rows remain gated.
@@ -574,10 +634,11 @@ Register the command once, not every nearby button. Evidence nested inside an
 option is not an answer, and a shared-margin entry may sit outside the Ask source. When
 controls or availability change, keep the row fields computed and call `paintKeys()`;
 every command projection then updates together. A package that needs the page-wide open
-Ask set calls `watchAsks(owner, callback)`. It invokes `callback(openAsks)`
-immediately, invokes it again after one complete Ask projection replaces another, binds
-the subscription lifetime to `owner`, and returns an explicit cleanup function. Each
-Ask is an immutable `{id, tag, sourceId, sourceTag, conversation}` record; resolve a node only
+Ask set calls `watchAsks(owner, callback)`. It invokes `callback(openAsks)` on the
+microtask after subscribing and again after each state change, at most once per
+microtask and possibly with an unchanged set; it skips calls while `owner` is
+disconnected, and returns a cleanup function the owner calls on disconnect. Each
+Ask is an immutable `{id, tag, sourceId, sourceTag, thread}` record; resolve a node only
 to present or focus it, never to decide membership or answered state. The set is empty
 until the page's first server reading is admitted, and it changes with each later
 reading rather than when a gesture is sent, because only the log says which authored
@@ -594,19 +655,32 @@ choice the command reference does not have, such as a generated hint tied to the
 optional `reach` on a row or scope supplies the short place phrase shown when a command
 is not available (for example, `in an open draft editor`).
 
-A widget-owned composition box uses `wireInput()`. It registers Enter for the
-contextual action on physical keyboards and leaves Shift+Enter as a newline. On touch
-keyboards, Enter stays a newline and the visible control submits; Mod+Enter is also
-available where a modifier key exists. The helper also owns shared draft persistence,
-busy state, and shortcut projections. A direct editor that needs more commands, such as
-Save and Cancel, registers those rows on its textarea with the same text-entry meanings.
+A list of focusable rows takes its walk from `rowWalk({id, noun, plural, rows})`, whose
+two returned rows go into the list's own scope: ArrowUp and ArrowDown step and clamp,
+Home and End reach the ends, and each landing shows its position, such as `Option 3 of
+7`. `rows()` returns the list as it stands at each press.
+
+A widget-owned composition box is the runtime's text field, `offer(TEXT_FIELD)` from the
+widget API: a Markdown editor that shows the draft the way the sent message will read
+and answers the textarea members a box needs (`value`, the selection, `placeholder`,
+`readOnly`, `name`, `aria-label`), firing `input` for the user's edits only. Wire it
+with `wireInput()`, which registers Enter for the contextual action on physical
+keyboards and leaves Shift+Enter as a newline. On touch keyboards, Enter stays a newline
+and the visible control submits; Mod+Enter is also available where a modifier key
+exists. The helper also owns shared draft persistence, busy state, and shortcut
+projections. A direct editor that needs more commands, such as Save and Cancel,
+registers those rows on its box with the same text-entry meanings. `TEXT_BOX` matches
+the text field and any native textarea, for code asking whether an element takes typed
+paragraphs.
 
 The call returns the box's one seam onto its draft, and a box holds more than its
 `.value`: an image pasted into one is kept as Markdown and shown as a thumbnail beside
-the words, never in the textarea. So `sync.value()` reads the whole draft, `sync.load()`
+the words, never in the field. So `sync.value()` reads the whole draft, `sync.load()`
 replaces it — a stored record, a draft arriving from another tab, the emptiness a send
-leaves — and `sync()` repaints the send button and placeholder around whatever stands.
-Write `.value` only to seed the box before wiring it.
+leaves — and `sync()` says the box's standing changed. The send button, placeholder, and
+whatever the widget's own `paint` option draws from the box repaint once, in the
+runtime's next standing paint, before that frame shows. Write `.value` only to seed the
+box before wiring it.
 
 ## User state
 
@@ -654,7 +728,7 @@ coordinates stand side by side. Swiping a card again therefore replaces that car
 earlier verdict, while verdicts on different cards coexist. `unit` is `"widget"` for a
 verb that states the whole widget's value at once, or the detail field naming the
 element it is per. `record` says how the standing state reads in markup: here, the
-card's position inside a pile. `version check` refuses a version that contradicts
+card's position inside a pile. `page check` refuses a version that contradicts
 it without `restated`, and `authoring-revisions.md`, "Honor user state", says which
 record forms the agent's next version writes back. The `$keys`
 entries in `assets/registry.json` define each key exactly.
@@ -682,41 +756,23 @@ two required fields with no record form. Each added child therefore stands on it
 coordinate: a later action of another verb leaves it in place, and undoing the `add`
 removes it. The child tag admits the sender through `x-owners`, requires only its
 canonical `id`, and has `x-content: markup`. The append door refuses an id the sending
-document already holds, and version checks enforce the declared tag and
+document already holds, and `page check` enforces the declared tag and
 direct-ownership relation once an author writes the child into the markup.
 
 A verb whose state the agent writes rather than the user declares `"writer": "agent"`
-beside its `detail`, `unit`, and `record`. A worker posts it with `leaf report`, the
-page paints it live, and it stands until a version answers it; the user has no control
-for it. Its record is required and may not be `body`, and it may name the detail field
+beside its `detail`, `unit`, and `record`. A worker posts it with
+`leaf page report`, the page paints it live, and it stands until a version
+answers it; the user has no control for it. Its record is required and may not be `body`, and it may name the detail field
 carrying its short human-readable news with `update`. Every verb has exactly one
 writer, so a coordinate never holds a user's action and an agent's report at once.
 Command Hub's `lf-task` `status` is the shipped example, and a widget declaring such a
 verb also declares the boolean `overruled` attribute a version keeps its own state
 with. A worker that reacts to the user's actions follows them as they land with
-`leaf events PAGE --follow`.
+`leaf page events PAGE --follow`.
 
-## External requests and receipts
+## References between widgets
 
-Use `x-request` when a user asks the host to perform a consequential one-shot
-operation. Leaf records and validates the instruction; it never interprets the verb or
-calls a provider. The package owns the verbs, controls, presentation, and guidance that
-tells the host how to execute and recover them.
-
-`offers` maps each direct child widget to the string-enum attribute that names its verb.
-Every live request holder must contain at least one matching direct child and may offer
-each verb only once; two differently worded controls that send the same instruction
-cannot produce distinguishable requests. When a later revision has carried out the
-instruction, remove the holder rather than leaving an empty Ask with no possible answer.
-`verbs` gives each operation a closed detail schema. Optional `bind` entries require a
-detail field to equal an authored string attribute on the holder, so a crafted event
-cannot retarget the operation. Every bound detail field and holder attribute is required,
-string-valued, and immutable through `x-state`; every offer attribute is a
-required string enum on its child. These constraints make the same declaration usable at
-authoring, browser, and server boundaries rather than leaving a partial bind to runtime
-guesswork.
-
-Use `x-refers` when those authored attributes point at other page objects. Its value is
+Use `x-refers` when authored attributes point at other page objects. Its value is
 a map from attribute names to target contracts. `{}` accepts any existing element id.
 A typed contract uses `via` to name a package-owned shared registry map and `where` to
 match a declaration there:
@@ -734,112 +790,13 @@ Leaf validates the generic relation; the package owns the map, roles, and partic
 widget tags. A later package can therefore add another goal or worker widget by merging
 its entry into `$command.widgets`, without changing core.
 
-Set `ask: true` when the ready operation is a question the user must answer; the
-`$keys` entry for `x-request` gives the lifecycle that Ask follows.
-
-```json
-{
-  "x-request": {
-    "ask": true,
-    "offers": { "lf-operation": "verb" },
-    "verbs": {
-      "restart": {
-        "detail": {
-          "type": "object",
-          "properties": { "target": { "type": "string" } },
-          "required": ["target"],
-          "additionalProperties": false
-        },
-        "bind": { "target": "target" }
-      }
-    }
-  }
-}
-```
-
-The module imports `defineRequestElement` from `/runtime/widget-api.js` for the
-ordinary request-row shape. The package supplies its control, command, and status
-words while the shared element wires each offered child into the server-projected
-request seat, registers its answer, and paints its lifecycle. A package that needs
-another control shape uses the same widget controller: request entries carry
-availability, `request` carries the seat lifecycle, and `dispatch({kind: "request",
-verb, detail})` sends it.
+## Page history
 
 A widget that renders the page's history declares `x-history` and reads it through
 `watchHistory(owner, callback)`: the server's rows, newest first, each already
-carrying its thread, whether it was undone, and a gesture's words as the document it
-was made in had them. The widget words those facts; it does not fold the log.
-
-```js
-defineRequestElement("lf-operations", {
-  itemTag: "lf-operation",
-  controlText: "Do this",
-  commandContext: "On a host operation",
-  commandPrefix: "operation",
-  commandText: (label) => ({
-    decision: label,
-    does: `Request ${label.toLowerCase()}`,
-    line: `request ${label.toLowerCase()}`,
-  }),
-  detail: (holder) => ({ target: holder.getAttribute("target") }),
-  statusText: (request, receipt) => {
-    const operation = request.action.replaceAll("-", " ");
-    return receipt
-      ? `${operation} ${receipt.status} · ${receipt.text}`
-      : `${operation} requested · waiting for the host`;
-  },
-});
-```
-
-The host runs a request as the handling delivered with it says. Its id is unique
-within its page rather than across pages, so a host keying an external operation on it
-pairs it with the page.
-External evidence produced by the operation belongs in typed page data; the authored
-page changes only when the author saves the resulting plan revision.
-
-For controls projected from data rows, declare `records` on the data contract as its
-top-level array and each row's stable string key. Set `x-request.records` to the
-widget's `x-data` input name. Each verb then declares `unit`, a required detail field
-bound to that record key; `bind` maps other required string detail fields to required
-string fields on the record. The module renders its controls with `projectData`, reads
-`widgetController(holder).request(key)` for that row's reading and dispatch. It sends
-the row detail; Leaf stamps the request with the seat's source revision.
-The verbs are offered once by the projected holder; it has no authored offer children.
-The module gives each generated control a keyboard route.
-
-The append door checks the record and every bound field in the source's current value
-at that revision. A press made before the source was replaced is refused as stale.
-Pending, failed, and completed attempts
-belong to the document, owner widget, and record key, so one row cannot lock another.
-For `ask: true`, the holder contributes one Ask while any displayed row is ready. It
-does not add an Ask for every row; the page's heading names the set of choices.
-
-```json
-{
-  "$data": { "contracts": { "jobs": {
-    "description": "Jobs the host may restart.",
-    "records": { "items": "rows", "key": "id" },
-    "schema": { "type": "object", "properties": { "rows": {
-      "type": "array", "items": { "type": "object", "properties": {
-        "id": { "type": "string" }, "state": { "type": "string" }
-      }, "required": ["id", "state"] }
-    } }, "required": ["rows"] }
-  } } },
-  "lf-jobs": {
-    "x-data": { "jobs": { "contract": "jobs", "source": "source" } },
-    "x-request": {
-      "records": "jobs",
-      "verbs": { "restart": {
-        "unit": "target",
-        "detail": { "type": "object", "properties": {
-          "target": { "type": "string" }, "state": { "type": "string" }
-        }, "required": ["target", "state"], "additionalProperties": false },
-        "bind": { "target": "id", "state": "state" }
-      } }
-    }
-  }
-}
-```
+carrying its thread, whether it was undone, the name an agent's row is shown under
+as `agent`, and a gesture's words as the document it was made in had them. The
+widget words those facts; it does not fold the log.
 
 ## External or derived data
 
@@ -925,7 +882,7 @@ directory, and `data.json` records the contract each source id was first set und
 atomically; a rejected value leaves the file untouched. Once a source has been set,
 any process may rewrite its file with plain JSON. Every reading validates the file
 against the contract, so a value that fails it reaches users as that source's error
-rather than as data, and `version check` and `page state` report it. Tabs hear a
+rather than as data, and `page check` and `page state` report it. Tabs hear a
 rewritten file as they hear any other page change.
 
 A source's revision is a digest of its file's bytes, and its `updated` instant is the
@@ -1010,14 +967,16 @@ The callback receives `null` while the source has no readable value, otherwise a
 of `{source, contract, revision, updated, value, origin}`. `revision` identifies the
 value itself, so a renderer can distinguish two writes even when their wall clock
 timestamps coincide. It runs immediately and again when that source revision changes.
-A value that fails its contract is delivered as `null`; `page state` and `version check`
+A value that fails its contract is delivered as `null`; `page state` and `page check`
 report why.
 Return the cleanup function from the element's disconnect path. The callback must
 state the whole rendering and remain idempotent.
 
 Time readings made synchronously in controller, `watchData`, `watchUpdates`, and
-`watchHistory` callbacks subscribe that paint to Leaf's shared clock. Calls to `ago`
-and `quietSince` refresh the callback only when their result changes. `quietSince(ts)`
+`watchHistory` callbacks subscribe that paint to Leaf's shared clock. Calls to `ago`,
+`shortAgo` and `quietSince` refresh the callback only when their result changes. `ago(ts)`
+says how long ago `ts` was as the page words it everywhere ("2h ago"), and `shortAgo(ts)`
+is the same reading for a tight seat ("2h"). `quietSince(ts)`
 says whether working last heard at `ts` has gone unheard past the server's working
 grace, the same bound the page's own activity reads. For another
 rounded time reading, use `clockValue((now) => reading)`, whose `now` argument is the
@@ -1036,23 +995,28 @@ path segments are object keys or array indices. A formatted or parsed record may
 name its whole input. This identifies construction inputs, not an inverse edit mapping.
 
 Render the value with `projectData(root, records, keyOf, render, options)`. The root is an
-id-bearing authored seat and owns the projection's children. `keyOf` returns a stable
-non-empty string for the logical datum; `render` receives
+id-bearing authored seat and owns the projection's children. `keyOf` returns a
+non-empty rendering key, unique in that projection; `render` receives
 `(record, priorNode, index)` and returns its element, reusing `priorNode` where that
 preserves a focused control or selection. Leaf marks those words as readable data
-rather than authored prose, reconciles their order, and keeps comments attached by the
-projection/key pair even when a refresh replaces the text nodes. A renderer
+rather than authored prose and reconciles their order by key. A renderer
 that owns a nested layout passes `{nested: true}` and returns its existing descendants;
-Leaf labels those nodes without moving them. Add `labelOf(record, index)` when a thread
-should name a projected datum with a human coordinate; the stable key remains opaque to
+Leaf labels those nodes without moving them, and the module orders each container with
+`setChildren(parent, nodes)`, which moves only what is out of place and keeps the user
+in a node it moves. Add `labelOf(record, index)` when a thread
+should name a projected datum with a human coordinate; the rendering key remains opaque to
 the runtime. A widget declaring `x-data` passes `{snapshot}` with the delivery from
 `watchData`, including `null` when no current value exists. Leaf stamps the projection
-with that snapshot's source and revision. A comment remains exact only within that
-source revision. Replacing the value leaves the thread in its section and marks it
-outdated. Derived projections
-omit `snapshot` and retain their section/key identity. If a `watchData` callback renders
-asynchronously, it returns that promise so Leaf publishes the source revision as ready
-only after the projection settles. A rejection is reported as that subscriber's page
+with that snapshot's source and revision. Pass `identify(record, index)` when the
+emitter can name the same subject across source replacements. Its non-empty string
+need not equal the rendering key and must be unique within the projection; a comment
+follows that subject and retains the quote from the value the user saw. A reused
+identifier for a new subject needs a new identity. Other projected keys remain exact
+only within the captured revision; replacing that value marks their placement outdated.
+Derived projections omit `snapshot`
+and retain their section/key identity. If a `watchData` callback renders asynchronously,
+it returns that promise so Leaf publishes the source revision as ready only after the
+projection settles. A rejection is reported as that subscriber's page
 error; it does not make later state
 reads repeat the same page-wide failure. A rejection from the callback's first run is
 stronger: Leaf drops that subscription, so the callback is not asked to restate again
@@ -1064,26 +1028,85 @@ store can instead name their contributing widget seats as `{derived: [{widget: i
 Leaf never infers them from displayed
 text or datum keys.
 
-## Widget-local Thread surfaces
+## Reading and opening Threads from a widget
 
-A widget declares `"x-thread-surface": true` to place complete Thread UI beside its
-own projected data. `consumeThreads(owner, render)` registers one consumer per Element
-and returns a handle with `read()`, `reveal(key)`, `update()`, `open(datum,
-{origin})`, and `unregister()`. The callback receives the same immutable collection
-the built-in Threads panel reads, `{phase, threads, done}`, on its initial
-presentation and on later publications and placement updates. `readThreads()` returns
-that collection outside a surface; `threadTurns(thread)` selects a Thread's displayed
-turns and `threadSummary(thread)` its topic, turn count, and `latest`. For whether a
-Thread waits on the user, read unresolved `attention.kind === "needs_user"`, which
-includes recovery after a failed response, rather than the raw `awaits_user` turn
-flag. Each Thread's `key` survives admission of a pending gesture, and its `anchor`
+`readThreads()` returns the same immutable `{phase, threads}` collection the
+Threads panel reads. `threads` contains conversations; a bare reaction record without
+a spoken turn is not a listed Thread. `watchThreads(owner, callback)` calls a connected
+widget with that collection initially and after relevant application updates; it returns a stop
+function for `disconnectedCallback`. Each widget keeps its own search, filter, and
+order state and derives its displayed rows from the collection. `threadTurns(thread)`
+selects a Thread's displayed turns, and `threadSummary(thread)` gives its topic and
+latest activity. An agent-authored message or closing event carries `agent`, the
+name it is shown under. `openThread(thread.id)` takes the user to Leaf's canonical
+conversation surface for that Thread. The widget does not need to render or own the
+conversation to provide that route.
+
+`threadActions` lets a package add its own controls over the current Thread reading
+and Leaf's optimistic event path:
+
+```js
+threadActions.reply(thread.key, text);
+threadActions.resolve(thread.key);
+threadActions.reopen(thread.key);
+threadActions.toggleReaction(thread.key, agentMessage.id, token);
+```
+
+Each method returns `null` when the current reading does not offer that action,
+otherwise a promise resolving to the admitted event or `null` if admission refuses it.
+The action changes `readThreads()` immediately; the server remains final. A reply
+requires non-empty text. A reaction requires an addressable agent message and a token
+in the current layer's vocabulary; pressing an already standing token takes it back.
+Use the Thread's stable `key`, which survives admission of a locally opened Thread.
+Leaf's reply editors keep one durable draft per Thread; a package input retains its
+own draft.
+
+## Rendering Threads in a widget
+
+`mountThreadViews(owner, render)` lets a package supply containers for Leaf's core
+conversation view. It registers one consumer per Element and returns a handle with
+`read()`, `update()`, and `unregister()`. The callback receives the same immutable
+Thread collection as `readThreads()` on its initial presentation and on later
+publications. A Thread waiting on the user has unresolved
+`attention.kind === "needs_user"`, which
+includes recovery after a failed response; `"waiting"` means it is with the agent.
+A Thread's `id` is the name Asks and workflows give it; its `root` is the first
+message it still holds, whose id differs where the log lost the opening message.
+Each Thread's `key` survives admission of a pending gesture, and its `anchor`
 names the `section` (the widget's id) and `datum` it rests on. A returned promise
-participates in document presentation. The second argument's `signal` is aborted when
-presentation fails, a newer render supersedes it, or the consumer unregisters;
-asynchronous callbacks check it before changing their UI. The owner unregisters on
-disconnect.
+delays that widget's mirror repaint without holding up Leaf's panel, margin, or
+read presentation. The second argument's `signal` is aborted when a newer render
+supersedes it or the consumer unregisters. Asynchronous callbacks check it before
+changing their UI. The owner unregisters on disconnect.
 
-The callback selects its Threads and hands each an outlet it owns. Here
+For a Thread list or dashboard, `surfaces.render(thread.key, outlet)` shows a
+conversation in an Element inside the widget. Each widget chooses its own Threads,
+containers, filters, and order. Several widgets may render the same Thread, and
+removing one does not remove another's view. These are mirrors: they do not take the
+Thread away from its page or margin position. Leaf renders the messages, reply editor,
+reactions, resolution controls, and receipts. An authored message's interactive
+widgets open in the Threads panel, as they do from other inline Thread views.
+
+```js
+this.threads = mountThreadViews(this, (collection, surfaces) => {
+  for (const thread of collection.threads) {
+    const outlet = this.outletFor(thread.key);
+    if (outlet) surfaces.render(thread.key, outlet);
+  }
+});
+```
+
+The widget owns outlet creation and layout. Leaf requires every outlet to remain
+inside its owner, and a consumer may render each Thread only once per callback.
+The handle's `update()` requests a new render after a local layout change.
+
+## Widget-local Thread placement
+
+A widget declares `"x-thread-surface": true` to place Thread UI beside its own
+projected data. Use `consumeThreads(owner, render)` with
+`surfaces.place(thread.key, outlet)` for an exact datum and
+`surfaces.placeComposition(outlet)` for its active composer. The callback
+selects its Threads and hands each an outlet it owns. Here
 `this.outletFor` stands for the widget's own method, which finds or creates the outlet
 element beside the datum and returns `null` when the datum is not displayed
 (`lf-diff`'s `threadOutletFor` is the worked example):
@@ -1106,10 +1129,9 @@ widget, otherwise `null`; `placement.datumElement` is the rendered datum.
 `composition` supplies the equivalent placement for the active composer, which may
 precede any Thread. The widget owns outlet creation, removal, and layout.
 Leaf validates target ownership and outlet containment before committing placements.
-Core moves its
-one composer node or renders retained messages, replies, reactions, settlement controls,
-and receipts into each outlet. A claimed thread does not
-also appear in the margin projection; the Threads panel remains the complete index. With
+Core moves its one composer node or renders retained messages, replies, reactions,
+settlement controls, and receipts into each outlet. A claimed thread does not also
+appear in the margin projection; the Threads panel remains the complete index. With
 Threads closed, `t`/`T` lands on this local surface before trying the margin-projection
 fallback. Clicking the Threads toggle from the focused surface carries the same thread
 into the panel.
@@ -1123,7 +1145,7 @@ If a callback throws, Leaf reports a page error, clears that registration's core
 views, and returns its threads to the margin. Other registrations continue, and the
 next ordinary reconciliation retries the consumer. Outlets must remain inside their
 widget after the callback completes; disconnected outlets claim no threads. Core message-rendering
-errors still fail the state application rather than accepting a partial conversation.
+errors still fail the state application rather than accepting a partial thread.
 
 The registration handle's `open(datum, { origin })` accepts one projected element owned
 by the widget. Core captures its full datum coordinate, including external-data source
@@ -1133,9 +1155,9 @@ Escape may return focus. Widgets do not receive draft, submission, or event APIs
 
 ## Seeing it
 
-After the re-vendoring sequence in `serving-pages.md` restores the recorded URL, run
-`leaf version check <page> --render` on the version that uses the replacement
-layer. Note the re-vendor in the next stamped version's changelog.
+After `leaf page init` re-vendors the page (`serving-pages.md`, "Re-vendoring and
+layer epochs"), run `leaf page check <page> --render` on the version that uses
+the replacement layer. Note the re-vendor in the next stamped version's changelog.
 
 The render gate is where a module's mistakes surface — an upgrade that defines no element, a widget of no
 size, a `x-verbatim` the rendered words contradict, a shadow root the declaration doesn't

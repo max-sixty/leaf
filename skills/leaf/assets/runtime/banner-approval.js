@@ -1,13 +1,21 @@
-/* The Lit-rendered face inside the banner shelf's stable native approval button. The
+/* The Lit-rendered face inside the banner toolbar's stable native approval button. The
  * shelf owns the button's identity and position; this owner paints one complete approval
- * reading without replacing the control a user may be holding. */
+ * reading without replacing the control a user may be holding.
+ *
+ * A reading that refuses the press says why (`reason`), and the control stays where the
+ * user can ask it: `aria-disabled` rather than native `disabled`, so Tab still reaches it
+ * and a screen reader reads the reason as its description, and a press is refused by the
+ * banner's handler, which shows the reason in the status line. Native `disabled` left
+ * the reason in `title` alone, which a keyboard user never reached, since Tab skipped the
+ * control, and a finger never sees. */
 import { LitElement, html } from "../vendor/browser-runtime.js";
+import { keeps } from "./keeps.js";
 
 const TAG = "leaf-banner-approval-face";
 const INITIAL = Object.freeze({
-  disabled: true,
+  reason: "Approval waits until this page has read its current state",
   text: "Approve version",
-  title: "Approve this work; the page stays open for follow-up",
+  title: "Approval waits until this page has read its current state",
 });
 
 class BannerApprovalFace extends LitElement {
@@ -30,11 +38,18 @@ class BannerApprovalFace extends LitElement {
     if (this.isConnected) this.performUpdate();
   }
 
+  // Whether a press is refused, and the words that say why.
+  get reason() {
+    return this.model.reason;
+  }
+
   updated() {
     const control = this.parentElement;
     if (!(control instanceof HTMLButtonElement)) return;
-    control.disabled = this.model.disabled;
-    control.title = this.model.title;
+    const { reason, title } = this.model;
+    keeps(control, "aria-disabled", reason ? "true" : null);
+    keeps(control, "aria-description", reason || null);
+    keeps(control, "title", title);
   }
 
   render() {

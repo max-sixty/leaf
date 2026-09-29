@@ -1,12 +1,12 @@
 /* Version travel, comparison, and user continuity.
  *
- * `renderVersions` supplies the immutable chooser reading. `prepareActivation` installs
+ * `renderVersions` supplies the immutable picker reading. `prepareActivation` installs
  * a live revision; `goActive` also returns from a pinned document, while `goVersion`
  * opens a historical `?pin` address. The controller receives application and travel
  * capabilities before mount binds listeners; `installArrival` restores continuity once
  * the arriving geometry is ready.
  *
- * The chooser owns the complete version list. Its focused row selects the comparison
+ * The picker owns the complete version list. Its focused row selects the comparison
  * base; the row for the displayed version clears comparison. Block marks show changes,
  * and `inlineComparison` / `toggleInlineComparison` disclose a block's text diff on
  * request. `comparisonBase`, `comparisonChanges`, and `closeVersionMenu` serve other
@@ -17,7 +17,8 @@
  * fresh document. Prose, styles, and media can change without reloading. Served identity
  * is captured before upgrade, including per-widget authored digests: upgraded DOM cannot
  * supply those baselines. The patch retains unchanged widgets and recaptures replaced
- * widgets against the arriving source.
+ * widgets against the arriving source. A widget declaring `x-patch: members` is
+ * patched inside its members instead, while the revision keeps its shell.
  *
  * Composition, unresolved delivery, and an open version menu defer either install.
  * Ending composition releases its hold on the next heartbeat; pressing the newest-version
@@ -46,8 +47,8 @@
  * fetched again. Reading position is restored even after a patch because content above
  * it may have changed height.
  *
- * `versionsOffered` controls the destination, chooser, and button; `versionsToWalk`
- * controls the menu's local scope. Keep chooser rows available wherever the menu can
+ * `versionsOffered` controls the destination, picker, and button; `versionsToWalk`
+ * controls the menu's local scope. Keep picker rows available wherever the menu can
  * open, including when the platform dismisses it. Scopes sharing a title merge their
  * rows; an unavailable contributor supplies none.
  */
@@ -62,7 +63,6 @@ import {
 import { captureCarry, restoreCarry } from "./carry.js";
 import { retainUserIntent } from "./user-intent.js";
 import { patchTree } from "./dom-children.js";
-import { letGo } from "./focus.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
 import { commandShortcut } from "./keyboard/control-keys.js";
 import { focused, keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
@@ -79,7 +79,6 @@ import {
 } from "./passages.js";
 import { registry, stateSpecs, tagsDeclaring } from "./registry.js";
 import { prepareDeclaredInlineMarkdown } from "./markdown.js";
-import { targetElement } from "./resolved-target.js";
 import { pageScroller } from "./scrolling.js";
 import {
   containingReadingRegionFor,
@@ -87,22 +86,25 @@ import {
   readingPosture,
   readingRegionFor,
   readingRegions,
+  recentReadingRegion,
   scrollersSettled,
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
-import { LIVE_ROOT, PAGE_SCOPE, tabStore, versionUrl } from "./storage.js";
+import { LIVE_ROOT, PAGE_SCOPE, tabStore } from "./storage.js";
 import { alignInlineText } from "./text-alignment.js";
-import { el, keeps, layoutChanged, quoted, reveal } from "./widget-elements.js";
-import { showNews } from "./banner-shelf.js";
+import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";
+import { keeps } from "./keeps.js";
+import { returnToBannerControl, showNews } from "./banner-toolbar.js";
 import { allButCommandReference, pageScope } from "./keyboard/register.js";
 import { pointerAt, restorePointer } from "./pointer.js";
 
 import { reportPageError } from "./layer-client.js";
 import { projectView, readApplication } from "./semantic-state.js";
 
-import { anchoringIsReady, fragmentId, resolveAnchor } from "./anchor-resolution.js";
-import { beginWalk } from "./walk-position.js";
+import { ADDRESSABLE, anchoringIsReady, fragmentTarget } from "./anchor-resolution.js";
+import { scrollToFragment } from "./anchor-travel.js";
+import { rowWalk } from "./walk-position.js";
 import {
   domValue,
   rememberAuthoredParents,
@@ -110,7 +112,7 @@ import {
   stateCoordinate,
 } from "./projection/authored.js";
 import { whenApplicationRegionsPresented } from "./semantic-state.js";
-import { MARKED_IN_PAGE, markDeclared, settlePageInterface } from "./presentation.js";
+import { settlePageInterface } from "./presentation.js";
 import { runtimeRootState } from "./root-state.js";
 import {
   commitWidgetDescriptors,
@@ -120,10 +122,10 @@ import {
   latestChip,
   latestVersionLabel,
   versionBtn,
-  versionChooser,
+  versionPicker,
   versionMenu,
   versionMenuIsOpen,
-} from "./version-chooser.js";
+} from "./version-picker.js";
 import {
   importWidgets,
   patchDocument,
@@ -131,6 +133,7 @@ import {
   rememberPassageParts,
 } from "./widget-loader.js";
 import { under } from "./shadow.js";
+import { keepPageRulesOffLayer } from "./page-sheets.js";
 import { replaceEntry } from "./history.js";
 import {
   blocksOnScreen,
@@ -176,11 +179,7 @@ const versionedHeadNode = (node) =>
     node.localName === "base" ||
     (node.localName === "meta" &&
       (node.hasAttribute("name") || node.hasAttribute("property"))) ||
-    (node.localName === "link" &&
-      !(
-        node.rel === "stylesheet" &&
-        new URL(node.href, document.baseURI).pathname === "/theme.css"
-      )));
+    node.localName === "link");
 // This document as its author wrote it, kept inert beside the page it became. A patch
 // applies the difference between two revisions, so it needs the revision the page is
 // standing on as source — not the page, which by then carries a tokenizer's spans, a
@@ -242,11 +241,11 @@ export function createVersionController({
   const VIEW_KEY = "lf-view";
   const HANDOFF_KEY = "lf-revision-handoff";
 
-  // ---------- the version chooser ----------
+  // ---------- the version picker ----------
   // Version facts are selectors of the accepted application reading.
   const stamped = (version) =>
     runtime.versions.find((candidate) => candidate.version === version);
-  // The version chooser: a press that says which version this is, and a menu that says
+  // The version picker: a press that says which version this is, and a menu that says
   // what each one was and what it changed. It was a <select>, and the two things that
   // cost were both the control's rather than the styling's. A select takes its inner
   // height from Chrome's own metrics and refuses line-height, so it could never stand
@@ -267,7 +266,7 @@ export function createVersionController({
   // Keep it to one stable version token (or Draft) through disclosure and comparison;
   // those states remain in the menu, class, title, and accessible name. A state arriving
   // on the poll therefore cannot resize this control and displace controls to its left.
-  // The chooser view reserves this compact token range once at load.
+  // The picker view reserves this compact token range once at load.
   const currentVersionToken = () =>
     runtime.currentStamp === null ? "Draft" : `v${runtime.currentStamp}`;
 
@@ -289,27 +288,28 @@ export function createVersionController({
     runtime.active !== null &&
     runtime.currentRevision !== null &&
     runtime.active.revision !== runtime.currentRevision;
-  // A menu is a transient reading of the chooser, not a layer over the next control a
+  // A menu is a transient reading of the picker, not a layer over the next control a
   // user Tabs to. Its comparison checkboxes are real internal Tab stops, so offer an
   // exit only from the boundary control in the direction being travelled. The native row
   // below closes the menu first and then leaves the browser to complete that same Tab.
-  const atVersionBoundary = (end) => versionChooser.atBoundary(end);
+  const atVersionBoundary = (end) => versionPicker.atBoundary(end);
 
   // The browser owns top-layer state, light dismissal and the handback. What it restores
   // focus to on a hide is the element that had it when the popover showed — not the
   // `source`, which buys the anchor and the invoker relationship and nothing about focus
   // — so every door into this menu shows it from the button, and a pointer press that
   // lands on the button gets it back. Escape is Leaf's, and the menu's own row performs
-  // the whole of it: the close, and then the page the menu stood over, which is where a
-  // layer's one step lands the user rather than on the chooser in the banner. Scoping
-  // the platform handback to its door rather than to the state is what keeps it off a
-  // light dismissal, which restores nothing on purpose: a user who pressed away into
-  // the page is left where they pressed.
+  // the whole of it: the close, and then the menu's parent. The picker stands in More,
+  // so the menu opens from inside More and a layer's one step lands the user back there,
+  // on the picker, whichever route opened it. Scoping the platform handback to its door
+  // rather than to the state is what keeps it off a light dismissal, which restores
+  // nothing on purpose: a user who pressed away into the page is left where they
+  // pressed.
   function closeVersionMenu() {
-    versionChooser.close();
+    versionPicker.close();
   }
 
-  const numberedVersionRoutes = () => versionChooser.numberedRoutes();
+  const numberedVersionRoutes = () => versionPicker.numberedRoutes();
   const OPEN_NUMBER = {
     id: "version.open-number",
     keys: () => numberedVersionRoutes().map(({ binding }) => binding),
@@ -323,7 +323,7 @@ export function createVersionController({
     does: "Open a numbered version",
     line: "open version",
     when: () => versionsToWalk() && numberedVersionRoutes().length > 0,
-    // The focused menu and its standing chooser share this route. The first gives g V a
+    // The focused menu and its standing picker share this route. The first gives g V a
     // visible compact hint; the second preserves the key across a browser hand-back that
     // leaves the menu open with focus at its door. Close first, as the numbered key is the
     // keyboard form of pressing that row; this matters when it names the version already
@@ -337,7 +337,7 @@ export function createVersionController({
   // ArrowDown anywhere else are the page's own scroll; ⏎ is the browser's, a row being a
   // button, and the row says so with no `run`. A row's Compare is the same comparison for the
   // pointer, which has no walk to state it with. Exact number keys are shared with the
-  // standing menu chooser below, so they stay visible in this focused scope and survive a
+  // standing menu picker below, so they stay visible in this focused scope and survive a
   // browser hand-back that lands at its door.
   //
   // v is the one row worth a key of its own: the current page is where the walk ends, and
@@ -345,7 +345,7 @@ export function createVersionController({
   // page-level destination remains the complete `g V` route rather than a second meaning for
   // a bare letter.
   //
-  // This scope is live only while there is a list to walk. The chooser below stays live for
+  // This scope is live only while there is a list to walk. The picker below stays live for
   // every open menu so page-level Leaf shortcuts remain suspended while the browser owns
   // the transient layer.
   const NEWEST = {
@@ -358,47 +358,46 @@ export function createVersionController({
     // row remains Enter's exact-version destination.
     run: () => goActive(),
   };
-  const VERSION_WALK = {
-    id: "version.walk",
-    keys: ["ArrowUp", "ArrowDown"],
-    routes: [
-      { id: "version.later", binding: "ArrowUp", does: "Later version" },
-      { id: "version.earlier", binding: "ArrowDown", does: "Earlier version" },
-    ],
-    // The walk marks as it goes, which is what the list is for: the note says in words
-    // what a version changed and the page behind the menu then says it in the passages
-    // themselves, without the user having to leave the list to find out. A note is
-    // Claude's sentence about a version and the marks are the version's own account of
-    // itself, so reading them together is the only way to tell the two apart.
-    does: "Walk the versions, marking what changed since the one you are on",
-    line: "walk — marking changes",
-    repeat: true,
-    when: versionsToWalk,
-    run: (binding) => {
-      const was = document.activeElement;
-      const row = versionChooser.walk(binding === "ArrowDown" ? 1 : -1);
-      if (!row) return;
-      beginWalk("version", "Version", () => versionChooser.walkPosition());
-      // A press at either end lands on the row it started from, and now that the walk
-      // states a comparison, landing is not free — it would re-fetch the base and say
-      // its count again for a press that moved nothing.
-      if (row === was) return;
-      // The comparison the row states: its own version as the base, or none at all where
-      // that version is not older than the one being read. So the user walks down to mark
-      // from further back and back up to stop, and the row that stops it is the version
-      // they are reading — the end of the walk in the direction they came from, which is
-      // why it needs no key of its own and no user has to be told where it is — and,
-      // the page having no key for a comparison, the whole of the way off one.
+  // The walk marks as it goes, which is what the list is for: the note says in words
+  // what a version changed and the page behind the menu then says it in the passages
+  // themselves, without the user having to leave the list to find out. A note is
+  // Claude's sentence about a version and the marks are the version's own account of
+  // itself, so reading them together is the only way to tell the two apart. The list
+  // runs newest first, so its ends are the latest and the earliest version.
+  const [walk, edge] = rowWalk({
+    id: "version",
+    noun: "Version",
+    plural: "versions",
+    rows: () => versionPicker.rows(),
+    steps: ["later", "earlier", "latest", "earliest"],
+    // A press at either end lands on the row it started from and calls nothing here:
+    // the walk states a comparison, so landing is not free — it would re-fetch the base
+    // and say its count again for a press that moved nothing.
+    //
+    // The comparison the row states: its own version as the base, or none at all where
+    // that version is not older than the one being read. So the user walks down to mark
+    // from further back and back up to stop, and the row that stops it is the version
+    // they are reading — the end of the walk in the direction they came from, which is
+    // why it needs no key of its own and no user has to be told where it is — and,
+    // the page having no key for a comparison, the whole of the way off one.
+    landed: (row) => {
       const version = +row.dataset.lfVersion;
       if (comparable(version)) showComparison(version);
       else setDiff(false);
     },
+  });
+  const VERSION_WALK = {
+    ...walk,
+    does: "Walk the versions, marking what changed since the one you are on",
+    line: "walk — marking changes",
+    when: versionsToWalk,
   };
+  const VERSION_EDGE = { ...edge, when: versionsToWalk };
 
-  // The chooser represents the menu standing, not whether it has multiple versions to walk.
+  // The picker represents the menu standing, not whether it has multiple versions to walk.
   // It suspends page shortcuts and owns exact numbered destinations plus the Tab-boundary
   // handoff that a popover does not provide. Light dismissal stays native; Escape is the
-  // menu's own row (`version.close`), which closes it and lands the user on the page.
+  // menu's own row (`version.close`), which closes it and returns the user to More.
   const VERSIONS = {
     title: "In the versions menu",
     root: () => versionMenu,
@@ -407,19 +406,21 @@ export function createVersionController({
     // Opening the modal reference dismisses this popover. Retain the menu-boundary
     // reading so the reference documents its rows as unavailable in the remaining scene.
     liveInCommandReference: true,
-    // A chooser over the page suspends the page, which the two transient contexts above this one always did
-    // and this one did not — so a user in the middle of choosing a version could press `l`
-    // and take focus out of the menu into the leaves tray, `d` and scroll a page they were
-    // not looking at, or `c` and open the composer under the list. None of it fails loudly:
-    // the press does exactly what it says on a page the user has stopped reading. The
-    // worst of them was a page-level key that set a comparison base, which the walk they
-    // were standing in then disagreed with — that key is the menu's own business now, and
-    // the claim is what would have held it either way. The claim is also what narrows
-    // the line to the menu's own keys, so what the chooser takes and what it offers are one
-    // statement rather than a suspension the surfaces have to be told about separately.
+    // A picker over the page suspends the page, which the two transient contexts above
+    // this one always did and this one did not — so a user in the middle of choosing a
+    // version could press `l` and take focus out of the menu into the leaves drawer, `d`
+    // and scroll a page they were not looking at, or `c` and open the composer under the
+    // list. None of it fails loudly: the press does exactly what it says on a page the
+    // user has stopped reading. The worst of them was a page-level key that set a
+    // comparison base, which the walk they were standing in then disagreed with — that
+    // key is the menu's own business now, and the claim is what would have held it either
+    // way. The claim is also what narrows the line to the menu's own keys, so what the
+    // picker takes and what it offers are one statement rather than a suspension the
+    // surfaces have to be told about separately.
     claims: allButCommandReference,
     rows: [
       VERSION_WALK,
+      VERSION_EDGE,
       OPEN_NUMBER,
       // Two rows, both live at either end of a one-row menu, so the line prints both at
       // once — and while they shared a word it printed it twice, leaving the user to
@@ -459,9 +460,9 @@ export function createVersionController({
         run: closeVersionMenu,
       },
       // The menu is a layer over the page and its parent is the page, so the one press
-      // that closes it lands the user back there rather than on the chooser in the
+      // that closes it lands the user back there rather than on the picker in the
       // banner, which is chrome they may never have stood on: `g V` runs the press from
-      // the chooser, and the browser would hand focus back to it. Leaf performs the whole
+      // the picker, and the browser would hand focus back to it. Leaf performs the whole
       // result — close, then land — so the press is not the platform's to complete.
       {
         id: "version.close",
@@ -474,17 +475,17 @@ export function createVersionController({
         promoteEscape: false,
         run: () => {
           closeVersionMenu();
-          letGo();
+          returnToBannerControl(versionBtn);
         },
       },
     ],
   };
 
-  // g V names the chooser, the control wearing the version number, and the menu it opens.
+  // g V names the picker, the control wearing the version number, and the menu it opens.
   // Named, because the chip that jumps straight to the current page spells that motion in
   // its tooltip, and because the closed control's own title says the press beside what
   // pressing it does.
-  const CHOOSER = {
+  const PICKER = {
     id: "version.open",
     keys: ["Shift+v"],
     does: "The versions, and what each one changed",
@@ -553,18 +554,18 @@ export function createVersionController({
     );
     return Object.freeze(entries.map((entry) => Object.freeze(entry)));
   }
-  // One immutable, complete presentation reading for the native chooser surfaces. The
+  // One immutable, complete presentation reading for the native picker surfaces. The
   // view deliberately retains the rows it is already showing while its popover stands;
   // the candidate rows below keep advancing, so dismissal can commit them without
   // replaying an accepted state or consulting the rendered DOM as authority.
-  function chooserModel(state) {
+  function pickerModel(state) {
     const offered = state !== null && versionsOffered();
     const behind = behindCurrent();
     const sourceFailed = LIVE_ROOT && Boolean(state?.source_error);
     const currentLabel = runtime.currentLabel ?? "Draft";
     const newer = behind ? `; ${runtime.active.label} available` : "";
     return Object.freeze({
-      chooser: Object.freeze({
+      picker: Object.freeze({
         offered,
         token: currentVersionToken(),
         compared: diffOn || diffPendingBase !== null,
@@ -607,9 +608,9 @@ export function createVersionController({
     });
   }
 
-  function presentChooser(state = runtime.state) {
-    const model = chooserModel(state);
-    versionChooser.present(model);
+  function presentPicker(state = runtime.state) {
+    const model = pickerModel(state);
+    versionPicker.present(model);
     showNews(latestChip, model.latest.news);
     repaint();
     return model;
@@ -618,7 +619,7 @@ export function createVersionController({
   // `null` is the page before its first accepted state. Version controls read the
   // immutable document revision and the accepted root.
   function renderVersions(state) {
-    presentChooser(state);
+    presentPicker(state);
     const walkable = versionsToWalk();
     if (walkable !== versionsWalkable) {
       versionsWalkable = walkable;
@@ -632,7 +633,7 @@ export function createVersionController({
   // revision is cheap. Block-level and additions-only — deleted text has no home
   // to mark — and a widget that renders its own body is opaque to it. The base is
   // any version older than the one being read, offered by its own row in the
-  // chooser's menu, where the note saying what changed in words sits beside the
+  // picker's menu, where the note saying what changed in words sits beside the
   // press that marks it on the page.
   //
   // Which blocks and which widgets is the registry's answer both times, so a widget added
@@ -661,18 +662,14 @@ export function createVersionController({
       // External data is absent from both authored documents. Its seat is opaque, and
       // the authored binding and immutable selector below are the comparison key.
       ...tagsDeclaring((e) => e["x-upgrade"] && e["x-data"]),
-      // flatMap, so the set holds owner tags rather than the arrays naming them: a set
-      // of arrays never dedupes, two array objects never being equal.
-      ...new Set(
-        tagsDeclaring((e) => e["x-retired-when"]).flatMap(
-          (tag) => registry[tag]["x-owners"],
-        ),
-      ),
+      ...Object.entries(registry.$decisions)
+        .filter(([, { retires }]) => Object.keys(retires).length)
+        .map(([owner]) => owner),
       "svg",
     ].join(",");
   // What is being compared, and whether the comparison is standing. Every rendering of
-  // the pair — the chooser's word and paint, each row's press, the rail down the span —
-  // comes from the immutable chooser model and is read back by nothing.
+  // the pair — the picker's word and paint, each row's press, the rail down the span —
+  // comes from the immutable picker model and is read back by nothing.
   let diffBase = null;
   let diffOn = false;
   let diffPendingBase = null;
@@ -784,7 +781,7 @@ export function createVersionController({
       throw new Error(`version v${baseVersion} has no revision`);
     const baseView = baseReading?.views?.[String(baseRevision)];
     if (!baseView) throw new Error(`revision r${baseRevision} has no projection`);
-    const baseProjection = projectView(baseView, baseReading.conversation);
+    const baseProjection = projectView(baseView, baseReading.thread);
     for (const { tag, verb, spec } of stateSpecs()) {
       if (!spec.record || spec.record.kind === "body") continue;
       for (const widget of document.body.querySelectorAll(tag)) {
@@ -824,7 +821,7 @@ export function createVersionController({
     // would keep a whole second document alive for the life of the comparison.
     const opaque = diffOpaqueSel();
     for (const block of diffMarked) {
-      if (!block.id || block.closest(opaque)) continue;
+      if (!block.matches(ADDRESSABLE) || block.closest(opaque)) continue;
       const baseBlock = doc.getElementById(block.id);
       diffBefore.set(block, baseBlock ? wrote(baseBlock) : null);
     }
@@ -837,8 +834,7 @@ export function createVersionController({
   // `.lf-ui`; comments, copies, and later comparisons therefore continue to read the exact
   // current document rather than the temporary historical words on screen.
   const inlineId = (target) => `lf-version-inline-${target.id}`;
-  const authoredReading = (target) =>
-    readingFrom(textNodesUnder(target, authored(target)));
+  const authoredReading = (target) => readingFrom(textNodesUnder(target, "wrote"));
 
   function pointAt(target, reading, offset) {
     if (!reading.units.length) return { node: target, offset: 0 };
@@ -983,11 +979,12 @@ export function createVersionController({
       base.revision < runtime.currentRevision
     );
   };
-  // Whether the comparison is standing and what against — the only thing that decides
-  // it, the marks and the paint being renderings rather than a second copy.
-  function setDiff(on, base) {
+  // Whether the comparison is standing and what against, or which base a stopped one is
+  // waiting on — the only thing that decides it, the marks and the paint being renderings
+  // rather than a second copy.
+  function setDiff(on, base, pendingBase = null) {
     diffOn = on;
-    diffPendingBase = null;
+    diffPendingBase = pendingBase;
     if (on) diffBase = base;
     if (!on) {
       diffRequest++; // a stop outranks a comparison still on its way
@@ -998,7 +995,7 @@ export function createVersionController({
       for (const b of diffMarked) b.classList.remove("lf-ins-block");
       diffMarked.length = 0;
     }
-    presentChooser();
+    presentPicker();
     // Consumers read the settled comparison projection: on/off and its marks move
     // together, rather than announcing an applied DOM diff before it is standing.
     document.dispatchEvent(new CustomEvent("lf-comparison"));
@@ -1010,29 +1007,29 @@ export function createVersionController({
   // arrives there. Everything touching the live page happens in one synchronous stretch
   // after the single await: the walk asks for a comparison per row, and a marking pass
   // that could interleave with the next row's would leave two bases' marks standing
-  // under a chooser naming one of them.
+  // under a picker naming one of them.
   async function showComparison(base) {
     // Selection is immediate even though its result needs two documents. Clear the prior
     // marks, move the menu's checked state to the requested base, and expose the wait as
     // busy. A fast walk then never leaves the last completed base highlighted under focus
-    // on a different row.
-    setDiff(false);
+    // on a different row. One presentation says both, so the picker never passes through
+    // an unlit state it is about to leave.
+    setDiff(false, null, base);
     const mine = ++diffRequest;
-    diffPendingBase = base;
-    presentChooser();
-    const baseRevision = stamped(base)?.revision;
+    const baseVersion = stamped(base);
+    const baseRevision = baseVersion?.revision;
     if (baseRevision == null) {
       diffPendingBase = null;
-      presentChooser();
+      presentPicker();
       notice(`Couldn't load v${base}`);
       return;
     }
-    const documentRequest = authoredDocument(versionUrl(base));
+    const documentRequest = authoredDocument(baseVersion.url);
     let doc;
     let reading;
     try {
       while (mine === diffRequest) {
-        const throughSeq = runtime.view?.basis?.through_seq;
+        const throughSeq = runtime.lastEventSeq;
         if (!Number.isInteger(throughSeq))
           throw new Error("the current reading has no log sequence");
         [doc, reading] = await Promise.all([
@@ -1040,14 +1037,14 @@ export function createVersionController({
           baseReading(baseRevision, throughSeq),
         ]);
         if (mine !== diffRequest) return;
-        if (runtime.view?.basis?.through_seq === throughSeq) break;
+        if (runtime.lastEventSeq === throughSeq) break;
       }
       if (mine !== diffRequest) return;
       await prepareDeclaredInlineMarkdown(doc);
     } catch {
       if (mine === diffRequest) {
         diffPendingBase = null;
-        presentChooser();
+        presentPicker();
         notice(`Couldn't load v${base}`);
       }
       return;
@@ -1105,36 +1102,49 @@ export function createVersionController({
   }
 
   // ---------- live revision activation ----------
+  // What the outgoing revision wrote on a root and the arriving one does not comes off,
+  // what the arriving one writes differently goes on, and what both write is left
+  // standing. These roots are `html` and `body`, where a class or attribute that comes
+  // off and goes back on restyles the whole document, so the layer's rule against
+  // rewriting what a node already says (`keeps`) matters most here.
   function replaceAuthoredAttributes(target, source, prior) {
-    const scratch = document.createElement(target.localName);
-    for (const [name, value] of prior) scratch.setAttribute(name, value);
     const runtimeState = runtimeRootState(target);
-    for (const name of prior.keys()) {
-      if (name === "class")
-        for (const token of scratch.classList) target.classList.remove(token);
-      else if (name === "style")
-        for (const property of scratch.style) {
-          // Inline style is the one root attribute whose members can have different
-          // owners. Registered runtime properties survive; every other declaration is
-          // authored and retires with its revision like every other source attribute.
-          if (!runtimeState.styles.has(property)) target.style.removeProperty(property);
-        }
-      else if (!runtimeState.attributes.has(name)) target.removeAttribute(name);
-    }
     const next = authoredAttributes(source);
-    for (const [name, value] of next) {
-      if (name === "class") {
-        for (const token of value.split(" ")) target.classList.add(token);
-      } else if (name === "style") {
-        for (const property of source.style)
-          if (!runtimeState.styles.has(property))
-            target.style.setProperty(
-              property,
-              source.style.getPropertyValue(property),
-              source.style.getPropertyPriority(property),
-            );
-      } else if (!runtimeState.attributes.has(name)) target.setAttribute(name, value);
+    const tokens = (value) => new Set(value?.split(" "));
+    const nextTokens = tokens(next.get("class"));
+    for (const token of tokens(prior.get("class")))
+      if (!nextTokens.has(token)) target.classList.remove(token);
+    for (const token of nextTokens)
+      if (!target.classList.contains(token)) target.classList.add(token);
+    // Inline style is the one root attribute whose members can have different owners.
+    // Registered runtime properties survive; every other declaration is authored and
+    // retires with its revision like every other source attribute. Declarations are
+    // compared by name, not value, since an empty custom property (`--x: ;`) reads
+    // back as "", and `setProperty` with "" removes rather than declares, so an empty
+    // one is written as the single space that parses to it.
+    const declared = new Set(source.style);
+    const priorStyle = document.createElement(target.localName).style;
+    priorStyle.cssText = prior.get("style") ?? "";
+    for (const property of priorStyle)
+      if (!runtimeState.styles.has(property) && !declared.has(property))
+        target.style.removeProperty(property);
+    const standing = new Set(target.style);
+    for (const property of declared) {
+      if (runtimeState.styles.has(property)) continue;
+      const value = source.style.getPropertyValue(property);
+      const priority = source.style.getPropertyPriority(property);
+      if (
+        !standing.has(property) ||
+        target.style.getPropertyValue(property) !== value ||
+        target.style.getPropertyPriority(property) !== priority
+      )
+        target.style.setProperty(property, value || " ", priority);
     }
+    const plain = (name) =>
+      name !== "class" && name !== "style" && !runtimeState.attributes.has(name);
+    for (const name of prior.keys())
+      if (plain(name) && !next.has(name)) target.removeAttribute(name);
+    for (const [name, value] of next) if (plain(name)) keeps(target, name, value);
     return next;
   }
 
@@ -1146,6 +1156,9 @@ export function createVersionController({
     for (const node of doc.head.children) {
       if (!versionedHeadNode(node)) continue;
       const imported = document.importNode(node, true);
+      // A linked sheet, or one that imports, is complete only once it has loaded.
+      if (imported.localName === "link" || imported.localName === "style")
+        imported.addEventListener("load", keepPageRulesOffLayer, { once: true });
       document.head.append(imported);
       next.add(imported);
     }
@@ -1221,6 +1234,18 @@ export function createVersionController({
     };
     return strip(before, authoredRoot).isEqualNode(strip(after, arrivingRoot));
   }
+  // A widget declaring `x-patch: members` builds its controls beside its members and
+  // reads nothing of them but their attributes. So what it built stands for its own
+  // attributes and each member's tag and attributes, in order, and while two revisions
+  // agree on that much, the rest of the difference is inside members the author owns.
+  const shell = (element) => {
+    const copy = element.cloneNode(false);
+    for (const child of element.childNodes) copy.append(child.cloneNode(false));
+    return copy;
+  };
+  const reachesMembers = (before, after, arrivingRoot) =>
+    registry[before.localName]?.["x-patch"] === "members" &&
+    sameAuthoredMarkup(shell(before), shell(after), arrivingRoot);
 
   // Patch against the authored baselines. Retained nodes keep their live state;
   // replacement nodes recover eligible state through carry and Ask restoration.
@@ -1278,7 +1303,6 @@ export function createVersionController({
         // the readings below ask where it stands: whether an exhibit quotes it, and
         // which declared elements enclose it.
         rememberAuthoredParents(arriving, parent);
-        markDeclared(arriving, MARKED_IN_PAGE);
         const descriptors = stageWidgetDescriptors(arriving, {
           kind: "page",
           revision: target.revision,
@@ -1316,6 +1340,7 @@ export function createVersionController({
         arrive,
         generated,
         declared: upgraded,
+        reaches: (before, after) => reachesMembers(before, after, arrivingRoot),
         // The capture that wrote each revision said what every declared widget in it
         // was written as. A widget the arriving revision spells the same way is the
         // widget the user is holding, so it stays.
@@ -1325,10 +1350,7 @@ export function createVersionController({
         },
         same: (before, after) => sameAuthoredMarkup(before, after, arrivingRoot),
         sameValue: (name, held, value) => sameValue(name, held, value, arrivingRoot),
-        touched: (element) => {
-          markDeclared(element, MARKED_IN_PAGE);
-          touched.push(element);
-        },
+        touched: (element) => touched.push(element),
         // An element going is not the same as its name going. Authored state capture
         // still needs to forget removed upgraded owners here; the complete incoming
         // descriptor inventory below decides which identities actually retired.
@@ -1339,6 +1361,8 @@ export function createVersionController({
           if (upgraded(element)) forgetAuthoredOwners(new Set([element.id]));
         },
       });
+      // The revision's sheets, in its head and in its body alike, keep off the layer.
+      keepPageRulesOffLayer();
       restoreCarryScroll = restoreCarry(
         carry.records,
         carry.held,
@@ -1505,6 +1529,7 @@ export function createVersionController({
   // travel stores this reading per tab; restored chrome layout precedes scroll recovery.
 
   function captureView() {
+    dropGoneRegions();
     const blocks = textBlocks();
     const active = activeReadingRegion(readingRegions(), blocks);
     const view = Object.assign(capturePlace(null, blocks), {
@@ -1550,8 +1575,8 @@ export function createVersionController({
       restorePlace(view, null, currentIntent);
       restored.add(pageScroller);
     }
-    // A bounded region can stand in a page that scrolls as well, as a root tab's workspace
-    // does under the tab set's header: the page keeps its own place beside the region's.
+    // A bounded region can stand in a page that scrolls as well, as a visual review's
+    // capture does in a document page: the page keeps its own place beside the region's.
     if (
       !restored.has(pageScroller) &&
       (hasLandmark(view) || rawOffsetFits(view, pageScroller))
@@ -1576,14 +1601,20 @@ export function createVersionController({
   // whose scroller shifts is restored from that record. Keep each semantic region's last
   // reading so a pane that becomes inactive does not inherit the shared page offset when
   // it becomes bounded again. In flow, only the region the user is working represents
-  // the shared page scroller.
+  // the shared page scroller. A region no longer standing in the document has no place
+  // left to keep: its reading goes when the next reading is taken, so a page whose
+  // blocks come and go carries only the regions it has.
   const regionViews = new Map();
-  let lastReadingRegionId = null;
+  const dropGoneRegions = () => {
+    const standing = new Set(readingRegions().map(({ id }) => id));
+    for (const id of regionViews.keys()) if (!standing.has(id)) regionViews.delete(id);
+  };
 
   // Only the page's own regions, only those a scroll moved, and only their own words: a
   // scroll is frequent, and a page with no regions (most documents) records nothing and
   // reads no text at all. `moved` names the scrollers that moved; none names every one.
   function recordRegions(moved = null) {
+    dropGoneRegions();
     const main = document.querySelector("body > main");
     const shown = readingRegions().filter(
       (region) =>
@@ -1613,7 +1644,7 @@ export function createVersionController({
   };
 
   // Continuity restores scroll geometry, not the reading-key subject. Frame furniture
-  // still names its own pane to d/u through readingRegionFor; because the furniture does
+  // still names its own pane to d/u through userReadingRegion; because the furniture does
   // not live in that pane's scroller, a posture change preserves the outer region that
   // geometrically contains it. The same distinction keeps an inline response outside a
   // nested region body with the outer scroller that actually carries it.
@@ -1624,7 +1655,7 @@ export function createVersionController({
     const focusedRegion = containingReadingRegionFor(focused());
     if (focusedRegion && candidates.some(({ id }) => id === focusedRegion.id))
       return focusedRegion;
-    const recent = candidates.find(({ id }) => id === lastReadingRegionId);
+    const recent = candidates.find(({ id }) => id === recentReadingRegion()?.id);
     if (recent) return recent;
     return candidates
       .map((region) => [region, blocksOnScreen(region, blocks).next().value?.[1]])
@@ -1808,32 +1839,30 @@ export function createVersionController({
   // disclosure over it, or declares a strip that covers it, and before presentation
   // adds controls above it; so the arrival lands it again at each step that changes
   // the page's geometry: once widgets upgrade, before the first state read, and once
-  // the page presents. Each landing is the browser's own rule, the target's start at
-  // its scroller's landing edge, taken in the geometry of that step, so a target nothing
-  // moved stays where it is. The fragment is read before widgets upgrade, since a widget
-  // may write its own view into the URL (a root tab set names its open panel), and that
-  // is display state, not a destination. A reload or history traversal keeps the
-  // browser's restored offset instead, and input during the arrival ends it.
+  // the page presents. Each landing is the browser's own rule (`scrollToFragment`), the
+  // target's start at its scroller's landing edge, taken in the geometry of that step,
+  // so a target nothing moved stays where it is. The fragment is read before widgets
+  // upgrade, since a widget may write its own view into the URL (a root tab set names
+  // its open panel), and that is display state, not a destination. A reload or history
+  // traversal keeps the browser's restored offset instead, and input during the arrival
+  // ends it. A fragment followed once the page is here is travel's (anchor-travel.js,
+  // `followFragment`), as is Back or Forward to one the page has hidden since
+  // (`returnToFragment`); both read the same destination and reveal it the same way.
   let aimedAt = null;
   function aimArrival() {
     const fresh = performance.getEntriesByType("navigation")[0]?.type === "navigate";
     const arrivedAt = location.hash;
     const currentIntent = retainUserIntent();
     return function landFragment() {
-      aimedAt ??=
-        fresh && targetElement(resolveAnchor({ section: fragmentId(arrivedAt) }));
+      aimedAt ??= fresh && fragmentTarget(arrivedAt);
       if (!aimedAt || !currentIntent()) return;
       reveal(aimedAt, currentIntent);
-      aimedAt.scrollIntoView({
-        block: "start",
-        inline: "nearest",
-        behavior: "instant",
-      });
+      scrollToFragment(aimedAt);
     };
   }
 
   function mount() {
-    versionChooser.configure({
+    versionPicker.configure({
       activate: (entry) => {
         if (entry.version !== null) goVersion(entry.version);
         else if (entry.active) goActive();
@@ -1847,6 +1876,7 @@ export function createVersionController({
       "In the versions menu",
       [
         VERSION_WALK,
+        VERSION_EDGE,
         OPEN_NUMBER,
         // The browser's own, the row being a real <button> — no `run`, or the press would
         // click a control the platform has already activated. The word is the line's all the
@@ -1863,19 +1893,10 @@ export function createVersionController({
       ],
       versionsToWalk,
     );
-    for (const type of ["pointerdown", "keydown", "wheel", "touchstart"])
-      addEventListener(
-        type,
-        (event) => {
-          const region = readingRegionFor(event.composedPath()[0]);
-          if (region) lastReadingRegionId = region.id;
-        },
-        { capture: true, passive: true },
-      );
     renderVersions(null);
   }
 
-  // The arrival chip's route spans two rows — the chooser the page opens and the menu's own
+  // The arrival chip's route spans two rows — the picker the page opens and the menu's own
   // key for the live page — so it is composed here rather than painted from one row's
   // `control`. Painted in the standing frame beside every other control name, through
   // `keeps`, so a restated title is not news to whatever is reading the page.
@@ -1883,7 +1904,7 @@ export function createVersionController({
     keeps(
       latestChip,
       "title",
-      `${latestChip.dataset.lfKeyTitle} (${commandShortcut(CHOOSER.id)} ${labelOf(NEWEST)})`,
+      `${latestChip.dataset.lfKeyTitle} (${commandShortcut(PICKER.id)} ${labelOf(NEWEST)})`,
     );
   }
 
@@ -1891,7 +1912,7 @@ export function createVersionController({
 
   return {
     closeVersionMenu,
-    CHOOSER,
+    PICKER,
     paintShortcuts,
     renderVersions,
     inlineComparison,

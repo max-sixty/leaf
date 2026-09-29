@@ -32,6 +32,7 @@ nothing else on the machine.
 
 from interact_support import ModelPage, model_layer
 from leaf.event_contracts import admitted_event
+from leaf.passages import SourceReading
 from leaf.served_state.browser import browser_state
 from leaf.structure import SourceDocument
 
@@ -58,13 +59,14 @@ UNCLAIMED = {
 
 
 def leaf_page(
-    title: str, body: str, *, head: str = "", width: str | None = None
+    title: str, body: str, *, head: str = "", layout: str | None = "column"
 ) -> str:
-    """A complete page carrying the presentation boundary every fixture shares. `width`
-    makes the page a sheet (`<main data-width>`), as a page whose only block is a
-    workspace must be."""
+    """A complete page carrying the presentation boundary every fixture shares. `layout`
+    names the Layout `main` takes (`wide` is `<main class="layout-wide">`): the column,
+    the Layout most pages take, unless the test says otherwise, and None for a `main`
+    with no Layout at all."""
     extra_head = f"{head}\n" if head else ""
-    main = f'<main data-width="{width}">' if width else "<main>"
+    main = f'<main class="layout-{layout}">' if layout else "<main>"
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -125,21 +127,21 @@ def reading(
         "executable": f"model-r{active_revision}",
         "activated_at": NOW,
     }
-    return browser_state(
-        parsed,
+    state, _reading = browser_state(
+        {rev: SourceReading(document, registry) for rev, document in parsed.items()},
         log,
-        registry,
         active_revision,
         UNCLAIMED,
         active,
         {active_revision},
         NOW,
     )
+    return state
 
 
 def threads(state: dict) -> dict:
-    """Conversation threads by root id, as the panel is handed them."""
-    return {thread["root"]["id"]: thread for thread in state["conversation"]["threads"]}
+    """Threads by id, as the panel is handed them."""
+    return {thread["id"]: thread for thread in state["thread"]["threads"]}
 
 
 def projected(state: dict, revision: int) -> dict:

@@ -1,6 +1,6 @@
 import {
+  ADDRESSABLE,
   inChrome,
-  inUi,
   matchesWhen,
   quoted,
   textNodesUnder,
@@ -46,8 +46,8 @@ const renderedAt = (element) => {
     current = upFrom(current);
   }
   const owner =
-    ancestors.find((el) => el.id && el.localName.includes("-")) ??
-    ancestors.find((el) => el.id) ??
+    ancestors.find((el) => el.matches(ADDRESSABLE) && el.localName.includes("-")) ??
+    ancestors.find((el) => el.matches(ADDRESSABLE)) ??
     element;
   return {
     tag: owner.localName,
@@ -107,20 +107,17 @@ export const missingUpgrades = (declarations) =>
         entry["x-upgrade"] && document.querySelector(tag) && !customElements.get(tag),
     )
     .map(([tag]) => tag);
+// visual-parts.js reads each declaration, so a part the gate accepts is one the page
+// can anchor and travel to.
 const visualProviderProblems = (declarations, check) =>
   Object.entries(declarations)
-    .filter(([, entry]) => entry["x-visual"] && typeof entry["x-visual"] === "object")
+    .filter(([, entry]) => entry["x-visual"])
     .flatMap(([tag, entry]) =>
-      [...document.querySelectorAll(tag)].map((el) => {
-        const { parts, prefixes } = entry["x-visual"];
-        const declared = prefixes
-          ? []
-          : (el.getAttribute(parts) ?? "").trim().split(/\s+/).filter(Boolean);
-        const admits = prefixes
-          ? (id) => prefixes.some((p) => id !== p && id.startsWith(p))
-          : undefined;
-        return { tag, id: el.id, problems: check(el, declared, admits) };
-      }),
+      [...document.querySelectorAll(tag)].map((el) => ({
+        tag,
+        id: el.id,
+        problems: check(el, entry["x-visual"]),
+      })),
     )
     .filter((instance) => instance.problems.length);
 export const invalidVisualProviders = (declarations) =>
@@ -140,22 +137,22 @@ export const undeclaredShadowRoots = (registry) => [
       .map((el) => `<${el.localName}>`),
   ),
 ];
-export const missingConversations = (declarations) =>
+export const missingThreads = (declarations) =>
   Object.entries(declarations)
-    .filter(([, entry]) => entry["x-conversation"])
+    .filter(([, entry]) => entry["x-thread-seat"])
     .flatMap(([tag, entry]) =>
       [...document.querySelectorAll(tag)]
         .filter(
           (el) =>
             !inChrome(el) &&
             !quoted(el) &&
-            matchesWhen(el, entry["x-conversation"].when),
+            matchesWhen(el, entry["x-thread-seat"].when),
         )
         .map((el) => ({
           tag,
           id: el.id,
-          hosts: [...el.querySelectorAll(".lf-conversation")].filter(
-            (host) => host.dataset.lfConversation === el.id,
+          hosts: [...el.querySelectorAll(".lf-thread-seat")].filter(
+            (host) => host.dataset.lfThreadSeat === el.id,
           ).length,
         })),
     )
@@ -179,7 +176,7 @@ export const missingConversations = (declarations) =>
 // one reader that did see them read them wrong: shallowSigs excludes exactly the
 // attributes no version can assert, and its exclusion list is the runtime's own paint —
 // so a widget writing beside it is counted as state the author wrote, in the reading
-// `version check --render` uses to decide whether a version overrules the user.
+// `page check --render` uses to decide whether a version overrules the user.
 //
 // Deduped and reported per tag and attribute, because one mistake is on every instance.
 export function undeclaredAttrs(declarations) {
@@ -215,21 +212,20 @@ export function undeclaredAttrs(declarations) {
 // the user can still see and select, and a settled slot can show its words anyway — a
 // later layer's rule outranking the default hide, a module re-showing what it folded —
 // leaving the user selecting words no comment can anchor to, with the refusal
-// arriving later, at `leaf comment`, nowhere near the mistake. So the expected outcome
+// arriving later, at `leaf thread open`, nowhere near the mistake. So the expected outcome
 // comes from the file's reading (`decisions`, folded over this version's log), never
 // from the page, and the page answers only for what it shows.
 //
-// The words walk is textNodesUnder with an accepts of its own, on purpose: the anchor
-// pass's default accepts already skips a marked holder's slots, so asking it whether
+// The words walk is textNodesUnder's `unsilenced` reading, on purpose: the anchor
+// pass's `says` already skips a marked holder's slots, so asking it whether
 // the retired words are gone would let the mark answer for the screen. What it keeps
 // of that reading is the boundary — declared shadow roots, the same trees replay's
 // elementById marks across, which is why the holders are found through OPEN_ROOTS
-// too — and the chrome test (inUi): a declared label is the page's words, so a
+// too — and the chrome test: a declared label is the page's words, so a
 // settled slot still showing one is still showing words. The visibility guards are
 // COVERED_WORDS', for its reasons: [hidden] holds until-found content whose boxes
 // report as last laid out, and visibility and opacity hide with layout intact. One
-// scheme, on the trapped-margin reading's premise — the palettes carry no geometry
-// between them. Replay installs a fold's terminal DOM synchronously: the runtime's
+// scheme, since the palettes carry no geometry between them. Replay installs a fold's terminal DOM synchronously: the runtime's
 // motion() refuses animation while it is projecting state or before presentation.
 // The gate's global `pageSettled` fact separately holds independently authored motion
 // before any reading starts. This reading stays synchronous: waiting on
@@ -246,11 +242,11 @@ export function retiredSlots(holders) {
   };
   const found = [];
   const showing = (slot) => {
-    for (const seg of textNodesUnder(slot, (n) => !inUi(n))) {
+    for (const seg of textNodesUnder(slot, "unsilenced")) {
       const n = seg.node,
         el = n.parentElement;
       if (!n.data.trim()) continue;
-      if (el.closest(".lf-chrome, .lf-mark-note, .lf-quiet, [hidden]")) continue;
+      if (el.closest(".lf-chrome, .lf-quiet, [hidden]")) continue;
       if (!el.checkVisibility({ visibilityProperty: true, opacityProperty: true }))
         continue;
       const range = document.createRange();

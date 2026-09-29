@@ -12,7 +12,7 @@ What a row names on the page the user is reading now — the section a comment s
 in, the widget a row links to — stays with the page, which holds those places;
 this reading carries their ids and anchors.
 
-Bookkeeping stays out: `read`, `pickup`, `summary`, `conversation_title`, `error`,
+Bookkeeping stays out: `read`, `pickup`, `summary`, `thread_title`, `error`,
 and `undo`, which marks the gesture it took back instead of standing as its own row.
 
 `history` is a served reading only a page that renders it pays for: the state
@@ -21,7 +21,8 @@ carries it when the page's markup holds a widget whose entry declares `x-history
 
 from .events import taken_back
 from .gesture_words import GestureWords
-from .thread_context import thread_roots
+from .schema import agent_name
+from .thread_context import event_threads
 
 # The newest rows a reading carries.
 LIMIT = 50
@@ -31,20 +32,18 @@ SHOWN = THREAD_KINDS | {
     "comment",
     "action",
     "report",
-    "request",
-    "receipt",
     "note",
     "done",
 }
 
 
-def wants_history(documents, registry_for) -> bool:
-    """Whether any of these (revision, document) pairs holds a widget declaring
+def wants_history(readings) -> bool:
+    """Whether any of these documents (`SourceReading`s) holds a widget declaring
     `x-history` in its own registry."""
     return any(
-        registry_for(revision).get(record["tag"], {}).get("x-history")
-        for revision, document in documents
-        for record in document.lf_elements
+        reading.registry.get(record["tag"], {}).get("x-history")
+        for reading in readings
+        for record in reading.document.lf_elements
     )
 
 
@@ -81,23 +80,26 @@ def _report(event: dict, words: GestureWords) -> dict:
     }
 
 
-def history(events: list, threads: dict, words: GestureWords) -> list[dict]:
-    """The newest `LIMIT` rows, newest first."""
-    by_id = {event["id"]: event for event in events}
-    roots = thread_roots(events)
+def history(
+    events: list, threads: dict, words: GestureWords, names: dict, widgets: dict
+) -> list[dict]:
+    """The newest `LIMIT` rows, newest first.
+
+    `threads` is the `build_threads` fold, and `names` and `widgets` are
+    `thread_context.thread_names` and `thread_widgets` over the same log. A message,
+    edit, resolve or reopen row names the thread it was made in (`event_threads`),
+    with the words of the first message that thread still holds; a widget row names
+    its widget, whichever thread the move also answers."""
     withdrawn = taken_back(events)
 
-    def thread_of(message_id: str | None) -> dict | None:
-        root_id = roots.get(message_id)
-        root = by_id.get(root_id)
-        if root is None or root["kind"] != "comment":
+    def thread_of(event: dict) -> dict | None:
+        thread_id = next(iter(event_threads(event, names, widgets)), None)
+        if (thread := threads.get(thread_id)) is None:
             return None
-        thread = threads.get(root_id)
-        opening = thread["root"] if thread else root
         return {
-            "id": root_id,
-            "title": thread["title"] if thread else None,
-            "opening": opening.get("text") or "",
+            "id": thread_id,
+            "title": thread["title"],
+            "opening": thread["root"].get("text") or "",
         }
 
     rows = []
@@ -112,7 +114,7 @@ def history(events: list, threads: dict, words: GestureWords) -> list[dict]:
             "ts": event["ts"],
             "kind": kind,
             "author": event["author"],
-            "agent": event.get("agent"),
+            "agent": agent_name(event),
             "undone": event["id"] in withdrawn,
         }
         if kind == "comment":
@@ -121,34 +123,23 @@ def history(events: list, threads: dict, words: GestureWords) -> list[dict]:
             if event.get("token"):
                 row["token"] = event["token"]
             else:
-                row["thread"] = thread_of(event["id"])
+                row["thread"] = thread_of(event)
                 row["holds"] = event.get("holds")
                 row["drawing"] = bool(event.get("drawing"))
                 row["excerpt"] = event.get("text")
         elif kind == "reply":
-            row["thread"] = thread_of(event["id"])
+            row["thread"] = thread_of(event)
             if event.get("token"):
                 row["token"] = event["token"]
             else:
                 row["excerpt"] = event.get("text")
-        elif kind == "edit":
-            row["thread"] = thread_of(event["message"])
-        elif kind in {"resolve", "unresolve"}:
-            row["thread"] = thread_of(event["parent"])
+        elif kind in {"edit", "resolve", "unresolve"}:
+            row["thread"] = thread_of(event)
         elif kind == "action":
             row["widget"] = event["widget"]
             row["gesture"] = _gesture(event, words)
         elif kind == "report":
             row.update(_report(event, words))
-        elif kind == "request":
-            row["widget"] = event["widget"]
-            row["operation"] = words.operation(event)
-        elif kind == "receipt":
-            request = by_id.get(event["request"])
-            row["widget"] = request["widget"] if request else None
-            row["operation"] = words.operation(request) if request else "request"
-            row["status"] = event["status"]
-            row["excerpt"] = event.get("text")
         elif kind == "note":
             row["version"] = event["version"]
             row["excerpt"] = event["text"]

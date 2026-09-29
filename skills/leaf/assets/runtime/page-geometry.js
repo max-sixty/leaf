@@ -2,14 +2,20 @@
  *
  * This object owns the shared scroll/resize doors and the one response-bar placement
  * frame. Feature state and paint enter as fixed constructor capabilities; no feature
- * imports the conversation presenter to request a refresh.
+ * imports the thread presenter to request a refresh.
+ *
+ * `pageShifted` runs on every scroll event, so each capability it calls writes only
+ * what changed (keeps.js). Target paint stands in the document plane
+ * (`pagePlaneRect`), where the compositor carries it through a root scroll, so its
+ * shifted callback moves only what a nested scroller moved.
  */
 
 import { cancelRender, nextRender } from "./rendering.js";
-import { visualAt } from "./anchor-resolution.js";
 import { documentPoint } from "./geometry.js";
 import { inChrome } from "./passages.js";
+import { coarsePointer } from "./pointer.js";
 import { LAYOUT } from "./widget-elements.js";
+import { keeps, keepsText, layoutPx } from "./keeps.js";
 
 export function createPageGeometry({
   refreshAnchorHover,
@@ -32,8 +38,10 @@ export function createPageGeometry({
         ? { element: target.element, part: "", surface: target.surface ?? null }
         : null;
     }
+    // Design mode's box and name follow a hovering pointer. A finger does not hover: its
+    // last tap is not where it stands, and a box left there follows every scroll.
     const at = pointer();
-    if (designMode.active() && at.x >= 0)
+    if (designMode.active() && at.x >= 0 && !coarsePointer.matches)
       return designMode.target(document.elementFromPoint(at.x, at.y));
     return null;
   }
@@ -65,18 +73,18 @@ export function createPageGeometry({
       delete inspect.dataset.lfPaintPlane;
       return;
     }
-    inspect.dataset.lfPaintPlane = inChrome(target.element) ? "chrome" : "page";
+    keeps(inspect, "data-lf-paint-plane", inChrome(target.element) ? "chrome" : "page");
     const name = target.part
       ? `${target.part} · ${designMode.name(target.element)}`
       : designMode.name(target.element);
-    if (inspect.textContent !== name) inspect.textContent = name;
+    keepsText(inspect, name);
     const above = corner.top - inspect.offsetHeight - 2;
     const at = documentPoint(
       Math.max(2, corner.left),
       above >= 0 ? above : corner.top + 2,
     );
-    inspect.style.left = `${at.left}px`;
-    inspect.style.top = `${at.top}px`;
+    inspect.style.left = layoutPx(at.left);
+    inspect.style.top = layoutPx(at.top);
   }
 
   function queueActionPlacement() {
@@ -96,11 +104,6 @@ export function createPageGeometry({
     // while page scrolling may bring previously unpaintable items into view.
     queueLegend();
     if (activeActionAnchor()) queueActionPlacement();
-  }
-
-  function traceTarget(target) {
-    const part = target ? visualAt(target, { unclaimed: false })?.part : null;
-    targetPaint.paintTrace(target, part?.element === target ? part.surface : target);
   }
 
   const invalidate = () => targetPaint.geometryChanged();
@@ -141,6 +144,5 @@ export function createPageGeometry({
     refreshAim,
     invalidate,
     pageShifted,
-    traceTarget,
   };
 }

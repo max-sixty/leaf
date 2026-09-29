@@ -23,7 +23,7 @@
    Radio and slider navigation has its own narrow claim at the focused control, so
    an arrow changes that control without also moving its containing widget. Open select
    options retain typeahead when focus moves into their list. An exact element scope
-   stands before these native claims, so a wired textarea keeps its own Escape or submit
+   stands before these native claims, so a wired text field keeps its own Escape or submit
    binding; the claims then stand before ancestor widget scopes.
 
    One box inside another scope states only what it does differently. The find box
@@ -100,7 +100,7 @@ import { EVERYTHING } from "./text-entry.js";
 import { controlNavigationKeys, takesLetters } from "../focus.js";
 import { focused, recoveredLabelFocus, scopesAt, scopesFor } from "./scopes.js";
 import { nativeLayers } from "./layer-stack.js";
-import { under } from "../shadow.js";
+import { shadowHost, under } from "../shadow.js";
 
 // The two questions a scope answers, named apart because the surfaces ask them apart: the
 // reference lists a scope the page *has* and filters its rows by liveness only where the user
@@ -117,7 +117,7 @@ export const userIn = (scope) => !scope.at || scope.at();
 // was the one place it was not true. The sequence is what made it bite: its `when` reaches the
 // decisions fold and then every link on the page, once per keydown, from the first keystroke of
 // the first comment.
-const standing = (scope) => userIn(scope) && pageHas(scope);
+export const standing = (scope) => userIn(scope) && pageHas(scope);
 const nativeBoundary = (claims) => ({
   get rows() {
     return [universalCommandReference()];
@@ -148,7 +148,7 @@ const innerEscape = (scope, active) => {
 // document is above every user, at the top of the walk.
 const above = (node, active) => {
   let depth = 0;
-  for (let up = active; up; up = up.parentNode ?? up.host ?? null) {
+  for (let up = active; up; up = up.parentNode ?? shadowHost(up)) {
     if (up === node) return depth;
     depth += 1;
   }
@@ -310,6 +310,7 @@ function referencedInvocation(reference) {
       : null;
   return run
     ? {
+        id: reference.id,
         row: reference.row,
         binding: reference.binding ?? undefined,
         run,
@@ -326,13 +327,24 @@ function invocationFor(row, binding, command, recovered = null) {
     : recovered
       ? () => recovered.click()
       : null;
-  return run ? { row, binding, run, native: Boolean(row.native) } : null;
+  return run
+    ? { id: command?.id ?? row.id, row, binding, run, native: Boolean(row.native) }
+    : null;
+}
+
+function announceInvocation(invocation) {
+  document.dispatchEvent(
+    new window.CustomEvent("lf-command-invoked", {
+      detail: { id: invocation.id, binding: invocation.binding },
+    }),
+  );
 }
 
 function invokeCommand(command, beforeCommand) {
   const invocation = invocationFor(command.row, command.binding, command.entry);
   if (!invocation) return false;
   beforeCommand?.(invocation.row);
+  announceInvocation(invocation);
   invocation.run();
   return true;
 }
@@ -424,6 +436,7 @@ export function dispatchKey(ev, { beforeCommand }) {
       if (!matched.native) ev.preventDefault();
       if (ev.repeat && !matched.row.repeat) return true;
       beforeCommand?.(matched.row);
+      announceInvocation(matched);
       matched.run();
       return true;
     }
@@ -498,6 +511,16 @@ function availableRouteSnapshot() {
 // take this snapshot before that point.
 export const availableCommands = () => availableRouteSnapshot().commands;
 export const availableCommandRoutes = () => availableRouteSnapshot().routes;
+// A control standing in for a press (touch-controls.js) makes that press itself: the
+// binding names which of a routed row's results it is, and a nearer claim on the key is
+// about the key, not the command.
+export function invokePress({ id, row, binding }) {
+  const invocation = invocationFor(row, binding, { id });
+  if (!invocation) return false;
+  announceInvocation(invocation);
+  invocation.run();
+  return true;
+}
 export function executeCommand(id, beforeCommand) {
   const command = commandFor(id);
   if (!command) return false;

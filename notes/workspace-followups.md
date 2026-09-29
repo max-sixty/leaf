@@ -4,7 +4,7 @@ Research at merged commit `cb7915bb`, 8 September 2026. Research briefs for work
 
 I recommend keeping the current primitives and spending the next cycle on reliable shared contracts, convincing examples and a measured authoring advantage. The larger layout vocabulary should follow evidence from those tasks.
 
-The shared-contract and example items this note opened with have landed; what remains is verification and the product questions the implementation cannot settle. Begin the authoring baseline #19 before improving the recipes, and run the keyboard journey #14 against the examples it protects.
+The shared-contract and example items this note opened with have landed; what remains is verification and the product questions the implementation cannot settle. Use the arrangement baseline in #19 to choose which recipes to improve, and run the keyboard journey #14 against the examples it protects.
 
 Items are ranked within each group. IDs are stable references, not a global priority score. Agent-owned work is distinguished from the repeated-use pilot, which needs Max’s purpose and participation. Evidence labels separate reproduced defects from code gaps and experiments.
 
@@ -22,7 +22,7 @@ Items are ranked within each group. IDs are stable references, not a global prio
 
   **Owner / dependencies:** Sol. The Threads placement this item waited on is settled: Threads stands over the document at every width and takes no room from it, and it takes the modal covering boundary ([PR #536](https://github.com/max-sixty/leaf/pull/536)) only where it leaves less than a usable page beside it. Verify the keyboard route against both: the live page beside an open panel, and the modal boundary where it covers.
 
-  **Sources:** [lf-pane.js:29](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/skills/leaf/packages/default/widgets/lf-pane.js#L29), [test_render_navigation.py:106](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/tests/test_render_navigation.py#L106), [panel.js:75](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/skills/leaf/assets/runtime/conversation/panel.js#L75).
+  **Sources:** [lf-pane.js:29](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/skills/leaf/packages/default/widgets/lf-pane.js#L29), [test_render_navigation.py:106](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/tests/test_render_navigation.py#L106), [panel.js:75](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/skills/leaf/assets/runtime/thread/panel.js#L75).
 
 ## Measure the product boundary
 
@@ -30,7 +30,12 @@ Items are ranked within each group. IDs are stable references, not a global prio
 
 - **#19** **Measure what Leaf saves an authoring agent** — Run a small blind authoring comparison against plain HTML, including the cost of the subsequent feedback cycle.
 
-  **Evidence / confidence:** Unanswered positioning question. This session established implementation correctness and found composition flaws. It did not measure whether widgets and package guidance make agents faster or their outputs more useful than arbitrary HTML.
+  **Evidence / confidence:** First slice measured for arrangement with the [arrangement-eval harness](arrangement-eval/README.md): Leaf's arrangement vocabulary against plain page CSS on a document, a dashboard and a queue, plus a standing-preference revision. On the layout #1171 landed, a blind reviewer preferred the plain pages in 11 pairs, the leaf pages in 4, and split 3; the vocabulary cut page CSS about fourfold but not turns. The full write-up is [the harness README before its results moved out](https://github.com/max-sixty/leaf/blob/5e7fc3acf988d45649421a0b66483165cdefb57c/notes/arrangement-eval/README.md#results). Widgets beyond arrangement, and package guidance, are still unmeasured.
+
+  **Follow-ups from the first run** (reproduced in the judge's defect lists and checked against the screenshots):
+
+  - Render check: it passed all 72 pages. On the settled 1200px page, flag a figure scrolled sideways out of view and an Ask below its pane's first screen; taking such readings across widths is a TODO.md item beside the mobile ones.
+  - Rail: it comes last on a phone and doesn't stick, and its 14rem floor cramps a table or log at 900px.
 
   **Next task:** Give comparable agents document-review, configuration and queue/detail tasks with the same content and acceptance criteria. Compare usable output, time/tokens, custom CSS and repair iterations; then require a comment and revision on each result. Counterbalance task order.
 

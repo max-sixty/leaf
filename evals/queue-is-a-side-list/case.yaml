@@ -1,0 +1,45 @@
+# Added with a queue as one `lf-tabs list="side"` (#1363). Base at b4cda1c37 built
+# the queue as panes or a table (0 of 3); the change 2 of 3, the third writing its
+# tickets as `section` elements, after which the guide named `lf-tab`.
+schema_version: '1.0'
+name: queue-is-a-side-list
+description: "A queue whose items open one at a time beside it is one `lf-tabs list=\"side\"`: its list is the queue, each item a tab, and the page writes no script to select, hide or mark an item."
+tags:
+- layout
+execution:
+  prompt: |
+    Five customer escalations came in overnight. Write a Leaf page where the user works
+    through them one at a time: the queue down one side, each row saying enough to scan
+    it (severity, age, the suggested outcome), and the ticket they pick open beside it
+    with what they need to decide it and a choice of refund, fix, escalate or close. They
+    will go through all five in one sitting on a laptop.
+
+    ESC-4107 Northwind Labs, severity 1, 9 h: SSO fails since their IdP certificate
+    rotated; suggested fix. ESC-4114 Vela Analytics, severity 1, 1 h: sees another
+    customer's project names; suggested escalate. ESC-4109 Quanta Freight, severity 2,
+    7 h: exports over 2 GB stall; suggested escalate. ESC-4108 Hale & Sons, severity 3,
+    8 h: charged twice, one charge already refunded; suggested close. ESC-4112 Kettle &
+    Co, severity 3, 5 h: a webhook retries forever; suggested fix.
+
+    The page directory is not reachable from here, so reply with the complete
+    `index.html`, rather than writing a file.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-page-authoring
+  type: tool_used
+  tool: Read
+  input_match: page-authoring
+- name: side-list
+  type: regex
+  pattern: <lf-tabs\b[^>]*\blist="side"
+- name: judgment
+  type: llm
+  criteria: |
+    Read the HTML. Pass only if all of these hold. The queue is one `lf-tabs` with
+    `list="side"`, and each of the five tickets is one `lf-tab` in it holding that
+    ticket's detail and its choice. The page has no `<script>` of its own and links no
+    page module that selects, hides or marks tickets. The queue is not written a second
+    time elsewhere on the page, such as a separate list or table of the same tickets.

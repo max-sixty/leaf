@@ -1,4 +1,4 @@
-/* This module owns the shared resizable boundary the thread panel and tray panels are
+/* This module owns the shared resizable boundary the thread panel and drawer panels are
  * drawn by: its width, its keys and handle, and the user's remembered answer. How the
  * shell takes a new width is the layout writer's (`land`, chrome-layout.js's landEdge),
  * handed to each edge, so this module stays outside the owner cycle and an edge can be
@@ -7,6 +7,7 @@ import { userStore } from "./storage.js";
 import { el } from "./widget-elements.js";
 import { keys } from "./keyboard/scopes.js";
 import { setRuntimeRootStyle } from "./root-state.js";
+import { keeps, keepsHidden } from "./keeps.js";
 
 // The step an arrow takes, in the column's own gutter: the smallest move that shows in a
 // page of prose.
@@ -15,7 +16,7 @@ let activeResize = null;
 
 /** A region held to one side of the window, and the boundary the user draws it by.
  *
- * The page has two — the thread panel on the right, the tray panel on the left — and
+ * The page has two — the thread panel on the right, the drawer panel on the left — and
  * they are the same furniture reflected, so this is one function rather than two
  * near-copies. What differs is what it is handed: which side the region is held to, the
  * width it stands at until the user says otherwise, how narrow they may draw it, the
@@ -30,9 +31,9 @@ let activeResize = null;
  * kept and the standing width is derived from it. Everything reads `width`; nothing holds
  * the number.
  *
- * One width, and a handle for each region on that side: the left edge holds two trays one
+ * One width, and a handle for each region on that side: the left edge holds two drawers one
  * at a time, and each wears the edge it is drawn by, because a handle outside them both
- * would not slide in with the tray it belongs to. They are handles onto one fact rather
+ * would not slide in with the drawer it belongs to. They are handles onto one fact rather
  * than two facts — `state` is the one writer, and it says the same thing on every one.
  */
 export function drawnEdge({ side, noun, wide, min, prop, key, when, land }) {
@@ -63,8 +64,8 @@ export function drawnEdge({ side, noun, wide, min, prop, key, when, land }) {
     // on every step — the platform's own announcement, and the whole reason the edge is a
     // separator. The cap moves with the window, so it is restated wherever the width is.
     for (const handle of handles) {
-      handle.setAttribute("aria-valuenow", String(Math.round(width())));
-      handle.setAttribute("aria-valuemax", String(Math.round(cap())));
+      keeps(handle, "aria-valuenow", Math.round(width()));
+      keeps(handle, "aria-valuemax", Math.round(cap()));
       // A boundary with no distance to travel is not a control. This happens to the
       // comment sheet at the supported 320px floor: leaving its separator in the tab
       // order promised a resize no pointer or arrow could make. Transfer a user who
@@ -73,7 +74,7 @@ export function drawnEdge({ side, noun, wide, min, prop, key, when, land }) {
       const fixed = cap() <= min;
       if (fixed && handle === document.activeElement)
         handle.lfFixedFocus().focus({ preventScroll: true });
-      handle.hidden = fixed;
+      keepsHidden(handle, fixed);
     }
   }
   // The user's answer, taken and kept. Held to the window on the way in, because a drag
@@ -92,14 +93,14 @@ export function drawnEdge({ side, noun, wide, min, prop, key, when, land }) {
    * so in words of its own and would have promised an activation an edge has not got.
    *
    * It goes in the region rather than beside it, so it travels with whatever the region
-   * does: the tray panel's edge slides in with the tray standing on it, and a closed
+   * does: the drawer panel's edge slides in with the drawer standing on it, and a closed
    * region's edge is hidden by the same rule that hides the region.
    */
   function handle(region, fixedFocus) {
     const edge = el("div", "lf-ui lf-edge");
     // The owner names the control that survives when this edge has no range. Stored on
     // the handle because state walks all mirrored handles together, while the target is
-    // each region's own — the thread panel closes, each tray returns to its toggle.
+    // each region's own — the thread panel closes, each drawer returns to its toggle.
     edge.lfFixedFocus = fixedFocus;
     edge.dataset.lfSide = side;
     edge.setAttribute("role", "separator");

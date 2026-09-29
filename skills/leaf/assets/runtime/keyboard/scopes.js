@@ -1,7 +1,7 @@
 /* Scopes: where a group of rows applies, registered against an element and gathered by
    title for the surfaces that project them.
 
-   Standing in a surface is where focus is, not merely that the surface is open. A tray's
+   Standing in a surface is where focus is, not merely that the surface is open. A drawer's
    or panel's own button lives in the banner, so opening by pointer leaves the user
    outside it, and a key, a Tab or a click on its contents is what puts them in. Inside a
    text box the letter is a character, Shift+Enter writes a newline in a composer, and arrows move the caret.
@@ -26,8 +26,10 @@ import {
   validateRows,
   word,
 } from "./bindings.js";
-import { upFrom } from "../shadow.js";
+import { deepFocus } from "../focus.js";
+import { hostIn, upFrom } from "../shadow.js";
 import { repaint } from "../repaint.js";
+import { afterScript } from "../rendering.js";
 
 // The scopes still owed a first paint. A declaration joins here and `reflectShortcuts`
 // takes it out again, so one reading is owed per declaration whether that reading stands
@@ -46,12 +48,17 @@ const unpainted = new Set();
 // first contributor's silence carry rather than the second's answer.
 const either = (a, b) => (a && b ? () => a() || b() : undefined);
 export const elementScopes = new WeakMap();
+// The scopes other owners project onto an element, keyed by the owner, so one control can
+// carry several: a margin entry holds its widget's scope and an Ask's digit route at once.
 const projectedScopes = new WeakMap();
 const commandScopeCapabilities = new WeakSet();
 export const isCommandScope = (capability) =>
   capability != null && commandScopeCapabilities.has(capability);
 export const scopesAt = (element) =>
-  [elementScopes.get(element), projectedScopes.get(element)].filter(Boolean);
+  [
+    elementScopes.get(element),
+    ...(projectedScopes.get(element)?.values() ?? []),
+  ].filter(Boolean);
 // The weak map is the dispatcher's lookup. The reference also has to enumerate every
 // connected contributor, so keep weak references beside it. A live-version replacement
 // can then be collected, while an element temporarily moved out of the document keeps
@@ -227,18 +234,28 @@ export function commandScope(title, rows, options) {
   return capability;
 }
 
-export function projectCommandScope(control, capability = null) {
+// `projector` is whatever the projecting owner keys its projection by; projecting again
+// under the same key replaces that owner's scope and leaves every other owner's standing,
+// and a null capability withdraws it.
+export function projectCommandScope(control, projector, capability = null) {
   if (!(control instanceof Element))
     throw new TypeError("A projected command scope needs an Element");
+  if (projector == null)
+    throw new TypeError("A projected command scope needs its projector's key");
+  const projections = projectedScopes.get(control) ?? new Map();
   if (capability == null) {
-    projectedScopes.delete(control);
-    if (!elementScopes.has(control)) forgetScopedElement(control);
+    projections.delete(projector);
+    if (!projections.size) {
+      projectedScopes.delete(control);
+      if (!elementScopes.has(control)) forgetScopedElement(control);
+    }
     reflectElementShortcuts(control);
     return;
   }
   if (!isCommandScope(capability))
     throw new TypeError("A projected command scope needs a commandScope capability");
-  projectedScopes.set(control, capability.scope);
+  projections.set(projector, capability.scope);
+  projectedScopes.set(control, projections);
   rememberScopedElement(control);
   reflectElementShortcuts(control);
 }
@@ -289,7 +306,10 @@ export const commandScopesWithin = (root) =>
     answer: scope.answer,
   }));
 // Every declaration on one element is painted as one native shortcut attribute. A local
-// and a projected declaration can coexist, so neither may erase the other's bindings.
+// declaration and any number of projected ones can coexist, so none may erase another's
+// bindings. Each scope's live rows are read and refused on their own; the attribute is
+// their union, since two scopes on one control may name one press: an Ask's route names
+// the intrinsic key of the command it routes to, which that command's own scope names.
 function reflectElementShortcuts(element) {
   const available = scopesAt(element).filter((scope) => !scope.when || scope.when());
   for (const scope of available) {
@@ -308,13 +328,15 @@ function reflectElementShortcuts(element) {
     }
     if (scope.el === element) scope.validated = true;
   }
-  const shortcuts = available.length
-    ? ariaShortcuts(
-        available.flatMap((scope) => scope.rows),
-        true,
-        "the element's command scopes",
-      )
-    : "";
+  const shortcuts = [
+    ...new Set(
+      available.flatMap((scope) =>
+        ariaShortcuts(scope.rows, true, scope.title ?? "a scope")
+          .split(" ")
+          .filter(Boolean),
+      ),
+    ),
+  ].join(" ");
   if (shortcuts) {
     if (element.getAttribute("aria-keyshortcuts") !== shortcuts)
       element.setAttribute("aria-keyshortcuts", shortcuts);
@@ -328,12 +350,25 @@ export function reflectFirstScopes() {
     reflectElementShortcuts(scope.el);
   }
 }
-export const paintKeys = () => {
+// The keys are painted once per script, when its synchronous work is done (`afterScript`).
+// A render that replaces the control the user stood on and the focus that lands on its
+// successor each ask for a paint; painted at once, the first would reflect the moment
+// between them, when the user stands nowhere, and the second put back what it took off.
+// A scope refused there is reported, and the elements after it still paint.
+function reflectKeys() {
   pruneScopedElements();
   for (const ref of scopeRefs) {
     const scoped = ref.deref();
-    if (scoped?.isConnected) reflectElementShortcuts(scoped);
+    if (!scoped?.isConnected) continue;
+    try {
+      reflectElementShortcuts(scoped);
+    } catch (error) {
+      reportError(error);
+    }
   }
+}
+export const paintKeys = () => {
+  afterScript(reflectKeys);
   repaint();
 };
 /** What a scope answers right now, as a listener hears it read out — key names rather than
@@ -357,11 +392,6 @@ const spoken = (row) => {
   return word(row.label) ?? active.map(spokenBinding).join(" or ");
 };
 
-const deepestFocus = () => {
-  let el = document.activeElement;
-  while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
-  return el;
-};
 const FOCUS = "lf-focus";
 const FOCUS_VISIBLE = "lf-focus-visible";
 const FOCUS_WITHIN = "lf-focus-within";
@@ -373,22 +403,22 @@ const FOCUS_WITHIN = "lf-focus-within";
 // still select a label's authored words.
 let labelPress = null;
 const markLabelPress = (held, pointerId) => {
-  held.classList.add(FOCUS);
+  held.classList.toggle(FOCUS, true);
   const within = [];
   for (let node = held; node; node = upFrom(node)) {
-    node.classList.add(FOCUS_WITHIN);
+    node.classList.toggle(FOCUS_WITHIN, true);
     within.push(node);
   }
-  if (held.matches(":focus-visible")) held.classList.add(FOCUS_VISIBLE);
+  if (held.matches(":focus-visible")) held.classList.toggle(FOCUS_VISIBLE, true);
   labelPress = { held, pointerId, within };
 };
 const finishLabelPress = () => {
   const press = labelPress;
   if (!press) return null;
   labelPress = null;
-  press.held.classList.remove(FOCUS);
-  press.held.classList.remove(FOCUS_VISIBLE);
-  for (const node of press.within) node.classList.remove(FOCUS_WITHIN);
+  press.held.classList.toggle(FOCUS, false);
+  press.held.classList.toggle(FOCUS_VISIBLE, false);
+  for (const node of press.within) node.classList.toggle(FOCUS_WITHIN, false);
   repaint();
   return press;
 };
@@ -400,7 +430,7 @@ document.addEventListener(
       .composedPath()
       .find((node) => node?.localName === "label" && node.control);
     if (!label) return;
-    const active = deepestFocus();
+    const active = deepFocus();
     if (active && active !== document.body) markLabelPress(active, event.pointerId);
   },
   true,
@@ -422,13 +452,13 @@ const recoveredLabelKeys = new WeakMap();
 document.addEventListener(
   "keydown",
   (event) => {
-    const active = deepestFocus();
+    const active = deepFocus();
     if (!labelPress || event.isComposing || MODIFIER_KEYS.includes(event.key)) return;
     const { held } = finishLabelPress();
     if (active === held) return;
     if (!held.isConnected) return;
     held.focus({ preventScroll: true });
-    if (deepestFocus() === held) recoveredLabelKeys.set(event, held);
+    if (deepFocus() === held) recoveredLabelKeys.set(event, held);
   },
   true,
 );
@@ -439,18 +469,13 @@ document.addEventListener(
 // needs the inner element in both cases so its scope stays the one the user is leaving
 // or working.
 export const focused = () => {
-  const active = deepestFocus();
+  const active = deepFocus();
   return labelPress?.held.isConnected ? labelPress.held : active;
 };
 // Document readings want the host of a control staged in a shadow tree. Retarget the
 // logical reading every time, so a label transaction and an ordinary shadow focus take
 // the same path and no painted surface invents its own exception.
-export const documentFocused = () => {
-  let held = focused();
-  for (let root = held?.getRootNode(); root?.host; root = held.getRootNode())
-    held = root.host;
-  return held;
-};
+export const documentFocused = () => hostIn(focused(), document);
 export const recoveredLabelFocus = (event) => recoveredLabelKeys.get(event);
 
 // The element scopes covering a node, innermost first — the climb crosses a shadow

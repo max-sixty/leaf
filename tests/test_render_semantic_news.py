@@ -2,22 +2,17 @@
 
 import re
 
-import pytest
 from interact_support import record_claim
-from leaf import conversation as conversation_model
-from leaf import event_log as events_model
 from leaf import leases as leases_model
-from leaf import requests as requests_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import thread as thread_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    COMMAND_HUB_EXAMPLE,
     PANEL_PAGE,
-    live_url,
     panel_comment,
 )
-from render_harness import FEATURE_GALLERY, open_page, sending, told
+from render_harness import FEATURE_GALLERY, open_page, told
 
 
 def test_new_reply_and_user_question_share_one_notice_without_moving_focus(
@@ -31,7 +26,7 @@ def test_new_reply_and_user_question_share_one_notice_without_moving_focus(
     expect(toggle).to_be_focused()
     expect(page.locator(".lf-notice")).to_be_hidden()
 
-    conversation_model.cmd_reply(
+    thread_model.cmd_reply(
         serve.page_dir,
         root,
         "I changed the route. Does this answer your question?",
@@ -46,7 +41,7 @@ def test_new_reply_and_user_question_share_one_notice_without_moving_focus(
     expect(toggle).to_be_focused()
 
 
-def test_gallery_new_information_specimen_preserves_focus(browser, serve):
+def test_gallery_new_information_sample_preserves_focus(browser, serve):
     page = open_page(browser, serve(FEATURE_GALLERY))
     guide = page.locator("#bg-thread-notices")
     expect(guide).to_contain_text("status-line notice")
@@ -55,7 +50,7 @@ def test_gallery_new_information_specimen_preserves_focus(browser, serve):
     expect(toggle).to_be_focused()
     expect(page.locator(".lf-notice")).to_be_hidden()
 
-    conversation_model.cmd_comment(
+    thread_model.cmd_comment(
         serve.page_dir, None, None, None, "A new page-wide agent note.", None
     )
     told(page)
@@ -70,7 +65,7 @@ def test_terminal_failure_is_a_response_notice_not_an_agent_reply(browser, serve
     page = open_page(browser, url)
     expect(page.locator(".lf-notice")).to_be_hidden()
 
-    conversation_model.cmd_reply(
+    thread_model.cmd_reply(
         serve.page_dir,
         root,
         "The agent turn ended before completion.",
@@ -121,12 +116,12 @@ def test_deferred_notice_describes_only_the_current_message_version(browser, ser
       setNoticeContext(true);
     }""")
 
-    original = conversation_model.cmd_comment(
+    original = thread_model.cmd_comment(
         serve.page_dir, None, None, None, "Initial note.", None
     )
     told(page)
     expect(page.locator(".lf-notice")).to_be_hidden()
-    conversation_model.cmd_edit(serve.page_dir, original["id"], "Current note.")
+    thread_model.cmd_edit(serve.page_dir, original["id"], "Current note.")
     told(page)
 
     page.evaluate("""async () => {
@@ -136,37 +131,10 @@ def test_deferred_notice_describes_only_the_current_message_version(browser, ser
     expect(page.locator(".lf-notice")).to_have_text(re.compile(r".+ updated a comment"))
 
 
-@pytest.mark.parametrize(
-    ("status", "words"),
-    [
-        ("succeeded", "Request succeeded"),
-        ("failed", "Request failed; Input needed"),
-    ],
-)
-def test_native_request_outcome_uses_the_same_notice_as_a_reopened_ask(
-    browser, serve, status, words
-):
-    page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
-    expect(page.locator(".lf-notice")).to_be_hidden()
-    with sending(page, "the native request"):
-        page.locator("#dedupe-operations").get_by_role(
-            "button", name="Restart with a fresh worker"
-        ).click()
-    [request] = [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "request"
-    ]
-    requests_model.cmd_receipt(serve.page_dir, request["id"], status, "Host outcome")
-    told(page)
-    expect(page.locator(".lf-notice")).to_have_text(words)
-    expect(page.locator(".lf-live")).to_have_text(words)
-
-
 def test_initial_history_and_repeated_stage_readings_are_quiet(browser, serve):
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "What changed?")
-    conversation_model.cmd_reply(
+    thread_model.cmd_reply(
         serve.page_dir, root, "The initial historical answer.", None, for_event=root
     )
     page = open_page(browser, url)

@@ -52,32 +52,6 @@ export const shownVerbatim = (declarations) =>
       })),
     );
 
-// What the page says, and whether each run of it is showing. Read once in each medium
-// and compared by walk order: media change what is displayed, never the DOM, so the nth
-// run on screen is the nth run on paper. What a page says has to survive being printed,
-// and the ways it can fail to are all silent — a widget's control that is a statement as
-// well as a thing to press (the pick mark, which took the only words naming the option a
-// group carried), a rule of the page's own that hides its content in print. The whole
-// page rather than the widgets in it, because a user's printout losing a paragraph is
-// no better than losing a widget's word. Declared offers are excluded because paper has
-// nothing to press; the runtime's own layer is excluded because it was never the
-// document, and a widget rendered inside it (a reply's markup) is the panel's, not the
-// page's.
-export function paperWords() {
-  const out = [];
-  const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-  for (let n = walk.nextNode(); n; n = walk.nextNode()) {
-    const el = n.parentElement;
-    if (!n.data.trim() || el.closest(".lf-chrome, [data-lf-offer]")) continue;
-    out.push({
-      at: at(el),
-      text: n.data.trim().slice(0, 40),
-      shown: el.checkVisibility(),
-    });
-  }
-  return out;
-}
-
 // Words the page draws in the same place as other words. A copy went out with a settled
 // group's cards laid across the heading above them — the cards kept the collapsed
 // padding, which is the room the group is laid out in — and the user saw it in the
@@ -92,14 +66,11 @@ export function paperWords() {
 // What floats over the document on purpose is answered for, and that is one exemption
 // rather than two. It reads as the runtime's, because for a long time the runtime owned
 // every float there was; the sentence is about the float and not about the owner. A
-// suggestion's controls hang out of the flow, level with the change they decide, and a
-// sidenote hangs out of the flow level with the block it annotates — both in the right
-// margin now, both pinned by what they belong to, so where a page stands them level the
-// controls are drawn over the note and neither can move. Reporting that would refuse
-// every page that writes a note beside a change, which is a composition the vocabulary
-// is meant to have; so the float is exempt and the note is what it may cover. Where the
-// same row docks back into the flow it is a resident again, and covering a word there is
-// a fault this still reports.
+// sidenote hangs out of the flow level with the block it annotates, pinned by what it
+// belongs to, and a page's own absolutely placed furniture does the same; covering a
+// word there is the page's composition, not a fault. A control in the flow covering a
+// word is a fault this still reports. Leaf's margin rows stand in its own layer over the
+// page, which the chrome skip below takes whole.
 //
 // A pair where one element contains the other is skipped: a paragraph and the <em>
 // inside it are one run of words that the flow lays out together, and their boxes
@@ -120,17 +91,13 @@ export function paperWords() {
 // them is one word of the page's, and this asks about two.
 //
 // The layer is in two places and the float rule reaches both, which is why only one of
-// them is named. The line counting a passage's comments lives inside the page's own
-// elements by design — it is what a screen reader hears where a painted mark says
-// nothing — and it is clipped to nothing on screen. checkVisibility answers for display,
-// visibility and opacity and knows nothing of clip-path, so that line read as drawn, and
-// its text lays out past the 1px box holding it: an anchor on a container put "1 comment"
-// across the paragraph below the widget and failed the gate on a page with nothing wrong
-// with it. It wore a name in this selector for a while, next to the container's, and the
-// name went the day the rule below could answer for it — the line is a control the
-// runtime hangs absolutely, which is the whole of what `floating` asks. Two skips over
-// one element is a guarantee kept twice, and the weaker of them is the one that has to be
-// remembered when the next float is written.
+// them is named. Beside the chrome, a widget hangs some of its own controls out of flow
+// over the page, clipped or transparent at rest. checkVisibility answers for display,
+// visibility and opacity and knows nothing of clip-path, so such a control reads as
+// drawn, and its text lays out past the box holding it. A control the runtime hangs
+// absolutely is the whole of what `floating` asks, so no float needs a name here: two
+// skips over one element is a guarantee kept twice, and the weaker of them is the one
+// that has to be remembered when the next float is written.
 //
 // checkVisibility knows nothing of content-visibility either, which is what a collapse
 // wears: an inactive tab's panel and a settled group's cards are hidden="until-found" so
@@ -169,11 +136,7 @@ export function coveredWords({
   // does. The walk below stays in the light DOM, so the climb does too.
   const painted = (el, drawn) => {
     let box = drawn;
-    for (
-      let ancestor = el;
-      ancestor && ancestor !== document.body && box;
-      ancestor = ancestor.parentElement
-    ) {
+    for (let ancestor = el; ancestor && ancestor !== document.body && box;) {
       const style = getComputedStyle(ancestor);
       if (style.overflowX !== "visible" || style.overflowY !== "visible") {
         const bounds = ancestor.getBoundingClientRect();
@@ -187,10 +150,22 @@ export function coveredWords({
             : null;
       }
       // An out-of-flow box is laid out against its containing block rather than against
-      // the ancestry, so a hidden overflow further out need not reach it at all. Stop
-      // climbing there and keep the rect whole: over-reporting a cover is this reading's
-      // safe direction, and missing one is the fault it was written for.
-      if (style.position === "absolute" || style.position === "fixed") break;
+      // the ancestry: an overflow between the two does not clip it, and one at or above
+      // the containing block does, so the climb goes on from there. A board column's
+      // count hangs absolutely in its column, and the board that scrolls the column out
+      // of view hides the count with it. `offsetParent` is the containing block only
+      // when it is positioned: a static table or cell it may name instead stands below
+      // the real one, so there the climb stops and keeps the rect whole, over-reporting
+      // a cover being this reading's safe direction. A fixed box answers to the
+      // viewport alone.
+      if (style.position === "fixed") break;
+      if (style.position === "absolute") {
+        const holder = ancestor.offsetParent;
+        if (!holder || getComputedStyle(holder).position === "static") break;
+        ancestor = holder;
+        continue;
+      }
+      ancestor = ancestor.parentElement;
     }
     return box;
   };
@@ -233,47 +208,6 @@ export function coveredWords({
       );
     }
   return [...new Set(found)];
-}
-
-// Room on paper that prints nothing. `visibility: hidden` is how a live page holds a box
-// open for something that has not arrived yet — the card behind the one being swiped, a
-// value nobody has picked — and paper has nothing coming: the room is a hole in the
-// sheet. It is also the shape a losing print rule takes, which is how this reading came
-// to exist. The swipe pile hid every card behind the first at one class more weight than
-// its own `@media print` reset carried, so a printed decision came out as one card, 308
-// pixels of nothing, and a label still reading "Queue · 3" over it. Nothing said so: the
-// words were in the markup, the boxes were laid out, and both media agreed the run was
-// "shown" — `checkVisibility` answers for display and content-visibility, not for this.
-//
-// Print alone, because on screen a held box is the page keeping still for news it expects
-// ("Reserve space before a generated control appears"). The medium nobody looks at is
-// where a reset silently fails to win, so it is where the reading belongs.
-//
-// The outermost hidden box only: visibility inherits, so its runs would each report the
-// same hole, and the hole is one rule. Words rather than boxes, because a spacer with
-// nothing to say is a spacer — this reports a page withholding something it wrote down.
-// `textContent`, not `innerText`, which is rendered text and comes back empty from
-// exactly the elements this is about. Offers are held out the way `paperWords` holds
-// them out: paper has nothing to press.
-export function paperVoids() {
-  const out = [];
-  const hidden = (el) => {
-    const shown = getComputedStyle(el).visibility;
-    return shown === "hidden" || shown === "collapse";
-  };
-  for (const el of document.body.querySelectorAll("*")) {
-    if (el.closest(".lf-chrome, [data-lf-offer]") || !hidden(el)) continue;
-    if (el.parentElement && hidden(el.parentElement)) continue;
-    const box = el.getBoundingClientRect();
-    if (box.height < 1 || box.width < 1) continue;
-    const words = el.textContent.replace(/\s+/g, " ").trim();
-    if (!words) continue;
-    out.push(
-      `${at(el)} keeps ${Math.round(box.height)}px of the sheet and prints nothing of ` +
-        JSON.stringify(words.slice(0, 40)),
-    );
-  }
-  return out;
 }
 
 // Code that came out the colour of the code around it. Colouring takes two halves that
@@ -447,4 +381,72 @@ export function silentWords(declarations) {
       }
   }
   return found;
+}
+
+// Labels a drawing shrank past reading. An inline <svg> states its size in its own units
+// and the theme fits it to its box (`svg.drawing` takes the figure's width), so what the
+// author wrote as an 11px label is drawn at 11px times whatever the box made of the
+// viewBox. Nothing in the source says what that is: the page is correct, the labels are
+// all there, and every other reading passes it — an eval's dashboard went out with its
+// rollout graphic's labels a few pixels high at 900px and on a phone, and the gate said
+// nothing. So the size is asked of the drawing as drawn: the font-size each run of words
+// was set at, times the vertical scale of the transform from its element to the screen,
+// which is the viewBox fit and any transform inside or around it.
+//
+// A label counts when the drawing made it smaller than it was set and smaller than
+// `floor`. Drawn size is what decides, since halving a 28px heading leaves it legible
+// and a fifth off an 11px label does not. The first half is what makes it the drawing's
+// finding: a label set small and drawn at that size is a choice the source states (the
+// theme's own step glyph is 9px, bold on its dot), and a widget that keeps its
+// renderer's natural size — a diagram scrolls rather than shrink, a chart draws at the
+// width it measured — never scales one at all.
+//
+// One entry per drawing, the outermost <svg>, because the fix is the drawing's: its
+// labels, its layout, or the room it is given. Every open root, since a drawing a module
+// makes on a project's page is that page's too; the runtime's own layer is skipped.
+//
+// A run of words counts only where it is painted, which is asked of the element holding
+// it — the <text>, or the <tspan> inside one — since that is what the browser lays out
+// and paints, and a visible <text> can hold runs that are not. The element needs a box
+// and must be visible. Nothing in <defs> or another unrendered subtree has a box, nor
+// does a run under display: none, though the page's own checkVisibility passes one in
+// <defs>; a run laid out under visibility or opacity has a box and paints nothing. The
+// `hidden` attribute is no separate case: on an HTML ancestor it is display: none, and on
+// an SVG element Chrome draws the words anyway.
+export function shrunkLabels(floor) {
+  const chrome = (el) => {
+    for (let node = el; node; node = node.getRootNode().host)
+      if (node.closest(".lf-chrome")) return true;
+    return false;
+  };
+  const drawings = new Map();
+  for (const text of openRoots(document).flatMap((r) => [
+    ...r.querySelectorAll("svg text"),
+  ])) {
+    if (chrome(text)) continue;
+    let svg = text.ownerSVGElement;
+    while (svg.ownerSVGElement) svg = svg.ownerSVGElement;
+    const walk = document.createTreeWalker(text, NodeFilter.SHOW_TEXT);
+    for (let node = walk.nextNode(); node; node = walk.nextNode()) {
+      const words = node.data.trim();
+      const holder = node.parentElement;
+      if (!words || !holder.getClientRects().length) continue;
+      if (!holder.checkVisibility({ visibilityProperty: true, opacityProperty: true }))
+        continue;
+      const ctm = holder.getScreenCTM();
+      const set = parseFloat(getComputedStyle(holder).fontSize);
+      const drawn = set * Math.hypot(ctm.c, ctm.d);
+      if (drawn >= floor || drawn >= set - 0.05) continue;
+      const found = drawings.get(svg) ?? { at: at(svg), labels: 0 };
+      found.labels += 1;
+      if (!(found.drawn <= drawn))
+        Object.assign(found, {
+          drawn: Math.round(drawn * 10) / 10,
+          set: Math.round(set * 10) / 10,
+          words: words.slice(0, 40),
+        });
+      drawings.set(svg, found);
+    }
+  }
+  return [...drawings.values()];
 }

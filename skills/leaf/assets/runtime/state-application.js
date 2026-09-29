@@ -20,12 +20,8 @@ import { importWidgets } from "./widget-loader.js";
 import { observeServerNow, observeWorkingGrace } from "./presence.js";
 import { settleAcceptedDrafts } from "./drafts.js";
 import { notice } from "./notifications.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
-import {
-  loadMarked,
-  prepareAuthoredMessage,
-  messageText,
-} from "./conversation/messages.js";
+import { markStateApplied } from "./presentation.js";
+import { loadMarked, prepareAuthoredMessage, messageText } from "./thread/messages.js";
 import { commitWidgetDescriptors } from "./widget-descriptors.js";
 import {
   combineSemanticNews,
@@ -67,12 +63,6 @@ export function createStateApplication({
     }
   }
 
-  const stale = (state) =>
-    runtime.state !== null &&
-    (state.taken < runtime.state.taken ||
-      state.browser.basis.through_seq < runtime.lastEventSeq ||
-      state.active.revision < runtime.active.revision);
-
   async function receiveState(state) {
     if (!sameLayer(state.layer.generation)) return;
     if (typeof state.taken !== "number")
@@ -88,15 +78,15 @@ export function createStateApplication({
       throw new TypeError("state active must name a positive revision");
     if (LIVE_ROOT && runtime.currentRevision === null)
       throw new TypeError("the live document has no lf-revision marker");
-    if (stale(state)) {
+    if (applicationState.overtaken(state)) {
       await notifyChangedData();
       return;
     }
 
     const frozenDocuments = [];
     const threadRoots = new Map(
-      state.browser.conversation.threads.flatMap((thread) =>
-        thread.msgs.map((message) => [message.id, thread.root.id]),
+      state.browser.thread.threads.flatMap((thread) =>
+        thread.msgs.map((message) => [message.id, thread.id]),
       ),
     );
     const preparations = [
@@ -116,10 +106,10 @@ export function createStateApplication({
     }
     const [activation] = await Promise.all(preparations);
     const bodies = new Map(
-      state.browser.conversation.threads.flatMap((thread) =>
+      state.browser.thread.threads.flatMap((thread) =>
         thread.msgs.map((message) => {
           const authored = message.markup
-            ? prepareAuthoredMessage(message, thread.root.id).body
+            ? prepareAuthoredMessage(message, thread.id).body
             : null;
           return [
             message.id,
@@ -133,7 +123,7 @@ export function createStateApplication({
     );
 
     return runSerialized(async () => {
-      if (stale(state)) {
+      if (applicationState.overtaken(state)) {
         await notifyChangedData();
         return;
       }
@@ -190,13 +180,12 @@ export function createStateApplication({
         // that proof is what replaces naming the renderers and the order they run in.
         await whenDocumentPresented();
         await notifyDataSubscribers();
-        if (runtime.reading !== null)
-          document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, runtime.reading);
+        markStateApplied(state);
         accountPending(state.browser.receipts);
         // Only the accepted candidate that this full document just presented can
         // establish news. A queued notice formats against the latest such reading,
         // so a later answer does not repeat a superseded failure or edit.
-        presentedNewsReading = semanticNewsReading(state);
+        presentedNewsReading = semanticNewsReading(readApplication());
         const reading = observeSemanticNews(observedSemanticNews, presentedNewsReading);
         observedSemanticNews = reading.observed;
         if (reading.news.length) {

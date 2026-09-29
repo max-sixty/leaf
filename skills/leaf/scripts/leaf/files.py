@@ -7,13 +7,14 @@ import re
 import secrets
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from datetime import datetime, timezone
 from pathlib import Path
 from stat import S_ISDIR, S_ISREG
 from typing import TypeVar
 
 from .locations import path_location
+from .schema import REVISION_NAME, VERSION_NAME
 
 # The name an atomic write stages under, beside its target, for the moment before the
 # rename (`replace_files` below). A reader of the directory looks past it: it is not yet
@@ -100,10 +101,23 @@ def _contents(path: Path, mode: int) -> bytes | None:
     return hashlib.blake2b(held, digest_size=16).digest()
 
 
+def entry_stamps(directory: Path, ignored: Collection[str]) -> list[tuple[str, object]]:
+    """Each direct child of a directory by name and stamp, in name order.
+
+    Leaves out the names in `ignored`, which each caller chooses by what its reading
+    depends on, and every file an atomic write is still staging (`STAGED`), which no
+    reader depends on."""
+    return sorted(
+        (entry.name, file_stamp(entry))
+        for entry in directory.iterdir()
+        if entry.name not in ignored and not STAGED.fullmatch(entry.name)
+    )
+
+
 # How often a reader waiting on a page looks for news: the browser's news stream,
-# `leaf events --follow`, and `leaf wait`. The look is a re-stat rather than an
+# `leaf page events --follow`, and `leaf wait`. The look is a re-stat rather than an
 # in-process signal because an append does not have to come from the reader's process —
-# `leaf reply` and every other command write these same files from outside a server,
+# `leaf thread reply` and every other command write these same files from outside a server,
 # and a follower has no server at all — so one mechanism covers a browser's POST and an
 # agent's command alike. Measured at 70us a look of the whole page, 0.14% of a core per
 # open tab, against the full state read and log parse a timed poll cost every two
@@ -134,8 +148,8 @@ def next_reading(
         time.sleep(LOOK_S)
 
 
-VERSION_FILE = re.compile(r"v([1-9][0-9]*)\.html")
-REVISION_FILE = re.compile(r"r([1-9][0-9]*)-([a-f0-9]{16})\.html")
+VERSION_FILE = re.compile(rf"{VERSION_NAME}\.html")
+REVISION_FILE = re.compile(rf"{REVISION_NAME}\.html")
 
 
 def version_num(name: str) -> int:
@@ -145,7 +159,7 @@ def version_num(name: str) -> int:
     what you add to make a string comparison come out right, and nothing here
     compares names. `v10.html` precedes `v9.html` in every ordering a string
     has, and follows it in the only one that means anything."""
-    return int(VERSION_FILE.fullmatch(name).group(1))
+    return int(VERSION_FILE.fullmatch(name).group("version"))
 
 
 def version_name(version: int) -> str:
@@ -154,7 +168,7 @@ def version_name(version: int) -> str:
 
 def revision_num(name: str) -> int:
     """The ordered identity carried by an immutable revision file."""
-    return int(REVISION_FILE.fullmatch(name).group(1))
+    return int(REVISION_FILE.fullmatch(name).group("revision"))
 
 
 def list_revisions(page_dir: Path) -> list[int]:
@@ -238,12 +252,13 @@ def version_descriptors(page_dir: Path, events: list) -> list[dict]:
 
 def active_descriptor(page_dir: Path, events: list) -> dict | None:
     """The exact immutable document shown at the live root, or None before one."""
-    from leaf.revision_artifact import read_manifest
+    from leaf.revision_artifact import read_revision
 
     revision = latest_revision(page_dir)
     if revision is None:
         return None
-    path = revision_path(page_dir, revision)
+    reading = read_revision(page_dir, revision)
+    path = reading.marker
     version = stamped_version(events, revision)
     label = f"v{version}" if version is not None else revision_label(events, revision)
     return {
@@ -256,7 +271,7 @@ def active_descriptor(page_dir: Path, events: list) -> dict | None:
         # digest that document's own delivery stamped, and needs a fresh document
         # only when the two differ. Read once here, so every consumer of the
         # active revision works from one reading of it.
-        "executable": read_manifest(page_dir, revision).get("executable"),
+        "executable": reading.manifest.get("executable"),
         "activated_at": datetime.fromtimestamp(
             path.stat().st_mtime, timezone.utc
         ).isoformat(),

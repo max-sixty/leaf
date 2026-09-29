@@ -12,6 +12,12 @@ const carrier = document.querySelector(
 if (!carrier) throw new Error("leaf: the document carries no runtime stylesheets");
 const sheets = JSON.parse(carrier.textContent);
 
+// A widget module's own rules join the theme's cascade layer (layer.py, CASCADE_LAYERS), so
+// they rank against it by specificity and order as they always have, below the Layouts
+// and the page's own stylesheet. The chrome and marks sheets stay unlayered: their paint
+// lies over the page and must beat page and widget alike (chrome.css).
+export const inBaseLayer = (text) => `@layer lf-base {\n${text}\n}`;
+
 export function constructSheet(text, name) {
   // An empty sheet is a page with no chrome and no marks, and nothing about it looks
   // wrong, so a block that is not the text it claims fails here rather than painting.

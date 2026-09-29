@@ -11,5 +11,149 @@
     [70, "zz1"]
   ],
   "valid": ["01", "0i", "1", "1i", "9zz1", "i", "z", "zz1"],
-  "invalid": ["", "0", "00", "10", "i0", "I", "1.5", "-1", " 1"]
+  "invalid": ["", "0", "00", "10", "i0", "I", "1.5", "-1", " 1"],
+  "folds": [
+    {
+      "name": "a move lands at its rank among the authored units",
+      "authored": {
+        "todo": ["a", "b", "c", "d"],
+        "done": ["e"]
+      },
+      "moves": [
+        {
+          "card": "d",
+          "to": "todo",
+          "rank": "0i"
+        }
+      ],
+      "order": {
+        "todo": ["d", "a", "b", "c"],
+        "done": ["e"]
+      }
+    },
+    {
+      "name": "a move across containers leaves the one it left",
+      "authored": {
+        "todo": ["a", "b", "c", "d"],
+        "done": ["e"]
+      },
+      "moves": [
+        {
+          "card": "a",
+          "to": "done",
+          "rank": "2"
+        }
+      ],
+      "order": {
+        "todo": ["b", "c", "d"],
+        "done": ["e", "a"]
+      }
+    },
+    {
+      "name": "units on one rank are ordered by id",
+      "authored": {
+        "todo": ["a", "b", "c", "d"],
+        "done": ["e"]
+      },
+      "moves": [
+        {
+          "card": "d",
+          "to": "todo",
+          "rank": "1"
+        },
+        {
+          "card": "c",
+          "to": "done",
+          "rank": "1"
+        }
+      ],
+      "order": {
+        "todo": ["a", "d", "b"],
+        "done": ["c", "e"]
+      }
+    },
+    {
+      "name": "every standing move places its own unit",
+      "authored": {
+        "todo": ["a", "b", "c", "d"],
+        "done": ["e"]
+      },
+      "moves": [
+        {
+          "card": "e",
+          "to": "todo",
+          "rank": "2i"
+        },
+        {
+          "card": "a",
+          "to": "todo",
+          "rank": "zz"
+        },
+        {
+          "card": "b",
+          "to": "done",
+          "rank": "0i"
+        }
+      ],
+      "order": {
+        "todo": ["e", "c", "d", "a"],
+        "done": ["b"]
+      }
+    },
+    {
+      "name": "a move to a container the markup lacks places nothing",
+      "authored": {
+        "todo": ["a", "b", "c", "d"],
+        "done": ["e"]
+      },
+      "moves": [
+        {
+          "card": "b",
+          "to": "gone",
+          "rank": "1"
+        }
+      ],
+      "order": {
+        "todo": ["a", "b", "c", "d"],
+        "done": ["e"]
+      }
+    },
+    {
+      "name": "a unit the markup lacks is not placed",
+      "authored": {
+        "todo": ["a", "b", "c", "d"],
+        "done": ["e"]
+      },
+      "moves": [
+        {
+          "card": "z",
+          "to": "todo",
+          "rank": "0i"
+        }
+      ],
+      "order": {
+        "todo": ["a", "b", "c", "d"],
+        "done": ["e"]
+      }
+    },
+    {
+      "name": "an absorbed move leaves the order the markup wrote",
+      "authored": {
+        "todo": ["a", "b", "c", "d"],
+        "done": ["e"]
+      },
+      "moves": [
+        {
+          "card": "d",
+          "to": "todo",
+          "rank": "0i",
+          "absorbed": true
+        }
+      ],
+      "order": {
+        "todo": ["a", "b", "c", "d"],
+        "done": ["e"]
+      }
+    }
+  ]
 }

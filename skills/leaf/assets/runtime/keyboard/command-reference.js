@@ -37,8 +37,9 @@ import {
   keySequenceTemplate,
   neutralStates,
 } from "./presentation.js";
-import { focusDestination, letGo } from "../focus.js";
-import { el, keeps } from "../widget-elements.js";
+import { handBack, tabStops } from "../focus.js";
+import { closeControl } from "../widget-elements.js";
+import { keeps } from "../keeps.js";
 import { ELEMENTS, pageScope, pageScopes } from "./register.js";
 import { EVERYTHING } from "./text-entry.js";
 import {
@@ -54,7 +55,6 @@ import { repaint } from "../repaint.js";
 import { pageSelection } from "../composing/capture.js";
 import { availableCommandRoutes, userIn } from "./dispatch.js";
 import { reachScrollers } from "../reach.js";
-import { retainUserIntent } from "../user-intent.js";
 import { openPopovers } from "./layer-stack.js";
 
 export const commandReferenceDialog = document.createElement("dialog");
@@ -66,28 +66,27 @@ commandReferenceDialog.setAttribute("aria-modal", "true");
 // Focused on open, so the dialog is not silent to a screen reader.
 commandReferenceDialog.tabIndex = -1;
 
-// Page-key presentation owns this retained native control's changing words and shortcut
+// Page-key presentation owns this retained native control's changing name and shortcut
 // metadata. The reference template only seats it.
-export const commandReferenceClose = el("button", "lf-btn lf-command-reference-close");
-commandReferenceClose.type = "button";
+export const commandReferenceClose = closeControl({
+  name: "Close the command reference",
+  className: "lf-command-reference-close",
+});
 
 // What the user is sent back to when the reference closes. The shortcut shelf is the one
 // surface that can stand behind it, and it declares itself here rather than being read from
 // here: the bar that owns the shelf already reads this module, so the edge only goes one
-// way. The close control's words and its Escape row read this one answer, so the button and
+// way. The close control's name and its Escape row read this one answer, so the button and
 // the key cannot promise different destinations.
-let shelfBehindReference = () => false;
-export const declareShelfBehindReference = (reading) => {
-  shelfBehindReference = reading;
+let expandedBarBehindReference = () => false;
+export const declareExpandedBarBehindReference = (reading) => {
+  expandedBarBehindReference = reading;
 };
 
 function presentCommandReferenceClose() {
-  const returningToMore = Boolean(shelfBehindReference());
-  const label = returningToMore ? "Back to more shortcuts" : "Close";
-  const title = returningToMore
+  const title = expandedBarBehindReference()
     ? "Back to more shortcuts"
     : "Close the command reference";
-  render(label, commandReferenceClose);
   keeps(commandReferenceClose, "data-lf-key-title", title);
   keeps(commandReferenceClose, "aria-label", title);
 }
@@ -278,6 +277,18 @@ function captureCommandReferenceCatalog() {
     for (const rowInfo of rows) {
       for (const { id, route } of rowInfo.presentations) {
         const chosen = preferred.get(id);
+        // A keyless Decision an Ask seats (it carries the Ask's binding badge) is pressed
+        // by the digit that Ask gives it, which exists only while the user stands in the
+        // Ask. There the Ask's route presents it under that digit; anywhere else it has
+        // no press to name, and the Ask's own row says what the digits do. Any other
+        // keyless Decision, a draft's Edit, keeps its row under its control's name.
+        if (
+          !route &&
+          rowInfo.declared.length === 0 &&
+          rowInfo.row.decision !== undefined &&
+          rowInfo.row.bindingBadge
+        )
+          continue;
         if (
           chosen?.row !== rowInfo.row ||
           chosen.binding !== (route?.binding ?? null) ||
@@ -710,8 +721,9 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   // Focusing a text input replaces the document selection. Keep a passage the user has
   // in hand and focus Close instead; an ordinary opening lands directly in search.
   const preserveSelection = fresh && Boolean(pageSelection());
-  const handBack = !open && restoreFocus && commandReferenceDialog.contains(focused());
-  const restore = handBack ? commandReferenceOrigin : null;
+  const handingBack =
+    !open && restoreFocus && commandReferenceDialog.contains(focused());
+  const restore = handingBack ? commandReferenceOrigin : null;
   if (fresh) {
     commandReferenceInvoke = invokeCommand;
     for (const popover of openPopovers())
@@ -723,6 +735,8 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
     // stands on `body`, which is not a place to be given back — focusing it resets the
     // browser's sequential focus navigation starting point to the top of the document,
     // and the user who opened the reference four screens down would Tab from there.
+    // A popover opened while nothing held focus lets go as it closes (layer-stack.js),
+    // so that user reads as standing on `body` here too.
     const at = focused();
     commandReferenceOrigin = at === document.body ? null : at;
     commandRoutesAtOpen = availableCommandRoutes();
@@ -748,6 +762,11 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   commandReferenceDialog.classList.toggle("open", open);
   if (open && !commandReferenceDialog.open) commandReferenceDialog.showModal();
   else if (!open && commandReferenceDialog.open) commandReferenceDialog.close();
+  // A closed dialog's search box keeps focus until the browser's next focus fixup, so the
+  // repaint below would read the user as still typing there, and the shortcut bar would
+  // keep the More it hands back to standing down. Release it with the dialog.
+  if (!open && commandReferenceDialog.contains(document.activeElement))
+    document.activeElement.blur();
 
   // The results are a real overflow region and must enter the modal Tab loop.
   if (open) reachScrollers(commandReferenceDialog);
@@ -760,45 +779,16 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
       )
       .focus({ preventScroll: true });
   repaint();
-  if (handBack) handBackTo(restore);
+  // The reference is a bounded interaction rather than a level of the page: it claims the
+  // whole keyboard while it stands and hands the user back itself, to the control the
+  // press displaced, or to the page where that control has gone — the layer it stood in
+  // may have closed under the user while the reference was up — which is where a user
+  // who pressed `?` from the page was all along.
+  if (handingBack) handBack(restore);
 }
-
-// The reference is a bounded interaction rather than a level of the page: it claims the
-// whole keyboard while it stands and hands the user back itself. What it hands back is
-// the control the press displaced, and the page where that control has gone — the layer
-// it stood in may have closed under the user while the reference was up — which is
-// where a user who pressed `?` from the page was all along.
-function handBackTo(control) {
-  if (!control) {
-    letGo();
-    return;
-  }
-  const landed = () => {
-    if (control.isConnected) focusDestination(control);
-    return control.matches(":focus");
-  };
-  if (landed()) return;
-  // Reconciliation may replace a control in the same task, and the paint the close asked
-  // for may still hold it hidden, so give that exact node one frame before conceding. A
-  // control then gone or hidden is gone for good — the layer it stood in closed while
-  // the reference was up — and the page is where the user was. A user who has moved
-  // on meanwhile keeps their own place: their press is the newer word.
-  const mayLand = retainUserIntent();
-  nextRender(() => {
-    if (!mayLand() || landed()) return;
-    if (!control.isConnected || !control.checkVisibility()) letGo();
-  });
-}
-
-const commandReferenceStops = () =>
-  [
-    ...commandReferenceDialog.querySelectorAll(
-      'button, input, [tabindex]:not([tabindex="-1"])',
-    ),
-  ].filter((node) => node.tabIndex >= 0 && node.checkVisibility());
 
 export function moveCommandReferenceFocus(dir) {
-  const stops = commandReferenceStops();
+  const stops = tabStops(commandReferenceDialog);
   if (!stops.length) return commandReferenceDialog.focus({ preventScroll: true });
   const at = stops.indexOf(focused());
   const next =
@@ -941,11 +931,13 @@ pageScope("command reference", {
       id: "command.reference.close",
       keys: ["Escape"],
       does: () =>
-        shelfBehindReference()
+        expandedBarBehindReference()
           ? "Back to more keyboard shortcuts"
           : "Close the command reference",
       line: () =>
-        shelfBehindReference() ? "back to more shortcuts" : "close command reference",
+        expandedBarBehindReference()
+          ? "back to more shortcuts"
+          : "close command reference",
       control: () => commandReferenceClose,
       runFromCommandReference: false,
       run: () => commandReferenceClose.click(),

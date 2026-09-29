@@ -1,19 +1,35 @@
 # Serving pages
 
+## Inspecting interactions
+
+For a served page, read the private diagnostic stream while reproducing a user or
+test-agent path:
+
+```bash
+tail -F <page>/interactions.jsonl
+```
+
+It combines browser gestures and server request outcomes in delivery order. Browser
+rows carry a tab session, event time, and sequence; large values appear as ordered
+`interaction_part` rows whose `json` fields concatenate to the original row.
+The semantic decisions remain in `leaf page events <page>`. See [page-storage.md](../scripts/leaf/page-storage.md)
+for the file contract. The public site stores its browser batches in Workers
+Observability; `worker/README.md` describes lookup by session reference.
+
 ## Exported files
 
 When `$ARGUMENTS` asks for `--export`, build the page as a finished record (the
 main skill's "Operate", step 3), since only a stamped version exports, then run:
 
 ```bash
-leaf version export <page> -o <file>
+leaf page export <page> -o <file>
 ```
 
 Hand back the `file://` URL. Do not start a server or wait. The file opens
 offline and runs the page's own runtime against the captured revision and its
 state: widgets, local controls, and page-owned computation work as served. No host
-stands behind it, so conversation and any action or request that needs an agent or
-server are unavailable. A page that declares a live specimen needs a server and
+stands behind it, so threads and any action that needs an agent or server are
+unavailable. A page that declares a live sample needs a server and
 cannot be exported. Write the file where the project keeps user-facing artifacts.
 A live page can be exported without ending its loop.
 
@@ -64,18 +80,26 @@ file.
 
 ## Re-vendoring and layer epochs
 
-Re-vendor a served page only through the quiescent sequence:
+Re-vendor a served page with `leaf page init <page>` alone. It checks the
+incoming layer against the page first, so a refused re-vendor leaves the running
+server as it was. An admitted one takes the server down, re-vendors, and starts
+the server again at the recorded URL under its recorded lifetime, and a `leaf wait`
+watching the page carries on through the restart. A page whose server was stopped
+stays stopped, and so does one that `leaf server stop` stops during the re-vendor.
+If the server cannot start again, init says why and leaves the service enabled:
+a `leaf wait` tries it once more, as it would a server that died. Re-vendor a session's page from the session that holds it: init
+refuses a page that another live session serves. A page whose session has ended
+stays stopped after init, and `leaf server start` then serves it for this session.
+Initialization preserves the page status and writes a new layer epoch, so an open
+tab reloads onto the new layer rather than posting into it.
 
-```bash
-leaf server stop <page>
-leaf page init <page>
-leaf server start <page>
-```
-
-Stopping disables desired service and waits for the old process to retire.
-Initialization preserves the recorded address, lifetime, and page status, and
-writes a new layer epoch so an open tab reloads onto the new layer rather than
-posting into it.
+A page is served only by a Leaf whose browser runtime it carries. The server is
+whichever Leaf starts it, and the runtime is whatever the page's last `page init`
+copied in, so after a Leaf update, or an edit to a checkout's runtime, an older page
+no longer matches. `server start`, `server run`, and a revival by `leaf wait` then
+refuse, naming `leaf page init <page>`, and the page stays down until the sequence
+above re-vendors it. A wait whose revival was refused prints that refusal before
+reporting the server not running.
 
 ## Page lifetime
 
@@ -83,7 +107,9 @@ On a page with no recorded lifetime, a normal `server start` from an agent
 session chooses a session lifetime. Its process retires when no live session
 claims the page, but desired service remains enabled: a `leaf wait` watching any
 enabled page revives its server under the recorded lifetime and exact URL if the
-process dies. Only `leaf server stop <page>` disables a service.
+process dies, and ends if that revival does not hold. Only `leaf server stop
+<page>` disables a service, and a `leaf wait` goes on watching a stopped page until
+it is idle.
 
 `server start --standing`, or a serve started from the user's own shell, chooses
 a standing lifetime. Its process ignores session claims and remains live between
@@ -106,8 +132,8 @@ that page. First read the page:
 leaf page state <page>
 ```
 
-Read `content` for the current document and its construction origins, then the active
-revision, open Asks, current conversation state, and `measurement_lag` for figures
-whose sources have run again. Before editing, follow `authoring-revisions.md`'s "Read
+Read the active revision's HTML (`active.file`) and the standing `state` over it,
+then open Asks, current thread state, and `measurement_lag` for figures whose sources
+have run again. Before editing, follow `authoring-revisions.md`'s "Read
 before editing" section. Then run `leaf wait <page>` to claim it. Starting a server
 when the standing one is already live prints its URL without changing its lifetime.

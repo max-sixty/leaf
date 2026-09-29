@@ -13,9 +13,8 @@
  * reading through `registerMarginContribution`; the margin projection joins it to comment threads,
  * decisions, delivery status, activity, and temporary reaction controls for this same
  * target.
- * That owner renders and places the resulting entries, docks them when
- * the margin is too narrow, and reads rendered descendants when a project makes the
- * target `display: contents`. A suggestion never creates a second RHS surface or
+ * That owner renders and places the resulting entries, in the rail or as a pin, and
+ * reads rendered descendants when a project makes the target `display: contents`. A suggestion never creates a second RHS surface or
  * geometry model of its own. */
 import {
   alignText,
@@ -23,6 +22,7 @@ import {
   commandScope,
   commands,
   FOLD_MS,
+  keeps,
   marginEntry,
   motion,
   once,
@@ -213,58 +213,57 @@ customElements.define(
       });
     }
 
-    #entries() {
+    // Which controls the suggestion offers now, as keys: the question a command row's
+    // `when` asks on every keyboard repaint, answered without building the entries, whose
+    // labels read the suggestion's words.
+    #offered() {
       const outcome = this.#outcome();
       if (outcome && !this.#failed) {
         const pending = Boolean(this.#staging || this.#deciding);
-        if (!pending && !this.#undoable(outcome)) return [];
-        return [
+        return pending || this.#undoable(outcome) ? ["undo"] : [];
+      }
+      if (this.#failed) return ["retry", "cancel-failure"];
+      return Object.keys(WORDS);
+    }
+
+    #entries() {
+      const outcome = this.#outcome();
+      const pending = Boolean(this.#staging || this.#deciding);
+      let words;
+      const change = () => (words ??= this.#label());
+      const failed = (key, icon, label, rank) =>
+        marginEntry({
+          key,
+          icon,
+          label,
+          rank,
+          state: "failed",
+          activation: key,
+          scope: this.#commandScope,
+        });
+      const entry = {
+        undo: () =>
           marginEntry({
             key: "undo",
             icon: "undo",
             label: "Undo",
-            accessibleLabel: `Undo ${outcome === "accept" ? "accepting" : "rejecting"} the suggested change: ${this.#label()}`,
+            accessibleLabel: `Undo ${outcome === "accept" ? "accepting" : "rejecting"} the suggested change: ${change()}`,
             rank: "primary",
             state: pending || this.#undoing ? "busy" : "idle",
             disabled: pending || this.#undoing,
             activation: "undo",
             scope: this.#commandScope,
           }),
-        ];
-      }
-
-      if (this.#failed) {
-        return [
-          marginEntry({
-            key: "retry",
-            icon: "retry",
-            label: "Retry",
-            rank: "complete",
-            state: "failed",
-            activation: "retry",
-            scope: this.#commandScope,
-          }),
-          marginEntry({
-            key: "cancel-failure",
-            icon: "cross",
-            label: "Cancel",
-            rank: "escape",
-            state: "failed",
-            activation: "cancel-failure",
-            scope: this.#commandScope,
-          }),
-        ];
-      }
-
-      const state = this.#deciding ? "busy" : "idle";
-      const change = this.#label();
-      return Object.keys(WORDS).map((kind) =>
+        retry: () => failed("retry", "retry", "Retry", "complete"),
+        "cancel-failure": () => failed("cancel-failure", "cross", "Cancel", "escape"),
+      };
+      const decision = (kind) =>
         marginEntry({
           key: kind,
           ...FACE[kind],
           label: WORDS[kind],
-          accessibleLabel: `${WORDS[kind]} the suggested change: ${change}`,
-          state,
+          accessibleLabel: `${WORDS[kind]} the suggested change: ${change()}`,
+          state: this.#deciding ? "busy" : "idle",
           disabled:
             this.#staging ||
             Boolean(this.#deciding) ||
@@ -272,8 +271,8 @@ customElements.define(
           activation: kind,
           className: `lf-sug-${kind}`,
           scope: this.#commandScope,
-        }),
-      );
+        });
+      return this.#offered().map((key) => (entry[key] ?? decision)(key));
     }
 
     #readMargin() {
@@ -351,7 +350,7 @@ customElements.define(
           decision: label,
           does: `${label} the suggested change`,
           line: label.toLowerCase(),
-          when: () => this.#entries().some((entry) => entry.key === key),
+          when: () => this.#offered().includes(key),
           run: () => this.#margin?.activate(key),
         })),
         {
@@ -533,15 +532,12 @@ customElements.define(
       this.#deciding = null;
       this.removeAttribute("aria-busy");
       this.#presentedOutcome = outcome;
-      this.dataset.lfState = outcome;
+      keeps(this, "data-lf-state", outcome);
       // The retired slot's marker is the layer's rendering of that state, and the
       // theme's one hide rule reads it. The accepted response replays through this
       // method on the gesture's own tab, so it hides the slot in the frame the
       // decision lands; the layer then writes the same mark unconditionally.
       renderRetired(this, outcome);
-      // The only remaining circle is Undo, which still acts; the fold and surviving
-      // content carry the outcome without leaving another status beside them.
-      this.#refreshMargin();
       // The emphasis goes with the pending state: a decided suggestion is plain
       // prose. So does the word naming each slot, which is the same fact said to
       // whoever is listening.
@@ -549,6 +545,11 @@ customElements.define(
       repaintEmphasis();
       this.#voice();
       fold?.();
+      // The only remaining circle is Undo, which still acts; the fold and surviving
+      // content carry the outcome without leaving another status beside them. Asked
+      // once the page stands as the decision leaves it, since a margin entry says
+      // where down the page its target is.
+      this.#refreshMargin();
     }
 
     // The retired slot's room, given back as motion rather than taken in a frame. Only
@@ -612,8 +613,8 @@ customElements.define(
     // hears one perfectly ordinary sentence.
     //
     // ARIA's own names for the two, said as text, because text is the one thing every
-    // screen reader announces in every mode — the bargain the mark note struck, and
-    // why role="deletion" is not what stands here. It follows the state exactly as the
+    // screen reader announces in every mode, which is why role="deletion" is not what
+    // stands here. It follows the state exactly as the
     // emphasis does: a decided suggestion is plain prose, so the surviving slot gives
     // up this word along with its marks.
     //
@@ -654,7 +655,7 @@ customElements.define(
     }
 
     // Which of the three changes this is, for anything naming it away from the page:
-    // a row on the Asks tray, the label on a comment anchored here. The slots are the
+    // a row on the Asks drawer, the label on a comment anchored here. The slots are the
     // whole of the answer — both is a rewrite, lf-new alone inserts, lf-old alone
     // deletes — and it is the reading #voice already speaks on the slots themselves,
     // said once for the element. A settled suggestion keeps the word it had: the

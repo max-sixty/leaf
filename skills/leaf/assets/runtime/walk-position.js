@@ -1,5 +1,6 @@
-/* The transient position of a Leaf keyboard walk. Owners keep the list and motion;
-   this module keeps only a reader for the standing destination. Owners keep that
+/* The transient position of a Leaf keyboard walk, and the one walk over a flat list of
+   focusable rows (`rowWalk`). Other walks' owners keep their list and motion and give
+   this module only a reader for the standing destination. Owners keep that
    reading current from the source's invalidation signal — directly on paint for cheap
    lists, or through a refreshed cache for an expensive source such as the page-text
    index — so a resolved thread, answered Ask, disappearing leaf, or replaced version
@@ -7,6 +8,8 @@
    the walk could not move; that state briefly gives the unchanged ordinal an accent
    face. Both clamped and cyclic semantic walks use this reading. Native focus traversal
    and gestures that rearrange state are not walks through a named list. */
+import { clampedRow } from "./keyboard/bindings.js";
+import { focused } from "./keyboard/scopes.js";
 import { holdStatus } from "./notifications.js";
 import { repaint } from "./repaint.js";
 
@@ -53,6 +56,70 @@ export function walkPosition() {
       position.qualifier,
     ),
   };
+}
+
+// The walk over a flat list of focusable rows, declared once for every list that has
+// one: ArrowUp and ArrowDown step and clamp, Home and End land on the ends, and every
+// landing reports its position. It returns the two register rows, `<id>.walk` and
+// `<id>.edge`, for the owner's own scope; `id` is also the walk's position key and the
+// prefix of each route. `steps` names the four routes and their words, in the order
+// ArrowUp, ArrowDown, Home, End, for a list whose ends have a meaning of their own.
+// `landed(row)` runs after a press that moved focus to another row. `scroll: false`
+// holds the page still for a list read off what is in view, such as the Page Map's
+// visible markers, where scrolling to the landed row would change the list the walk
+// is over. Tabs and spatial grids own cyclic policies; the page's Ask walk steps by
+// document position.
+const STEPS = Object.freeze(["previous", "next", "first", "last"]);
+const capital = (word) => word[0].toUpperCase() + word.slice(1);
+export function rowWalk({
+  id,
+  noun,
+  plural,
+  rows,
+  steps = STEPS,
+  landed,
+  scroll = true,
+}) {
+  const [up, down, home, end] = steps;
+  const route = (binding, step) => ({
+    id: `${id}.${step}`,
+    binding,
+    does: `${capital(step)} ${noun.toLowerCase()}`,
+  });
+  const land = (pick) => {
+    const was = focused();
+    const row = pick(rows());
+    if (!row) return;
+    row.focus({ preventScroll: !scroll });
+    beginWalk(id, noun, () => listWalkPosition(rows(), focused()));
+    if (row !== was) landed?.(row);
+  };
+  return [
+    {
+      id: `${id}.walk`,
+      keys: ["ArrowUp", "ArrowDown"],
+      routes: [route("ArrowUp", up), route("ArrowDown", down)],
+      does: `Walk the ${plural}`,
+      line: `walk the ${plural}`,
+      repeat: true,
+      run: (binding) =>
+        land((list) =>
+          clampedRow(list, focused(), binding === "ArrowDown" ? 1 : -1, 0),
+        ),
+    },
+    {
+      id: `${id}.edge`,
+      keys: ["Home", "End"],
+      routes: [route("Home", home), route("End", end)],
+      does: `${capital(home)} / ${end} ${noun.toLowerCase()}`,
+      line: `${home} / ${end}`,
+      // Home and End answer as they do in any list, so the shortcut bar spends its
+      // slots on the walk and on what the list offers that no other list does; the
+      // command reference and `aria-keyshortcuts` still name them.
+      lineWhen: false,
+      run: (binding) => land((list) => (binding === "Home" ? list[0] : list.at(-1))),
+    },
+  ];
 }
 
 // A keyboard walk has arrived. The caller still owns and announces the motion; this

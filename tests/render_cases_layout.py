@@ -22,6 +22,7 @@ from leaf import http as http_model
 from leaf import machine as machine_model
 from leaf import render_checks as render_checks_model
 from leaf.registry import storage as registry_storage
+from leaf.render_checks import rendered
 from leaf.render_gate import scheme as render_gate_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -29,13 +30,11 @@ from render_cases_interaction import (
     ASKS_PAGE,
 )
 from render_harness import (
-    CARRIED_PAGE,
     LONG_PAGE,
     SHELL_BOX,
     TOKEN,
     banner_control,
     leaf_page,
-    rendered,
     stamp_page,
 )
 
@@ -48,6 +47,7 @@ CUSTOM_WIDGET_PAGE = leaf_page(
 </lf-callout>
 """,
 )
+
 
 RESIZE_LOOP_EVENT = """dispatchEvent(new ErrorEvent('error', {
   message: 'ResizeObserver loop completed with undelivered notifications.'
@@ -74,8 +74,7 @@ def resize_notice_after_last_probe(page):
     evaluate = page.evaluate
 
     def with_notice(expression, *args, **kwargs):
-        call = args[0] if args else kwargs.get("arg")
-        if isinstance(call, dict) and call.get("name") == "requestFrame":
+        if "requestFrame()" in expression:
             evaluate(
                 "() => requestAnimationFrame(() => {"
                 "if (matchMedia('(prefers-color-scheme: light)').matches) {"
@@ -115,10 +114,10 @@ def arrival_findings(browser, url):
     write and cannot fix.
 
     What it reads: a fresh context holds nothing, so every other reading in the suite
-    is of a first visit — the thread panel shut, no tray standing, design mode off —
+    is of a first visit — the thread panel shut, no drawer standing, design mode off —
     and each of those is something a user turns on once and gets back on every load
     afterwards. That left the restores as the one road onto a page with nothing
-    watching it, and a tray someone had left standing came up as a ReferenceError
+    watching it, and a drawer someone had left standing came up as a ReferenceError
     instead of a page: it was put up by code running while the runtime was still
     evaluating, which could reach almost nothing. It reached the user, who reported
     it.
@@ -168,9 +167,8 @@ def arrival_findings(browser, url):
         # event does over the five navigations here, measured on
         # the former design-decision example, and buys this nothing.
         page.goto(url, wait_until="load")
-        render_checks_model.wait_for_probe(page, "upgraded")
-        render_checks_model.wait_for_probe(page, "currentPresented")
-    except PlaywrightTimeout:
+        render_checks_model.wait_until_ready(page)
+    except (PlaywrightTimeout, render_checks_model.PageNotReady):
         return [
             "[arrivals] the page never came up unarranged, so nothing could be "
             "arranged — "
@@ -184,9 +182,8 @@ def arrival_findings(browser, url):
         notices.clear()
         try:
             page.reload(wait_until="load")
-            render_checks_model.wait_for_probe(page, "upgraded")
-            render_checks_model.wait_for_probe(page, "currentPresented")
-        except PlaywrightTimeout:
+            render_checks_model.wait_until_ready(page)
+        except (PlaywrightTimeout, render_checks_model.PageNotReady):
             found.append(
                 f"[{restore_case['name']}] the page never finished coming up — "
                 + ("; ".join([*errors, *notices]) or "and no console error says why")
@@ -207,7 +204,7 @@ def motions(events):
     that never ends never arrived anywhere. An unbounded iteration count cannot cross
     JSON, so the browser omits it, and that omission is the reading.
 
-    A target is a backend node id, and the same tray over two loads is two of them,
+    A target is a backend node id, and the same drawer over two loads is two of them,
     so an id cannot say whether the second load moved what the first one did. The kind
     of motion, the property or keyframes it plays and how long it runs are one string
     whichever load painted it, and that is the key. The id rides along beside it for
@@ -371,8 +368,10 @@ LINKED_CELLS_PAGE = WIDE_TABLE_PAGE.replace(
 # 840px against a 720px column, so it stands 120px out in the margin with
 # the body not scrolling by a pixel. In vw rather than px because the static lint
 # counts pixels and would have caught it before a browser ever saw it.
+# 65vw passes the 720px column at the desktop viewport, and falls short of scrolling the
+# page sideways at every width the gate sweeps: it would from about 2400px.
 SPILLING_PAGE = LONG_PAGE.replace(
-    "</main>", "<div id='too-wide' style='width: 70vw'>Wide.</div>\n</main>"
+    "</main>", "<div id='too-wide' style='width: 65vw'>Wide.</div>\n</main>"
 )
 # Two wrappers that generate no box, differing only in whether anything inside them does.
 # `#veiled` is the shape the vocabulary shipped while a suggestion was display: contents,
@@ -486,6 +485,46 @@ LOOSE_SCROLLER_PAGE = LONG_PAGE.replace(
     "<div style='width: 700px'>The same row, in a box that holds its own.</div></div>"
     "\n</main>",
 )
+# A box the page's own stylesheet makes scroll, standing in content the browser skips
+# until it is shown: a closed disclosure, and a tab not chosen (`hidden="until-found"`).
+# Each record is the page and the press that shows the box.
+HIDDEN_SCROLLER_STYLE = """<style>
+#unfolded { width: 240px; overflow-x: auto; }
+.row { width: 700px; }
+</style>"""
+HIDDEN_SCROLLER_ROW = (
+    '<div id="unfolded"><div class="row">A row wider than the box that scrolls it.'
+    "</div></div>"
+)
+HIDDEN_SCROLLERS = {
+    "disclosure": (
+        leaf_page(
+            "folded-scroller",
+            f"""
+<h1 id="t">Folded scroller</h1>
+<details id="folded"><summary>Folded</summary>
+{HIDDEN_SCROLLER_ROW}
+</details>
+""",
+            head=HIDDEN_SCROLLER_STYLE,
+        ),
+        lambda page: page.locator("#folded > summary").click(),
+    ),
+    "tab": (
+        leaf_page(
+            "tabbed-scroller",
+            f"""
+<h1 id="t">Tabbed scroller</h1>
+<lf-tabs id="views">
+  <lf-tab id="tab-first" label="First"><p id="p-first">The tab shown first.</p></lf-tab>
+  <lf-tab id="tab-wide" label="Wide">{HIDDEN_SCROLLER_ROW}</lf-tab>
+</lf-tabs>
+""",
+            head=HIDDEN_SCROLLER_STYLE,
+        ),
+        lambda page: page.get_by_role("tab", name="Wide", exact=True).click(),
+    ),
+}
 SCROLLED_CONTAINER = LONG_PAGE.replace(
     "</main>",
     "<div id='rolled' style='width: 300px; overflow-x: auto'>"
@@ -497,11 +536,11 @@ SCROLLED_CONTAINER = LONG_PAGE.replace(
 # it is held to, and the numbers the runtime holds it to. Two records rather than two
 # tests, because the whole claim of `drawnEdge` is that the two are one piece of furniture
 # reflected — a reading written for the panel alone would go on passing on the day the
-# tray's edge stopped working, and the tray's edge exists precisely because the panel's
+# drawer's edge stopped working, and the drawer's edge exists precisely because the panel's
 # did not have to be written a second time.
 #
-# `html` is a call rather than the markup, because the page the trays need is declared
-# with the other tray readings a long way below here, and a parametrize list is read at
+# `html` is a call rather than the markup, because the page the drawers need is declared
+# with the other drawer readings a long way below here, and a parametrize list is read at
 # import. `squeeze` is the
 # window that has no room for what the user chose and the width the region stands at
 # there, which is the window itself on either side.
@@ -518,13 +557,13 @@ EDGES = [
         squeeze=(500, 500),
     ),
     SimpleNamespace(
-        name="trays",
+        name="drawers",
         html=lambda: ASKS_PAGE,
         comments=0,
         stand=lambda page: banner_control(page, ".lf-asks").click(),
         region=".lf-asks-panel",
         side="left",
-        store="lf-tray-slot-width",
+        store="lf-drawer-slot-width",
         wide=300,
         squeeze=(400, 400),
     ),
@@ -532,7 +571,7 @@ EDGES = [
 EDGE_IDS = [edge.name for edge in EDGES]
 
 
-# One Ask, so a page offers the Asks tray.
+# One Ask, so a page offers the Asks drawer.
 ONE_ASK = (
     '<lf-ask id="go-decision"><h2>Ship it?</h2>'
     '<lf-options id="go" choose>'
@@ -551,14 +590,14 @@ def with_one_ask(html):
 
 
 def toggle_asks(page, open=True):
-    """Open or close the Asks tray from its banner control and wait for it to stand."""
+    """Open or close the Asks drawer from its banner control and wait for it to stand."""
     banner_control(page, ".lf-asks").click()
-    tray = expect(page.locator(".lf-asks-panel"))
+    drawer = expect(page.locator(".lf-asks-panel"))
     opened = re.compile(r"\bopen\b")
     if open:
-        tray.to_have_class(opened)
+        drawer.to_have_class(opened)
     else:
-        tray.not_to_have_class(opened)
+        drawer.not_to_have_class(opened)
 
 
 def edge_settled(page, edge):
@@ -609,7 +648,7 @@ def geometry(page, edge):
 def draw_edge(page, edge, by):
     """Draw the region's edge `by` pixels wider, as a hand on it would.
 
-    Whole pixels, per `select`'s reason (tests/AGENTS.md): a press on a fractional point
+    Whole pixels, per `hold_selection`'s reason: a press on a fractional point
     is a press the browser is free to round somewhere else. In steps, because one jump
     from press to release is a drag with no `pointermove` between its ends, and the move
     is the whole of what this gesture is made of. Wider is away from the side the region
@@ -704,11 +743,10 @@ PRESS = "[data-lf-offer], [role=tab], [role=button], .lf-btn, .lf-pick, button, 
 
 # The controls a press is aimed *past*: the ones sharing its row, standing on the same
 # line, and on screen at both ends of the gesture. A target margin entry's row is its cluster;
-# contribution and options wrappers do not split the visible row. Other controls use
-# their parent. Held in a JS array rather than looked up afterwards, because identity
-# has to survive a press that adds or removes a sibling; measured with offset*, which
-# is the layout box before any transform, so a card
-# still lifted under the pointer reads as the nothing it is.
+# contribution and options wrappers do not split the visible row. The playground's action
+# group can wrap in a narrow rail, but its controls still share that group. Other controls
+# use their parent. Hold identity across the press, and measure relative to the group:
+# content above may move the whole row without moving a neighbour within it.
 #
 # On screen is the load-bearing half. A control inside a fold the press opens was nowhere
 # the user could aim, and one the press puts away — a suggestion's ✗ Reject, once ✓
@@ -731,14 +769,16 @@ NEIGHBOURHOOD = f"""(el, sel) => {{
     return Math.min(r.bottom, band.bottom) - Math.max(r.top, band.top) > 1;
   }};
   window.__lfOnScreen = {ON_SCREEN};
-  const cluster = el.closest('.lf-margin-cluster, .lf-diff-file');
+  const cluster = el.closest('.lf-margin-cluster, .lf-diff-file, .lf-playground-actions');
+  window.__lfOrigin = cluster || el.parentElement;
   const candidates = cluster ? [...cluster.querySelectorAll(sel)]
       : [...el.parentElement.children]
           .filter((n) => n !== el && !n.contains(el))
           .flatMap((n) => (n.matches(sel) ? [n] : [...n.querySelectorAll(sel)]));
   window.__lfNeighbours = candidates
       .filter((n) => n !== el && !n.contains(el) && !el.contains(n))
-      .filter((n) => window.__lfOnScreen(n) && sameLine(n));
+      .filter((n) => window.__lfOnScreen(n) &&
+          (cluster?.matches('.lf-playground-actions') || sameLine(n)));
   return {{ names: window.__lfNeighbours.map({NAMED}), boxes: window.__lfBoxes() }};
 }}"""
 # The same capture, of the banner rather than of one control's line: every control the
@@ -746,15 +786,23 @@ NEIGHBOURHOOD = f"""(el, sel) => {{
 # changing who they are.
 BANNER_WATCH = f"""(sel) => {{
   window.__lfOnScreen = {ON_SCREEN};
+  window.__lfOrigin = null;
   window.__lfNeighbours = [...document.querySelector(".lf-banner").querySelectorAll(sel)]
       .filter(window.__lfOnScreen);
   return {{ names: window.__lfNeighbours.map({NAMED}), boxes: window.__lfBoxes() }};
 }}"""
 # One reading, named once, so the rendered-frame wait and the assertion cannot measure
-# differently.
+# differently. The words ride along so `displaced` can tell a box whose own content
+# changed from one that was pushed.
 DEFINE_BOXES = """() => { window.__lfBoxes = () => window.__lfNeighbours.map(
-    (n) => window.__lfOnScreen(n)
-      ? [n.offsetLeft, n.offsetTop, n.offsetWidth, n.offsetHeight] : null); }"""
+    (n) => {
+      if (!window.__lfOnScreen(n)) return null;
+      const box = n.getBoundingClientRect();
+      const origin = window.__lfOrigin?.getBoundingClientRect();
+      return [Math.round(box.left - (origin?.left || 0)),
+              Math.round(box.top - (origin?.top || 0)),
+              n.offsetWidth, n.offsetHeight, (n.textContent || '').trim()];
+    }); }"""
 
 
 def unfolded_button(control):
@@ -781,10 +829,10 @@ def unfolded_button(control):
 # The banner's controls in their one ranked order: fixed secondary menu seats followed
 # by the primary row. The door itself and controls the page has taken away are omitted.
 BANNER_ORDER = """() => {
-  const shelf = document.querySelector('.lf-banner-actions');
+  const toolbar = document.querySelector('.lf-banner-actions');
   const menu = document.querySelector('.lf-banner-menu');
   const more = document.querySelector('.lf-banner-more');
-  return [...menu.children, ...shelf.children]
+  return [...menu.children, ...toolbar.children]
     .filter(control => control !== more &&
             getComputedStyle(control).display !== 'none' &&
             getComputedStyle(control).visibility !== 'hidden')
@@ -799,16 +847,32 @@ def page_at_rest(page):
     rendered(page)
 
 
-def displaced(before, boxes):
+def displaced(before, boxes, news=False):
     """Which of the watched controls are somewhere else, in the failure's own words.
 
     A control that has gone off screen reads None and is left out: it was put away
-    rather than moved, which is a thing both sweeps below deliberately allow."""
+    rather than moved, which is a thing both sweeps below deliberately allow.
+
+    `news` reads the rule for a change nobody gestured (`skills/leaf/assets/AGENTS.md`,
+    "Stability"): a box whose own words changed may grow or shrink into free room, so its
+    width is its own, but its place is not, and no other box may move or resize. A box
+    that grew by pushing its neighbours still fails, as they do."""
+
+    def moved(was, now):
+        if now is None:
+            return False
+        grew = news and was[4] != now[4]
+        return any(
+            a != b
+            for i, (a, b) in enumerate(zip(was[:4], now[:4]))
+            if not (grew and i == 2)
+        )
+
     return [
         f"{name} moved by "
-        f"{[round(a - b, 1) for a, b in zip(now, was)]} (left, top, width, height)"
+        f"{[round(a - b, 1) for a, b in zip(now[:4], was[:4])]} (left, top, width, height)"
         for name, was, now in zip(before["names"], before["boxes"], boxes)
-        if now is not None and was != now
+        if moved(was, now)
     ]
 
 
@@ -879,14 +943,23 @@ FOCUS_IN_PAGE = """() => {
 # generated, and structure is compared either way.
 # The page as a press leaves it. Where the pointer is resting and the projection Leaf
 # paints above descendants are not authored state, so neither belongs in this reading.
-PAGE_MARKUP = """() => [...document.body.children]
+PAGE_MARKUP = r"""() => [...document.body.children]
     .filter((n) => !n.classList.contains("lf-chrome"))
     .map((n) => {
         const c = n.cloneNode(true);
         for (const g of c.querySelectorAll("[data-lf-gen]")) g.textContent = "";
         if (c.dataset && c.dataset.lfGen !== undefined) c.textContent = "";
-        for (const el of [c, ...c.querySelectorAll("*")])
+        for (const el of [c, ...c.querySelectorAll("*")]) {
             el.classList?.remove("lf-mark-hover", "lf-projected-mark");
+            // The name a margin row anchors by, which the layout writes on whatever
+            // target a row comes to stand by, on its own schedule rather than a press's.
+            if (el.style?.anchorName) {
+                el.style.anchorName = el.style.anchorName.split(",")
+                    .map((name) => name.trim())
+                    .filter((name) => !/^--lf-a\d+$/.test(name)).join(", ");
+                if (!el.getAttribute("style")) el.removeAttribute("style");
+            }
+        }
         return c.outerHTML;
     })
     .join("").replaceAll(' class=""', "")"""
@@ -1161,7 +1234,7 @@ def live_leaf(tmp_path, monkeypatch):
     a real handler, and written down under the state home the way `server run` writes
     it — which is the whole of how one page learns another exists. Each claims to be
     working, freshly, so its row has a judged state to show. A factory rather than one
-    fixture, because a tray is a list and a walk down it needs somewhere to walk to."""
+    fixture, because a drawer is a list and a walk down it needs somewhere to walk to."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
     servers = ExitStack()
     held = []
@@ -1183,7 +1256,7 @@ def live_leaf(tmp_path, monkeypatch):
                 "ts": events_model.now_iso(),
             },
         )
-        # A live leaf has a session behind it, and what the tray's hover says about a
+        # A live leaf has a session behind it, and what the drawer's hover says about a
         # page is the work that session is doing it for — so the fixture's pages come
         # out of somewhere nameable rather than out of nowhere.
         record_claim(
@@ -1225,12 +1298,12 @@ def other_leaf(live_leaf):
 
 
 # Twenty-four things waiting, which is more than any shipped example asks and the point: the
-# room a list reserves at its foot is invisible until the list is longer than the tray.
+# room a list reserves at its foot is invisible until the list is longer than the drawer.
 MANY_ASKS_PAGE = leaf_page(
     "many decisions",
     """
 <h1>Many decisions</h1>
-<p>A tray long enough to scroll.</p>
+<p>A drawer long enough to scroll.</p>
 <lf-tasks id="plan">
 """
     + "\n".join(
@@ -1255,9 +1328,9 @@ UNBREAKABLE_PAGE = leaf_page(
     "unbreakable",
     """
 <h1 id="h">Nothing to break on</h1>
-<lf-grid id="numbers">
+<div class="layout-tiles" id="numbers">
   <lf-metric id="m-token" value="a_very_long_unbroken_identifier">Bucket key</lf-metric>
-</lf-grid>
+</div>
 <p id="p-token">The one it fails on is
 gateway_middleware_authentication_token_bucket_refill_strategy.py, every time.</p>
 <lf-tree id="tree"><pre>
@@ -1359,18 +1432,18 @@ before it ships.</p>
 </lf-options></lf-ask>
 """,
 )
-# A page that says one of its words on screen only. The rule is the page's own, which is
-# the point: the gate asks what the printed page still says, not who took the words away.
-PRINT_LOSS_PAGE = CARRIED_PAGE.replace(
-    "</head>",
-    "<style>@media print { #lede, #c-bearer { display: none } }</style></head>",
-)
 
 
-def solid_png(width: int, height: int, rgb: tuple) -> bytes:
+def solid_png(width: int, height: int, rgb: tuple, patch: tuple = ()) -> bytes:
     """A solid-colour PNG, written here rather than committed, so the pair a shot
-    test flips between is two files whose only difference is the one the test made."""
-    raw = b"".join(b"\x00" + bytes(rgb) * width for _ in range(height))
+    test flips between is two files whose only difference is the one the test made.
+    `patch` is `(x, y, width, height, rgb)`, a rectangle painted in another colour."""
+    rows = [bytearray(bytes(rgb) * width) for _ in range(height)]
+    if patch:
+        x, y, w, h, colour = patch
+        for row in rows[y : y + h]:
+            row[x * 3 : (x + w) * 3] = bytes(colour) * w
+    raw = b"".join(b"\x00" + bytes(row) for row in rows)
 
     def chunk(tag, data):
         body = tag + data
@@ -1480,11 +1553,11 @@ DEEP_FOCUS = """() => {
 }"""
 
 
-# The here ring where a box casts it as a shadow rather than drawing it as an outline,
+# The focus ring where a box casts it as a shadow rather than drawing it as an outline,
 # and how far past its edge that band reaches. Two rules in the layer draw it that way —
 # the anchored response bar, which writes `outline: none` so its states keep one
 # silhouette, and the target hint the keyboard is browsing, a chip in a layer nothing can
-# focus — and to a user they are the same band as every other ring (--here-shadow,
+# focus — and to a user they are the same band as every other ring (--focus-shadow,
 # theme.css).
 #
 # What makes it that band rather than the layer's other shadows: no offsets, no blur, and
@@ -1499,7 +1572,7 @@ DEEP_FOCUS = """() => {
 # accent a rule laid down is not part of the question — the bar carries an accent border
 # as well and wants less of it than a chip standing over the page's own words.
 HERE_SHADOW = r"""(cs, accent, mixed) => {
-  const w = parseFloat(cs.getPropertyValue('--here-ring-w')) || 0;
+  const w = parseFloat(cs.getPropertyValue('--focus-ring-w')) || 0;
   if (!w) return 0;
   // Split on the commas between layers, not on the ones inside `rgba(...)`.
   for (const layer of cs.boxShadow.split(/,(?![^(]*\))/)) {
@@ -1544,8 +1617,8 @@ ACCENT_SWATCH = r"""() => {
 }"""
 
 
-# Every rule in the page's composed layer that draws the here ring, under the name that
-# rule gives it (--lf-here-ring, theme.css). This is the population the corpus floor
+# Every rule in the page's composed layer that draws the focus ring, under the name that
+# rule gives it (--lf-focus-ring, theme.css). This is the population the corpus floor
 # divides by; the sweep below answers for what is painted.
 #
 # Flat, because nothing re-runs a selector any more. The reading this replaced resolved
@@ -1554,13 +1627,13 @@ ACCENT_SWATCH = r"""() => {
 # exactly like a rule nothing on the page matched. theme.css carries why that went.
 #
 # What it cannot see is a rule drawing the ring some other way — as longhands, or as
-# `2px solid var(--accent)` written out. "Draws the here ring" is not decidable from a
+# `2px solid var(--accent)` written out. "Draws the focus ring" is not decidable from a
 # declaration's text, and this asks the one question that is: does the value name the
 # layer's own token. The paint is where the rest is decidable, and the floor reads both,
 # so a ring the layer draws without saying so is caught there rather than excused here.
 #
-# Two tokens, because the band has two carriers. `--here-ring` is the outline the great
-# majority of the rules draw; `--here-shadow` is the same band cast as a shadow, for the
+# Two tokens, because the band has two carriers. `--focus-ring` is the outline the great
+# majority of the rules draw; `--focus-shadow` is the same band cast as a shadow, for the
 # boxes that cannot spend an outline on it. Asking for the token and not for the shape
 # is what keeps the status dots out: a milestone's active dot is `0 0 0 3px` of the
 # accent and is not a ring, and no reading of a declaration could tell the two apart by
@@ -1586,10 +1659,10 @@ RING_NAMES = """() => {
         // `&:has(> lf-option > .lf-pick:is(:focus-visible, .lf-focus-visible))`
         // and nothing else, which names no rule anybody can find.
         if (rule.style
-            && (rule.style.getPropertyValue('outline').includes('--here-ring)')
+            && (rule.style.getPropertyValue('outline').includes('--focus-ring)')
                 || rule.style.getPropertyValue('box-shadow')
-                     .includes('--here-shadow)'))) {
-          const name = rule.style.getPropertyValue('--lf-here-ring').trim();
+                     .includes('--focus-shadow)'))) {
+          const name = rule.style.getPropertyValue('--lf-focus-ring').trim();
           const own = rule.selectorText;
           const up = rule.parentRule?.selectorText;
           const said = own && up ? `${up} { ${own}` : (own ?? up ?? '(a declaration)');
@@ -1613,7 +1686,7 @@ RING_NAMES = """() => {
 }"""
 
 
-# Every here ring the page is showing right now, and what is wrong with each.
+# Every focus ring the page is showing right now, and what is wrong with each.
 #
 # Asked of every box painting one, rather than of the focused one.
 # The two are not the same set: three rules draw the ring on something other than the
@@ -1631,7 +1704,7 @@ RING_NAMES = """() => {
 # response bar and the browsed target hint as boxes with no ring on them at all.
 RINGS_DRAWN = f"""async () => {{
   // shownBand, rather than a fourth reading of what a box clips to. Its own comment
-  // carries why: version check --render imports it so the band a handover is refused
+  // carries why: page check --render imports it so the band a handover is refused
   // against and the band the page paints to are one reading, and written twice they
   // disagreed twice. This was the third copy and it was wrong in both of the ways that
   // comment names — it asked only about overflow, so paint containment and
@@ -1647,8 +1720,8 @@ RINGS_DRAWN = f"""async () => {{
   // The band this box casts as a shadow, where it draws one, in the width it draws it
   // at. Its own comment carries what makes a shadow that band rather than a lift.
   const hereShadow = (cs) => ({HERE_SHADOW})(cs, accent, mixed);
-  // Whether the outline on this element is the layer's ring: `--here-ring` is
-  // `var(--here-ring-w) solid var(--accent)`, so style, width and colour are all what
+  // Whether the outline on this element is the layer's ring: `--focus-ring` is
+  // `var(--focus-ring-w) solid var(--accent)`, so style, width and colour are all what
   // the element computes them to.
   //
   // Element feedback now deliberately shares the ring's weight and accent while the
@@ -1666,19 +1739,19 @@ RINGS_DRAWN = f"""async () => {{
   // way. Left out, the bar's own controls came back wearing `pressable` — the name of
   // the floor rule whose outline this one takes away — and the hint's band went
   // unmeasured wherever it stood.
-  // Which here ring this is, where a rule said. An unset registered property and an
+  // Which focus ring this is, where a rule said. An unset registered property and an
   // unregistered one both answer `none` and neither is a name, so both come back empty.
   const ringName = (cs) => {{
-    const n = cs.getPropertyValue('--lf-here-ring').trim();
+    const n = cs.getPropertyValue('--lf-focus-ring').trim();
     return n === 'none' ? '' : n;
   }};
   const focused = ({DEEP_FOCUS})();
-  const isHereRing = (el, cs) =>
+  const isFocusRing = (el, cs) =>
     (cs.outlineStyle === 'solid'
-     && cs.outlineWidth === cs.getPropertyValue('--here-ring-w').trim()
+     && cs.outlineWidth === cs.getPropertyValue('--focus-ring-w').trim()
      && cs.outlineColor === accent
      && (el === focused
-         || !el.matches(':is(.lf-mark-el, .lf-react-el)')
+         || !el.matches('.lf-mark-el')
          || Boolean(ringName(cs))))
     || hereShadow(cs) > 0;
   // Every box painting the ring, read off the composed page. Whether a ring is there is
@@ -1700,10 +1773,10 @@ RINGS_DRAWN = f"""async () => {{
     for (const el of root.querySelectorAll('*')) {{
       if (el.shadowRoot) roots.push(el.shadowRoot);
       const cs = getComputedStyle(el);
-      if (isHereRing(el, cs)) claimed.push({{ el, cs, name: ringName(cs) }});
+      if (isFocusRing(el, cs)) claimed.push({{ el, cs, name: ringName(cs) }});
       const after = getComputedStyle(el, '::after');
-      if (after.content !== 'none' && isHereRing(el, after))
-        claimed.push({{ el, cs: after, name: ringName(after) }});
+      if (after.content !== 'none' && isFocusRing(el, after))
+        claimed.push({{ el, cs: after, name: ringName(after), pseudo: true }});
     }}
   if (focused && focused !== document.body && focused !== document.documentElement
       && !claimed.some((claim) => claim.el === focused)) {{
@@ -1711,7 +1784,7 @@ RINGS_DRAWN = f"""async () => {{
     claimed.push({{ el: focused, cs, name: ringName(cs) }});
   }}
   const answers = [];
-  for (const {{ el, cs, name }} of claimed) {{
+  for (const {{ el, cs, name, pseudo }} of claimed) {{
     // A ring on something the browser is not rendering is not on screen, and its box is
     // whatever the last layout left behind. An inactive lf-tab is the case: it carries
     // `hidden="until-found"`, so the UA gives it `content-visibility: hidden`, its
@@ -1853,6 +1926,24 @@ RINGS_DRAWN = f"""async () => {{
       return false;
     }};
     const scrolledTo = el === focused;
+    // Whether a box inside the control paints after the ring. The control's own outline
+    // paints with its in-flow content, so a descendant standing on it paints beneath it
+    // unless a positioned box, itself or one between it and the control, lifts it into
+    // the positioned layer painted afterwards. The margin card's reply row was the case:
+    // pinned to the transcript's foot and painting the thread's surface, it took the
+    // bottom run of the thread's inset ring while this reading excused everything inside
+    // the control as the control itself. A ring carried by a positioned `::after` is in
+    // that layer already, at its own z-index and after every descendant in tree order,
+    // so only a descendant lifted to a higher z-index stands over it.
+    const carrier = pseudo && cs.position !== 'static' ? (parseFloat(cs.zIndex) || 0) : null;
+    const lifted = (n) => {{
+      let lift = null;
+      for (let a = n; a && a !== el; a = above(a)) {{
+        const s = getComputedStyle(a);
+        if (s.position !== 'static') lift = Math.max(lift ?? 0, parseFloat(s.zIndex) || 0);
+      }}
+      return lift !== null && (carrier === null || lift > carrier);
+    }};
     // Each run sampled in the middle of the part of it that is on screen, rather than in
     // the middle of the whole run. They differ for anything taller or wider than the
     // window, and then the plain midpoint is a point the user cannot see: an option
@@ -1878,7 +1969,14 @@ RINGS_DRAWN = f"""async () => {{
     ] : []) {{
       if (x < 0 || y < 0 || x > innerWidth || y > innerHeight) continue;
       for (const over of document.elementsFromPoint(x, y)) {{
-        if (over === el || holds(el, over) || holds(over, el)) break;
+        if (over === el || holds(over, el)) break;
+        if (holds(el, over)) {{
+          if (!lifted(over)) break;
+          if (!paints(over)) continue;
+          covers.push(`its ${{side}} edge is under ` + named(over) + `, inside it`
+                      + ` (ring ${{at(ring)}}, sampled ${{Math.round(x)}},${{Math.round(y)}})`);
+          break;
+        }}
         if (!paints(over)) continue;
         if (!scrolledTo && fixedOver(over)) break;
         // Is the control itself under this too? Where a control stands partly behind
@@ -1886,7 +1984,7 @@ RINGS_DRAWN = f"""async () => {{
         // which is a fact about where the control was put rather than about the ring being
         // drawn outside its box. The claim worth making is the other one: where the control
         // can be seen, so can the ring that names it. Stated without a case on purpose —
-        // the one this was written for was the tray's edge handle running the whole height
+        // the one this was written for was the drawer's edge handle running the whole height
         // of the window under the banner, which stopped being true in 3a8f16f0, the commit
         // that added this comment and the handle's top inset together.
         //
@@ -1897,8 +1995,8 @@ RINGS_DRAWN = f"""async () => {{
         // every covered inset ring answered that the control was behind the same thing
         // and was dropped without a word. The rings the panel's own list draws are all
         // inset, so this went blind in the same commit that made them so — a thread
-        // lying two pixels under its stuck run heading is a card with three sides, and
-        // the gate written to catch exactly that reported nothing.
+        // lying two pixels under a cover is a card with three sides, and the gate
+        // written to catch exactly that reported nothing.
         const step = grow + w + 1;
         const inx = x + (side === 'left' ? step : side === 'right' ? -step : 0);
         const iny = y + (side === 'top' ? step : side === 'bottom' ? -step : 0);
@@ -1987,11 +2085,11 @@ RINGS_DRAWN = f"""async () => {{
     }}
     answers.push({{
       who: named(el),
-      here: isHereRing(el, cs),
+      here: isFocusRing(el, cs),
       ring: name,
       focused: el === focused,
-      specimen: el === focused || holds(el, focused)
-        || el.hasAttribute('data-lf-ring-specimen'),
+      sample: el === focused || holds(el, focused)
+        || el.hasAttribute('data-lf-ring-sample'),
       scrolled,
       cuts,
       covers,
@@ -2006,18 +2104,14 @@ COVERED_TOP = """() => {
   const box = document.querySelector('.lf-threads');
   if (!el || !box.contains(el)) return null;
   const r = el.getBoundingClientRect();
-  const over = document.elementsFromPoint((r.left + r.right) / 2, r.top + 1)
-    .find((n) => n !== el && !el.contains(n) && !n.contains(el)
-                 && n.classList.contains('lf-pinned'));
-  if (!over) return null;
-  const o = over.getBoundingClientRect();
-  return `${over.textContent.trim().slice(0, 32)} covers it down to `
-         + `${Math.round(o.bottom - r.top)}px in`;
+  const top = box.getBoundingClientRect().top + box.clientTop;
+  if (r.top >= top - 0.5) return null;
+  return `the list's top edge cuts it ${Math.round(top - r.top)}px in`;
 }"""
 
 
 def rings_drawn(page):
-    """Every here ring the page is drawing, each with what is wrong with it."""
+    """Every focus ring the page is drawing, each with what is wrong with it."""
     return page.evaluate(RINGS_DRAWN)
 
 

@@ -8,9 +8,13 @@ import "../vendor/webawesome.esm.js";
 import {
   cancelRender,
   commands,
+  describeDifference,
   compoundReadingRegionId,
   consumeThreads,
   failSoft,
+  holdFocus,
+  keeps,
+  keepsHidden,
   layoutChanged,
   nextRender,
   notice,
@@ -22,6 +26,7 @@ import {
   registerReadingRegion,
   relabel,
   scopedMediaUrl,
+  setChildren,
   sizeObserver,
   watchData,
   widgetController,
@@ -68,7 +73,7 @@ function make(tag, className, text = null, says = true) {
 }
 
 function setText(element, text) {
-  if (element.textContent !== text) relabel(element, text, { says: true });
+  relabel(element, text, { says: true });
 }
 
 function previewUrl(target, path) {
@@ -196,6 +201,7 @@ customElements.define(
 
       this.#evidenceHost = make("section", "lf-vr-evidence-region");
       this.#evidenceHost.dataset.lfReadingRole = "pane";
+      this.#evidenceHost.dataset.lfGenerated = "";
       this.#evidenceHost.setAttribute("aria-label", "Selected visual evidence");
       this.#inspector = this.#buildInspector();
       this.#casesBody = make("div", "lf-vr-cases");
@@ -304,33 +310,36 @@ customElements.define(
       this.#paintInspector();
     }
 
+    // A shot offers its own flip controls only in Flip.
+    #paintShotControls(shot) {
+      keeps(shot, "data-lf-shot-controls", this.#mode === "flip" ? null : "off");
+    }
+
     #paintInspector() {
       if (!this.#inspector) return;
-      this.dataset.inspectionMode = this.#mode;
-      this.dataset.inspectionScale = this.#scale;
+      keeps(this, "data-inspection-mode", this.#mode);
+      keeps(this, "data-inspection-scale", this.#scale);
       const focus = this.#caseEntries.get(this.#selected)?.record?.focus;
       const focusAvailable = Boolean(focus && FOCUS_CROP_SUPPORTED);
       const scope = focusAvailable ? this.#scope : "full";
-      this.dataset.inspectionScope = scope;
+      keeps(this, "data-inspection-scope", scope);
       this.style.setProperty("--lf-vr-opacity", String(this.#opacity / 100));
       const scopeGroup = this.#inspector.querySelector(".lf-vr-scope-group");
-      scopeGroup.hidden = !focusAvailable;
+      keepsHidden(scopeGroup, !focusAvailable);
       scopeGroup.value = scope;
       this.#inspector.querySelector(".lf-vr-mode-group").value = this.#mode;
       this.#inspector.querySelector(".lf-vr-scale-group").value = this.#scale;
       const opacity = this.#inspector.querySelector(".lf-vr-opacity-control");
       const slider = opacity.querySelector(".lf-vr-opacity");
       const active = this.#mode === "overlay";
-      opacity.dataset.active = String(active);
-      slider.disabled = !active;
+      keeps(opacity, "data-active", active);
+      slider.toggleAttribute("disabled", !active);
       slider.value = this.#opacity;
       const readout = opacity.querySelector(".lf-vr-opacity-value");
       const percent = `${this.#opacity}%`;
-      if (readout.textContent !== percent) relabel(readout, percent, { says: false });
+      relabel(readout, percent, { says: false });
       for (const shot of this.querySelectorAll("lf-shot")) {
-        const flip = this.#mode === "flip";
-        if (flip) shot.removeAttribute("data-lf-shot-controls");
-        else shot.dataset.lfShotControls = "off";
+        this.#paintShotControls(shot);
         for (const frame of shot.querySelectorAll(".lf-shotframe")) {
           const oldLabel = frame.querySelector(":scope > .lf-vr-frame-label");
           if (this.#mode !== "compare") {
@@ -455,9 +464,9 @@ customElements.define(
       // the bounded stage scroll through its height. Containing both frames vertically
       // made tall mobile captures unreadably small even when both fit side by side.
       const scale = this.#scale === "actual" ? 1 : Math.min(1, fitScale);
-      this.dataset.compareLayout = compareLayout;
-      entry.shotHost.dataset.focusAuthored = String(Boolean(focus));
-      entry.shotHost.dataset.focusActive = String(Boolean(activeFocus));
+      keeps(this, "data-compare-layout", compareLayout);
+      keeps(entry.shotHost, "data-focus-authored", Boolean(focus));
+      keeps(entry.shotHost, "data-focus-active", Boolean(activeFocus));
       if (focus) {
         entry.shotHost.style.setProperty("--lf-vr-focus-x", `${focus.x * scale}px`);
         entry.shotHost.style.setProperty("--lf-vr-focus-y", `${focus.y * scale}px`);
@@ -479,13 +488,19 @@ customElements.define(
         });
       }
       const beforeLabel = frames[0].querySelector(".lf-vr-frame-label");
-      if (beforeLabel)
-        beforeLabel.dataset.label =
-          compareLayout === "stack" ? "Base · Candidate below" : "Base";
-      entry.shotHost.style.setProperty(
-        "--lf-vr-frame-width",
-        `${Math.max(1, width * scale)}px`,
+      keeps(
+        beforeLabel,
+        "data-label",
+        compareLayout === "stack" ? "Base · Candidate below" : "Base",
       );
+      // The frames take their width from here a pass after the host took its own, so
+      // the host keeps its box while what it holds resizes: say so, or a reading made
+      // of the host at its resize (reach.js) keeps the frames' old width.
+      const frameWidth = `${Math.max(1, width * scale)}px`;
+      if (entry.shotHost.style.getPropertyValue("--lf-vr-frame-width") !== frameWidth) {
+        entry.shotHost.style.setProperty("--lf-vr-frame-width", frameWidth);
+        layoutChanged(this);
+      }
     }
 
     #registerCommands() {
@@ -519,7 +534,7 @@ customElements.define(
           this.#renderMissing(snapshot);
           return;
         }
-        this.#inspector.hidden = false;
+        keepsHidden(this.#inspector, false);
         this.#casesBody.querySelector(":scope > .lf-vr-empty")?.remove();
         const ids = this.#run.cases.map(({ id }) => id);
         if (new Set(ids).size !== ids.length)
@@ -543,8 +558,9 @@ customElements.define(
 
     #renderMissing(snapshot) {
       setText(this.#title, "Waiting for a visual run");
-      this.#inspector.hidden = true;
-      this.#evidenceHost.append(this.#inspector);
+      keepsHidden(this.#inspector, true);
+      if (this.#evidenceHost.lastChild !== this.#inspector)
+        this.#evidenceHost.append(this.#inspector);
       this.#queue.replaceChildren();
       for (const { shotHost, stopReading } of this.#caseEntries.values()) {
         this.#sizes?.unobserve(shotHost);
@@ -553,8 +569,10 @@ customElements.define(
       this.#caseEntries.clear();
       this.#selected = null;
       this.#paintNavigation();
-      const empty = make("p", "lf-vr-empty", "Waiting for visual-run data.");
-      this.#casesBody.replaceChildren(empty);
+      const empty =
+        this.#casesBody.querySelector(":scope > .lf-vr-empty") ??
+        make("p", "lf-vr-empty", "Waiting for visual-run data.");
+      setChildren(this.#casesBody, [empty]);
       projectData(
         this,
         [{ id: "unavailable", node: empty }],
@@ -604,6 +622,7 @@ customElements.define(
         {
           nested: true,
           labelOf: (record, index) => `Case ${index + 1}: ${record.title}`,
+          identify: ({ id }) => id,
           snapshot: this.#snapshot,
           originOf: (_, index) => ({
             ...this.#snapshot.origin,
@@ -706,6 +725,8 @@ customElements.define(
         record: null,
         index: 0,
         total: 0,
+        // The shown lf-shot's `difference`, once it has read its pair.
+        difference: undefined,
       };
       this.#registerCaseRegion(id, entry);
       return entry;
@@ -724,19 +745,13 @@ customElements.define(
     }
 
     #updateCase(entry, record, index, total) {
-      entry.article.dataset.classification = record.classification;
-      entry.article.setAttribute(
-        "aria-label",
-        `Visual review case ${index + 1} of ${total}`,
-      );
+      keeps(entry.article, "data-classification", record.classification);
+      keeps(entry.article, "aria-label", `Visual review case ${index + 1} of ${total}`);
       entry.record = record;
       entry.index = index;
       entry.total = total;
       this.#paintOption(entry);
-      setText(
-        entry.article.querySelector(".lf-vr-case-position"),
-        `Case ${index + 1} of ${total} · ${CLASSIFICATION[record.classification]}`,
-      );
+      this.#paintPosition(entry);
       setText(entry.article.querySelector(".lf-vr-case-title"), record.title);
       setText(entry.article.querySelector(".lf-vr-path"), record.path);
       setText(entry.article.querySelector(".lf-vr-action"), record.action);
@@ -750,7 +765,7 @@ customElements.define(
         `${record.capture.viewport.width} × ${record.capture.viewport.height} · ${record.capture.deviceScaleFactor}×`,
       );
       const focus = entry.article.querySelector(".lf-vr-focus");
-      focus.closest(".lf-vr-detail").hidden = !record.focus;
+      keepsHidden(focus.closest(".lf-vr-detail"), !record.focus);
       if (record.focus)
         setText(
           focus,
@@ -762,7 +777,7 @@ customElements.define(
       );
       const observed = entry.article.querySelector(".lf-vr-observed");
       setText(observed, this.#run.observedAt);
-      observed.dateTime = this.#run.observedAt;
+      keeps(observed, "datetime", this.#run.observedAt);
       setText(
         entry.article.querySelector(".lf-vr-base-revision"),
         this.#run.base.revision,
@@ -773,11 +788,11 @@ customElements.define(
       );
       const base = entry.article.querySelector(".lf-vr-base-link");
       const candidate = entry.article.querySelector(".lf-vr-candidate-link");
-      base.href = previewUrl(this.#run.base, record.path);
-      candidate.href = previewUrl(this.#run.candidate, record.path);
+      keeps(base, "href", previewUrl(this.#run.base, record.path));
+      keeps(candidate, "href", previewUrl(this.#run.candidate, record.path));
       const trace = entry.article.querySelector(".lf-vr-trace-link");
-      trace.hidden = !record.traceUrl;
-      if (record.traceUrl) trace.href = record.traceUrl;
+      keepsHidden(trace, !record.traceUrl);
+      if (record.traceUrl) keeps(trace, "href", record.traceUrl);
 
       const current = entry.shotHost.querySelector("lf-shot");
       const alt = `${record.title}. ${record.result}`;
@@ -798,8 +813,52 @@ customElements.define(
         shot.setAttribute("before", before);
         shot.setAttribute("after", after);
         shot.setAttribute("alt", alt);
+        shot.toggleAttribute("outlines", true);
+        // Before the shot connects, so it declares its keys once, for this mode.
+        this.#paintShotControls(shot);
         entry.shotHost.replaceChildren(shot);
+        entry.difference = undefined;
+        this.#paintPosition(entry);
+        // A refused or failed comparison is lf-shot's to report, in its own box.
+        shot.difference.then(
+          (reading) => {
+            if (entry.shotHost.querySelector("lf-shot") !== shot) return;
+            entry.difference = reading;
+            this.#paintPosition(entry);
+          },
+          () => {},
+        );
       }
+    }
+
+    // lf-shot's rail stays hidden outside Flip, and a focus crop hides the outlines,
+    // so the case's own position line states the reading in every view, with the
+    // changes the focus leaves out: a focus authored on an area that did not change
+    // says so here.
+    #paintPosition(entry) {
+      const { record, index, total, difference } = entry;
+      const parts = [
+        `Case ${index + 1} of ${total}`,
+        CLASSIFICATION[record.classification],
+      ];
+      if (difference) {
+        const ratio = record.capture.deviceScaleFactor;
+        const focus = record.focus;
+        const outside = focus
+          ? difference.regions.filter(
+              (region) =>
+                region.x >= (focus.x + focus.width) * ratio ||
+                region.x + region.width <= focus.x * ratio ||
+                region.y >= (focus.y + focus.height) * ratio ||
+                region.y + region.height <= focus.y * ratio,
+            ).length
+          : 0;
+        parts.push(
+          describeDifference(difference) +
+            (outside ? ` (${outside} outside the focus)` : ""),
+        );
+      }
+      setText(entry.article.querySelector(".lf-vr-case-position"), parts.join(" · "));
     }
 
     #syncCaptureWidth(entry) {
@@ -828,17 +887,16 @@ customElements.define(
     #select(id) {
       if (!this.#caseEntries.has(id)) return;
       const currentEntry = this.#caseEntries.get(this.#selected);
-      const active = document.activeElement;
-      const leavingCase = Boolean(active && currentEntry?.article.contains(active));
-      const disposition = leavingCase
-        ? active.closest(".lf-vr-disposition")?.dataset.disposition
+      const restoreFocus = currentEntry && holdFocus(currentEntry.article);
+      const disposition = restoreFocus
+        ? document.activeElement.closest(".lf-vr-disposition")?.dataset.disposition
         : null;
       if (id !== this.#selected) this.#scope = "focus";
       this.#selected = id;
       this.#queue.value = id;
       for (const [caseId, entry] of this.#caseEntries) {
         const selected = caseId === id;
-        entry.article.hidden = !selected;
+        keepsHidden(entry.article, !selected);
       }
       const selected = this.#caseEntries.get(id);
       const toolbar = selected.article.querySelector(".lf-vr-toolbar-slot");
@@ -848,24 +906,15 @@ customElements.define(
       layoutChanged(this);
       this.#scheduleEvidenceLayout();
       paintKeys();
-      // Moving the shared inspector between articles makes the browser drop its focus.
-      // Restore that exact destination; a hidden case-local control instead lands on
-      // the corresponding disposition — or the primary disposition when it has no
+      // Moving the shared inspector between articles makes the browser drop its focus,
+      // which the hold hands back. A hidden case-local control instead lands on the
+      // corresponding disposition — or the primary disposition when it has no
       // counterpart — rather than leaving a keyboard user on the document body.
-      if (
-        leavingCase &&
-        (document.activeElement !== active ||
-          !active.isConnected ||
-          !active.checkVisibility())
-      ) {
-        const counterpart =
-          active.isConnected && active.checkVisibility()
-            ? active
-            : disposition
-              ? selected.article.querySelector(`[data-disposition="${disposition}"]`)
-              : selected.article.querySelector(".lf-vr-disposition");
-        counterpart?.focus({ preventScroll: true });
-      }
+      restoreFocus?.(
+        disposition &&
+          selected.article.querySelector(`[data-disposition="${disposition}"]`),
+        selected.article.querySelector(".lf-vr-disposition"),
+      );
     }
 
     #step(delta) {
@@ -878,9 +927,9 @@ customElements.define(
 
     #paintNavigation() {
       const count = this.#caseEntries.size;
-      this.#queue.disabled = count === 0;
+      this.#queue.toggleAttribute("disabled", count === 0);
       for (const button of this.#queueHost.querySelectorAll("button"))
-        button.disabled = count < 2;
+        button.toggleAttribute("disabled", count < 2);
     }
 
     async #review(id, disposition) {
@@ -896,12 +945,9 @@ customElements.define(
     #setDisposition(id, disposition) {
       const entry = this.#caseEntries.get(id);
       if (!entry) return;
-      entry.article.dataset.disposition = disposition ?? "";
+      keeps(entry.article, "data-disposition", disposition ?? "");
       for (const button of entry.article.querySelectorAll(".lf-vr-disposition"))
-        button.setAttribute(
-          "aria-pressed",
-          String(button.dataset.disposition === disposition),
-        );
+        keeps(button, "aria-pressed", button.dataset.disposition === disposition);
       this.#paintOption(entry);
       this.#paintProgress();
     }
@@ -922,7 +968,7 @@ customElements.define(
     #paintAvailability() {
       const available = this.#controller.read().actions.review?.available ?? false;
       for (const button of this.querySelectorAll(".lf-vr-disposition"))
-        button.disabled = !available;
+        button.toggleAttribute("disabled", !available);
       paintKeys();
     }
 

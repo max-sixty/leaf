@@ -2,7 +2,7 @@
  * adapter exposes production controls and state transitions to the parent gallery
  * without posting their gestures.
  *
- * Passive specimen startup loads this module. The shared host owns readiness;
+ * Passive sample startup loads this module. The shared host owns readiness;
  * this adapter choreographs production transitions without recording gestures. */
 
 let commands;
@@ -11,7 +11,7 @@ function neutralChrome() {
   commands.detachComposer();
   commands.closePreview();
   commands.setPanel(false, { remember: false });
-  if (commands.currentTray()) commands.setOpenTray(null, { remember: false });
+  if (commands.currentDrawer()) commands.setOpenDrawer(null, { remember: false });
 }
 
 export function mountReplay(capabilities) {

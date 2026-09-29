@@ -4,15 +4,18 @@ import io
 import math
 import re
 from datetime import datetime, timedelta
+from itertools import pairwise
 
 import pytest
 from interact_support import (
     SHIPPED_PACKAGES,
     append_command,
 )
+from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf.render_checks import rendered, wait_until_ready
 from leaf.served_state import page as served_page
 from leaf.validation import compatibility as validation_model
 from PIL import Image, ImageChops
@@ -44,6 +47,7 @@ from render_cases_layout import (
     edge_settled,
     geometry,
 )
+from render_cases_navigation import source_revision
 from render_cases_widgets import (
     GENERIC_VISUAL_LAYER,
     GENERIC_VISUAL_PAGE,
@@ -61,15 +65,15 @@ from render_cases_widgets import (
     prefixed_visual_layer,
 )
 from render_harness import (
-    BOTH_STAMPS,
     EXAMPLES,
     LONG_PAGE,
+    RELEASE_FOCUS,
     REPLAYED_PAGE,
-    SPECIMEN_PAGE,
+    SAMPLE_PAGE,
+    expect_comment_notes,
     leaf_page,
     open_page,
     panel_settled,
-    rendered,
     resized,
     round_trip,
     scroll_settled,
@@ -77,6 +81,7 @@ from render_harness import (
     sending,
     stamp_page,
     told,
+    write,
 )
 
 pytestmark = pytest.mark.nightly
@@ -107,7 +112,7 @@ AIM_PRESS_CASES = (
     (
         "release-notes",
         next(p for p in EXAMPLES if p.stem == "release-notes"),
-        frozenset({"draft mousedown", "suggestion no-item control"}),
+        frozenset({"draft mousedown", "suggestion margin control"}),
     ),
     (
         "ship-review",
@@ -130,7 +135,7 @@ def open_compact_comment(page, text=None):
         return field
     else:
         page.keyboard.type(text)
-        expect(field).to_have_value(text)
+        expect(field).to_have_js_property("value", text)
         expect(field).to_be_focused()
         expect(bar).to_be_visible()
         expect(composer).to_have_css("display", "contents")
@@ -199,7 +204,7 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
         }"""
     )
     assert compact["height"] == 32
-    field.fill("Carry this comment into its thread.")
+    write(field, "Carry this comment into its thread.")
     source = field.bounding_box()
     # Keep a margin render pending across the accepted comment and its next frame.
     # Rendering rebuilds entry records, so the scheduled carry must recognize the same
@@ -223,8 +228,8 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     page.evaluate("() => (window.__lfForceMarginRender = false)")
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
-    thread = preview.locator(".lf-conversation-thread")
-    reply = preview.locator("textarea")
+    thread = preview.locator(".lf-page-thread")
+    reply = preview.locator("leaf-text")
     expect(thread).to_be_focused()
     full = reply.evaluate(
         "node => ({ family: getComputedStyle(node).fontFamily, "
@@ -283,10 +288,10 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     expect(thread).to_be_focused()
 
 
-def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve):
-    """The Asks tray stands over the page without moving its coordinate plane.
+def test_an_aimed_comment_keeps_its_place_with_the_asks_drawer_open(browser, serve):
+    """The Asks drawer stands over the page without moving its coordinate plane.
 
-    A broad authored rule may position ordinary divs, and the tray may arrive over a
+    A broad authored rule may position ordinary divs, and the drawer may arrive over a
     target without another pointer event. Neither may move the chrome's document origin or
     leave its reading of the page behind. Keep the whole comment route on the item the
     user pointed at.
@@ -305,7 +310,7 @@ def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve
     target.hover()
     page.keyboard.down("Alt")
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
-    # Open by script so the pointer remains parked on the target while the tray arrives.
+    # Open by script so the pointer remains parked on the target while the drawer arrives.
     page.locator(".lf-asks").evaluate("node => node.click()")
     edge_settled(page, EDGES[1])
     aligned = page.evaluate(
@@ -411,7 +416,7 @@ def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
             || field.bottom <= target.top || field.top >= target.bottom;
         }"""
     assert page.evaluate(clear)
-    field.fill("test\n")
+    write(field, "test\n")
     actions = page.evaluate(
         """() => {
           const center = selector => {
@@ -429,8 +434,8 @@ def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
         f"Line {n}: every word of this longer comment needs to remain readable."
         for n in range(20)
     )
-    field.fill(content)
-    expect(field).to_have_value(content)
+    write(field, content)
+    expect(field).to_have_js_property("value", content)
     expanded = field.bounding_box()
     assert page.locator(".lf-fab-bar").get_attribute("data-lf-placement") == placement
     assert page.evaluate(clear), (
@@ -462,9 +467,9 @@ def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
     page.mouse.move(8, 450)
     page.mouse.wheel(0, 300)
     page.wait_for_function("() => scrollY >= 300")
-    expect(field).to_have_value(content)
-    field.fill("Brief")
-    expect(field).to_have_value("Brief")
+    expect(field).to_have_js_property("value", content)
+    write(field, "Brief")
+    expect(field).to_have_js_property("value", "Brief")
     assert field.bounding_box()["height"] == compact["height"]
 
 
@@ -508,11 +513,12 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
     expect(bar).to_have_attribute("data-lf-placement", "top-end")
     before_scroll = page.evaluate("scrollY")
 
-    field.fill(
+    write(
+        field,
         "\n".join(
             f"Line {line}: the whole comment remains above its passage."
             for line in range(40)
-        )
+        ),
     )
     rendered(page)
     expect(bar).to_have_attribute("data-lf-placement", "top-end")
@@ -594,7 +600,7 @@ def test_a_comment_on_a_scrolled_away_paragraph_keeps_the_column_clear(browser, 
     field = page.locator(".lf-fab-input")
     expect(field).to_be_visible()
     field.click()
-    field.fill("A short note.\nSecond line.\nThird line.")
+    write(field, "A short note.\nSecond line.\nThird line.")
     beside = page.locator(".lf-fab-bar").bounding_box()["x"]
 
     page.mouse.move(8, 450)
@@ -646,7 +652,7 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
     compact_scroll = page.evaluate("scrollY")
     placement = bar.get_attribute("data-lf-placement")
     compact_height = field.bounding_box()["height"]
-    field.fill("easato" * 30)
+    write(field, "easato" * 30)
     page.wait_for_function(
         """height => {
           const field = document.querySelector('.lf-fab-input');
@@ -654,6 +660,9 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
         }""",
         arg=compact_height,
     )
+    # The field grows by CSS from the foot the bar stands on; placement takes the grown
+    # bar back inside the boundary on the render that follows.
+    rendered(page)
     grown = bar.bounding_box()
     grown_scroll = page.evaluate("scrollY")
     assert bar.get_attribute("data-lf-placement") == placement
@@ -703,7 +712,7 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
           dispatchEvent(new Event('resize'));
         }"""
     )
-    field.fill("A bounded draft remains reachable. " * 200)
+    write(field, "A bounded draft remains reachable. " * 200)
     page.wait_for_function(
         """() => {
           const field = document.querySelector('.lf-fab-input');
@@ -729,7 +738,7 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
         "node => [node.scrollTop, node.scrollHeight - node.clientHeight]"
     )
     assert after[0] == min(scrolled, after[1])  # only the final room may clamp it
-    field.fill("Short again")
+    write(field, "Short again")
     rendered(page)
     returned = bar.bounding_box()
     returned_scroll = page.evaluate("scrollY")
@@ -742,11 +751,27 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
     assert abs(returned["height"] - compact["height"]) <= 1, (compact, returned)
 
 
+# Where the side comment and what it holds stand: the bar's edges, the field's top and
+# its scroll (the first line stands at that top only while the field is unscrolled), and
+# Send's top.
+SIDE_COMMENT = """() => {
+  const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();
+  const field = document.querySelector('.lf-fab-input');
+  const send = document.querySelector('.lf-fab-bar .lf-compose-submit');
+  return {top: bar.top, bottom: bar.bottom, field: field.getBoundingClientRect().top,
+          height: field.getBoundingClientRect().height, scrolled: field.scrollTop,
+          send: send.getBoundingClientRect().top};
+}"""
+
+
 @pytest.mark.parametrize("shift, placement", [(0, "right-start"), (250, "left-start")])
-def test_side_comment_keeps_its_submit_steady_as_the_field_grows(
+def test_a_side_comment_grows_down_from_the_line_it_was_opened_on(
     browser, serve, shift, placement
 ):
-    """A side comment expands above the action the user is composing beside."""
+    """Beside a passage, a draft that wraps keeps what the user has written where they
+    wrote it: the field's top holds and its foot, with Send, moves down a line per wrap,
+    as in an editor. Enter sends, so a hand on the keys never chases Send. (#1159 held
+    the foot and raised the words above it; the user chose this instead.)"""
     page = open_page(
         browser,
         serve(
@@ -764,45 +789,89 @@ def test_side_comment_keeps_its_submit_steady_as_the_field_grows(
     field = open_compact_comment(page)
     bar = page.locator(".lf-fab-bar")
     assert bar.get_attribute("data-lf-placement") == placement
-    resting = bar.bounding_box()
-    submit = bar.locator(".lf-compose-submit")
-    resting_submit = submit.bounding_box()
+    resting = page.evaluate(SIDE_COMMENT)
 
-    field.fill("First line\nSecond line\nThird line")
+    # Word by word until the field has wrapped twice, reading every keystroke's result.
+    readings = [resting]
+    words = iter(("the words keep coming as the user writes " * 12).split())
+    while len({round(reading["height"]) for reading in readings}) < 3:
+        page.keyboard.type(next(words) + " ")
+        rendered(page)
+        readings.append(page.evaluate(SIDE_COMMENT))
+    for reading in readings:
+        assert reading["top"] == pytest.approx(resting["top"], abs=0.5), reading
+        assert reading["field"] == pytest.approx(resting["field"], abs=0.5), reading
+        assert reading["scrolled"] == 0, reading
+    for before, after in pairwise(readings):
+        assert after["bottom"] >= before["bottom"] - 0.5, (before, after)
+    grown = readings[-1]
+    assert grown["bottom"] > resting["bottom"] + 30, (resting, grown)
+    assert grown["send"] > resting["send"] + 30, (resting, grown)
+
+    write(field, "Short again")
     rendered(page)
-    grown = bar.bounding_box()
-    grown_submit = submit.bounding_box()
-    assert grown["height"] > resting["height"] + 20, (resting, grown)
-    assert grown["y"] < resting["y"] - 20, (resting, grown)
-    assert grown["y"] + grown["height"] == pytest.approx(
-        resting["y"] + resting["height"], abs=1
-    ), (resting, grown)
-    assert grown_submit["y"] == pytest.approx(resting_submit["y"], abs=1), (
-        resting_submit,
-        grown_submit,
-    )
+    shortened = page.evaluate(SIDE_COMMENT)
+    assert shortened["top"] == pytest.approx(resting["top"], abs=0.5), shortened
+    assert shortened["bottom"] == pytest.approx(resting["bottom"], abs=0.5), shortened
 
-    field.fill("Short again")
-    rendered(page)
-    shortened = bar.bounding_box()
-    assert shortened["y"] + shortened["height"] == pytest.approx(
-        resting["y"] + resting["height"], abs=1
-    ), (resting, shortened)
-
-    field.fill("First line\nSecond line\nThird line")
+    # A restored draft opens from the same line, its lines under it.
+    write(field, "First line\nSecond line\nThird line")
     page.reload()
     rendered(page)
     page.locator("#passage").click(modifiers=["Alt"])
     field = open_compact_comment(page)
-    expect(field).to_have_value("First line\nSecond line\nThird line")
+    expect(field).to_have_js_property("value", "First line\nSecond line\nThird line")
     rendered(page)
-    restored = bar.bounding_box()
-    field.fill("Short again")
+    restored = page.evaluate(SIDE_COMMENT)
+    assert restored["top"] == pytest.approx(resting["top"], abs=1), restored
+    assert restored["bottom"] > resting["bottom"] + 30, restored
+
+
+def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
+    browser, serve
+):
+    """With no room left under it, the field rises by what its next line needs, its
+    foot on the window's, and scrolls only once it fills the window."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "A low passage",
+                '<div style="height: 1200px"></div>'
+                '<p id="passage">This passage has room beside it for a response.</p>'
+                '<div style="height: 700px"></div>',
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    passage = page.locator("#passage")
+    passage.evaluate(
+        """node => scrollBy({
+          top: node.getBoundingClientRect().top - (innerHeight - 140),
+          behavior: 'instant'
+        })"""
+    )
     rendered(page)
-    shortened = bar.bounding_box()
-    assert shortened["y"] + shortened["height"] == pytest.approx(
-        restored["y"] + restored["height"], abs=1
-    ), (restored, shortened)
+    passage.click(modifiers=["Alt"])
+    field = open_compact_comment(page)
+    bar = page.locator(".lf-fab-bar")
+    assert bar.get_attribute("data-lf-placement") == "right-start"
+    resting = page.evaluate(SIDE_COMMENT)
+    foot = page.evaluate(
+        """async () => (await window.__lfRuntimeImport('/runtime/geometry.js'))
+          .shownWindow({gap: 8}).bottom"""
+    )
+    assert resting["bottom"] < foot - 20, (resting, foot)
+    write(field, "\n".join(f"Line {n}" for n in range(6)))
+    rendered(page)
+    risen = page.evaluate(SIDE_COMMENT)
+    assert risen["bottom"] == pytest.approx(foot, abs=1), (risen, foot)
+    assert risen["top"] < resting["top"] - 20, (resting, risen)
+    assert risen["scrolled"] == 0, risen
+    write(field, "\n".join(f"Line {n}" for n in range(80)))
+    rendered(page)
+    assert field.evaluate("node => node.scrollHeight > node.clientHeight")
+    assert page.evaluate(SIDE_COMMENT)["bottom"] <= foot + 0.5
 
 
 def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
@@ -834,8 +903,9 @@ def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
     compact_target = target.bounding_box()
     placement = bar.get_attribute("data-lf-placement")
     assert compact["y"] > 200, compact
-    field.fill(
-        "\n".join(f"Line {n}: the whole draft remains reachable." for n in range(50))
+    write(
+        field,
+        "\n".join(f"Line {n}: the whole draft remains reachable." for n in range(50)),
     )
     page.wait_for_function(
         """() => {
@@ -851,7 +921,7 @@ def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
     assert abs(box["x"] - compact["x"]) <= 1, (compact, box)
     assert bar.get_attribute("data-lf-placement") == placement
     assert field.evaluate("node => node.scrollHeight > node.clientHeight")
-    field.fill("Short again")
+    write(field, "Short again")
     rendered(page)
     returned = bar.bounding_box()
     returned_target = target.bounding_box()
@@ -885,7 +955,7 @@ def test_a_comment_uses_the_viewport_when_its_target_fills_the_vertical_lane(
     bar = page.locator(".lf-fab-bar")
     assert bar.get_attribute("data-lf-placement") in {"top-end", "bottom-end"}
 
-    field.fill("\n".join(f"Line {n}: keep the draft visible." for n in range(3)))
+    write(field, "\n".join(f"Line {n}: keep the draft visible." for n in range(3)))
     page.wait_for_function(
         """() => {
           const field = document.querySelector('.lf-fab-input');
@@ -893,7 +963,7 @@ def test_a_comment_uses_the_viewport_when_its_target_fills_the_vertical_lane(
         }"""
     )
 
-    field.fill("\n".join(f"Line {n}: keep the draft reachable." for n in range(40)))
+    write(field, "\n".join(f"Line {n}: keep the draft reachable." for n in range(40)))
     page.wait_for_function(
         """() => {
           const field = document.querySelector('.lf-fab-input');
@@ -937,8 +1007,9 @@ def test_a_long_comment_stays_in_view_when_its_target_fills_the_viewport(
     target = page.locator("#tall")
     target.click(modifiers=["Alt"], position={"x": 20, "y": 90})
     field = open_compact_comment(page)
-    field.fill(
-        "\n".join(f"Line {n}: the whole draft remains reachable." for n in range(50))
+    write(
+        field,
+        "\n".join(f"Line {n}: the whole draft remains reachable." for n in range(50)),
     )
     rendered(page)
     bounds = target.bounding_box()
@@ -952,6 +1023,494 @@ def test_a_long_comment_stays_in_view_when_its_target_fills_the_viewport(
     assert field.evaluate("node => node.scrollHeight > node.clientHeight")
 
 
+TALL_DIFF_PAGE = leaf_page(
+    "A tall diff",
+    '<h1>Review</h1><p>One file, commented on whole.</p><lf-diff id="whole"><pre>'
+    "diff --git a/src/lib.rs b/src/lib.rs\n--- a/src/lib.rs\n+++ b/src/lib.rs\n"
+    "@@ -0,0 +1,80 @@\n"
+    + "\n".join(f"+    let value_{n} = compute({n});" for n in range(80))
+    + "\n</pre></lf-diff><p>After the diff.</p>",
+)
+# Where the pointed row, the comment box and the margin cluster stand in the window.
+POINTED_ROW = """() => {
+  const row = document.querySelector('lf-diff').shadowRoot
+    .querySelectorAll('[data-line]')[50].getBoundingClientRect();
+  const top = (selector) =>
+    document.querySelector(selector)?.getBoundingClientRect().top ?? null;
+  return { row: row.top, height: row.height, bar: top('.lf-fab-bar'),
+           cluster: top('.lf-margin-cluster'), card: top('.lf-margin-preview'),
+           diff: document.querySelector('lf-diff').getBoundingClientRect().top };
+}"""
+
+
+def test_a_comment_on_a_whole_target_stands_by_the_row_it_was_pointed_at(
+    browser, serve
+):
+    """⌥-clicking a line deep in an unbound diff comments on the whole diff, which is
+    the target the registry gives it, but the user pointed at that line. The box to
+    write in, the cluster the sent comment leaves and the card it opens stand level with
+    it rather than at the diff's top, a screen above; `t` travels back to that row. The
+    event still names the whole diff: where the comment stands is presentation."""
+    page = open_page(browser, serve(TALL_DIFF_PAGE))
+    resized(page, 1440, 900)
+    expect(page.locator("lf-diff.lf-rendered")).to_have_count(1)
+    row = page.locator("lf-diff [data-line]").nth(50)
+    row.scroll_into_view_if_needed()
+    rendered(page)
+    row.click(modifiers=["Alt"], position={"x": 60, "y": 5})
+    field = open_compact_comment(page)
+    rendered(page)
+    at = page.evaluate(POINTED_ROW)
+    assert at["diff"] < -at["height"] * 20, f"the diff's top must be off screen: {at}"
+    assert abs(at["bar"] - at["row"]) <= 2 * at["height"], (
+        f"the comment box stands {at['row'] - at['bar']:.0f}px from the row: {at}"
+    )
+
+    write(field, "Why this line?")
+    with sending(page, "the comment on the whole diff"):
+        page.keyboard.press("Enter")
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert (sent["kind"], sent["anchor"]) == ("comment", {"section": "whole"})
+    rendered(page)
+    at = page.evaluate(POINTED_ROW)
+    assert abs(at["cluster"] - at["row"]) <= at["height"], (
+        f"the cluster stands {at['row'] - at['cluster']:.0f}px from the row: {at}"
+    )
+    assert abs(at["card"] - at["row"]) <= 2 * at["height"], at
+
+    page.keyboard.press("Escape")
+    page.evaluate("() => scrollTo({ top: 0, behavior: 'instant' })")
+    rendered(page)
+    page.keyboard.press("t")
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    scroll_settled(page)
+    rendered(page)
+    at = page.evaluate(POINTED_ROW)
+    assert 0 < at["row"] < 900 and abs(at["card"] - at["row"]) <= 2 * at["height"], (
+        f"`t` did not bring the pointed row and its card back: {at}"
+    )
+
+
+TALL_ASK_PAGE = leaf_page(
+    "A tall Ask",
+    '<h1>Route</h1><lf-ask id="way"><h2>Which way?</h2>'
+    + "".join(
+        f"<p>Consideration {n} about the route, at length.</p>" for n in range(30)
+    )
+    + '<lf-options id="route" choose><lf-option id="north">North</lf-option>'
+    '<lf-option id="south">South</lf-option></lf-options></lf-ask><p>After.</p>',
+)
+# Every margin row by what it stands for: the rows about `target`, each as its top
+# measured from the target's, and whether it holds a comment. Rows are read by their
+# host, which the margin keeps for as long as what it stands for stands.
+ROWS_ON = """([target]) => {
+  const at = document.getElementById(target).getBoundingClientRect().top;
+  window.__rows ??= new Map();
+  return [...document.querySelectorAll('[data-lf-margin-for]')]
+    .filter((row) => row.lfTarget?.id === target)
+    .map((row) => {
+      if (!window.__rows.has(row)) window.__rows.set(row, window.__rows.size);
+      return [window.__rows.get(row), Math.round(row.getBoundingClientRect().top - at)];
+    })
+    .sort((a, b) => a[0] - b[0]);
+}"""
+
+
+@pytest.mark.parametrize("case", ["ask", "thread"])
+def test_a_pointed_comment_moves_only_its_own_row(browser, serve, case):
+    """A comment pointed at a row deep in its target stands its own margin row there;
+    the rest of the target's margin does not follow it. An Ask's marker stays with the
+    Ask it accompanies, and a comment already on the target stays at the target's top,
+    where `t` still lands it."""
+    if case == "ask":
+        url, target = serve(TALL_ASK_PAGE), "way"
+        row = f"#{target} p >> nth=25"
+    else:
+        url, target = serve(TALL_DIFF_PAGE), "whole"
+        first = events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "The whole diff first.",
+                "anchor": {"section": "whole"},
+            },
+        )["id"]
+        row = "lf-diff [data-line] >> nth=50"
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    rendered(page)
+    before = page.evaluate(ROWS_ON, [target])
+    assert before and all(abs(top) <= 8 for _, top in before), (
+        f"the target's own rows must start at its top: {before}"
+    )
+
+    pointed = page.locator(row)
+    pointed.scroll_into_view_if_needed()
+    rendered(page)
+    pointed.click(modifiers=["Alt"], position={"x": 20, "y": 5})
+    write(open_compact_comment(page), "About this row.")
+    with sending(page, "the pointed comment"):
+        page.keyboard.press("Enter")
+    assert events_model.read_events(serve.page_dir)[-1]["anchor"] == {"section": target}
+    page.keyboard.press("Escape")
+    rendered(page)
+    depth = pointed.evaluate(
+        "(row, target) => Math.round(row.getBoundingClientRect().top"
+        " - document.getElementById(target).getBoundingClientRect().top)",
+        target,
+    )
+    after = dict(page.evaluate(ROWS_ON, [target]))
+    for index, top in before:
+        assert abs(after.get(index, 1e9) - top) <= 8, (
+            f"row {index} of the target moved from {top} to {after.get(index)}: {after}"
+        )
+    added = [top for index, top in after.items() if index not in dict(before)]
+    assert len(added) == 1 and abs(added[0] - depth) <= 30 and depth > 400, (
+        f"the pointed comment has no row of its own at {depth}: {after}"
+    )
+    if case == "thread":
+        # The walk reaches the thread already there at the target's top, in page order
+        # before the pointed one.
+        page.keyboard.press("t")
+        shown = page.locator(".lf-margin-preview .lf-page-thread")
+        expect(shown).to_have_count(1)
+        if shown.get_attribute("data-thread") != first:
+            page.keyboard.press("Shift+t")
+        expect(shown).to_have_attribute("data-thread", first)
+        scroll_settled(page)
+        rendered(page)
+        card = page.locator(".lf-margin-preview").bounding_box()
+        top = page.locator("#whole").bounding_box()["y"]
+        assert abs(card["y"] - top) <= 60, (card, top)
+
+
+def test_a_pointed_comment_finds_its_row_again_after_a_revision_rewrites_it(
+    browser, serve
+):
+    """A revision that rewrites the diff replaces every row the comment was pointed at.
+    The comment's row keeps its place by the words of the row it was pointed at, which
+    the new rendering still holds, rather than falling back to the diff's top."""
+    page = open_page(browser, live_url(serve(TALL_DIFF_PAGE)))
+    resized(page, 1440, 900)
+    expect(page.locator("lf-diff.lf-rendered")).to_have_count(1)
+    row = page.locator("lf-diff [data-line]").nth(50)
+    row.scroll_into_view_if_needed()
+    rendered(page)
+    row.click(modifiers=["Alt"], position={"x": 60, "y": 5})
+    write(open_compact_comment(page), "Why this line?")
+    with sending(page, "the pointed comment"):
+        page.keyboard.press("Enter")
+    page.keyboard.press("Escape")
+    rendered(page)
+    page.evaluate(
+        "() => { window.__row = document.querySelector('lf-diff').shadowRoot"
+        ".querySelectorAll('[data-line]')[50]; }"
+    )
+
+    (serve.page_dir / "index.html").write_text(
+        TALL_DIFF_PAGE.replace("A tall diff", "A tall diff, revised").replace(
+            "compute(3);", "compute(3 + 0);"
+        )
+    )
+    told(page)
+    expect(page).to_have_title("A tall diff, revised")
+    page.wait_for_function(
+        "() => { const rows = document.querySelector('lf-diff').shadowRoot"
+        ".querySelectorAll('[data-line]'); return rows.length === 80"
+        " && rows[50] !== window.__row; }"
+    )
+    rendered(page)
+    at = page.evaluate(POINTED_ROW)
+    assert abs(at["cluster"] - at["row"]) <= at["height"], (
+        f"the revision took the comment's row {at['row'] - at['cluster']:.0f}px from"
+        f" the row it was pointed at: {at}"
+    )
+
+
+def point_a_comment(page, text, x=60):
+    """⌥-click row 51 of the tall diff at `x` and send `text`, leaving the card."""
+    row = page.locator("lf-diff [data-line]").nth(50)
+    row.scroll_into_view_if_needed()
+    rendered(page)
+    row.click(modifiers=["Alt"], position={"x": x, "y": 5})
+    write(open_compact_comment(page), text)
+    with sending(page, text):
+        page.keyboard.press("Enter")
+    page.keyboard.press("Escape")
+    rendered(page)
+
+
+def test_a_pointed_cards_reply_brings_the_pointed_row_back(browser, serve):
+    """Typing in a card scrolled away brings it back, and for a pointed comment what it
+    stands by is its row: the diff around it still overlaps the window, so bringing the
+    diff into view moved nothing and left the reply below the window."""
+    page = open_page(browser, serve(TALL_DIFF_PAGE))
+    resized(page, 1440, 900)
+    expect(page.locator("lf-diff.lf-rendered")).to_have_count(1)
+    point_a_comment(page, "Why this line?")
+    page.evaluate("() => scrollTo({ top: 0, behavior: 'instant' })")
+    rendered(page)
+    page.keyboard.press("t")
+    reply = page.locator(".lf-margin-preview leaf-text")
+    expect(reply).to_be_visible()
+    scroll_settled(page)
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+    page.keyboard.type("Still")
+    page.evaluate("() => scrollBy({ top: -700, behavior: 'instant' })")
+    rendered(page)
+    below = reply.bounding_box()
+    assert below["y"] > 900, f"the scroll must carry the reply off the window: {below}"
+    page.keyboard.type(" here")
+    scroll_settled(page)
+    rendered(page)
+    box = reply.bounding_box()
+    assert box["y"] >= 0 and box["y"] + box["height"] <= 900, (
+        f"typing left the reply off the window: {box}"
+    )
+
+
+def test_comments_pointed_at_one_row_stand_as_one_margin_row(browser, serve):
+    """Two comments pointed at one line, at two places along it, stand as one margin row
+    at the line, as two comments on the diff's own top share its row; the row the first
+    made is the one the second joins."""
+    page = open_page(browser, serve(TALL_DIFF_PAGE))
+    resized(page, 1440, 900)
+    expect(page.locator("lf-diff.lf-rendered")).to_have_count(1)
+    point_a_comment(page, "First about this line.", x=60)
+    first = page.evaluate(ROWS_ON, ["whole"])
+    point_a_comment(page, "Second about this line.", x=200)
+    second = page.evaluate(ROWS_ON, ["whole"])
+    assert len(first) == 1 and second == first, (
+        f"the second comment made a margin row of its own: {first} then {second}"
+    )
+
+
+def test_a_pointed_row_is_announced_where_it_stands_and_by_its_words(browser, serve):
+    """A listener places a margin row by how far down the page it is and tells rows
+    apart by their names. A pointed row stands two-thirds of the way down the diff, and
+    it is named by the line it stands by, not only by the diff the target's own row
+    names."""
+    page = open_page(browser, serve(TALL_DIFF_PAGE))
+    resized(page, 1440, 900)
+    expect(page.locator("lf-diff.lf-rendered")).to_have_count(1)
+    point_a_comment(page, "Why this line?")
+    spoken = page.evaluate(
+        """() => {
+          const main = document.querySelector('main');
+          const row = document.querySelector('lf-diff').shadowRoot
+            .querySelectorAll('[data-line]')[50].getBoundingClientRect();
+          const host = [...document.querySelectorAll('[data-lf-margin-for]')]
+            .find((host) => host.lfTarget?.id === 'whole');
+          return {
+            at: Math.round((row.top - main.getBoundingClientRect().top)
+                           / main.scrollHeight * 100),
+            name: host.querySelector('.lf-margin-marker').getAttribute('aria-label'),
+          };
+        }"""
+    )
+    said = re.search(r"(\d+) percent down", spoken["name"])
+    assert said and abs(int(said[1]) - spoken["at"]) <= 3, spoken
+    assert "let value_50 = compute(50);" in spoken["name"], spoken
+
+
+POINTED_WITHIN = {
+    # A paragraph's own lines: a comment on its words and one on code inline in its third
+    # line both stand at the paragraph.
+    "code": (
+        '<p id="within" style="width: 260px">'
+        + "Words the paragraph runs through at length. " * 3
+        + "<code>inline_code()</code> "
+        + "and more words after it, to a fourth line. " * 2
+        + "</p>",
+        ["#within", "#within code"],
+        0,
+    ),
+    # A drawing's shapes: the figure is one target however far down its picture stands.
+    "drawing": (
+        (
+            '<figure id="within"><figcaption>A caption above the picture, which stands '
+            "below it.</figcaption><svg viewBox='0 0 240 200' width='240' height='200'>"
+            "<rect x='2' y='2' width='100' height='190' fill='#ddd'></rect></svg>"
+            "</figure>"
+        ),
+        ["#within svg rect", "#within svg"],
+        0,
+    ),
+    # A table's row: two cells of one row are the one line the user pointed at.
+    "table": (
+        '<table id="within">'
+        + "".join(
+            f"<tr><td>Row {n} first cell</td><td>Row {n} second cell</td></tr>"
+            for n in range(40)
+        )
+        + "</table>",
+        ["#within tr >> nth=30 >> td >> nth=0", "#within tr >> nth=30 >> td >> nth=1"],
+        "#within tr >> nth=30",
+    ),
+    # A table's row whatever blocks its cells hold.
+    "cell blocks": (
+        '<table id="within">'
+        + "".join(
+            f"<tr><td><p>Row {n} first cell</p></td><td><p>Row {n} second</p></td></tr>"
+            for n in range(40)
+        )
+        + "</table>",
+        [
+            "#within tr >> nth=30 >> td >> nth=0 >> p",
+            "#within tr >> nth=30 >> td >> nth=1 >> p",
+        ],
+        "#within tr >> nth=30",
+    ),
+    # A target's first line: its own row stands there already, so a comment pointed at
+    # it joins that row, an Ask's marker's, rather than standing pushed below it.
+    "first line": (
+        (
+            '<lf-ask id="within"><h2>Which way?</h2><lf-options id="route" choose>'
+            '<lf-option id="north">North</lf-option><lf-option id="south">South'
+            "</lf-option></lf-options></lf-ask>"
+        ),
+        ["#within h2"],
+        0,
+    ),
+}
+
+
+@pytest.mark.parametrize("case", POINTED_WITHIN)
+def test_comments_pointed_within_one_line_share_its_row(browser, serve, case):
+    """A point is a line of the target, decided by how the page lays it out: words, a
+    link or code inside the target's own lines stand at the target, a drawing's shapes
+    have no lines, and a table's cells stand on their row. So two comments pointed
+    within one line stand as one margin row, where that line is."""
+    body, presses, line = POINTED_WITHIN[case]
+    page = open_page(browser, serve(leaf_page("Within", f"<h1>Within</h1>{body}")))
+    resized(page, 1440, 900)
+    for n, press in enumerate(presses):
+        pressed = page.locator(press)
+        pressed.scroll_into_view_if_needed()
+        rendered(page)
+        pressed.click(modifiers=["Alt"], position={"x": 4, "y": 4})
+        write(open_compact_comment(page), f"Comment {n}.")
+        with sending(page, f"comment {n}"):
+            page.keyboard.press("Enter")
+        page.keyboard.press("Escape")
+        rendered(page)
+    depth = (
+        page.locator(line).evaluate(
+            "(row) => Math.round(row.getBoundingClientRect().top"
+            " - document.getElementById('within').getBoundingClientRect().top)"
+        )
+        if line
+        else 0
+    )
+    rows = page.evaluate(ROWS_ON, ["within"])
+    assert len(rows) == 1 and abs(rows[0][1] - depth) <= 8, (
+        f"comments within one line stand at {rows}, not as one row at {depth}"
+    )
+    if case == "table":
+        # Named by the row's words as the page reads them, one cell apart from the next.
+        name = page.evaluate(
+            """() => [...document.querySelectorAll('[data-lf-margin-for]')]
+              .find((host) => host.lfTarget?.id === 'within')
+              .querySelector('.lf-margin-marker').getAttribute('aria-label')"""
+        )
+        assert "“Row 30 first cell Row 30" in name, name
+
+
+def test_a_reflow_keeps_a_pointed_comment_in_its_row_and_its_card_open(browser, serve):
+    """Which margin row a pointed comment stands in is the document's to say, so a
+    reflow that moves its line further from the target's top moves the row with it and
+    changes nothing else: the row is the same element, and the card the user is
+    writing in stays up with the words and the focus in it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Reflow",
+                # Set close, so the pointed line starts within a margin row of the
+                # section's top at full width and further than that once narrow.
+                '<h1>Reflow</h1><section id="s"><p style="margin: 0">'
+                + "An opening line that fits the column at full width and wraps when"
+                ' narrow.</p><p style="margin: 0">The second paragraph,'
+                " which the comment points at.</p></section>",
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    first = page.locator("#s p").first
+    one_line = first.bounding_box()["height"]
+    second = page.locator("#s p").nth(1)
+    second.click(modifiers=["Alt"], position={"x": 20, "y": 5})
+    write(open_compact_comment(page), "About the second paragraph.")
+    with sending(page, "the pointed comment"):
+        page.keyboard.press("Enter")
+    page.keyboard.press("Escape")
+    rendered(page)
+    rows = page.evaluate(ROWS_ON, ["s"])
+    assert len(rows) == 1, f"the comment on the section stands in no row of it: {rows}"
+    page.keyboard.press("t")
+    reply = page.locator(".lf-margin-preview leaf-text")
+    expect(reply).to_be_visible()
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+    page.keyboard.type("Still writing")
+
+    # A phone's column is narrower than the opening line in any font; at 560px whether
+    # it wraps depends on the font's width (Linux's did not).
+    resized(page, 390, 900)
+    rendered(page)
+    assert first.bounding_box()["height"] > one_line * 1.5, (
+        "the opening line must wrap for the reflow to move the pointed line"
+    )
+    after = page.evaluate(ROWS_ON, ["s"])
+    assert [index for index, _ in after] == [index for index, _ in rows], (
+        f"the reflow moved the comment to another margin row: {rows} then {after}"
+    )
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", "Still writing")
+
+
+def test_undoing_a_settle_brings_a_pointed_comment_back_to_its_row(browser, serve):
+    """Settling a pointed comment and taking that back returns it where it stood, next to
+    its line, whatever else is open on the target."""
+    url = serve(TALL_DIFF_PAGE)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Another thread, still open on the diff.",
+            "anchor": {"section": "whole"},
+        },
+    )
+    page = open_page(browser, live_url(url))
+    resized(page, 1440, 900)
+    expect(page.locator("lf-diff.lf-rendered")).to_have_count(1)
+    point_a_comment(page, "Why this line?")
+    pointed = page.evaluate(ROWS_ON, ["whole"])
+    assert len(pointed) == 2, pointed
+    root = events_model.read_events(serve.page_dir)[-1]
+    assert root["kind"] == "comment", root
+    settle = events_model.append_event(
+        serve.page_dir, {"kind": "resolve", "author": "user", "parent": root["id"]}
+    )
+    told(page)
+    rendered(page)
+    assert len(page.evaluate(ROWS_ON, ["whole"])) == 1
+    events_model.append_event(
+        serve.page_dir, {"kind": "undo", "author": "user", "undoes": settle["id"]}
+    )
+    told(page)
+    rendered(page)
+    back = page.evaluate(ROWS_ON, ["whole"])
+    assert sorted(top for _, top in back) == pytest.approx(
+        sorted(top for _, top in pointed), abs=8
+    ), f"the undone settle stood the comment at {back}, not {pointed}"
+
+
 def test_a_comment_rechooses_after_target_width_reflow(browser, serve):
     """New horizontal room invalidates the old fallback instead of detaching it."""
     page = open_page(
@@ -963,7 +1522,7 @@ def test_a_comment_rechooses_after_target_width_reflow(browser, serve):
     target.scroll_into_view_if_needed()
     target.click(modifiers=["Alt"], position={"x": 20, "y": 10})
     field = open_compact_comment(page)
-    field.fill("Keep this comment connected while its paragraph changes width.")
+    write(field, "Keep this comment connected while its paragraph changes width.")
     rendered(page)
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_attribute("aria-label", re.compile(r"^Respond to paragraph"))
@@ -978,9 +1537,41 @@ def test_a_comment_rechooses_after_target_width_reflow(browser, serve):
         target_after,
         after,
     )
-    expect(field).to_have_value(
-        "Keep this comment connected while its paragraph changes width."
+    expect(field).to_have_js_property(
+        "value", "Keep this comment connected while its paragraph changes width."
     )
+
+
+def test_a_draft_below_its_passage_keeps_its_lane_whatever_it_holds(browser, serve):
+    """Above or below a passage the field starts where the compact control would, ended
+    on the passage's right edge. The bar's first measured width is the draft's, so a
+    start taken from it put a restored draft further left, in a wider lane, than the
+    same draft typed into an empty field."""
+    page = open_page(
+        browser,
+        serve(next(example for example in EXAMPLES if example.stem == "release-notes")),
+    )
+    resized(page, 700, 600)
+    target = page.locator("#rn-console-why")
+    target.scroll_into_view_if_needed()
+    target.click(modifiers=["Alt"], position={"x": 20, "y": 10})
+    field = open_compact_comment(page)
+    bar = page.locator(".lf-fab-bar")
+    rendered(page)
+    placement = bar.get_attribute("data-lf-placement")
+    assert placement in {"top-end", "bottom-end"}, placement
+    empty = bar.bounding_box()
+    draft = "A draft long enough that its own width would widen the bar it opens in."
+    write(field, draft)
+    rendered(page)
+
+    page.reload()
+    wait_until_ready(page)
+    expect(field).to_have_js_property("value", draft)
+    expect(bar).to_have_attribute("data-lf-placement", placement)
+    rendered(page)
+    restored = bar.bounding_box()
+    assert abs(restored["x"] - empty["x"]) <= 1, (empty, restored)
 
 
 def test_a_side_comment_rechooses_its_rail_after_horizontal_target_motion(
@@ -993,7 +1584,7 @@ def test_a_side_comment_rechooses_its_rail_after_horizontal_target_motion(
     target.scroll_into_view_if_needed()
     target.click(modifiers=["Alt"])
     field = open_compact_comment(page)
-    field.fill("Keep this comment connected when its paragraph moves.")
+    write(field, "Keep this comment connected when its paragraph moves.")
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_attribute("data-lf-placement", "right-start")
 
@@ -1005,7 +1596,9 @@ def test_a_side_comment_rechooses_its_rail_after_horizontal_target_motion(
         target_after,
         after,
     )
-    expect(field).to_have_value("Keep this comment connected when its paragraph moves.")
+    expect(field).to_have_js_property(
+        "value", "Keep this comment connected when its paragraph moves."
+    )
 
 
 def test_an_above_comment_rechooses_after_vertical_target_motion(browser, serve):
@@ -1019,7 +1612,7 @@ def test_an_above_comment_rechooses_after_vertical_target_motion(browser, serve)
     target.scroll_into_view_if_needed()
     target.click(modifiers=["Alt"], position={"x": 20, "y": 10})
     field = open_compact_comment(page)
-    field.fill("Keep this comment connected when its paragraph moves vertically.")
+    write(field, "Keep this comment connected when its paragraph moves vertically.")
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_attribute("aria-label", re.compile(r"^Respond to paragraph"))
     expect(bar).to_have_attribute("data-lf-placement", "top-end")
@@ -1037,8 +1630,8 @@ def test_an_above_comment_rechooses_after_vertical_target_motion(browser, serve)
         target_after,
         after,
     )
-    expect(field).to_have_value(
-        "Keep this comment connected when its paragraph moves vertically."
+    expect(field).to_have_js_property(
+        "value", "Keep this comment connected when its paragraph moves vertically."
     )
 
 
@@ -1058,7 +1651,7 @@ def test_design_legend_tracks_a_height_only_page_reflow(browser, serve):
     resized(page, 1200, 900)
     target = page.locator("#p30")
     target.evaluate("node => node.scrollIntoView({block: 'center'})")
-    page.locator("body").focus()
+    page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("l")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     legend = page.locator('.lf-legend-box[data-for="p30"]')
@@ -1105,14 +1698,14 @@ def test_design_legend_tracks_a_height_only_page_reflow(browser, serve):
     )
 
 
-def test_covering_auxiliary_surfaces_separate_page_paint_from_chrome_target_paint(
-    browser, serve
-):
-    """A covering auxiliary surface owns its pixels and remains a chrome target itself.
+def test_a_covering_auxiliary_surface_holds_design_paint_beneath_it(browser, serve):
+    """A covering auxiliary surface owns its pixels, and in Design mode stays Leaf's.
 
-    Covered page content is inert, so aim and comment cannot reach it through the visible
-    remainder. The sheet remains part of Leaf's chrome: its aim, inspect name, and response
-    bar use the chrome plane above it, while the page's standing design legend stays below.
+    Covered page content is inert, so neither the aim nor a design comment reaches it
+    through the visible remainder, and the page's standing design legend paints beneath
+    the sheet. The sheet itself is Leaf's chrome, which the mode leaves working: nothing
+    on it is a design target, and a press on its scrim puts it away as it would outside
+    the mode, which is how a phone the sheet covers gets back to its page.
     """
     page = open_page(browser, serve(ASKS_PAGE))
     resized(page, 700, 900)
@@ -1121,8 +1714,8 @@ def test_covering_auxiliary_surfaces_separate_page_paint_from_chrome_target_pain
     page.keyboard.press("l")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     resized(page, 560, 900)
-    tray = page.locator(".lf-asks-panel")
-    expect(tray).to_be_visible()
+    drawer = page.locator(".lf-asks-panel")
+    expect(drawer).to_be_visible()
 
     target = page.locator("#lq-keep")
     target_box = target.bounding_box()
@@ -1132,60 +1725,24 @@ def test_covering_auxiliary_surfaces_separate_page_paint_from_chrome_target_pain
         "y": target_box["y"] + target_box["height"] / 2,
     }
     page.mouse.move(point["x"], point["y"])
-    page.keyboard.down("Alt")
+    expect(page.locator(".lf-aim")).to_be_hidden()
+    drawer_box = drawer.bounding_box()
+    assert drawer_box is not None
+    page.mouse.move(drawer_box["x"] + 12, drawer_box["y"] + 12)
+    expect(page.locator(".lf-aim")).to_be_hidden()
+    planes = page.evaluate(
+        """() => ({
+          drawer: Number(getComputedStyle(document.querySelector('.lf-asks-panel')).zIndex),
+          legend: Number(getComputedStyle(
+            document.querySelector('.lf-legend-box[data-for="lq-keep"]')).zIndex),
+        })"""
+    )
+    assert planes["legend"] < planes["drawer"], planes
+
     page.mouse.click(point["x"], point["y"])
-    page.keyboard.up("Alt")
-    expect(page.locator('.lf-aim[data-for="lq-keep"]')).to_be_hidden()
+    expect(drawer).not_to_have_class(re.compile(r"\bopen\b"))
     expect(page.locator(".lf-composer")).to_be_hidden()
-
-    tray_box = tray.bounding_box()
-    assert tray_box is not None
-    page.mouse.move(tray_box["x"] + 12, tray_box["y"] + 12)
-    expect(page.locator(".lf-aim")).to_be_visible()
-    chrome_plane = page.evaluate(
-        """() => {
-          const tray = document.querySelector('.lf-asks-panel');
-          const aim = document.querySelector('.lf-aim');
-          const inspect = document.querySelector('.lf-inspect');
-          const target = document.getElementById(aim.dataset.for);
-          const legend = document.querySelector('.lf-legend-box[data-for="lq-keep"]');
-          return {tray: Number(getComputedStyle(tray).zIndex),
-                  aim: Number(getComputedStyle(aim).zIndex),
-                  inspect: Number(getComputedStyle(inspect).zIndex),
-                  legend: Number(getComputedStyle(legend).zIndex),
-                  plane: aim.dataset.lfPaintPlane,
-                  targetInChrome: Boolean(target?.closest('.lf-chrome'))};
-        }"""
-    )
-    assert chrome_plane["targetInChrome"] and chrome_plane["plane"] == "chrome"
-    assert chrome_plane["aim"] > chrome_plane["tray"]
-    assert chrome_plane["inspect"] > chrome_plane["tray"]
-    assert chrome_plane["legend"] < chrome_plane["tray"]
-
-    # Dispatch on the sheet itself so the design target is the sheet rather than one of
-    # the decision rows it contains.
-    tray.evaluate(
-        """target => {
-          const box = target.getBoundingClientRect();
-          const init = {bubbles: true, cancelable: true, button: 0, buttons: 1,
-                        clientX: box.left + 12, clientY: box.top + 12, detail: 1};
-          target.dispatchEvent(new PointerEvent('pointerdown', init));
-          target.dispatchEvent(new MouseEvent('mousedown', init));
-          target.dispatchEvent(new PointerEvent('pointerup', {...init, buttons: 0}));
-          target.dispatchEvent(new MouseEvent('mouseup', {...init, buttons: 0}));
-          target.dispatchEvent(new MouseEvent('click', {...init, buttons: 0}));
-        }"""
-    )
-    expect(page.locator(".lf-composer")).to_be_visible()
-    chrome_response = page.locator(".lf-fab-bar").evaluate(
-        "node => ({plane: node.dataset.lfPaintPlane, "
-        "z: Number(getComputedStyle(node).zIndex), "
-        "tray: Number(getComputedStyle(document.querySelector('.lf-asks-panel')).zIndex)})"
-    )
-    assert (
-        chrome_response["plane"] == "chrome"
-        and chrome_response["z"] > chrome_response["tray"]
-    ), f"a response bar about the Asks sheet paints beneath it: {chrome_response}"
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
 
 
 def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
@@ -1338,7 +1895,12 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "action"
     ]
-    targets = aim_targets(serve.page_dir)
+    # A suggestion's ✓/✗ stands in the margin layer, which is chrome and no aim target,
+    # but a press there is one the page answers, so the sweep takes it as well.
+    targets = (
+        f"{aim_targets(serve.page_dir)}, "
+        ".lf-margin-cluster :is(.lf-sug-accept, .lf-sug-reject)"
+    )
     total = page.locator(targets).count()
     pressed = aimed = 0
     reached_paths = set()
@@ -1353,7 +1915,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
         # display: contents — is nowhere a user can aim (AIM_POINT finds no point
         # in it either), and
         # scroll_into_view can wait on its stability forever when it stands inside
-        # a table box (a specimen). Its slots are their own targets.
+        # a table box (a sample). Its slots are their own targets.
         if not target.evaluate("el => el.getClientRects().length"):
             continue
         target.scroll_into_view_if_needed()
@@ -1387,32 +1949,32 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
             f"holding ⌥ over {label} in {case_name} promised {promised} and pointed "
             f"a {page.evaluate(AIM_CURSOR)} cursor at it"
         )
+        # An element a standing thread already marks, read before the press marks it
+        # as the draft's too.
+        already_marked = bool(
+            promised and page.locator(f"#{promised}.lf-mark-el").count()
+        )
         page.mouse.click(*point)
         page.keyboard.up("Alt")
         composer = page.locator(".lf-composer")
         bar = page.locator(".lf-fab-bar")
+        if "suggestion control" in target_paths and promised:
+            # A suggestion's ✓ Accept stands in the margin layer over the page, and a
+            # press let through there would send Claude a decision. The aim takes it as
+            # a press on the change it stands by, which the markup reading below holds.
+            reached_paths.add("suggestion margin control")
         if promised is None:
-            if "suggestion control" in target_paths:
-                reached_paths.add("suggestion no-item control")
             # Nothing outlined is nothing to aim at — no item encloses this point — and an
-            # armed press then acts on nothing rather than falling back to the page. A
-            # suggestion's ✓ Accept is where that matters: its row hangs in the page's own
-            # column, outside the element it decides, so nothing is above it to aim at and
-            # a press let through would send Claude a decision.
+            # armed press then acts on nothing rather than falling back to the page.
             expect(bar).to_be_hidden()
             expect(composer).to_be_hidden()
         else:
             # The sequence promised Comment, so the press focuses its compact field.
             open_compact_comment(page)
             mark = page.evaluate(DRAFT_MARK)
-            # A box a standing thread already outlines keeps the posted colour and takes
-            # no pending class of its own: the draft claims whichever boxes are still
-            # free (paintAnchors), so aiming at an element the log already marks keeps
-            # the promise and paints nothing new. The other half of the press is read
-            # either way — where the composer opened on something else, that element
-            # wears the pending mark and this reads it there.
-            if mark is None and page.locator(f"#{promised}.lf-mark-el").count():
-                mark = promised
+            # A standing thread draws nothing on its element at rest, so a draft on an
+            # element the log already marks wears the pending contour like any other.
+            if already_marked:
                 reached_paths.add("standing mark")
             assert mark == promised, (
                 f"⌥-clicking {label} in {case_name} promised {promised} and "
@@ -1489,7 +2051,7 @@ def test_an_aim_on_a_seam_promises_and_takes_the_same_element(browser, serve):
     promise was kept for a year on the machine where it was. So the seam is aimed at
     here rather than waited for, and the assertion is the platform-independent half —
     whichever way each reading rounds, both answer the same item."""
-    page = open_page(browser, serve(SPECIMEN_PAGE))
+    page = open_page(browser, serve(SAMPLE_PAGE))
     edge = page.evaluate(
         """() => {
             const above = document.querySelector('#l-shim').getBoundingClientRect();
@@ -1561,7 +2123,7 @@ def test_the_aim_still_promises_while_a_composer_is_open(browser, serve):
     page.keyboard.up("Alt")
     composer = page.locator(".lf-composer")
     open_compact_comment(page)
-    composer.locator("textarea").fill("carried words")
+    write(composer.locator("leaf-text"), "carried words")
 
     card = page.locator("#card-notes")
     card.hover()
@@ -1575,8 +2137,8 @@ def test_the_aim_still_promises_while_a_composer_is_open(browser, serve):
     page.keyboard.up("Alt")
     # The second explicit comment gesture moves the open draft onto the card.
     expect(page.locator(".lf-fab-bar")).to_be_visible()
-    expect(composer.locator("textarea")).to_be_focused()
-    expect(composer.locator("textarea")).to_have_value("carried words")
+    expect(composer.locator("leaf-text")).to_be_focused()
+    expect(composer.locator("leaf-text")).to_have_js_property("value", "carried words")
     assert [page.evaluate(AIMED), page.evaluate(DRAFT_MARK)] == [
         None,
         "card-notes",
@@ -1601,7 +2163,7 @@ def test_a_reload_under_a_held_aim_rearms_on_the_first_move(browser, serve):
     page.keyboard.down("Alt")
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "t")
     page.reload()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(page.locator(".lf-aim[data-for]")).to_have_count(0)  # the latch is gone
     heading.hover()  # the first move under the still-held key
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "t")
@@ -1666,10 +2228,10 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
         == before
     )
     assert not page.evaluate(FOCUS_IN_PAGE)
-    composer_input = page.locator(".lf-composer textarea")
+    composer_input = page.locator(".lf-composer leaf-text")
     composer_input.click()
     expect(composer_input).to_be_focused()
-    composer_input.fill("the ring reads too heavy")
+    write(composer_input, "the ring reads too heavy")
     with sending(page, "the design comment"):
         page.keyboard.press("ControlOrMeta+Enter")
     events = events_model.read_events(serve.page_dir)
@@ -1787,8 +2349,8 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
     ], "the margin entry action reached the durable log despite Design mode"
     page.close()
 
-    # The same hoist exists inside frozen markup in a conversation. Its target belongs
-    # to that conversation document, so the margin owner hands Design mode the exact
+    # The same hoist exists inside frozen markup in a thread. Its target belongs
+    # to that thread document, so the margin owner hands Design mode the exact
     # element rather than making it reconstruct ownership from a diagnostic id or path.
     url = serve(leaf_page("inline margin entry action", '<h1 id="h">Review</h1>'))
     events_model.append_event(
@@ -1838,107 +2400,164 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
     ], "the inline margin entry action reached the durable log despite Design mode"
 
 
-def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
-    """The banner, the panel, a control on either: what no comment could reach before.
+def test_design_mode_leaves_the_chrome_working(browser, serve):
+    """Design mode comments on what the agent made; Leaf's own chrome works as it does
+    outside the mode, as it does for the target picker.
 
-    The anchor pass passes over runtime chrome, so a remark about the Threads
-    button had nowhere to land. In design mode the press on it is a comment on it —
-    anchored on the part the runtime named (`lf-banner`), naming the control the press
-    landed on — and the button does not do what it does: the panel stays closed."""
-    page = open_page(browser, serve(REPLAYED_PAGE))
-    page.keyboard.press("l")
-    threads = page.locator(".lf-banner .lf-threads-toggle")
-    said = threads.inner_text()  # "Threads (0)" — the control's word is what it shows
-    threads.hover()
-    expect(page.locator(".lf-inspect")).to_have_text(f"{said} · banner")
-    threads.click()
-    expect(page.locator(".lf-composer")).to_be_visible()
-    expect(page.locator("#lf-composer-quote")).to_have_text(f"design · {said} · banner")
-    expect(page.locator(".lf-thread-panel")).to_be_hidden()
-    page.locator(".lf-composer textarea").fill("reads dim against the wash")
-    with sending(page, "the comment on the chrome"):
-        page.keyboard.press("ControlOrMeta+Enter")
-    posted = [
-        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
-    ]
-    assert [(e["about"], e["anchor"]) for e in posted] == [
-        ("design", {"section": "lf-banner", "part": said})
-    ]
-    # The thread's mark is the outline an element anchor wears, on the chrome too.
-    expect(page.locator("#lf-banner")).to_have_class(re.compile(r"\blf-mark-el\b"))
-    expect(page.locator(".lf-thread-summary").first).to_be_focused()
-    # The send opened Threads on the new thread, the card being withheld in the mode.
-    # The thread hands the user to the whole panel, and the panel to the page.
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-thread-panel")).to_be_hidden()
-    expect(page.locator("body")).to_be_focused()
-    page.keyboard.press("l")
-    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-
-    # And the thread panel, which is the case where the aim's own geometry had nothing to
-    # say. A fixed box is not clipped by the root scrollport, so the panel measured through
-    # the page flow's ancestors came back wholly clipped away, and a mode whose row
-    # promises a click on the chrome drew nothing over the chrome. Wide enough for the
-    # panel to stand over a live page rather than cover it.
-    resized(page, 1280, 800)
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
-    expect(page.locator(".lf-thread-panel")).not_to_have_attribute("aria-modal", "true")
-    page.keyboard.press("l")
-    box = page.locator(".lf-thread-panel").bounding_box()
-    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + 30)
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lf-threads")
-    assert page.evaluate(
-        """() => {
-             const aim = document.querySelector('.lf-aim').getBoundingClientRect();
-             const panel = document.querySelector('.lf-thread-panel').getBoundingClientRect();
-             return Math.abs(aim.width - panel.width) < 3
-                 && Math.abs(aim.left - panel.left) < 3;
-           }"""
-    ), "the aim's box does not stand on the panel it names"
-
-
-def test_design_mode_takes_an_edge_rather_than_drawing_it(browser, serve):
-    """The mode promises that a press comments on what it lands on and does nothing else,
-    and a region's edge is the piece of chrome whose press moves the page rather than the
-    page's content. A drag on it under the mode leaves the region where it was and opens a
-    composer naming the edge, which is what a user remarking on it has to be able to do.
-
-    Neither half is anything the edge knows: the mode takes the press above the runtime's
-    own handler, and the name comes of the platform's word for what the press landed on.
-    So this is a reading of whether a new control joins the mode by being one — which is
-    what it would stop doing the day an edge answered a press for itself. One edge is the
-    whole reading, both being one handler (`drawnEdge`); what the second edge could break
-    here it would break for the first too."""
+    A remark on the banner or a panel has no reader who can act on it, and a mode that
+    took the chrome took the way out of the panel its own send opened: on a phone that
+    panel covers the page, the banner goes inert under it, and its close was a comment.
+    So under the mode the Threads button opens the panel rather than a composer, nothing
+    under the pointer promises a comment there, the panel's edge draws it wider, and its
+    close closes it."""
     edge = EDGES[0]
     page = open_page(browser, serve(LONG_PAGE, comments=1))
     resized(page, 1280, 800)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    standing = geometry(page, edge)
+
+    def comments():
+        return [
+            e
+            for e in events_model.read_events(serve.page_dir)
+            if e["kind"] == "comment"
+        ]
+
+    seeded = comments()
     page.keyboard.press("l")
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    # The control: the same press on the page is a design comment.
+    page.locator("#t").click()
+    composer = page.locator(".lf-composer")
+    expect(composer).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(composer).to_be_hidden()
+
+    threads = page.locator(".lf-banner .lf-threads-toggle")
+    threads.hover()
+    expect(page.locator(".lf-inspect")).to_be_hidden()
+    threads.click()
+    panel = page.locator(".lf-thread-panel")
+    panel_settled(page)
+    expect(panel).to_be_visible()
+    expect(composer).to_be_hidden()
+
+    standing = geometry(page, edge)
     draw_edge(page, edge, 160)
     held = geometry(page, edge)
-    expect(page.locator(".lf-composer")).to_be_visible()
-    response_bar = page.locator(".lf-fab-bar")
-    expect(response_bar).to_have_attribute("data-lf-paint-plane", "chrome")
-    assert int(response_bar.evaluate("el => getComputedStyle(el).zIndex")) > int(
-        page.locator(".lf-thread-panel").evaluate("el => getComputedStyle(el).zIndex")
-    ), "the field opened on chrome underneath the auxiliary surface it describes"
-    expect(page.locator("#lf-composer-quote")).to_have_text(
-        "design · Thread panel width · threads"
+    assert held["width"] > standing["width"] and held["chosen"], (
+        f"the mode took the edge rather than drawing it: {standing} then {held}"
     )
-    page.close()
+    expect(composer).to_be_hidden()
 
-    assert held["width"] == standing["width"], (
-        f"the mode moved the edge it was asked to comment on: {standing} then {held}"
+    panel.get_by_role("button", name="Close threads").click()
+    expect(panel).to_be_hidden()
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    assert comments() == seeded, "a press on the chrome posted a comment"
+
+
+def test_design_mode_leaves_leaves_surfaces_working_inside_a_widget(browser, serve):
+    """Leaf's own surfaces stay Leaf's where a widget seats them.
+
+    A diff seats a thread beside its line, inside page content, where the page's presses
+    are the mode's; so does the response bar it seats in its own outlet. The thread's
+    reply box still takes the caret and sends a reply. It stands in the diff's shadow
+    tree, so the press is read where it lands rather than at the host it is retargeted
+    to."""
+    url = serve(
+        leaf_page(
+            "diff in design mode",
+            '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch">'
+            "<pre></pre></lf-diff>",
+        )
     )
-    assert held["chosen"] is None, (
-        f"a press the mode took was still recorded as the user's width: {held}"
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-return "old"
++return "new"
+""",
     )
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep this check beside the changed line.",
+            "anchor": {
+                "section": "patch",
+                "datum": '["app.py","new",1]',
+                "source": "review-patch",
+                "source_revision": source_revision(serve.page_dir, "review-patch"),
+            },
+        },
+    )
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root["id"]}"]')
+    reply = thread.locator("leaf-text")
+    expect(reply).to_be_visible()
+    page.keyboard.press("l")
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+
+    # The control: a press on the diff's own file control is the mode's.
+    page.locator("#patch .lf-diff-file-comment").click()
+    expect(page.locator("#lf-composer-quote")).to_have_text(re.compile(r"^design · "))
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-composer")).to_be_hidden()
+
+    reply.click()
+    expect(reply).to_be_focused()
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    write(reply, "Covered now.")
+    with sending(page, "the reply from the seated thread"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert (sent["kind"], sent["parent"], sent["text"]) == (
+        "reply",
+        root["id"],
+        "Covered now.",
+    ), sent
+
+
+def test_design_mode_settles_on_a_page_with_marked_elements(browser, serve):
+    """The legend follows the page's markup, not the runtime's own paint on it.
+
+    A mark rewrites its element's classes on every repaint, and a legend that heard those
+    writes as the page moving started the repaint that wrote them again, so a page with a
+    reaction or a comment on an element never stopped rendering while the mode stood."""
+    url = serve(
+        leaf_page(
+            "marked elements",
+            '<h1 id="t">Review</h1><p id="reacted">Reacted to.</p>'
+            '<p id="commented">Commented on.</p>',
+        )
+    )
+    for anchor, extra in (
+        ("reacted", {"token": "keep"}),
+        ("commented", {"text": "Why?"}),
+    ):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "anchor": {"section": anchor},
+                **extra,
+            },
+        )
+    page = open_page(browser, url)
+    expect(page.locator('[data-lf-margin-for="reacted"] .lf-react-mark')).to_have_count(
+        1
+    )
+    expect(page.locator("#commented.lf-mark-el")).to_have_count(1)
+    page.keyboard.press("l")
+    expect(page.locator('.lf-legend-box[data-for="reacted"]')).to_be_visible()
+    rendered(page)
 
 
 def test_design_mode_leaves_prose_to_the_selection(browser, serve):
@@ -1981,13 +2600,13 @@ def test_design_mode_survives_the_reload_a_new_version_brings(browser, serve):
     page.keyboard.press("l")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     page.reload()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     expect(page.locator('.lf-legend-box[data-for="approach"]')).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
     page.reload()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
 
 
@@ -2108,31 +2727,31 @@ def test_an_authored_drawing_offers_each_named_group_to_a_comment(browser, serve
                 """
 <h1 id="t">Drawing</h1>
 <figure id="fig"><svg viewBox="0 0 240 60" width="240" height="60" role="img"
-aria-label="A tray beside a page"><g id="fig-tray"><rect x="2" y="2" width="100"
-height="56" fill="#ddd"></rect><text x="52" y="34" text-anchor="middle">Tray</text></g>
+aria-label="A drawer beside a page"><g id="fig-drawer"><rect x="2" y="2" width="100"
+height="56" fill="#ddd"></rect><text x="52" y="34" text-anchor="middle">Drawer</text></g>
 <rect x="130" y="2" width="100" height="56" fill="#ddd"></rect></svg></figure>
 """,
             )
         ),
     )
-    tray = page.locator("#fig-tray rect")
+    drawer = page.locator("#fig-drawer rect")
     corner = {"x": 8, "y": 8}
-    tray.hover(position=corner)
+    drawer.hover(position=corner)
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "fig-tray")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "fig-drawer")
     page.keyboard.up("Alt")
     page.locator("#fig svg > rect").hover()
     page.keyboard.down("Alt")
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "fig")
     page.keyboard.up("Alt")
 
-    tray.click(modifiers=["Alt"], position=corner)
+    drawer.click(modifiers=["Alt"], position=corner)
     open_compact_comment(page, "wider")
-    with sending(page, "the comment on the tray"):
+    with sending(page, "the comment on the drawer"):
         page.keyboard.press("Enter")
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["kind"] == "comment"
-    assert sent["anchor"] == {"section": "fig-tray"}
+    assert sent["anchor"] == {"section": "fig-drawer"}
 
 
 def test_a_visual_part_aim_follows_its_drawn_svg_shape(browser, serve):
@@ -2242,7 +2861,10 @@ def test_an_undeclared_nested_part_does_not_shadow_its_declared_parent(browser, 
 
 
 def test_a_registered_visual_rebuilds_same_bounds_geometry_on_update(browser, serve):
-    """The package's update signal rebuilds a contour even when its box does not move."""
+    """The package's update signal rebuilds a contour even when its box does not move.
+
+    The contour is the one standing in the part's thread raises; at rest a thread draws
+    nothing on its element."""
     url = serve(
         GENERIC_VISUAL_PAGE,
         layer_registry=GENERIC_VISUAL_LAYER,
@@ -2260,6 +2882,8 @@ def test_a_registered_visual_rebuilds_same_bounds_geometry_on_update(browser, se
         },
     )
     page = open_page(browser, url)
+    page.keyboard.press("t")
+    expect(page.locator(".lf-page-thread")).to_be_focused()
     contour = page.locator(".lf-visual-mark-shape > g > rect")
     expect(contour).to_have_attribute("rx", "8")
     before = page.evaluate(
@@ -2302,25 +2926,27 @@ def test_a_part_drawn_in_another_state_stands_on_its_visual_until_travel_reveals
     )
     page = open_page(browser, url)
     inner = page.locator("#inner")
-    mark = page.locator(".lf-visual-mark-comment")
-    expect(mark).to_have_count(1)
     expect(inner).to_be_hidden()
+    # Pointing at the visual raises the thread's contour, and it encloses the whole.
+    page.locator("#visual").hover()
     placed = page.evaluate(
         """() => {
           const box = (el) => el.getBoundingClientRect();
-          const mark = box(document.querySelector('.lf-visual-mark-comment'));
+          const mark = document.querySelector('.lf-visual-mark-hover');
           const visual = box(document.querySelector('#visual'));
-          return mark.width >= visual.width && mark.height >= visual.height;
+          return Boolean(mark) && box(mark).width >= visual.width
+            && box(mark).height >= visual.height;
         }"""
     )
     assert placed
+    page.mouse.move(0, 0)
 
     page.keyboard.press("t")
-    expect(page.locator(".lf-conversation-thread")).to_be_focused()
+    expect(page.locator(".lf-page-thread")).to_be_focused()
     expect(inner).to_be_visible()
     page.wait_for_function(
         """() => {
-          const mark = document.querySelector('.lf-visual-mark-comment');
+          const mark = document.querySelector('.lf-visual-mark-here');
           const inner = document.querySelector('#inner').getBoundingClientRect();
           const box = mark?.getBoundingClientRect();
           return box && box.width < inner.width + 40 && box.height < inner.height + 40;
@@ -2350,11 +2976,14 @@ def test_a_prefixed_visual_part_is_marked_and_aimed_like_an_authored_one(
         },
     )
     page = open_page(browser, url)
+    page.keyboard.press("t")
+    expect(page.locator(".lf-page-thread")).to_be_focused()
     expect(page.locator("#inner")).to_have_class(re.compile(r"\blf-projected-mark\b"))
     expect(page.locator("#outer")).not_to_have_class(
         re.compile(r"\blf-projected-mark\b")
     )
 
+    page.keyboard.press("Escape")
     page.locator("#html-surface").click(modifiers=["Alt"])
     expect(page.locator(".lf-composer")).to_be_visible()
     assert (
@@ -2372,8 +3001,9 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
     """Decoration omitted from a contour still belongs to its semantic part.
 
     The posted comment opens from the line inside the registered element, while the
-    package-selected rectangle remains the only cloned paint. A second draft on the same
-    part keeps the posted comment's contour instead of claiming it as pending paint.
+    package-selected rectangle remains the only cloned paint of the contour the pointer
+    raises. A second draft on the same part wears the pending contour, since the posted
+    comment draws none at rest.
     """
     url = serve(
         GENERIC_VISUAL_PAGE,
@@ -2395,11 +3025,7 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
     outer = page.locator("#outer")
     decoration = page.locator("#outer-decoration")
     mark = page.locator(".lf-visual-mark")
-
-    expect(outer).to_have_class(re.compile(r"\blf-projected-mark\b"))
-    assert page.eval_on_selector_all(
-        ".lf-visual-mark-shape > g > *", "nodes => nodes.map(node => node.localName)"
-    ) == ["rect"]
+    expect(mark).to_have_count(0)
 
     def midpoint(line):
         return line.evaluate(
@@ -2416,11 +3042,13 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
     point = midpoint(decoration)
     page.mouse.move(point["x"], point["y"])
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-over-mark\b"))
+    expect(outer).to_have_class(re.compile(r"\blf-projected-mark\b"))
+    assert page.eval_on_selector_all(
+        ".lf-visual-mark-shape > g > *", "nodes => nodes.map(node => node.localName)"
+    ) == ["rect"]
     page.mouse.click(point["x"], point["y"])
     expect(
-        page.locator(
-            '.lf-margin-preview .lf-conversation-thread[data-thread="outer-comment"]'
-        )
+        page.locator('.lf-margin-preview .lf-page-thread[data-thread="outer-comment"]')
     ).to_be_visible()
     expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     expect(page.locator(".lf-composer")).to_be_hidden()
@@ -2431,8 +3059,7 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
     page.mouse.click(point["x"], point["y"])
     page.keyboard.up("Alt")
     expect(page.locator(".lf-composer")).to_be_visible()
-    expect(mark).to_have_class(re.compile(r"\blf-visual-mark-comment\b"))
-    expect(mark).not_to_have_class(re.compile(r"\blf-visual-mark-pending\b"))
+    expect(mark).to_have_class(re.compile(r"\blf-visual-mark-pending\b"))
 
 
 def test_a_non_geometry_visual_surface_uses_one_box_for_aim_and_mark(browser, serve):
@@ -2458,6 +3085,7 @@ def test_a_non_geometry_visual_surface_uses_one_box_for_aim_and_mark(browser, se
     surface = page.locator("#html-surface")
     mark = page.locator(".lf-visual-mark")
 
+    surface.hover()
     expect(semantic).to_have_class(re.compile(r"\blf-projected-mark\b"))
     expect(mark).to_be_visible()
     expect(mark).not_to_have_class(re.compile(r"\blf-shaped\b"))
@@ -2504,13 +3132,13 @@ def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
     surface = host.locator("#wide-surface")
     mark = page.locator(".lf-visual-mark")
 
+    surface.hover(position={"x": 20, "y": 20})
     expect(mark).to_be_visible()
     host_box = host.bounding_box()
     mark_box = mark.bounding_box()
     assert mark_box["x"] >= host_box["x"]
     assert mark_box["x"] + mark_box["width"] <= host_box["x"] + host_box["width"]
 
-    surface.hover(position={"x": 20, "y": 20})
     page.keyboard.down("Alt")
     aim = page.locator(".lf-aim")
     expect(aim).to_have_attribute("data-for", "wide-surface")
@@ -2521,7 +3149,7 @@ def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
 
 
 def test_a_visual_part_mark_follows_its_drawn_svg_shape(browser, serve):
-    """A posted comment keeps the same semantic geometry the aim promised.
+    """A posted comment's contour keeps the same semantic geometry the aim promised.
 
     The diamond's diagonal contour must change while the empty bounding-box corners do
     not. A CSS outline on the returned group produces the opposite result.
@@ -2554,9 +3182,12 @@ def test_a_visual_part_mark_follows_its_drawn_svg_shape(browser, serve):
     )
     told(page)
     expect(diamond).to_have_class(re.compile(r"\blf-mark-el\b"))
-    # The comment's margin row stands level with the diagram, which yields its right
-    # growth to it (data-lf-yield) and moves the diamond, so compare the diamond where
-    # it now stands.
+    # Standing in the thread raises the contour; at rest the thread draws none.
+    page.keyboard.press("t")
+    expect(page.locator(".lf-page-thread")).to_be_focused()
+    expect(diamond).to_have_class(re.compile(r"\blf-projected-mark\b"))
+    # The comment's margin row stands on the diagram; nothing Leaf draws moves the
+    # page's content, so the diamond is read where it stands rather than assumed.
     moved = diamond.bounding_box()
     clip = {**clip, "x": math.floor(moved["x"]), "y": math.floor(moved["y"])}
     painted = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
@@ -2663,7 +3294,7 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
     start.click(modifiers=["Alt"])
     expect(start).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
     expect(diagram).not_to_have_class(re.compile(r"\blf-mark-el\b"))
-    page.locator(".lf-composer textarea").fill("name the retry path here")
+    write(page.locator(".lf-composer leaf-text"), "name the retry path here")
     with sending(page, "the comment on the node"):
         page.keyboard.press("ControlOrMeta+Enter")
 
@@ -2678,9 +3309,7 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
     expect(page.locator(".lf-thread .lf-quote")).to_have_text(
         "§ diagram · Start request"
     )
-    expect(diagram.locator(":scope > leaf-anchor-note > .lf-mark-note")).to_have_count(
-        1
-    )
+    expect_comment_notes(page, "#flow", 1)
     expect(start).to_have_class(re.compile(r"\blf-mark-el\b"))
 
     stamp_page(serve.page_dir, PART_DIAGRAM_V2, "reordered")
@@ -2690,9 +3319,7 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
         re.compile(r"\blf-mark-el\b")
     )
     expect(diagram).not_to_have_class(re.compile(r"\blf-mark-el\b"))
-    expect(diagram.locator(":scope > leaf-anchor-note > .lf-mark-note")).to_have_count(
-        1
-    )
+    expect_comment_notes(page, "#flow", 1)
 
 
 def test_design_mode_treats_a_renderer_node_as_part_of_its_widget(browser, serve):
@@ -2706,8 +3333,9 @@ def test_design_mode_treats_a_renderer_node_as_part_of_its_widget(browser, serve
     expect(page.locator("#lf-composer-quote")).to_have_text(
         "design · lf-diagram · flow"
     )
-    page.locator(".lf-composer textarea").fill(
-        "the diagram needs a stronger affordance"
+    write(
+        page.locator(".lf-composer leaf-text"),
+        "the diagram needs a stronger affordance",
     )
     with sending(page, "the comment on the diagram"):
         page.keyboard.press("ControlOrMeta+Enter")
@@ -2767,7 +3395,7 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     state = page.locator('#life g[data-id="Queued"]')
     aim(state)
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Queued")
-    page.locator(".lf-composer textarea").fill("how long does it sit here")
+    write(page.locator(".lf-composer leaf-text"), "how long does it sit here")
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     # The trip ends when the page has heard back what it sent, which is before it has
@@ -2775,7 +3403,7 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     # its note on the element, and that repaint takes an open response surface down with
     # it — so an aim placed in the gap opens a composer the arriving comment then closes.
     # The note is the projection landing, and every later aim is on a settled page.
-    expect(page.locator("#life > leaf-anchor-note > .lf-mark-note")).to_have_count(1)
+    expect_comment_notes(page, "#life", 1)
 
     # A box inside the composite state, declared in its own right.
     aim(page.locator('#life g[data-id="Build"]'))
@@ -2807,7 +3435,7 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     page.keyboard.press("Escape")
 
     aim(entity)
-    page.locator(".lf-composer textarea").fill("one runner or many")
+    write(page.locator(".lf-composer leaf-text"), "one runner or many")
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     # The same gap as above, read from the other side. The trip ends on what the page has
@@ -2815,7 +3443,7 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     # the heels of the press can end before this comment is in the wire at all — and the
     # log read below then answers with the log as it stood before the gesture. This note is
     # the second comment applied, which it cannot be before the log holds it.
-    expect(page.locator("#shape > leaf-anchor-note > .lf-mark-note")).to_have_count(1)
+    expect_comment_notes(page, "#shape", 1)
 
     posted = [
         event

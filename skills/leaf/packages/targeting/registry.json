@@ -18,7 +18,6 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "members",
-    "x-measure": "surface",
     "x-upgrade": true,
     "x-awaits": {
       "region": true,
@@ -203,7 +202,6 @@
     "additionalProperties": false,
     "x-owners": ["lf-targeting"],
     "x-content": "markup",
-    "x-measure": "surface",
     "x-upgrade": false
   }
 }

@@ -9,7 +9,6 @@ from playwright.sync_api import expect
 from render_cases_interaction import (
     ASK_PAGE,
     ASK_WITH_CONTEXT_PAGE,
-    sent_events,
 )
 from render_cases_layout import (
     button_radius,
@@ -18,14 +17,16 @@ from render_cases_layout import (
 )
 from render_harness import (
     EXAMPLE_MEDIA,
-    STORED_DRAFT_TEXT,
+    EXAMPLES,
     consume_browser_errors,
     holding,
     open_page,
     round_trip,
     sending,
+    stored_draft_text,
     told,
     undo,
+    write,
 )
 
 pytestmark = pytest.mark.nightly
@@ -43,10 +44,12 @@ def test_an_add_field_reconnects_to_its_shared_draft(browser, serve, one_user):
         document.querySelector("main").append(group);
     }""")
     text = "A shared answer after the question moves."
-    first.locator("#jobs > .lf-another textarea").fill(text)
+    write(first.locator("#jobs > .lf-another leaf-text"), text)
 
     expect(second.locator("#jobs > .lf-another")).to_have_count(1)
-    expect(second.locator("#jobs > .lf-another textarea")).to_have_value(text)
+    expect(second.locator("#jobs > .lf-another leaf-text")).to_have_js_property(
+        "value", text
+    )
 
 
 def test_the_add_field_previews_the_option_it_will_make(browser, serve):
@@ -84,7 +87,7 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     assert abs(form.evaluate(inner_height) - option.evaluate(inner_height)) < 0.5
 
     card_words = page.locator("#br-steel > strong")
-    card_field = page.locator("#bracket > .lf-another textarea")
+    card_field = page.locator("#bracket > .lf-another leaf-text")
     assert card_field.evaluate(typography) == card_words.evaluate(typography)
     assert abs(card_field.bounding_box()["x"] - card_words.bounding_box()["x"]) < 0.5
 
@@ -93,7 +96,7 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     expect(add).to_be_hidden()
     expect(add).to_have_attribute("aria-disabled", "true")
     empty_field_box = field.bounding_box()
-    field.fill("Portrait sketch")
+    write(field, "Portrait sketch")
     expect(add).to_be_visible()
     expect(add).to_have_attribute("aria-disabled", "false")
     expect(add).to_have_css("opacity", "1")
@@ -107,7 +110,7 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     assert add_box["width"] >= aim_floor
     assert add_box["height"] >= aim_floor
     assert 0 < form_box["y"] + form_box["height"] - add_box["y"] - add_box["height"] < 8
-    field.fill("First line\nSecond line\nThird line")
+    write(field, "First line\nSecond line\nThird line")
     grown_form_box = form.bounding_box()
     grown_field_box = field.bounding_box()
     grown_add_box = add.bounding_box()
@@ -188,7 +191,7 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
     assert abs(shown["dx"]) < 0.5, shown
     assert abs(shown["dy"]) < 0.5, shown
 
-    field = page.locator("#bracket > .lf-another textarea")
+    field = page.locator("#bracket > .lf-another leaf-text")
     add = page.locator("#bracket > .lf-another .lf-compose-submit")
     field.click()
     expect(page.locator("#bracket > .lf-another > .lf-key-badge")).to_be_hidden()
@@ -202,7 +205,7 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
     assert hint.locator("span").evaluate(
         "label => getComputedStyle(label).fontFamily"
     ) == field.evaluate("box => getComputedStyle(box).fontFamily")
-    field.fill("Something the author missed")
+    write(field, "Something the author missed")
     expect(hint).to_be_hidden()
     expect(add).to_be_visible()
     add_box = add.bounding_box()
@@ -217,7 +220,7 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
     gaps = {}
     for group in ("#jobs", "#bracket"):
         row = page.locator(f"{group} > .lf-another")
-        row.locator("textarea").fill("Something the author missed")
+        write(row.locator("leaf-text"), "Something the author missed")
         expect(row.locator(".lf-compose-submit")).to_be_visible()
         gaps[group] = row.evaluate(
             """el => {
@@ -225,7 +228,7 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
                  const inner = el.getBoundingClientRect().right
                    - parseFloat(style.borderRightWidth);
                  const press = el.querySelector('.lf-compose-submit');
-                 const field = el.querySelector('textarea');
+                 const field = el.querySelector('leaf-text');
                  return {
                    end: inner - press.getBoundingClientRect().right,
                    paddingEnd: parseFloat(getComputedStyle(field).paddingInlineEnd),
@@ -249,7 +252,7 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
 def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     browser, serve
 ):
-    """The add form stays in Tab order while c opens a clarification thread."""
+    """The add form stays in Tab order while c enters the visible thread."""
     url = serve(ASK_WITH_CONTEXT_PAGE)
     events_model.append_event(
         serve.page_dir,
@@ -266,31 +269,33 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     mark = page.locator("#storage-evict .lf-pick")
     mark.focus()
     expect(mark).to_be_focused()
-    expect(page.locator("#storage-options > .lf-conversation")).to_have_count(0)
+    expect(page.locator("#storage-options > .lf-thread-seat")).to_have_count(0)
 
     # Enter is not navigation from a checkbox. It neither chooses the option nor enters
     # the add field; the field is an ordinary later stop in the Tab order.
     page.keyboard.press("Enter")
     expect(mark).to_be_focused()
-    expect(page.locator("#storage-options > .lf-another textarea")).not_to_be_focused()
+    expect(page.locator("#storage-options > .lf-another leaf-text")).not_to_be_focused()
     expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
 
-    # c keeps its page-wide meaning: it comments on the focused option rather than
-    # adding an answer. Closing the box lands the user on the page, the question it
-    # was opened about being a group rather than something they could stand on.
+    # The existing thread's card stands beside the option, so c enters its reply
+    # instead of adding an answer or opening another comment box.
+    reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.keyboard.press("c")
-    expect(page.locator(".lf-fab-input")).to_be_focused()
-    expect(page.locator("#storage-options > .lf-another textarea")).not_to_be_focused()
-    page.keyboard.press("Escape")
+    expect(reply).to_be_focused()
     expect(page.locator(".lf-composer")).to_be_hidden()
-    assert page.evaluate("() => document.activeElement === document.body")
+    expect(page.locator("#storage-options > .lf-another leaf-text")).not_to_be_focused()
+    page.keyboard.press("Escape")
+    expect(reply).not_to_be_focused()
+    expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
 
 
 def test_another_option_becomes_a_real_option_without_starting_a_thread(browser, serve):
     """The answer the author missed joins the control as a row of its own.
 
     It is not a comment with a special response contract: the user has supplied an
-    answer, not opened a conversation. The `add` stands on its own coordinate, so a
+    answer, not opened a thread. The `add` stands on its own coordinate, so a
     later ordinary pick and a reload keep the option, and each undo takes back one
     gesture: the later pick, then the option's pick, then the option itself.
     """
@@ -298,28 +303,29 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     page = open_page(browser, url)
     d = serve.page_dir
 
-    expect(page.locator("#jobs > .lf-conversation")).to_have_count(0)
+    expect(page.locator("#jobs > .lf-thread-seat")).to_have_count(0)
     added = page.locator("#jobs > .lf-another")
     assert added.count() == 1, (
         f"the add-option cell was not rendered: {page.lf_errors}; "
         f"group={page.locator('#jobs').inner_html()}"
     )
     field = added.get_by_role("textbox", name="Another option", exact=True)
-    expect(field).to_have_attribute("placeholder", "Another option — add to select")
-    field.fill("Insulate the camera battery")
+    expect(field).to_have_attribute("placeholder", "Add another option")
+    write(field, "Insulate the camera battery")
     add = added.get_by_role("button", name="Add and select option", exact=True)
     add.focus()
     with sending(page, "the added option"):
         page.keyboard.press("Enter")
-    expect(field).not_to_be_focused()
-    expect(add).to_be_focused()
-    expect(add).to_be_visible()
-    expect(add).to_have_attribute("aria-disabled", "true")
+    # Pressing Add is Enter pressed in the field: the user goes on in the field.
+    expect(field).to_be_focused()
+    expect(added.locator(".lf-compose-submit")).to_have_attribute(
+        "aria-disabled", "true"
+    )
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/3")
 
     new_option = page.locator("#jobs > lf-option[data-lf-added]")
     assert new_option.count() == 1, (
-        f"the added option did not stand: {page.lf_errors}; events={sent_events(d)}; "
+        f"the added option did not stand: {page.lf_errors}; events={events_model.read_events(d)}; "
         f"group={page.locator('#jobs').inner_html()}"
     )
     expect(new_option).to_contain_text("Insulate the camera battery")
@@ -327,14 +333,16 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     identity = new_option.get_attribute("id")
     moves = [
         (event["action"], event["detail"])
-        for event in sent_events(d)
+        for event in events_model.read_events(d)
         if event.get("kind") == "action" and event.get("widget") == "jobs"
     ]
     assert moves == [
         ("add", {"option": identity, "text": "Insulate the camera battery"}),
         ("choose", {"options": [identity]}),
     ]
-    assert not [event for event in sent_events(d) if event["kind"] == "comment"]
+    assert not [
+        event for event in events_model.read_events(d) if event["kind"] == "comment"
+    ]
 
     page.locator("#job-heater").click()
     round_trip(page)
@@ -373,7 +381,7 @@ def test_the_add_field_hands_its_words_to_the_option_it_drew(held_events, serve)
     form = page.locator("#jobs > .lf-another")
     field = form.get_by_role("textbox", name="Another option", exact=True)
     words = "Insulate the camera battery"
-    field.fill(words)
+    write(field, words)
     form.get_by_role("button", name="Add and select option", exact=True).click(
         no_wait_after=True
     )
@@ -382,8 +390,8 @@ def test_the_add_field_hands_its_words_to_the_option_it_drew(held_events, serve)
     added = page.locator("#jobs > lf-option[data-lf-added]")
     expect(added).to_have_count(1)
     expect(added).to_contain_text(words)
-    expect(field).to_have_value("")
-    assert page.evaluate(STORED_DRAFT_TEXT, "option:jobs") == words
+    expect(field).to_have_js_property("value", "")
+    assert stored_draft_text(page, "option:jobs") == words
 
     attempt = held[0].request.post_data_json["attempt"]
     with page.expect_response(lambda response: "/api/event" in response.url):
@@ -397,11 +405,11 @@ def test_the_add_field_hands_its_words_to_the_option_it_drew(held_events, serve)
             },
         )
     expect(added).to_have_count(0)
-    expect(field).to_have_value(words)
-    assert page.evaluate(STORED_DRAFT_TEXT, "option:jobs") == words
+    expect(field).to_have_js_property("value", words)
+    assert stored_draft_text(page, "option:jobs") == words
     assert not [
         event
-        for event in sent_events(serve.page_dir)
+        for event in events_model.read_events(serve.page_dir)
         if event.get("kind") == "action" and event.get("widget") == "jobs"
     ]
     consume_browser_errors(page, "400")
@@ -422,7 +430,7 @@ def test_a_pick_made_while_an_option_is_in_flight_cannot_strand_it(held_events, 
     form = page.locator("#jobs > .lf-another")
     field = form.get_by_role("textbox", name="Another option", exact=True)
     words = "Insulate the camera battery"
-    field.fill(words)
+    write(field, words)
     form.get_by_role("button", name="Add and select option", exact=True).click(
         no_wait_after=True
     )
@@ -432,14 +440,14 @@ def test_a_pick_made_while_an_option_is_in_flight_cannot_strand_it(held_events, 
     # another held route, is what says the gesture was taken while the send was open.
     page.locator("#job-heater").click()
     expect(page.locator("#job-heater")).to_have_attribute("chosen", "")
-    expect(field).to_have_value("")
+    expect(field).to_have_js_property("value", "")
 
     while held:
         held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    expect(field).to_have_value("")
-    assert page.evaluate(STORED_DRAFT_TEXT, "option:jobs") is None
+    expect(field).to_have_js_property("value", "")
+    assert stored_draft_text(page, "option:jobs") is None
     expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_count(1)
 
 
@@ -482,10 +490,12 @@ def test_the_add_field_says_why_it_will_not_take_a_pasted_image(browser, serve):
     assert notice.inner_text() == "Images can be added to comments, not options"
     expect(form.locator(".lf-composer-media")).to_be_hidden()
     expect(form.locator(".lf-composer-media img")).to_have_count(0)
-    assert field.input_value() == ""
+    assert field.evaluate("box => box.value") == ""
     assert uploads == [], "a refused paste still uploaded its bytes"
     assert not [
-        event for event in sent_events(serve.page_dir) if event["kind"] == "action"
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action"
     ]
 
 
@@ -497,9 +507,9 @@ def test_an_arrival_cannot_hide_a_question_draft(browser, serve):
     """
     page = open_page(browser, serve(ASK_PAGE))
     d = serve.page_dir
-    first = page.locator("#jobs > .lf-another textarea")
+    first = page.locator("#jobs > .lf-another leaf-text")
     draft = "Keep this answer even if another thread arrives first."
-    first.fill(draft)
+    write(first, draft)
 
     external = events_model.append_event(
         d,
@@ -513,9 +523,9 @@ def test_an_arrival_cannot_hide_a_question_draft(browser, serve):
         },
     )
     told(page)
-    expect(page.locator("#jobs > .lf-conversation")).to_have_count(0)
+    expect(page.locator("#jobs > .lf-thread-seat")).to_have_count(0)
     expect(first).to_be_visible()
-    expect(first).to_have_value(draft)
+    expect(first).to_have_js_property("value", draft)
 
     page.locator("#jobs > .lf-another").get_by_role(
         "button", name="Add and select option", exact=True
@@ -524,11 +534,35 @@ def test_an_arrival_cannot_hide_a_question_draft(browser, serve):
     added = page.locator("#jobs > lf-option[data-lf-added]")
     expect(added).to_contain_text(draft)
     expect(added).to_have_attribute("chosen", "")
-    roots = [e for e in sent_events(d) if e["kind"] == "comment"]
+    roots = [e for e in events_model.read_events(d) if e["kind"] == "comment"]
     assert [(e["anchor"], e["text"]) for e in roots] == [
         ({"section": "jobs"}, "A separate note on this question."),
     ]
-    action = next(e for e in sent_events(d) if e["kind"] == "action")
+    action = next(e for e in events_model.read_events(d) if e["kind"] == "action")
     assert action["detail"] == {"option": added.get_attribute("id"), "text": draft}
     page.locator(".lf-threads-toggle").click()
     expect(page.locator(f'.lf-thread[data-id="{external["id"]}"]')).to_have_count(1)
+
+
+def test_the_add_field_says_its_whole_hint_on_a_phone(browser, serve):
+    """The add field keeps room at its end for the Add press and the Ask's key, so on a
+    phone the words before that room are few: alert-review's card group at 360px cut
+    "Another option — add to select" to "Another option — ad…", which lost the verb.
+    The hint says the same in words that fit, and the room it keeps is measured here
+    rather than restated."""
+    example = next(p for p in EXAMPLES if p.stem == "alert-review")
+    context = browser.new_context(
+        viewport={"width": 360, "height": 740}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(example), context=context)
+    field = page.locator(".lf-another leaf-text").first
+    field.scroll_into_view_if_needed()
+    fit = field.evaluate("""field => {
+      const style = getComputedStyle(field);
+      const room = field.clientWidth - parseFloat(style.paddingInlineStart)
+        - parseFloat(style.paddingInlineEnd);
+      const pen = document.createElement('canvas').getContext('2d');
+      pen.font = style.font;
+      return {room, words: pen.measureText(field.getAttribute('placeholder')).width};
+    }""")
+    assert fit["words"] <= fit["room"], fit

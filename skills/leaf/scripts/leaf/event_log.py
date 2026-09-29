@@ -81,7 +81,7 @@ def now_iso() -> str:
 
 
 def read_cursor(page_dir: Path) -> int:
-    """The seq the agent has acknowledged through (`leaf wait --ack`); 0 before any.
+    """The seq the agent's carrier has confirmed through; 0 before any.
 
     A cursor is a position in this log, so one past its end belongs to a log that
     is gone — what `page init` on a directory whose log was moved or renamed away
@@ -101,7 +101,7 @@ def jsonl_line(event: dict) -> str:
     JSON strings and line breaks to any splitlines()-shaped reader, so they are
     written as escapes — a pasted comment carrying one must not decide where an
     event ends. The log's own reader splits on the "\\n" the writer puts between
-    events either way; the escape is for what `wait` and `events` print, which
+    events either way; the escape is for what `wait` and `page events` print, which
     stays one event per line for every consumer. json.dumps escapes every other
     line-breaking character on its own."""
     line = json.dumps(event, ensure_ascii=False)
@@ -162,9 +162,7 @@ def _matching_attempt(events: list[dict], event: dict) -> dict | None:
             raise AttemptConflict(
                 f"attempt {attempt!r} already belongs to another event"
             )
-        accepted = deepcopy(existing)
-        accepted.pop("seq", None)
-        return accepted
+        return deepcopy(existing)
     return None
 
 
@@ -191,9 +189,8 @@ def _append_event_unlocked(f, event: dict, events: list[dict]) -> tuple[dict, bo
         # under the lease that serializes appends — so uniqueness is proven by
         # the write rather than assumed from width, and the id stays short
         # enough for an agent to read off a projection and retype into `leaf
-        # reply --for`. Nothing may treat one as a global identifier: a host
-        # keying an external operation on a `request` pairs the id with the page
-        # (`references/packages.md`).
+        # thread reply --for`. Nothing may treat one as a global identifier: a host
+        # keying an external operation on an event pairs the id with the page.
         while True:
             candidate = secrets.token_hex(4)
             if not _event_id_exists(events, candidate):
@@ -215,7 +212,10 @@ def _append_event_unlocked(f, event: dict, events: list[dict]) -> tuple[dict, bo
     # and events are rare enough that a flush per append costs nothing.
     f.flush()
     os.fsync(f.fileno())
-    return event, True
+    # The record as every reader reads it back: seq is its line number, which the
+    # stored line does not carry.
+    f.seek(0)
+    return {**event, "seq": f.read().count(b"\n")}, True
 
 
 def append_event(page_dir: Path, event: dict) -> dict:

@@ -1,13 +1,7 @@
 /* This module owns registry loading, pre-upgrade passage fences, dynamic widget
  * imports, and initial presentation. */
-import {
-  MARKED_IN_PAGE,
-  dress,
-  markDeclared,
-  watchExternalLinks,
-} from "./presentation.js";
+import { dress, watchExternalLinks } from "./presentation.js";
 import { reachScrollers } from "./reach.js";
-import { followBounds } from "./bounds.js";
 import { adoptRegistry, registry, tagsDeclaring } from "./registry.js";
 import { loadShadowRules } from "./shadow.js";
 import { revealLayer, sameDelivery, sameLayer } from "./layer-client.js";
@@ -118,21 +112,14 @@ export function reindexPassageOwners(scope = document, source = ["page", null]) 
 //
 // A tag is asked for once per tab and the same promise answers every later caller, so
 // a version that keeps a tag, a second diff in a second reply, and a poll that sees
-// the same conversation again all cost nothing. A failed import stays rejected:
+// the same thread again all cost nothing. A failed import stays rejected:
 // startup and activation must not present markup whose required module is absent.
 const modules = new Map();
-const registryUrl = () =>
-  offlineInteractive
-    ? runtimeResource("/registry.json")
-    : (document.querySelector("script[data-lf-runtime][data-lf-probe]")?.dataset
-        .lfProbe ?? "/registry.json");
+const registryUrl = () => runtimeResource("/registry.json");
 const widgetUrl = (tag) =>
   offlineInteractive
     ? runtimeModule(`/widgets/${tag}.js`)
-    : new URL(
-        `widgets/${tag}.js`,
-        new URL("./", new URL(registryUrl(), document.baseURI)),
-      ).href;
+    : runtimeResource(`/widgets/${tag}.js`);
 const presentTags = (scope, holds) =>
   tagsDeclaring(holds).filter((tag) => scope.querySelector(tag));
 
@@ -159,7 +146,7 @@ export async function importWidgets(scope) {
 
 // The upgrade lifecycle for the whole authored body, at startup: read it while it is
 // still what its author wrote, import what its tags declare, and dress it.
-export async function installDocument(scope) {
+async function installDocument(scope) {
   const presentation = attachApplicationPresentation("document:installation", scope);
   try {
     rememberPassageParts(scope);
@@ -174,8 +161,7 @@ export async function installDocument(scope) {
       descriptors: new Map([...prior.descriptors, ...descriptors.descriptors]),
     });
     commitWidgetDescriptors(descriptors);
-    markDeclared(scope, MARKED_IN_PAGE);
-    watchExternalLinks(scope);
+    watchExternalLinks();
     await importWidgets(scope);
     await settle(presentation, scope, [scope], whenApplicationPresented);
   } finally {
@@ -210,15 +196,14 @@ export async function patchDocument(scope, patch) {
 }
 
 // What arriving markup owes the document once it stands in it: the dressing passes over
-// each root, then the two readings that are of the document rather than of the markup —
-// where the keyboard can reach. Authored state was already captured from source markup
+// each root, then the reading that is of the document rather than of the markup: where
+// the keyboard can reach. Authored state was already captured from source markup
 // before any module could turn that input into presentation. `presented` is the wait
 // each caller owes: the whole application at startup, the widgets it brought for a patch.
 async function settle(presentation, scope, arrived, presented) {
   await presentation.present(scope, Promise.all(arrived.map(dress)));
   await presented();
   reachScrollers(scope);
-  followBounds();
 }
 
 export async function upgradeWidgets({ buildReactionBar }) {
@@ -236,9 +221,13 @@ export async function upgradeWidgets({ buildReactionBar }) {
     !registry.$languages?.names ||
     !registry.$languages?.paths ||
     !registry.$tones?.names ||
-    !registry.$reactions?.tokens
+    !registry.$reactions?.tokens ||
+    !registry.$decisions ||
+    !registry.$marks
   )
-    throw new Error("leaf: registry lacks $events, $languages, $tones or $reactions");
+    throw new Error(
+      "leaf: registry lacks $events, $languages, $tones, $reactions, $decisions or $marks",
+    );
   revealLayer();
   buildReactionBar();
   await installDocument(document.body);

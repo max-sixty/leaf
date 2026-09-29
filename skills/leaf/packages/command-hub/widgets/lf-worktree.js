@@ -5,28 +5,33 @@ import {
   DISCLOSE,
   ago,
   commands,
+  keeps,
   projectData,
   relabel,
   selectableOffer,
   watchData,
+  keepsText,
 } from "/runtime/widget-api.js";
 
 function evidence(tree, kind, label, text, prior) {
-  const group = prior ?? document.createElement("section");
-  group.id = `lf-${tree.id}-${kind}`;
-  group.className = `lf-worktree-evidence lf-worktree-${kind}`;
+  const group =
+    prior ??
+    Object.assign(document.createElement("section"), {
+      id: `lf-${tree.id}-${kind}`,
+      className: `lf-worktree-evidence lf-worktree-${kind}`,
+    });
   let heading = group.querySelector(":scope > strong");
   if (!heading) {
     heading = document.createElement("strong");
     group.append(heading);
   }
-  if (heading.textContent !== label) heading.textContent = label;
+  keepsText(heading, label);
   let pre = group.querySelector(":scope > pre");
   if (!pre) {
     pre = document.createElement("pre");
     group.append(pre);
   }
-  if (pre.textContent !== text) pre.textContent = text;
+  keepsText(pre, text);
   return group;
 }
 
@@ -42,8 +47,11 @@ function summary(record) {
 }
 
 function renderDatum(tree, record, prior) {
-  const datum = prior ?? document.createElement("section");
-  datum.className = "lf-worktree-snapshot";
+  const datum =
+    prior ??
+    Object.assign(document.createElement("section"), {
+      className: "lf-worktree-snapshot",
+    });
   let head = datum.querySelector(":scope > .lf-worktree-head");
   if (!head) {
     head = selectableOffer("button", "lf-worktree-head");
@@ -90,9 +98,8 @@ function renderDatum(tree, record, prior) {
   // Which way it stands now. The row's bindings answer from this attribute, and so do
   // both surfaces naming its keys: the document's disclosure watch hears this write and
   // repaints them together, so a row bound through `DISCLOSE` owes no repaint of its
-  // own. Restating the same value is not a disclosure changing — the watch reads the
-  // old value to tell the two apart — so every render can write it.
-  head.setAttribute("aria-expanded", String(tree.hasAttribute("data-lf-open")));
+  // own. Only a change is written.
+  keeps(head, "aria-expanded", tree.hasAttribute("data-lf-open"));
 
   let source = datum.querySelector(":scope > .lf-worktree-source");
   if (!source) {
@@ -103,7 +110,7 @@ function renderDatum(tree, record, prior) {
   const sourceText = record.missing
     ? "Observed evidence · waiting for the host"
     : `Observed evidence · ${ago(record.observedAt)}`;
-  if (source.textContent !== sourceText) source.textContent = sourceText;
+  keepsText(source, sourceText);
 
   const priorEvidence = new Map(
     [...datum.querySelectorAll(":scope > .lf-worktree-evidence")].map((node) => [
@@ -153,7 +160,7 @@ customElements.define(
       if (this.stopWatching) return;
       if (!this.revealWorktree) {
         this.revealWorktree = () => {
-          this.setAttribute("data-lf-open", "");
+          this.toggleAttribute("data-lf-open", true);
           this.show(this.snapshot);
         };
         this.addEventListener("lf-reveal", this.revealWorktree);
@@ -182,6 +189,7 @@ customElements.define(
         (next, prior) => renderDatum(this, next, prior),
         {
           snapshot,
+          identify: present ? ({ id }) => id : null,
           originOf: () =>
             snapshot
               ? { ...snapshot.origin, ...(present ? { path: [this.id] } : {}) }

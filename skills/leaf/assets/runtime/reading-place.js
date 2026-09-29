@@ -3,10 +3,12 @@
  * A place names the first quotable block the user can see in a scroller, with that
  * block's distance below the scroller's landing edge; failing a quotable block, the
  * section it stands in; failing that, the raw offset, which only the same scroller can
- * take back. `capturePlace` reads one, of the page or of a reading region, and
- * `restorePlace` returns the user to it: the passage is found again by its words, so a
- * place survives what moved the pixels under it — a new revision, a resize, a view that
- * was hidden while its width changed. A restore jumps rather than glides.
+ * take back. A bounded block following its newest entry has its end as its place
+ * (`bounds.js`, `followingItsEnd`), however many entries have arrived since.
+ * `capturePlace` reads one, of the page or of a reading region, and `restorePlace`
+ * returns the user to it: the passage is found again by its words, so a place survives
+ * what moved the pixels under it — a new revision, a resize, a view that was hidden
+ * while its width changed. A restore jumps rather than glides.
  *
  * Whoever remembers a place owns when to take it and where to keep it: version
  * continuity (version.js) across revisions and reading-region shifts, a root tab set
@@ -14,19 +16,17 @@
  * (history.js). `readingBlock` is the block the user is on, for the questions that ask
  * where a walk starts.
  */
-import { banner } from "./banner.js";
-import { clippedContents, landingInsets, shownBox } from "./geometry.js";
+import { clippedContents, landingBand, shownBox, shownWindow } from "./geometry.js";
 import {
   closestAcross,
   cut,
+  elementReading,
   inChrome,
+  pageBlocks,
   pageText,
-  quoteFrom,
   rangeOf,
-  TEXT_BLOCK,
-  textNodesUnder,
 } from "./passages.js";
-import { resolveAnchor } from "./anchor-resolution.js";
+import { ADDRESSABLE, resolveAnchor } from "./anchor-resolution.js";
 import { targetElement, targetSegments } from "./resolved-target.js";
 import {
   effectiveScroller,
@@ -35,6 +35,7 @@ import {
   readingRegions,
   shownRegionBounds,
 } from "./reading-regions.js";
+import { followingItsEnd } from "./bounds.js";
 import { moveScrollerBy, pageScroller } from "./scrolling.js";
 import { under } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -49,31 +50,21 @@ const HEADING = "h1, h2, h3, h4, h5, h6";
 // Asks starts when they have pointed at nothing.
 // A block's landmark is the top of its first line (a range), not its border box; restore
 // measures the matched text the same way, so the line box's leading cancels out.
-export function textBlocks(root = document.querySelector("body > main")) {
-  const seen = new Set();
-  // Walk the page's composed text rather than querying only its light DOM. A declared
-  // shadow root renders authored words at its host's place in reading order; those
-  // words are pointable and resolvable through the shared passage reading, so version
-  // continuity must be able to choose the same blocks as landmarks.
-  return textNodesUnder(root)
-    .map(({ node }) => closestAcross(node.parentElement, TEXT_BLOCK))
-    .filter((block) => block && !seen.has(block) && seen.add(block));
-}
+// The blocks are the page reading's (`pageBlocks`) rather than a query of the light DOM: a
+// declared shadow root renders authored words at its host's place in reading order, and
+// those words are pointable and resolvable through the same reading, so version
+// continuity must be able to choose the same blocks as landmarks.
+export const textBlocks = (root = document.querySelector("body > main")) =>
+  pageBlocks().filter((block) => under(block, root));
 
 export function* blocksOnScreen(region = null, blocks = textBlocks()) {
-  // Read the painted edge directly. The declared height may contain a safe-area
-  // `calc()`, whose serialized value is not a number even though its box is exact.
-  const page = { top: banner.getBoundingClientRect().bottom, bottom: innerHeight };
-  const shown = region ? shownRegionBounds(region) : page;
+  const shown = region ? shownRegionBounds(region) : shownWindow();
   if (!shown) return;
-  // A flowing region is read through the page, whose visible band starts below the
-  // banner: a line hidden under it is not where the user is.
+  // A flowing region is read through the part of the window the page shows: a line
+  // hidden under the banner is not where the user is.
   const bounds =
     region && effectiveScroller(region) === pageScroller
-      ? {
-          top: Math.max(shown.top, page.top),
-          bottom: Math.min(shown.bottom, page.bottom),
-        }
+      ? shownWindow({ within: shown })
       : shown;
   for (const block of blocks) {
     // [hidden] needs an explicit skip: hidden="until-found" resolves to
@@ -82,10 +73,9 @@ export function* blocksOnScreen(region = null, blocks = textBlocks()) {
     if (
       inChrome(block) ||
       closestAcross(block, "[hidden]") ||
-      (region && !under(block, region.body)) ||
-      (!region &&
-        readingRegionFor(block) &&
-        readingPosture(readingRegionFor(block)) === "bounded")
+      (region
+        ? !under(block, region.body)
+        : readingPosture(readingRegionFor(block)) === "bounded")
     )
       continue;
     const range = document.createRange();
@@ -107,15 +97,16 @@ export const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
 // to the section, which doesn't absorb content added above the user inside it.
 export function capturePlace(region = null, blocks = textBlocks()) {
   const box = region ? effectiveScroller(region) : pageScroller;
-  // Places are measured from the top of the box's visible band, below whatever covers
+  // Places are measured from the top of the box's landing band, below whatever covers
   // its top edge (the page's banner), so a region handed from the page to its own body
   // keeps the landmark at the same distance below what the user can see.
-  const boxTop = shownBox(box).top + landingInsets(box).top;
+  const boxTop = landingBand(box).top;
   const landmarkTop = (top, block, blockTop = top) =>
     block?.matches(HEADING) ? top + Math.max(0, -blockTop) : top;
   const view = { y: box.scrollTop, scroller: scrollerIdentity(box) };
+  if (region && followingItsEnd(box)) return { ...view, end: true };
   for (const [block, rect] of blocksOnScreen(region, blocks)) {
-    const section = closestAcross(block, "[id]");
+    const section = closestAcross(block, ADDRESSABLE);
     if (!view.section && section) {
       // The first on-screen block's section, kept only until a quotable block supplies
       // its own: a page with nothing quotable on screen still has somewhere to land.
@@ -128,7 +119,7 @@ export function capturePlace(region = null, blocks = textBlocks()) {
     }
     // Written down the way a comment's quote is, so the search that re-finds it is
     // looking for a string of the same kind.
-    const text = cut(quoteFrom(textNodesUnder(block)), 0, LANDMARK_CAP);
+    const text = cut(elementReading(block), 0, LANDMARK_CAP);
     // A short line ("Risks") would match anywhere; keep scanning for a quotable block.
     if (text.length >= 24) {
       // Unconditionally, so a quotable block under no section clears the earlier one
@@ -153,7 +144,8 @@ export function capturePlace(region = null, blocks = textBlocks()) {
 // A restore jumps rather than glides: a page is free to set scroll-behavior: smooth, and
 // animating from the replacement's raw position is worse than the jump it replaces.
 // Moving to a mark the user asked for is the other case, and says so.
-export const hasLandmark = (reading) => Boolean(reading?.quote || reading?.section);
+export const hasLandmark = (reading) =>
+  Boolean(reading?.end || reading?.quote || reading?.section);
 export const rawOffsetFits = (reading, scroller) =>
   reading.scroller !== undefined && reading.scroller === scrollerIdentity(scroller);
 function scrollerIdentity(scroller) {
@@ -164,7 +156,11 @@ function scrollerIdentity(scroller) {
 export function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
   if (!view) return;
   const box = region ? effectiveScroller(region) : pageScroller;
-  const boxTop = shownBox(box).top + landingInsets(box).top;
+  if (view.end) {
+    box.scrollTo({ top: box.scrollHeight, behavior: "instant" });
+    return;
+  }
+  const boxTop = landingBand(box).top;
   const text = pageText();
   const found = view.quote && resolveAnchor(view, text);
   const segments = targetSegments(found);

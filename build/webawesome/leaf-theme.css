@@ -1,0 +1,91 @@
+/* Leaf tokens keep every third-party control in the active page theme. */
+:is(
+  wa-color-picker,
+  wa-copy-button,
+  wa-comparison,
+  wa-switch,
+  wa-radio-group,
+  wa-radio,
+  wa-slider,
+  wa-select,
+  wa-option,
+  wa-input,
+  wa-textarea,
+  wa-number-input
+) {
+  color-scheme: inherit;
+  --wa-font-family-body: var(--sans);
+  --wa-color-surface-raised: var(--card);
+  --wa-color-surface-default: var(--field);
+  --wa-color-surface-lowered: var(--card);
+  --wa-color-surface-border: var(--border-2);
+  --wa-color-text-normal: var(--ink);
+  --wa-color-text-quiet: var(--muted);
+  --wa-color-neutral-fill-quiet: var(--field);
+  /* The vendor's hover and track fill. It stands on --card (a listbox, a slider's
+     panel), so --card here drew an option's hover and a slider's unfilled track in the
+     colour of the ground they sit on; --chip is the hover fill .lf-btn uses. */
+  --wa-color-neutral-fill-normal: var(--chip);
+  --wa-color-neutral-border-normal: var(--border-2);
+  --wa-color-neutral-on-quiet: var(--ink-2);
+  --wa-color-brand-fill-quiet: var(--accent-tint);
+  --wa-color-brand-on-quiet: var(--accent);
+  --wa-color-brand-border-quiet: var(--accent);
+  --wa-color-focus: var(--accent);
+  /* Leaf draws one focus band and theme.css keeps its thickness in one token, so a
+     vendored control wears that band rather than the vendor's own wider one. */
+  --wa-focus-ring-style: solid;
+  --wa-focus-ring-width: var(--focus-ring-w);
+  --wa-form-control-activated-color: var(--accent);
+  --wa-form-control-background-color: var(--field);
+  --wa-form-control-border-color: var(--border-2);
+  --wa-form-control-value-color: var(--ink);
+}
+
+/* The field inside each of these is the vendor's native input or textarea, in a shadow
+   root the layer's own field floor (shadow.css) does not reach, so the same floor
+   is passed in as the size the vendor sets its value in: never under --entry-floor,
+   and never smaller than the type around it. */
+:is(wa-input, wa-textarea, wa-number-input) {
+  --wa-form-control-background-color: var(--card);
+  --wa-form-control-value-font-size: max(var(--entry-floor), 1em);
+}
+
+/* Compact controls opt into an accessible label without a second visible caption. */
+.lf-label-hidden::part(form-control-label) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The band appears with the focus. A running transition is reported as the value the
+   property is leaving, so a ring that fades in is a ring no reading sees at the moment
+   it is drawn — theme.css states the same for the layer's own rules, and these two are
+   the vendored controls that animate their outline. Naming the properties that stay
+   leaves the vendor's own durations and easing to it. */
+:is(wa-input, wa-textarea, wa-number-input)::part(base),
+wa-select::part(combobox) {
+  transition-property: background-color, border-color;
+}
+
+/* A text field's Tab stop and the box that rings it both sit inside the vendor's shadow
+   root, where the host rule a Leaf control wears reaches neither. The band is therefore
+   drawn and named on the field's own part: --lf-focus-ring does not inherit, and the
+   layer credits a ring to the rule that names it. Leaf enables none of the buttons the
+   field can carry beside its input, so focus inside it is focus in the input. */
+:is(wa-input, wa-textarea, wa-number-input):focus-within::part(base) {
+  outline: var(--focus-ring);
+  --lf-focus-ring: text-entry;
+}
+
+/* A slider's unfilled track is the scale the value is read against, so it carries a
+   contour's weight rather than a hover's: at --chip it read as empty paper, and a value
+   of 4 of 6 looked like the limit. */
+wa-slider::part(track) {
+  background: var(--border-2);
+}

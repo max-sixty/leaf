@@ -8,6 +8,7 @@ from html import escape
 import pytest
 from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
+from interact_support import record_claim
 from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -17,6 +18,8 @@ from leaf import files as files_model
 from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
+from leaf.render_checks import rendered
+from leaf.schema import ELEMENT_ID
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -24,7 +27,6 @@ from render_cases_interaction import (
     SUGGESTION_PAGE,
     THREAD_ASKS,
     live_url,
-    sent_events,
 )
 from render_cases_layout import (
     AIM_SEAM,
@@ -75,7 +77,6 @@ from render_harness import (
     open_versions,
     panel_settled,
     post_event,
-    rendered,
     resized,
     round_trip,
     scroll_settled,
@@ -86,19 +87,20 @@ from render_harness import (
     ticked,
     told,
     wait_for_revision,
+    write,
 )
 
 pytestmark = pytest.mark.nightly
 
 
-def _diff_page(*specimens):
-    """A complete authored page of `(id, escaped pre markup)` diff specimens."""
+def _diff_page(*samples):
+    """A complete authored page of `(id, escaped pre markup)` diff samples."""
     return leaf_page(
-        "diff specimens",
-        '<h1 id="diff-specimens">Diff specimens</h1>'
+        "diff samples",
+        '<h1 id="diff-samples">Diff samples</h1>'
         + "".join(
             f'<lf-diff id="{identifier}"><pre>{markup}</pre></lf-diff>'
-            for identifier, markup in specimens
+            for identifier, markup in samples
         ),
     )
 
@@ -144,8 +146,14 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
         const fab = document.querySelector('.lf-fab-input');
         // A user reaches everything eventually — opens the details, clicks through to
         // the other tab — so everything is in scope, not just what the page opens on.
-        document.querySelectorAll('details').forEach(d => (d.open = true));
-        document.querySelectorAll('[hidden]').forEach(e => e.removeAttribute('hidden'));
+        // The page's own content, not the chrome, whose runtime owns what it shows.
+        const own = el => !el.closest('.lf-ui');
+        document.querySelectorAll('details').forEach(d => {
+            if (own(d)) d.toggleAttribute('open', true);
+        });
+        document.querySelectorAll('[hidden]').forEach(e => {
+            if (own(e)) e.removeAttribute('hidden');
+        });
         const speaks = el => {
             const near = el.closest('.lf-ui, [data-lf-said]');
             return !near || near.matches('[data-lf-said]');
@@ -252,12 +260,12 @@ def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
     label = field.get_attribute("aria-label")
     assert label and label.startswith("Comment on “4 of 5 checks passing")
     draft = "Why does the remaining check need a decision?"
-    field.fill(draft)
+    write(field, draft)
     resized(page, 420, 850)
     expect(field).to_be_focused()
-    expect(field).to_have_value(draft)
+    expect(field).to_have_js_property("value", draft)
 
-    # Native End on macOS scrolls the page even from its textarea. A smooth scroll can
+    # Native End on macOS scrolls the page even from a text box. A smooth scroll can
     # cross this narrow band in one frame or several; put that actual geometry on screen
     # directly so the test cannot miss the point where the region no longer fits a field.
     page.locator("#lp-status").evaluate(
@@ -271,7 +279,41 @@ def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
     expect(field).to_be_focused()
     expect(field).to_have_attribute("aria-label", label)
     page.keyboard.type(" What must Finance decide?")
-    expect(field).to_have_value(draft + " What must Finance decide?")
+    expect(field).to_have_js_property("value", draft + " What must Finance decide?")
+
+
+def test_a_comment_box_carried_away_comes_back_for_the_words_typed_into_it(
+    browser, serve
+):
+    """The box floats over the page beside its passage, so a scroll carries it off with
+    the passage, and the browser's caret reveal cannot bring back a box fixed over the
+    page. The first word typed into it brings the passage, and the box, back."""
+    source = next(source for source in EXAMPLES if source.stem == "triage-board")
+    page = open_page(browser, serve(source))
+    resized(page, 1280, 500)
+    box = page.locator("#triage-lede").bounding_box()
+    y = box["y"] + 10
+    select(page, (box["x"] + 2, y), (box["x"] + 200, y))
+    page.locator(".lf-fab-input").click()
+    field = page.locator(".lf-composer leaf-text")
+    expect(field).to_be_focused()
+    bar = page.locator(".lf-fab-bar")
+    page.mouse.wheel(0, 3000)
+    page.wait_for_function(
+        "() => document.querySelector('.lf-fab-bar').getBoundingClientRect().bottom < 0"
+    )
+    rendered(page)
+    expect(field).to_be_focused()
+    page.keyboard.type("x")
+    page.wait_for_function(
+        """() => {
+          const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();
+          const head = document.querySelector('.lf-banner').getBoundingClientRect().bottom;
+          return bar.top >= head && bar.bottom <= innerHeight;
+        }"""
+    )
+    expect(bar).to_be_visible()
+    expect(field).to_have_js_property("value", "x")
 
 
 def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, serve):
@@ -308,7 +350,7 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     )
     quoted = composer_quote(page)["text"]
     assert quoted.strip("“”") == "In flight"
-    page.locator(".lf-composer textarea").fill("this column's name is wrong")
+    write(page.locator(".lf-composer leaf-text"), "this column's name is wrong")
     with sending(page, "the comment on the card's column name"):
         page.keyboard.press("ControlOrMeta+Enter")
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
@@ -407,7 +449,7 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         # never answered fails here naming the passage left standing.
         expect(page.locator("#lf-composer-quote")).to_have_text(f"“{quote}”")
         page.locator(".lf-fab-input").click()
-        page.locator(".lf-composer textarea").fill(f"fence {index}")
+        write(page.locator(".lf-composer leaf-text"), f"fence {index}")
         # The panel renders the card from state, which can carry the append before
         # this page's own post comes back. Behind the card alone the log read below
         # answers with the comment before this one, or with nothing at all. The
@@ -433,11 +475,9 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
 
-@pytest.mark.parametrize("workspace", [False, True], ids=["ask", "workspace"])
-def test_quotes_cross_preserving_containers_and_remain_attached(
-    browser, serve, workspace
-):
-    """A layout module does not turn visible prose into separate quotation islands."""
+@pytest.mark.parametrize("panes", [False, True], ids=["ask", "panes"])
+def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve, panes):
+    """A pane does not turn visible prose into separate quotation islands."""
     ask = """<lf-ask id="decision">
       <h2 id="question">Which plan should lead?</h2>
       <lf-options id="plans" choose>
@@ -446,13 +486,11 @@ def test_quotes_cross_preserving_containers_and_remain_attached(
       </lf-options>
     </lf-ask>"""
     content = (
-        f"""<lf-workspace id="workspace">
-          <lf-grid id="split" columns="1">
-            <lf-pane id="decision-pane" label="Decision">{ask}</lf-pane>
-            <lf-pane id="evidence-pane" label="Evidence"><p>Supporting evidence.</p></lf-pane>
-          </lf-grid>
-        </lf-workspace>"""
-        if workspace
+        f"""<div id="split">
+          <lf-pane id="decision-pane" label="Decision">{ask}</lf-pane>
+          <lf-pane id="evidence-pane" label="Evidence"><p>Supporting evidence.</p></lf-pane>
+        </div>"""
+        if panes
         else ask
     )
     markup = leaf_page(
@@ -481,7 +519,7 @@ def test_quotes_cross_preserving_containers_and_remain_attached(
     page.dispatch_event("body", "mouseup")
     expect(page.locator("#lf-composer-quote")).to_have_text(f"“{quote}”")
     page.locator(".lf-fab-input").click()
-    page.locator(".lf-composer textarea").fill("Keep the question with its context.")
+    write(page.locator(".lf-composer leaf-text"), "Keep the question with its context.")
     with sending(page, "the comment across preserving containers"):
         page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator(".lf-thread")).to_have_count(1)
@@ -564,7 +602,7 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     page.locator(".lf-fab-input").click()
     expect(page.locator(".lf-composer")).to_be_visible()
     assert composer_quote(page)["text"].strip("“”") == "Heated bird bath"
-    page.locator(".lf-composer textarea").fill("call it the bath, not the bird bath")
+    write(page.locator(".lf-composer leaf-text"), "call it the bath, not the bird bath")
     with sending(page, "the comment on the tab's name"):
         page.keyboard.press("ControlOrMeta+Enter")
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
@@ -628,9 +666,9 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
     test proves what receives the pointer; the click proves that the decision, rather
     than the floating response UI, handles it."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
-    # Wide enough that the suggestion still hangs its row in the margin — in a shell of
-    # 840px or less it docks under its block and is out of the bar's way again.
-    resized(page, 930, 900)
+    # Wide enough that the suggestion's row stands in the rail, beside the column the
+    # comment bar opens over: the room beside a column holds the rail from about 960px.
+    resized(page, 1000, 900)
     box = page.locator("#replace").bounding_box()
     select(
         page,
@@ -659,7 +697,9 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
                        const ys = [b.top + 4, (b.top + b.bottom) / 2, b.bottom - 4];
                        return xs.some(x => ys.some(y => {
                          const top = document.elementFromPoint(x, y);
-                         return top && !c.contains(top) && top.closest(".lf-chrome"); })); })
+                         // A round control's corner is its own cluster, not a cover.
+                         const own = c.closest(".lf-margin-cluster") ?? c;
+                         return top && !own.contains(top) && top.closest(".lf-chrome"); })); })
         .map(c => c.className)""")
     assert under == [], f"floating chrome is standing on controls: {under}"
 
@@ -807,14 +847,14 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     assert "mono" in option["key"]["font-family"]
     assert option["emphasis"] == sequence["emphasis"] == legend["emphasis"]
 
-    # Target chooser uses letters rather than digits, but it names the same physical
+    # Target picker uses letters rather than digits, but it names the same physical
     # keys. Closing the Go-to sequence and opening selection must not reveal a fourth face.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-go-to-hints .lf-go-to-hint")).to_have_count(0)
     page.keyboard.press("s")
     # With the go-to surface gone, compare an available selection key with the option
     # and sequence's neutral state.
-    selection_key = '.lf-target-chooser-hints .lf-target-chooser-hint kbd[data-lf-sequence-step-state="neutral"]'
+    selection_key = '.lf-target-picker-hints .lf-target-picker-hint kbd[data-lf-sequence-step-state="neutral"]'
     hint = page.locator(selection_key).first
     expect(hint).to_be_visible()
     # The standing paint can replace the hint layer between browser round trips. Read
@@ -839,7 +879,7 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
     grown — shift-arrow is the user being precise — so the comment field captures
     a mid-word selection exactly as made. Machine-placed words never glue to the
     author's, on either side of the declaration line: an undeclared generated span
-    is a fenced cell in the reading, and a declared label — a specimen's, rendered
+    is a fenced cell in the reading, and a declared label — a sample's, rendered
     flush before its words inside a list item, where both share the one block — is
     the seam itself.
 
@@ -856,8 +896,8 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
         serve(
             INLINE_PAGE.replace(
                 '<p id="p">',
-                '<ul><li><lf-specimen id="spec" label="mono">glyphs set close'
-                "</lf-specimen></li></ul>\n"
+                '<ul><li><lf-sample id="spec" label="mono">glyphs set close'
+                "</lf-sample></li></ul>\n"
                 '<p id="sentence">🔴 🟢 “<strong>Opening</strong> words stay '
                 "<em>together</em>.” 🔴 🟢 Next sentence.</p>\n"
                 '<ul><li id="nested">“Opening words<p>Nested block.</p>'
@@ -964,13 +1004,15 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
         span.textContent = 'flagged';
         p2.insertBefore(span, rest); // flush: the page now reads "boundaryflagged"
     }""")
+    # The bar the last drag raised stands over the line this one starts on.
+    page.locator("#t").click()
     select(page, spot("#p2", "flagged", 3), spot("#p2", "them", 1))
     assert captured() == "flagged between them"
 
-    # The declared label: rendered by the real pass, flush before the specimen's own
+    # The declared label: rendered by the real pass, flush before the sample's own
     # words, unfenced because the registry models it — so the reading holds
     # "monoglyphs", and only the seam keeps a drag into "glyphs" from taking "mono".
-    select(page, spot("lf-specimen", "glyphs", 3), spot("lf-specimen", "close", 3))
+    select(page, spot("lf-sample", "glyphs", 3), spot("lf-sample", "close", 3))
     assert captured() == "glyphs set close"
 
 
@@ -1128,7 +1170,7 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
 
 def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
     """A quote is read back as prose — seeded into the suggestion box, printed in the
-    panel, emitted into a Markdown blockquote by `leaf transcript` — and written to a
+    panel, emitted into a Markdown blockquote by `leaf page transcript` — and written to a
     UTF-8 file on the way. Source text is neither: it carries the author's line wraps,
     which break a blockquote open, and cutting it to length by UTF-16 unit can halve a
     character, which no UTF-8 file can hold. The server refuses that write and the
@@ -1173,7 +1215,7 @@ def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
     # The composer prints the quote inside quotation marks; what it captured is what
     # lies within them, and that is what the file has to come back holding.
     captured = composer_quote(page)["text"].strip("\u201c\u201d")
-    page.locator(".lf-composer textarea").fill("a comment on the capped passage")
+    write(page.locator(".lf-composer leaf-text"), "a comment on the capped passage")
     page.keyboard.press("ControlOrMeta+Enter")
     settled = page.locator('.lf-thread:not([data-id^="pending:"])')
     page.wait_for_function("""() => document.querySelectorAll(
@@ -1186,7 +1228,9 @@ def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
     # And the file behind that answer, read back through Python's UTF-8 decoder, which is
     # the user a half character has no bytes for.
     comments = [
-        event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
     ]
     assert [comment["anchor"]["quote"] for comment in comments] == [captured]
 
@@ -1265,7 +1309,7 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
             "kind": "comment",
             "revision": 1,
             "text": "on the caption",
-            "anchor": {"section": "fig", "quote": "A specimen, for element anchors."},
+            "anchor": {"section": "fig", "quote": "A sample, for element anchors."},
         },
     )
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
@@ -1294,16 +1338,73 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
     wait_for_revision(page, 2)
 
 
+def test_a_plain_block_in_a_language_the_layer_cannot_color_stays_plain(browser, serve):
+    """A plain <pre><code class="language-…"> claims no vocabulary: what every Markdown
+    renderer emits carries whatever word its author wrote. One outside $languages stays
+    the ink of an uncolored block, as it would on any page that colors nothing, with no
+    console error to fail the page over it. The known word beside it is the control."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "plain blocks",
+                '<h1 id="t">Blocks</h1>\n'
+                '<pre id="known"><code class="language-python">x = 1</code></pre>\n'
+                '<pre id="unknown"><code class="language-pythn">y = 2</code></pre>',
+            )
+        ),
+    )
+    expect(page.locator("#known [data-lf-syn]").first).to_be_attached()
+    assert page.locator("#unknown [data-lf-syn]").count() == 0
+    assert page.locator("#unknown code").text_content() == "y = 2"
+
+
+def test_a_block_rewritten_while_it_is_colored_keeps_its_new_text(browser, serve):
+    """A second dressing pass that reaches a block whose tokens are still on their way
+    leaves it to the pass in flight, so that pass colors the text the block holds when
+    its tokens land. Text rewritten meanwhile, as a live revision rewrites a block in
+    place, must not be put back to what the first pass read."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "rewritten block",
+                '<h1 id="t">Blocks</h1>\n'
+                '<pre id="later"><code class="language-python">x = 1</code></pre>',
+            )
+        ),
+    )
+    expect(page.locator("#later [data-lf-syn]").first).to_be_attached()
+    text = page.evaluate(
+        """async () => {
+          const syntax = performance.getEntriesByType('resource')
+            .find(resource => resource.name.endsWith('/runtime/syntax.js'));
+          const {highlightBlocks} = await import(syntax.name);
+          const code = document.createElement('code');
+          code.className = 'language-python';
+          code.textContent = 'old = 1';
+          document.querySelector('#later').after(
+            Object.assign(document.createElement('pre'), {id: 'rewritten'}));
+          document.querySelector('#rewritten').append(code);
+          const first = highlightBlocks(code);
+          code.textContent = 'new = 2';
+          await Promise.all([first, highlightBlocks(code)]);
+          return code.textContent;
+        }"""
+    )
+    assert text == "new = 2"
+
+
 def test_code_is_colored_without_a_word_moving(browser, serve):
     """Colouring is spans, and the anchor pass is what spans break: the revision holds
     one run of characters where the DOM now holds a dozen nodes. A <span> is no text block,
     so both readings collapse to the same string — which is what lets the runtime color a
-    block the file knows nothing about, and what keeps `leaf comment` able to quote
+    block the file knows nothing about, and what keeps `leaf thread open` able to quote
     into one.
 
     One pass serves both shapes a page has for code, lf-code's `language` and a plain
     <pre><code class="language-*">, and neither guesses: a lf-code with no `language` stays
-    the color of its own ink. The quote below is written the way `leaf comment`
+    the color of its own ink. The quote below is written the way `leaf thread open`
     writes one — against the file — and spans a token boundary on its way back."""
     url = serve(CODE_PAGE)
     page = open_page(browser, url)
@@ -1459,7 +1560,7 @@ def test_every_language_returns_the_source_it_was_given(browser, serve):
         '# c\ncd x && ls -la | grep "a b" > /dev/null\n',
         '{"a": [1, 2, {"b": null}], "c": "<>&"}\n',
         "@@ -1 +1 @@\n-a <b>\n+c &d\n",
-        "TARGET_CHOOSER_SCOPE * FROM t WHERE a = 'x''y'; -- note\n",
+        "TARGET_PICKER_SCOPE * FROM t WHERE a = 'x''y'; -- note\n",
         '<!doctype html>\n<a href="x?a=1&b=2">t &amp; u</a>\n',
     ]
     bad = page.evaluate(
@@ -1483,7 +1584,7 @@ def test_every_language_returns_the_source_it_was_given(browser, serve):
     pierre_bad = page.evaluate(
         """async (langs) => {
           const { parsePatchFiles, preloadDiffHTML } =
-            await import('/vendor/pierre-diffs.esm.js');
+            await window.__lfRuntimeImport('/vendor/pierre-diffs.esm.js');
           const source = [
             'diff --git a/example.txt b/example.txt',
             '--- a/example.txt',
@@ -2071,7 +2172,11 @@ rename to new-name.js
 diff --git "a/old\\tname.js" "b/new\\tname.js"
 similarity index 100%
 rename from "old\\tname.js"
-rename to "new\\tname.js"'''
+rename to "new\\tname.js"
+diff --git "a/\\357\\273\\277old.js" "b/\\357\\273\\277new.js"
+similarity index 100%
+rename from "\\357\\273\\277old.js"
+rename to "\\357\\273\\277new.js"'''
     page = open_page(browser, serve(_diff_page(("mixed-rename-diff", escape(source)))))
     result = page.evaluate("""async () => {
       const host = document.querySelector('#mixed-rename-diff');
@@ -2079,6 +2184,7 @@ rename to "new\\tname.js"'''
       const renames = [...(shadow?.querySelectorAll('.lf-diff-rename') ?? [])];
       const rename = renames[0];
       const quotedRename = renames[1];
+      const bomRename = renames[2];
       const { says, wrote } = await window.__lfRuntimeImport('/runtime/widget-api.js');
       return {
         rendered: host.classList.contains('lf-rendered'),
@@ -2094,6 +2200,8 @@ rename to "new\\tname.js"'''
         quotedFrom:
           quotedRename?.querySelector('.lf-diff-before')?.textContent ?? null,
         quotedTo: quotedRename?.querySelector('.lf-diff-after')?.textContent ?? null,
+        bomFrom: bomRename?.querySelector('.lf-diff-before')?.textContent ?? null,
+        bomTo: bomRename?.querySelector('.lf-diff-after')?.textContent ?? null,
         lines: [...(shadow?.querySelectorAll('[data-line]') ?? [])]
           .map(line => line.textContent),
         saysRename: says(document).includes('old-name.js → new-name.js'),
@@ -2105,14 +2213,16 @@ rename to "new\\tname.js"'''
         "error": None,
         "details": 1,
         "diffs": 1,
-        "renameCount": 2,
+        "renameCount": 3,
         "from": "old-name.js",
         "to": "new-name.js",
         "stat": "renamed",
         "generated": True,
         "saidOverride": False,
-        "quotedFrom": '"old\\tname.js"',
-        "quotedTo": '"new\\tname.js"',
+        "quotedFrom": "old\tname.js",
+        "quotedTo": "new\tname.js",
+        "bomFrom": "\ufeffold.js",
+        "bomTo": "\ufeffnew.js",
         "lines": ["const value = 1;", "const value = 2;"],
         "saysRename": True,
         "wroteRename": False,
@@ -2247,11 +2357,12 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 2")
     stranded = page.locator(".lf-thread-panel .lf-quote.detached").all_text_contents()
     assert stranded == [], f"outlined on screen, reported missing: {stranded}"
-    # The projected contour stays above the figure's own paint without putting any
-    # paint over its contents.
+    # The projected contour the pointer raises stays above the figure's own paint
+    # without putting any paint over its contents.
     figure = page.locator("#fig")
     expect(figure).to_have_class(re.compile(r"\blf-mark-el\b"))
     figure.scroll_into_view_if_needed()
+    figure.hover()
     expect(figure).to_have_class(re.compile(r"\blf-projected-mark\b"))
     mark = page.locator('.lf-visual-mark[data-for="fig"]')
     expect(mark).to_be_visible()
@@ -2266,23 +2377,23 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     assert len(set(look["borders"])) == 1 and look["borders"][0] != "0px", look
 
 
-FOCUSED_CONVERSATION = "document.activeElement?.closest('.lf-conversation-thread')"
+FOCUSED_THREAD = "document.activeElement?.closest('.lf-page-thread')"
 
 
-def conversation_a_press_opened(page):
-    """The conversation a press on a mark landed in, or None if none ever took focus.
+def thread_a_press_opened(page):
+    """The thread a press on a mark landed in, or None if none ever took focus.
 
     The preview card the press opens places itself and only then hands over focus, from
     the placement promise `deferThreadPreviewFocus` waits on — so the thread arrives a
     frame after the press rather than inside it. This states that ordering rather than
     reading across it. The wait's own timeout is short, and it answers None so a caller
-    still reports which conversation opened instead of raising over the reading.
+    still reports which thread opened instead of raising over the reading.
     """
     try:
-        page.wait_for_function(f"() => {FOCUSED_CONVERSATION} != null", timeout=5000)
+        page.wait_for_function(f"() => {FOCUSED_THREAD} != null", timeout=5000)
     except PlaywrightTimeout:
         return None
-    return page.evaluate(f"() => {FOCUSED_CONVERSATION}.innerText")
+    return page.evaluate(f"() => {FOCUSED_THREAD}.innerText")
 
 
 def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
@@ -2293,7 +2404,7 @@ def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
     event, so those arrive rounded to a whole pixel, while markAt measures against
     getClientRects, whose edges are floats. Within a pixel of a mark's edge the two
     answer different threads: a quote lights up under the hand and the press on it opens
-    the neighbour's conversation, which is the same disagreement the aim carried and this
+    the neighbour's thread, which is the same disagreement the aim carried and this
     is the surface it was left on.
 
     The seam fixture puts the pointer where the true point and its rounded twin are over
@@ -2328,7 +2439,7 @@ def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
     expect(promised).to_contain_text(f"About {seam['at']}.")
 
     page.mouse.click(seam["x"], seam["y"])
-    opened = conversation_a_press_opened(page)
+    opened = thread_a_press_opened(page)
     assert opened and f"About {seam['at']}." in opened, (
         f"the hover promised the thread on {seam['at']}, and the press at the same point "
         f"opened: {opened}"
@@ -2458,7 +2569,7 @@ def test_taking_words_inside_a_mark_keeps_them_and_a_press_still_opens_the_threa
 
     A click ends a gesture that took words as surely as it ends a press, and the mark's
     door read every one of them as a press. With Threads open the thread it opened landed
-    the user in the panel's reply box, and focusing a textarea collapses the document's
+    the user in the panel's reply box, and focusing a text box collapses the document's
     selection — so the words went, the 💬 with them, and marked passages became the one
     part of a page a user could not quote. The panel is why it shows here and not on a
     closed one, where the same travel focuses a card and leaves the selection standing;
@@ -2480,24 +2591,23 @@ def test_taking_words_inside_a_mark_keeps_them_and_a_press_still_opens_the_threa
     assert took["selected"].strip(), (
         "the gesture took no words, so this says nothing about what the door did with them"
     )
-    assert not took["inPanel"], "the gesture sent the user into the conversation"
+    assert not took["inPanel"], "the gesture sent the user into the thread"
     assert pending_text(page) == took["selected"].strip(), (
         f"the 💬 is about {pending_text(page)!r} rather than the words that were taken"
     )
 
     page.mouse.click(*mark_point(page, "lf-mark"))
-    expect(page.locator(".lf-threads .lf-thread textarea")).to_be_focused()
+    expect(page.locator(".lf-threads .lf-thread leaf-text")).to_be_focused()
     expect(page.locator(".lf-threads .lf-thread")).to_contain_text("About the retry.")
 
 
 def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     """A pointer press briefly moves focus from an open thread to the page before its
-    click lands back in the conversation. The mark must not look deselected in that gap.
+    click lands back in the thread. The mark must not look deselected in that gap.
 
-    A reaction shares this target with the comment because that was the visible failure:
-    losing the current-thread paint exposed the passive reaction contour underneath.
-    Hover and current therefore need to resolve to the same accent contour for the whole
-    down/up gesture, while passive feedback remains the quieter hairline.
+    Hover and current therefore resolve to the same accent contour for the whole
+    down/up gesture, while the element's comment and reaction draw nothing at rest. The
+    reaction beside the comment is the case that first showed the gap.
     """
     url = serve(INLINE_PAGE)
     events_model.append_event(
@@ -2524,23 +2634,20 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     figure = page.locator("#fig")
     figure.scroll_into_view_if_needed()
     mark = page.locator('.lf-visual-mark[data-for="fig"]')
-    expect(mark).to_be_visible()
+    expect(mark).to_have_count(0)
 
     look = """node => { const style = getComputedStyle(node); return {
       line: style.borderStyle,
       width: style.borderWidth,
-      color: style.borderColor,
     }; }"""
-    passive = mark.evaluate(look)
-    assert passive["line"] == "solid"
 
     box = figure.bounding_box()
     point = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     page.mouse.move(*point)
     page.mouse.click(*point)
     # The compact preview card reveals its reply box on request, so what a press lands on
-    # is the conversation itself; the paint under test is the same either way.
-    assert conversation_a_press_opened(page) is not None, "the press opened no thread"
+    # is the thread itself; the paint under test is the same either way.
+    assert thread_a_press_opened(page) is not None, "the press opened no thread"
     selected = mark.evaluate(look)
 
     page.mouse.move(*point)
@@ -2554,9 +2661,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     assert selected == pressed, (
         f"the selected contour changed during mouse-down: {selected} -> {pressed}"
     )
-    assert selected["line"] == "solid"
-    assert selected["width"] != passive["width"]
-    assert selected["color"] != passive["color"]
+    assert selected == {"line": "solid", "width": "2px"}
 
 
 def test_a_tap_on_a_quote_opens_its_thread(browser, serve):
@@ -2602,7 +2707,7 @@ def test_a_tap_on_a_quote_opens_its_thread(browser, serve):
     )
 
     page.touchscreen.tap(seam["x"], seam["y"])
-    opened = conversation_a_press_opened(page)
+    opened = thread_a_press_opened(page)
     assert opened and f"About {seam['at']}." in opened, (
         f"a tap on the quote for {seam['at']} opened: {opened}"
     )
@@ -2689,13 +2794,13 @@ def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser,
     fab = page.locator(".lf-fab-input")
     expect(fab).to_be_visible()
     fab.focus()
-    page.locator(".lf-composer textarea").fill("is this idempotent?")
+    write(page.locator(".lf-composer leaf-text"), "is this idempotent?")
     with sending(page, "the comment on the ambiguous passage"):
         page.locator(".lf-composer button.lf-compose-submit").click()
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(".lf-margin-preview .lf-conversation-thread")).to_be_focused()
-    expect(page.locator(".lf-margin-preview textarea")).not_to_be_focused()
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    expect(page.locator(".lf-margin-preview leaf-text")).not_to_be_focused()
 
     d = serve.page_dir
     stamp_page(d, DRIFT_V2, "revised")
@@ -2713,11 +2818,9 @@ def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser,
     moved = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
-            "--json",
             str(d),
-            "--to",
-            root["id"],
             "--for",
             root["id"],
             "--section",
@@ -2749,7 +2852,7 @@ def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser,
     assert stored_root["anchor"] != stored_reply["anchor"]
 
 
-def test_a_removed_subject_keeps_its_conversation_open_and_detached(browser, serve):
+def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
     """The author explicitly detaches a thread whose subject leaves the page. Its
     historical quote remains readable in Threads, but it has no page mark, margin row,
     or destination that could conflate it with surviving content."""
@@ -2767,7 +2870,7 @@ def test_a_removed_subject_keeps_its_conversation_open_and_detached(browser, ser
     }""")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").focus()
-    page.locator(".lf-composer textarea").fill("why is this section here?")
+    write(page.locator(".lf-composer leaf-text"), "why is this section here?")
     with sending(page, "the comment on the section that leaves"):
         page.locator(".lf-composer button.lf-compose-submit").click()
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
@@ -2787,15 +2890,14 @@ def test_a_removed_subject_keeps_its_conversation_open_and_detached(browser, ser
     detached = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(d),
-            "--to",
-            root["id"],
             "--for",
             root["id"],
             "--detach",
             "--text",
-            "I removed the section; this conversation no longer has a page target.",
+            "I removed the section; this thread no longer has a page target.",
         ],
     )
     assert detached.exit_code == 0, detached.output
@@ -2806,9 +2908,6 @@ def test_a_removed_subject_keeps_its_conversation_open_and_detached(browser, ser
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(page.locator('.lf-group[data-group="gone"]')).to_have_text(
-        "No longer in this version"
-    )
     quote = page.locator(f'.lf-thread[data-id="{root["id"]}"] .lf-quote')
     expect(quote).to_contain_text("The version stamp never lands")
     expect(quote).to_have_class(re.compile(r"\bdetached\b"))
@@ -3005,7 +3104,7 @@ def test_a_passage_longer_than_the_pattern_is_anchored_whole(browser, serve):
     )
 
     # And the anchor that posts says the same thing, since the mark is drawn from it.
-    page.locator(".lf-composer textarea").fill("The whole of it.")
+    write(page.locator(".lf-composer leaf-text"), "The whole of it.")
     with sending(page, "the comment on the dragged passage"):
         page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator(".lf-thread")).to_have_count(1)
@@ -3046,7 +3145,7 @@ def test_a_selection_of_the_whole_page_still_finds_its_passage(browser, serve):
     )
     assert painted > 12000, f"the mark under the composer covers {painted} characters"
 
-    page.locator(".lf-composer textarea").fill("All of it.")
+    write(page.locator(".lf-composer leaf-text"), "All of it.")
     with sending(page, "the comment on the whole page"):
         page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator(".lf-thread")).to_have_count(1)
@@ -3082,7 +3181,7 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
             if (fab.style.display !== 'block') return 'no button';
             await new Promise(r => setTimeout(r, 40));
             fab.focus();
-            const box = document.querySelector('.lf-composer textarea');
+            const box = document.querySelector('.lf-composer leaf-text');
             box.value = 'does this hold?';
             box.dispatchEvent(new Event('input', {bubbles: true}));
             document.querySelector('.lf-composer button.lf-compose-submit').click();
@@ -3113,12 +3212,12 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     quotes survived.
 
     That is also this file's floor for the corpus. The example sweeps serve the newest
-    version and never press anything, so with no reading here the chooser could offer
+    version and never press anything, so with no reading here the picker could offer
     a list nobody walks and a Compare control nobody presses on every page in examples/."""
     example = next(p for p in EXAMPLES if p.stem == "log-retention")
     page = open_page(browser, serve(example))
 
-    # Served at the newest version, with the earlier one behind the chooser.
+    # Served at the newest version, with the earlier one behind the picker.
     expect(page.locator(".lf-version")).to_have_text("v2")
     expect(page.locator(".lf-version-menu .lf-version-row")).to_have_count(2)
 
@@ -3166,7 +3265,7 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
         assert re.sub(r"\s", "", quote) in painted, painted[:160]
 
     # And the older document is a real destination, not just a row: choosing it pins
-    # the user to the virtual version address the chooser named.
+    # the user to the virtual version address the picker named.
     banner_control(page, ".lf-version").click()
     page.locator('.lf-version-row[data-lf-version="1"]').click()
     page.wait_for_url(re.compile(r"/versions/v1\.html"))
@@ -3424,9 +3523,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
             "lf-decoration": {
                 "description": "Generated prose and a graphic with its own marker.",
                 "type": "object",
-                "properties": {
-                    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
-                },
+                "properties": {"id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"}},
                 "required": ["id"],
                 "additionalProperties": False,
                 "x-content": "markup",
@@ -3451,7 +3548,6 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
     )
     _publish(serve.page_dir, 2, second, "New route and map")
     page = open_page(browser, url.replace("v1.html", "v2.html"))
-    assert page.locator("main .lf-margin-entry-icon").count() >= 2
     expect(page.locator("#decoration-icon[data-lf-gen]")).to_have_count(1)
 
     compare_with(page, 1)
@@ -3528,6 +3624,22 @@ def test_the_number_hint_names_only_versions_that_still_exist(browser, serve):
     assert "1–3" not in menu_line, menu_line
 
 
+def test_a_layer_opened_from_nowhere_lets_go_as_it_closes(browser, serve):
+    """A popover opened while nothing held focus has nobody to hand focus back to, so
+    the browser left focus on its hidden row until the next rendering update: a key
+    pressed in that frame was dispatched from a control the user could no longer see.
+    Closing it lets go in the same task."""
+    page = open_page(browser, live_url(serve(INLINE_PAGE)))
+    assert page.evaluate("() => document.activeElement === document.body")
+    open_versions(page)
+    menu = page.locator(".lf-version-menu")
+    expect(menu).to_be_visible()
+    assert menu.evaluate("m => m.contains(document.activeElement)"), "no row took focus"
+    assert menu.evaluate(
+        "m => { m.hidePopover(); return document.activeElement === document.body; }"
+    )
+
+
 def test_the_versions_menu_can_close_from_every_door(browser, serve):
     """A version menu opened from either door returns to its actual origin.
 
@@ -3549,12 +3661,11 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
     expect(page.locator(".lf-version-row")).to_have_count(1)
     page.keyboard.press("Escape")
     expect(menu).not_to_be_visible()
-    assert page.evaluate("() => document.activeElement === document.body")
+    expect(page.locator(".lf-version")).to_be_focused()
+    expect(page.locator(".lf-banner-menu")).to_be_visible()
 
-    # A menu opened from the keyboard leaves the same way one opened by pointer does:
-    # the menu is a layer over the page, so its one press lands the user on the page
-    # rather than on the chooser that is its implementation door — or on the heading
-    # they happened to be standing on when they asked for it.
+    # A menu opened from the keyboard returns to its banner door, just as one opened
+    # by pointer does, rather than to the heading that held focus before the shortcut.
     origin = page.locator("h1")
     origin.evaluate("node => node.tabIndex = -1")
     origin.focus()
@@ -3562,7 +3673,8 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
     expect(menu).to_be_visible()
     page.keyboard.press("Escape")
     expect(menu).not_to_be_visible()
-    assert page.evaluate("() => document.activeElement === document.body")
+    expect(page.locator(".lf-version")).to_be_focused()
+    expect(page.locator(".lf-banner-menu")).to_be_visible()
 
     # The pointer's door reaches the same layer and Escape still ends it. A one-row menu
     # offers neither a walk nor an exact-version shortcut that would reopen the page the
@@ -3602,13 +3714,13 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
 
 @pytest.mark.parametrize("color_scheme", ["light", "dark"])
 def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_scheme):
-    """The chooser is a press and a menu rather than a select, which buys the notes
+    """The picker is a press and a menu rather than a select, which buys the notes
     somewhere they can be read whole and costs the platform's own popup: opening,
     closing, and the keys between. A select came with all of that, so what this
     asserts is the part that had to be written back — the pointer route opens through
     More, focus lands on the version being read so the walk starts where the user is,
-    ↑/↓ clamp at the ends, Escape closes the replacing panel, and a click anywhere
-    else closes without navigating.
+    ↑/↓ clamp at the ends and Home/End reach them, Escape closes the replacing panel,
+    and a click anywhere else closes without navigating.
 
     The note is the reason the menu exists at all: a select's closed label is its
     selected option's whole text, so the note had to be on the bar or nowhere, and on
@@ -3646,8 +3758,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     expect(page.locator(".lf-banner-menu")).to_be_hidden()
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
-    assert page.evaluate("() => document.activeElement === document.body")
-    page.locator(".lf-banner-more").click()
+    expect(btn).to_be_focused()
     expect(page.locator(".lf-banner-menu")).to_be_visible()
     expect(btn).to_be_visible()
     page.keyboard.press("Escape")
@@ -3697,12 +3808,12 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     )
     assert label_result.response["violations"] == []
 
-    # The keys are one declaration, so the "?" reference names them too — a page with
-    # a second version is the first that has a list to walk. The shelf stands beside the
-    # menu; the reference is a modal and global chrome, so entering it dismisses the menu
-    # the way the platform dismisses any auto popover, and leaves it dismissed. The rows
-    # are read off the declaration rather than off the standing mode, which is why they
-    # are there to read at all once the menu has gone.
+    # The keys are one declaration, so the "?" reference names them too — a page with a
+    # second version is the first that has a list to walk. The expanded shortcut bar
+    # stands beside the menu; the reference is a modal and global chrome, so entering it
+    # dismisses the menu the way the platform dismisses any auto popover, and leaves it
+    # dismissed. The rows are read off the declaration rather than off the standing mode,
+    # which is why they are there to read at all once the menu has gone.
     page.keyboard.press("?")
     expect(menu).to_be_visible()
     page.keyboard.press("?")
@@ -3712,13 +3823,15 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     )
     expect(page.locator(".lf-command-reference")).to_contain_text("Later version")
     expect(page.locator(".lf-command-reference")).to_contain_text("Earlier version")
+    expect(page.locator(".lf-command-reference")).to_contain_text("Latest version")
+    expect(page.locator(".lf-command-reference")).to_contain_text("Earliest version")
     expect(page.locator(".lf-command-reference")).to_contain_text("Open v1")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
     expect(menu).to_be_hidden()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-shortcut-bar")).to_have_attribute(
-        "data-lf-shelf-open", "false"
+        "data-lf-expanded", "false"
     )
     # The help layer returns to the visible root disclosure that preceded it. The
     # independent gV route below works directly from that real landing.
@@ -3741,22 +3854,27 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     page.keyboard.press("ArrowDown")  # clamped at the other end too
     expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
     expect(position).to_have_attribute("data-lf-boundary", "")
+    # Home and End reach either end in one press; End lands where the walk down did and
+    # states the same comparison.
+    page.keyboard.press("Home")
+    expect(page.locator('.lf-version-row[data-lf-version="3"]')).to_be_focused()
+    expect(position).to_have_text("Version 1 of 3")
+    page.keyboard.press("End")
+    expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
+    expect(position).to_have_text("Version 3 of 3")
     # The comparison the row it landed on states, which the reopen below reads: the base is
-    # settled when the chooser says so, and the base's document is a fetch away, so a test
+    # settled when the picker says so, and the base's document is a fetch away, so a test
     # that closed the menu on the press alone would ask where the walk stands from a loaded
     # machine and be told the version being read.
     expect(btn).to_have_text("v2")
     expect(btn).to_have_class(re.compile(r"\bon\b"))
 
-    # Escape closes the menu and lands the user on the page it stood over, whatever
-    # door they came through. A popover restores focus to whatever had it when it
-    # showed, which for a menu opened from the page is the body; Leaf performs the whole
-    # step instead, so the landing is the same one every time.
+    # Escape closes the menu and returns to its banner control.
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
-    assert page.evaluate("() => document.activeElement === document.body")
+    expect(btn).to_be_focused()
 
-    # g V opens it from anywhere on the page, the way g L opens the leaves tray, and lands
+    # g V opens it from anywhere on the page, the way g L opens the leaves drawer, and lands
     # where the walk should carry on from, so that walk is the next press rather than a
     # Tab-hunt across the banner. This menu is the only place the notes are, so what each
     # version changed is reachable by keyboard through this key or not at all.
@@ -3765,7 +3883,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     # is v1 and the row carrying it is where an open lands. Landing on the version being
     # read would put the focus and the base on different rows, and the user's next arrow
     # press would then move the base off the version they marked from — the whole reason
-    # the two are one thing (the chooser's focusSelectedRow).
+    # the two are one thing (the picker's focusSelectedRow).
     open_versions(page)
     expect(menu).to_be_visible()
     expect(btn).to_have_attribute("aria-expanded", "true")
@@ -3782,10 +3900,10 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     expect(btn).to_have_text("v2")
     expect(btn).not_to_have_class(re.compile(r"\bon\b"))
     # Inside the menu the letter is the menu's own — the newest version, tested where
-    # it navigates — so Escape is what closes this, onto the page the menu stood over.
+    # it navigates — so Escape closes this and returns to the banner control.
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
-    assert page.evaluate("() => document.activeElement === document.body")
+    expect(btn).to_be_focused()
     open_versions(page)
     expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
     page.keyboard.press("Escape")
@@ -3801,7 +3919,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
 
     # The same press from the key's door, which is the one a hand-back can reach: opened
     # with the pointer the user was on the button going in, so nothing moves them either
-    # way. A press away from the menu is not a way back to the chooser — it is the user
+    # way. A press away from the menu is not a way back to the picker — it is the user
     # going somewhere else — and a close that hands focus to the bar whenever it finds none
     # takes them off the page they just pressed into. Escape says return; this does not.
     open_versions(page)
@@ -3879,10 +3997,11 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
         expect(line).not_to_contain_text(word)
 
     # The exemption: the progressive help route still lists the mode standing over the
-    # page. The shelf stands beside the menu, and the reference is a modal, so entering
-    # it dismisses the menu as the platform dismisses any auto popover and does not
-    # rebuild it. Reopening is what stands the mode up again, and the user is back on
-    # the row they left, since a scope is where focus is and the overlay takes the focus.
+    # page. The expanded shortcut bar stands beside the menu, and the reference is a
+    # modal, so entering it dismisses the menu as the platform dismisses any auto popover
+    # and does not rebuild it. Reopening is what stands the mode up again, and the user is
+    # back on the row they left, since a scope is where focus is and the overlay takes the
+    # focus.
     expect(line).to_contain_text("more")
     page.keyboard.press("?")
     expect(menu).to_be_visible()
@@ -3969,7 +4088,7 @@ def test_thread_travel_keeps_its_passage_above_the_bottom_reading_clearance(
     clear = place_bottom(-4)
     assert clear["clear"] > 0
     page.keyboard.press("t")
-    expect(page.locator(".lf-conversation-thread")).to_be_focused()
+    expect(page.locator(".lf-page-thread")).to_be_focused()
     assert page.evaluate("() => document.scrollingElement.scrollTop") == pytest.approx(
         clear["scroll"], abs=1
     )
@@ -3999,8 +4118,8 @@ def test_a_press_on_a_passage_opens_its_thread_where_it_stands(browser, serve):
     # 10px into the band keeps the line's middle, where the press lands, off the bar.
     covered = place_bottom(10)
     page.mouse.click(*mark_point(page, "lf-mark"))
-    expect(page.locator(".lf-conversation-thread")).to_be_focused()
-    # A trip waits on the conversation refresh before it decides to move, and that same
+    expect(page.locator(".lf-page-thread")).to_be_focused()
+    # A trip waits on the thread refresh before it decides to move, and that same
     # refresh is what writes this card's placement (`scrollToThread`, anchor-travel.js).
     # So the card standing where the pass put it is the edge a travel would have been
     # asked for behind; read the page's own position from there rather than from a hold
@@ -4012,18 +4131,18 @@ def test_a_press_on_a_passage_opens_its_thread_where_it_stands(browser, serve):
     )
 
 
-def test_a_withheld_row_opens_its_card_beside_the_passage(browser, serve):
-    """Without room for a rail, the thread's margin row is withheld and has no box. The
-    card used to stand against that empty box, in the boundary's top corner, over the
-    very words the user had pressed; it stands by the passage instead."""
+def test_a_pinned_row_opens_its_card_clear_of_the_passage(browser, serve):
+    """Without room for a rail, the thread's margin row stands as a pin on its block.
+    The card stands under or over it, never over the very words the user pressed, and
+    leaves once the passage does."""
     page, place_bottom = clearance_page(browser, serve)
     resized(page, 820, 800)
-    expect(page.locator('[data-lf-margin-for="destination"]')).to_have_class(
-        re.compile(r"\blf-withheld\b")
+    expect(page.locator('[data-lf-margin-for="destination"]')).to_have_attribute(
+        "data-lf-place", "pin"
     )
     place_bottom(-560)
     page.mouse.click(*mark_point(page, "lf-mark"))
-    expect(page.locator(".lf-conversation-thread")).to_be_focused()
+    expect(page.locator(".lf-page-thread")).to_be_focused()
     boxes = page.evaluate(
         """() => {
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
@@ -4036,13 +4155,14 @@ def test_a_withheld_row_opens_its_card_beside_the_passage(browser, serve):
         f"the card spans {card[0]:.0f}\u2013{card[1]:.0f} over the pressed words at "
         f"{words[0]:.0f}\u2013{words[1]:.0f}"
     )
-    # The same box decides when the card has outlived its subject. An empty one sits
-    # above the boundary's top edge, so the card read as detached from the first
-    # placement, never recorded that it had ever stood by anything, and so could never
-    # take the dismissal a scroll offers it: at these widths it hung there for the rest
-    # of the page's life. Anchored to the passage, it leaves when the passage does.
+    # The same box decides where the card goes once its subject leaves: it leaves with
+    # the pin, and so the passage.
     page.evaluate("() => document.scrollingElement.scrollBy(0, 900)")
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    rendered(page)
+    assert page.locator(".lf-margin-preview").evaluate(
+        "card => card.getBoundingClientRect().bottom"
+        " <= document.querySelector('.lf-banner').getBoundingClientRect().bottom"
+    )
 
 
 def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
@@ -4056,7 +4176,7 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     So the pair is one exported fact (`PRESS`) and the four rows that named it by hand read
     it: the runtime's control scope, a card grip in both its states, and this row. A link is
     what keeps that fact honest rather than growing into "controls answer two keys" — Enter
-    follows an `<a>` and Space scrolls the page, so the leaves tray binds Enter alone and is
+    follows an `<a>` and Space scrolls the page, so the leaves drawer binds Enter alone and is
     right to."""
     url = serve(INLINE_PAGE)
     _publish(serve.page_dir, 2, INLINE_PAGE, "second")
@@ -4259,7 +4379,7 @@ customElements.define('lf-menu-preparation', class extends HTMLElement {
 
 def test_the_current_page_has_a_menu_local_key(browser, serve):
     """A pinned version stays where the user put it and offers the current page as a chip. The
-    keyboard reaches that chip's destination through the chooser rather than past it: g V
+    keyboard reaches that chip's destination through the picker rather than past it: g V
     opens the menu and its local v takes the live page, by that row's own press, so the key
     leaves through the door the pointer uses and the historical URL stays exact.
 
@@ -4289,10 +4409,11 @@ def test_the_current_page_has_a_menu_local_key(browser, serve):
 
     # The first press opens and goes nowhere. A whole tick passes before the reading,
     # which is far longer than a navigation would take to start.
+    pinned = page.url
     open_versions(page)
     expect(menu).to_be_visible()
     ticked(page)
-    assert page.url.endswith("pin"), "the press that opens the menu navigated"
+    assert page.url == pinned, "the press that opens the menu navigated"
 
     # Walk off the version being read, so the row under the focus is not the current one and
     # not the one this press takes.
@@ -4446,10 +4567,10 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
 
     # The closed face keeps its stable address while the comparison remains in the
     # control's accessible name and active treatment.
-    chooser = page.locator(".lf-version")
-    expect(chooser).to_have_text("v3")
-    expect(chooser).to_have_class(re.compile(r"\bon\b"))
-    expect(chooser).to_have_attribute(
+    picker = page.locator(".lf-version")
+    expect(picker).to_have_text("v3")
+    expect(picker).to_have_class(re.compile(r"\bon\b"))
+    expect(picker).to_have_attribute(
         "aria-label", "v3: comparing with v1; open versions"
     )
     banner_control(page, ".lf-version").click()
@@ -4469,9 +4590,9 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     # Pressing the standing base again is the way off, and clears the marks and state.
     page.locator('.lf-version-diff[data-lf-version="1"]').click()
     expect(page.locator(".lf-ins-block")).to_have_count(0)
-    expect(chooser).to_have_text("v3")
-    expect(chooser).not_to_have_class(re.compile(r"\bon\b"))
-    expect(chooser).to_have_attribute("aria-label", "v3: open versions")
+    expect(picker).to_have_text("v3")
+    expect(picker).not_to_have_class(re.compile(r"\bon\b"))
+    expect(picker).to_have_attribute("aria-label", "v3: open versions")
 
     # Compare is still reachable by keyboard, a Tab off the row it belongs to, and still the
     # toggle the pointer presses.
@@ -4636,12 +4757,14 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
     expect(outlet).to_have_count(1)
     expect(outlet.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator("#lf-composer-quote")).to_contain_text("§ app.py · file")
-    page.locator(".lf-fab-input").fill("Review this file as a whole.")
+    write(page.locator(".lf-fab-input"), "Review this file as a whole.")
     with sending(page, "the comment on the unloaded file"):
         page.keyboard.press("ControlOrMeta+Enter")
 
     comments = [
-        event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
     ]
     assert [comment["anchor"] for comment in comments] == [
         {
@@ -4651,11 +4774,11 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
             "source_revision": revision,
         }
     ]
-    expect(outlet.locator(".lf-conversation-thread")).to_contain_text(
+    expect(outlet.locator(".lf-page-thread")).to_contain_text(
         "Review this file as a whole."
     )
-    expect(outlet.locator(".lf-conversation-thread")).to_be_focused()
-    expect(outlet.locator(".lf-conversation-thread textarea")).not_to_be_focused()
+    expect(outlet.locator(".lf-page-thread")).to_be_focused()
+    expect(outlet.locator(".lf-page-thread leaf-text")).not_to_be_focused()
     expect(details).not_to_have_attribute("open", "")
     expect(page.locator("lf-diff [data-line-type]")).to_have_count(0)
     page.locator(".lf-threads-toggle").click()
@@ -4745,11 +4868,11 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
 
     page.evaluate("() => document.activeElement?.blur()")
     page.keyboard.press("s")
-    expect(page.locator(".lf-target-chooser-hint")).not_to_have_count(0)
+    expect(page.locator(".lf-target-picker-hint")).not_to_have_count(0)
     datum_hint = added.evaluate(
         """line => {
           const box = line.getBoundingClientRect();
-          return [...document.querySelectorAll('.lf-target-chooser-hint')]
+          return [...document.querySelectorAll('.lf-target-picker-hint')]
             .sort((left, right) => {
               const a = left.getBoundingClientRect(), b = right.getBoundingClientRect();
               return Math.hypot(a.left - box.left, a.top - box.top)
@@ -4778,7 +4901,7 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     page.emulate_media(media="screen")
     expect(composer_outlet.locator(".lf-fab-bar")).to_be_visible()
     input_.focus()
-    input_.fill("Review the whole added line.")
+    write(input_, "Review the whole added line.")
     input_.evaluate("input => input.setSelectionRange(7, 16)")
     page.evaluate("() => document.querySelector('#patch').threadSurface.update()")
     expect(input_).to_be_focused()
@@ -4788,20 +4911,22 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     ]
     details.evaluate("element => { element.open = false; }")
     expect(composer_outlet).to_have_count(0)
-    expect(page.locator(".lf-fab-input")).to_have_value("Review the whole added line.")
+    expect(page.locator(".lf-fab-input")).to_have_js_property(
+        "value", "Review the whole added line."
+    )
     expect(page.locator(".lf-notice")).to_have_text("Draft kept — g D returns to it")
     details.evaluate("element => { element.open = true; }")
     page.keyboard.press("g")
     page.keyboard.press("Shift+d")
-    expect(composer_outlet.locator(".lf-fab-input")).to_have_value(
-        "Review the whole added line."
+    expect(composer_outlet.locator(".lf-fab-input")).to_have_js_property(
+        "value", "Review the whole added line."
     )
     expect(composer_outlet.locator(".lf-fab-input")).to_be_focused()
     with sending(page, "the comment returned to from the draft"):
         page.keyboard.press("ControlOrMeta+Enter")
     inline = page.locator("lf-diff .lf-diff-thread-outlet")
     expect(inline).to_have_count(1)
-    expect(inline.locator(".lf-conversation-thread")).to_contain_text(
+    expect(inline.locator(".lf-page-thread")).to_contain_text(
         "Review the whole added line."
     )
     alignment = inline.evaluate(
@@ -4845,7 +4970,7 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     expect(added).to_have_class(re.compile(r"\blf-mark-here\b"))
     expect(deleted).not_to_have_class(re.compile(r"\blf-mark-here\b"))
     expect(inline).to_have_count(1)
-    expect(inline.locator("textarea")).to_be_focused()
+    expect(inline.locator("leaf-text")).to_be_focused()
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(0)
     page.get_by_role("button", name="Close threads").click()
     panel_settled(page, False)
@@ -4891,7 +5016,7 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     expect(page.locator("#lf-composer-quote")).to_contain_text("“request.token.id”")
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
-    page.locator(".lf-fab-input").fill("Review this expression.")
+    write(page.locator(".lf-fab-input"), "Review this expression.")
     with sending(page, "the comment on the selected expression"):
         page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator(".lf-thread .lf-quote").nth(1)).to_have_text(
@@ -4899,7 +5024,9 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     )
 
     comments = [
-        event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
     ]
     assert [comment["anchor"] for comment in comments] == [
         {
@@ -4942,6 +5069,76 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
         "quotes => quotes.map(quote => [...quote.classList])"
     )
     assert all("detached" not in classes for classes in quote_classes), quote_classes
+
+
+def test_a_drag_across_a_written_diff_line_is_the_passage_c_comments_on(browser, serve):
+    """A diff written into the page rather than bound to data, and a real drag rather
+    than a range handed to the selection: Chrome keeps the document's selection in the
+    light DOM, so a drag wholly inside the diff's shadow tree reports both its ends at
+    the host, and `isCollapsed` says nothing is selected while the words are painted
+    selected. Read that way, no Comment field rose over the drag and `c` opened a comment
+    on the page with no passage at all. The passage is the composed range the user drew,
+    so the comment carries the words and their neighbours."""
+    patch = (
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        "@@ -1,2 +1,2 @@\n def route(request):\n"
+        '-    return f"legacy:{request.token.id}"\n'
+        '+    return f"tok:{request.token.id}"\n'
+    )
+    url = serve(
+        leaf_page(
+            "written diff",
+            '<h1 id="title">Review</h1>'
+            f'<lf-diff id="patch"><pre>{escape(patch)}</pre></lf-diff>',
+        )
+    )
+    page = open_page(browser, url)
+    page.wait_for_function(
+        "() => document.querySelector('lf-diff.lf-rendered') !== null"
+    )
+    line = page.locator('lf-diff [data-content] [data-line-type="change-addition"]')
+    # Where the phrase's first and last glyphs stand, so the drag starts and ends on them.
+    ends = line.evaluate(
+        """line => {
+          const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+          const nodes = [], starts = [];
+          let flat = '';
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            starts.push(flat.length); nodes.push(node); flat += node.data;
+          }
+          const glyph = offset => {
+            const index = starts.findLastIndex(value => value <= offset);
+            const range = document.createRange();
+            range.setStart(nodes[index], offset - starts[index]);
+            range.setEnd(nodes[index], offset - starts[index] + 1);
+            return range.getBoundingClientRect();
+          };
+          const phrase = 'request.token.id';
+          const start = flat.indexOf(phrase);
+          const first = glyph(start), last = glyph(start + phrase.length - 1);
+          return { x0: first.left + 1, x1: last.right - 1,
+                   y: (first.top + first.bottom) / 2 };
+        }"""
+    )
+    page.mouse.move(ends["x0"], ends["y"])
+    page.mouse.down()
+    page.mouse.move(ends["x1"], ends["y"], steps=6)
+    page.mouse.up()
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.keyboard.press("c")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator("#lf-composer-quote")).to_contain_text("“request.token.id”")
+    write(page.locator(".lf-fab-input"), "Review this expression.")
+    with sending(page, "the comment on the dragged expression"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    [comment] = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert comment["anchor"]["section"] == "patch", comment
+    assert comment["anchor"]["quote"] == "request.token.id", comment
+    assert comment["anchor"].get("prefix", "").endswith("tok:{"), comment
 
 
 @pytest.mark.parametrize("arrived", ["", "#title"], ids=["plain", "fragment"])
@@ -4992,7 +5189,7 @@ def test_back_returns_from_a_thread_a_widget_surface_holds(browser, serve, arriv
 
     page.keyboard.press("t")
     expect(
-        page.locator(f'lf-diff .lf-conversation-thread[data-thread="{root}"]')
+        page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
     ).to_be_focused()
     scroll_settled(page)
     assert page.evaluate("document.scrollingElement.scrollTop") < reading - 1000
@@ -5044,13 +5241,11 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     )
     page = open_page(browser, url, color_scheme=scheme)
     resized(page, 1920, 900)
-    thread = page.locator(
-        f'lf-diff .lf-conversation-thread[data-thread="{root["id"]}"]'
-    )
+    thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root["id"]}"]')
     panel_thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
     expect(thread).to_have_count(1)
     expect(thread).to_have_attribute("open", "")
-    expect(thread.locator("textarea")).to_be_visible()
+    expect(thread.locator("leaf-text")).to_be_visible()
     # The root message's own workflow line, which each surface holds beside its head.
     inline_status = thread.locator(":scope > .lf-thread-root-meta .lf-msg-sending")
     panel_status = panel_thread.locator(":scope > .lf-thread-root-meta .lf-msg-sending")
@@ -5058,6 +5253,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(panel_status).to_have_text("Sent")
     inline_status.evaluate("node => { node.dataset.identityProbe = 'inline'; }")
     panel_status.evaluate("node => { node.dataset.identityProbe = 'panel'; }")
+    record_claim(serve.page_dir)
     with service_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, [root])
     told(page)
@@ -5084,7 +5280,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         """thread => {
           const style = getComputedStyle(thread);
           const outlet = getComputedStyle(thread.parentElement);
-          const reply = getComputedStyle(thread.querySelector('textarea'));
+          const reply = getComputedStyle(thread.querySelector('leaf-text'));
           return {
             card: style.backgroundColor,
             cardBorder: style.borderTopColor,
@@ -5114,11 +5310,17 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
-    note = page.locator("lf-diff .lf-mark-note")
+    note = page.locator(".lf-mark-note")
     expect(note).to_have_count(1)
+    # The commented line stands inside the diff's shadow tree and the note in the
+    # document's chrome, which an id reference cannot join; the reflected relation can.
+    assert note.evaluate(
+        """n => [...document.querySelector('lf-diff').shadowRoot.querySelectorAll('*')]
+            .some(el => el.ariaDetailsElements?.includes(n))"""
+    ), "no line inside the diff names the comment note as its details"
     assert note.evaluate(
         "el => { const r = el.getBoundingClientRect(); return r.width <= 1 && r.height <= 1; }"
-    ), "the shared comment note escaped the shadow theme and painted inside the diff"
+    ), "the resting comment note painted on screen"
     assert note.evaluate("el => getComputedStyle(el).opacity") == "0"
     note.focus()
     expect(note).to_be_focused()
@@ -5140,10 +5342,10 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     # The same draft has two views, across the shadow boundary. An empty Send paints
     # nothing, showing whatever ground it stands on; typing fills the same disc in
     # either view. The press's own box never paints, so the disc is read off ::before.
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     panel_thread.locator(".lf-thread-summary").click()
-    expect(panel_thread.locator("textarea")).to_be_visible()
+    expect(panel_thread.locator("leaf-text")).to_be_visible()
     inline_send = thread.get_by_role("button", name="Send", exact=True)
     panel_send = panel_thread.get_by_role("button", name="Send", exact=True)
     button_face = """button => {
@@ -5169,8 +5371,10 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         send.hover()
         assert send.evaluate(button_face) == quiet
     page.mouse.move(0, 0)
-    thread.locator("textarea").fill("One draft in both views.")
-    expect(panel_thread.locator("textarea")).to_have_value("One draft in both views.")
+    write(thread.locator("leaf-text"), "One draft in both views.")
+    expect(panel_thread.locator("leaf-text")).to_have_js_property(
+        "value", "One draft in both views."
+    )
     expect(inline_send).to_be_enabled()
     expect(panel_send).to_be_enabled()
     ready = inline_send.evaluate(button_face)
@@ -5192,10 +5396,10 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     ring = """(el, compact) => { el.focus();
       const s = getComputedStyle(compact ? el.parentElement : el); return {
       style: s.outlineStyle, width: s.outlineWidth, offset: s.outlineOffset,
-      border: s.borderColor, name: s.getPropertyValue('--lf-here-ring').trim(),
+      border: s.borderColor, name: s.getPropertyValue('--lf-focus-ring').trim(),
     }; }"""
-    band = thread.locator("textarea").evaluate(ring, False)
-    assert band == panel_thread.locator("textarea").evaluate(ring, True)
+    band = thread.locator("leaf-text").evaluate(ring, False)
+    assert band == panel_thread.locator("leaf-text").evaluate(ring, True)
     assert band == {
         "style": "solid",
         "width": "2px",
@@ -5204,9 +5408,9 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         "name": "text-box",
     }
 
-    panel_thread.locator("textarea").fill("")
+    write(panel_thread.locator("leaf-text"), "")
     expect(inline_send).to_be_disabled()
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page, False)
 
     question = events_model.append_event(
@@ -5246,15 +5450,15 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     told(page)
     for view, message_attr in ((thread, "data-event"), (panel_thread, "data-mid")):
         active = view.locator(
-            f'.lf-conversation-msg[{message_attr}="{question["id"]}"] '
+            f'.lf-page-thread-msg[{message_attr}="{question["id"]}"] '
             if message_attr == "data-event"
             else f'.lf-msg[{message_attr}="{question["id"]}"] '
-        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-head) .lf-msg-sending")
+        ).locator(":scope > :is(.lf-page-thread-head, .lf-msg-head) .lf-msg-sending")
         sent = view.locator(
-            f'.lf-conversation-msg[{message_attr}="{followup["id"]}"] '
+            f'.lf-page-thread-msg[{message_attr}="{followup["id"]}"] '
             if message_attr == "data-event"
             else f'.lf-msg[{message_attr}="{followup["id"]}"] '
-        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-head) .lf-msg-sending")
+        ).locator(":scope > :is(.lf-page-thread-head, .lf-msg-head) .lf-msg-sending")
         expect(active).to_have_text("Working")
         expect(active).to_have_attribute(
             "title", "Working · checking the inline placement"
@@ -5266,7 +5470,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         assert view.evaluate("node => getComputedStyle(node).boxShadow") == "none"
 
     strip = thread.locator(
-        f'.lf-conversation-msg[data-event="{reply["id"]}"] .lf-react-strip'
+        f'.lf-page-thread-msg[data-event="{reply["id"]}"] .lf-react-strip'
     )
     trigger = strip.locator(".lf-react-trigger")
     assert trigger.evaluate("b => getComputedStyle(b).opacity") == "0"
@@ -5303,18 +5507,18 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     assert "versions" in shortcut_bar_text(page)
     page.keyboard.press("Escape")
     file.evaluate("details => { details.open = true; }")
-    expect(thread.locator("textarea")).to_be_visible()
+    expect(thread.locator("leaf-text")).to_be_visible()
 
     # Resolve is the thread's own control, and the keyboard reaches it the way it
     # reaches any other: #347 withdrew the page-level `x`, so the route is the PRESS
-    # row the control declares for itself (runtime/conversation/folding.js).
+    # row the control declares for itself (runtime/thread/folding.js).
     resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
     resolve.focus()
     expect(resolve).to_be_focused()
     with sending(page, "the inline keyboard resolution"):
         page.keyboard.press("Enter")
     expect(thread).not_to_have_attribute("open", "")
-    summary = thread.locator(".lf-conversation-summary")
+    summary = thread.locator(".lf-page-thread-summary")
     expect(summary).to_have_text("Resolved · 4 messages")
     summary_box = summary.evaluate(
         """element => {
@@ -5328,8 +5532,8 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     )
     assert summary_box["position"] == "static"
     assert summary_box["paddingLeft"] == summary_box["paddingRight"]
-    expect(thread.locator(".lf-conversation-msg").first).to_be_hidden()
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    expect(thread.locator(".lf-page-thread-msg").first).to_be_hidden()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     # The status narrowing is a group of toggles, so the standing member wears its own
     # pressed state.
@@ -5339,14 +5543,14 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     page.locator(".lf-thread:not([hidden]) .lf-quote").click()
     expect(summary).to_be_focused()
     summary.click()
-    expect(thread.locator(".lf-conversation-msg").first).to_be_visible()
+    expect(thread.locator(".lf-page-thread-msg").first).to_be_visible()
 
     with sending(page, "the inline reopening"):
         thread.get_by_role("button", name="Reopen", exact=True).click()
     expect(thread).to_have_attribute("open", "")
-    expect(thread.locator(".lf-conversation-summary")).to_be_hidden()
-    expect(thread.locator("textarea")).to_be_visible()
-    thread.locator("textarea").fill("Confirmed from the inline thread.")
+    expect(thread.locator(".lf-page-thread-summary")).to_be_hidden()
+    expect(thread.locator("leaf-text")).to_be_visible()
+    write(thread.locator("leaf-text"), "Confirmed from the inline thread.")
     with sending(page, "the inline reply"):
         thread.get_by_role("button", name="Send", exact=True).click()
     sent = events_model.read_events(serve.page_dir)[-1]
@@ -5402,7 +5606,7 @@ def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
     page = open_page(browser, url)
     patch_tab = page.locator("#patch-tab")
     expect(patch_tab).to_have_attribute("hidden", re.compile(".*"))
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     page.locator(".lf-thread-summary").click()
     quote = page.locator(".lf-threads > .lf-thread .lf-quote")
@@ -5530,7 +5734,7 @@ def test_a_deferred_diff_loads_only_opened_files_and_hydrates_comment_travel(
 
     if activation == "keyboard":
         resized(page, 400, 900)
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     page.locator(".lf-thread-summary").click()
     quote = page.locator(".lf-threads > .lf-thread .lf-quote")
@@ -5549,7 +5753,7 @@ def test_a_deferred_diff_loads_only_opened_files_and_hydrates_comment_travel(
     second = page.locator('lf-diff [data-lf-datum=\'["second.py","new",1]\']')
     expect(second).to_be_in_viewport()
     expect(page.locator("lf-diff .lf-diff-thread-outlet")).to_have_count(1)
-    reply = page.locator("lf-diff .lf-diff-thread-outlet textarea")
+    reply = page.locator("lf-diff .lf-diff-thread-outlet leaf-text")
     if superseded:
         expect(search).to_be_focused()
         quote.click()
@@ -5563,7 +5767,7 @@ def test_a_deferred_diff_loads_only_opened_files_and_hydrates_comment_travel(
     details.evaluate("element => { element.open = false; }")
     expect(reply).to_have_count(0)
     if activation == "keyboard":
-        page.get_by_role("button", name=re.compile("^Threads")).click()
+        page.locator(".lf-threads-toggle").click()
         panel_settled(page, True)
     quote.focus()
     page.keyboard.press("Enter")
@@ -5792,7 +5996,7 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
 
     page = open_page(browser, url)
     page.route("**/api/deferred*", refuse)
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     page.locator(".lf-thread-summary").click()
     page.locator(".lf-threads > .lf-thread .lf-quote").click()
@@ -5827,17 +6031,17 @@ def test_shadow_staging_replaces_all_nodes_without_disturbing_a_retained_editor(
           const host = document.querySelector('lf-diff');
           const input = document.createElement('input');
           input.value = 'draft reply';
-          shadowStage(host, [
-            document.createTextNode('old reading'),
-            document.createComment('old stage'),
-            input,
-          ]);
+          const old = document.createElement('p');
+          old.textContent = 'old reading';
+          shadowStage(host, [old, document.createComment('old stage'), input]);
           input.focus();
           input.setSelectionRange(2, 5);
-          shadowStage(host, [document.createTextNode('new reading'), input]);
+          const next = document.createElement('p');
+          next.textContent = 'new reading';
+          shadowStage(host, [next, input]);
           return {
             text: [...host.shadowRoot.childNodes]
-              .filter(node => node.nodeType === Node.TEXT_NODE)
+              .filter(node => node.localName === 'p')
               .map(node => node.textContent),
             comments: [...host.shadowRoot.childNodes]
               .filter(node => node.nodeType === Node.COMMENT_NODE).length,
@@ -5854,6 +6058,28 @@ def test_shadow_staging_replaces_all_nodes_without_disturbing_a_retained_editor(
         "value": "draft reply",
         "selection": [2, 5],
     }
+
+
+def test_passage_range_spanning_shadow_root_children_reads_the_stage(browser, serve):
+    page = open_page(browser, serve(DIFF_PAGE))
+    result = page.evaluate(
+        """async () => {
+          const {shadowStage} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {rangeAnchor} = await window.__lfRuntimeImport('/runtime/composing/capture.js');
+          const host = document.querySelector('lf-diff');
+          const first = document.createElement('p');
+          first.textContent = 'first';
+          const last = document.createElement('p');
+          last.textContent = 'last';
+          shadowStage(host, [first, last]);
+          const range = document.createRange();
+          range.setStart(first.firstChild, 0);
+          range.setEnd(last.firstChild, last.firstChild.length);
+          return rangeAnchor(range);
+        }"""
+    )
+    assert result["section"] == "patch"
+    assert result["quote"] == "first last"
 
 
 def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
@@ -5894,16 +6120,21 @@ def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
     )
     told(page)
     expect(row).to_have_class(marked)
-    expect(row).to_contain_text("1 comment")
+    notes = """(count) => {
+        const row = document.getElementById('patch').shadowRoot.getElementById('row');
+        return (row.ariaDetailsElements ?? []).length === count;
+    }"""
+    page.wait_for_function(notes, arg=1)
+    assert row.evaluate("el => el.ariaDetailsElements[0].textContent") == "1 comment"
 
-    # Resolved, so the next repaint has nothing to say here: the count line has to go,
-    # and it can only go if the sweep that clears it enters the tree that holds it.
+    # Resolved, so the next repaint has nothing to say here: the count has to go, and
+    # it can only go if the sweep that clears it reaches the tree that holds the row.
     events_model.append_event(
         d, {"kind": "resolve", "author": "user", "parent": "c-staged"}
     )
     told(page)
     expect(row).not_to_have_class(marked)
-    expect(row).not_to_contain_text("comment")
+    page.wait_for_function(notes, arg=0)
 
 
 # The runtime's whole visible vocabulary for "somebody has said something about these
@@ -5986,13 +6217,11 @@ def test_every_mark_the_layer_paints_on_words_is_seen_against_the_paper(
 
     The wash cannot be that notice, and no alpha can make it one: --mark composites to
     1.13:1 over the light paper, and its hue does not reach 1.5:1 against that paper at
-    any alpha at all — opaque it stands at 1.38:1. So the layer marks words the way it
-    marks elements, with a line: an element anchor wears a --mark-ink contour at 9:1
-    (.lf-visual-mark), and a passage wears the same ink as an underline.
+    any alpha at all — opaque it stands at 1.38:1. So the layer marks words with a line:
+    a passage wears --mark-ink as an underline, at 9:1.
 
-    A reaction had the element half of that pair and not the text half. On words it was
-    --react alone, 1.08:1 over the light paper — a mark that is in the log and not on the
-    screen. Both names are read here.
+    A reaction on words was once --react alone, 1.08:1 over the light paper — a mark that
+    is in the log and not on the screen. Both names are read here.
 
     Read off the drawn page rather than off the rules, because what a highlight pseudo is
     allowed to carry is the browser's to decide and a declaration that stopped applying

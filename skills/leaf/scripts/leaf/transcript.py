@@ -9,50 +9,29 @@ from leaf.event_log import follow_events, jsonl_line, read_events
 from leaf.events import build_threads, is_reaction, standing_approvals, taken_back
 from leaf.files import latest_revision, revision_label
 from leaf.gesture_words import GestureWords, revisions_on_disk
-from leaf.passages import active_enclosing, enclosing_of, spoken
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.storage import active_registry
-from leaf.structure import parse_revision
-from leaf.thread_context import (
-    thread_memberships,
-    thread_roots,
-    thread_structure,
-    thread_widgets,
-)
+from leaf.revision_artifact import read_revision
+from leaf.schema import agent_name
 
 
-def cmd_events(page_dir: Path, after: int, conversation: str | None = None) -> None:
-    events = read_events(page_dir)
-    if conversation is not None:
-        within = active_enclosing(page_dir)
-        threads = build_threads(events, within)
-        if conversation not in threads:
-            sys.exit(f"unknown conversation id {conversation!r}")
-        roots = thread_roots(events)
-        structure = thread_structure(events)
-        memberships = thread_memberships(
-            events,
-            roots,
-            thread_widgets(structure, roots),
-            within,
-        )
-        events = [event for event in events if conversation in memberships[event["id"]]]
-    for event in events:
-        if event["seq"] > after:
-            print(jsonl_line(event))
+def cmd_events(page_dir: Path, after: int, *, follow: bool = False) -> None:
+    """Print each event after `after` as the log reads back, and with `follow` each
+    one appended from then on, until stopped.
 
-
-def cmd_follow_events(page_dir: Path, after: int) -> None:
-    """Print each event after `after`, then each one appended, until stopped.
-
-    A follower is stopped by its consumer, so a stop is the ordinary end rather
-    than a failure: SIGINT and SIGTERM exit 0, and so does a reader that goes away,
-    after which nothing more can be said to it. Each line is flushed as it is
-    printed, since a follower's stdout is a pipe whose reader waits on that line.
+    A reader that goes away is the ordinary end rather than a failure, whether
+    `head` closed the pipe or a follower's consumer stopped it: SIGINT, SIGTERM, and
+    a closed stdout all exit 0. Each line is flushed as it is printed, since a
+    follower's stdout is a pipe whose reader waits on that line.
     """
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    records = (
+        follow_events(page_dir, after)
+        if follow
+        else (event for event in read_events(page_dir) if event["seq"] > after)
+    )
     try:
-        for event in follow_events(page_dir, after):
+        for event in records:
             print(jsonl_line(event), flush=True)
     except KeyboardInterrupt:
         sys.exit(0)
@@ -85,7 +64,7 @@ def _revision_title(page_dir: Path) -> tuple[int | None, str]:
     title = ""
     revision = latest_revision(page_dir)
     if revision is not None:
-        title = parse_revision(page_dir, revision).title.strip()
+        title = read_revision(page_dir, revision).document.title.strip()
     return revision, title
 
 
@@ -149,7 +128,7 @@ def _print_edits(page_dir: Path, events: list, registry: dict) -> None:
                 )
 
 
-def _published_reading(
+def _published_within(
     page_dir: Path,
     registry: dict,
     revision: int | None,
@@ -158,7 +137,7 @@ def _published_reading(
     # transcript is an account of. A page with no valid revision has no reading.
     if revision is None:
         return {}
-    return spoken(parse_revision(page_dir, revision), registry)
+    return read_revision(page_dir, revision).under(registry).within
 
 
 def _thread_heading(thread: dict) -> str:
@@ -181,14 +160,14 @@ def _thread_heading(thread: dict) -> str:
     if closed and closed["author"] == "agent":
         # Named where the user was not the one who closed it. A transcript is
         # read away from the page, so the panel's own line saying so is not in it.
-        head += "  — resolved by " + closed.get("agent", "Agent")
+        head += "  — resolved by " + agent_name(closed)
     elif closed:
         head += "  — resolved"
     return head
 
 
 def _print_message(message: dict, registry: dict) -> None:
-    who = message.get("agent", "Agent") if message["author"] == "agent" else "User"
+    who = agent_name(message) or "User"
     if is_reaction(message):
         # A mark rather than a turn: the token's glyph and word, plus an explanation
         # only when the page's package deliberately supplied one.
@@ -208,8 +187,8 @@ def _print_message(message: dict, registry: dict) -> None:
     print(f"- **{who}**{edited}: " + body.replace("\n", "\n  "))
 
 
-def _print_threads(events: list, spk: dict, registry: dict) -> None:
-    threads = build_threads(events, enclosing_of(spk))
+def _print_threads(events: list, within: dict, registry: dict) -> None:
+    threads = build_threads(events, within)
     if threads:
         print("\n### Threads\n")
     for thread in threads.values():
@@ -232,6 +211,6 @@ def cmd_transcript(page_dir: Path) -> None:
     print(f"## Leaf: {title or page_dir.name}")
     _print_versions(events)
     _print_edits(page_dir, events, registry)
-    spk = _published_reading(page_dir, registry, revision)
-    _print_threads(events, spk, registry)
+    within = _published_within(page_dir, registry, revision)
+    _print_threads(events, within, registry)
     _print_approvals(events)

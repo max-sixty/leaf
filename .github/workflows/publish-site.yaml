@@ -18,14 +18,19 @@ on:
       - 'bin/leaf'
       - 'pyproject.toml'
       - 'uv.lock'
-      - 'example-previews.json'
-      - 'scripts/example_data.py'
-      - 'scripts/example_assets.py'
-      - 'scripts/page_fixtures.py'
-      - 'scripts/preview.py'
-      - 'scripts/site.py'
-      - 'scripts/verify-site-local.sh'
-      - 'scripts/verify_site.py'
+      - 'leaf-assets.json'
+      - 'dev/pyproject.toml'
+      - 'dev/leaf_dev/__init__.py'
+      - 'dev/leaf_dev/browser.py'
+      - 'dev/leaf_dev/harness.py'
+      - 'dev/leaf_dev/example_data.py'
+      - 'dev/leaf_dev/leaf_assets.py'
+      - 'dev/leaf_dev/page_fixtures.py'
+      - 'dev/leaf_dev/preview.py'
+      - 'dev/leaf_dev/site.py'
+      - 'dev/leaf_dev/cli.py'
+      - 'dev/leaf_dev/verify_site.py'
+      - 'dev/leaf_dev/verify_site_browser.js'
       - 'worker/**'
       - 'Dockerfile.website'
       - '.github/workflows/publish-site.yaml'
@@ -70,7 +75,7 @@ jobs:
         run: |
           release=$(printf '%s:%s:%s' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" | sha256sum | cut -d' ' -f1)
           echo "LEAF_SITE_RELEASE=$release" >> "$GITHUB_ENV"
-          LEAF_SITE_RELEASE="$release" uv run scripts/site.py
+          LEAF_SITE_RELEASE="$release" uv run leaf-dev site
 
       - run: npm run typecheck
         working-directory: worker
@@ -81,7 +86,7 @@ jobs:
       # Exercise the bundled graph through the same Worker and container boundary
       # before a deployment can make it public.
       - name: Verify the bundled release locally in Chrome
-        run: scripts/verify-site-local.sh
+        run: uv run leaf-dev verify-site wrangler
 
       - name: Build and push the exact container image
         working-directory: worker
@@ -117,8 +122,8 @@ jobs:
         run: |
           release=$(jq --raw-output .release .tmp/site/_leaf/site.json)
           deadline=$(( SECONDS + 900 ))
-          until uv run scripts/verify_site.py --release "$release"; do
+          until uv run leaf-dev verify-site --release "$release"; do
             (( SECONDS < deadline )) || exit 1
             sleep 10
           done
-          uv run scripts/verify_site.py --agent --release "$release"
+          uv run leaf-dev verify-site --agent --release "$release"

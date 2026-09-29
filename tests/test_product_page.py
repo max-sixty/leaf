@@ -1,11 +1,11 @@
 """The product pages are Leaf documents using the site's composed vocabulary."""
 
 import html
-import importlib.util
 import json
 import re
 import shlex
 import subprocess
+import sys
 from pathlib import Path
 
 import click
@@ -17,12 +17,12 @@ from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf.registry import validation as registry_validation
 from leaf.registry.contract import event_clauses
 from leaf.registry.storage import active_registry
 from leaf.structure import SourceDocument
 from leaf.validation import compatibility as validation_model
+from leaf_dev import record_demo
 from PIL import Image
 
 ROOT = Path(__file__).parent.parent
@@ -31,12 +31,6 @@ DEFAULT_PACKAGE = ROOT / "skills" / "leaf" / "packages" / "default"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
-
-_record_demo_spec = importlib.util.spec_from_file_location(
-    "record_demo", ROOT / "scripts" / "record-demo.py"
-)
-record_demo = importlib.util.module_from_spec(_record_demo_spec)
-_record_demo_spec.loader.exec_module(record_demo)
 
 
 def test_kernel_event_contracts_declare_closed_records():
@@ -193,11 +187,11 @@ def test_how_it_works_quotes_the_real_check_and_stamp_lines(page_dir):
     """Both lines the transcript shows an agent, taken from the commands themselves.
 
     A shown line is a promise about what the user will see. The changelog is the
-    page's own, so the stamp line is generated here with the transcript's text
-    rather than pattern-matched — a renamed field or a changed separator has to be
-    written into the page before this passes again.
+    page's own, so the stamp record is generated here with the transcript's text and
+    compared field by field: a renamed or added field has to be written into the page
+    before this passes again. Only the record's identity and time differ per run.
     """
-    checked = CliRunner().invoke(cli_model.cli, ["version", "check", str(page_dir)])
+    checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert checked.exit_code == 0, checked.output
     success = next(
         line for line in checked.output.splitlines() if line.startswith("✓ index.html:")
@@ -205,19 +199,27 @@ def test_how_it_works_quotes_the_real_check_and_stamp_lines(page_dir):
 
     changelog = "Two ways to shed load — which?"
     stamped = CliRunner().invoke(
-        cli_model.cli, ["version", "stamp", str(page_dir), "--text", changelog]
+        cli_model.cli, ["page", "stamp", str(page_dir), "--text", changelog]
     )
     assert stamped.exit_code == 0, stamped.output
 
     transcript = html.unescape((DOCS / "how-it-works.html").read_text())
     assert success in transcript
-    assert stamped.output.strip() in transcript
+    lines = transcript.splitlines()
+    command = next(i for i, line in enumerate(lines) if "$ leaf page stamp" in line)
+    shown = json.loads(lines[command + 1])
+    record = json.loads(stamped.output)
+    assert shown.keys() == record.keys()
+    per_run = {"id", "ts", "session", "agent"}
+    assert {k: v for k, v in shown.items() if k not in per_run} == {
+        k: v for k, v in record.items() if k not in per_run
+    }
 
 
 def test_how_it_works_delivery_has_the_shape_a_real_delivery_has(page_dir):
     """The captured envelope is hand-copied, so it carries what a delivery carries now.
 
-    A batch names each conversation its events land in, with that conversation's
+    A batch names each thread its events land in, with that thread's
     metadata, and the page's sample once kept an empty list beside a comment that
     opened one. The entry keys are read off a delivery frozen here rather than
     listed, so a field the envelope gains has to be written into the page too. Each
@@ -234,32 +236,30 @@ def test_how_it_works_delivery_has_the_shape_a_real_delivery_has(page_dir):
     with service_model.PageTransaction(page_dir) as page:
         stored = next(event for event in page.events if event["id"] == comment["id"])
         real = delivery_model.freeze_delivery(
-            [delivery_model.batch_data(page_dir, page, [stored])],
-            carrier="wait",
-            acknowledge=session_model.wait_acknowledgement(None),
+            [delivery_model.batch_data(page_dir, page, [stored])], carrier="hook"
         )
-    # The transcript is Claude Code's direct loop, so its acknowledgement is the
-    # one `leaf wait` writes there, addressed to the envelope's own id.
+    # The transcript is Claude Code's loop, whose prompt hook carries the delivery
+    # and confirms it, so nothing is left for the agent to acknowledge.
     assert shown.keys() == real.keys()
-    assert shown["carrier"] == real["carrier"]
-    assert shown["acknowledge"] == real["acknowledge"].replace(real["id"], shown["id"])
+    assert (shown["carrier"], shown["acknowledge"]) == ("hook", None)
+    assert real["acknowledge"] is None
     [real_batch] = real["batches"]
-    (real_conversation,) = real_batch["conversations"]
+    (real_thread,) = real_batch["threads"]
     registry = active_registry(page_dir)
 
     for batch in shown["batches"]:
         assert batch.keys() == real_batch.keys()
-        named = [c for event in batch["events"] for c in event["conversations"]]
-        assert [c["id"] for c in batch["conversations"]] == list(dict.fromkeys(named))
-        for conversation in batch["conversations"]:
-            assert conversation.keys() == real_conversation.keys()
-        digests = {c["id"]: c for c in batch["conversations"]}
+        named = [c for event in batch["events"] for c in event["threads"]]
+        assert [c["id"] for c in batch["threads"]] == list(dict.fromkeys(named))
+        for thread in batch["threads"]:
+            assert thread.keys() == real_thread.keys()
+        digests = {c["id"]: c for c in batch["threads"]}
         for event in batch["events"]:
             shown_clauses = [batch["handling"][h] for h in event["handling"]]
-            # A clause reads the event's conversation beside the event.
+            # A clause reads the event's thread beside the event.
             case = dict(event)
-            if event["conversations"]:
-                case["conversation"] = digests[event["conversations"][0]]
+            if event["threads"]:
+                case["thread"] = digests[event["threads"][0]]
             told = event_clauses(case, registry)
             delivered = [c["text"] for c in told]
             assert shown_clauses == delivered, event["id"]
@@ -279,7 +279,7 @@ def code_block(source: str, block_id: str) -> str:
 
 def shown_log(records: list[dict]) -> str:
     """Stored records as the event-log page prints them: each record's JSON as
-    `leaf events` writes it, broken before and after each object-valued field and
+    `leaf page events` writes it, broken before and after each object-valued field and
     before `id`, so a record reads in a few lines rather than one wide one. An
     object too long for one line puts each of its members on a line of its own."""
     width = 96
@@ -310,22 +310,22 @@ def shown_log(records: list[dict]) -> str:
 
 
 def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
-    """The page's log was captured from its own specimen driven in a browser. The
+    """The page's log was captured from its own sample driven in a browser. The
     commands it records go back through the append door on the same markup, and
     what the door stores now has to be what the page shows, `id` and `ts` aside.
     A changed field, meaning, or refusal fails here with the records to paste."""
     source = EVENT_LOG.read_text()
     template = re.search(
-        r'<template id="try-page" data-specimen>(.*?)</template>', source, re.DOTALL
+        r'<template id="try-page" data-sample>(.*?)</template>', source, re.DOTALL
     )
     assert template
     (page_dir / "index.html").write_text(
         '<!doctype html><html lang="en"><head><title>Release question</title>'
-        '<meta name="description" content="The specimen."></head>'
+        '<meta name="description" content="The sample."></head>'
         f"<body><main>{template.group(1)}</main></body></html>"
     )
     stamped = CliRunner().invoke(
-        cli_model.cli, ["version", "stamp", str(page_dir), "--text", "v1"]
+        cli_model.cli, ["page", "stamp", str(page_dir), "--text", "v1"]
     )
     assert stamped.exit_code == 0, stamped.output
 
@@ -541,7 +541,7 @@ def test_demo_waiter_preserves_the_reason_a_wait_delivered_nothing():
 
     with pytest.raises(
         RuntimeError,
-        match="the demo waiter exited 2 with 0 page batches instead of one\\n"
+        match="the demo waiter exited 2 without one batch of user events\\n"
         "the page closed while waiting",
     ):
         waiter.receive()
@@ -549,25 +549,25 @@ def test_demo_waiter_preserves_the_reason_a_wait_delivered_nothing():
 
 @pytest.mark.nightly
 def test_demo_recording_drives_the_browser_journey(tmp_path):
-    output = tmp_path / "demo.gif"
+    output = tmp_path / "demo"
     # Not check=True: with the streams captured, the CalledProcessError it raises
     # names the command and the exit status and takes both of them down with it,
     # so a browser step that timed out and a server that never bound report the
     # same nothing. This is `open_page`'s complaint about "Failed to load
     # resource" one file over — carry what failed into the failure.
     recorded = subprocess.run(
-        [ROOT / "scripts" / "record-demo.sh", "--output", output],
+        [sys.executable, "-m", "leaf_dev", "record-demo", "--output", output],
         capture_output=True,
         text=True,
         check=False,
     )
 
     assert recorded.returncode == 0, (
-        f"record-demo.sh exited {recorded.returncode}\n"
+        f"leaf-dev record-demo exited {recorded.returncode}\n"
         f"{recorded.stdout}{recorded.stderr}".rstrip()
     )
     assert recorded.stdout.strip() == f"Recorded {output}"
-    assert output.read_bytes().startswith(b"GIF89a")
+    assert (output / "demo.gif").read_bytes().startswith(b"GIF89a")
     # One staged scene, photographed for each surface that shows it: the landing
     # page's figure in both schemes, and the card, at the 1.91:1 an unfurler draws.
     # Shot at that shape rather than cropped to it, so the banner survives the trip.
@@ -576,5 +576,5 @@ def test_demo_recording_drives_the_browser_journey(tmp_path):
         ("session-dark.png", (1280, 953)),
         ("session-card.png", (1200, 630)),
     ):
-        with Image.open(output.parent / name) as still:
+        with Image.open(output / name) as still:
             assert still.size == size, name

@@ -9,11 +9,15 @@ import shutil
 import subprocess
 import sys
 import threading
+from datetime import datetime
+from fnmatch import fnmatchcase
 from pathlib import Path
 
 import playwright
 import pytest
 import tinycss2
+import tomllib
+import yaml
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND, PagePool
 from interact_support import (
@@ -21,6 +25,7 @@ from interact_support import (
     PAGE_PACKAGES,
     PLUGIN_ROOT,
     ROOT,
+    SHIPPED_PACKAGES,
     SKILL_ROOT,
     add_test_widget,
     case_alias,
@@ -34,6 +39,7 @@ from interact_support import (
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
+from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import hooks as hooks_model
@@ -42,36 +48,35 @@ from leaf import locations as interact_locations
 from leaf import machine as machine_model
 from leaf import packages as packages_model
 from leaf import schema as schema_model
-from leaf import session as session_model
 from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
+from leaf.registry import contract as registry_contract
 from leaf.registry import reactions as registry_reactions
 from leaf.registry import storage as registry_storage
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
-from page_fixtures import package_selection_args
+from leaf_dev.page_fixtures import package_selection_args
 
-EXPECTED_PAGE_STATE_FILES = (
-    "events.jsonl",
-    "status.json",
-    "data.json",
-    "waiter.lock",
-    "cursor.json",
-    "viewed.json",
-    "service.json",
-    "server.lock",
-    "preview.json",
-)
-EXPECTED_PAGE_DIRECTORIES = (
-    "revisions",
-    "runtime",
-    "widgets",
-    "vendor",
-    "guidance",
-    "media",
-    "data",
-    "page",
-)
+
+def storage_contract() -> tuple[list[str], list[str]]:
+    """The files and directories page-storage.md's "Files" section puts in a page.
+
+    Each entry is a bullet opening on its name in a code span; a name beneath a
+    directory (`revisions/rN-H.html`) is that directory's entry. A virtual address
+    (`/versions/…`) and state kept outside the page (`<state-home>/…`) are not in it.
+    """
+    text = (SKILL_ROOT / "scripts" / "leaf" / "page-storage.md").read_text()
+    section = text.split("\n## Files\n", 1)[1].split("\n## ", 1)[0]
+    files, directories = set(), set()
+    for name in re.findall(r"^- `([^`]+)`", section, re.MULTILINE):
+        if name.startswith(("/", "<")):
+            continue
+        head, beneath, _ = name.partition("/")
+        (directories if beneath else files).add(head)
+    return sorted(files), sorted(directories)
+
+
+STORAGE_FILES, STORAGE_DIRECTORIES = storage_contract()
 
 
 def test_cli_help_groups_commands_with_complete_summaries(regtest):
@@ -82,8 +87,8 @@ def test_cli_help_groups_commands_with_complete_summaries(regtest):
         "package": ["package", "--help"],
         "package-init": ["package", "init", "--help"],
         "page": ["page", "--help"],
-        "version": ["version", "--help"],
         "server": ["server", "--help"],
+        "thread": ["thread", "--help"],
     }
     outputs = []
 
@@ -127,19 +132,17 @@ def test_agent_interaction_command_help(regtest):
     outputs = []
     for command in (
         "wait",
-        "delivery claim",
         "delivery read",
         "page state",
-        "conversation read",
-        "conversation summarize",
-        "conversation title",
+        "thread summarize",
         "status",
-        "comment",
-        "reply",
-        "resolve",
-        "receipt",
-        "version check",
-        "version stamp",
+        "thread open",
+        "thread reply",
+        "thread edit",
+        "thread resolve",
+        "page report",
+        "page check",
+        "page stamp",
     ):
         result = CliRunner().invoke(
             cli_model.cli,
@@ -163,13 +166,20 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     def record(args, code):
         result = runner.invoke(cli_model.cli, args, prog_name="leaf")
         assert result.exit_code == code, result.output
-        text = f"$ leaf {' '.join(args)}\nexit: {code}\n{result.output}"
+        output = result.output
+        if code == 0:
+            # A write prints its record; its own id and time differ each run.
+            output = "".join(
+                json.dumps({key: record[key] for key in ("kind", "parent")}) + "\n"
+                for record in map(json.loads, output.splitlines())
+            )
+        text = f"$ leaf {' '.join(args)}\nexit: {code}\n{output}"
         text = text.replace(str(page), "/page")
         for number, event_id in enumerate(ids, 1):
             text = text.replace(event_id, f"user-{number}")
         outputs.append(text)
 
-    record(["reply", str(page), "--text", "Answer"], 1)
+    record(["thread", "reply", str(page), "--text", "Answer"], 1)
     for text in ("Why this plan?", "What will it cost?"):
         code, response = fetch(
             f"{server}/api/event",
@@ -177,17 +187,16 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
         )
         assert code == 200, response
         ids.append(events_model.read_events(page)[-1]["id"])
-    delivery = runner.invoke(cli_model.cli, ["wait", str(page)])
-    assert delivery.exit_code == 0, delivery.output
-    assert len(json.loads(delivery.output)["batches"][0]["events"]) == 2
-    session_model.receive_delivery(json.loads(delivery.output)["id"])
-    record(["reply", str(page), "--text", "Answer"], 1)
-    record(["reply", str(page), "--to", ids[0], "--text", "Answer"], 1)
-    record(["reply", str(page), "--for", ids[0], "--text", "Answer"], 0)
-    record(["reply", str(page), "--for", ids[0], "--text", "Answer"], 1)
-    record(
-        ["reply", str(page), "--to", ids[0], "--initiates", "--text", "Follow-up"], 0
-    )
+    woke = runner.invoke(cli_model.cli, ["wait", str(page)])
+    assert woke.exit_code == 0, woke.output
+    assert "has new input" in woke.output
+    [batch] = delivery_model.take_input("s1")["batches"]
+    assert len(batch["events"]) == 2
+    record(["thread", "reply", str(page), "--text", "Answer"], 1)
+    record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 1)
+    record(["thread", "reply", str(page), "--for", ids[0], "--text", "Answer"], 0)
+    record(["thread", "reply", str(page), "--for", ids[0], "--text", "Answer"], 1)
+    record(["thread", "reply", str(page), ids[0], "--text", "Follow-up"], 0)
     # A page reaction can close without an answer: it never owed a reply.
     code, response = fetch(
         f"{server}/api/event",
@@ -195,8 +204,8 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     )
     assert code == 200, response
     ids.append(events_model.read_events(page)[-1]["id"])
-    record(["reply", str(page), "--for", ids[-1], "--text", "Answer"], 1)
-    record(["resolve", str(page), "--to", ids[-1]], 0)
+    record(["thread", "reply", str(page), "--for", ids[-1], "--text", "Answer"], 1)
+    record(["thread", "resolve", str(page), ids[-1]], 0)
     regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
 
 
@@ -260,57 +269,47 @@ def test_the_python_instructions_name_every_module_they_own():
     assert not unnamed, f"unnamed in scripts/AGENTS.md: {unnamed}"
 
 
-def test_the_root_instructions_name_every_directory_ci_gates_on_its_own():
-    """A gate `uv run pytest tests` does not reach must be named where sessions read.
+def shell_commands(script):
+    """The simple commands of a hook or step script, split at newlines and `&&`."""
+    return [c.strip() for c in re.split(r"\n|&&", script) if c.strip()]
 
-    `ci.yaml` runs one job per gate, and a step that names a `working-directory`
-    is a gate with its own tools and its own command — the website Worker's
-    TypeScript today. Neither the suite nor pre-commit reaches such a tree, and
-    `wt merge` runs only those two, so a session that lands there on the root
-    instructions alone reddens main. The set comes from the workflow rather than
-    a list here, for the reason the reference routing above states: a list is the
-    second copy, and the job added without the paragraph would stay green.
+
+def test_wt_merge_runs_every_npm_gate_ci_runs():
+    """Each npm gate CI runs, the direct landing path runs in the same directory.
+
+    Neither the suite nor pre-commit reaches the TypeScript under `worker/src/` and
+    `build/browser/`, so a `wt merge` that skipped one of their gates would land a
+    red main that a pull request would have caught. A step's `working-directory`
+    becomes `--prefix` in the hook, which runs from the root: npm's bare `test` in
+    `worker/` is `npm test --prefix worker` there. `npm ci` installs rather than gates.
+    The set comes from the workflow rather than a list here: a list is a second copy,
+    and the gate added to CI without the hook would stay green.
     """
-    workflow = (ROOT / ".github" / "workflows" / "ci.yaml").read_text(encoding="utf-8")
-    instructions = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
-    directories = sorted(
-        set(re.findall(r"^\s*working-directory:\s*(\S+)", workflow, re.MULTILINE))
+    workflow = yaml.safe_load(
+        (ROOT / ".github" / "workflows" / "ci.yaml").read_text(encoding="utf-8")
+    )
+    config = tomllib.loads((ROOT / ".config" / "wt.toml").read_text(encoding="utf-8"))
+    hook = {
+        command
+        for block in config["pre-merge"]
+        for script in block.values()
+        for command in shell_commands(script)
+    }
+    gates = sorted(
+        {
+            f"{command} --prefix {step['working-directory']}"
+            if "working-directory" in step
+            else command
+            for job in workflow["jobs"].values()
+            for step in job["steps"]
+            for command in shell_commands(step.get("run", ""))
+            if command.startswith("npm ") and not command.startswith("npm ci")
+        }
     )
 
-    assert directories, "no working-directory read — an empty set names itself"
-    unnamed = [d for d in directories if f"`{d}/`" not in instructions]
-    assert not unnamed, f"unnamed in AGENTS.md: {unnamed}"
-
-
-def test_the_root_instructions_name_every_npm_gate_ci_runs():
-    """A gate with its own tools is named by its command, not only by its tree.
-
-    The reading above finds a gate through `working-directory`, which is how a gate
-    that keeps a tree of its own announces itself. A gate can hold its own tools at
-    the repository root instead: `scripts/browser/`'s TypeScript is typechecked and
-    tested by npm scripts run from the root, so it declares no `working-directory`
-    and that reading passes straight over it — which is how the root map went on
-    calling the worker's TypeScript half the one part of the tree with a gate of its
-    own after a second one had landed. Prettier and eslint take JavaScript and HTML
-    rather than TypeScript, and `wt merge` runs only pre-commit and the suite, so a
-    session that lands on either half with the root instructions alone reddens main.
-    The set comes from the workflow rather than a list here, for the reason the
-    routing above states: a list is the second copy, and the gate added without the
-    paragraph would stay green.
-
-    Read as `npm run`, and required in `AGENTS.md` under that same spelling: a bare
-    script name would pass on any word the instructions already carry — `lint`,
-    `check` and `format` are each in there — so the next gate named one of those
-    would stay green while the paragraph went stale. `npm ci` installs rather than
-    gates, and npm's bare `test` alias is not read under this spelling at all.
-    """
-    workflow = (ROOT / ".github" / "workflows" / "ci.yaml").read_text(encoding="utf-8")
-    instructions = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
-    scripts = sorted(set(re.findall(r"\bnpm run ([\w:-]+)", workflow)))
-
-    assert scripts, "no npm gate read — an empty set names itself"
-    unnamed = [script for script in scripts if f"npm run {script}" not in instructions]
-    assert not unnamed, f"unnamed in AGENTS.md: {unnamed}"
+    assert gates, "no npm gate read — an empty set names itself"
+    ungated = [gate for gate in gates if gate not in hook]
+    assert not ungated, f"not in .config/wt.toml's pre-merge: {ungated}"
 
 
 def test_the_root_instructions_name_every_directory_of_the_projects_own_tree():
@@ -367,15 +366,15 @@ def test_hidden_hook_remains_callable():
     assert result.output == ""
 
 
-def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
-    """Silence cannot tell an agent a no-op from a call that landed, and a raw
-    event leaves it to find the one field it needs next.
+def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
+    """Silence cannot tell an agent a no-op from a call that landed, and a sentence
+    leaves it to guess at the id it needs next.
 
-    Every write command answers with one sentence carrying that field — the
-    thread a message landed in, the version stamped, the widget a report moved,
-    the request a receipt settled — and `--json` keeps the event for a caller that
-    wants to read the rest of it. `test_receipt_settles_one_known_request_once`
-    holds the receipt's, since it needs a page with a request seat.
+    Every write prints what it wrote, as JSON: an appended event exactly as `page
+    events` reads it back, `seq` included, one line per record, and a status as the
+    status file holds it. A command that also names its thread prints both records.
+    `test_receipt_settles_one_known_request_once` holds the receipt's, since it needs
+    a page with a request seat.
 
     The default layer declares no guidance audiences, which is why the page is
     built here rather than taken from the packaged fixture.
@@ -383,105 +382,133 @@ def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     page_dir = tmp_path / "page"
+
+    def written(args) -> list[dict]:
+        result = runner.invoke(cli_model.cli, args)
+        assert result.exit_code == 0, result.output
+        return [json.loads(line) for line in result.output.splitlines()]
+
+    def logged(record: dict) -> dict:
+        return next(
+            event
+            for event in events_model.read_events(page_dir)
+            if event["id"] == record["id"]
+        )
+
     # PAGE holds an lf-diagram, so the page selects the package that widget lives in.
-    initialized = runner.invoke(
-        cli_model.cli, ["page", "init", "--package", "diagram", str(page_dir)]
-    )
-    assert initialized.exit_code == 0, initialized.output
+    assert written(["page", "init", "--package", "diagram", str(page_dir)]) == [
+        {"page": str(page_dir)}
+    ]
     (page_dir / "index.html").write_text(PAGE)
 
     audiences = runner.invoke(cli_model.cli, ["page", "guidance", str(page_dir)])
     assert audiences.exit_code == 0, audiences.output
-    assert audiences.output == "no guidance audiences\n"
+    assert json.loads(audiences.output) == []
 
-    stamped = runner.invoke(
-        cli_model.cli, ["version", "stamp", str(page_dir), "--text", "first cut"]
+    [stamped] = written(["page", "stamp", str(page_dir), "--text", "first cut"])
+    assert stamped == logged(stamped)
+    assert (stamped["kind"], stamped["version"], stamped["seq"]) == ("note", 1, 1)
+
+    again = runner.invoke(
+        cli_model.cli, ["page", "stamp", str(page_dir), "--text", "again"]
     )
-    assert stamped.exit_code == 0, stamped.output
-    assert stamped.output == "stamped v1 — first cut\n"
+    assert again.exit_code != 0  # nothing changed, so there is no second version
+    assert "already stamped as v1" in again.output
 
-    as_json = runner.invoke(
+    [waiting] = written(["status", str(page_dir), "waiting", "pick a storage engine"])
+    assert waiting == json.loads((page_dir / schema_model.STATUS_FILE).read_text())
+    assert (waiting["state"], waiting["detail"]) == ("waiting", "pick a storage engine")
+
+    # The comment's id is the thread's; --title names it in the same command.
+    opened, title = written(
+        [
+            "thread",
+            "open",
+            str(page_dir),
+            "--text",
+            "which store?",
+            "--title",
+            "Storage",
+        ]
+    )
+    root = opened["id"]
+    assert opened == logged(opened)
+    assert (title["kind"], title["thread"], title["title"]) == (
+        "thread_title",
+        root,
+        "Storage",
+    )
+
+    # A refused title refuses the whole command, so no message goes up unnamed.
+    before = events_model.read_events(page_dir)
+    unnamed = runner.invoke(
         cli_model.cli,
-        ["version", "stamp", "--json", str(page_dir), "--text", "again"],
+        ["thread", "open", str(page_dir), "--text", "and the cache?", "--title", ""],
     )
-    assert as_json.exit_code != 0  # nothing changed, so there is no second version
-    assert "already stamped as v1" in as_json.output
+    assert unnamed.exit_code != 0
+    assert "thread_title event is invalid" in unnamed.output
+    assert events_model.read_events(page_dir) == before
 
-    waiting = runner.invoke(
-        cli_model.cli, ["status", str(page_dir), "waiting", "pick a storage engine"]
-    )
-    assert waiting.exit_code == 0, waiting.output
-    assert waiting.output == "waiting — pick a storage engine\n"
+    for command in (
+        ["thread", "reply", str(page_dir), root, "--text", "x", "--title", "a\nb"],
+        ["thread", "edit", str(page_dir), root, "--text", "y", "--title", " "],
+    ):
+        refused = runner.invoke(cli_model.cli, command)
+        assert refused.exit_code != 0
+        assert "thread_title event is invalid" in refused.output
+    assert events_model.read_events(page_dir) == before
 
-    bare = runner.invoke(cli_model.cli, ["status", str(page_dir), "waiting"])
-    assert bare.exit_code == 0, bare.output
-    assert bare.output == "waiting\n"
-
-    opened = runner.invoke(
-        cli_model.cli, ["comment", "--json", str(page_dir), "--text", "which store?"]
-    )
-    assert opened.exit_code == 0, opened.output
-    root = json.loads(opened.output)["id"]
-
-    # The thread a bare `comment` names is the one every later command addresses.
-    named = runner.invoke(
-        cli_model.cli, ["comment", str(page_dir), "--text", "and the cache?"]
-    )
-    assert named.exit_code == 0, named.output
-    cached = events_model.read_events(page_dir)[-1]["id"]
-    assert named.output == (
-        f"opened thread {cached}\n"
-        f'name it: leaf conversation title {page_dir} {cached} --text "<a few words>"\n'
-    )
-
-    replied = runner.invoke(
-        cli_model.cli,
-        ["reply", str(page_dir), "--to", root, "--initiates", "--text", "sqlite"],
-    )
-    assert replied.exit_code == 0, replied.output
-    assert replied.output == f"replied in {root}\n"
-
-    # A reply under the reply still names the thread, not the message answered.
+    # A reply's --title names only a thread nothing has named, so a name the host
+    # gave the thread while the agent worked stands; edit renames one.
     followed = runner.invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
-            "--json",
             str(page_dir),
-            "--to",
             root,
-            "--initiates",
             "--text",
             "and wal mode",
+            "--title",
+            "WAL",
         ],
     )
     assert followed.exit_code == 0, followed.output
-    under = runner.invoke(
-        cli_model.cli,
-        [
-            "reply",
-            str(page_dir),
-            "--to",
-            json.loads(followed.output)["id"],
-            "--initiates",
-            "--text",
-            "with a checkpoint",
-        ],
-    )
-    assert under.exit_code == 0, under.output
-    assert under.output == f"replied in {root}\n"
+    assert "already has a title" in followed.stderr
+    [followed] = [json.loads(line) for line in followed.stdout.splitlines()]
+    assert followed == logged(followed)
+    assert followed["parent"] == root
+    assert [
+        event["title"]
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "thread_title"
+    ] == ["Storage"]
+    later = followed["id"]
 
-    working = runner.invoke(
+    # Every command naming a thread takes any message in it, as reply does.
+    [renamed] = written(["thread", "edit", str(page_dir), later, "--title", "Store"])
+    assert (renamed["thread"], renamed["title"]) == (root, "Store")
+    [edited] = written(["thread", "edit", str(page_dir), later, "--text", "and WAL"])
+    assert (edited["kind"], edited["message"]) == ("edit", later)
+    read = runner.invoke(cli_model.cli, ["page", "state", str(page_dir), later])
+    assert read.exit_code == 0, read.output
+    assert json.loads(read.output)["thread"]["id"] == root
+    both = runner.invoke(
         cli_model.cli,
-        ["status", str(page_dir), "working", "reading the traces", "--on", root],
+        ["thread", "reply", str(page_dir), root, "--for", root, "--text", "x"],
     )
-    assert working.exit_code == 0, working.output
-    assert working.output == f"working on {root} — reading the traces\n"
+    assert both.exit_code == 2
+    assert "THREAD and --for cannot be used together" in both.output
 
-    # Resolve takes any message in the thread and names the thread it closed.
-    closed = runner.invoke(cli_model.cli, ["resolve", str(page_dir), "--to", cached])
-    assert closed.exit_code == 0, closed.output
-    assert closed.output == f"resolved {cached}\n"
+    [working] = written(
+        ["status", str(page_dir), "working", "reading the traces", "--on", later]
+    )
+    assert [claim["subject"] for claim in working["work"]] == [
+        {"kind": "thread", "id": root}
+    ]
+
+    [closed] = written(["thread", "resolve", str(page_dir), later])
+    assert (closed["kind"], closed["parent"]) == ("resolve", later)
 
     # `idle` reaches the status write by its own route, so the subject a claim
     # needs is refused before either route runs. Otherwise the line reports a
@@ -513,8 +540,8 @@ def test_init_help_names_the_source_revision_and_version_layout():
 @pytest.mark.parametrize(
     "args",
     [
-        ["version", "check", "page", "--render"],
-        ["reply", "page", "--to", "c1", "--for", "c1", "--text", "export"],
+        ["page", "check", "page", "--render"],
+        ["thread", "reply", "page", "--for", "c1", "--text", "export"],
     ],
 )
 def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch, args):
@@ -564,25 +591,27 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tm
 
     Two copies asked the same question, because either half alone is satisfied
     by a flag that prints a constant, or the directory the command was typed in.
-    The second is a payload of its own — one skill deep, which is the layout
-    `SKILL_ROOT` walks up from — and nothing about it is this checkout.
-    PYTHONPATH is what puts it first: the `leaf` this environment installs is
-    editable, and reaches sys.path through a .pth file site reads after it.
+    The second is a host's install, run through its own launcher, and nothing
+    about it is this checkout.
 
     Eager and page-free, so it answers with no page named and nothing written
     where it ran, which is the whole of what a session asking the question has.
     """
     cached_commit = "123456789abc"
-    cached = tmp_path / "plugins" / "cache" / "marketplace" / "leaf" / cached_commit
-    scripts = cached / "skills" / "leaf" / "scripts"
-    scripts.mkdir(parents=True)
-    shutil.copytree(SKILL_ROOT / "scripts" / "leaf", scripts / "leaf")
+    cached = install_payload(
+        tmp_path / "plugins" / "cache" / "marketplace" / "leaf" / cached_commit
+    )
+    # A host's copy carries no `.git`, so the time it was made is the only date it
+    # has: every file written then, the running module's own included.
+    copied_at = 1_790_000_000
+    layer = cached / "skills" / "leaf" / "scripts" / "leaf" / "layer.py"
+    os.utime(layer, (copied_at, copied_at))
     elsewhere = tmp_path / "unrelated-project"
     elsewhere.mkdir()
 
-    def asked(flag, **environment):
+    def asked(command, flag, **environment):
         return subprocess.run(
-            [*LEAF_COMMAND, flag],
+            [*command, flag],
             cwd=elsewhere,
             env=os.environ | environment,
             capture_output=True,
@@ -590,17 +619,29 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tm
             check=False,
         )
 
-    here = asked("--root")
+    here = asked(LEAF_COMMAND, "--root")
     assert here.returncode == 0, here.stderr
     assert here.stdout.strip() == str(PLUGIN_ROOT.resolve())
 
-    there = asked("--root", PYTHONPATH=str(scripts))
+    launcher = [str(cached / "bin" / "leaf")]
+    there = asked(launcher, "--root")
     assert there.returncode == 0, there.stderr
     assert there.stdout.strip() == str(cached.resolve())
 
-    version = asked("--version", PYTHONPATH=str(scripts))
+    version = asked(launcher, "--version", TZ="UTC")
     assert version.returncode == 0, version.stderr
-    assert version.stdout.strip() == f"leaf {cached_commit}"
+    assert (
+        version.stdout.strip()
+        == f"leaf {cached_commit}, installed 2026-09-21T14:13:20+00:00"
+    )
+
+    checkout = asked(LEAF_COMMAND, "--version")
+    assert checkout.returncode == 0, checkout.stderr
+    assert re.fullmatch(
+        r"leaf [0-9a-f]{12}\+?, committed "
+        r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:Z|[+-]\d\d:\d\d)",
+        checkout.stdout.strip(),
+    ), checkout.stdout
 
     assert list(elsewhere.iterdir()) == []
 
@@ -644,7 +685,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "skills/leaf/references/authoring-revisions.md",
         "skills/leaf/references/codex-watcher.md",
         "skills/leaf/references/conversation-loop.md",
-        "skills/leaf/references/conversation-threads.md",
+        "skills/leaf/references/threads.md",
         "skills/leaf/references/event-batches.md",
         "skills/leaf/references/host-claude-code.md",
         "skills/leaf/references/host-codex.md",
@@ -663,12 +704,11 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "skills/leaf/scripts/leaf/__main__.py",
     ]:
         assert (PLUGIN_ROOT / relative).is_file()
-    # Claude imports each canonical instruction file without keeping a second copy.
+    # The shipped plugin carries its canonical project instructions.
     instructions = [p for p in shipped_payload() if p.name == "AGENTS.md"]
     assert instructions, "no project instructions in the shipped payload"
     for agents in instructions:
         assert agents.is_file() and not agents.is_symlink()
-        assert agents.with_name("CLAUDE.md").read_text() == "@AGENTS.md\n"
     # A host's copy must not contain links that escape the plugin tree.
     escaping = [
         path
@@ -743,16 +783,16 @@ def test_a_run_keeps_its_temporary_tree_out_of_the_candidate_payload(tmp_path):
 def test_the_mcp_probe_writes_its_evidence_outside_the_candidate_payload():
     """A developer tool's generated evidence is not something a host installs.
 
-    `scripts/mcp-app/run-direct-probe.sh` wrote each run's screenshots and logs to
+    `notes/mcp-apps/probe/run-direct-probe.sh` wrote each run's screenshots and logs to
     `notes/mcp-apps/experiments/<number>/results/`, inside the tracked tree, so every
     probe grew what a host copies by up to a megabyte that no install reads — 47
     result directories and 6.5M of the payload by the time it was measured. The rule
-    `scripts/AGENTS.md` states is that a script's output lands where git ignores it
+    `dev/AGENTS.md` states is that a tool's output lands where git ignores it
     unless an install reads that output from a committed path, and the runner's own
     assignment is what holds it. Read the directory off the script rather than
     naming it twice, then write where a run writes and ask the payload.
     """
-    runner = PLUGIN_ROOT / "scripts" / "mcp-app" / "run-direct-probe.sh"
+    runner = PLUGIN_ROOT / "notes" / "mcp-apps" / "probe" / "run-direct-probe.sh"
     assignment = re.search(
         r'^results="\$repo/(.+)"$', runner.read_text(encoding="utf-8"), re.MULTILINE
     )
@@ -776,35 +816,30 @@ def test_the_mcp_probe_writes_its_evidence_outside_the_candidate_payload():
                 parent.rmdir()
 
 
-def test_every_tracked_experiment_screenshot_is_named_by_its_written_up_result():
-    """The archive keeps the screenshots its prose reads, and no others.
+# The binaries the tree keeps: the drawn images the examples render, and the captures
+# an eval case hands its child.
+BINARY_HOMES = ("examples/media/*", "evals/*/captures/*")
 
-    The probe's evidence is scratch, and `scripts/mcp-app/README.md` says what a
-    maintainer copies back out of it: "a screenshot earns its megabyte only where
-    the prose points at it." Nothing held that rule over what was already tracked,
-    so the archive carried a re-render of the same fixture for each run of a chain
-    of repeats — 4.0M across eleven files no write-up mentioned, three of them
-    byte-identical to another tracked screenshot. A copied-back file is a
-    maintainer's `git add` rather than a script's output, so the payload test above
-    cannot see it coming; this reads the rule off the archive itself. The prose that
-    licenses a screenshot is its own experiment's, not the archive's as a whole,
-    or one write-up's citation would license every other run's copy of the shot.
-    """
-    archive = PLUGIN_ROOT / "notes" / "mcp-apps" / "experiments"
-    unread = []
+
+def test_the_payload_is_text_outside_its_binary_homes():
+    """Every tracked byte ships in every install and stays in history, so the tree
+    keeps no screenshot, recording or other binary outside the homes whose readers
+    need the bytes (`AGENTS.md`, "The install runs this tree"). Screenshots came in
+    under `notes/` twice, 5.6M of a probe's evidence and then 1.8M of a design
+    study's before/after pairs, each by a maintainer's `git add` that no test of a
+    tool's output path sees coming. An image Leaf generates lives in
+    max-sixty/leaf-assets, and evidence in `.tmp/`."""
+    stray = []
     for path in shipped_payload():
-        if path.suffix != ".png" or not path.is_relative_to(archive):
+        relative = path.relative_to(PLUGIN_ROOT).as_posix()
+        if not path.is_file() or any(fnmatchcase(relative, h) for h in BINARY_HOMES):
             continue
-        experiment = path.relative_to(archive).parts[0]
-        prose = "".join(
-            note.read_text(encoding="utf-8")
-            for note in sorted((archive / experiment).glob("*.md"))
-        )
-        if path.name not in prose:
-            unread.append(path.relative_to(PLUGIN_ROOT).as_posix())
-    assert unread == [], (
-        "these screenshots ship in the payload and no write-up reads them: "
-        + ", ".join(unread)
+        try:
+            path.read_bytes().decode("utf-8")
+        except UnicodeDecodeError:
+            stray.append(relative)
+    assert stray == [], "binary files outside examples/media and evals: " + ", ".join(
+        stray
     )
 
 
@@ -871,15 +906,19 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
     installed_registry = json.loads((page / "registry.json").read_text())
     assert "lf-command" in installed_registry
     assert installed_registry["$layer"]["packages"] == list(PAGE_PACKAGES)
+    copied = installed / "skills" / "leaf" / "scripts" / "leaf" / "layer.py"
     assert installed_registry["$layer"]["producer"] == {
         "commit": commit,
         "dirty": False,
+        "installed": datetime.fromtimestamp(copied.stat().st_mtime)
+        .astimezone()
+        .isoformat(timespec="seconds"),
     }
     (page / "index.html").write_text(PAGE)
     publish_result = subprocess.run(
         [
             launcher,
-            "version",
+            "page",
             "stamp",
             page,
             "--text",
@@ -1353,6 +1392,111 @@ def test_no_has_rule_restyles_the_whole_document():
     )
 
 
+def _pseudo_arguments(compound, pseudos):
+    """Each `pseudo(…)` in the compound, for every pseudo named, as (start, end, argument),
+    where `compound[start:end]` is the whole call."""
+    calls = []
+    for pseudo in pseudos:
+        start = 0
+        while (at := compound.find(pseudo, start)) >= 0:
+            depth = 0
+            for end in range(at + len(pseudo) - 1, len(compound)):
+                depth += {"(": 1, ")": -1}.get(compound[end], 0)
+                if not depth:
+                    break
+            calls.append((at, end + 1, compound[at + len(pseudo) : end]))
+            start = end + 1
+    return calls
+
+
+def _without_arguments(compound, pseudos):
+    """The compound with each named pseudo's argument removed."""
+    for start, end, _argument in sorted(_pseudo_arguments(compound, pseudos))[::-1]:
+        compound = compound[:start] + compound[end:]
+    return compound
+
+
+def _has_hosts(selector):
+    """Each compound a `:has()` stands on, without that `:has()`'s argument, so an element
+    it looks for is not read as the element it stands on. A `:has()` inside an `:is()` or
+    `:where()` argument stands on that argument's compound, not on the outer one."""
+    for compound in _split_top(selector, " >+~"):
+        for _start, _end, argument in _pseudo_arguments(compound, (":is(", ":where(")):
+            for arm in _split_top(argument, ","):
+                yield from _has_hosts(arm)
+        if ":has(" in _without_arguments(compound, (":is(", ":where(")):
+            yield _without_arguments(compound, (":has(",))
+
+
+def test_no_has_rule_stands_on_a_root():
+    """Chrome re-reads a `:has()` on every insertion below the element it stands on, and
+    one on the chrome root answered by restyling the whole chrome. The Page Map toggle's
+    `:scope:has(> .lf-margin-projection > …[data-lf-pins])` did that for every text node
+    the runtime wrote anywhere in the chrome: each geometry read after a write paid about
+    4 ms for 800 elements on the corpus page, several times per comment sent. The
+    document's roots stand above the chrome, so one on `body` or `html` is re-read on
+    those same writes: the rail's `body:has(> main[data-rail])` and two flags read off
+    `body` from `html` re-checked both roots about forty times per comment. Say such a
+    condition as an attribute on the element the rule styles, as `data-lf-rail-covered`
+    is on the chrome and `data-lf-draw-mode` on `html`.
+
+    The roots are `.lf-chrome`, `html`, `:root` and `body` in any sheet and, inside the
+    layer's one `@scope`, which is the chrome's, `:scope` and a top-level `&`, each also
+    inside `:is()` or `:where()`."""
+    sheets = [
+        *sorted(schema_model.ASSETS.glob("*.css")),
+        *sorted((schema_model.ASSETS / "runtime").glob("*.css")),
+        *sorted(schema_model.BUNDLED_PACKAGES.glob("*/*.css")),
+    ]
+
+    def scope_roots(rules):
+        for rule in rules:
+            if rule.type != "at-rule" or rule.content is None:
+                continue
+            if rule.lower_at_keyword == "scope":
+                yield " ".join(tinycss2.serialize(rule.prelude).split())
+            yield from scope_roots(
+                tinycss2.parse_blocks_contents(
+                    rule.content, skip_comments=True, skip_whitespace=True
+                )
+            )
+
+    scopes = {
+        root
+        for sheet in sheets
+        for root in scope_roots(
+            tinycss2.parse_stylesheet(
+                sheet.read_text(), skip_comments=True, skip_whitespace=True
+            )
+        )
+    }
+    assert scopes == {"(.lf-chrome)"}, scopes
+    roots = re.compile(
+        r"\.lf-chrome(?![-\w])|(?<![-\w.#:\[])(?:html|body)(?![-\w])|:root"
+    )
+    scoped = re.compile(r":scope(?![-\w])|&")
+    read = 0
+    rooted = []
+    for sheet in sheets:
+        for _conditions, enclosing, selector, _declarations in _style_rules(sheet):
+            read += 1
+            if any(
+                roots.search(stands) or ("scope" in enclosing and scoped.search(stands))
+                for stands in _has_hosts(selector)
+            ):
+                rooted.append(
+                    f"{sheet.relative_to(schema_model.ASSETS.parent)}: {selector}"
+                )
+    assert read, "no rules read from the layer's sheets — the reading is broken"
+    assert list(_has_hosts(".a:has(.b:has(.c)).d")) == [".a.d"]
+    assert list(_has_hosts(":is(:scope, .x):has(.y)")) == [":is(:scope, .x)"]
+    assert list(_has_hosts(":is(html lf-a:has(> b)) > c")) == ["lf-a"]
+    assert roots.search("html[data-lf-live]") and not roots.search(".lf-body")
+    assert not rooted, "a :has() on a root restyles everything below it:\n" + (
+        "\n".join(rooted)
+    )
+
+
 def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
     """chrome.css is adopted, so it cascades after theme.css and after every package
     theme concatenated onto it. One selector dressed for the same property in both
@@ -1393,19 +1537,12 @@ def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
     )
 
 
-# The layer's page-side order, as layer.py's `composed_sheets` builds it: each root's
-# shadow.css and then its theme.css, the assets root before every package.
+# The page-side order `composed_sheets` reads a composed example's layer in: each
+# root's own sheets, root by root in layer order.
 _LAYER_SHEET_ORDER = [
     sheet
-    for source in [
-        schema_model.ASSETS,
-        *sorted(
-            package
-            for package in schema_model.BUNDLED_PACKAGES.iterdir()
-            if package.is_dir()
-        ),
-    ]
-    for sheet in (source / "shadow.css", source / "theme.css")
+    for root in SHIPPED_PACKAGES
+    for sheet in (root / name for name in layer_model.ROOT_SHEETS)
     if sheet.is_file()
 ]
 
@@ -1449,7 +1586,7 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     here rather than trusted to stay so."""
     runtime = schema_model.ASSETS / "runtime"
     layout = (runtime / "chrome-layout.js").read_text()
-    trays = (runtime / "trays.js").read_text()
+    drawers = (runtime / "drawers.js").read_text()
     presentation = (runtime / "presentation.js").read_text()
     sheet = (schema_model.ASSETS / "theme.css").read_text() + (
         runtime / "chrome.css"
@@ -1462,7 +1599,9 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     for spelling in (
         "--lf-" + constant(r'getPropertyValue\("--lf-([a-z-]+)"\)', surfaces) + ":",
         "var(" + constant(r'^const THREAD_PANEL_PROP = "([^"]+)";', layout) + ")",
-        "var(" + constant(r'^export const TRAY_SLOT_PROP = "([^"]+)";', trays) + ")",
+        "var("
+        + constant(r'^export const DRAWER_SLOT_PROP = "([^"]+)";', drawers)
+        + ")",
         "[" + constant(r'^  ask: "([^"]+)",', presentation) + "]",
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
@@ -1473,32 +1612,12 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
 
 
-def test_the_rail_s_floor_is_one_width_in_every_sheet():
-    """theme.css claims the rail in a shell wider than its floor and stops drawing the
-    margin at or under it, and chrome.css offers the Page Map toggle at or under it. No
-    runtime constant stands behind the number — the runtime reads the posture the claim
-    states — so the three spellings are held to each other."""
-    theme = (schema_model.ASSETS / "theme.css").read_text()
-    chrome = (schema_model.ASSETS / "runtime" / "chrome.css").read_text()
-    floor = re.search(
-        r"@container lf-shell \(width > (\d+)px\) \{\s*:is\(\s*:root\[data-lf-rail\]",
-        theme,
-    ).group(1)
-    spelled = f"@container lf-shell (width <= {floor}px) {{"
-    assert spelled in theme, (
-        "the margin is drawn under a different floor than it is claimed"
-    )
-    assert spelled in chrome, (
-        "the Page Map toggle appears at a different floor than the rail"
-    )
-
-
 def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
     """The classic bootstrap cannot import modules, so the layer gate ties the root
     state it writes to the stylesheet that reads it, and the surfaces' default widths
     to the runtime owners that hold them."""
     assets = schema_model.ASSETS
-    trays = (assets / "runtime" / "trays.js").read_text()
+    drawers = (assets / "runtime" / "drawers.js").read_text()
     bootstrap = (assets / "runtime" / "bootstrap.js").read_text()
     theme = (assets / "theme.css").read_text()
 
@@ -1511,12 +1630,12 @@ def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
 
     layout = (assets / "runtime" / "chrome-layout.js").read_text()
     panel_prop = constant(r'^const THREAD_PANEL_PROP = "([^"]+)";', layout)
-    tray_prop = constant(r'^export const TRAY_SLOT_PROP = "([^"]+)";', trays)
+    drawer_prop = constant(r'^export const DRAWER_SLOT_PROP = "([^"]+)";', drawers)
     panel_default = constant(r"^const THREAD_PANEL_W = (\d+);", layout)
-    tray_default = constant(r"^const TRAY_SLOT_W = (\d+);", trays)
+    drawer_default = constant(r"^const DRAWER_SLOT_W = (\d+);", drawers)
     for literal in (
         f"var({panel_prop}, {panel_default}px)",
-        f"var({tray_prop}, {tray_default}px)",
+        f"var({drawer_prop}, {drawer_default}px)",
     ):
         assert literal in theme
 
@@ -1572,7 +1691,7 @@ def test_the_browser_gate_refuses_a_page_another_leaf_vendored(tmp_path, monkeyp
     vendored["$layer"]["runtime"] = before
     stamp.write_text(json.dumps(vendored), encoding="utf-8")
 
-    result = runner.invoke(cli_model.cli, ["version", "check", "--render", str(page)])
+    result = runner.invoke(cli_model.cli, ["page", "check", "--render", str(page)])
 
     assert result.exit_code != 0, result.output
     assert before in result.output
@@ -1583,9 +1702,7 @@ def test_the_browser_gate_refuses_a_page_another_leaf_vendored(tmp_path, monkeyp
     del vendored["$layer"]["runtime"]
     stamp.write_text(json.dumps(vendored), encoding="utf-8")
 
-    unstamped = runner.invoke(
-        cli_model.cli, ["version", "check", "--render", str(page)]
-    )
+    unstamped = runner.invoke(cli_model.cli, ["page", "check", "--render", str(page)])
 
     assert unstamped.exit_code != 0, unstamped.output
     assert f"leaf page init {page}" in unstamped.output
@@ -1674,10 +1791,12 @@ def test_payload_provenance_belongs_to_the_plugin_repo_without_writing_its_index
     index = plugin / ".git" / "index"
     before = index.stat().st_mtime_ns
 
+    committed = git(plugin, "show", "--no-patch", "--format=%cI", "HEAD").stdout.strip()
     clean = layer_model.payload_provenance(include_path=True)
     assert clean == {
         "path": str(plugin),
         "commit": git(plugin, "rev-parse", "--short=12", "HEAD").stdout.strip(),
+        "committed": committed,
         "dirty": False,
     }
 
@@ -1688,6 +1807,7 @@ def test_payload_provenance_belongs_to_the_plugin_repo_without_writing_its_index
     assert provenance == {
         "path": str(plugin),
         "commit": git(plugin, "rev-parse", "--short=12", "HEAD").stdout.strip(),
+        "committed": committed,
         "dirty": True,
     }
     assert index.stat().st_mtime_ns == before
@@ -1696,7 +1816,8 @@ def test_payload_provenance_belongs_to_the_plugin_repo_without_writing_its_index
 def test_payload_provenance_reads_claude_codes_git_versioned_plugin_cache(
     tmp_path, monkeypatch
 ):
-    """Claude's copied payload retains its source SHA in the documented cache path."""
+    """Claude's copied payload retains its source SHA in the documented cache path,
+    and dates itself by when the copy was made, which its running module carries."""
     commit = "4cb17dc60870"
     plugin = tmp_path / ".claude" / "plugins" / "cache" / "leaf" / "leaf" / commit
     plugin.mkdir(parents=True)
@@ -1711,11 +1832,33 @@ def test_payload_provenance_reads_claude_codes_git_versioned_plugin_cache(
         lambda *_args, **_kwargs: pytest.fail("a cached payload should not invoke Git"),
     )
 
+    copied = Path(layer_model.__file__).stat().st_mtime
     assert layer_model.payload_provenance(include_path=True) == {
         "path": str(plugin),
         "commit": commit,
         "dirty": False,
+        "installed": datetime.fromtimestamp(copied)
+        .astimezone()
+        .isoformat(timespec="seconds"),
     }
+
+
+def test_a_producer_date_without_an_offset_is_refused(page_dir):
+    """The browser reads a bare local time in each viewer's own zone, so one
+    vendored page would show every viewer a different age."""
+    stamp = page_dir / "registry.json"
+    registry = json.loads(stamp.read_text(encoding="utf-8"))
+
+    def producer_dated(value):
+        registry["$layer"]["producer"] = {"commit": "a74b08365870", "committed": value}
+        interact_files.write_json(stamp, registry)
+        return registry_storage.layer_metadata(page_dir)["producer"]
+
+    assert producer_dated("2026-09-26T09:32:21-07:00")["committed"] == (
+        "2026-09-26T09:32:21-07:00"
+    )
+    with pytest.raises(registry_contract.RegistryError, match="timezone offset"):
+        producer_dated("2026-09-26T09:32:21")
 
 
 def test_fresh_page_state_points_only_to_readable_authorities(tmp_path, monkeypatch):
@@ -1933,7 +2076,7 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
     close where the test ends with it does the same work a step early, and the
     reading it cuts short is its own. The exception is a page that keeps making
     the fault its test is about, where the consume has to follow a close of its own
-    (tests/AGENTS.md, "A page is ready when it says what has finished").
+    (tests/AGENTS.md, "Consume a browser error where it is caused").
     """
     closes_to_stop_a_repeating_fault = {
         "test_a_website_session_reference_survives_a_failed_first_read",
@@ -2076,7 +2219,12 @@ def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monke
     )
     assert selected.exit_code == 0, selected.output
     theme = (page / "theme.css").read_text()
-    assert theme.endswith("/* user package */\n/* project package */\n")
+    # Selected packages follow the kernel in order, and the Layouts close the theme.
+    assert (
+        theme.index("/* user package */")
+        < theme.index("/* project package */")
+        < theme.index("@layer lf-layouts")
+    )
     assert (page / "widgets" / "user.js").is_file()
     assert (page / "widgets" / "project.js").is_file()
     assert not (page / "widgets" / "xdg.js").exists()
@@ -2293,36 +2441,27 @@ def test_path_overlap_respects_case_sensitive_future_names(tmp_path, monkeypatch
     assert interact_locations.paths_same(upper, lower)
 
 
-@pytest.mark.parametrize("name", EXPECTED_PAGE_STATE_FILES)
-def test_initialized_page_owns_runtime_state_paths(tmp_path, monkeypatch, name):
-    monkeypatch.chdir(tmp_path)
-    page = tmp_path / "page"
-    initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
-    assert initialized.exit_code == 0, initialized.output
-
-    assert packages_model.initialized_page_owning(page / name) == page
-    assert packages_model.initialized_page_owning(page / ".leaf" / name) is None
-
-
-def test_page_state_inventory_matches_the_storage_contract():
-    assert schema_model.PAGE_STATE_FILES == EXPECTED_PAGE_STATE_FILES
-
-
-@pytest.mark.parametrize("directory", EXPECTED_PAGE_DIRECTORIES)
-def test_initialized_page_owns_declared_directory_trees(
-    tmp_path, monkeypatch, directory
+def test_an_initialized_page_owns_what_the_storage_contract_names(
+    tmp_path, monkeypatch
 ):
+    """page-storage.md's "Files" is the page directory's whole inventory: the page
+    owns each file it names and everything beneath each directory, which `page init`
+    creates, and nothing else is Leaf's there. The same name one level down belongs
+    to no page."""
+    assert sorted(schema_model.PAGE_OWNED_FILES) == STORAGE_FILES
+    assert sorted(schema_model.PAGE_OWNED_DIRS) == STORAGE_DIRECTORIES
+
     monkeypatch.chdir(tmp_path)
     page = tmp_path / "page"
     initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
-
-    assert (page / directory).is_dir()
-    assert packages_model.initialized_page_owning(page / directory / "future") == page
-
-
-def test_page_directory_inventory_matches_the_storage_contract():
-    assert schema_model.PAGE_OWNED_DIRS == EXPECTED_PAGE_DIRECTORIES
+    owner = packages_model.initialized_page_owning
+    for name in STORAGE_FILES:
+        assert owner(page / name) == page, name
+        assert owner(page / ".leaf" / name) is None, name
+    for directory in STORAGE_DIRECTORIES:
+        assert (page / directory).is_dir(), directory
+        assert owner(page / directory / "future") == page, directory
 
 
 def test_replace_files_rejects_case_aliased_future_targets(tmp_path, monkeypatch):
@@ -2565,7 +2704,7 @@ def test_init_does_not_partially_revendor_on_a_destination_conflict(
     conflict.mkdir()
     layer = tmp_path / ".leaf"
     layer.mkdir(parents=True)
-    (layer / "theme.css").write_text(":root { --accent: rebeccapurple; }\n")
+    (layer / "theme.css").write_text("lf-new-shape { --accent: rebeccapurple; }\n")
     (layer / "registry.json").write_text(
         json.dumps({"lf-new-shape": element_declaration("lf-new-shape")})
     )
@@ -2586,7 +2725,7 @@ def test_init_does_not_partially_revendor_on_a_destination_conflict(
     assert (page / "registry.json").read_bytes() == registry_before
 
 
-@pytest.mark.parametrize("sub", EXPECTED_PAGE_DIRECTORIES)
+@pytest.mark.parametrize("sub", STORAGE_DIRECTORIES)
 def test_init_refuses_a_symlinked_page_directory(tmp_path, monkeypatch, sub):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
@@ -2740,8 +2879,12 @@ def test_init_preserves_tmp_files_even_when_a_layer_reads_one(tmp_path, monkeypa
             '<lf-toned-note id="lf-example">One</lf-toned-note>',
             "lf- namespace",
         ),
+        (
+            '<lf-toned-note id="note"><p id="two words">One</p></lf-toned-note>',
+            "whitespace",
+        ),
     ],
-    ids=["duplicate", "reserved"],
+    ids=["duplicate", "reserved", "spaced"],
 )
 def test_init_refuses_invalid_ids_in_a_registry_example(
     tmp_path, monkeypatch, example, message
@@ -2832,7 +2975,7 @@ def test_init_revendors_a_page_an_earlier_leaf_left_behind(page_dir):
     assert vendored["$events"]["kinds"] == kernel["$events"]["kinds"]
     recovered = check(page_dir)
     assert recovered.exit_code == 0, recovered.output
-    replied = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+    replied = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
     assert replied.exit_code == 0, replied.output
     assert "The first one." in replied.output
 
@@ -3178,6 +3321,27 @@ def test_package_check_and_page_init_refuse_an_upgraded_widget_without_its_modul
         assert "widgets/lf-unfinished.js" in result.output
 
 
+def test_package_check_refuses_a_widget_packages_rule_on_the_root(
+    tmp_path, monkeypatch
+):
+    """A package that declares widgets reaches only inside them, so a rule of its own on
+    `:root`, `html` or `body` could never apply: composition says so rather than
+    vendoring a rule that matches nothing."""
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
+    assert created.exit_code == 0, created.output
+    add_test_widget(tmp_path / ".leaf", "lf-toned-note")
+    (tmp_path / ".leaf" / "theme.css").write_text(
+        "lf-toned-note { color: teal; }\n:root { --toned: teal; }\n"
+    )
+
+    result = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
+
+    assert result.exit_code != 0
+    assert "`:root` styles `:root`, which no widget contains" in result.output
+
+
 def test_package_check_requires_a_non_empty_widget_description(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
@@ -3373,7 +3537,7 @@ def test_package_install_makes_a_source_selectable_by_name(tmp_path, monkeypatch
 
     stored = machine_model.package_store() / "callout"
     assert installed.exit_code == 0, installed.output
-    assert installed.output == f"installed {stored}\n"
+    assert json.loads(installed.output) == {"package": str(stored)}
     assert sorted(path.name for path in stored.iterdir()) == [
         "guidance",
         "registry.json",
@@ -3576,7 +3740,7 @@ def test_package_init_starts_one_checked_upgraded_widget(
     # Rendering owns a Playwright loop; a session browser may already own this
     # process's loop when the full suite reaches this CLI integration.
     rendered = subprocess.run(
-        [*LEAF_COMMAND, "version", "check", str(page), "--render"],
+        [*LEAF_COMMAND, "page", "check", str(page), "--render"],
         capture_output=True,
         text=True,
         check=False,
@@ -3809,7 +3973,11 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
         ["page", "init", "--package", "diagram", "--package", "./.leaf", str(page)],
     )
     assert initialized.exit_code == 0, initialized.output
-    assert "lf-callout {" in (page / "theme.css").read_text()
+    # The package's rule reaches the page confined to the package's own widget.
+    assert (
+        "lf-callout:where(lf-callout, :is(lf-callout) *) {"
+        in (page / "theme.css").read_text()
+    )
     assert json.loads((page / "registry.json").read_text())["lf-callout"] == entry
     assert (
         "Use them for short notices." in (page / "guidance" / "author.md").read_text()
@@ -4093,7 +4261,7 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     (widget_package / "widgets").mkdir(parents=True)
     (widget_package / "vendor").mkdir()
     (widget_package / "registry.json").write_text(
-        json.dumps({"lf-solo": element_declaration("lf-solo", True)})
+        json.dumps({"lf-solo": element_declaration("lf-solo", upgrade=True)})
     )
     (widget_package / "theme.css").write_text("lf-solo { --lf-block-frame: 1; }\n")
     (widget_package / "widgets" / "lf-solo.js").write_text(
@@ -4139,9 +4307,11 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     assert (page / "widgets" / "ready.js").is_file()
     assert (page / "vendor" / "solo.json").is_file()
     theme = (page / "theme.css").read_text()
-    assert theme.index("lf-solo { --lf-block-frame: 1; }") < theme.index(
-        "--solo-night: 1"
-    )
+    # A package with a widget reaches only inside it; a package without one is a
+    # theme, and its rules reach the page as written.
+    assert theme.index(
+        "lf-solo:where(lf-solo, :is(lf-solo) *) { --lf-block-frame: 1; }"
+    ) < theme.index(":root { --solo-night: 1; }")
     guidance = (page / "guidance" / "author.md").read_text()
     assert guidance == (
         "# Package `solo`\n\nUse one solo.\n\n# Package `night`\n\nUse after dusk.\n"
@@ -4154,7 +4324,7 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
         cli_model.cli, ["page", "guidance", str(page), "worker"]
     )
     assert audiences.exit_code == 0, audiences.output
-    assert audiences.output.splitlines() == ["author", "reviewer", "worker"]
+    assert json.loads(audiences.output) == ["author", "reviewer", "worker"]
     assert worker.exit_code == 0, worker.output
     assert worker.output == "# Package `solo`\n\nReport the result.\n"
     author = CliRunner().invoke(
@@ -4215,13 +4385,13 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
         cli_model.cli, ["page", "guidance", str(plain)]
     )
     assert plain_audiences.exit_code == 0, plain_audiences.output
-    assert plain_audiences.output == "no guidance audiences\n"
+    assert json.loads(plain_audiences.output) == []
     audiences = CliRunner().invoke(cli_model.cli, ["page", "guidance", str(command)])
     coordinator = CliRunner().invoke(
         cli_model.cli, ["page", "guidance", str(command), "coordinator"]
     )
     assert audiences.exit_code == 0, audiences.output
-    assert audiences.output.splitlines() == ["author", "coordinator", "worker"]
+    assert json.loads(audiences.output) == ["author", "coordinator", "worker"]
     assert coordinator.exit_code == 0, coordinator.output
     assert "# Package `command-hub`" in coordinator.output
     assert "# Data contract `lf-worktree`" in coordinator.output
@@ -4423,11 +4593,13 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     the press it eats goes missing — so it is pinned in the source, the way the
     document-level class surface is.
 
-    Two are allowed and both are named here. The dispatcher is the register's own. The aim
+    Three are allowed and each is named here. The dispatcher is the register's own. The aim
     latch is not a binding at all: holding ⌥ arms nothing and answers no press, it paints
-    what a click would take, and its keyup half has no place in a table of presses. A third
-    is how every drift this register replaced began — a `keydown` beside a display list,
-    the two of them free to disagree about which keys the widget answers."""
+    what a click would take, and its keyup half has no place in a table of presses. The
+    prepaint bootstrap's hold answers no press either: it keeps keys pressed before the
+    page presents and hands them to the dispatcher's owner. Another is how every drift this
+    register replaced began — a `keydown` beside a display list, the two of them free to
+    disagree about which keys the widget answers."""
     layer = ROOT / "skills/leaf"
     sources = [
         layer / "assets/leaf.js",
@@ -4441,7 +4613,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         for n, line in enumerate(src.read_text().splitlines(), 1)
         if 'addEventListener("keydown"' in line
     ]
-    assert len(listeners) == 2, (
+    assert len(listeners) == 3, (
         f"the runtime's keydown listeners changed: {listeners}. A key belongs in the "
         "register (keys(el, title, rows)), which is what lets a surface promise it."
     )

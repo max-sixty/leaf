@@ -3,6 +3,7 @@
 import re
 
 from leaf.asks import asking, local_ask_entry, quoted_in
+from leaf.passages import COLLAPSE_CHARS
 from leaf.projection import enclosing_widgets
 from leaf.registry.contract import json_validator, registry_path, visual_parts
 from leaf.registry.state import retirement_slots
@@ -116,9 +117,8 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
 
 
 def layout_errors(lf_elements: list, registry: dict) -> list:
-    """Validate the direct grammar of registry-declared structural elements: a workspace
-    or pane is an optional header, exactly one body element, and an optional footer; a
-    grid holds its cells as elements."""
+    """Validate the direct grammar of registry-declared structural elements: a pane is an
+    optional header, exactly one body element, and an optional footer."""
     errors = []
     for rec in lf_elements:
         role = registry.get(rec["tag"], {}).get("x-reading-role")
@@ -126,14 +126,6 @@ def layout_errors(lf_elements: list, registry: dict) -> list:
             continue
         where = at(rec)
         direct = rec["direct"]
-        if role == "grid":
-            # Every direct child is a cell, so loose text would be a cell nobody wrote.
-            if "#text" in direct:
-                errors.append(
-                    f"{where}: x-reading-role grid holds its cells as elements; wrap "
-                    "loose text in one"
-                )
-            continue
         headers = [i for i, child in enumerate(direct) if child == "header"]
         footers = [i for i, child in enumerate(direct) if child == "footer"]
         if len(headers) > 1 or len(footers) > 1:
@@ -176,7 +168,7 @@ def ask_surface_errors(lf_elements: list, registry: dict) -> list:
     """An x-ask-surface region frames exactly one nested local Ask source.
 
     One leading direct heading is the question's visible title and the region owns its
-    reading and arrival, while the x-awaits or request widget owns the answer. Requiring
+    reading and arrival, while the x-awaits widget owns the answer. Requiring
     both a title and one structural source makes that split unambiguous for the browser
     walk and for `page state`.
     Liveness still comes from the source's canonical Ask projection.
@@ -201,10 +193,9 @@ def ask_surface_errors(lf_elements: list, registry: dict) -> list:
     for rec in lf_elements:
         entry = registry.get(rec["tag"], {})
         awaits = entry.get("x-awaits") or {}
-        request = entry.get("x-request") or {}
-        requires_region = (
-            awaits.get("region") and asking(rec["attrs"], awaits.get("when"))
-        ) or (request.get("region") and request.get("ask") is True)
+        requires_region = awaits.get("region") and asking(
+            rec["attrs"], awaits.get("when")
+        )
         if not requires_region or quoted_in(rec, registry):
             continue
         holder = rec.get("holder")
@@ -242,41 +233,6 @@ def ask_surface_errors(lf_elements: list, registry: dict) -> list:
             errors.append(
                 f"{at(region)}: an Ask must frame exactly one declared Ask source, "
                 f"found {found or 'none'}"
-            )
-    return errors
-
-
-def request_offer_errors(lf_elements: list, registry: dict) -> list:
-    """Every authored request seat presents at least one command it can send.
-
-    The registry declares a holder's complete verb vocabulary, while its direct
-    children choose which verbs this particular seat offers. An empty holder would
-    otherwise enter the Ask projection with no possible answer.
-    """
-    errors = []
-    for holder in lf_elements:
-        request = registry.get(holder["tag"], {}).get("x-request")
-        if request is None or request.get("records") or quoted_in(holder, registry):
-            continue
-        offered = [
-            rec["attrs"][request["offers"][rec["tag"]]]
-            for rec in lf_elements
-            if rec.get("holder") is holder
-            and rec.get("parent") == holder["tag"]
-            and rec["tag"] in request["offers"]
-            and request["offers"][rec["tag"]] in rec["attrs"]
-        ]
-        if not offered:
-            errors.append(
-                f"{at(holder)}: an x-request holder must offer at least one "
-                "declared verb"
-            )
-            continue
-        duplicates = sorted({verb for verb in offered if offered.count(verb) > 1})
-        if duplicates:
-            errors.append(
-                f"{at(holder)}: an x-request holder must offer each verb once; "
-                f"repeated {duplicates}"
             )
     return errors
 
@@ -351,7 +307,7 @@ def reference_errors(lf_elements: list, registry: dict, ids: set, by_id: dict) -
 
 
 def addressable_instance_errors(lf_elements: list, registry: dict) -> list:
-    """Conditional Asks and conversation seats need an id when they are live.
+    """Conditional Asks and thread seats need an id when they are live.
 
     Requiring every instance globally would outlaw inert option groups; checking the
     declared predicate here gives the runtime exactly the addressability it consumes.
@@ -359,7 +315,7 @@ def addressable_instance_errors(lf_elements: list, registry: dict) -> list:
     errors = []
     for rec in lf_elements:
         entry = registry.get(rec["tag"], {})
-        for role in ("x-awaits", "x-conversation"):
+        for role in ("x-awaits", "x-thread-seat"):
             declaration = entry.get(role)
             if (
                 declaration is not None
@@ -367,47 +323,6 @@ def addressable_instance_errors(lf_elements: list, registry: dict) -> list:
                 and not rec["attrs"].get("id")
             ):
                 errors.append(f"{at(rec)}: a matching {role} instance requires an id")
-    return errors
-
-
-def language_class_errors(blocks: list, registry: dict) -> list:
-    """A `class="language-…"` the runtime won't honor: the class somewhere other than
-    <pre><code>, or a word the layer doesn't speak. Neither is visible to the user — a
-    class in the wrong place and a misspelt language both render as an ordinary
-    uncolored block — so the failure is routed to the one party who can still fix it,
-    which is whoever wrote the word. A widget declaring a language is held to the same
-    list one attribute over (declared_word_errors); this half is the plain HTML block,
-    which belongs to no widget at all.
-
-    The list is indexed rather than tested: a layer naming none colors none, so a word
-    declared to it is still one it can't honor, and the placement rule never depended on
-    the list at all. A check whose two failures are both invisible on the page is the
-    last one that should be able to pass by finding nothing to check against.
-
-    The misplaced block is offered the other way to color one, read from the same
-    declaration the check itself reads: whichever tags say an attribute of theirs names
-    a language (x-language). Naming one here would be this lint knowing a widget, and
-    the offer would go stale the moment a layer dropped it or added a second — so a
-    layer whose tags declare none says only to move the block."""
-    known = registry["$languages"]["names"]
-    colored = " or ".join(
-        f"<{tag} {attr}=…>"
-        for tag, entry in sorted(registry.items())
-        if tag.startswith("lf-") and (attr := entry.get("x-language"))
-    )
-    instead = f", or use {colored} for a walkthrough" if colored else ""
-    errors = []
-    for block in blocks:
-        where = f'class="language-{block["lang"]}" (line {block["line"]})'
-        if (block["tag"], block["parent"]) != ("code", "pre"):
-            errors.append(
-                f"{where}: only <pre><code> is colored, found <{block['tag']}> in "
-                f"<{block['parent'] or 'nothing'}> — move it{instead}"
-            )
-        elif block["lang"] not in known:
-            errors.append(
-                f"{where}: not a language this page's layer speaks — known: {known}"
-            )
     return errors
 
 
@@ -455,11 +370,21 @@ def _spans(value: str):
         yield part, int(lo), int(hi) if hi else int(lo)
 
 
+# The whitespace a data body's trim removes: the browser's (JS trimEnd), spelled out
+# because Python's own \s and isspace() disagree with it at U+FEFF, U+0085 and
+# U+001C–001F, and a body ending in one would count a line more or fewer here than
+# lf-code numbers.
+_TRAILING = "".join(COLLAPSE_CHARS)
+
+
+def _body_text(owner: dict) -> str:
+    """A data body as its module reads it (`bodyText`, widget-upgrade.js): leading
+    blank lines and trailing whitespace are the <pre>'s layout, not lines."""
+    return owner.get("body", "").lstrip("\n").rstrip(_TRAILING)
+
+
 def _body_lines(owner: dict) -> int:
-    # The modules' own trim: leading blank lines and trailing whitespace are the
-    # source's furniture, not lines.
-    body = re.sub(r"\s+$", "", re.sub(r"^\n+", "", owner.get("body", "")))
-    return len(body.split("\n"))
+    return _body_text(owner).count("\n") + 1
 
 
 def _numbering(
@@ -516,7 +441,7 @@ def line_ref_errors(lf_elements: list, registry: dict) -> list:
             ref = rec["attrs"].get(attr)
             if ref is None or not LINE_RANGES.fullmatch(ref):
                 continue
-            body_owner = rec if rec["body"].strip() else rec.get("holder") or {}
+            body_owner = rec if _body_text(rec) else rec.get("holder") or {}
             value, ranges = _numbering(body_owner, registry)
             if ranges is None:
                 continue
@@ -538,10 +463,10 @@ def line_ref_errors(lf_elements: list, registry: dict) -> list:
     return errors
 
 
-def suggestion_errors(lf_elements: list, registry: dict, comment_ids: set) -> list:
+def suggestion_errors(lf_elements: list, registry: dict, thread_ids: set) -> list:
     """What the registry's schema can't say about a suggestion: it holds at most
     one of each slot and at least one of them, it doesn't nest, and `resolves`
-    names a comment in the document's reference namespace. A family lint, named
+    names a thread in the document's thread namespace. A family lint, named
     for its family — and it reads even its own slots out of the merged registry,
     so a layer that adds one to the family is linted for it rather than around it."""
     tags = {
@@ -568,16 +493,16 @@ def suggestion_errors(lf_elements: list, registry: dict, comment_ids: set) -> li
                     f"{where}: carries {carried.count(tag)} <{tag}> children, one at most"
                 )
         resolves = rec["attrs"].get("resolves")
-        if resolves and resolves not in comment_ids:
+        if resolves and resolves not in thread_ids:
             errors.append(
-                f"{where}: resolves={resolves!r} names no comment in this document"
+                f"{where}: resolves={resolves!r} names no thread in this document"
             )
     return errors
 
 
 def fragment_errors(parser: SourceDocument, registry: dict) -> list:
     """Structural + registry validation of a markup fragment (an agent reply
-    carrying widgets): the discussion-side analog of `version check`. The declared-word
+    carrying widgets): the discussion-side analog of `page check`. The declared-word
     checks come along because the schema stopped carrying the lists: a reply's
     <lf-code language=…> is colored by the same tokenizer a version's is, and its chips
     are tinted by the same theme, and nothing else would now refuse either a word its
@@ -589,8 +514,6 @@ def fragment_errors(parser: SourceDocument, registry: dict) -> list:
         + visual_part_errors(parser.lf_elements, registry)
         + addressable_instance_errors(parser.lf_elements, registry)
         + ask_surface_errors(parser.lf_elements, registry)
-        + request_offer_errors(parser.lf_elements, registry)
-        + language_class_errors(parser.language_blocks, registry)
         + declared_word_errors(parser.lf_elements, registry)
         + line_ref_errors(parser.lf_elements, registry)
     )

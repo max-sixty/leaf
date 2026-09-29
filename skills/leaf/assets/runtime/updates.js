@@ -11,7 +11,8 @@
    thread work claims from status storage share a common envelope: `id`, typed `target`,
    `source`, `action`, structured `detail`, declared human-readable `text`, `ts`,
    attribution, and `disposition`. Report envelopes also retain their version and
-   sequence; a claim carries `log_floor`, the log sequence it followed.
+   sequence; a claim carries `log_floor`, the log sequence it followed, and `turn`, the
+   claimant's turn that wrote it.
 
    The source discriminator is semantic, not an implementation leak. A report stands
    until a stamped revision's note absorbs or overrules it; a claim stands until the
@@ -32,10 +33,11 @@
    storage.
 
    `updateSequence` filters the server-normalized update feed. `watchUpdates` and
-   `watchAsks` subscribe their public semantic readings to the application publisher
-   and invoke the callback immediately. The same rendering function
-   therefore handles a module connected before the first state and one constructed by a
-   later thread reconcile.
+   `watchHistory` are `watchProjection` (`projection-watch.js`) with their own reading,
+   so a module connected before the first state and one a later thread reconcile builds
+   render through the same callback. `watchUpdates` withholds a reading until the
+   projection has committed every report coordinate its target holds, so a callback
+   never narrates a report the widget has not yet painted.
 
    Accepted and local attempts publish one complete snapshot, including reads whose
    event list did not grow and definitive refusals that restore authoritative truth.
@@ -44,9 +46,8 @@
    callback. The shared tick reruns only callbacks whose reading changed and drops
    disconnected owners. Subscription callbacks use this same mechanism, so a new widget
    owes no entry in a kernel list of clock consumers. A held state does not reset the
-   measured server clock offset. Callbacks must render from the sequence they receive and
-   return their cleanup function from `watchUpdates` when their element
-   disconnects.
+   measured server clock offset. Callbacks render from the sequence they receive, and
+   their element calls the cleanup `watchUpdates` returned when it disconnects.
 
    `active.revision` identifies the immutable document currently shown; `active.version`
    is its public stamp when it has one, otherwise null, and `active.label` is `vN`,
@@ -68,14 +69,14 @@ function updateTarget(target) {
   if (target instanceof Element) {
     if (target.id) return { kind: "widget", id: target.id };
   } else if (
-    ["widget", "conversation"].includes(target?.kind) &&
+    ["widget", "thread"].includes(target?.kind) &&
     typeof target.id === "string" &&
     target.id
   ) {
     return { kind: target.kind, id: target.id };
   }
   throw new TypeError(
-    "update target must be a widget element or {kind: 'widget' | 'conversation', id}",
+    "update target must be a widget element or {kind: 'widget' | 'thread', id}",
   );
 }
 const targetKey = (target) =>

@@ -3,44 +3,31 @@
 import json
 from pathlib import Path
 
-from .asks import thread_ask_readings
 from .construction import constructed_content
-from .data import data_errors, read_data
+from .data import data_errors
 from .data_contracts import measurement_lag_entries, page_data_binding_inventory
-from .document_reading import DocumentReading, read_document
-from .events import (
-    active_summaries,
-    bare_reaction,
-    build_threads,
-    document_identity,
-    is_reaction,
-)
-from .files import (
-    active_descriptor,
-    revision_path,
-    version_descriptors,
-)
-from .passages import enclosing_of, page_passages
-from .projection import (
-    FrozenThreadReading,
-    canonical_updates,
-    frozen_thread_reading,
-    page_reading,
-    retirement_outcomes,
-)
-from .read_state import unread_content
+from .delivery import current_responses
+from .document_reading import DocumentReading
+from .events import bare_reaction, is_reaction
+from .files import revision_path
+from .passages import page_passages
+from .projection import FrozenThreadReading, retirement_outcomes
 from .registry.reactions import described
 from .registry.storage import layer_metadata, require_registry
-from .requests import request_lifecycles, request_lifecycles_for, request_phases
+from .revision_artifact import active_enclosing
 from .revisioning import activate_source
 from .schema import DATA_DIR, DATA_FILE
-from .served_state.page import full_state
+from .served_state.page import read_served_page
 from .server import running_server
 from .service import PageTransaction, unacknowledged
-from .structure import SourceDocument, parse_revision
+from .validation.admission import logged_id
+from .work import page_subject
+
+# How many of a thread's messages one `page state PAGE THREAD` prints by default.
+HISTORY_LIMIT = 50
 
 
-def standing_entry(coordinate, e: dict, conversation: str | None = None) -> dict:
+def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
     """One standing action, in the shape `page state` reports every one of them.
 
     `revision` is the exact document the action was taken on, which for a widget an agent
@@ -55,60 +42,30 @@ def standing_entry(coordinate, e: dict, conversation: str | None = None) -> dict
         "detail": e["detail"],
         "revision": e["revision"],
         "seq": e["seq"],
-        "conversation": conversation,
+        "thread": thread,
     }
 
 
-def cmd_page_state(page_dir: Path) -> None:
-    """Print the agent-side state from one transaction-consistent snapshot."""
-    with PageTransaction(page_dir) as page:
-        activation = activate_source(page_dir)
-        _write_page_state(page_dir, page.events, activation.error)
-
-
-def cmd_conversation_read(
+def cmd_page_state(
     page_dir: Path,
-    conversation_id: str,
+    target: str | None = None,
     *,
-    after: int = 0,
-    limit: int = 50,
+    after: int | None = None,
+    limit: int | None = None,
 ) -> None:
-    """Print one exact current conversation and one bounded history page."""
+    """Print the agent-side state from one transaction-consistent snapshot: the
+    page's, or the part `target` names — a thread with a page of its history, or a
+    widget."""
     with PageTransaction(page_dir) as page:
         activation = activate_source(page_dir)
         _write_page_state(
             page_dir,
             page.events,
             activation.error,
-            conversation_id=conversation_id,
+            target=target,
             after=after,
             limit=limit,
         )
-
-
-def _active_revision(page_dir: Path, events: list) -> tuple[int | None, dict | None]:
-    # Every markup-derived reading is of the latest valid revision, because that
-    # is the page the live root shows and the user acts on.
-    active = active_descriptor(page_dir, events)
-    if active is None:
-        return None, None
-    revision = active["revision"]
-    active["file"] = revision_path(page_dir, revision).relative_to(page_dir).as_posix()
-    return revision, active
-
-
-def _read_active_document(
-    page_dir: Path,
-    events: list,
-    registry: dict,
-    revision: int | None,
-    data: dict | None = None,
-) -> DocumentReading | None:
-    if revision is None:
-        return None
-    page = page_reading(parse_revision(page_dir, revision), events, registry, revision)
-    threads = build_threads(events, page.within)
-    return read_document(page, threads, data)
 
 
 def _base_state(
@@ -121,7 +78,6 @@ def _base_state(
     threads: dict,
     stored_data: dict,
     registry: dict,
-    requests: list,
 ) -> dict:
     return {
         "page": str(page_dir),
@@ -139,15 +95,13 @@ def _base_state(
         # wait would still print, workers' reports included.
         "unacked": len(unacknowledged(events, presence_reading["cursor"])),
         # The last physical log record folded into this transaction-consistent
-        # snapshot. This is the continuation boundary for `events --after`, not
+        # snapshot. This is the continuation boundary for `page events --after`, not
         # the watcher's acknowledgement cursor above.
         "event_seq": events[-1]["seq"] if events else 0,
         "server": running_server(page_dir),
         "elements": [],
-        "content": [],
         "state": [],
         "updates": [],
-        "requests": requests,
         "data": {
             "file": DATA_FILE,
             "dir": DATA_DIR,
@@ -156,20 +110,20 @@ def _base_state(
         "data_bindings": page_data_binding_inventory(page_dir, registry, events),
         "measurement_lag": [],
         "asks": [],
-        # Current semantic facts only. Exact raw history belongs to
-        # `events --conversation`; keeping its sequence list here would make this
-        # default snapshot grow with every conversation turn. A reaction nobody
-        # has replied to opened no conversation: it is paint on the page and
+        # Current semantic facts only. A thread's history belongs to
+        # `page state PAGE THREAD`; keeping its sequence list here would make this
+        # default snapshot grow with every thread turn. A reaction nobody
+        # has replied to opened no thread: it is paint on the page and
         # stands under `reactions` below.
-        "conversations": [
+        "threads": [
             {
-                "id": root,
+                "id": thread_id,
                 "title": thread["title"],
                 "anchor": thread["anchor"],
                 "detached_from": thread["detached_from"],
                 "resolved": thread["resolved"] and thread["resolved"]["author"],
             }
-            for root, thread in threads.items()
+            for thread_id, thread in threads.items()
             if not bare_reaction(thread)
         ],
         # Every reaction still standing — the agent-side reading of the marks
@@ -184,13 +138,13 @@ def _base_state(
                     "anchor": message.get("anchor"),
                     "about": message.get("about"),
                     "parent": message.get("parent"),
-                    "conversation": root,
+                    "thread": thread_id,
                     "revision": message.get("revision"),
                     "seq": message["seq"],
                 },
                 registry,
             )
-            for root, thread in threads.items()
+            for thread_id, thread in threads.items()
             if not thread["resolved"]
             for message in thread["msgs"]
             if is_reaction(message)
@@ -201,9 +155,6 @@ def _base_state(
 def _apply_document_state(
     state: dict,
     document: DocumentReading,
-    events: list,
-    revision: int,
-    threads: dict,
     stored_data: dict,
     registry: dict,
 ) -> None:
@@ -215,7 +166,7 @@ def _apply_document_state(
             "tag": record["tag"],
             "id": record["attrs"].get("id"),
             "line": record["line"],
-            "conversation": None,
+            "thread": None,
         }
         for record in parser.lf_elements
     ]
@@ -224,24 +175,6 @@ def _apply_document_state(
         for coordinate, (event, _) in projection.actions.items()
     ]
     state["asks"] = document.asks["user"]
-    page_dir = Path(state["page"])
-    state["content_source"] = {
-        "file": str(page_dir / state["active"]["file"]),
-        "revision": revision,
-        "edit_file": str(page_dir / "index.html"),
-        "matches_active": state["source"]["live"],
-        "vocabulary": str(page_dir / "registry.json"),
-    }
-    state["content"] = constructed_content(
-        parser,
-        projection,
-        document.spoken,
-        registry,
-        stored_data,
-        page_dir,
-        editable=state["source"]["live"],
-        retired=set(document.passages.retired) | set(document.passages.gone),
-    )
     state["measurement_lag"] = measurement_lag_entries(
         parser.lf_elements, registry, stored_data
     )
@@ -256,7 +189,7 @@ def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
     # answer to its own question as an answer nobody had given, with `asks` reporting
     # the same question answered.
     #
-    # `conversation` is the one key that separates them, present on every entry so a
+    # `thread` is the one key that separates them, present on every entry so a
     # reader of this can take the two halves the same way, and the elements come along
     # so nothing here names a widget the same object never lists. Both lists are then
     # in one order rather than two sorted halves.
@@ -268,12 +201,12 @@ def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
             "tag": record["tag"],
             "id": widget,
             "line": record["line"],
-            "conversation": thread_of[widget],
+            "thread": thread_of[widget],
         }
         for widget, record in thread_byid.items()
     ]
     state["elements"].sort(
-        key=lambda element: (element["conversation"] or "", element["line"])
+        key=lambda element: (element["thread"] or "", element["line"])
     )
     state["state"] += [
         standing_entry(coordinate, event, thread_of[coordinate[0]])
@@ -284,40 +217,91 @@ def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
     )
 
 
+def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> dict:
+    """The page reading narrowed to one widget on the page and what it holds: its
+    element, the moves and reports standing on it or on anything inside it, the Asks
+    and workflows there, and the updates aimed at them. An Ask names the choice that
+    answers it, so narrowing to the Ask carries the pick standing on that choice."""
+
+    def inside(element: str | None) -> bool:
+        return element is not None and widget in enclosing.get(element, ())
+
+    workflows = [
+        item
+        for item in state["workflows"]
+        if item["subject"]["kind"] == "widget" and inside(item["subject"]["id"])
+    ]
+    obligations = set(state["activity"]["obligations"])
+    return {
+        "page": str(page_dir),
+        "widget": next(
+            element
+            for element in state["elements"]
+            if element["id"] == widget and element["thread"] is None
+        ),
+        "state": [
+            reading
+            for reading in state["state"]
+            if reading["thread"] is None
+            and (inside(reading["widget"]) or inside(reading["unit"]))
+        ],
+        "asks": [
+            ask
+            for ask in state["asks"]
+            if ask["thread"] is None and (inside(ask["id"]) or inside(ask["source"]))
+        ],
+        "updates": [
+            update
+            for update in state["updates"]
+            if update["target"]["kind"] == "widget" and inside(update["target"]["id"])
+        ],
+        "activity": {
+            "obligations": [
+                item["id"] for item in workflows if item["id"] in obligations
+            ],
+        },
+        "workflows": workflows,
+    }
+
+
 def _write_page_state(
     page_dir: Path,
     events: list,
     source_error: str | None = None,
     *,
-    conversation_id: str | None = None,
+    target: str | None = None,
     after: int = 0,
-    limit: int = 50,
+    limit: int | None = None,
 ) -> None:
     """Where the page stands, as one JSON object — the agent-facing projection
     beside the browser projection in /api/state. A session picking a page up needs
-    the same reading; doing it in-head over `leaf events` is how a standing decision
-    gets missed. So this prints the active revision's elements, the
-    projection of the user's standing state and the reports standing on the agent
-    channel, the effective construction and its mutation owners, authored
-    measurements whose live source has run again (`measurement_lag_entries`), the
-    open Asks on the page and in threads (the banner's own count), each comment
-    thread's current state and the agent messages in it the user has not read,
-    and presence beside what answers for it. Computed on demand from the log,
-    revision, registry, and source store — no derived reading is stored, so there
-    is no second copy of the truth to reconcile.
+    the same reading; doing it in-head over `leaf page events` is how a standing
+    decision gets missed. So this prints the active revision's elements, the projection of
+    the user's standing state and the reports standing on the agent channel,
+    authored measurements whose live source has run again
+    (`measurement_lag_entries`), the open Asks on the page and in threads (the
+    banner's own count), each comment thread's current state and the agent messages
+    in it the user has not read, and presence beside what answers for it. It is a
+    selection from the reading /api/state serves (`read_served_page`), computed on
+    demand from the log, revision, registry, and source store — no derived reading is
+    stored, and none is folded a second time here, so there is no second copy of the
+    truth to reconcile.
 
     Every markup-derived reading is of the latest valid revision, because that
     is the page the live root shows and the user acts on. An invalid source save
-    appears under `source.error` while that revision remains active."""
+    appears under `source.error` while that revision remains active. The document
+    itself is not repeated here: `active.file` is its HTML, which an agent reads
+    beside `state`."""
     registry = require_registry(page_dir)
-    versions = version_descriptors(page_dir, events)
-    revision, active = _active_revision(page_dir, events)
-    served = full_state(page_dir, events)
+    served, reading, stored_data = read_served_page(page_dir, events)
+    active = served["active"]
+    if active is not None:
+        active["file"] = (
+            revision_path(page_dir, active["revision"]).relative_to(page_dir).as_posix()
+        )
     activity = served["activity"]
-    claims = served["claims"]
-    # Agent state and browser state are two views of one snapshot. Select the
-    # presence portion from the already-projected server reading instead of
-    # gathering mutable claim and lease evidence a second time.
+    # Select presence from the served reading instead of gathering mutable claim and
+    # lease evidence a second time.
     presence_reading = {
         key: served[key]
         for key in (
@@ -334,23 +318,16 @@ def _write_page_state(
             "session_cwd",
         )
     }
-    stored_data = read_data(page_dir, registry)
-    document = _read_active_document(page_dir, events, registry, revision, stored_data)
-    spoken = document.spoken if document is not None else {}
-    threads = build_threads(events, enclosing_of(spoken))
-    thread_reading = frozen_thread_reading(events, registry)
-    requests = request_lifecycles(events)
     state = _base_state(
         page_dir,
         events,
         source_error,
-        versions,
+        served["versions"],
         active,
         presence_reading,
-        threads,
+        reading.threads if reading is not None else {},
         stored_data,
         registry,
-        requests,
     )
     state["activity"] = {
         **activity,
@@ -360,92 +337,83 @@ def _write_page_state(
     # stage, subject and `answer` — the operation that settles it — are canonical,
     # while `response` carries provisional response progress.
     state["workflows"] = served["workflows"]
-    if document is not None:
+    # Before a first revision there is no document, so no thread, Ask, widget, or
+    # claim subject either: every reading below keeps its empty default.
+    if reading is not None:
+        browser = served["browser"]
         _apply_document_state(
-            state, document, events, revision, threads, stored_data, registry
+            state, reading.documents[active["revision"]], stored_data, registry
         )
-    thread_requests = request_lifecycles_for(
-        events,
-        thread_reading.elements,
-        registry,
-        document_identity("thread"),
-        stored_data,
-    )
-    state["asks"] += thread_ask_readings(
-        events,
-        registry,
-        {root for root, thread in threads.items() if thread["resolved"]},
-        request_phases=request_phases(thread_requests),
-        reading=thread_reading,
-    )["user"]
-    state["updates"] = canonical_updates(
-        document.projection if document is not None else None,
-        claims,
-        threads,
-        events,
-    )
-    _apply_thread_state(state, thread_reading)
-    # The user's side between their moves: which of your messages they have not
-    # taken in yet, at their current content version.
-    unread = unread_content(events, threads, thread_reading.thread_by_widget)
-    for conversation in state["conversations"]:
-        conversation["unread"] = [
-            item["message"] for item in unread[conversation["id"]]
-        ]
-    if conversation_id is not None:
+        state["asks"] += browser["thread"]["asks"]["user"]
+        state["updates"] = browser["views"][str(active["revision"])]["updates"]
+        _apply_thread_state(state, reading.thread)
+        served_threads = {
+            thread["id"]: thread for thread in browser["thread"]["threads"]
+        }
+        # The user's side between their moves: which of your messages they have not
+        # taken in yet, at their current content version.
+        for thread in state["threads"]:
+            thread["unread"] = [
+                item["message"] for item in served_threads[thread["id"]]["unread"]
+            ]
+    subject = None
+    if target is not None:
+        subject = page_subject(page_dir, events, target)
+        if subject is None:
+            held = logged_id(events, target, current_responses(page_dir, events))
+            raise SystemExit(
+                f"{target!r} names no thread or widget on this page"
+                + (f"; {held}" if held else "")
+            )
+    if subject is not None and subject["kind"] == "widget":
+        if after is not None or limit is not None:
+            raise SystemExit(
+                f"{target!r} is a widget; --after and --limit page a thread"
+            )
+        state = _widget_state(
+            state, page_dir, subject["id"], active_enclosing(page_dir)
+        )
+    elif subject is not None:
+        thread_id = subject["id"]
         selected = next(
-            (
-                conversation
-                for conversation in state["conversations"]
-                if conversation["id"] == conversation_id
-            ),
+            (thread for thread in state["threads"] if thread["id"] == thread_id),
             None,
         )
         if selected is None:
-            raise SystemExit(f"unknown conversation {conversation_id!r}")
-        selected["summaries"] = active_summaries(events, threads)[conversation_id]
+            raise SystemExit(f"{target!r} names no thread or widget on this page")
+        # A thread is listed only where the page has a document, so the readings
+        # stand here.
+        thread_reading = reading.thread
+        selected["summaries"] = served_threads[thread_id]["summaries"]
         elements = [
-            element
-            for element in state["elements"]
-            if element["conversation"] == conversation_id
+            element for element in state["elements"] if element["thread"] == thread_id
         ]
         standing = [
-            reading
-            for reading in state["state"]
-            if reading["conversation"] == conversation_id
+            reading for reading in state["state"] if reading["thread"] == thread_id
         ]
-        asks = [ask for ask in state["asks"] if ask["conversation"] == conversation_id]
+        asks = [ask for ask in state["asks"] if ask["thread"] == thread_id]
         updates = [
             update
             for update in state["updates"]
-            if (
-                update["target"] == {"kind": "conversation", "id": conversation_id}
-                or (
-                    update["target"]["kind"] == "widget"
-                    and thread_reading.thread_by_widget.get(update["target"]["id"])
-                    == conversation_id
-                )
-            )
+            if thread_reading.subject_thread(update["target"]) == thread_id
         ]
         reactions = [
             reaction
             for reaction in state["reactions"]
-            if reaction["conversation"] == conversation_id
-        ]
-        requests = [
-            request
-            for request in state["requests"]
-            if thread_reading.thread_by_widget.get(request["seat"]["widget"])
-            == conversation_id
+            if reaction["thread"] == thread_id
         ]
         content = []
         content_source = {
-            "kind": "conversation",
-            "conversation": conversation_id,
+            "kind": "thread",
+            "thread": thread_id,
             "vocabulary": str(page_dir / "registry.json"),
         }
+        after = after or 0
+        limit = limit or HISTORY_LIMIT
         matching = [
-            event for event in threads[conversation_id]["msgs"] if event["seq"] > after
+            event
+            for event in reading.threads[thread_id]["msgs"]
+            if event["seq"] > after
         ]
         shown = matching[:limit]
         history = {
@@ -463,8 +431,8 @@ def _write_page_state(
                     "seq": event["seq"],
                 },
                 "edit": {
-                    "kind": "conversation",
-                    "conversation": conversation_id,
+                    "kind": "thread",
+                    "thread": thread_id,
                 },
                 "content": [],
             }
@@ -475,7 +443,6 @@ def _write_page_state(
                 "session",
                 "parent",
                 "responds",
-                "initiates",
                 "revision",
             ):
                 if key in event:
@@ -488,7 +455,7 @@ def _write_page_state(
             if fragment is None:
                 continue
             passages = page_passages(
-                SourceDocument(event["markup"]),
+                fragment,
                 registry,
                 retirement_outcomes(thread_reading.projection.actions),
             )
@@ -499,30 +466,24 @@ def _write_page_state(
                 registry,
                 stored_data,
                 page_dir,
-                editable=False,
                 retired=set(passages.retired) | set(passages.gone),
-                conversation=conversation_id,
+                thread=thread_id,
             )
-        widget_ids = {element["id"] for element in elements}
-
-        def belongs(interaction: dict) -> bool:
-            target = interaction["subject"]
-            return target == {"kind": "conversation", "id": conversation_id} or (
-                target["kind"] == "widget" and target["id"] in widget_ids
-            )
-
-        workflows = [workflow for workflow in state["workflows"] if belongs(workflow)]
+        workflows = [
+            workflow
+            for workflow in state["workflows"]
+            if workflow["thread"] == thread_id
+        ]
         obligations = set(state["activity"]["obligations"])
         state = {
             "page": str(page_dir),
-            "conversation": selected,
+            "thread": selected,
             "history": history,
             "content_source": content_source,
             "content": content,
             "elements": elements,
             "state": standing,
             "asks": asks,
-            "requests": requests,
             "reactions": reactions,
             "updates": updates,
             "activity": {

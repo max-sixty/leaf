@@ -9,7 +9,7 @@
    The last kind is a projection, not another source of truth. An id-bearing element in
    the version is its seat. `projectData(seat, records, keyOf, render, options)` owns
    that seat's children, labels each rendered element with the seat id
-   (`data-lf-projection`) and its record's stable key (`data-lf-datum`), and marks it
+   (`data-lf-projection`) and its rendering key (`data-lf-datum`), and marks it
    generated. With `{nested: true}` it labels descendants a renderer already placed
    without reconciling their layout. An optional `labelOf(record, index)` supplies the
    human coordinate thread chrome reads; core never interprets the opaque key. When
@@ -25,26 +25,32 @@
    reference owns the origin fields; no reading infers them from a datum key or rendered
    text.
 
-   Keys identify facts, not renderings or display strings. They are non-empty strings,
-   unique within one projection, and must remain with the same logical datum across
-   refreshes. `render` receives the prior element for the key and may update it in place;
-   returning a replacement is also valid. Reconciliation retains nodes already in their
-   place and schedules the shared anchor pass after synchronous projection work.
+   Keys are non-empty strings unique within one projection and reconcile its nodes.
+   `identify(record, index)` names a durable subject when the emitter can establish one;
+   it is independent of the rendering key and unique within the projection. Without it,
+   a source-backed datum belongs to the observed source revision. `render` receives the
+   prior element for the key and may update it in place. Reconciliation
+   retains nodes already in their place and schedules the shared anchor pass after
+   synchronous projection work.
+
+   This identity contract is experimental and open to change as more producers establish
+   what persists through a replacement.
 
    A selection wholly inside a derived datum captures `{section, datum, quote}`. A datum
-   projected from `watchData` also captures `{source, source_revision}`. Within that source
-   revision, resolution looks only for the key under its section. If the original words
+   projected from `watchData` also captures `{source, source_revision}`. A datum whose
+   emitter supplies an identity follows that subject across value replacements, even if
+   its rendering key changes. Other keys may name locations within one value, so their
+   placements remain pinned to the captured revision. If the original words
    still stand, Leaf marks them. If their display changes, Leaf outlines the same datum
-   and keeps the old quote in the thread. A current-source replacement makes the
-   placement outdated: the thread keeps its section context and remains in the panel, but
-   it does not mark or attach to a datum from the new revision. A missing or duplicate
-   key detaches rather than guessing. Selections crossing datum boundaries remain
-   ordinary quote anchors because they name a passage, not one fact.
+   and keeps the old quote in the thread. A different source makes the placement
+   outdated; a duplicate key detaches rather than guessing. Selections crossing datum
+   boundaries remain ordinary quote anchors because they name a passage, not one fact.
 
-   `data-lf-projection`, `data-lf-datum`, `data-lf-origin`, `data-lf-source`,
-   `data-lf-source-revision`, and `data-lf-gen` are written by `projectData`, never
-   authored in a version. A custom widget joins through the helper alone; no consumer
-   names its tag. Export preserves the rendered elements and their labels as a snapshot,
+   `data-lf-projection`, `data-lf-datum`, `data-lf-identity`, `data-lf-origin`,
+   `data-lf-source`, `data-lf-source-revision`, and `data-lf-gen` are written by
+   `projectData`, never authored in a version. A custom widget joins through the helper
+   alone; no consumer names its tag. Export preserves the rendered elements and their
+   labels as a snapshot,
    while dropping the scripts that could refresh them. Print preserves the same readable
    words. Neither medium claims that the snapshot remains live.
 
@@ -56,13 +62,14 @@ import { registry } from "../registry.js";
 import { reachScrollers } from "../reach.js";
 import { setChildren } from "../dom-children.js";
 import { under } from "../shadow.js";
+import { keeps } from "../keeps.js";
 
 // Runtime-supplied data is a third kind of page word: it is neither prose the author
 // put in the version nor apparatus the runtime asks the user to operate. It belongs
 // in `says` because the user can point at it, and not in `wrote` because no version
 // contains it. `projectData` states both facts on each rendered datum: data-lf-gen keeps
 // it out of the authored reading, while data-lf-projection + data-lf-datum give it a
-// logical identity that survives a renderer replacing its nodes.
+// logical identity that survives a renderer replacing its nodes within a value.
 //
 // The source is the authored seat's id and the key is local to that seat. Keeping the
 // pair in the DOM, rather than in a map beside it, preserves the document + log as the
@@ -114,7 +121,7 @@ export function createDataProjection({ invalidateDom }) {
     records,
     keyOf,
     render,
-    { nested = false, labelOf = null, snapshot, originOf = null } = {},
+    { nested = false, labelOf = null, snapshot, originOf = null, identify = null } = {},
   ) {
     if (!(root instanceof Element))
       throw new TypeError("projectData root must be an element");
@@ -129,6 +136,8 @@ export function createDataProjection({ invalidateDom }) {
       throw new TypeError("projectData nested must be a boolean");
     if (labelOf !== null && typeof labelOf !== "function")
       throw new TypeError("projectData labelOf must be a function or null");
+    if (identify !== null && typeof identify !== "function")
+      throw new TypeError("projectData identify must be a function or null");
     const declaredInputs = registry[root.localName]?.["x-data"] ?? {};
     if (snapshot === undefined && Object.keys(declaredInputs).length)
       throw new Error(
@@ -144,10 +153,8 @@ export function createDataProjection({ invalidateDom }) {
       throw new TypeError("projectData snapshot needs a source and revision");
 
     const stampBasis = (node) => {
-      if (snapshot) node.dataset.lfSource = snapshot.source;
-      else delete node.dataset.lfSource;
-      if (snapshot) node.dataset.lfSourceRevision = String(snapshot.revision);
-      else delete node.dataset.lfSourceRevision;
+      keeps(node, "data-lf-source", snapshot?.source ?? null);
+      keeps(node, "data-lf-source-revision", snapshot?.revision ?? null);
     };
     stampBasis(root);
     if (originOf !== null && typeof originOf !== "function")
@@ -168,6 +175,7 @@ export function createDataProjection({ invalidateDom }) {
     }
 
     const keys = new Set();
+    const identities = new Set();
     const nodes = new Set();
     const wanted = [];
     let index = 0;
@@ -180,6 +188,18 @@ export function createDataProjection({ invalidateDom }) {
       if (keys.has(key))
         throw new Error(`projectData(${root.id}) received duplicate key ${key}`);
       keys.add(key);
+      const identity = identify?.(record, index);
+      if (identify) {
+        if (typeof identity !== "string" || !identity)
+          throw new TypeError(
+            `projectData(${root.id}) identity ${index} must be a non-empty string`,
+          );
+        if (identities.has(identity))
+          throw new Error(
+            `projectData(${root.id}) received duplicate identity ${identity}`,
+          );
+        identities.add(identity);
+      }
       const node = render(record, prior.get(key) ?? null, index);
       if (!(node instanceof Element))
         throw new TypeError(
@@ -201,32 +221,31 @@ export function createDataProjection({ invalidateDom }) {
           throw new TypeError(
             `projectData(${root.id}) label ${index} must be a non-empty string`,
           );
-        node.dataset.lfDatumLabel = label;
+        keeps(node, "data-lf-datum-label", label);
         if (
           !node.hasAttribute("aria-label") &&
           (!node.hasAttribute("aria-description") ||
             node.getAttribute("aria-description") === priorLabel)
         )
-          node.setAttribute("aria-description", label);
+          keeps(node, "aria-description", label);
       } else if (priorLabel !== undefined) {
         if (node.getAttribute("aria-description") === priorLabel)
           node.removeAttribute("aria-description");
         delete node.dataset.lfDatumLabel;
       }
-      node.dataset.lfGen = "1";
-      node.dataset.lfProjection = root.id;
-      node.dataset.lfDatum = key;
+      keeps(node, "data-lf-gen", "1");
+      keeps(node, "data-lf-projection", root.id);
+      keeps(node, "data-lf-datum", key);
       stampBasis(node);
+      keeps(node, "data-lf-identity", identify ? identity : null);
       // The emitter knows which input it transformed. Keep that construction fact,
       // never recover a source path by interpreting its opaque key or displayed words.
       const origin = (originOf ? originOf(record, index) : snapshot?.origin) ?? null;
-      if (origin !== null) {
-        if (typeof origin !== "object" || Array.isArray(origin))
-          throw new TypeError(
-            `projectData(${root.id}) origin ${index} must be an object`,
-          );
-        node.dataset.lfOrigin = JSON.stringify(origin);
-      } else delete node.dataset.lfOrigin;
+      if (origin !== null && (typeof origin !== "object" || Array.isArray(origin)))
+        throw new TypeError(
+          `projectData(${root.id}) origin ${index} must be an object`,
+        );
+      keeps(node, "data-lf-origin", origin === null ? null : JSON.stringify(origin));
       wanted.push(node);
       index++;
     }
@@ -237,6 +256,7 @@ export function createDataProjection({ invalidateDom }) {
           delete node.dataset.lfGen;
           delete node.dataset.lfProjection;
           delete node.dataset.lfDatum;
+          delete node.dataset.lfIdentity;
           delete node.dataset.lfSource;
           delete node.dataset.lfSourceRevision;
           delete node.dataset.lfOrigin;
@@ -248,11 +268,9 @@ export function createDataProjection({ invalidateDom }) {
           }
         }
     } else {
-      // A projection's children are its rendering. Remove source whitespace or an old
-      // non-element rendering first, then use the runtime's stable-child reconciler so a
-      // node already in the right place is not detached and reinserted.
-      for (const child of [...root.childNodes])
-        if (child.nodeType !== Node.ELEMENT_NODE) child.remove();
+      // A projection's children are its rendering, so source whitespace and an old
+      // rendering leave, and a node already in the right place is not detached and
+      // reinserted.
       setChildren(root, wanted);
     }
     applyProjection(root);

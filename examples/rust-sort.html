@@ -7,19 +7,15 @@
       content="An animated trace of the merge sort Rust shipped in 1.15: natural runs, insertion-sort extension, the run stack's invariants, and merges through a half-size buffer, beside excerpts of the real source that follow each step."
     />
     <style>
-      .sort-intro {
+      /* The sort beside the source it follows, stacked where the workspace flows. */
+      #sort-regions {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-        gap: clamp(18px, 3vw, 48px);
-        align-items: start;
+        grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+        gap: var(--sp-4);
       }
-      .sort-intro > :is(h1, p) {
-        margin: 0;
-      }
-      @container lf-workspace (max-width: 1050px) {
-        .sort-intro {
-          grid-template-columns: 1fr;
-          gap: 8px;
+      @media (width < 720px) {
+        #sort-regions {
+          grid-template-columns: minmax(0, 1fr);
         }
       }
       lf-sort-film {
@@ -36,8 +32,6 @@
       }
       lf-sort-film .sort-stage svg {
         width: 100%;
-        height: auto;
-        aspect-ratio: 1080 / 560;
         display: block;
       }
       lf-sort-film .sort-narration {
@@ -165,60 +159,59 @@
     </script>
   </head>
   <body>
-    <main data-width="available">
-      <lf-workspace id="sort-workspace">
-        <header class="sort-intro">
-          <h1>How Rust's 2016 merge sort uses the order already in a slice</h1>
-          <p id="sort-lede">
-            In December 2016
-            <a href="https://github.com/rust-lang/rust/pull/38192"
-              >rust-lang/rust#38192</a
-            >
-            replaced <code>slice::sort</code> with a merge sort borrowing from TimSort:
-            it cuts the slice into runs that are already in order, and merges them under
-            two stack invariants. On the PR's benchmarks, sorting an already ascending
-            slice got 89% faster, a descending one 95%, and a random one 4%. Play it on
-            each input; the source on the right follows along.
-          </p>
-        </header>
-        <lf-grid id="sort-regions" columns="3fr 2fr">
-          <lf-pane id="sort-stage-pane" label="The sort">
-            <header>
-              <h2>The slice, its scratch buffer, and the stack of runs</h2>
-            </header>
-            <lf-sort-film
-              id="sort-film"
-              sort-code="code-merge-sort"
-              head-code="code-insert-head"
-              merge-code="code-merge"
-            ></lf-sort-film>
-          </lf-pane>
-          <lf-pane id="sort-source-pane" label="Source">
-            <header><h2>The code as it shipped in Rust 1.15</h2></header>
-            <div id="sort-source">
-              <p id="sort-source-note">
-                Quoted from
+    <main class="layout-workspace" id="sort-workspace">
+      <header>
+        <h1>How Rust's 2016 merge sort uses the order already in a slice</h1>
+      </header>
+      <div id="sort-regions">
+        <lf-pane id="sort-stage-pane" label="The sort">
+          <header>
+            <h2>The slice, its scratch buffer, and the stack of runs</h2>
+          </header>
+          <lf-sort-film
+            id="sort-film"
+            sort-code="code-merge-sort"
+            head-code="code-insert-head"
+            merge-code="code-merge"
+          ></lf-sort-film>
+        </lf-pane>
+        <lf-pane id="sort-source-pane" label="Source">
+          <header><h2>The code as it shipped in Rust 1.15</h2></header>
+          <div id="sort-source">
+            <p id="sort-lede">
+              In December 2016
+              <a href="https://github.com/rust-lang/rust/pull/38192"
+                >rust-lang/rust#38192</a
+              >
+              replaced <code>slice::sort</code> with a merge sort borrowing from
+              TimSort: it cuts the slice into runs that are already in order, and merges
+              them under two stack invariants. On the PR's benchmarks, sorting an
+              already ascending slice got 89% faster, a descending one 95%, and a random
+              one 4%. Play it on each input; this source follows along.
+            </p>
+            <p id="sort-source-note">
+              Quoted from
+              <a
+                href="https://github.com/rust-lang/rust/blob/1.15.0/src/libcollections/slice.rs"
+                ><code>src/libcollections/slice.rs</code></a
+              >
+              at the 1.15.0 tag; each ⋮ row is lines left out. The film uses a
+              <code>min_run</code> of 6 rather than 32 so that 40 elements make several
+              runs.
+            </p>
+            <section id="src-merge-sort">
+              <h3>
                 <a
-                  href="https://github.com/rust-lang/rust/blob/1.15.0/src/libcollections/slice.rs"
-                  ><code>src/libcollections/slice.rs</code></a
+                  href="https://github.com/rust-lang/rust/blob/1.15.0/src/libcollections/slice.rs#L1505"
+                  ><code>merge_sort</code></a
                 >
-                at the 1.15.0 tag; each ⋮ row is lines left out. The film uses a
-                <code>min_run</code> of 6 rather than 32 so that 40 elements make
-                several runs.
-              </p>
-              <section id="src-merge-sort">
-                <h3>
-                  <a
-                    href="https://github.com/rust-lang/rust/blob/1.15.0/src/libcollections/slice.rs#L1505"
-                    ><code>merge_sort</code></a
-                  >
-                </h3>
-                <lf-code
-                  id="code-merge-sort"
-                  language="rust"
-                  lines="1505-1507,1520-1527,1542,1548-1595,1614-1629,1636"
-                >
-                  <pre>
+              </h3>
+              <lf-code
+                id="code-merge-sort"
+                language="rust"
+                lines="1505-1507,1520-1527,1542,1548-1595,1614-1629,1636"
+              >
+                <pre>
 fn merge_sort&lt;T, F&gt;(v: &amp;mut [T], mut compare: F)
     where F: FnMut(&amp;T, &amp;T) -&gt; Ordering
 {
@@ -297,31 +290,31 @@ fn merge_sort&lt;T, F&gt;(v: &amp;mut [T], mut compare: F)
     }
 }
 </pre>
-                  <lf-note id="code-merge-sort-skip-1508" at="1508"
-                    >Zero-sized types return early.</lf-note
-                  >
-                  <lf-note id="code-merge-sort-skip-1528" at="1528"
-                    >Short slices (<code>len &lt;= max_insertion</code>) take plain
-                    insertion sort and return.</lf-note
-                  >
-                  <lf-note id="code-merge-sort-skip-1630" at="1630"
-                    >The <code>Run { start, len }</code> struct.</lf-note
-                  >
-                </lf-code>
-              </section>
-              <section id="src-insert-head">
-                <h3>
-                  <a
-                    href="https://github.com/rust-lang/rust/blob/1.15.0/src/libcollections/slice.rs#L1310"
-                    ><code>insert_head</code></a
-                  >
-                </h3>
-                <lf-code
-                  id="code-insert-head"
-                  language="rust"
-                  lines="1310-1314,1332,1344-1359,1378"
+                <lf-note id="code-merge-sort-skip-1508" at="1508"
+                  >Zero-sized types return early.</lf-note
                 >
-                  <pre>
+                <lf-note id="code-merge-sort-skip-1528" at="1528"
+                  >Short slices (<code>len &lt;= max_insertion</code>) take plain
+                  insertion sort and return.</lf-note
+                >
+                <lf-note id="code-merge-sort-skip-1630" at="1630"
+                  >The <code>Run { start, len }</code> struct.</lf-note
+                >
+              </lf-code>
+            </section>
+            <section id="src-insert-head">
+              <h3>
+                <a
+                  href="https://github.com/rust-lang/rust/blob/1.15.0/src/libcollections/slice.rs#L1310"
+                  ><code>insert_head</code></a
+                >
+              </h3>
+              <lf-code
+                id="code-insert-head"
+                language="rust"
+                lines="1310-1314,1332,1344-1359,1378"
+              >
+                <pre>
 fn insert_head&lt;T, F&gt;(v: &amp;mut [T], compare: &amp;mut F)
     where F: FnMut(&amp;T, &amp;T) -&gt; Ordering
 {
@@ -346,31 +339,27 @@ fn insert_head&lt;T, F&gt;(v: &amp;mut [T], compare: &amp;mut F)
     }
 }
 </pre>
-                  <lf-note id="code-insert-head-skip-1315" at="1315"
-                    >Why method 3 (tmp + hole) won the benchmarks.</lf-note
-                  >
-                  <lf-note id="code-insert-head-skip-1333" at="1333"
-                    >Panic safety.</lf-note
-                  >
-                  <lf-note id="code-insert-head-skip-1360" at="1360"
-                    >The <code>NoDrop</code> and
-                    <code>InsertionHole</code> helpers.</lf-note
-                  >
-                </lf-code>
-              </section>
-              <section id="src-merge">
-                <h3>
-                  <a
-                    href="https://github.com/rust-lang/rust/blob/1.15.0/src/libcollections/slice.rs#L1387"
-                    ><code>merge</code></a
-                  >
-                </h3>
-                <lf-code
-                  id="code-merge"
-                  language="rust"
-                  lines="1387-1393,1412-1464,1491"
+                <lf-note id="code-insert-head-skip-1315" at="1315"
+                  >Why method 3 (tmp + hole) won the benchmarks.</lf-note
                 >
-                  <pre>
+                <lf-note id="code-insert-head-skip-1333" at="1333"
+                  >Panic safety.</lf-note
+                >
+                <lf-note id="code-insert-head-skip-1360" at="1360"
+                  >The <code>NoDrop</code> and
+                  <code>InsertionHole</code> helpers.</lf-note
+                >
+              </lf-code>
+            </section>
+            <section id="src-merge">
+              <h3>
+                <a
+                  href="https://github.com/rust-lang/rust/blob/1.15.0/src/libcollections/slice.rs#L1387"
+                  ><code>merge</code></a
+                >
+              </h3>
+              <lf-code id="code-merge" language="rust" lines="1387-1393,1412-1464,1491">
+                <pre>
 unsafe fn merge&lt;T, F&gt;(v: &amp;mut [T], mid: usize, buf: *mut T, compare: &amp;mut F)
     where F: FnMut(&amp;T, &amp;T) -&gt; Ordering
 {
@@ -433,18 +422,17 @@ unsafe fn merge&lt;T, F&gt;(v: &amp;mut [T], mid: usize, buf: *mut T, compare: &
     // it will now be copied into the hole in `v`.
 }
 </pre>
-                  <lf-note id="code-merge-skip-1394" at="1394"
-                    >How the merge and its hole work.</lf-note
-                  >
-                  <lf-note id="code-merge-skip-1465" at="1465"
-                    >Pointer helpers and <code>MergeHole</code>.</lf-note
-                  >
-                </lf-code>
-              </section>
-            </div>
-          </lf-pane>
-        </lf-grid>
-      </lf-workspace>
+                <lf-note id="code-merge-skip-1394" at="1394"
+                  >How the merge and its hole work.</lf-note
+                >
+                <lf-note id="code-merge-skip-1465" at="1465"
+                  >Pointer helpers and <code>MergeHole</code>.</lf-note
+                >
+              </lf-code>
+            </section>
+          </div>
+        </lf-pane>
+      </div>
     </main>
   </body>
 </html>

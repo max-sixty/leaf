@@ -20,6 +20,7 @@
    or continue accounting for pending attempts. */
 
 import { countTraffic } from "./traffic.js";
+import { recordInteraction } from "./interaction-log.js";
 import { offlineInteractive, pageUrl, runtime } from "./context.js";
 import { notice } from "./notifications.js";
 
@@ -193,6 +194,7 @@ export const postEvent = async (event) => {
     throw new Error("no agent or server is available in an interactive export");
   await layerReady;
   countTraffic("sends");
+  recordInteraction("event_post", { kind: event.kind, attempt: event.attempt ?? null });
   let response;
   try {
     response = await fetch(pageUrl("api/event"), {
@@ -202,6 +204,18 @@ export const postEvent = async (event) => {
       }),
       body: JSON.stringify(event),
     });
+    recordInteraction("event_response", {
+      kind: event.kind,
+      attempt: event.attempt ?? null,
+      status: response.status,
+    });
+  } catch (error) {
+    recordInteraction("event_response", {
+      kind: event.kind,
+      attempt: event.attempt ?? null,
+      error: String(error),
+    });
+    throw error;
   } finally {
     countTraffic("acked");
   }

@@ -1,13 +1,15 @@
-/* Generated faces for the Asks banner controls. The banner shelf owns the stable native
+/* Generated faces for the Asks banner controls. The banner toolbar owns the stable native
    buttons and their fixed overflow seats; these light-DOM Lit owners paint one frozen
    Ask presentation reading inside them. */
-import { LitElement, html } from "../../vendor/browser-runtime.js";
+import { html } from "../../vendor/browser-runtime.js";
 import {
   BANNER_CONTROL_RANK,
   registerBannerControl,
   showNews,
-} from "../banner-shelf.js";
+} from "../banner-toolbar.js";
+import { RetainedFace } from "../retained-face.js";
 import { el } from "../widget-elements.js";
+import { keeps } from "../keeps.js";
 
 const FACE_TAG = "lf-ask-banner-face";
 const EMPTY_PROGRESS = Object.freeze({
@@ -17,61 +19,25 @@ const EMPTY_PROGRESS = Object.freeze({
   title: "Show or hide this page's asks",
 });
 
-class AskBannerFace extends LitElement {
-  static properties = { model: { attribute: false } };
-
-  #committed = null;
-  #failure = null;
+class AskBannerFace extends RetainedFace {
   kind = null;
 
   constructor() {
-    super();
-    this.model = EMPTY_PROGRESS;
-  }
-
-  createRenderRoot() {
-    return this;
-  }
-
-  async present(model) {
-    this.#failure = null;
-    this.model = model;
-    await this.updateComplete;
-    if (this.#failure) throw this.#failure;
-    return model;
-  }
-
-  commit() {
-    this.#committed = this.model;
-  }
-
-  async retainCommitted() {
-    this.#failure = null;
-    if (this.#committed) this.model = this.#committed;
-    await this.updateComplete;
-    if (this.#failure) throw this.#failure;
-    return this.#committed;
-  }
-
-  async scheduleUpdate() {
-    try {
-      await super.scheduleUpdate();
-    } catch (error) {
-      this.#failure = error;
-    }
+    super(EMPTY_PROGRESS);
   }
 
   updated() {
     const control = this.parentElement;
     if (!control) return;
-    if (control.title !== this.model.title) control.title = this.model.title;
+    // The progress control is the drawer's, which a key reaches, so it names itself in
+    // `data-lf-key-title` and the keyboard pass writes the title that adds the key.
+    // A bulk control has no key, so its title is its name.
     if (this.kind === "progress") {
-      if (control.dataset.lfKeyTitle !== this.model.title)
-        control.dataset.lfKeyTitle = this.model.title;
+      keeps(control, "data-lf-key-title", this.model.title);
       control.toggleAttribute("data-lf-complete", this.model.complete);
     } else {
-      if (this.model.busy) control.setAttribute("aria-disabled", "true");
-      else control.removeAttribute("aria-disabled");
+      keeps(control, "title", this.model.title);
+      keeps(control, "aria-disabled", this.model.busy ? "true" : null);
     }
     showNews(control, this.model.offered);
   }

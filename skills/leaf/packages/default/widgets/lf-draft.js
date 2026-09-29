@@ -81,6 +81,7 @@
 import {
   commandScope,
   DISCLOSE,
+  holdFocus,
   once,
   offer,
   paintKeys,
@@ -102,6 +103,7 @@ import {
   alignedNodes,
   widgetController,
   reachedForWords,
+  keepsText,
 } from "/runtime/widget-api.js";
 
 // The store key for a draft's unsent edit. The page's port is its own origin, so
@@ -513,7 +515,7 @@ customElements.define(
       }
 
       const wasOpen = this.#history?.open ?? false;
-      const keepFocus = Boolean(this.#history?.contains(document.activeElement));
+      const restoreFocus = this.#history && holdFocus(this.#history);
       const history = offer("details", "lf-draft-history");
       history.open = wasOpen;
       const summary = document.createElement("summary");
@@ -567,7 +569,7 @@ customElements.define(
       if (!this.#history) this.append(history);
       this.#history = history;
       this.#setRestoreAvailability();
-      if (keepFocus) summary.focus();
+      restoreFocus?.(summary);
     }
 
     async #restore(text, label) {
@@ -692,8 +694,7 @@ customElements.define(
 
     // A live editor owns its transient text; the complete state waits for it.
     renderState(state) {
-      if (this.#body.textContent !== state.edit.value)
-        this.#body.textContent = state.edit.value;
+      keepsText(this.#body, state.edit.value);
     }
   },
 );

@@ -2,6 +2,7 @@
 
 import contextlib
 import fcntl
+import json
 import os
 import re
 import shutil
@@ -144,7 +145,11 @@ def starter_element_declaration(tag: str) -> dict:
 
 
 def starter_widget_module(tag: str) -> bytes:
-    """The registration and one-shot upgrade shared by behavioral widgets."""
+    """The registration and one-shot upgrade shared by behavioral widgets.
+
+    The layer paints what the declaration alone determines, settlement included, with
+    no help from the module. A module that adds a `renderState` subscribes to its
+    `widgetController`, which is what calls it."""
     return (
         'import { once } from "/runtime/widget-api.js";\n\n'
         "customElements.define(\n"
@@ -445,7 +450,7 @@ def cmd_package_init(package: Path, widget: str | None = None) -> Path:
         package, protected, composition = check_package(package, require_exists=False)
         if widget is not None:
             init_starter_widget(package, protected, composition, widget)
-            print(f"initialized {package} with <{widget}>")
+            print(json.dumps({"package": str(package), "widget": widget}))
             return package
 
         refuse_package_overlap(
@@ -466,7 +471,7 @@ def cmd_package_init(package: Path, widget: str | None = None) -> Path:
             if not ((package / name).exists() or (package / name).is_symlink())
         ]
         create_package_files(package, creates)
-        print(f"initialized {package}")
+        print(json.dumps({"package": str(package)}))
         return package
 
 
@@ -511,7 +516,7 @@ def cmd_package_install(source: Path) -> Path:
             staged.mkdir()
             copy_package_contract(package, staged)
             os.rename(staged, destination)
-        print(f"installed {destination}")
+        print(json.dumps({"package": str(destination)}))
         return destination
 
 

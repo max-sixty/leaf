@@ -5,7 +5,7 @@ import math
 import re
 
 import pytest
-from interact_support import append_command
+from interact_support import add_test_widget, append_command
 from leaf import event_log as events_model
 from leaf import projection as projection_model
 from leaf import schema as schema_model
@@ -34,15 +34,16 @@ from render_harness import (
     EXAMPLE_PACKAGES,
     INLINE_PAGE,
     LONG_PAGE,
+    RELEASE_FOCUS,
     REPLAYED_PAGE,
     SETTLED_PAGE,
     CutOff,
     Traffic,
     _traffic,
     _until,
-    author_test_widget,
     banner_control,
     consume_browser_errors,
+    draft_control,
     expect_banner_control_offered,
     holding,
     leaf_page,
@@ -52,35 +53,27 @@ from render_harness import (
     panel_settled,
     refuse,
     resized,
+    root_overflow,
     round_trip,
     sending,
     stamp_page,
+    suggestion_control,
     take_browser_errors,
     told,
     undo,
     wait_for_revision,
+    write,
+)
+
+DRAG_HELD = (
+    "async () => (await window.__lfRuntimeImport("
+    "'/runtime/widget-elements.js')).dragHeld()"
 )
 
 pytestmark = pytest.mark.nightly
 
 
-def margin_control(page, owner, key, *, visible=True):
-    return page.locator(
-        f'[data-lf-margin-entry-owner="{owner}"]'
-        f'[data-lf-margin-entry-key="{key}"]'
-        f"{':visible' if visible else ''}"
-    )
-
-
-def suggestion_control(page, suggestion_id, key, *, visible=True):
-    return margin_control(page, f"suggestion:{suggestion_id}", key, visible=visible)
-
-
-def draft_control(page, draft_id="note-cli"):
-    return margin_control(page, f"draft:{draft_id}", "edit")
-
-
-def test_a_refused_message_cannot_present_before_its_conversation_reconciles(
+def test_a_refused_message_cannot_present_before_its_thread_reconciles(
     serve, held_events
 ):
     """The rejection publication owes new chrome, even without any widget renderer."""
@@ -88,8 +81,8 @@ def test_a_refused_message_cannot_present_before_its_conversation_reconciles(
     page = open_page(browser, serve(INLINE_PAGE))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    field = page.locator(".lf-general textarea")
-    field.fill("A message the server will refuse")
+    field = page.locator(".lf-general leaf-text")
+    write(field, "A message the server will refuse")
     field.press("ControlOrMeta+Enter")
     holding(page, held, 1, "the optimistic message")
     expect(page.locator(".lf-thread")).to_contain_text(
@@ -100,8 +93,8 @@ def test_a_refused_message_cannot_present_before_its_conversation_reconciles(
     page.evaluate("""async () => {
       const {applicationState, readApplicationPresentation} =
         await window.__lfRuntimeImport('/runtime/semantic-state.js');
-      let previous = applicationState.read().effective.conversation.all.length;
-      applicationState.select(root => root.effective.conversation.all.length)
+      let previous = applicationState.read().effective.thread.all.length;
+      applicationState.select(root => root.effective.thread.all.length)
         .subscribe(count => {
           if (previous > 0 && count === 0) queueMicrotask(() => {
             const {semanticEpoch, presentedEpoch, pending} = readApplicationPresentation();
@@ -117,7 +110,7 @@ def test_a_refused_message_cannot_present_before_its_conversation_reconciles(
     page.wait_for_function("window.rejectionPresentation !== undefined")
     reading = page.evaluate("window.rejectionPresentation")
     assert reading["presentedEpoch"] < reading["semanticEpoch"], reading
-    assert "conversation" in reading["pending"], reading
+    assert "thread" in reading["pending"], reading
     expect(page.locator(".lf-thread")).to_have_count(0)
 
 
@@ -137,7 +130,7 @@ def test_z_takes_back_the_thread_the_user_just_resolved(browser, serve):
     ]
     comment = comments[0]
     # The user has done nothing, so there is nothing to take back — a thread the
-    # agent closed with `leaf resolve` is not theirs to reopen by pressing undo.
+    # agent closed with `leaf thread resolve` is not theirs to reopen by pressing undo.
     events_model.append_event(
         serve.page_dir,
         {"kind": "resolve", "author": "agent", "agent": "A", "parent": comments[1]},
@@ -208,6 +201,37 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
     ] == ["resolve", "resolve", "undo"]
 
 
+def test_z_stops_at_a_newer_gesture_it_cannot_take_back(browser, serve):
+    """`z` takes back the user's newest gesture or nothing. A reply sent after a
+    resolve cannot be unsaid, so the resolve behind it is no longer the last change
+    the user made, and the press reopens nothing."""
+    page = open_page(browser, serve(LONG_PAGE, comments=3))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    first, second = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ][:2]
+    page.locator(f'.lf-threads > .lf-thread[data-id="{first}"] .lf-resolve').click()
+    round_trip(page)
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
+
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "reply", "author": "user", "parent": second, "text": "And this?"},
+    )
+    told(page)
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
+    page.keyboard.press("z")
+    told(page)
+    assert [
+        event["kind"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "undo"
+    ] == []
+
+
 def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
     """A withdrawal leaves the log holding one gesture and one word taking it back,
     and the page derives the rest. What it derives here is the placement this
@@ -253,7 +277,7 @@ def test_z_reaches_the_gestures_made_on_the_version_being_read(browser, serve):
     this version's markup arrived showing — and a version written around the
     decision shows the decision. So on v2 the authored placement of a card moved on
     v1 is where the move put it, and a press offered there would paint nothing at
-    all. The conversation is not scoped this way and must not be: a thread outlives
+    all. The thread is not scoped this way and must not be: a thread outlives
     the version it was opened on, which is why resolve carries no version."""
     page = open_page(browser, live_url(serve(BOARD_PAGE)))
     page.locator("#card-baffle .lf-grip").focus()
@@ -955,7 +979,7 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     project's outer board must not capture cards owned by a nested shipped board merely
     because both record positions within lf-column."""
     monkeypatch.chdir(tmp_path)
-    author_test_widget(tmp_path, "lf-outer-board", upgrade=True)
+    add_test_widget(tmp_path / ".leaf", "lf-outer-board", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
     outer = declarations["lf-outer-board"]
@@ -1531,7 +1555,7 @@ def test_a_refused_action_waits_for_a_live_gesture_before_reconciling(browser, s
 
     baffle.focus()
     page.keyboard.press("Enter")
-    expect(page.locator("#sprint")).to_have_class(re.compile(r"\blf-dragging\b"))
+    page.wait_for_function(DRAG_HELD)
     attempt = held[0].request.post_data_json["attempt"]
     with page.expect_response(lambda response: "/api/event" in response.url):
         held[0].fulfill(
@@ -1621,7 +1645,7 @@ def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
     page.route("**/api/event", lambda route: held.append(route))
     draft = page.locator("#note-cli")
     with page.expect_request("**/api/event"):
-        draft_control(page).click()
+        draft_control(page, "edit", "note-cli").click()
         draft.locator("textarea").fill("Local C")
         page.keyboard.press("Meta+Enter")
     holding(page, held, 1, "the refused draft")
@@ -1678,7 +1702,7 @@ def test_a_draft_commit_stages_before_deferred_projection_retries(browser, serve
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     draft = page.locator("#note-cli")
-    draft_control(page).click()
+    draft_control(page, "edit", "note-cli").click()
     draft.locator("textarea").fill("Local C")
 
     append_command(
@@ -1720,7 +1744,7 @@ def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
     authored = body.inner_text()
     assert "\n\n" in authored
 
-    draft_control(page).click()
+    draft_control(page, "edit", "note-cli").click()
     page.locator("lf-draft textarea").fill("Rewritten.")
     page.keyboard.press("Meta+Enter")
     round_trip(page)
@@ -1870,7 +1894,7 @@ def test_undo_leaves_a_user_standing_elsewhere_where_they_are(browser, serve):
     page = open_page(browser, serve(SUGGESTION_PAGE))
     suggestion_control(page, "sug-refill", "accept").click()
     round_trip(page)
-    page.evaluate("() => document.body.focus()")
+    page.evaluate(RELEASE_FOCUS)
 
     undo(page)
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
@@ -1892,14 +1916,14 @@ def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve)
     body = "lf-draft .lf-draft-body"
     authored = one.locator(body).inner_text()
 
-    draft_control(one).click()
+    draft_control(one, "edit", "note-cli").click()
     one.locator("lf-draft textarea").fill("Rewritten.")
     one.keyboard.press("Meta+Enter")
     round_trip(one)
     expect(two.locator(body)).to_have_text("Rewritten.")
 
     # The second tab is now holding words of its own, so the log may not write over it.
-    draft_control(two).click()
+    draft_control(two, "edit", "note-cli").click()
     expect(two.locator("lf-draft textarea")).to_be_focused()
     undo(one)
     expect(one.locator(body)).to_have_text(authored)
@@ -2159,7 +2183,7 @@ def test_the_composer_never_stands_on_its_own_mark(browser, serve):
     }""")
     page.locator("#opt-strict").click(click_count=3)
     page.locator(".lf-fab-input").click()
-    page.locator(".lf-composer textarea").fill("what did the trial actually show?")
+    write(page.locator(".lf-composer leaf-text"), "what did the trial actually show?")
     assert mark_shows_beside_composer(page), (
         "the box covered the passage it just opened on"
     )
@@ -2271,21 +2295,19 @@ def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
     page.wait_for_selector(".lf-fab-input", state="visible")
     page.locator(".lf-fab-input").click()
     expect(page.locator(".lf-composer")).to_be_visible()
-    page.locator(".lf-composer textarea").fill("held open across the panel opening")
+    write(page.locator(".lf-composer leaf-text"), "held open across the panel opening")
     # A press on the banner's own button gives the Thread panel the screen and focus.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator(".lf-composer")).to_be_hidden()
-    page.wait_for_function(
-        "() => document.body.scrollWidth - document.body.clientWidth === 0"
-    )
+    assert root_overflow(page) == 0
 
     page.get_by_role("button", name="Close threads").click()
     page.locator("#p30").click(click_count=3)
     expect(page.locator(".lf-fab-input")).to_be_visible()
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
-    expect(page.locator(".lf-fab-input")).to_have_value(
-        "held open across the panel opening"
+    expect(page.locator(".lf-fab-input")).to_have_js_property(
+        "value", "held open across the panel opening"
     )
 
 
@@ -2298,8 +2320,9 @@ def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, se
 
     page.locator("#p").click(click_count=3)
     page.locator(".lf-fab-input").click()
-    page.locator(".lf-composer textarea").fill(
-        "half-written when the version turned over"
+    write(
+        page.locator(".lf-composer leaf-text"),
+        "half-written when the version turned over",
     )
     passage = " ".join(page.locator("#p").inner_text().split())
     assert not composer_quote(page)["shown"], "the passage is right here, and marked"
@@ -2330,8 +2353,8 @@ def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, se
     navigate(page, url)
     page.locator("#p").click(click_count=3)
     expect(page.locator("#lf-composer-quote")).to_have_text(f"“{passage}”")
-    expect(page.locator(".lf-fab-input")).to_have_value(
-        "half-written when the version turned over"
+    expect(page.locator(".lf-fab-input")).to_have_js_property(
+        "value", "half-written when the version turned over"
     )
     # The words come back; the user's keyboard does not go with them.
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
@@ -2340,13 +2363,13 @@ def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, se
 
 
 def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, serve):
-    """`.lf-dragging` is half of the `z` liveness the runtime declares, and a pointer
+    """A held drag is half of the `z` liveness the runtime declares, and a pointer
     drag is a whole gesture rather than a frame: the focus paint lands on the
     mousedown, `fallbackTolerance` fires the drag's start after it, and on a quiet
     board nothing repaints between the pick-up and the drop. So unpainted, the line
     goes on offering `undo` for as long as the user holds the card, over a press the
     dispatcher is already refusing. The drop is the same gap read backwards: a card
-    put down where it was picked up takes the class off and returns before #send, so
+    put down where it was picked up puts the hand down and returns before #send, so
     there is no send downstream to paint in its place."""
     url = serve(BOARD_PAGE)
     append_command(
@@ -2384,7 +2407,7 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
     page.mouse.move(*start)
     page.mouse.down()
     page.mouse.move(start[0], start[1] + 24, steps=8)  # past fallbackTolerance
-    page.wait_for_selector("lf-board.lf-dragging")  # the gesture is live in the page
+    page.wait_for_function(DRAG_HELD)  # the gesture is live in the page
     # Read once, on the frame the paint coalesces to, rather than through `expect`:
     # a heartbeat two seconds out repaints the line whatever this drag did, so an
     # assertion that re-decisions passes on the poll and says nothing about the edge.
@@ -2393,7 +2416,7 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
     )
 
     page.mouse.up()
-    assert page.locator("lf-board.lf-dragging").count() == 0
+    assert not page.evaluate(DRAG_HELD)
     assert "z undo" in _painted_line(page), (
         "the drop that sent nothing left the line refusing a press that is live"
     )
@@ -2459,8 +2482,8 @@ def test_pending_gestures_survive_an_accepted_view_waiting_for_a_thread_widget(
 
     suggestion_control(page, "sug-thistle", "accept").click()
     expect(page.locator("#sug-thistle")).to_have_attribute("data-lf-state", "accept")
-    page.locator(".lf-general textarea").fill("Keep this newer comment visible.")
-    page.locator(".lf-general textarea").press("ControlOrMeta+Enter")
+    write(page.locator(".lf-general leaf-text"), "Keep this newer comment visible.")
+    page.locator(".lf-general leaf-text").press("ControlOrMeta+Enter")
     message = page.locator(".lf-threads .lf-msg-body").filter(
         has_text="Keep this newer comment visible."
     )
@@ -2714,13 +2737,15 @@ def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
     """A local optimistic paint fault cannot turn an accepted send into a refusal."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     page.route("**/api/state*", refuse)
+    # The fault is raised by the first write the optimistic paint makes: the suggestion's
+    # settled state, which only that paint changes before the log answers.
     page.evaluate(
         """() => {
-          const body = document.body;
-          const setAttribute = body.setAttribute;
-          body.setAttribute = function(name, value) {
-            if (name === 'data-lf-applied') {
-              body.setAttribute = setAttribute;
+          const target = document.getElementById('sug-refill');
+          const setAttribute = target.setAttribute;
+          target.setAttribute = function(name, value) {
+            if (name === 'data-lf-state') {
+              target.setAttribute = setAttribute;
               throw new Error('injected optimistic presentation fault');
             }
             return setAttribute.call(this, name, value);
@@ -2750,7 +2775,10 @@ def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
     # accounts for it no second time.
     errors = take_browser_errors(page)
     assert errors == [
-        "leaf: Presentation failed: injected optimistic presentation fault"
+        (
+            "leaf: Presentation failed: <lf-suggestion> renderState threw: "
+            "injected optimistic presentation fault"
+        )
     ], errors
 
 
@@ -2859,7 +2887,10 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
         timeout=1_000,
     )
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
+    # The user's comment after the accept is their newest gesture, and a comment is not
+    # taken back, so `z` offers nothing; the suggestion's own Undo still reaches it.
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
+    expect(suggestion_control(page, "sug-refill", "undo")).to_be_enabled()
     expect(suggestion_control(page, "sug-refill", "undo")).to_be_enabled()
     assert take_browser_errors(page) == [
         "leaf: State presentation failed: injected wake candidate fault",

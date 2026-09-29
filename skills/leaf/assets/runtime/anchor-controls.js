@@ -2,15 +2,19 @@
  *
  * This view owns visual comment proxies, standing reaction controls, and message
  * fragment state. The dedicated anchor-note projection owns accessible comment notes.
- * Visual proxies are keyed Lit controls inside stable authored-target holders; their
- * holder placement remains mechanical page state. A standing reaction first reveals
+ * Visual proxies are keyed Lit controls, one group per drawing's seat, standing on the
+ * details shelf with the seat naming the group as its details (details-shelf.js). A
+ * screen reader reaches them from the drawing; a keyboard reaches the drawing and each
+ * declared part through the target picker (`s`). A standing reaction first reveals
  * its dedicated removal action; only that action withdraws the reaction. Commands enter
  * only through the constructor.
  */
 
 import { nextRender } from "./rendering.js";
+import { holdFocus } from "./focus.js";
 import { sameAnchor } from "./anchor-coordinate.js";
 import { createAnchorNoteProjection } from "./anchor-note-view.js";
+import { shelve, unshelve } from "./details-shelf.js";
 import {
   html,
   nothing,
@@ -19,6 +23,7 @@ import {
 } from "../vendor/browser-runtime.js";
 import {
   fragmentId,
+  fragmentTarget,
   resolveAnchor,
   unclaimedVisualGesture,
   visualAt,
@@ -27,12 +32,12 @@ import {
 } from "./anchor-resolution.js";
 import { registerMarginContribution } from "./margin-entries.js";
 import { commandScope } from "./keyboard/scopes.js";
-import { scheduleMarginLayout } from "./margin-layout.js";
 import { pageQueryAll, pageText } from "./passages.js";
 import { registry } from "./registry.js";
-import { upFrom } from "./shadow.js";
+import { shadowHost, upFrom } from "./shadow.js";
 import { targetElement, targetParts } from "./resolved-target.js";
 import { offer, reveal } from "./widget-elements.js";
+import { keeps, keepsText } from "./keeps.js";
 import { retainUserIntent } from "./user-intent.js";
 
 const MSG_REF = '.lf-msg-body a[href^="#"]';
@@ -42,7 +47,7 @@ export function createAnchorControls({
   openThread,
   withdrawReaction,
   labelAnchor,
-  invalidateConversation,
+  invalidateThread,
   invalidatePageGeometry,
   messageReferenceRoot,
   draftQuote,
@@ -51,7 +56,7 @@ export function createAnchorControls({
 }) {
   const visualActionHolders = new Map();
   const reactionSeats = new Map();
-  const anchorNotes = createAnchorNoteProjection({ openThread });
+  const anchorNotes = createAnchorNoteProjection({ openThread, labelAnchor });
   let mounted = false;
   let invalidationQueued = false;
   let pendingVisualActions = new Map();
@@ -75,13 +80,11 @@ export function createAnchorControls({
       sameAnchor(control.lfAnchor, anchor),
     ) ?? null;
 
-  // A proxy sits after the outer disclosure that controls its visibility. Shadow
-  // renderers share their host so sibling holders do not reorder on each paint.
+  // A proxy group is named by the outer disclosure that controls its drawing's
+  // visibility, so a screen reader meets it while the drawing is folded away. Shadow
+  // renderers share their host so sibling groups do not reorder on each paint.
   function visualActionSeat(candidate) {
-    let seat =
-      candidate.getRootNode() instanceof ShadowRoot
-        ? candidate.getRootNode().host
-        : candidate;
+    let seat = shadowHost(candidate.getRootNode()) ?? candidate;
     for (let current = seat; current; current = upFrom(current))
       if (current.matches?.("details")) seat = current;
     return seat;
@@ -148,6 +151,7 @@ export function createAnchorControls({
       class="lf-visual-action lf-quiet lf-ui"
       data-lf-gen="1"
       data-lf-offer="button"
+      tabindex="-1"
       .lfAnchor=${anchor}
       .textContent=${`Respond to ${label}`}
       @focus=${focusVisualAction}
@@ -160,31 +164,25 @@ export function createAnchorControls({
     for (const [seat, targets] of groups) {
       if (!targets.length) continue;
       let holder = visualActionHolders.get(seat);
-      if (!holder?.isConnected) {
-        if (holder) renderTemplate(nothing, holder);
-        holder = offer("span", "lf-visual-actions");
+      if (!holder) {
+        holder = offer("div", "lf-visual-actions");
+        holder.setAttribute("role", "group");
         visualActionHolders.set(seat, holder);
       }
       kept.add(seat);
-      const current = focused();
-      const standing = holder.contains(current) ? current : null;
+      const restoreFocus = holdFocus(holder);
+      keeps(holder, "aria-label", `Responses to ${targets[0].label}`);
       renderTemplate(
         html`${repeat(targets, ({ key }) => key, visualActionTemplate)}`,
         holder,
       );
-      // Margin contributions and visual proxies share the authored seat. Keep a stable
-      // order and preserve focus when reconciliation has to move a retained holder.
-      let after = seat;
-      while (after.nextSibling?.matches?.(".lf-margin-cluster[data-lf-external]"))
-        after = after.nextSibling;
-      if (after.nextSibling !== holder) after.after(holder);
-      if (standing?.isConnected && focused() !== standing)
-        standing.focus({ preventScroll: true });
+      shelve(seat, holder);
+      restoreFocus?.();
     }
     for (const [seat, holder] of visualActionHolders)
       if (!kept.has(seat)) {
         renderTemplate(nothing, holder);
-        holder.remove();
+        unshelve(seat, holder);
         visualActionHolders.delete(seat);
       }
   }
@@ -321,20 +319,22 @@ export function createAnchorControls({
     // Missing targets share the quote's detached meaning, but retain the message
     // link's own contour: muted ink and a dashed underline, with its press withheld.
     for (const anchor of messageReferenceRoot.querySelectorAll(MSG_REF)) {
-      const id = fragmentId(anchor.getAttribute("href"));
-      const alive = Boolean(resolveAnchor({ section: id }));
+      const href = anchor.getAttribute("href");
+      const id = fragmentId(href);
+      const alive = Boolean(fragmentTarget(href));
       anchor.classList.toggle("detached", !alive);
-      if (alive) anchor.removeAttribute("aria-disabled");
-      else anchor.setAttribute("aria-disabled", "true");
-      anchor.title = alive
-        ? `Jump to § ${id}`
-        : `§ ${id} isn't in the version you're viewing`;
+      keeps(anchor, "aria-disabled", alive ? null : "true");
+      keeps(
+        anchor,
+        "title",
+        alive ? `Jump to § ${id}` : `§ ${id} isn't in the version you're viewing`,
+      );
     }
   }
 
   function paintDraft({ open, anchor, about, marked }) {
     const label = open ? labelAnchor(anchor, about) : "";
-    if (draftQuote.textContent !== label) draftQuote.textContent = label;
+    keepsText(draftQuote, label);
     draftQuote.classList.toggle("lf-unseen", !label || (marked && !about));
   }
 
@@ -351,7 +351,7 @@ export function createAnchorControls({
     invalidationQueued = true;
     queueMicrotask(() => {
       invalidationQueued = false;
-      if (mounted) invalidateConversation();
+      if (mounted) invalidateThread();
     });
   }
 
@@ -362,8 +362,7 @@ export function createAnchorControls({
 
   const onMessageReference = (event) => {
     const anchor = event.target.closest(MSG_REF);
-    if (anchor && !resolveAnchor({ section: fragmentId(anchor.getAttribute("href")) }))
-      event.preventDefault();
+    if (anchor && !fragmentTarget(anchor.getAttribute("href"))) event.preventDefault();
   };
 
   const onOutsideReaction = (event) => {
@@ -397,18 +396,11 @@ export function createAnchorControls({
     reconcileVisualActions(new Map());
   }
 
-  // A layout pass repacks existing seats; it does not restate their contribution and
-  // reopen the margin/repaint cycle.
-  function dockSeats() {
-    if (reactionSeats.size) scheduleMarginLayout();
-  }
-
   return {
     mount,
     destroy,
     render,
     publishVisualActions,
-    dockSeats,
     visualActionAnchor,
   };
 }

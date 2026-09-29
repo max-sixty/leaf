@@ -6,321 +6,8 @@
 
 /* ---------- element-widgets ---------- */
 
-/* lf-grid places blocks in two dimensions, and each direct child is a cell. A cell is a
- * frame (--lf-block-frame): what it holds takes the cell's width rather than the page's
- * room, and its first and last margins trim. It holds text to the reading measure
- * (--lf-measure, in the kernel theme) while a surface fills it.
- *
- * A count is a ceiling, not a demand: each track is at least --lf-grid-min wide and at
- * least the count's share of the row, so `columns="3"` is three columns where they fit,
- * two where they don't, and one on a phone, with no query. A template is the tracks
- * the author wrote, which cannot rewrap, so a narrow grid stacks its cells instead:
- * every cell spans the row. The module paints the template as --lf-grid-template, since
- * a stylesheet cannot read an attribute as a track list. It is a custom property and so
- * inherits; the reset here keeps a grid nested in a cell from taking its parent's, and
- * the painted inline value outranks it on the grid that owns it. Whether a grid has a
- * template is its `columns` attribute, which a selector can read, so the stacking rule
- * below asks the attribute: a span passed down as a custom property was reset by the
- * very grid it had to reach when a cell was itself a grid, and a nested stack stood in
- * its parent's narrow track instead of taking the row. */
-:is(lf-grid, :where([data-lf-reading-role="grid"])) {
-  --lf-grid-min: 14rem;
-  --lf-grid-gap: var(--sp-4);
-  --lf-grid-count: 99;
-  --lf-grid-template: initial;
-  /* Stated on the grid and inherited by its cells, so a surface cell's own declaration
-   * of no measure outranks it rather than tying with a rule on the cell. */
-  --lf-measure: var(--col);
-  display: grid;
-  /* The floor is itself held to the grid's width, so a one-column stack in a cell
-   * narrower than --lf-grid-min takes the cell rather than overflowing it. */
-  grid-template-columns: var(--lf-grid-template, repeat(auto-fit,
-    minmax(min(100%, max(var(--lf-grid-min), (100% - (var(--lf-grid-count) - 1)
-    * var(--lf-grid-gap)) / var(--lf-grid-count))), 1fr)));
-  gap: var(--lf-grid-gap);
-  align-items: start;
-  container: lf-grid / inline-size;
-}
-/* An authored grid is a block in the page's flow and takes a block's margin. A box a
- * package marks as a grid sits wherever that package places it, often as an item of
- * its own grid, where a margin does not collapse into the gap and adds to it. */
-lf-grid { margin: 24px 0; }
-lf-grid[columns="1"] { --lf-grid-count: 1; }
-lf-grid[columns="2"] { --lf-grid-count: 2; }
-lf-grid[columns="3"] { --lf-grid-count: 3; }
-lf-grid[columns="4"] { --lf-grid-count: 4; }
-lf-grid[columns="5"] { --lf-grid-count: 5; }
-lf-grid[columns="6"] { --lf-grid-count: 6; }
-:is(lf-grid, :where([data-lf-reading-role="grid"])) > * {
-  min-width: 0;
-  --lf-block-frame: 1;
-}
-/* The gap is the space between cells. A widget's own block margins are for the page's
- * flow and would add to it, so the reset outranks any one-tag widget rule. */
-:is(lf-grid, :where([data-lf-reading-role="grid"])) > :nth-child(n) { margin: 0; }
-/* A surface fills its cell. The kernel sets a table as a block so a wide one scrolls,
- * and a block's rows size to their content: a table of short rows stood in a third of
- * a half-page cell beside a log that filled the other half, and a width on the block
- * widens the scroller, never the rows. A cell is sized for what it holds, so a table
- * standing in one, or in a section that is one, is a table again and takes the cell.
- * Its cells wrap to fit, identifiers included (`code` breaks in a cell); a table whose
- * columns cannot wrap to the cell overflows it rather than scrolling, and belongs in
- * the page's flow instead. */
-:is(lf-grid, :where([data-lf-reading-role="grid"])) > table,
-:is(lf-grid, :where([data-lf-reading-role="grid"])) > * > table {
-  display: table;
-  width: 100%;
-}
-/* A template stacks where its narrowest track would fall below 16rem, the least a rail
- * of panels and controls reads at: a grid `scale` narrowest tracks wide (painted by the
- * module, rounded up) stacks below that many 16rem tracks and the gaps between them. One
- * width for every template made a rail beside a body 207px wide at 700px while a queue
- * beside its detail still wanted two columns at 780. A container query cannot read a
- * custom property, so each scale states its width, in 16rem tracks and the grid's
- * --sp-4 (1.5rem) gap. The tracks are minmax(0, …fr) (lf-grid.js), so what a cell holds
- * never moves the split. A widget that lays out a body beside a rail of its own (the
- * playground's split, the swipe deck) stands on these lines by restating scale 3: 51rem
- * and minmax(0, 2fr) minmax(0, 1fr). */
-@container lf-grid (width < 33.5rem) { lf-grid[data-lf-grid-scale="2"] > * { grid-column: 1 / -1; } }
-@container lf-grid (width < 51rem) { lf-grid[data-lf-grid-scale="3"] > * { grid-column: 1 / -1; } }
-@container lf-grid (width < 68.5rem) { lf-grid[data-lf-grid-scale="4"] > * { grid-column: 1 / -1; } }
-@container lf-grid (width < 86rem) { lf-grid[data-lf-grid-scale="5"] > * { grid-column: 1 / -1; } }
-@container lf-grid (width < 103.5rem) { lf-grid[data-lf-grid-scale="6"] > * { grid-column: 1 / -1; } }
-@container lf-grid (width < 121rem) { lf-grid[data-lf-grid-scale="7"] > * { grid-column: 1 / -1; } }
-@container lf-grid (width < 138.5rem) { lf-grid[data-lf-grid-scale="8"] > * { grid-column: 1 / -1; } }
 
-/* lf-workspace keeps task regions together while the space allows, and lf-pane is one of
- * them. Both are authored grammar with no generated wrappers: an optional header, one
- * body element, an optional footer. The rows are `auto 1fr auto` in either posture,
- * because a grid row's minimum is its content's: a body that scrolls contributes
- * nothing and the row takes what the header and footer leave, while a body that
- * doesn't holds the row at its full height and the box overflows into the page.
- *
- * Posture is one container query on the workspace's own box. A root workspace (the
- * sole content of a sheet, or of a root tab) is a size container at the window's height;
- * when that box holds the regions (--lf-workspace-min, below) each pane's body scrolls
- * and its header and footer stay in view. When it doesn't, nothing scrolls inside and
- * the page does, with each grid keeping the columns its width allows. Any other
- * workspace is an inline-size container, which a height query never matches, so it
- * always flows. The switch paints with the page and answers the space the workspace
- * actually has; `reading-regions.js` reads which box scrolls from the result. Copies
- * and paper have no window to hold, so the size container and every bounded rule are
- * the live screen's alone.
- *
- * A widget that composes regions out of boxes it generates, such as a playground's
- * controls beside its preview, marks them data-lf-reading-role="grid" or "pane" and
- * takes these same rules, bounded ones included, so no package keeps a copy of them.
- * The attribute sits inside :where(), so every selector keeps the tag's specificity. */
-lf-workspace,
-:is(lf-pane, :where([data-lf-reading-role="pane"])) {
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  grid-template-columns: minmax(0, 1fr);
-  min-width: 0;
-  --lf-block-frame: 1;
-}
-lf-workspace {
-  container: lf-workspace / inline-size;
-}
-:is(lf-workspace, lf-pane, :where([data-lf-reading-role="pane"])) > header {
-  grid-row: 1; margin: 0;
-}
-:is(lf-workspace, lf-pane, :where([data-lf-reading-role="pane"])) > footer {
-  grid-row: 3; margin: 0;
-}
-:is(lf-workspace, lf-pane, :where([data-lf-reading-role="pane"])) > :not(header, footer) {
-  grid-row: 2; min-width: 0; margin: 0;
-}
-/* A workspace's header and footer keep their distance from its body themselves, so a
- * workspace without one spends nothing on the row it leaves empty. */
-lf-workspace > header { margin-bottom: var(--sp-3); }
-lf-workspace > footer { margin-top: var(--sp-3); }
-:is(lf-pane, :where([data-lf-reading-role="pane"])) {
-  border: 1px solid var(--rule);
-  border-radius: var(--r);
-  background: var(--paper);
-}
-:is(lf-pane, :where([data-lf-reading-role="pane"])) > header {
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--rule);
-  font: 600 var(--t-5)/1.4 var(--sans);
-  --lf-block-frame: 1;
-}
-/* A pane is a region of a sheet, so its name takes a panel's voice (section.panel,
- * theme.css): small capitals that rank below the sheet's title and the pane's own
- * headings, where a bare h2 drew the region's label larger than anything it held. */
-:is(lf-pane, :where([data-lf-reading-role="pane"])) > header > :is(h2, h3, h4, h5, h6) {
-  margin: 0;
-  font: 600 var(--t-6)/1.3 var(--sans);
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-:is(lf-pane, :where([data-lf-reading-role="pane"])) > footer {
-  padding: 10px 14px;
-  border-top: 1px solid var(--rule);
-  --lf-block-frame: 1;
-}
-:is(lf-pane, :where([data-lf-reading-role="pane"])) > :not(header, footer) {
-  padding: 14px;
-  --lf-block-frame: 1;
-}
 
-/* Whether a box holds the height its parent was given, as a chain from the root
- * workspace down. A box passes the height on only if it says so (--lf-passes-hold): a
- * grid, a pane, an Ask that is a heading and one answer, a compound region such as a
- * playground. The chain stops at anything else, so a pane inside a plain section, a
- * pane body's content, or a workspace nested anywhere flows within what holds it, and
- * no region claims a scroller that never scrolls. Registered so neither value inherits:
- * each box reads its parent's through a style query and states its own. */
-@property --lf-held {
-  syntax: "<integer>";
-  inherits: false;
-  initial-value: 0;
-}
-@property --lf-passes-hold {
-  syntax: "<integer>";
-  inherits: false;
-  initial-value: 0;
-}
-/* A box that passes the height on also takes its track's height rather than its
- * content's while held: it reads its minimum from --lf-track-min, which is auto except
- * on a held box's parts in a bounded workspace (below). A box that does not pass the
- * height on keeps its content's height, so a plain section in a held workspace grows
- * and the footer and the page's end room follow it. */
-@property --lf-track-min {
-  syntax: "<length> | auto";
-  inherits: false;
-  initial-value: auto;
-}
-:is(lf-grid, lf-pane, [data-lf-reading-role="grid"], [data-lf-reading-role="pane"]),
-lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
-  --lf-passes-hold: 1;
-  min-height: var(--lf-track-min);
-}
-@container style(--lf-held: 1) {
-  * { --lf-held: var(--lf-passes-hold); }
-}
-
-@media screen {
-  /* A workspace is a sheet whose regions are held in view: the root workspace is the
-   * only authored block of a sheet's main (what the runtime puts in main beside it, a
-   * margin cluster or generated words, is not), or a root tab's only block. The sheet
-   * gives it its width, gutters and the margin rail's strip (theme.css, the sheet);
-   * the workspace adds only the height, the window's below the banner and above the
-   * bottom chrome, and the chain of held boxes starts at it. A workspace in a column
-   * page, or beside other blocks, flows like any block. */
-  html:root
-    body
-    > main:is([data-width="wide"], [data-width="available"]):has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen]))) {
-    padding-block: 0;
-  }
-  html:root
-    body
-    > main:is([data-width="wide"], [data-width="available"]):has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen])))
-    > lf-workspace,
-  html:root
-    body
-    > main
-    > lf-tabs[data-lf-tabs-context="root"]
-    > lf-tab[data-lf-root-reading]
-    > lf-workspace:only-child {
-    container-type: size;
-    --lf-held: 1;
-  }
-  html:root
-    body
-    > main:is([data-width="wide"], [data-width="available"]):has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen])))
-    > lf-workspace {
-    /* The sheet gives up its block padding to the workspace, which keeps the top of it
-     * inside its own height, so its title stands clear of the banner as a sheet's does. */
-    box-sizing: border-box;
-    padding-top: var(--sp-4);
-    block-size: calc(100dvh - var(--lf-banner-h) - var(--lf-band-h, 0px));
-  }
-  /* A root tab's workspace ends the page and stands under the sticky tab strip:
-   * scrolled to its end, the page puts it between the strip and the bottom chrome. */
-  html:root
-    body
-    > main
-    > lf-tabs[data-lf-tabs-context="root"]
-    > lf-tab[data-lf-root-reading]
-    > lf-workspace:only-child {
-    block-size: calc(100dvh - var(--lf-banner-h) - var(--lf-band-h, 0px)
-      - var(--lf-root-tab-clear, 0px));
-  }
-  html:root
-    body
-    > main:has(> lf-tabs[data-lf-tabs-context="root"] > lf-tab[data-lf-root-reading] > lf-workspace:only-child) {
-    padding-bottom: 0;
-  }
-  html:root
-    body
-    > main
-    > lf-tabs[data-lf-tabs-context="root"]:has(> lf-tab[data-lf-root-reading] > lf-workspace:only-child) {
-    margin-block-end: 0;
-  }
-
-  /* Bounded: the root workspace holds the regions, so each held pane's body scrolls in
-   * place under its header and above its footer. One global minimum decides every
-   * workspace. Each rule asks the style query about the parent of its subject, so a
-   * pane's body scrolls when the pane is held, and a grid shares its height when its
-   * parent is. A held box's parts may take their track's height: those that pass the
-   * height on read it from --lf-track-min, and the parts of a pane, grid or Ask take it
-   * outright, so what overflows scrolls in a pane's body instead of lengthening the
-   * page. A workspace's own body keeps its content's height unless it passes the height
-   * on. */
-  @container lf-workspace (min-width: 720px) and (min-height: 480px) {
-    @container style(--lf-held: 1) {
-      html:root * {
-        --lf-track-min: 0px;
-      }
-      html:root :not(lf-workspace) > * {
-        min-height: 0;
-      }
-      html:root :is(lf-pane, [data-lf-reading-role="pane"]) > :not(header, footer) {
-        overflow: auto;
-        overscroll-behavior: contain;
-        scrollbar-gutter: stable;
-      }
-      html:root :is(lf-grid, [data-lf-reading-role="grid"]) {
-        align-items: stretch;
-        grid-auto-rows: minmax(0, 1fr);
-      }
-      html:root
-        lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
-        display: grid;
-        grid-template-rows: auto minmax(0, 1fr);
-      }
-    }
-  }
-  /* The page's end room. A root workspace's box ends above the bottom chrome, and the
-   * chrome's own room after main fills the rest of the window, so a held root fits it
-   * exactly. Whatever runs past the box — every region when the workspace flows, or a
-   * body that does not pass the height on — is overflow the chrome's room sits inside,
-   * so the room goes after the last box that overflows: a margin does not reach the
-   * page's scroll range and a box does. A flowing workspace ends in an empty row of that
-   * height, outside any frame its last region draws; a held body that does not pass the
-   * height on takes the room as padding, and one that does overflows nothing and takes
-   * none. */
-  @container lf-workspace not ((min-width: 720px) and (min-height: 480px)) {
-    @container style(--lf-held: 1) {
-      html:root lf-workspace::after {
-        content: "";
-        grid-row: 4;
-        block-size: var(--lf-band-h, 0px);
-      }
-    }
-  }
-  @container lf-workspace (min-width: 720px) and (min-height: 480px) {
-    @container style(--lf-held: 1) {
-      html:root lf-workspace > :not(header, footer) {
-        padding-block-end: calc(var(--lf-band-h, 0px)
-          * (1 - var(--lf-passes-hold)));
-      }
-    }
-  }
-}
 
 /* lf-gloss: the prose stays prose, and its underline is the whole visible
  * affordance. The words keep the page's ink while the underline uses the accent —
@@ -346,8 +33,8 @@ lf-gloss:has(> [data-lf-said="tip"])::after { content: none; }
   opacity: 0; pointer-events: none;
 }
 lf-gloss:has(> .lf-gloss-mark:is(:focus-visible, .lf-focus-visible)) {
-  outline: var(--here-ring); --lf-here-ring: gloss-mark;
-  outline-offset: calc(-1 * var(--here-ring-w));
+  outline: var(--focus-ring); --lf-focus-ring: gloss-mark;
+  outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-gloss-popover {
   position: fixed; inset: auto; position-area: block-end center;
@@ -403,17 +90,18 @@ lf-gloss:has(> .lf-gloss-mark:is(:focus-visible, .lf-focus-visible)) {
  * metric's value, a tree's badge — and in the sans's own figures each rewrite resizes
  * the chip the number is set in, and moves whatever stands after it. The integrated
  * theme's copy of this rule carries the measurement and the norm it answers. */
-.lf-chips span, .lf-tree-badge, .lf-shotcap, lf-metric,
-lf-specimen::before, lf-specimen > [data-lf-said="label"], lf-column::before,
+.lf-tree-badge, .lf-shotcap, .lf-shotdelta, lf-metric,
+lf-sample::before, lf-sample > [data-lf-said="label"], lf-column::before,
 lf-column > [data-lf-said="label"], lf-tab::before,
-.lf-state, .lf-heard, .lf-cold,
 lf-chip {
   font-family: var(--sans); font-variant-numeric: tabular-nums; }
 
-/* The face this package's chips share with the kernel theme's .tag numbers,
- * restated so a band of chips and an inline label stand the same height. */
-lf-chip, .lf-chips span {
-  display: inline-block; font-size: var(--t-6); line-height: 1.6; padding: 0 8px;
+/* The kernel's chip face (.tag), in the chip tokens it is set in, so a band of chips
+ * and an inline label stand the same height. */
+lf-chip {
+  display: inline-block; font-size: var(--t-6); line-height: var(--chip-lh);
+  padding: var(--chip-pad);
+  box-sizing: border-box; max-width: 100%; overflow-wrap: break-word;
   border-radius: var(--chip-r); background: var(--chip); color: var(--ink-2); }
 
 /* Titled alternatives carry an argument and keep the document's serif. Compact
@@ -479,7 +167,7 @@ lf-chip, .lf-chips span {
 
    The user's cell is an add form dressed as an option. It creates and selects a real
    generated option through the same absolute `choose` state as the authored options; it
-   is not a conversation seat. What it is for is the answer the menu hasn't got, so it
+   is not a thread seat. What it is for is the answer the menu hasn't got, so it
    takes the cells' fill and their column and states no inset of its own. A cell that
    dresses as apparatus tells the user to skip it.
 
@@ -530,9 +218,9 @@ lf-option > strong { display: block; margin: 0 0 4px; }
  * the author's own markup, quotable and diffable like any other content. The chip is the
  * shared one — inline-block there, which is what leaves each form free to decide where
  * the band sits — and what a chip adds is the band: margins that space and wrap a row of
- * them, and a max-width bounding a long one against the card, since the words are the
- * author's and there is no length the theme can assume. */
-lf-chip { max-width: 100%; margin: 0 6px 2px 0; }
+ * them. The shared chip face bounds and wraps the author's words against the card;
+ * there is no length the theme can assume. */
+lf-chip { margin: 0 6px 2px 0; }
 /* The tint is the author's, per chip. The theme knows the three semantic pairs and
  * nothing about which facet earns one — the pair this replaced tinted `risk` and not
  * `effort`, which was the theme holding an opinion about a word, and the opinion went
@@ -563,9 +251,9 @@ lf-chip[tone="danger"] { background: var(--danger-tint); color: var(--danger-ink
  * tests exercise the terse comparison and inline-widget outcomes instead of
  * reflecting the selectors through a second list. The marker at the end is the
  * inversion's one wrong answer, an inline widget being a custom element like
- * any other: the registry says which widgets those are and the
- * runtime paints it where a selector can reach it (data-lf-inline, leaf.js
- * markDeclared), so a chip keeps the grid here by the same declaration that
+ * any other: the registry says which widgets those are and
+ * delivery paints it where a selector can reach it (data-lf-inline,
+ * `mark_declared`), so a chip keeps the grid here by the same declaration that
  * keeps a suggestion inline in a sentence. It is in :where() for the reason the
  * suggestion slots' copy states: an attribute selector inside :not() would lift
  * this whole rule a specificity column and let a layout question outrank the
@@ -663,12 +351,12 @@ lf-compare:has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button
  * to expect rather than a gap to go looking for.
  *
  * The marker rather than the tag. Which widgets quote what they hold is the registry's to
- * say (x-exhibit) and a stylesheet cannot read it, so the runtime paints the declaration
- * where a selector can reach it (data-lf-exhibit, leaf.js markDeclared) and the descendant
+ * say (x-exhibit) and a stylesheet cannot read it, so delivery paints the declaration
+ * where a selector can reach it (data-lf-exhibit, `mark_declared`) and the descendant
  * combinator asks the descendant half of quoted()'s question: does this element stand
  * inside one. quoted() answers for the element itself too, and that half is nobody's
  * here while lf-options is not an exhibit — a layer declaring it one would have to say
- * so in its own rules. Spelled, it was `lf-specimen` ten times over: the tag this package
+ * so in its own rules. Spelled, it was `lf-sample` ten times over: the tag this package
  * happens to ship, and no answer at all for a project whose exhibit has another name.
  *
  * In :where(), which is the idiom the phrasing lists set (theme.css) and not a contest
@@ -724,13 +412,21 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
    & > lf-option::before { content: ""; float: inline-end;
                      width: var(--lf-card-state-room); height: 22px;
                      pointer-events: none; }
+   /* The mark's box is the whole seat the binding badge takes in its place, the mark
+    * centred in it as the badge's digit is. A margin pin standing in the card's corner
+    * steps below the controls it finds there, and it found the 11px mark alone: it stood
+    * over the lower edge of the badge once the badge came, which then gave way to a
+    * chip on the mark's corner, 10px higher, with the mark's ring showing under it. */
    & > lf-option > .lf-pick {
                      left: auto; inset-inline-end: var(--sp-2);
-                     top: var(--sp-2); bottom: auto; z-index: 1; }
+                     top: var(--sp-2); bottom: auto; z-index: 1;
+                     min-width: var(--lf-key-badge-size);
+                     min-height: var(--lf-key-badge-size);
+                     justify-content: center; }
    & > lf-option[chosen] > .lf-pick {
-                     padding: 2px 8px; border-radius: var(--chip-r);
+                     padding: var(--chip-pad); border-radius: var(--chip-r);
                      background: var(--ok); color: var(--card);
-                     font-size: var(--t-6); line-height: 1.5;
+                     font-size: var(--t-6); line-height: var(--chip-lh);
                      gap: 4px; }
    & > lf-option[chosen] > .lf-pick::before {
                      width: auto; height: auto; border: 0; background: transparent;
@@ -834,8 +530,8 @@ lf-option[chosen] > .lf-pick::before { content: "✓"; border-color: var(--ok);
  * the same compact check without reviving a dead control or its former status caption. */
 @media print { lf-option[chosen]::after { content: "✓"; color: var(--ok-ink);
                                         font-family: var(--sans); font-weight: 700; } }
-lf-option .lf-pick:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: options-pick;
-                     outline-offset: var(--here-ring-gap); border-radius: 4px; }
+lf-option .lf-pick:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: options-pick;
+                     outline-offset: var(--focus-ring-gap); border-radius: 4px; }
 /* The Ask's action keys, worn on the option cells they bind. The gutter reads status,
  * binding badge, then prose, so each badge starts after the status rule and ends before the
  * cell's words. A card aligns its digit with the top of its content; rows centre theirs. */
@@ -937,14 +633,14 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
      * used to stand here called it a float that "does not fill the row" when the grid
      * had been filling it all along. */
     & > * { margin-block: 0; }
-    /* A control packed into this group states its own inset (theme.css, --here-ring).
+    /* A control packed into this group states its own inset (theme.css, --focus-ring).
      * The group clips to the frame it draws, so a ring drawn outside a cell's box is
      * drawn into the pixels the frame cuts away: the Done press sits flush on the
      * group's bottom edge and lost the bottom run of its ring there, and the cells lose
      * their side runs the same way. Inset, the ring is inside the box it names and the
      * clip has nothing of it to take. The group's own frame is what stands off the
      * page, which is the gap's job on a box that stands alone. */
-    & .lf-btn:is(:focus-visible, .lf-focus-visible) { outline-offset: calc(-1 * var(--here-ring-w)); }
+    & .lf-btn:is(:focus-visible, .lf-focus-visible) { outline-offset: calc(-1 * var(--focus-ring-w)); }
     /* The hairline between neighbours: one line, stated once, on the upper of the
      * two, so a child no rule here names arrives already separated. It is the only
      * border in the group: a cell wears none of its own, and the card's is withheld
@@ -974,6 +670,10 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
     & > lf-option:is(:hover, :has(> .lf-pick:is(:focus-visible, .lf-focus-visible))) {
                      background: color-mix(in srgb, var(--fill) 92%, var(--ink)); }
     & > lf-option[chosen] { --fill: var(--ok-tint); }
+    /* An ok chip is drawn in the same tint the pick fills its cell with, so on the chosen
+     * cell a "recommended" chip lost its ground and read as loose green words. There
+     * it stands on the card's ground instead, keeping its tone in its ink. */
+    & > lf-option[chosen] > lf-chip[tone="ok"] { background: var(--card); }
     /* The add form is the group's own child, so joining the group takes it inside the
      * border too, butted against the last cell by the hairline every child shares. It is
      * a cell rather than a footer: it creates the option the user writes when none of
@@ -1003,11 +703,11 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
    * carried by the exact row, while pointer focus needs no extra channel at all. */
   [data-lf-ask]:has(
     lf-options[choose]:not(:where([data-lf-exhibit]) *) :is(:focus, .lf-focus)
-  ) { outline: none; }
+  ) { --lf-ask-ring: none; }
   lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *)
     > lf-option:has(> .lf-pick:is(:focus-visible, .lf-focus-visible)) {
-      outline: var(--here-ring); --lf-here-ring: options-row;
-      outline-offset: calc(-1 * var(--here-ring-w));
+      outline: var(--focus-ring); --lf-focus-ring: options-row;
+      outline-offset: calc(-1 * var(--focus-ring-w));
     }
   /* The add field's own outline is off (below), so the row it sits in is the only thing
    * that can answer the keyboard for it — in every group that shows the field, not just
@@ -1015,9 +715,9 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
    * scoped to :not([settled]) this rule left a user who had Tabbed into it with
    * nothing on screen saying where they were. */
   lf-options[choose]:not(:where([data-lf-exhibit]) *)
-    > .lf-another:has(textarea:is(:focus-visible, .lf-focus-visible)) {
-      outline: var(--here-ring); --lf-here-ring: options-row;
-      outline-offset: calc(-1 * var(--here-ring-w));
+    > .lf-another:has(leaf-text:is(:focus, .lf-focus)) {
+      outline: var(--focus-ring); --lf-focus-ring: options-row;
+      outline-offset: calc(-1 * var(--focus-ring-w));
   }
   .lf-another { --lf-option-action-size: max(28px, var(--aim-floor));
                 --lf-option-add-seat-inset: var(--sp-1);
@@ -1042,9 +742,8 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
   .lf-another > .lf-compose-field {
                      --lf-icon-action-hit: var(--lf-option-action-size);
                      --lf-compose-pad-block: 0px; --lf-compose-pad-inline-start: 0px;
-                     --lf-compose-border-width: 0px;
                      position: static; }
-  .lf-another textarea { flex: 1; min-width: 0; min-height: 0; padding: 0;
+  .lf-another leaf-text { flex: 1; min-width: 0; min-height: 0; padding: 0;
                      margin-inline-start: var(--lf-compose-text-margin-inline-start, 0px);
                      padding-inline-end: var(--lf-option-action-room);
                      border: 0; outline: none; background: transparent; color: inherit;
@@ -1137,7 +836,7 @@ lf-options[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > stron
                      > :is(lf-option, .lf-another) {
                      padding-inline-start: calc(var(--lf-key-badge-col) + var(--lf-pick-col)); }
 /* A row's table spacing holds its prose off the mark column. The form has no anonymous
- * table cell to supply that space, so its textarea takes the same named gap. Matching the
+ * table cell to supply that space, so its text field takes the same named gap. Matching the
  * option's vertical inset makes the draft and the option it becomes one stable row. */
 lf-options:not(:has(> lf-option > strong)) > .lf-another:not([hidden]) {
                      gap: 0; padding-block: 5px; padding-inline-end: var(--lf-row-gap); }
@@ -1212,20 +911,7 @@ lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-pick {
  * level with each other. */
 lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-key-badge {
                      top: 0; bottom: 0; margin: auto 0; }
-/* The block a row is about (`for`). It points; it never supplies the row's words, so it
- * reads as what it is — an id, written the way the thread panel writes an element
- * anchor — and rides at the line's end with the mark, out of the way of what the row
- * says.
- *
- * The secondary interface ink and not the document's muted, because a row's ground is
- * one of the surfaces the layer itself paints: a chosen row wears --ok-tint, and
- * --muted reads 4.43:1 on it, under AA. --muted-2 is the ink the palette holds to
- * 4.5:1 against the surfaces it lands on (theme.css), which is the promise this
- * reference needs and the document's own muted does not make. */
-.lf-ref { font-size: var(--t-6); color: var(--muted-2); text-decoration: none;
-          white-space: nowrap; }
-.lf-ref:hover { color: var(--accent); text-decoration: underline; }
-/* The conversation's shared rules live with the integrated theme. The group's own
+/* The thread's shared rules live with the integrated theme. The group's own
  * placement of it is stated above, in the choose-group block. */
 /* Paper takes no input, so the group prints as one that was never choosable: the
  * marks offering a pick go with the rest of the UI, and the one on the card that
@@ -1253,14 +939,15 @@ lf-options[settled] > .lf-settled {
  * is authored namespace for a fact no version carries (lf-options.js). */
 lf-options[settled] > .lf-settled[aria-expanded="false"] { margin-bottom: 0; }
 lf-options[settled] > .lf-settled:hover { border-color: var(--border-2); }
-lf-options[settled] > .lf-settled:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: options-settled;
+lf-options[settled] > .lf-settled:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: options-settled;
               outline-offset: 1px; }
 .lf-settled::before { content: "▸"; color: var(--muted); font-weight: 400; }
 .lf-settled[aria-expanded="true"]::before { content: "▾"; }
 .lf-settled-count { margin-left: auto; font-weight: 400; font-size: var(--t-6);
                     color: var(--muted); white-space: nowrap; }
-.lf-settled-diff { font-weight: 400; font-size: var(--t-6); padding: 0 6px;
-                   border-radius: var(--chip-r); background: var(--add-tint); color: var(--ok-ink); }
+.lf-settled-diff { font-weight: 400; font-size: var(--t-6); padding: var(--chip-pad);
+                   line-height: var(--chip-lh); border-radius: var(--chip-r);
+                   background: var(--add-tint); color: var(--ok-ink); }
 /* The collapse is the whole of what the disclosure's handler does, so it is offered
  * only in the live page and every other medium gets the cards back by never being
  * handed it, rather than by undoing a hide. A page left holding the row elsewhere
@@ -1304,7 +991,6 @@ lf-milestone[status="active"]::before { border-color: var(--accent);
 lf-milestone[status="blocked"]::before { background: var(--danger); border-color: var(--danger); }
 lf-milestone > strong { display: block; margin: 0 0 2px; }
 lf-milestone[status="done"] > strong { color: var(--muted); }
-.lf-chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 2px 0 6px; }
 /* The status word a user listening gets wears the runtime's .lf-ui .lf-quiet —
  * real text, clipped on screen where the dot already says it. Which attributes get
  * one is declared (x-paints) and the writing is the runtime's own pass, so
@@ -1352,10 +1038,9 @@ lf-variant { display: block; border: 1px solid var(--rule); border-radius: var(-
              padding: var(--sp-3); background: var(--card); --lf-block-frame: 1; }
 lf-variant > strong { display: block; margin: 0 0 4px; }
 
-/* lf-metric: one headline number as a tile; a row of them is an lf-grid. The value
- * leads, said from the attribute; the delta trails and colors by sign × direction —
+/* lf-metric: one headline number as a tile; a row of them is a `.layout-tiles`. The
+ * value leads, said from the attribute; the delta trails and colors by sign × direction —
  * honest coloring, no JS. */
-lf-grid:not(:has(> :not(lf-metric))) { --lf-grid-min: 9rem; }
 lf-metric { display: block; border: 1px solid var(--rule); border-radius: var(--r);
             padding: 10px 14px; background: var(--card); font-size: var(--t-6);
             text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
@@ -1368,8 +1053,9 @@ lf-metric::before { content: attr(value); }
 lf-metric:has(> [data-lf-said="value"])::before { content: none; }
 lf-metric[delta]::after,
 lf-metric > [data-lf-said="delta"] { display: inline-block; margin-left: 6px;
-                          padding: 0 7px; border-radius: var(--chip-r); letter-spacing: 0;
-                          text-transform: none; font-size: var(--t-6); line-height: 1.6;
+                          padding: var(--chip-pad); border-radius: var(--chip-r);
+                          letter-spacing: 0; text-transform: none;
+                          font-size: var(--t-6); line-height: var(--chip-lh);
                           background: var(--chip); color: var(--ink-2); }
 lf-metric[delta]::after { content: attr(delta); }
 lf-metric:has(> [data-lf-said="delta"])::after { content: none; }
@@ -1404,9 +1090,28 @@ lf-metric[direction="up-bad"][delta^="+"] > [data-lf-said="delta"]
  * following space. Long unbreakable runs (a path, a sha) still
  * break where they must; that is the page-wide bargain and no width buys it back.
  *
- * The grip's column is in the floor for the same reason it is in the card's padding: it
+ * The grip's width is in the floor because a card's title is set beside it (below): it
  * is room only where a grip hangs, so paper, copies and quoted boards floor a column at
  * the measure and its insets alone. */
+/* The board's minimum is every column at its floor and the gaps between them. A layout
+ * that respects a widget's minimum, as a flex item's or a grid track's automatic minimum
+ * does, gives the board that much or wraps it onto a row of its own; held to less, the
+ * board scrolls its columns inside itself. The nearest size container caps it: the
+ * shell, or a framed box holding the board (a pane's body, a card), and a sample,
+ * which cannot be one, through `--lf-box-cap`. So a phone or a box narrower
+ * than the minimum scrolls the board rather than the page. Screen only: a sheet has no room
+ * beside the column to give, so on paper the board is the column's width. */
+lf-board { --lf-board-columns: 1; }
+@media screen {
+  lf-board { min-inline-size: min(calc(var(--lf-board-columns)
+               * var(--lf-reading-column-floor) + (var(--lf-board-columns) - 1) * var(--sp-2)),
+               calc(100cqi - 2 * var(--col-pad)), var(--lf-box-cap, 100vw)); }
+}
+lf-board:has(> lf-column:nth-of-type(2)) { --lf-board-columns: 2; }
+lf-board:has(> lf-column:nth-of-type(3)) { --lf-board-columns: 3; }
+lf-board:has(> lf-column:nth-of-type(4)) { --lf-board-columns: 4; }
+lf-board:has(> lf-column:nth-of-type(5)) { --lf-board-columns: 5; }
+lf-board:has(> lf-column:nth-of-type(6)) { --lf-board-columns: 6; }
 lf-board { display: grid; grid-auto-flow: column;
            container: lf-board / inline-size;
            --lf-card-measure: 136px; --lf-reading-column-inset: 8px; --lf-card-inset: 10px;
@@ -1430,7 +1135,7 @@ lf-column { display: block; background: var(--field); box-sizing: border-box;
 /* Where sharing the board between columns would leave none of them readable, one column
    takes the width and the next stays visible as the cue that the board continues
    sideways. The floor still wins inside a narrower frame. The board asks its own box, so
-   a board beside an open tray answers for the room it has rather than for the room the
+   a board beside an open drawer answers for the room it has rather than for the room the
    window has; snapping needs no condition of its own, since proximity snapping does
    nothing until a column offers a snap position. */
 @media screen {
@@ -1484,17 +1189,34 @@ lf-column:has(> [data-lf-said="label"])::before { content: none; }
 lf-card { display: block; position: relative; background: var(--card);
           font: var(--t-5)/1.5 var(--sans);
           border: 1px solid var(--rule); border-radius: var(--r);
-          padding: 12px var(--lf-card-inset); margin: 0 0 var(--sp-2); --lf-block-frame: 1; }
-/* The column the grip hangs in, spent only where a grip hangs: the module measures its
-   own grip's box and states the room (--lf-grip-room, lf-board.js), the same answer the
-   pick column already is, so the ladder moving or a platform substituting a different
-   glyph re-measures itself. The number this replaces was 34px read out of a browser
-   once — and stated unconditionally, so paper and quoted boards, neither of which ever
-   grows a grip, carried a dead column beside every card. No module, no var, no room;
-   paper keeps the var in the style attribute, which is why the rule asks the medium
-   too. */
+          padding: 12px var(--lf-card-inset); margin: 0 0 var(--sp-2);
+          container-type: inline-size; --lf-block-frame: 1; }
+/* The room the grip takes, spent only beside the grip: an empty float the grip's own
+   size stands in the card's top corner, so the lines level with the grip (the title's,
+   and on a finger's taller grip the first line after it) stop short of it, and what
+   runs below takes the card's whole width. It used to be a column down the card's full
+   height, which set a 188px card's prose at 136px under a 30px glyph. The float starts
+   where the grip does, 2px under the card's edge and so 10px above its 12px padding,
+   and its width keeps the card's inset between the words and the grip.
+
+   The module measures its own grip's box and states both sides of it (--lf-grip-room,
+   --lf-grip-block; lf-board.js), the same answer the pick column already is, so the
+   ladder moving or a platform substituting a different glyph re-measures itself. No
+   module, no var, no room, so paper and quoted boards, neither of which grows a grip,
+   keep none; paper keeps the vars in the style attribute, which is why the rule asks
+   the medium too. The float is generated rather than the grip itself floated, which
+   would have to come first in the card and so be read before its title.
+
+   Under a finger the grip is the aim floor tall and reaches past a one-line title. The
+   prose lines running on after the title wrap beside it, which is right, since its box
+   takes their presses; but a block that lays itself out on its own (a pre, a table) was
+   set beside the float for its whole height, 44px narrower than the card. So every
+   block after the card's first child clears the grip: it starts under the grip's box
+   and takes the card's width. An inline child ignores `clear`. */
 @media screen {
- lf-card { padding-right: calc(var(--lf-card-inset) + var(--lf-grip-room, 0px)); }
+  lf-card::before { content: ""; float: right; inline-size: var(--lf-grip-room, 0px);
+                    block-size: var(--lf-grip-block, 0px); margin-block-start: -10px; }
+  lf-card > :not(:first-child) { clear: right; }
 }
 lf-card:last-child { margin-bottom: 0; }
 lf-card > strong { display: block; font-weight: 600; line-height: 1.4; margin: 0 0 2px; }
@@ -1510,6 +1232,12 @@ lf-card .lf-grip { position: absolute; top: 2px; right: 0; color: var(--muted);
           border-radius: 4px; user-select: none;
           -webkit-user-select: none; line-height: 1;
           touch-action: none; /* the handle owns the gesture; scroll stays on the card */ }
+/* The grip names its card, so the browser's own reveal of a focused grip reveals the
+   card: its scroll margin runs back to the card's left edge (the card is an inline-size
+   container, so 100cqi is its content). Without it a board scrolling sideways showed only
+   the 30px grip, leaving the card's words and column cut off at the board's edge. The
+   reveal is the browser's, so a focus restored without scrolling leaves the board be. */
+lf-card .lf-grip { scroll-margin-inline-start: calc(100cqi + 2 * var(--lf-card-inset)); }
 lf-card:hover > .lf-grip { color: var(--ink-2); }
 lf-card .lf-grip:hover { background: var(--chip); }
 /* The ring is inset rather than offset a pixel out, as the layer's other small controls
@@ -1518,11 +1246,14 @@ lf-card .lf-grip:hover { background: var(--chip); }
    clips a pixel outside the last column's cards, so the ring's right run and both
    corners on that side fell outside the clip while the grip itself stayed whole. An
    inset ring cannot leave the box it names, at any scroll position. */
-lf-card .lf-grip:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: card-grip; outline-offset: calc(-1 * var(--here-ring-w));
+lf-card .lf-grip:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: card-grip; outline-offset: calc(-1 * var(--focus-ring-w));
           color: var(--ink-2); }
 /* SortableJS drag states: the in-flow slot, the pressed card, the follower. */
 lf-card.lf-ghost { opacity: .4; border-style: dashed; border-color: var(--accent); }
-lf-card.lf-lift { box-shadow: 0 2px 8px var(--shade); }
+/* A held card says so with its contour. The lift's shadow alone does not show on the
+   dark paper, which left a card grabbed by keyboard looking exactly like one whose grip
+   is merely focused. */
+lf-card.lf-lift { box-shadow: 0 2px 8px var(--shade); border-color: var(--accent); }
 /* (No transform here: Sortable positions the follower with an inline matrix.) */
 lf-card.lf-inhand { opacity: 1; cursor: grabbing;
                     box-shadow: 0 8px 24px var(--shade); }
@@ -1553,17 +1284,23 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
  * wears the layer's band, which reads as the walk leaving the page. Inset, because the
  * button's foot is on the strip's rule and an outset band would be drawn over it. */
 .lf-tabstrip .lf-tab-btn:is(:focus-visible, .lf-focus-visible) {
-               outline: var(--here-ring); --lf-here-ring: tab-btn;
-               outline-offset: calc(-1 * var(--here-ring-w)); }
+               outline: var(--focus-ring); --lf-focus-ring: tab-btn;
+               outline-offset: calc(-1 * var(--focus-ring-w)); }
 /* Every name reserves the same square face; selection paints it without changing any
  * control's measure. */
-.lf-tabstrip .lf-tab-btn > [data-lf-said] {
+.lf-tabstrip .lf-tab-btn > .lf-tab-name {
                display: inline-block; padding: 2px 5px; }
-.lf-tabstrip .lf-tab-btn[aria-selected="true"] > [data-lf-said] {
+.lf-tabstrip .lf-tab-btn[aria-selected="true"] > .lf-tab-name {
                background: var(--card); color: var(--ink); }
-.lf-tabdiff { font-size: var(--t-6); font-weight: 400; margin-left: 6px;
-              padding: 0 6px; border-radius: var(--chip-r);
-              background: var(--add-tint); color: var(--ok-ink); }
+/* A tab's counts: the passages the version diff marks, and, in the tone the drawer's
+ * count wears, the Asks that still wait on the user. A count with nothing to count
+ * takes no room. */
+:is(.lf-tabdiff, .lf-tabowed) { font-size: var(--t-6); margin-left: 6px;
+              padding: var(--chip-pad); line-height: var(--chip-lh);
+              border-radius: var(--chip-r); }
+:is(.lf-tabdiff, .lf-tabowed):empty { display: none; }
+.lf-tabdiff { font-weight: 400; background: var(--add-tint); color: var(--ok-ink); }
+.lf-tabowed { font-weight: 600; background: var(--warn-tint); color: var(--warn-ink); }
 /* One panel at a time is the whole of what the strip's handler does, so it is
  * offered only in the live page and the rest is what the markup already says.
  * A control whose state the browser owns needs no such block and has none;
@@ -1584,10 +1321,6 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
     lf-tabs.lf-rendered > lf-tab:not([hidden]) {
       padding: var(--sp-4); --lf-block-frame: 1;
     }
-    /* A section is the usual one-child wrapper for a self-contained view. Let it
-     * pass the panel's edge trim through, so its opening heading and closing paragraph
-     * spend exactly the panel inset rather than adding collapsed block margins to it. */
-    lf-tabs.lf-rendered > lf-tab:not([hidden]) > :only-child { --lf-block-frame: 1; }
     /* until-found keeps the element's own box in flow; zero it so inactive panels
      * leave no stray gap below the active one. */
     lf-tabs.lf-rendered > lf-tab[hidden] { margin: 0; }
@@ -1595,34 +1328,83 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
      * display:block above outranks the UA's [hidden] rule. */
     lf-tabs.lf-rendered > lf-tab[hidden]:not([hidden="until-found"]) { display: none; }
 
-    /* A root tab set is the page's composition rather than a framed widget inside it.
-     * Its shared authored header remains above a sticky horizontal index. Ordinary
-     * panels retain the reading measure, and the header and index keep that column's
-     * left edge, so a page of tabs has one edge as a page without them does; a sole root
-     * workspace can spend the page room and height declared by the structural layout
-     * above. */
-    body > main:has(> lf-tabs[data-lf-tabs-context="root"]) {
-      box-sizing: border-box;
-      width: 100cqi;
-      max-width: none;
-      margin-inline: 0;
-      left: 0;
+    /* A boxed set's panel is a bounded box, so it is the container what it holds
+     * measures itself against (theme.css in the kernel says why a framed box is one). */
+    lf-tabs.lf-rendered[data-lf-tabs-flow="box"] > lf-tab { container-type: inline-size; }
+
+    /* A list beside its panels (`list="side"`): a queue beside the item it opens. The
+     * list is a column left of the open panel wherever the set holds both, and a row
+     * over it below that, as a narrow window or a phone gives it, so the open item is
+     * never below the whole list. The set is the container its own parts ask, which
+     * is why the stacking is written on them and not on the set. */
+    lf-tabs[list="side"].lf-rendered {
+      container-type: inline-size;
+      display: grid;
+      grid-template-columns: minmax(10rem, 16rem) minmax(0, 1fr);
+      align-items: start;
     }
-    body > main:has(> lf-tabs[data-lf-tabs-context="root"]) > :is(header, lf-tabs) {
-      width: min(var(--col), var(--lf-room));
-      max-width: var(--col);
-      margin-inline: auto;
+    lf-tabs[list="side"].lf-rendered > .lf-tabstrip {
+      grid-column: 1;
+      grid-row: 1;
+      flex-direction: column;
+      flex-wrap: nowrap;
+      gap: 0;
+      padding: 8px;
+      border-bottom: 0;
+      border-inline-end: 1px solid var(--border-2);
+      border-radius: calc(var(--r) - 1px) 0 0 calc(var(--r) - 1px);
+      align-self: stretch;
     }
-    :where(lf-tabs.lf-rendered[data-lf-tabs-context="root"]) {
+    /* A row is its name, then its counts, with the summary on a line under them. The
+     * row keeps the Asks count's slot when none wait, so an answer moves nothing. */
+    lf-tabs[list="side"].lf-rendered > .lf-tabstrip .lf-tab-btn {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      align-items: baseline;
+      justify-items: start;
+      text-align: start;
+    }
+    lf-tabs[list="side"].lf-rendered > .lf-tabstrip .lf-tabowed:empty {
+      display: inline-block;
+      visibility: hidden;
+    }
+    lf-tabs[list="side"].lf-rendered > .lf-tabstrip .lf-tab-summary {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      padding: 0 5px 2px;
+      font-size: var(--t-6);
+      color: var(--muted);
+    }
+    lf-tabs[list="side"].lf-rendered > lf-tab { grid-column: 2; grid-row: 1; }
+    @container (width < 36rem) {
+      lf-tabs[list="side"].lf-rendered > .lf-tabstrip {
+        grid-column: 1 / -1;
+        grid-row: auto;
+        flex-direction: row;
+        flex-wrap: wrap;
+        border-inline-end: 0;
+        border-bottom: 1px solid var(--border-2);
+        border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
+      }
+      lf-tabs[list="side"].lf-rendered > lf-tab { grid-column: 1 / -1; grid-row: auto; }
+    }
+
+    /* A set in the page's flow (the root set, its strip a row; lf-tabs.js) is
+     * navigation over sections of one page rather than a framed widget inside it: a
+     * sticky horizontal index, one panel shown. It lays out nothing
+     * of its own. The strip and the panel are blocks of `main` like any other, so they
+     * take the page's width, column or wide, and whatever stands in `main` beside the set
+     * (a header, a sidebar) stays where it would on a page without tabs. */
+    :where(lf-tabs.lf-rendered[data-lf-tabs-flow="page"]) {
       margin-block: 0 32px;
       border: 0;
       border-radius: 0;
       background: transparent;
       --lf-block-frame: 0;
     }
-    lf-tabs[data-lf-tabs-context="root"] > .lf-tabstrip {
+    lf-tabs[data-lf-tabs-flow="page"] > .lf-tabstrip {
       position: sticky;
-      top: var(--lf-banner-h);
+      top: var(--lf-top);
       z-index: 2;
       flex-wrap: nowrap;
       overflow-x: auto;
@@ -1633,57 +1415,38 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
     }
     /* The strip scrolls when its names outrun it; a tab that shrank instead would
      * cut its own name, which the strip's scroll could never reach. */
-    lf-tabs[data-lf-tabs-context="root"] > .lf-tabstrip .lf-tab-btn { flex: none; }
-    lf-tabs[data-lf-tabs-context="root"]
+    lf-tabs[data-lf-tabs-flow="page"] > .lf-tabstrip .lf-tab-btn { flex: none; }
+    lf-tabs[data-lf-tabs-flow="page"]
       > .lf-tabstrip
       .lf-tab-btn
-      > [data-lf-said] {
+      > .lf-tab-name {
       border-bottom: 2px solid transparent;
       background: transparent;
     }
-    lf-tabs[data-lf-tabs-context="root"]
+    lf-tabs[data-lf-tabs-flow="page"]
       > .lf-tabstrip
       .lf-tab-btn[aria-selected="true"]
-      > [data-lf-said] {
+      > .lf-tab-name {
       border-bottom-color: currentColor;
       background: transparent;
     }
-    lf-tabs.lf-rendered[data-lf-tabs-context="root"] > lf-tab:not([hidden]) {
-      box-sizing: border-box;
-      width: min(var(--col), 100%);
-      max-width: var(--col);
-      margin-inline: auto;
+    lf-tabs.lf-rendered[data-lf-tabs-flow="page"] > lf-tab:not([hidden]) {
       padding: var(--sp-4) 0 0;
     }
-    /* A page tab is the page's column, not a box on it: it declares the frame for its
-     * first line's trim and, like main's column, hands the room back to what it holds,
-     * so a wide exhibit in a page tab breaks out as it would on a page without tabs. */
-    lf-tabs.lf-rendered[data-lf-tabs-context="root"] > lf-tab:not([hidden]) > * {
+    /* A page tab is a section of the page, not a box on it: it declares the frame only
+     * so its first line trims under the strip and, like `main`, hands the room back to
+     * what it holds, so a wide exhibit in a page tab grows out as it would on a page
+     * without tabs. */
+    lf-tabs.lf-rendered[data-lf-tabs-flow="page"] > lf-tab:not([hidden]) > * {
       --lf-room: inherit;
     }
-    lf-tabs.lf-rendered[data-lf-tabs-context="root"] > lf-tab[hidden] {
+    lf-tabs.lf-rendered[data-lf-tabs-flow="page"] > lf-tab[hidden] {
       align-self: start;
       height: 0;
       min-height: 0;
       overflow: hidden;
       pointer-events: none;
     }
-    lf-tabs.lf-rendered[data-lf-tabs-context="root"]
-      > lf-tab[data-lf-root-reading]:has(> lf-workspace:only-child) {
-      width: var(--lf-room);
-      max-width: none;
-      margin-left: calc((100% - var(--lf-room)) / 2);
-      padding: 0;
-    }
-  }
-}
-@media screen {
-  html[data-lf-live]:has(
-      body > main > lf-tabs[data-lf-tabs-context="root"]
-    ) {
-    scroll-padding-top: calc(
-      var(--lf-banner-h) + var(--lf-root-tab-clear, 0px) + 12px
-    );
   }
 }
 /* Paper cannot edit the document, so inactive panels keep their hidden attribute and the
@@ -1705,8 +1468,8 @@ lf-shot .lf-shotcomparison { grid-area: 2 / 1; aspect-ratio: var(--lf-shot-ratio
     border: 1px solid var(--rule); border-radius: 0 0 var(--r) var(--r);
     background: var(--card); --divider-width: 2px; --handle-size: 38px;
     --wa-color-surface-default: var(--card); --wa-color-neutral-on-quiet: var(--ink-2);
-    --wa-focus-ring: var(--here-ring); --wa-focus-ring-offset: 1px;
-    --lf-here-ring: shot; }
+    --wa-focus-ring: var(--focus-ring); --wa-focus-ring-offset: 1px;
+    --lf-focus-ring: shot; }
 lf-shot .lf-shotcomparison::part(divider) {
     background: color-mix(in srgb, var(--ink-2) 48%, transparent);
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--card) 72%, transparent);
@@ -1743,6 +1506,28 @@ lf-shot .lf-shotcap[aria-pressed="true"] { color: var(--ink); background: var(--
     box-shadow: inset 0 -2px var(--accent); }
 lf-shot .lf-shotcap[aria-pressed="false"] {
     color: var(--muted); box-shadow: none; }
+/* Where the pair differs: one outline per changed region, over both frames at the same
+   place, so the region reads on either side of the divider. The marks take the pair's
+   own frame (natural width by the taller image's height), stand a little outside what
+   changed rather than over it, and stop at the frame's edge, so a region that reaches
+   the edge still shows its outline there. The rail counts the outlines, and says so
+   when there is none to draw: identical, throughout the image, or only slight. */
+lf-shot .lf-shotdiff { position: absolute; top: 0; left: 0; width: 100%;
+    aspect-ratio: var(--lf-shot-ratio); pointer-events: none; }
+lf-shot .lf-shotdiff > span { position: absolute;
+    left: max(0px, calc(var(--lf-shot-x) - 4px));
+    top: max(0px, calc(var(--lf-shot-y) - 4px));
+    right: max(0px, calc(100% - var(--lf-shot-x) - var(--lf-shot-w) - 4px));
+    bottom: max(0px, calc(100% - var(--lf-shot-y) - var(--lf-shot-h) - 4px));
+    border: 2px solid var(--warn); border-radius: 2px; }
+lf-shot .lf-shotdelta { font-size: var(--t-6); color: var(--muted); }
+/* A pair that is identical, or changed only slightly, is what a handoff most often
+   describes wrong, so the rail raises those readings. */
+lf-shot .lf-shotdelta:is([data-lf-shot-delta="identical"], [data-lf-shot-delta="slight"]) {
+    color: var(--warn-ink); font-weight: 650; }
+/* The outlines, and the count they make up, show where the pair asks for them. */
+lf-shot:not([outlines]) :is(.lf-shotdiff, .lf-shotdelta[data-lf-shot-delta="areas"]) {
+    display: none; }
 
 /* Before the progressive comparison arrives the image is itself the native target. The
    one fallback covers loading and controls-off. */
@@ -1774,7 +1559,7 @@ lf-shot:not(:has(> .lf-shotcomparison)):has(input:checked)
     box-shadow: inset 0 -2px var(--accent); }
 
 lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) {
-    outline: var(--here-ring); --lf-here-ring: shot; outline-offset: 1px;
+    outline: var(--focus-ring); --lf-focus-ring: shot; outline-offset: 1px;
     border-radius: var(--r); }
 
 @media print {
@@ -1815,11 +1600,7 @@ lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) {
  * weight and ink distinguish it within the same sans voice as the section labels. Their common inset then reads as one route rather than two typographic systems.
  * Depth changes only the labels' inset. Labels stop at two lines, so prose never
  * distorts the document-scale rows.
- * The open and paper forms retain the complete words.
- *
- * The one-pixel sibling target has a negative end margin that gives it no net height,
- * while the real box lets the shared arrival pass align a link precisely rather than
- * stopping as soon as a zero-height point enters the viewport. */
+ * The open and paper forms retain the complete words. */
 lf-toc { display: block; margin: var(--sp-4) 0 30px; }
 lf-toc:empty { display: none; }
 lf-toc .lf-toc-nav { position: relative; border-left: 1px solid var(--border-2);
@@ -1836,11 +1617,14 @@ lf-toc li[data-lf-depth="1"] { --lf-toc-indent: 10px; }
 lf-toc li[data-lf-depth="2"] { --lf-toc-indent: 20px; }
 lf-toc li[data-lf-depth="3"] { --lf-toc-indent: 30px; }
 lf-toc li[data-lf-depth="4"] { --lf-toc-indent: 40px; }
-lf-toc a { display: inline-block; padding: 3px 0; color: inherit;
-           text-decoration: none; }
+/* Each link is a stacked row with no gap to the next, so its box is the whole of its aim:
+ * the padding centres its line in the aim floor, which a finger raises to 44px where the
+ * 3px a mouse needs left 24px rows. */
+lf-toc a { display: inline-block; color: inherit; text-decoration: none;
+           padding-block: max(3px, (var(--aim-floor) - 1lh) / 2); }
 lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
 
-/* The core sidebar states its actual posture after viewport and tray-room decisions.
+/* The core sidebar states its actual posture after viewport and drawer-room decisions.
  * Only a fine-pointer margin form fixes itself into a viewport map; generic sidebars keep
  * their sticky behavior and an in-flow ToC stays open.
  *
@@ -1855,44 +1639,48 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
  * posture reaches every box on the page, and only the sidebar's map wants it. */
 @media screen and (hover: hover) and (pointer: fine) {
   /* The contents map owns one stable margin rectangle whether its labels are hidden or
-   * revealed. Its transparent resting surface is therefore the same size as the links
-   * it discloses, and revealing it changes neither page geometry nor hit geometry. */
-  main:has(> aside.sidebar:nth-child(1 of aside.sidebar) lf-toc) {
-    --lf-sidebar-claim: var(--sidebar-max);
-    --lf-sidebar-free-left: calc(var(--lf-beside) + var(--lf-shift)
-      - var(--lf-gutter-l));
-  }
+   * revealed, so revealing it changes no page geometry. At rest only its spine takes
+   * presses; the rectangle does once the spine is hovered or focused (below). */
   @container lf-content-frame style(--lf-sidebar-posture: margin) {
     @container style(--lf-sidebar-slot: margin) {
       lf-toc { position: fixed;
                left: var(--sp-4);
                top: var(--lf-banner-h, 0px);
                z-index: 4;
-               width: calc(var(--lf-sidebar-claim) - var(--sp-4));
+               width: calc(var(--sidebar-max) - var(--sp-4));
                box-sizing: border-box;
                padding-block: var(--sp-4);
-               pointer-events: auto;
-               /* Between the banner and the bottom band, as every region is: the band is
+               pointer-events: none;
+               /* Between the banner and the bottom bar, as every region is: the bar is
                 * attached to the window's foot at one stated height, so the map ends above
                 * it rather than losing its last entry under the keyboard's line. */
-               height: calc(100vh - var(--lf-banner-h, 0px) - var(--lf-band-h, 0px));
+               height: calc(100vh - var(--lf-banner-h, 0px) - var(--lf-bottom-bar-h, 0px));
                margin: 0; }
       lf-toc .lf-toc-nav { width: 100%; height: 100%; border: 0; padding: 0;
                            --lf-toc-label-opacity: 0;
-                           pointer-events: auto;
+                           pointer-events: none;
                            transition: background-color .24s ease-out; }
       lf-toc .lf-toc-heading { display: none; }
       lf-toc .lf-toc-rows { position: relative; display: flex; height: 100%;
                             flex-direction: column; }
+      /* At rest the map takes presses on its spine alone, a strip one step wide, so it
+       * never stands over the page's words beside it (the column claims no margin for
+       * it). Hovering or focusing the spine opens the whole surface its labels reveal
+       * onto, and that surface keeps the pointer while it moves across them. */
+      lf-toc .lf-toc-rows::after { content: ""; position: absolute; z-index: 1;
+                                   top: 0; bottom: 0; left: calc(-1 * var(--sp-2));
+                                   width: var(--sp-4); pointer-events: auto; }
+      lf-toc:is(:hover, :focus-within, [data-lf-outline]),
+      lf-toc:is(:hover, :focus-within, [data-lf-outline]) .lf-toc-nav,
+      body[data-lf-go-to-active] :is(lf-toc, lf-toc .lf-toc-nav) { pointer-events: auto; }
       lf-toc .lf-toc-rows::before { content: ""; position: absolute;
                                     z-index: 0; top: 0; bottom: 0; left: 0; width: 1px;
                                     background: var(--border-2); }
+      /* One pixel tall, scaled to the lens's length by the widget's scroll-driven
+       * animation, which the compositor runs. */
       lf-toc .lf-toc-window { display: block; position: absolute; z-index: 1;
-                              top: var(--lf-toc-window-start, 0%);
-                              left: 0; width: 1px;
-                              height: var(--lf-toc-window-size, 12%);
-                              min-height: 14px; border-radius: 2px;
-                              background: var(--ink-2); }
+                              top: 0; left: 0; width: 1px; height: 1px;
+                              transform-origin: top; background: var(--ink-2); }
       /* A row is a span of the spine, and its link hangs from the row's top and may run
        * past the row's foot when rows are dense. The row takes no presses, so the next
        * row's span never stands over that link: the link is the only thing here to
@@ -1931,8 +1719,8 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
       lf-toc li a[aria-current="location"]:not(:hover, :focus-visible) {
         color: var(--ink-2);
       }
-      lf-toc a:focus-visible { outline: var(--here-ring); --lf-here-ring: toc-link;
-                               outline-offset: calc(-1 * var(--here-ring-w)); }
+      lf-toc a:focus-visible { outline: var(--focus-ring); --lf-focus-ring: toc-link;
+                               outline-offset: calc(-1 * var(--focus-ring-w)); }
       lf-toc:is(:hover, :focus-within) .lf-toc-nav,
       body[data-lf-go-to-active] lf-toc .lf-toc-nav {
         --lf-toc-label-opacity: 1;
@@ -1953,7 +1741,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
       lf-toc[data-lf-outline] .lf-toc-nav {
         --lf-toc-label-opacity: 1;
         width: max(40px, min(320px,
-          calc(var(--lf-beside) + var(--lf-shift) - 2 * var(--sp-4))));
+          calc(var(--lf-beside) + var(--lf-shift, 0px) - 2 * var(--sp-4))));
         background: var(--paper);
         overflow-y: auto; pointer-events: auto;
       }
@@ -1991,7 +1779,6 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
     forced-color-adjust: none; background: Highlight;
   }
 }
-.lf-toc-target { display: block; width: 1px; height: 0; }
 
 /* lf-activity: the page's history, newest first. One row is an initial, a sentence, and
  * an optional excerpt under it. The sentence's place is its link or thread button, drawn
@@ -2023,7 +1810,8 @@ lf-activity span.lf-activity-target { color: var(--ink-2); }
 lf-activity .lf-activity-time { color: var(--muted); white-space: nowrap; }
 lf-activity .lf-activity-time::before { content: "· "; }
 lf-activity .lf-activity-undone { color: var(--muted); font-size: var(--t-6);
-  border: 1px solid var(--border-2); border-radius: var(--chip-r); padding: 0 4px; }
+  border: 1px solid var(--border-2); border-radius: var(--chip-r);
+  padding: var(--chip-pad); }
 lf-activity [data-lf-undone] :is(.lf-activity-what, .lf-activity-target, .lf-activity-excerpt) {
   text-decoration: line-through; text-decoration-color: var(--muted); }
 lf-activity .lf-activity-excerpt { grid-column: 2; margin: 2px 0 0; color: var(--muted);
@@ -2033,10 +1821,22 @@ lf-activity .lf-activity-empty { margin: 0; color: var(--muted); font: var(--t-5
 /* lf-ask: a semantic reading and arrival boundary, with no presentation of its own.
  * Block rather than the custom-element default inline so its box begins at the
  * question's opening and reaches around the context and control the standing ring says
- * are one Decision. Child margins keep the same ordinary block rhythm they have in a section. */
+ * are one Ask. */
 lf-ask { display: block; }
+/* An Ask that is a full-height workspace's body (`--lf-full-height` on main, layouts.css) and is a
+ * heading and one answer gives the answer what the heading leaves, so a widget composing
+ * its own regions there, such as a playground, fills the window. With context between
+ * the two there is no one box to give the height to, so every part keeps its own. */
+@container style(--lf-full-height: 1) {
+  main > lf-ask { display: flex; flex-direction: column; }
+  main > lf-ask > :nth-child(2):last-child {
+    flex: 1 1 0;
+    min-block-size: 0;
+    margin-block-end: 0;
+  }
+}
 
-/* lf-specimen: quoted material — a widget or section the page exhibits rather
+/* lf-sample: quoted material — a widget or section the page exhibits rather
  * than speaks (a sample decision, a demo board). It wears the quotation idiom, a
  * muted left gutter — not the callout's tinted field, and not the left-accent bar
  * that rule forbids: a quotation's gutter marks provenance, an accent bar demands
@@ -2055,7 +1855,7 @@ lf-ask { display: block; }
  * diff and the capture all take the note where the file has it, first inside the
  * element — so the one account that was wrong was the one the user could see.
  *
- * The word over it is the user's; `lf-specimen` is the author's. A tag names a member
+ * The word over it is the user's; `lf-sample` is the author's. A tag names a member
  * of a vocabulary its author picks from and can afford a word to learn, where the note's
  * whole job is telling a user who has met none of that vocabulary that the page is
  * showing this rather than saying it. The tag keeps its own name because the plain one is
@@ -2082,11 +1882,11 @@ lf-ask { display: block; }
  * table sizes to its content besides, so the board on the how-it-works page came out
  * 523px wide in a 380px column, with the document scrolling sideways to reach what the
  * board's own overflow was holding — which is what `table-layout: fixed` settles, and
- * what test_a_specimen_holds_a_wide_exhibit_inside_the_column holds it to.
+ * what test_a_sample_holds_a_wide_exhibit_inside_the_column holds it to.
  *
  * The bar is a pixel heavier than the 2px it was and the exhibit is set deeper: the
  * bar is the whole of the marking now that the note stands off it, and it is read
- * against content that draws its own boxes — a specimen full of cards is one more line
+ * against content that draws its own boxes — a sample full of cards is one more line
  * on a page of borders, where a quoted paragraph is the only rule in a column of prose.
  * The note stands 4px off the bar and the theme's own 18px under the paragraph above,
  * because proximity is what says which block a line belongs to, and this line belongs
@@ -2097,12 +1897,12 @@ lf-ask { display: block; }
  * room against the neighbours it expects; a table cell is a margin barrier, so the room
  * the exhibit's outermost blocks reserve cannot collapse out of the marking and is
  * painted as bar instead. Sixteen pixels of it over the first card and under the last,
- * on every specimen in the corpus, held for neighbours that are not there — and the
+ * on every sample in the corpus, held for neighbours that are not there — and the
  * user who reported it read the top as the loose end, because the note is 4px off the
  * bar and so appears to open it, leaving a marking that begins at a line and then waits
- * twenty pixels for the thing it is marking. So the specimen states no padding of its
+ * twenty pixels for the thing it is marking. So the sample states no padding of its
  * own and declares the frame, which drops those margins where they abut the marking:
- * what separates a specimen from the prose around it is its own 18px, stated once.
+ * what separates a sample from the prose around it is its own 18px, stated once.
  *
  * The trim that declaration buys is the layer's (theme.css), and the reach is the direct
  * children, which is what a selector has. Nothing about the note is stated here, though
@@ -2113,7 +1913,7 @@ lf-ask { display: block; }
  * A child that generates no box hands its own margins to the flow and the trim lands on
  * nothing. The one such widget shipped is the suggestion, and it is why the block slot
  * asks for its room above rather than around itself (theme.css) — which leaves one edge
- * rather than two, measured: a suggestion leading a specimen still holds its 10px. Which
+ * rather than two, measured: a suggestion leading a sample still holds its 10px. Which
  * edge is left follows from the room having to sit on one side, and the other side was
  * worse — stated between siblings, it could not cross the boxless wrapper at all, and two
  * suggestions in a row on a shipped page shut against each other. A box that stands in
@@ -2122,39 +1922,60 @@ lf-ask { display: block; }
  * out here is the fix that suggests itself, and it
  * trades a silent failure for a worse one: the grandchild whose margin shows is the
  * grandchild of a *boxless* parent, and the same selector over a padded one — a callout
- * leading a specimen — closes up that box's own first line, which is the exhibit
- * rendering at less than full fidelity, the one thing a specimen promises. So no
+ * leading a sample — closes up that box's own first line, which is the exhibit
+ * rendering at less than full fidelity, the one thing a sample promises. So no
  * selector reaches the next boxless widget either, and what holds this is a reading of
- * the painted bar against the exhibit's own boxes over every specimen the corpus has
+ * the painted bar against the exhibit's own boxes over every sample the corpus has
  * (test_the_gutter_runs_beside_the_exhibit_and_no_further) — loud where the rule goes
  * quiet, and what a leading suggestion meets the day one is written. */
-lf-specimen { display: table; table-layout: fixed; width: 100%;
+lf-sample { display: table; table-layout: fixed; width: 100%;
               box-sizing: border-box; margin: 18px 0; padding-left: var(--sp-4);
               border-left: 3px solid var(--border-2); --lf-block-frame: 1; }
-lf-specimen::before,
-lf-specimen > [data-lf-said="label"] { display: table-caption;
+/* An authored width widens a block by negative margins (theme.css, the breakout rule),
+ * which an auto-width box fills and a table box with its own width does not: the sample
+ * moved left by the margin and kept the column's width. So a sample given room adds the
+ * surplus to its width, as the kernel's table rule does, and under the same selector.
+ * Only its own breakout's: `--lf-surplus` inherits, and a sample in a list inside wide
+ * evidence took the section's surplus on top of the item's width. */
+@media screen {
+  lf-sample[data-lf-space]:not([data-lf-space="column"]) {
+    width: calc(100% + var(--lf-surplus)); }
+}
+/* Containment does not apply to a table, so the sample cannot be the size container
+ * a framed box is (theme.css, at the pane's body). Its width is fixed, so it states the
+ * cap for what it holds as a percentage instead, which resolves against its cell. */
+lf-sample > * { --lf-box-cap: 100%; }
+lf-sample::before,
+lf-sample > [data-lf-said="label"] { display: table-caption;
               font-size: var(--t-6); margin-bottom: var(--sp-1);
               letter-spacing: .08em; text-transform: uppercase;
               color: var(--muted); }
-lf-specimen::before { content: "quoted"; }
-lf-specimen[label]::before { content: "quoted · " attr(label); }
-lf-specimen:has(> [data-lf-said="label"])::before { content: none; }
-lf-specimen > [data-lf-said="label"]::before { content: "quoted · "; }
-lf-specimen[data-lf-specimen-live]::before { content: "live specimen"; }
-lf-specimen[data-lf-specimen-live][label]::before { content: "live specimen · " attr(label); }
-lf-specimen[data-lf-specimen-live]:has(> [data-lf-said="label"])::before { content: none; }
-lf-specimen[data-lf-specimen-live] > [data-lf-said="label"]::before { content: "live specimen · "; }
+lf-sample::before { content: "quoted"; }
+lf-sample[label]::before { content: "quoted · " attr(label); }
+lf-sample:has(> [data-lf-said="label"])::before { content: none; }
+lf-sample > [data-lf-said="label"]::before { content: "quoted · "; }
+lf-sample[data-lf-sample-live]::before { content: "live sample"; }
+lf-sample[data-lf-sample-live][label]::before { content: "live sample · " attr(label); }
+lf-sample[data-lf-sample-live]:has(> [data-lf-said="label"])::before { content: none; }
+lf-sample[data-lf-sample-live] > [data-lf-said="label"]::before { content: "live sample · "; }
 /* Like the label, host controls describe the exhibit; they stand outside its gutter.
  * The frame's height is a placeholder until its child presents and the widget sizes it
  * to the child's page. */
-.lf-specimen-controls { display: table-caption; margin-bottom: 10px; }
-.lf-specimen-controls > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-.lf-specimen-status { color: var(--muted); font: var(--t-6)/1.4 var(--sans); }
-.lf-specimen-frame { display: block; box-sizing: border-box; width: 100%; height: 32rem;
+.lf-sample-controls { display: table-caption; margin-bottom: 10px; }
+.lf-sample-controls > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.lf-sample-status { color: var(--muted); font: var(--t-6)/1.4 var(--sans); }
+.lf-sample-frame { display: block; box-sizing: border-box; width: 100%; height: 32rem;
                     border: 1px solid var(--border-2); border-radius: var(--r);
                     background: var(--paper); }
+/* A window sample keeps a window's height rather than its page's, and scrolls inside.
+ * Three quarters of the viewport leaves its label, Reset, and the containing page's
+ * banner and bottom bar in view with the whole frame. */
+lf-sample[window] > .lf-sample-frame { height: min(75vh, 48rem); }
+/* Inside a block sample the viewport follows the content, so there a window takes a
+ * fixed height rather than a share of the frame it is growing. */
+html[data-lf-sample-block] lf-sample[window] > .lf-sample-frame { height: 32rem; }
 @media print {
-  .lf-specimen-controls, .lf-specimen-frame { display: none; }
+  .lf-sample-controls, .lf-sample-frame { display: none; }
 }
 /* A quoted choose group renders as one that never declared `choose`. That promise is
  * kept where each pressable look is granted, not undone here: every affordance rule in
@@ -2177,6 +1998,8 @@ lf-chart, lf-tree, lf-code { display: block; margin: 14px 0;
              font-family: var(--mono); font-size: var(--code-size);
              line-height: var(--code-line); font-variant-ligatures: none;
              color: var(--code-muted); overflow-x: auto; }
+/* Code scrolls its own lines, so its longest line never sizes what holds it. */
+lf-code { contain: inline-size; }
 lf-chart.lf-rendered, lf-tree.lf-rendered, lf-code.lf-rendered {
              font: inherit; color: inherit; overflow: visible; }
 /* The authored body, before its module replaces it. Nothing here says white-space: the
@@ -2240,7 +2063,8 @@ lf-tree .lf-tree-dir { font-weight: 600; }
  * spaces them by margin, so a line is one word to the breaker: told it may break inside
  * one, it split a two-character badge down the middle and drew half the chip on each
  * line. The name is what breaks now, which is the one of the three that can. */
-lf-tree .lf-tree-badge { font-size: var(--t-6); padding: 0 6px; margin-left: 6px;
+lf-tree .lf-tree-badge { font-size: var(--t-6); padding: var(--chip-pad);
+                         margin-left: 6px;
                          border-radius: var(--chip-r); white-space: nowrap; }
 lf-tree .lf-tree-badge.add { background: var(--ok-tint); color: var(--ok-ink); }
 lf-tree .lf-tree-badge.del { background: var(--danger-tint); color: var(--danger-ink); }
@@ -2253,8 +2077,21 @@ lf-tree .lf-tree-badge.del { background: var(--danger-tint); color: var(--danger
 @property --lf-code-gutter { syntax: "<length>"; inherits: true; initial-value: 38px; }
 lf-code.lf-rendered pre { padding: 12px 0; --lf-block-frame: 1;
              --lf-code-gutter: max(38px, calc(var(--lf-code-digits, 2) * 1ch + 16px)); }
-lf-code.lf-rendered pre:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: code-pre-light;
-             outline-offset: calc(-1 * var(--here-ring-w)); }
+/* The block's ring is drawn over its lines by the host rather than as the <pre>'s own
+   outline, which paints with the <pre>'s in-flow content: a note row is sticky, so it
+   paints after that and took the ring's side runs where it crosses them. The host's
+   pseudo-element is positioned and follows every row in tree order, so it paints over
+   them at the same level. The host is
+   the carrier because the <pre> scrolls, and a box positioned inside a scroller moves
+   with what it scrolls; the host holds nothing else and the <pre>'s margin collapses
+   through it, so the two boxes are one. */
+lf-code.lf-rendered { position: relative; }
+lf-code.lf-rendered pre:is(:focus-visible, .lf-focus-visible) { outline: none; }
+lf-code.lf-rendered:has(> pre:is(:focus-visible, .lf-focus-visible))::after {
+             content: ""; position: absolute; inset: 0; pointer-events: none;
+             border-radius: var(--r);
+             outline: var(--focus-ring); --lf-focus-ring: code-pre-light;
+             outline-offset: calc(-1 * var(--focus-ring-w)); }
 /* An hi range's tint has to run the whole scrolled line, not stop at the fold. The diff
    package answers the same question on its own rows, but from the track rather than the
    line, because there every row has to end where the widest one does: this block's lines
@@ -2324,8 +2161,10 @@ lf-text-document > .lf-text-document-view {
   margin: 0; border: 1px solid var(--code-border); border-radius: var(--r);
   overflow: hidden; background: var(--pre-bg); --lf-block-frame: 1;
 }
+/* The caption is the frame's header bar, not a line of reading, so it spans the frame:
+   under the reading measure its rule stopped 53px short of a 795px frame. */
 lf-text-document figcaption {
-  padding: 7px 11px; border-bottom: 1px solid var(--rule);
+  max-inline-size: none; padding: 7px 11px; border-bottom: 1px solid var(--rule);
   color: var(--muted); font-family: var(--sans); font-size: var(--t-6);
   font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
 }
@@ -2348,7 +2187,7 @@ lf-text-document pre { margin: 0; border: 0; border-radius: 0; white-space: pre-
    Keep its generic focus ring inside that frame: the figure clips at its rounded
    corners, so an outside ring loses a pixel on three sides. */
 lf-text-document pre:is(:focus-visible, .lf-focus-visible) {
-  outline-offset: calc(-1 * var(--here-ring-w));
+  outline-offset: calc(-1 * var(--focus-ring-w));
 }
 
 /* lf-draft rendered form: a block of text the user owns. The dashed border says
@@ -2404,7 +2243,7 @@ lf-draft { display: block; border: 1px dashed var(--border-2); border-radius: 6p
    size larger than the words it showed. */
 lf-draft { font-size: max(var(--entry-floor), 1em); }
 .lf-draft-edit.lf-ui:is(:focus, .lf-focus) { outline: none; box-shadow: none;
-           --lf-here-ring: none; }
+           --lf-focus-ring: none; }
 .lf-draft-history { display: none; }
 @media screen {
   html:root {
@@ -2418,9 +2257,9 @@ lf-draft { font-size: max(var(--entry-floor), 1em); }
     lf-draft:has(.lf-draft-edit) { border-style: solid;
                border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
                box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
-    lf-draft:has(.lf-draft-edit:focus-visible) { outline: var(--here-ring);
-               --lf-here-ring: draft-editor;
-               outline-offset: calc(-1 * (var(--here-ring-w) + var(--here-ring-gap))); }
+    lf-draft:has(.lf-draft-edit:focus-visible) { outline: var(--focus-ring);
+               --lf-focus-ring: draft-editor;
+               outline-offset: calc(-1 * (var(--focus-ring-w) + var(--focus-ring-gap))); }
     lf-draft:has(.lf-draft-edit) > .lf-draft-body { display: none; }
     .lf-draft-history { display: block; }
   }
@@ -2431,6 +2270,7 @@ lf-draft { font-size: max(var(--entry-floor), 1em); }
   }
 }
 .lf-draft-history { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--rule);
+                    --lf-block-frame: 1;
                     font-size: var(--t-5); color: var(--ink-2); }
 .lf-draft-history > summary { width: max-content; cursor: pointer; color: var(--muted); }
 .lf-draft-history > summary:hover { color: var(--ink-2); }

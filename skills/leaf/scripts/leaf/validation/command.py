@@ -7,7 +7,7 @@ from pathlib import Path
 from leaf.event_log import read_events
 from leaf.files import list_revisions
 from leaf.leases import page_locked
-from leaf.revision_artifact import read_artifact
+from leaf.revision_artifact import read_revision
 
 from .source import check_source
 
@@ -35,9 +35,8 @@ def _check(page_dir: Path, render: bool, events_override: list | None) -> int:
             print(f"  · {line}", file=sys.stderr)
         return 1
     print(
-        "✓ index.html: parses, widgets, authored modules, and theme validate, "
-        "protected ids and decisions carried over, nothing overflows the "
-        f"{result.column}px column",
+        "✓ index.html: parses, widgets, authored modules, and styles validate, "
+        "protected ids and decisions carried over",
         # Ahead of any browser gate's stderr, which a piped reader gets unbuffered.
         flush=True,
     )
@@ -53,7 +52,7 @@ def _check(page_dir: Path, render: bool, events_override: list | None) -> int:
     revisions = list_revisions(page_dir)
     active = revisions[-1] if revisions else 0
     revision = active
-    if not active or read_artifact(page_dir, active).digest != result.artifact.digest:
+    if not active or read_revision(page_dir, active).digest != result.artifact.digest:
         revision = active + 1
     candidate = (page_dir, result.document, revision, result.artifact)
     if runs_code and page_code_check(*candidate):

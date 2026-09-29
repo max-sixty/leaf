@@ -9,6 +9,7 @@ import textwrap
 import threading
 import time
 from copy import deepcopy
+from pathlib import Path
 
 import model_folds as model
 import pytest
@@ -17,7 +18,6 @@ from interact_support import (
     ACCEPT,
     ADOPTED,
     COMMAND_HUB_PACKAGE,
-    COMMAND_SUBJECTS,
     COMMENT,
     PAGE,
     PAGE_PACKAGES,
@@ -62,22 +62,23 @@ from interact_support import (
 )
 from leaf import cli as cli_model
 from leaf import codex as codex_model
-from leaf import conversation as conversation_model
 from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
+from leaf import hooks as hooks_model
 from leaf import host as host_model
 from leaf import media as media_model
+from leaf import page_view as page_view_model
 from leaf import passages as passages_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import structure as structure_model
-from leaf import styles as styles_model
+from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
@@ -85,7 +86,7 @@ from leaf.registry import page as registry_page
 from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
 from leaf.render_gate import preview as render_gate_model
-from page_fixtures import package_selection_args
+from leaf_dev.page_fixtures import package_selection_args
 
 
 def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
@@ -95,7 +96,7 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
         page_dir,
         {"kind": "comment", "id": "question", "author": "user", "text": "Why?"},
     )
-    conversation_model.cmd_resolve(page_dir, "question")
+    thread_model.cmd_resolve(page_dir, "question")
     for message in (
         {"author": "user", "token": "keep"},
         {
@@ -113,7 +114,7 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
         )
         assert threads["question"]["resolved"] is not None
 
-    answer = conversation_model.cmd_reply(
+    answer = thread_model.cmd_reply(
         page_dir,
         "question",
         "Here is the completed answer.",
@@ -130,7 +131,7 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
         == {}
     )
 
-    conversation_model.cmd_resolve(page_dir, answer["id"])
+    thread_model.cmd_resolve(page_dir, answer["id"])
     events_model.append_event(
         page_dir,
         {
@@ -143,7 +144,7 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
     )
     threads = event_folds_model.build_threads(events_model.read_events(page_dir), {})
     assert threads["question"]["resolved"] is None
-    conversation_model.cmd_reply(
+    thread_model.cmd_reply(
         page_dir,
         "question",
         "Additional detail on the original question.",
@@ -154,7 +155,7 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
     assert delivery_model.current_responses(
         page_dir, events_model.read_events(page_dir)
     ) == {"correction": {"kind": "reply", "to": "correction", "for": "correction"}}
-    closed = conversation_model.cmd_resolve(page_dir, "question")
+    closed = thread_model.cmd_resolve(page_dir, "question")
     threads = event_folds_model.build_threads(events_model.read_events(page_dir), {})
     assert threads["question"]["resolved"]["id"] == closed["id"]
 
@@ -162,9 +163,9 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
 def test_late_answer_to_a_frozen_widget_reopens_without_repeating_its_obligation(
     server, page_dir
 ):
-    """Reopening restores the conversation while its completed choice stays answered."""
+    """Reopening restores the thread while its completed choice stays answered."""
     publish(page_dir)
-    question = conversation_model.cmd_comment(
+    question = thread_model.cmd_comment(
         page_dir,
         None,
         None,
@@ -191,8 +192,8 @@ def test_late_answer_to_a_frozen_widget_reopens_without_repeating_its_obligation
     assert choice["id"] in delivery_model.current_responses(
         page_dir, events_model.read_events(page_dir)
     )
-    conversation_model.cmd_resolve(page_dir, question["id"])
-    answer = conversation_model.cmd_reply(
+    thread_model.cmd_resolve(page_dir, question["id"])
+    answer = thread_model.cmd_reply(
         page_dir,
         question["id"],
         "I applied your choice.",
@@ -219,12 +220,12 @@ STATED_KIT = """<!doctype html>
 </head>
 <body>
 <main>
-<lf-specimen id="last-year" label="the kit we took last year">
+<lf-sample id="last-year" label="the kit we took last year">
   <lf-options id="quoted-pick" choose>
     <lf-option id="quoted-paper"><strong>Paper maps</strong> Nothing to charge.</lf-option>
     <lf-option id="quoted-gps"><strong>Dedicated GPS</strong> Offline maps.</lf-option>
   </lf-options>
-</lf-specimen>
+</lf-sample>
 <lf-ask id="kit-decision">
   <h2>Which navigation kit this year?</h2>
   <lf-options id="live-pick" choose>
@@ -550,6 +551,32 @@ def test_an_accept_carries_its_thread_resolution():
     assert threads["e1"]["resolved"]["meaning"]["answer"] == "e1"
 
 
+def test_the_answer_that_settles_a_thread_acknowledges_what_it_said():
+    """Deciding the suggestion a thread asked for is a move in that thread even
+    though the widget stands on the page, so the agent's reply before it reads as
+    taken in, as a reply or resolve there would. A move that changes the thread
+    without being made in it shows the user nothing there: neither the undo that
+    takes the answer back nor a later decision that supersedes it reads the
+    agent's words, so what those words say stays unread."""
+    reply = {"kind": "reply", "author": "agent", "parent": "e1", "text": "Try sug-a."}
+    edit = {
+        "kind": "edit",
+        "author": "agent",
+        "agent": "Agent",
+        "session": "session-1",
+        "message": "e2",
+    }
+
+    def unread(*events):
+        thread = model.threads(model.reading(SETTLED, (ASKED, reply, *events)))["e1"]
+        return [item["version"] for item in thread["unread"]]
+
+    assert unread() == ["e2"]
+    assert unread(PICKED) == []
+    assert unread(PICKED, {"kind": "undo", "undoes": "e3"}) == ["e2"]
+    assert unread(PICKED, {**edit, "text": "Try sug-a first."}, TURNED_DOWN) == ["e4"]
+
+
 def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):
     """An action names the thread it settles, and it settles it only while the
     user still stands behind it. Withdrawing the answer is one of the three ways
@@ -579,12 +606,12 @@ def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):
             },
         },
     )
-    spk = passages_model.spoken(
+    spk = passages_model.SourceReading(
         structure_model.SourceDocument(
             (page_dir / "index.html").read_text(encoding="utf-8")
         ),
         registry_storage.require_registry(page_dir),
-    )
+    ).spoken
     threads = event_folds_model.build_threads(
         events_model.read_events(page_dir), passages_model.enclosing_of(spk)
     )
@@ -602,7 +629,7 @@ def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):
 def test_server_takes_back_only_a_standing_gesture_of_the_users_own(server, page_dir):
     """`undoes` is checked completely where it enters, so nothing downstream asks a
     second time whether it points at something real. What an undo may name is one
-    unwithdrawn gesture of the user's own: an agent's `leaf resolve` is not
+    unwithdrawn gesture of the user's own: an agent's `leaf thread resolve` is not
     theirs to take back, a comment is speech rather than state, an undo is not
     itself undoable (that would be a redo), and one gesture cannot be taken back
     twice."""
@@ -769,7 +796,7 @@ def test_an_accept_after_a_reject_settles_the_thread():
 
 
 def test_a_resolve_between_two_decisions_outlives_the_second():
-    """A resolve is a person saying the conversation is done, and the log cannot
+    """A resolve is a person saying the thread is done, and the log cannot
     take that back the way it takes back a decision. The one-way latch got this
     right by never clearing anything; what it pins is the obvious wrong fix for the
     latch — a reject that clears whatever its widget resolved — which would wipe a
@@ -839,123 +866,6 @@ def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
     assert "decide" in result.output
 
 
-def test_init_refuses_to_retire_a_frozen_thread_host_request_verb(page_dir):
-    """A request from frozen markup remains part of every candidate document."""
-    operation = (
-        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
-        "<strong>Goal</strong>"
-        + COMMAND_SUBJECTS
-        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
-        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
-        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask></lf-task></lf-command>"
-    )
-    publish(page_dir)
-    events_model.append_event(
-        page_dir,
-        {"kind": "comment", "id": "c1", "author": "user", "text": "Restart?"},
-    )
-    conversation_model.cmd_reply(
-        page_dir,
-        "c1",
-        "Use this operation.",
-        operation,
-        for_event="c1",
-    )
-    append_command(
-        page_dir,
-        {
-            "kind": "request",
-            "author": "user",
-            "revision": 1,
-            "widget": "commands",
-            "action": "restart",
-            "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
-        },
-    )
-    registry = json.loads((page_dir / "registry.json").read_text())
-    del registry["lf-operations"]["x-request"]["verbs"]["restart"]
-    registry["lf-operation"]["properties"]["verb"]["enum"].remove("restart")
-    overlay = page_dir.parent / ".leaf"
-    overlay.mkdir(parents=True)
-    (overlay / "registry.json").write_text(
-        json.dumps(
-            {
-                "lf-operations": registry["lf-operations"],
-                "lf-operation": registry["lf-operation"],
-            }
-        )
-    )
-
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "page",
-            "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
-            str(page_dir),
-        ],
-    )
-
-    assert result.exit_code != 0
-    assert "no longer speaks" in result.output
-    assert "request contract" in result.output and "restart" in result.output
-
-
-@pytest.mark.parametrize("receipt_requests", [["missing"], ["request-1", "request-1"]])
-def test_init_does_not_revalidate_a_written_receipt_lifecycle(
-    page_dir, receipt_requests
-):
-    """Receipt integrity is enforced at append, not by candidate validation."""
-    operation = (
-        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
-        "<strong>Goal</strong>"
-        + COMMAND_SUBJECTS
-        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
-        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
-        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask></lf-task></lf-command>"
-    )
-    version = page_dir / "index.html"
-    version.write_text(
-        version.read_text().replace("</section>", operation + "</section>")
-    )
-    publish(page_dir)
-    if receipt_requests[0] != "missing":
-        append_command(
-            page_dir,
-            {
-                "id": "request-1",
-                "kind": "request",
-                "author": "user",
-                "revision": 1,
-                "widget": "commands",
-                "action": "restart",
-                "detail": {
-                    "target": "goal",
-                    "worker": "worker",
-                    "worktree": "tree",
-                },
-            },
-        )
-    for index, request in enumerate(receipt_requests, 1):
-        events_model.append_event(
-            page_dir,
-            {
-                "id": f"receipt-{index}",
-                "kind": "receipt",
-                "author": "agent",
-                "request": request,
-                "status": "succeeded",
-                "text": "Host operation completed",
-            },
-        )
-
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
-
-    assert result.exit_code == 0, result.output
-
-
 def test_init_refuses_a_log_holding_a_token_the_incoming_layer_dropped(
     page_dir, monkeypatch
 ):
@@ -1013,7 +923,7 @@ def test_init_revendors_over_a_record_the_running_contract_would_not_admit(
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
     assert result.exit_code == 0, result.output
-    after = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+    after = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
     assert after.exit_code == 0, after.output
     assert "Does this still mean anything?" in after.output
 
@@ -1192,7 +1102,10 @@ def test_init_refuses_a_logged_report_the_incoming_layer_no_longer_speaks(page_d
     publish(page_dir)
     assert (
         CliRunner()
-        .invoke(cli_model.cli, ["report", str(page_dir), "t1", "status", "status=done"])
+        .invoke(
+            cli_model.cli,
+            ["page", "report", str(page_dir), "t1", "status", "status=done"],
+        )
         .exit_code
         == 0
     )
@@ -1300,9 +1213,7 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
 
     def report():
         try:
-            conversation_model.cmd_report(
-                page_dir, "t-parser", "status", ("status=done",)
-            )
+            thread_model.cmd_report(page_dir, "t-parser", "status", ("status=done",))
             outcomes.append("reported")
         except BaseException as error:  # noqa: BLE001 - carried to the assertion
             errors.append(error)
@@ -1329,6 +1240,25 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
     assert len(errors) == 1 and "report contract" in str(errors[0])
     assert events_model.read_events(page_dir)[-1]["kind"] == "report"
     assert "x-state" in json.loads((page_dir / "registry.json").read_text())["lf-task"]
+
+
+def test_a_bare_re_vendor_replaces_a_broken_vendored_registry(page_dir):
+    """Re-vendoring is the remedy for a broken vendored layer, so the selection a bare
+    `page init` repeats is read on its own: a malformed entry or a missing layer
+    generation is replaced rather than refused."""
+    path = page_dir / "registry.json"
+    registry = json.loads(path.read_text())
+    selection = registry["$layer"]["packages"]
+    registry["lf-corrupt"] = "broken"
+    del registry["$layer"]["generation"]
+    path.write_text(json.dumps(registry))
+
+    vendoring_model.cmd_init(page_dir)
+
+    revendored = json.loads(path.read_text())
+    assert "lf-corrupt" not in revendored
+    assert revendored["$layer"]["packages"] == selection
+    assert registry_storage.layer_metadata(page_dir)["generation"]
 
 
 def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
@@ -1416,7 +1346,7 @@ def test_revendoring_cannot_pass_a_worker_report_still_entering_the_log(
         page_dir,
         monkeypatch,
         "report",
-        lambda: conversation_model.cmd_report(
+        lambda: thread_model.cmd_report(
             page_dir, "t-parser", "status", ("status=review",)
         ),
     )
@@ -1443,7 +1373,7 @@ def test_revendoring_cannot_pass_thread_markup_still_entering_the_log(
         page_dir,
         monkeypatch,
         "reply",
-        lambda: conversation_model.cmd_reply(
+        lambda: thread_model.cmd_reply(
             page_dir, "c1", "Pick one:", markup, for_event="c1"
         ),
     )
@@ -1467,7 +1397,7 @@ def test_revendoring_cannot_turn_logged_thread_markup_into_a_settlement(
         '<lf-option id="thread-a">A</lf-option>'
         "</lf-options></lf-ask>"
     )
-    conversation_model.cmd_reply(page_dir, "c1", "Pick one:", markup, for_event="c1")
+    thread_model.cmd_reply(page_dir, "c1", "Pick one:", markup, for_event="c1")
 
     registry = json.loads((page_dir / "registry.json").read_text())
     options = registry["lf-options"]
@@ -1554,6 +1484,41 @@ def test_page_registry_composes_declarations_and_implementations_independently(
     assert layer == layer_before and declarations == page_before
 
 
+def test_a_composed_vocabulary_carries_its_decisions(page_dir):
+    """`$decisions` is what the browser reads to know which verb decides a widget and
+    which members each outcome takes off the page. Every composition stamps it, so a
+    page declaring a member of its own is served a relation that holds it."""
+    layer = registry_storage.load_registry(page_dir)
+    assert layer["$decisions"] == {
+        "lf-suggestion": {
+            "verb": "decide",
+            "retires": {"accept": ["lf-old"], "reject": ["lf-new"]},
+        }
+    }
+    member = {**deepcopy(layer["lf-old"]), "x-retired-when": "reject"}
+    widget_paths = {f"widgets/{path.name}" for path in (page_dir / "widgets").glob("*")}
+
+    composed = registry_page.compose_page_registry(
+        layer, {"lf-gone": member}, widget_paths
+    )
+
+    assert composed.registry["$decisions"]["lf-suggestion"]["retires"] == {
+        "accept": ["lf-old"],
+        "reject": ["lf-new", "lf-gone"],
+    }
+
+
+def test_a_verb_is_written_by_the_side_it_declares():
+    """`verb_writer` states the default the browser's `adoptRegistry` applies, and
+    both are held to `tests/verb_writer_cases.json`."""
+    cases = json.loads((Path(__file__).parent / "verb_writer_cases.json").read_text())
+    assert [
+        [tag, verb, registry_contract.verb_writer(spec)]
+        for tag, entry in cases["declarations"].items()
+        for verb, spec in entry["x-state"].items()
+    ] == cases["writers"]
+
+
 @pytest.mark.parametrize(
     ("declarations", "message"),
     [
@@ -1611,8 +1576,25 @@ def test_page_registry_reads_candidate_changes_without_mutating_the_layer(page_d
     assert "lf-local" not in registry_storage.load_registry(page_dir)
 
 
+def test_a_page_with_no_revision_reads_its_candidate_vocabulary(page_dir):
+    """Before the first revision the document is the candidate, so the command
+    readers and the append door both read the vocabulary it would be captured under:
+    the layer composed with the page's own declarations, not the bare layer."""
+    declaration = element_declaration("lf-local")
+    (page_dir / "page" / "registry.json").write_text(
+        json.dumps({"lf-local": declaration})
+    )
+    assert files_model.list_revisions(page_dir) == []
+
+    for vocabulary in (
+        registry_storage.active_registry(page_dir),
+        page_view_model.PageView(page_dir).registry(None),
+    ):
+        assert vocabulary["lf-local"] == declaration
+
+
 def test_thread_markup_must_render_in_every_pinned_revision(page_dir):
-    """A current conversation remains usable in every immutable document showing it."""
+    """A current thread remains usable in every immutable document showing it."""
     publish(page_dir)
     authored = page_dir / "page"
     (authored / "registry.json").write_text(
@@ -1629,7 +1611,8 @@ def test_thread_markup_must_render_in_every_pinned_revision(page_dir):
     posted = CliRunner().invoke(
         cli_model.cli,
         [
-            "comment",
+            "thread",
+            "open",
             str(page_dir),
             "--text",
             "A later widget",
@@ -1767,9 +1750,10 @@ def test_candidate_vocabulary_keeps_every_page_action_an_undo_can_expose(page_di
         },
     ]
     projected = page_reading(
-        structure_model.SourceDocument(source),
+        passages_model.SourceReading(
+            structure_model.SourceDocument(source), historical.registry
+        ),
         after_undo,
-        historical.registry,
         revision,
     )
     assert next(iter(projected.projection.desired.values()))[0]["id"] == first["id"]
@@ -1785,7 +1769,7 @@ def test_candidate_vocabulary_keeps_every_page_action_an_undo_can_expose(page_di
 def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(page_dir):
     """A retracted action on a removed sender is interpreted only in its old revision."""
     from leaf.projection import page_reading
-    from leaf.revision_artifact import read_artifact
+    from leaf.revision_artifact import read_revision
 
     authored = page_dir / "page" / "registry.json"
     declaration = _stateful_page_declaration(page_dir)
@@ -1833,9 +1817,11 @@ def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(pa
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert revendored.exit_code == 0, revendored.output
     historical = page_reading(
-        structure_model.SourceDocument(original),
+        passages_model.SourceReading(
+            structure_model.SourceDocument(original),
+            read_revision(page_dir, first_revision).registry,
+        ),
         events,
-        read_artifact(page_dir, first_revision).registry,
         first_revision,
     )
     assert (
@@ -1884,7 +1870,7 @@ def test_candidate_vocabulary_preserves_commands_in_frozen_thread_markup(page_di
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "Choose."},
     )
-    conversation_model.cmd_reply(
+    thread_model.cmd_reply(
         page_dir,
         "c1",
         "Use this control.",
@@ -2318,9 +2304,9 @@ def test_containment_reads_the_same_with_a_vocabulary_and_without_one(page_dir):
     html = (page_dir / "index.html").read_text(encoding="utf-8")
     document = structure_model.SourceDocument(html)
     registry = registry_storage.require_registry(page_dir)
-    full = passages_model.spoken(document, registry)
+    full = passages_model.SourceReading(document, registry).spoken
     assert passages_model.enclosing_ids(document) == passages_model.enclosing_of(full)
-    bare = passages_model.spoken(document, {})
+    bare = passages_model.SourceReading(document, {}).spoken
     assert any(full[wid].words != bare[wid].words for wid in full)
 
 
@@ -2332,7 +2318,7 @@ SUGGESTION_HOLDING_A_NAMESAKE = PAGE.replace(
 
 
 def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
-    """`resolves` names a conversation, and thread ids and page ids are separate
+    """`resolves` names a thread, and thread ids and page ids are separate
     namespaces that can spell the same string. Read like any other detail value it
     would rest the accept on whichever element shared the name — here a paragraph
     the suggestion itself proposes — and the version that rewrote that paragraph
@@ -2360,7 +2346,9 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
             "restated": ["c1"],
         },
     )
-    spk = passages_model.spoken(document, registry_storage.require_registry(page_dir))
+    spk = passages_model.SourceReading(
+        document, registry_storage.require_registry(page_dir)
+    ).spoken
     assert "sug-a" in spk["c1"].within  # the namesake really is inside the widget
     folds = [passages_model.enclosing_of(spk), passages_model.enclosing_ids(document)]
     events = events_model.read_events(page_dir)
@@ -2470,7 +2458,7 @@ def test_boolean_attribute_subschemas_validate_without_crashing(
     [
         ("x-awaits", []),
         ("x-awaits", {"when": {"choose": True}}),
-        ("x-conversation", False),
+        ("x-thread-seat", False),
         ("x-required-members", []),
         ("x-content", "words"),
         ("x-owners", []),
@@ -2685,150 +2673,6 @@ def test_action_detail_schemas_match_the_post_object_contract(page_dir):
     result = check(page_dir)
     assert result.exit_code != 0
     assert "detail schema must declare an object" in result.output
-
-
-def test_request_detail_schemas_match_the_post_object_contract(page_dir):
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-operations"]["x-request"]["verbs"]["restart"]["detail"] = {
-        "type": "string"
-    }
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-
-    result = check(page_dir)
-
-    assert result.exit_code != 0
-    assert "<lf-operations> x-request verb `restart` detail schema" in result.output
-    assert "must declare an object" in result.output
-
-
-@pytest.mark.parametrize(
-    ("mutation", "message"),
-    [
-        (
-            "optional-field",
-            "field `target`, but that field is not declared and required",
-        ),
-        (
-            "non-string-bound-field",
-            "binds detail field `target`, which must be a string",
-        ),
-        ("unknown-attribute", "to `missing`, which is not a declared string attribute"),
-        (
-            "optional-bound-attribute",
-            "to `target`, which is not a required authored attribute",
-        ),
-        (
-            "mutable-bound-attribute",
-            "to `target`, which is written by x-state",
-        ),
-        ("optional-id", "x-request instances are addressable"),
-        ("no-upgrade", "declares x-request"),
-        ("unknown-offer", "x-request offers unknown member <lf-unknown>"),
-        ("wrong-owner", "does not name it in x-owners"),
-        ("freeform-offer", "must be a non-empty string enum"),
-        (
-            "optional-offer-attribute",
-            "offer <lf-operation> attribute `verb` must be required",
-        ),
-        ("unknown-offered-verb", "names undeclared verbs ['explode']"),
-        ("unoffered-verb", "verbs ['restart'] cannot be offered"),
-        ("self-framing-decision", "declares both x-ask-surface and x-request.ask"),
-        ("dual-decision-source", "declares both x-request.ask and x-awaits"),
-    ],
-)
-def test_an_x_request_declaration_closes_its_widget_boundary(
-    page_dir, mutation, message
-):
-    registry = json.loads((page_dir / "registry.json").read_text())
-    operations = registry["lf-operations"]
-    restart = operations["x-request"]["verbs"]["restart"]
-    if mutation == "optional-field":
-        restart["detail"]["required"] = []
-    elif mutation == "non-string-bound-field":
-        restart["detail"]["properties"]["target"] = {"type": "integer"}
-    elif mutation == "unknown-attribute":
-        restart["bind"]["target"] = "missing"
-    elif mutation == "optional-bound-attribute":
-        operations["required"].remove("target")
-    elif mutation == "mutable-bound-attribute":
-        operations["properties"]["overruled"] = {"type": "boolean"}
-        operations["x-state"] = {
-            "retarget": {
-                "writer": "agent",
-                "detail": {
-                    "type": "object",
-                    "properties": {"target": {"type": "string"}},
-                    "required": ["target"],
-                    "additionalProperties": False,
-                },
-                "unit": "widget",
-                "record": {"kind": "value", "attr": "target", "value": "target"},
-            }
-        }
-    elif mutation == "optional-id":
-        operations["required"].remove("id")
-    elif mutation == "no-upgrade":
-        operations["x-upgrade"] = False
-    elif mutation == "unknown-offer":
-        operations["x-request"]["offers"] = {"lf-unknown": "verb"}
-    elif mutation == "wrong-owner":
-        registry["lf-operation"]["x-owners"] = ["lf-command"]
-    elif mutation == "freeform-offer":
-        registry["lf-operation"]["properties"]["verb"] = {"type": "string"}
-    elif mutation == "optional-offer-attribute":
-        registry["lf-operation"]["required"].remove("verb")
-    elif mutation == "unknown-offered-verb":
-        registry["lf-operation"]["properties"]["verb"]["enum"].append("explode")
-    elif mutation == "unoffered-verb":
-        registry["lf-operation"]["properties"]["verb"]["enum"].remove("restart")
-    elif mutation == "self-framing-decision":
-        operations["x-ask-surface"] = True
-        operations["x-content"] = "markup"
-    elif mutation == "dual-decision-source":
-        operations["x-awaits"] = {"answered": {"restart": {}}}
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-
-    result = check(page_dir)
-
-    assert result.exit_code != 0
-    assert message in result.output
-
-
-@pytest.mark.parametrize("writer", [{}, {"writer": "agent"}])
-def test_a_request_offer_attribute_is_authored_static_state(page_dir, writer):
-    registry = json.loads((page_dir / "registry.json").read_text())
-    operation = registry["lf-operation"]
-    operation["properties"].update(
-        {
-            "id": deepcopy(registry["lf-operations"]["properties"]["id"]),
-            "restated": {"type": "boolean"},
-            "overruled": {"type": "boolean"},
-        }
-    )
-    operation["required"].append("id")
-    operation["x-upgrade"] = True
-    operation["x-state"] = {
-        "change-offer": {
-            **writer,
-            "detail": {
-                "type": "object",
-                "properties": {"verb": deepcopy(operation["properties"]["verb"])},
-                "required": ["verb"],
-                "additionalProperties": False,
-            },
-            "unit": "widget",
-            "record": {"kind": "value", "attr": "verb", "value": "verb"},
-        }
-    }
-
-    with pytest.raises(
-        registry_contract.RegistryError,
-        match=(
-            r"<lf-operations> x-request offer <lf-operation> attribute `verb` "
-            r"is written by x-state"
-        ),
-    ):
-        registry_validation.validate_registry(registry, "test registry")
 
 
 @pytest.mark.parametrize("subschema", [True, False])
@@ -3127,7 +2971,7 @@ def test_registry_cross_entry_checks_wait_for_every_entry_to_validate(page_dir):
     ("tag", "key", "fallback"),
     [
         ("lf-options", "x-state", None),
-        ("lf-note", "x-conversation", {"when": {"id": ["note"]}}),
+        ("lf-note", "x-thread-seat", {"when": {"id": ["note"]}}),
         ("lf-diff", "x-thread-surface", True),
     ],
 )
@@ -3299,7 +3143,7 @@ def test_the_registry_door_refuses_a_withdrawal_that_retires_nothing(trial_page)
         ),
         (
             "lf-options",
-            "x-conversation",
+            "x-thread-seat",
             {"when": {"pick": [True]}},
             "names undeclared attribute `pick`",
         ),
@@ -3323,7 +3167,7 @@ def test_the_registry_door_refuses_a_withdrawal_that_retires_nothing(trial_page)
         ),
         (
             "lf-options",
-            "x-conversation",
+            "x-thread-seat",
             {"when": {"id": ["NOT-VALID"]}},
             "its own schema does not admit",
         ),
@@ -3675,8 +3519,9 @@ What the agent is told when a user acts on a page
 A test records this file; nobody writes it by hand. The lines starting with `#`
 explain it, and everything else is the recorded data. The walkthrough below is
 one real run: the test serves a page, posts a comment to it the way the browser
-does, and runs `leaf wait`. Only the id, the times and the page's path are
-pinned, so the file stays the same from run to run.
+does, runs `leaf wait` in a Claude Code session, and takes the delivery the way
+Leaf's prompt hook does. Only the id, the times and the page's path are pinned,
+so the file stays the same from run to run.
 
 How this text reaches the agent, by example
 -------------------------------------------
@@ -3696,34 +3541,36 @@ How this text reaches the agent, by example
 
 3. Earlier, the agent started `leaf wait` in the background and went idle. The
    agent does nothing in this step: `leaf wait`, a leaf process, notices the new
-   line and builds a delivery for it. The comment is owed a reply, which the
-   delivery records as its `answer` (step 4): a `reply` for `leaf reply` here,
-   where the Codex App Server route would record a `turn`, which the turn's own
-   messages write. For the instructions, `leaf wait` reads the clauses under
+   line, prints one line naming the page, and exits, which opens a turn. Leaf's
+   prompt hook runs as that turn begins and builds a delivery for the comment.
+   The comment is owed a reply, which the delivery records as its `answer` (step
+   4): a `reply` for `leaf thread reply` here, where the Codex App Server route
+   would record a `turn`, which the turn's own messages write. For the
+   instructions, the hook reads the clauses under
    `$events.handling.comment` in the page's copy of registry.json, then those
    under `$events.answering.reply`, the answer it owes. Each clause has a `text`
    and may have a `when`, a JSON Schema that must hold for the clause to apply.
    It is tested against the log line together with its `answer` and its
-   `conversation`'s entry in the delivery's `conversations` (step 4). There are
+   `thread`'s entry in the delivery's `threads` (step 4). There are
    @COUNT@; here they all are, with whether the comment satisfies each `when`:
 
 @CLAUSES@
 
-4. `leaf wait` prints the delivery as JSON and exits. The agent's host hands that
-   output to the agent as the result of the background command, which wakes it.
-   The delivery's event is the log line from step 2 less @DROPPED@, the
+4. The hook adds the delivery as JSON to the turn's context, after one line
+   saying so. The delivery's event is the log line from step 2 less @DROPPED@, the
    browser's retry key, and with these fields added:
    @ADDED@.
    The batch's `handling` maps clause ids to their text, each distinct text
    appearing once. The event's `handling` names its applicable clauses in order.
-   The envelope's `acknowledge` says once, for the whole delivery, how the agent
-   confirms it. The whole output, indented here (leaf prints it on one line):
+   The envelope's `acknowledge` is null: the hook confirmed the delivery as it
+   handed it over, so the comment already reads Picked up. The whole delivery,
+   indented here (the hook writes it on one line):
 
 @DELIVERY@
 
-5. The agent follows `acknowledge`: it starts `leaf wait --ack <delivery-id>` to
-   confirm receipt and wait for the next one. It follows `handling`: it replies in
-   the thread with `leaf reply` and edits the page if warranted.
+5. The agent starts `leaf wait` again so later input wakes it, and follows
+   `handling`: it names any work the comment asks for with `leaf status`, does it,
+   and replies in the thread with `leaf thread reply`.
 
 What this file records
 ----------------------
@@ -3734,7 +3581,7 @@ Each top-level key below names a case and holds:
 
   event:  the input: a log line's `kind`, the kind of answer its delivery
           says it owes (`answer`), and the fields some `when` reads, its
-          `conversation`'s among them, and nothing else. A field no `when`
+          `thread`'s among them, and nothing else. A field no `when`
           names, such as a comment's `anchor` or `text`, cannot change what
           the agent is told, so it is left out; the test checks both halves of
           that.
@@ -3747,7 +3594,7 @@ Each top-level key below names a case and holds:
 
 The walkthrough's comment is the first case. No `when` reads any field of its
 log line from step 2 except `kind`, so the case is that line cut down to `kind`,
-the reply it owes and its new conversation's missing title, and it gets the
+the reply it owes and its new thread's missing title, and it gets the
 clauses marked "applies" in step 3. It is recorded as:
 
 @RECORDED@
@@ -3782,8 +3629,9 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     in. A wording or condition change shows up as a diff per case. The assertions
     keep the table whole: every declared kind has a case, and every clause reaches
     at least one case, so no `when` is dead. Its header walks one real comment from
-    the HTTP route through `leaf wait`, and holds that the clauses it lists as
-    applying are exactly the `handling` the delivery carries."""
+    the HTTP route through `leaf wait` and the prompt hook's delivery, and holds that
+    the clauses it lists as applying are exactly the `handling` the delivery
+    carries."""
     registry = json.loads((schema_model.ASSETS / "registry.json").read_text())
     # Each case holds its `kind` and the fields some `when` reads, and nothing else:
     # a field no `when` names cannot change what the agent is told.
@@ -3792,8 +3640,8 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     def owes(kind):
         return {"answer": {"kind": kind}}
 
-    untitled = {"conversation": {"title": None}}
-    titled = {"conversation": {"title": "Tuesday backfill"}}
+    untitled = {"thread": {"title": None}}
+    titled = {"thread": {"title": "Tuesday backfill"}}
     cases = {
         "comment": {"kind": "comment", **untitled, **owes("reply")},
         "comment over App Server": {"kind": "comment", **untitled, **owes("turn")},
@@ -3824,7 +3672,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         },
         "reply in a long thread": {
             "kind": "reply",
-            "conversation": {
+            "thread": {
                 "title": "Tuesday backfill",
                 "summary_hint": {"from": "m1", "through": "m8"},
             },
@@ -3857,7 +3705,6 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         "resolve": {"kind": "resolve"},
         "unresolve": {"kind": "unresolve"},
         "done": {"kind": "done"},
-        "request": {"kind": "request", **owes("receipt")},
         "undo": {"kind": "undo"},
         "report": {"kind": "report"},
         "error": {"kind": "error"},
@@ -3894,7 +3741,8 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         for clause in clauses:
             assert any(clause in matched for matched in reached), (kind, clause)
 
-    # The walkthrough: one comment through the real HTTP route and `leaf wait`.
+    # The walkthrough: one comment through the real HTTP route, `leaf wait`, and the
+    # delivery Claude Code's prompt hook takes.
     (page_dir / "index.html").write_text(WALKTHROUGH_PAGE)
     publish(page_dir)
     session_model.cmd_status(page_dir, "waiting", "")
@@ -3910,8 +3758,9 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     logged = (page_dir / "events.jsonl").read_text().splitlines()[-1]
     capsys.readouterr()
     assert session_model.cmd_wait(page_dir) == 0
-    printed = capsys.readouterr().out
-    record, envelope = json.loads(logged), json.loads(printed)
+    assert "has new input" in capsys.readouterr().out
+    envelope = delivery_model.take_input(host_model.session_harness().session)
+    record = json.loads(logged)
     [batch] = envelope["batches"]
     [delivered] = batch["events"]
     page_events = registry_storage.load_registry(page_dir)["$events"]
@@ -3919,12 +3768,12 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         *page_events["handling"]["comment"],
         *page_events["answering"][delivered["answer"]["kind"]],
     ]
-    [conversation] = batch["conversations"]
+    [thread] = batch["threads"]
     applying = registry_contract.event_clauses(
         {
             **record,
             "answer": delivered["answer"],
-            "conversation": conversation,
+            "thread": thread,
         },
         registry_storage.load_registry(page_dir),
     )
@@ -4006,7 +3855,7 @@ A test records this file; nobody writes it by hand. The lines starting with `#`
 explain it, and everything else is the recorded data. The run below serves the
 page from test_each_case_of_an_event_is_told_what_the_snapshot_shows, posts the
 same comment ("why here?" on "moves to Tuesdays") through POST /api/event, and
-then lets each of Leaf's three carriers deliver it. Only ids, times and the
+then lets each of Leaf's four carriers deliver it. Only ids, times and the
 page's path are pinned, so the file stays the same from run to run.
 
 A carrier is the route that takes new user input to the agent's task:
@@ -4016,13 +3865,20 @@ A carrier is the route that takes new user input to the agent's task:
                      output to the agent as the command's result, which wakes
                      it. The agent acknowledges the delivery itself, with
                      `leaf wait --ack <delivery-id>`, and answers with
-                     `leaf reply`. Claude Code uses this carrier, and so does a
-                     Codex task running without Leaf's adapter.
+                     `leaf thread reply`. A Codex task running without Leaf's
+                     adapter uses this carrier, and so does a bare shell.
+  Claude Code hook   The agent keeps `leaf wait` running in the background, and
+                     under Claude Code it prints one line naming the page and
+                     exits, which opens a turn. Leaf's prompt hook runs as that
+                     turn begins, and its Stop hook as a turn ends; either
+                     freezes the delivery, acknowledges it, and adds it to the
+                     turn's context after one line saying so. The agent answers
+                     with `leaf thread reply`.
   Codex queue        Leaf's adapter freezes the delivery and runs `codex queue`
                      with a pointer to it as the task's next user message. The
                      agent reads the delivery with `leaf delivery read <id>`,
                      which prints it as indented JSON, and answers with
-                     `leaf reply`. The adapter acknowledges the delivery once
+                     `leaf thread reply`. The adapter acknowledges the delivery once
                      Codex's queue accepts it.
   Codex App Server   Leaf starts a turn with `turn/start`, carrying the
                      delivery as a `leaf_delivery` tool output, and binds the
@@ -4032,9 +3888,9 @@ A carrier is the route that takes new user input to the agent's task:
                      terminal use this carrier.
 
 Each carrier freezes a delivery of its own. The envelope's shape is the same on
-all three, and it names its `carrier`. Two things differ, each stated once:
+all four, and it names its `carrier`. Two things differ, each stated once:
 `acknowledge` says how the agent confirms the delivery, or is null where the
-carrier confirmed it; and the comment's `answer` is a `reply`, for `leaf reply`,
+carrier confirmed it; and the comment's `answer` is a `reply`, for `leaf thread reply`,
 except on App Server, where it is a `turn` the turn's own messages write. The
 `handling` follows from the answer, so each agent is told only its own route.
 The agent's standing instructions (its host contract, and on leaf.page the
@@ -4046,7 +3902,11 @@ What this file records
 
 One top-level key per carrier, holding exactly what reaches the agent's task:
 
-  leaf wait:         its output.
+  leaf wait:         its output, from a bare shell.
+  Claude Code hook:  the line the wait prints, and the prompt hook's
+                     `additionalContext`, split into its instruction line, the
+                     delivery on the next line, and what Leaf asks of the turn
+                     after it.
   Codex queue:       the `--message` given to `codex queue`, and the output of
                      the `leaf delivery read` it points at.
   Codex App Server:  the `turn/start` params. `toolOutput.output` is the
@@ -4054,7 +3914,7 @@ One top-level key per carrier, holding exactly what reaches the agent's task:
                      decoded here.
 
 JSON is shown as YAML, and each clause in a batch's `handling` as wrapped prose,
-so the three read side by side. Every text is exactly what the agent receives.
+so the four read side by side. Every text is exactly what the agent receives.
 
 After changing what a carrier sends, re-record this file and review the diff:
 
@@ -4062,11 +3922,12 @@ After changing what a carrier sends, re-record this file and review the diff:
 
 
 def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
-    snapshot, page_dir, server, capsys
+    snapshot, page_dir, server, capsys, monkeypatch
 ):
     """The snapshot is the page a developer reads to compare what one comment puts
-    in front of the agent on each carrier: `leaf wait`, the Codex
-    queue's pointer and the delivery it names, and the Codex App Server turn. Each
+    in front of the agent on each carrier: `leaf wait`, Claude Code's hooks, the
+    Codex queue's pointer and the delivery it names, and the Codex App Server
+    turn. None but the hook confirms the delivery, so it goes last. Each
     is taken from the code that carrier runs, after one real POST, so a change to
     any carrier's framing or to a delivery's contents shows up as a diff under the
     carrier it reaches."""
@@ -4080,12 +3941,18 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
     }
     status, answer = fetch(f"{server}/api/event", data=json.dumps(posted).encode())
     assert status == 200, answer
-    logged = json.loads((page_dir / "events.jsonl").read_text().splitlines()[-1])
+    logged = events_model.read_events(page_dir)[-1]
 
     session_model.cmd_status(page_dir, "waiting", "")
     capsys.readouterr()
+    # A bare shell's wait, the printing kind, which claims nothing.
+    session = host_model.session_harness().session
+    for name in ("CLAUDE_CODE_SESSION_ID", "CLAUDE_PID"):
+        monkeypatch.delenv(name)
     assert session_model.cmd_wait(page_dir) == 0
     waited = capsys.readouterr().out
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", session)
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
 
     # The adapter's queue route: collect the batch, then offer its pointer.
     with service_model.PageTransaction(page_dir) as transaction:
@@ -4109,12 +3976,23 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
         capsys.readouterr().out
     )
 
+    # Claude Code: the wait claims the page and wakes the session, and the prompt
+    # hook of the turn it opens hands the delivery over.
+    assert session_model.cmd_wait(page_dir) == 0
+    woke = capsys.readouterr().out
+    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": session})
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    instruction, hooked, *attention = context.split("\n")
+
     pinned = {
         logged["id"]: "1946b466",
         logged["ts"]: "2026-09-21T20:12:30-07:00",
         json.loads(waited)["id"]: "11111111",
         queued.payload["id"]: "22222222",
         prepared.payload["id"]: "33333333",
+        json.loads(hooked)["id"]: "44444444",
         # The turn's reply attempt is derived from the delivery id.
         service_model.delivery_reply_attempt(
             prepared.payload["id"]
@@ -4145,6 +4023,14 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
             CARRIER_WALKTHROUGH,
             {
                 "leaf wait": {"output": readable(waited)},
+                "Claude Code hook": {
+                    "leaf wait output": pin(woke.rstrip("\n")),
+                    "UserPromptSubmit additionalContext": {
+                        "instruction": Prose(instruction),
+                        "delivery": readable(hooked),
+                        "attention": Prose(pin("\n".join(attention))),
+                    },
+                },
                 "Codex queue": {
                     "codex queue --message": Prose(pin(queued.prompt)),
                     "leaf delivery read 22222222": readable(read),
@@ -4313,34 +4199,21 @@ def test_check_requires_the_vendored_layer(tmp_path):
     assert "run `leaf page init` to vendor the layer" in result.output
 
 
-def test_check_takes_column_width_from_vendored_theme(page_dir):
-    # theme.css sets a 720px main column; a wider fixed-width element must fail.
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>", '<h2>Plan</h2><svg width="900" height="10"></svg>'
-        )
-    )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "exceeds column (720px)" in result.output
-
-
-def test_check_advises_page_css_that_scrolls_a_box_or_places_a_layout_element(
+def test_check_advises_page_css_that_scrolls_a_box_and_leaves_arrangement_alone(
     page_dir,
 ):
-    """Page CSS stays free, so both are advice: a scroller Leaf did not make is one its
-    reading features cannot reach, and a grid the page places is geometry the layout
-    no longer owns. Styling a cell, or text inside one, is neither."""
+    """Page CSS stays free, so a scroller is advice: one Leaf did not make is one its
+    reading features cannot reach. Arranging is the page's own business, panes included,
+    so a rule that places a pane, or scrolls only sideways, says nothing."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<title>t</title>",
             "<title>t</title><style>.feed { overflow-y: auto; max-height: 20rem }"
-            " main lf-grid { display: flex } lf-grid > p { color: red }"
-            " .wide { overflow-x: auto } lf-grid::before { display: block }"
-            " #cells { grid-template-columns: 1fr }</style>",
+            " main lf-pane { display: flex; grid-column: 1 / -1 }"
+            " .wide { overflow-x: auto } #cells { grid-template-columns: 1fr }</style>",
         ).replace(
             "<h2>Plan</h2>",
-            '<h2>Plan</h2><lf-grid id="cells"><p>One</p><p>Two</p></lf-grid>'
+            '<h2>Plan</h2><div id="cells"><lf-pane id="queue" label="Queue"><p>One</p></lf-pane></div>'
             '<div class="feed" style="overflow: scroll"><p>Log</p></div>',
         )
     )
@@ -4348,19 +4221,39 @@ def test_check_advises_page_css_that_scrolls_a_box_or_places_a_layout_element(
     assert result.exit_code == 0, result.output
     assert "rule `.feed` sets overflow-y to scroll" in result.output
     assert "sets overflow to scroll" in result.output
-    assert "rule `main lf-grid` sets display on <lf-grid>" in result.output
-    assert "rule `#cells` sets grid-template-columns on <lf-grid>" in result.output
-    assert "lf-grid > p" not in result.output
-    assert ".wide" not in result.output
-    assert "lf-grid::before" not in result.output
+    for quiet in ("main lf-pane", ".wide", "#cells"):
+        assert quiet not in result.output, result.output
 
 
-def test_check_rejects_an_invalid_bound_and_loose_grid_text(page_dir):
+def test_check_advises_the_same_css_in_a_stylesheet_the_page_links(page_dir):
+    """A stylesheet the page links from page/, and one that sheet imports, are page CSS
+    as much as its <style>, so the advice reads them and names the file."""
+    (page_dir / "page").mkdir(exist_ok=True)
+    (page_dir / "page" / "app.css").write_text(
+        '@import "log.css";\n.feed { overflow-y: auto }\n'
+    )
+    (page_dir / "page" / "log.css").write_text("#log { overflow: scroll }\n")
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "<title>t</title>",
+            '<title>t</title><link rel="stylesheet" href="/page/app.css">',
+        ).replace(
+            "<h2>Plan</h2>",
+            '<h2>Plan</h2><pre id="log">x</pre><div class="feed"><p>Log</p></div>',
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+    assert "/page/app.css rule `.feed` sets overflow-y to scroll" in result.output
+    assert "/page/log.css rule `#log` sets overflow to scroll" in result.output
+
+
+def test_check_rejects_an_invalid_bound_and_loose_pane_text(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2><pre data-bound="bottom">log</pre>'
-            '<lf-grid id="cells">loose<p>Two</p></lf-grid>',
+            '<lf-pane id="queue" label="Queue">loose<p>Two</p></lf-pane>',
         )
     )
     result = check(page_dir)
@@ -4369,7 +4262,7 @@ def test_check_rejects_an_invalid_bound_and_loose_grid_text(page_dir):
         "data-bound='bottom'> (line 9) has an invalid value; expected one of start, "
         in (result.output)
     )
-    assert "x-reading-role grid holds its cells as elements" in result.output
+    assert "x-reading-role pane must contain exactly one direct body" in result.output
 
 
 def test_check_rejects_an_unknown_authored_width(page_dir):
@@ -4387,169 +4280,85 @@ def test_check_rejects_an_unknown_authored_width(page_dir):
     )
 
 
-def test_activation_rechecks_changed_css_while_the_document_stays_identical(page_dir):
-    """Reused CSS readings must follow theme bytes, including tokens and diagnostics."""
-    theme = page_dir / "theme.css"
-    original = theme.read_text()
+def test_check_takes_a_page_s_width_from_a_layout_and_not_from_data_width(page_dir):
+    """A page's width is a Layout class on `main`. `data-width` sizes a block in the
+    page's flow, so on `main` it would widen nothing and is refused; a `main` with no
+    Layout at all is advice, since nothing arranges it unless the page's own CSS does."""
+    unarranged = "<main> has no Layout class"
     (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>",
-            '<h2>Plan</h2><p style="width: var(--pin)">Measured.</p>',
-        )
+        PAGE.replace("<main>", '<main class="layout-column">')
     )
-
-    def activate(css):
-        theme.write_text(original + css)
-        return revisioning_model.activate_source(page_dir)
-
-    css = ":root { --pin: 700px; --col: 720px } main { --lf-reading-column: 1; max-width: var(--col) }"
-    initial = activate(css)
-    assert initial.error is None
-    assert activate(css).error is None
-
-    overwide = activate(css.replace("700px", "900px"))
-    assert "style> (line " in overwide.error
-    assert "sets width: 900px (column is 720px)" in overwide.error
-    assert overwide.revision == initial.revision
-
-    wider_column = css.replace("700px", "900px").replace("720px", "960px")
-    widened = activate(wider_column)
-    assert widened.error is None
-    from leaf.validation.source import check_source
-
-    assert check_source(page_dir, []).column == 960
-    assert widened.created
-    assert widened.revision == initial.revision + 1
-
-    broken = activate(wider_column + " .broken { color red }")
-    assert "theme.css syntax error" in broken.error
-    assert activate(wider_column).error is None
-
-
-def test_check_reads_a_column_the_theme_states_as_a_token():
-    """A width naming a root token is a width the stylesheet stated, so the column reads
-    it. The theme keeps its own constants in `:root` and more than one rule now wants the
-    measure; a reading that stopped at the name would fall back to a default column and
-    go on printing a number, which is a check that stops measuring exactly when the file
-    it measures gets tidier.
-
-    Only the root, and only what is stated outright. A token declared inside a query is
-    that condition's, the same reason the column will not read a media query's width, and
-    a token nothing declares leaves the `var()`'s own fallback — the browser's answer."""
-    column = "--lf-reading-column: 1;"
-    stated = ":root { --col: 640px }\nmain { " + column + " max-width: var(--col) }"
-    assert styles_model._column_width("", stated) == 640
-
-    conditional = (
-        "@media screen { :root { --col: 640px } }\nmain { "
-        + column
-        + " max-width: var(--col) }"
-    )
-    assert styles_model._column_width("", conditional) == styles_model.COLUMN_FALLBACK
-
-    fallback = "main { " + column + " max-width: var(--col, 512px) }"
-    assert styles_model._column_width("", fallback) == 512
-
-    # The shipped theme is the case that motivated this: it must still read as itself.
-    assert (
-        styles_model._column_width("", (schema_model.ASSETS / "theme.css").read_text())
-        == 720
-    )
-
-
-def test_the_column_is_the_rule_that_claims_it_and_not_a_rule_that_looks_like_one():
-    """Which rule is the readable column is the stylesheet's to say, and it says it in
-    the block that sets the width — `--lf-reading-column: 1` beside the max-width, so the cascade
-    wins the claim and the width together.
-
-    Seven container names stood in for that answer before, and a name list is wrong in
-    both directions. Too wide: the column is the baseline every other width on the page
-    is measured against, so an unrelated rule spelled `.content` moved it, and moving it
-    up takes the overflow check quiet — which reads not as a broken check but as a page
-    with nothing wrong in it. Too narrow: a page whose column is `.prose` was measured
-    against the fallback and failed for widths that fit inside it.
-
-    The last case is the one that keeps this honest. A rule that claims the column with
-    no width to give states nothing, so the reading must fall through to the next
-    stylesheet rather than settle on a claim it cannot measure."""
-    assert (
-        styles_model._column_width("", "main { max-width: 1400px }")
-        == styles_model.COLUMN_FALLBACK
-    ), "an unclaimed rule still set the column, so the name is still doing the deciding"
-
-    assert (
-        styles_model._column_width("", ".content { max-width: 1400px }")
-        == styles_model.COLUMN_FALLBACK
-    ), "a rule that merely looks like a container still doubled the page's baseline"
-
-    assert (
-        styles_model._column_width(
-            "", ".prose { --lf-reading-column: 1; max-width: 560px }"
-        )
-        == 560
-    ), "a column named anything at all is still not readable, so the claim is ignored"
-
-    assert (
-        styles_model._column_width(
-            "main { --lf-reading-column: 1; max-width: 500px }", ""
-        )
-        == 500
-    ), "a page's own <style> no longer states the column it is measured against"
-
-    theme = (schema_model.ASSETS / "theme.css").read_text()
-    assert (
-        styles_model._column_width("main { --lf-reading-column: 1 }", theme) == 720
-    ), (
-        "a claim with no width of its own stopped the reading where it stood, so a "
-        "page could take the measure off itself by claiming and then saying nothing"
-    )
-
-
-def test_check_measures_a_width_named_from_the_layer_s_own_tokens(page_dir):
-    """A page pinning `var(--wide)` is stating the vocabulary's own breakout width, which
-    is wider than the column by design. The page's `<style>` declares no such token, so
-    the reading resolves it against the layer the page vendored — the order the cascade
-    reads the two roots in. Without the layer behind it, a page could take any width the
-    theme names and never be measured for it."""
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+    assert unarranged not in result.output
+    (page_dir / "index.html").write_text(PAGE)
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+    assert unarranged in result.output
     (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>",
-            '<h2>Plan</h2><p id="w" style="width: var(--wide)">Wide by name.</p>',
+        PAGE.replace("<main>", '<main data-width="available">')
+    )
+    result = check(page_dir)
+    assert result.exit_code == 1
+    assert "data-width> (line" in result.output
+    assert "its width is a Layout class on it" in result.output
+
+
+def test_check_takes_a_rail_only_on_body_and_only_by_name(page_dir):
+    """`data-rail` says whether the page keeps a rail, so it stands on `body` and names
+    one of the two answers; anywhere else it would silently declare nothing."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<body>", '<body data-rail="none">')
+    )
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<body>", '<body data-rail="left">')
+        .replace("<main>", '<main data-rail="right">')
+        .replace(
+            "<h2>Plan</h2>", '<h2>Plan</h2><section data-rail="none"><p>A</p></section>'
         )
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "<p style> (line " in result.output
-    assert "sets width: 1080px (column is 720px)" in result.output
+    assert "data-rail='left'> (line" in result.output
+    assert "expected one of right, none" in result.output
+    assert "data-rail> (line" in result.output
+    assert result.output.count("belongs on <body>") == 2
 
 
-def test_the_strip_floor_is_one_number():
-    """Margin posture is a query of the CSS-owned shell, with no mirrored runtime veto."""
-    css = (schema_model.ASSETS / "theme.css").read_text()
-    assert "container: lf-shell / inline-size" in css
-    assert re.search(r"@container\s+lf-shell\s*\(min-width:\s*1152px\)", css)
-    assert "data-lf-cramped" not in css
+def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
+    page_dir, monkeypatch
+):
+    """A revision's vocabulary was validated when it activated, so a process reading
+    the page anew does not validate it again while it stands unchanged, and no check
+    parses the vendored sheets: together they were most of a cold first read."""
+    from leaf.validation import source as source_model
 
-
-def test_the_sidebar_and_note_floor_is_their_sum():
-    """Two opposite margin residents need the largest sidebar claim and ordinary floor.
-
-    Media queries cannot read custom properties, so the combined breakpoint is written
-    as a pixel value beside the sidebar rule. Hold that necessary copy to the two tokens
-    it represents instead of letting a later width change silently squeeze the prose."""
-    css = (schema_model.ASSETS / "theme.css").read_text()
-    floor = 1152
-    sidebar = re.search(r"--sidebar-max:\s*(\d+)px", css)
-    assert sidebar
-    combined = floor + int(sidebar[1])
-    default_theme = (
-        schema_model.ASSETS.parent / "packages" / "default" / "theme.css"
-    ).read_text()
-    assert "--lf-sidebar-claim: var(--sidebar-max)" in default_theme
-    assert re.search(rf"@container\s+lf-shell\s*\(min-width:\s*{combined}px\)", css), (
-        f"a sidebar and sidenote need {combined}px together, but no shell query grants "
-        "their composed posture at that floor"
+    assert revisioning_model.activate_source(page_dir).error is None
+    # What a newly started server holds: none of this process's readings.
+    registry_storage._registries.clear()
+    registry_storage._read_page_registry_stamped.cache_clear()
+    revisioning_model._held.clear()
+    validated, linted = [], []
+    real_validate = registry_page.validate_registry
+    real_lint = source_model.css_syntax_errors
+    monkeypatch.setattr(
+        registry_page,
+        "validate_registry",
+        lambda registry, source: (
+            validated.append(source) or real_validate(registry, source)
+        ),
     )
+    monkeypatch.setattr(
+        source_model,
+        "css_syntax_errors",
+        lambda css, where, **kw: linted.append(where) or real_lint(css, where, **kw),
+    )
+
+    assert revisioning_model.activate_source(page_dir).error is None
+    assert validated == []
+    assert linted == ["page <style>"]
 
 
 def test_media_names_a_file_by_its_bytes_and_serves_it(page_dir, tmp_path, server):
@@ -4562,8 +4371,12 @@ def test_media_names_a_file_by_its_bytes_and_serves_it(page_dir, tmp_path, serve
     shot.write_bytes(b"\x89PNG\r\n\x1a\n" + b"pretend pixels")
     (url,) = [u for _, u in media_model.cmd_media(page_dir, [shot])]
     assert re.fullmatch(r"/media/[a-f0-9]{16}\.png", url)
-    # Re-adding the same bytes is the same file, not a second copy of it.
+    # Re-adding the same bytes is the same file, not a second copy of it, whatever
+    # case the source's suffix is in: the name is the one the server serves.
     assert media_model.cmd_media(page_dir, [shot])[0][1] == url
+    loud = tmp_path / "NAV.PNG"
+    loud.write_bytes(shot.read_bytes())
+    assert media_model.cmd_media(page_dir, [loud])[0][1] == url
     assert len(list((page_dir / "media").iterdir())) == 1
 
     status, body = fetch(server + url)
@@ -4639,11 +4452,11 @@ def test_source_reading_preserves_foreign_graphics_as_exact_markup():
     assert after["content"] == ["After"]
 
 
-def test_source_reading_keeps_a_specimen_out_of_its_parent_identity_space():
+def test_source_reading_keeps_a_sample_out_of_its_parent_identity_space():
     """Child documents keep their own ids, widgets, passages, and validation reading."""
     html = (
         '<main><p id="visible">Visible words.</p>'
-        '<template id="practice" data-specimen><lf-ask id="nested-ask">'
+        '<template id="practice" data-sample><lf-ask id="nested-ask">'
         '<h2>Hidden question</h2><lf-options id="nested-options" choose>'
         '<lf-option id="nested-choice">Hidden answer</lf-option>'
         "</lf-options></lf-ask></template></main>"
@@ -4654,9 +4467,9 @@ def test_source_reading_keeps_a_specimen_out_of_its_parent_identity_space():
     assert parser.lf_elements == []
     assert "nested-options" not in parser.by_id
     assert passages_model.page_passages(parser).text == "Visible words."
-    [specimen] = parser.specimens
-    assert "nested-options" in specimen["document"].by_id
-    assert specimen["document"].main_elements == [(1, True)]
+    [sample] = parser.samples
+    assert "nested-options" in sample["document"].by_id
+    assert sample["document"].main_elements == [(1, True)]
 
 
 @pytest.mark.parametrize(
@@ -4665,60 +4478,60 @@ def test_source_reading_keeps_a_specimen_out_of_its_parent_identity_space():
         ("<noscript>invisible</noscript>", "the browser renders none of its content"),
         ('<lf-unknown id="bad">Unknown</lf-unknown>', "unknown widget"),
         ('<lf-draft id="change" restated><pre>Text</pre></lf-draft>', "restated"),
-        ("<template data-specimen><h1>Child</h1></template>", "needs a stable id"),
+        ("<template data-sample><h1>Child</h1></template>", "needs a stable id"),
         ('<p id="duplicate">One</p><p id="duplicate">Two</p>', "duplicate"),
         (
-            '<template id="nested" data-specimen><noscript>hidden</noscript></template>',
-            "specimen 'nested'",
+            '<template id="nested" data-sample><noscript>hidden</noscript></template>',
+            "sample 'nested'",
         ),
     ],
 )
-def test_check_validates_each_specimen_document(page_dir, markup, error):
+def test_check_validates_each_sample_document(page_dir, markup, error):
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "</main>",
-            f'<template id="practice" data-specimen>{markup}</template></main>',
+            f'<template id="practice" data-sample>{markup}</template></main>',
         )
     )
     result = check(page_dir)
     assert result.exit_code != 0, result.output
-    assert "specimen 'practice'" in result.output
+    assert "sample 'practice'" in result.output
     assert error in result.output
 
 
 @pytest.mark.parametrize("nested", [False, True])
-def test_specimen_diagnostics_report_authored_lines(page_dir, nested):
+def test_sample_diagnostics_report_authored_lines(page_dir, nested):
     markup = '<lf-unknown\n id="bad">Unknown</lf-unknown>\n<noscript>Hidden</noscript>'
     if nested:
-        markup = f'<template\n id="nested"\n data-specimen>\n{markup}</template>'
+        markup = f'<template\n id="nested"\n data-sample>\n{markup}</template>'
     source = PAGE.replace(
         "</main>",
-        f'<template\n id="practice"\n data-specimen>\n{markup}</template></main>',
+        f'<template\n id="practice"\n data-sample>\n{markup}</template></main>',
     )
     (page_dir / "index.html").write_text(source)
     result = check(page_dir)
     assert result.exit_code != 0, result.output
-    assert "specimen 'practice'" in result.output
+    assert "sample 'practice'" in result.output
     if nested:
-        assert "specimen 'nested'" in result.output
+        assert "sample 'nested'" in result.output
     line = source[: source.index("<noscript>")].count("\n") + 1
     assert f"<noscript> at line {line}:" in result.output
 
 
-def test_check_keeps_parent_and_sibling_specimen_ids_independent(page_dir):
+def test_check_keeps_parent_and_sibling_sample_ids_independent(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "</main>",
             '<p id="shared">Parent</p>'
-            '<template id="first" data-specimen><h1 id="shared">First</h1></template>'
-            '<template id="second" data-specimen><h1 id="shared">Second</h1></template></main>',
+            '<template id="first" data-sample><h1 id="shared">First</h1></template>'
+            '<template id="second" data-sample><h1 id="shared">Second</h1></template></main>',
         )
     )
     result = check(page_dir)
     assert result.exit_code == 0, result.output
 
 
-def test_specimen_data_bindings_use_copied_data_but_not_parent_history(page_dir):
+def test_sample_data_bindings_use_copied_data_but_not_parent_history(page_dir):
     declare_data_input(
         page_dir, "shared", {"type": "string"}, contract="parent", tag="lf-parent-data"
     )
@@ -4733,7 +4546,7 @@ def test_specimen_data_bindings_use_copied_data_but_not_parent_history(page_dir)
     )
     child = '<lf-child-data id="test-data" source="shared"></lf-child-data>'
     markup = source.replace(
-        "</main>", f'<template id="practice" data-specimen>{child}</template></main>'
+        "</main>", f'<template id="practice" data-sample>{child}</template></main>'
     )
     (page_dir / "index.html").write_text(markup)
     result = check(page_dir)
@@ -4744,14 +4557,14 @@ def test_specimen_data_bindings_use_copied_data_but_not_parent_history(page_dir)
     data_model.cmd_data_set(page_dir, "shared", "parent value")
     result = check(page_dir)
     assert result.exit_code != 0
-    assert "specimen 'practice'" in result.output
+    assert "sample 'practice'" in result.output
     assert "it was recorded with 'parent'" in result.output
 
 
 @pytest.mark.parametrize("seeded", [False, True])
 @pytest.mark.parametrize("available", [False, True])
 @pytest.mark.parametrize("nested", [False, True])
-def test_specimen_references_see_only_selected_conversations(
+def test_sample_references_see_only_selected_threads(
     page_dir, seeded, available, nested
 ):
     if available:
@@ -4764,23 +4577,23 @@ def test_specimen_references_see_only_selected_conversations(
                 "text": "A question",
             },
         )
-    selection = ' data-specimen-threads="aabb0011"' if seeded else ""
+    selection = ' data-sample-threads="aabb0011"' if seeded else ""
     child = '<lf-suggestion id="answer" resolves="aabb0011"><lf-new>Answer</lf-new></lf-suggestion>'
     if nested:
-        child = f'<template id="nested" data-specimen{selection}>{child}</template>'
+        child = f'<template id="nested" data-sample{selection}>{child}</template>'
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "</main>",
-            f'<template id="practice" data-specimen{selection}>{child}</template></main>',
+            f'<template id="practice" data-sample{selection}>{child}</template></main>',
         )
     )
     result = check(page_dir)
     assert (result.exit_code == 0) == seeded, result.output
     if not seeded:
-        assert "names no comment in this document" in result.output
+        assert "names no thread in this document" in result.output
 
 
-def test_specimen_checks_available_history_beside_forward_conversation_references(
+def test_sample_checks_available_history_beside_forward_thread_references(
     page_dir,
 ):
     events_model.append_event(
@@ -4800,7 +4613,7 @@ def test_specimen_checks_available_history_beside_forward_conversation_reference
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "</main>",
-            '<template id="practice" data-specimen data-specimen-threads="aabb0011 aabb0022">'
+            '<template id="practice" data-sample data-sample-threads="aabb0011 aabb0022">'
             '<h1 id="duplicate">Child</h1></template></main>',
         )
     )
@@ -4833,33 +4646,9 @@ def test_check_reads_only_the_page_stylesheet_and_stays_near_free(page_dir):
     assert time.monotonic() - started < 10
 
 
-def test_check_reads_a_page_stylesheet_as_css(page_dir):
-    """Grammar, not brace-counting. A `}` inside a string is a character, and counting it
-    as the end of a block drops every declaration after it in that rule. A comment's
-    braces are not braces either. And an @media wraps rules of its own, which a walk that
-    read the sheet as one flat run of blocks would attribute to the query."""
-
-    def checked(css):
-        (page_dir / "index.html").write_text(styled(css))
-        return check(page_dir)
-
-    assert (
-        "sets width: 900px" in checked("@media print { .wide { width: 900px } }").output
-    )
-    assert (
-        "sets width: 900px"
-        in checked('.wide::before { content: "}"; width: 900px }').output
-    )
-    assert checked("/* .wide { width: 900px } */").exit_code == 0
-
-
-def test_check_reports_css_syntax_errors_in_every_source_the_page_carries(page_dir):
-    """The page's own <style>, each inline style, and every sheet it vendors.
-    shadow.css is the sheet each widget's shadow root adopts, so a malformed rule
-    there reaches the user as an unstyled widget with nothing said about it."""
-    for name in ("theme.css", "shadow.css"):
-        sheet = page_dir / name
-        sheet.write_text(f"{sheet.read_text()}\n.vendored {{ color red; }}\n")
+def test_check_reports_css_syntax_errors_in_every_source_the_page_writes(page_dir):
+    """The page's own <style> and each inline style. Chrome drops a malformed
+    declaration without a word, so the author hears of it here or not at all."""
     (page_dir / "index.html").write_text(
         styled(
             '.page { color: "unterminated\n; }',
@@ -4872,96 +4661,7 @@ def test_check_reports_css_syntax_errors_in_every_source_the_page_carries(page_d
     assert result.exit_code == 1
     assert "page <style> syntax error" in result.output
     assert re.search(r"<p style> \(line \d+\) syntax error", result.output)
-    assert "theme.css syntax error" in result.output
-    assert "shadow.css syntax error" in result.output
-    assert result.output.count("syntax error") == 4
-
-
-def test_check_takes_its_column_from_what_a_page_states_outright(page_dir):
-    """A rule inside an at-rule applies only when a condition this check never evaluates
-    holds, which cuts both ways. It cannot set the column, because the column is the
-    baseline everything else is measured against — reading it there let one line of print
-    CSS measure every screen element against 2000px and pass the page. It can overflow
-    one, because a pin is a risk rather than a baseline: it is too wide whenever its
-    condition holds."""
-    (page_dir / "index.html").write_text(
-        styled(
-            "main { --lf-reading-column: 1; max-width: 760px }"
-            " @media print { main { --lf-reading-column: 1; max-width: 2000px } }",
-            '<svg width="900" height="10"></svg>',
-        )
-    )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert re.search(
-        r'<svg width="900"> \(line \d+\) exceeds column \(760px\)', result.output
-    )
-
-    # And nesting is not a condition: a column stated on a rule that also wraps one stands.
-    (page_dir / "index.html").write_text(
-        styled(
-            "main { --lf-reading-column: 1; max-width: 1000px; & p { color: red } }",
-            '<svg width="900" height="10"></svg>',
-        )
-    )
-    assert check(page_dir).exit_code == 0
-
-
-def test_check_counts_only_a_width_fixed_in_pixels(page_dir):
-    """A length is a typed value, not a string ending in `px`. A percentage or a vw
-    scales to whatever contains it, and a calc() with a px term inside it is arithmetic
-    rather than a pin — only a lone pixel length can overflow the column."""
-    (page_dir / "index.html").write_text(
-        styled(".a { width: 200% } .b { width: 90vw } .c { width: calc(100% - 900px) }")
-    )
-    assert check(page_dir).exit_code == 0
-
-    (page_dir / "index.html").write_text(styled(".d { width: 900px !important }"))
-    assert "sets width: 900px" in check(page_dir).output
-
-
-def test_check_measures_against_the_column_the_page_sets_for_itself(page_dir):
-    """A page-local <style> is the page's own answer to how wide it reads, so it wins
-    over the vendored theme's 720px and an element wider than the theme allows passes.
-
-    It answers by claiming the column, the same way the theme's own rule does. A page
-    that only sets a width sets a width: which rule is the measure everything else is
-    read against is a thing a stylesheet says, not a thing a reader works out from how
-    the rule is spelled."""
-    (page_dir / "index.html").write_text(
-        styled(
-            "main { --lf-reading-column: 1; max-width: 1000px }",
-            '<svg width="900" height="10"></svg>',
-        )
-    )
-    assert check(page_dir).exit_code == 0
-
-
-def test_check_reads_widths_where_the_document_states_them(page_dir):
-    """A width is what an attribute or a <style> block states. Scanning the file's text
-    for one instead read a rule quoted in the page's prose as a rule the page applies,
-    and never saw a style="" written with the other quote character."""
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>", "<h2>Plan</h2><div style='width:900px'>wide</div>"
-        )
-    )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    # The finding names the element and its line, so an author with forty
-    # style attributes knows which one it means.
-    assert re.search(
-        r"<div style> \(line \d+\) sets width: 900px \(column is 720px\)",
-        result.output,
-    )
-
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>",
-            "<h2>Plan</h2><p>Write it as <code>.wide { width: 900px }</code>.</p>",
-        )
-    )
-    assert check(page_dir).exit_code == 0
+    assert result.output.count("syntax error") == 2
 
 
 def test_an_ask_role_declares_an_addressable_instance(page_dir):
@@ -5046,14 +4746,14 @@ def test_init_refuses_to_drop_the_contract_of_a_held_comment(page_dir):
     )
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())
-    del registry["lf-task"]["x-conversation"]["hold"]
+    del registry["lf-task"]["x-thread-seat"]["hold"]
     registry_path.write_text(json.dumps(registry))
 
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
     assert result.exit_code != 0
     assert "no longer speaks" in result.output
-    assert "x-conversation hold target" in result.output
+    assert "x-thread-seat hold target" in result.output
 
 
 def test_shared_package_declarations_compose_by_member():
@@ -5098,12 +4798,15 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
     them can only be one of the two having stopped asking."""
     shot = (
         '<lf-shot id="ps-shot" alt="the panel before and after" '
-        'before="/media/nope.png" after="/media/gone.png"></lf-shot>'
+        'before="/media/0000000000000001.png" after="/media/0000000000000002.png">'
+        "</lf-shot>"
     )
     (page_dir / "index.html").write_text(PAGE.replace("</main>", shot + "</main>"))
     refused = check(page_dir)
     assert refused.exit_code == 1
-    assert "/media/nope.png isn't in the page directory" in refused.output, (
+    assert (
+        "/media/0000000000000001.png isn't in the page directory" in refused.output
+    ), (
         f"the version door stopped asking, so the comparison below is empty: "
         f"{refused.output}"
     )
@@ -5115,11 +4818,10 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
     posted = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
-            "--to",
             json.loads(opened.output)["id"],
-            "--initiates",
             "--text",
             "here:",
             "--markup",
@@ -5130,7 +4832,9 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
         f"the reply door froze a picture the page has not got into the log:\n"
         f"{posted.output}"
     )
-    assert "/media/nope.png isn't in the page directory" in posted.output, posted.output
+    assert "/media/0000000000000001.png isn't in the page directory" in posted.output, (
+        posted.output
+    )
     assert not [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
 
 
@@ -5145,15 +4849,21 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
 
     The reading is the link or image destination the runtime resolves rather than a scan
     of the words, so the same path quoted in a sentence — a page explaining leaf writes
-    one, and `version check` has always let it through — stays the author's prose. Every
+    one, and `page check` has always let it through — stays the author's prose. Every
     `/media/…` destination is asked about, the predicate the markup door's attribute
-    harvest already keeps: the directory holds digest-named files and nothing else, so a
+    harvest already keeps, and the server answers only a digest name there, so a
     destination that isn't one renders as a picture no request will ever answer."""
     publish(page_dir)
     missing = "/media/deadbeefdeadbeef.png"
     posted = CliRunner().invoke(
         cli_model.cli,
-        ["comment", str(page_dir), "--text", f"the panel now:\n\n![shot]({missing})"],
+        [
+            "thread",
+            "open",
+            str(page_dir),
+            "--text",
+            f"the panel now:\n\n![shot]({missing})",
+        ],
     )
     assert posted.exit_code == 1, (
         f"the comment door froze a picture the page has not got into the log:\n"
@@ -5164,16 +4874,37 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
 
     mention = CliRunner().invoke(
         cli_model.cli,
-        ["comment", str(page_dir), "--text", f"write it as `{missing}` in the message"],
+        [
+            "thread",
+            "open",
+            str(page_dir),
+            "--text",
+            f"write it as `{missing}` in the message",
+        ],
     )
     assert mention.exit_code == 0, (
         f"a path named in a sentence is the author's words, the reading the markup "
         f"door already keeps, not a picture the page owes:\n{mention.output}"
     )
 
+    quoted = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "open",
+            str(page_dir),
+            "--text",
+            f"Here is the source:\n\n```md\n![shot]({missing})\n```\n\n[unused]: {missing}",
+        ],
+    )
+    assert quoted.exit_code == 0, (
+        f"code and an unused reference definition render no media, so neither "
+        f"requires a file:\n{quoted.output}"
+    )
+
     linked = CliRunner().invoke(
         cli_model.cli,
-        ["comment", str(page_dir), "--text", f'[the panel](<{missing}> "shot")'],
+        ["thread", "open", str(page_dir), "--text", f'[the panel](<{missing}> "shot")'],
     )
     assert linked.exit_code == 1, (
         f"a link destination points at the same file an image does, angle brackets "
@@ -5182,7 +4913,13 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
 
     referenced = CliRunner().invoke(
         cli_model.cli,
-        ["comment", str(page_dir), "--text", f"![shot][ref]\n\n[ref]: {missing}"],
+        [
+            "thread",
+            "open",
+            str(page_dir),
+            "--text",
+            f"![shot][ref]\n\n[ref]: {missing}",
+        ],
     )
     assert referenced.exit_code == 1, (
         f"a reference definition is where a reference-style image keeps its "
@@ -5190,21 +4927,41 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
         f"{referenced.output}"
     )
 
-    unnamed = CliRunner().invoke(
-        cli_model.cli,
-        ["comment", str(page_dir), "--text", "look:\n\n![shot](/media/screenshot.png)"],
-    )
-    assert unnamed.exit_code == 1, (
-        f"the directory holds digest-named files and nothing else, so a destination "
-        f"under /media/ that isn't one is a picture it can never answer — the reading "
-        f"the markup door's attribute harvest already keeps:\n{unnamed.output}"
-    )
-
+    # A file copied in by hand under a name `leaf page media` never gives is one the
+    # server never serves, so the door asks the name before it asks the directory.
     (page_dir / "media").mkdir(exist_ok=True)
+    for unserved in ("screenshot.png", "deadbeefdeadbeef.PNG"):
+        (page_dir / "media" / unserved).write_bytes(b"\x89PNG\r\n\x1a\n")
+        unnamed = CliRunner().invoke(
+            cli_model.cli,
+            [
+                "thread",
+                "open",
+                str(page_dir),
+                "--text",
+                f"look:\n\n![shot](/media/{unserved})",
+            ],
+        )
+        assert unnamed.exit_code == 1, (
+            f"the server answers only a digest name, so a destination under /media/ "
+            f"that isn't one is a picture no request will ever load, whatever the "
+            f"directory holds:\n{unnamed.output}"
+        )
+        assert (
+            f"/media/{unserved} isn't a name `leaf page media` gives" in unnamed.output
+        ), unnamed.output
+        (page_dir / "media" / unserved).unlink()
+
     (page_dir / "media" / "deadbeefdeadbeef.png").write_bytes(b"\x89PNG\r\n\x1a\n")
     answered = CliRunner().invoke(
         cli_model.cli,
-        ["comment", str(page_dir), "--text", f"the panel now:\n\n![shot]({missing})"],
+        [
+            "thread",
+            "open",
+            str(page_dir),
+            "--text",
+            f"the panel now:\n\n![shot]({missing})",
+        ],
     )
     assert answered.exit_code == 0, (
         f"a reference the directory answers is the whole point of the door:\n"
@@ -5219,7 +4976,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     the two and never both, a word the merged vocabulary declares, and no
     suggestion, hold, or markup riding beside it. What the door lets through it
     also lets the user take back — while it is still a mark. An answer under it
-    makes it a conversation, and a message with words in it was never a mark."""
+    makes it a thread, and a message with words in it was never a mark."""
     publish(page_dir)
     root = json.loads(
         fetch(
@@ -5301,15 +5058,14 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     answer = json.loads(body)
     assert answer["final"] is True, body
     assert "already been taken back" in answer["error"], body
-    # Answered, the page reaction is a conversation, and the withdrawal would orphan
+    # Answered, the page reaction is a thread, and the withdrawal would orphan
     # the answer; the user's move is in the thread it opened.
-    conversation_model.cmd_reply(
+    thread_model.cmd_reply(
         page_dir,
         reaction["id"],
         "Which part is long?",
         None,
         for_event=None,
-        initiates=True,
     )
     status, body = fetch(
         f"{server}/api/event",
@@ -5410,7 +5166,11 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
     }
     events = [{**COMMENT, "seq": 1}, {**ACCEPT, "id": "accept1", "seq": 2}, event]
     html = '<lf-suggestion id="sug-a"><lf-new><p>Proposed</p></lf-new></lf-suggestion>'
-    page = page_reading(structure_model.SourceDocument(html), events, registry, 1)
+    page = page_reading(
+        passages_model.SourceReading(structure_model.SourceDocument(html), registry),
+        events,
+        1,
+    )
     winner, _ = page.projection.actions[("sug-a", "sug-a", "decide")]
     assert winner["id"] == "accept1"
     threads = event_folds_model.build_threads(events, page.within)

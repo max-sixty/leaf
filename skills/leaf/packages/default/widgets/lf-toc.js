@@ -1,12 +1,15 @@
 /* lf-toc: navigation derived from the headings the page already says.
  *
  * The generated labels are link apparatus rather than a second copy of the page's
- * words, so the nav wears .lf-ui. An authored heading keeps its own attributes. When a
- * heading titles an identified section, that section is the destination: an eyebrow and
- * heading arrive as one title, and the public fragment names the section rather than its
- * label. Otherwise the heading's id is the destination, or a generated sibling supplies
- * a native fragment target.
- * max-level bounds the authored outline before the module creates either links or targets.
+ * words, so the nav wears .lf-ui. When a heading titles an identified section, that
+ * section is the destination: an eyebrow and heading arrive as one title, and the public
+ * fragment names the section rather than its label. Otherwise the heading's id is the
+ * destination, and a heading without one is lent an `lf-` id, which no reader of the
+ * page's ids takes for one its author wrote (`ADDRESSABLE`). The id goes on the heading
+ * rather than on an element inserted beside it, because an inserted element changes
+ * which child a page rule finds first or last and what an `h2 + p` rule finds next to
+ * the heading.
+ * max-level bounds the authored outline before the module creates links or lends ids.
  *
  * In the roomy margin the outline becomes a reading map. Each row receives the length
  * of the section it leads as its flex share, so the quiet spine describes the document
@@ -16,7 +19,11 @@
  * its words.
  * A destination inside a closed disclosure or inactive tab joins the margin map when it
  * joins the displayed document; the ordinary outline keeps its native fragment link.
- * The darker lens is the part of the document in the viewport.
+ * The darker lens is the part of the document in the viewport. The scroll moves it, as
+ * a scroll-driven animation: its keyframes are the lens at each scroll position where
+ * the map bends, and the browser interpolates between them as the scroller moves, so a
+ * scroll writes nothing to the page. New keyframes are set only when the map or the
+ * landing band changes. Where the browser has no scroll timeline the map has no lens.
  * ResizeObserver hears late diagrams, images, disclosures, and width changes in the
  * document, and the height of the track the rows are laid into, which the page's chrome
  * can shorten without the document moving at all; a widget whose view rearranges
@@ -30,10 +37,13 @@
  * On an initial load the shared arrival pass runs after all widgets settle, so it can
  * honor a generated target that did not exist during HTML parsing. */
 import {
+  atLayoutPrecision,
   cancelRender,
   inChrome,
+  keeps,
   landingInsets,
   LAYOUT,
+  layoutPx,
   nextRender,
   once,
   PRESENTATION,
@@ -44,6 +54,8 @@ import {
 } from "/runtime/widget-api.js";
 
 const HEADING_SELECTOR = "h2, h3, h4, h5, h6";
+// The lens is never shorter than this, or than 1.2% of the map, so it stays in sight.
+const LENS_FLOOR = 14;
 
 customElements.define(
   "lf-toc",
@@ -51,6 +63,9 @@ customElements.define(
     #main;
     #nav;
     #rows;
+    #lens = null;
+    #lensMotion = null;
+    #lensInputs = "";
     #sections = [];
     #positions = [];
     #mapPositions = [];
@@ -62,6 +77,7 @@ customElements.define(
     #scroller;
     #scrollSource;
     #watching;
+    #renamed;
     #measureFrame = 0;
     #paintFrame = 0;
 
@@ -81,6 +97,8 @@ customElements.define(
     disconnectedCallback() {
       this.#watching?.disconnect();
       this.#watching = null;
+      this.#renamed?.disconnect();
+      this.#renamed = null;
       this.#scrollSource?.removeEventListener("scroll", this.#onScroll);
       this.#main?.removeEventListener("toggle", this.#onToggle, true);
       this.#main?.removeEventListener("load", this.#onLoad, true);
@@ -89,6 +107,9 @@ customElements.define(
       window.removeEventListener("resize", this.#onResize);
       cancelRender(this.#measureFrame);
       cancelRender(this.#paintFrame);
+      this.#lensMotion?.cancel();
+      this.#lensMotion = null;
+      this.#lensInputs = "";
       this.#measureFrame = 0;
       this.#paintFrame = 0;
     }
@@ -161,10 +182,8 @@ customElements.define(
         row.append(link);
         list.append(row);
         // The heading as well as the destination, because they answer different
-        // questions and only one of them can be watched. The destination is where the
-        // link goes, and where that is a section with no id of its own it is a generated
-        // 1x0 span — a box whose size cannot change, so a resize observation on it can
-        // never fire after its first delivery.
+        // questions: the destination is where the link goes, and the heading is the box
+        // the map watches (`#watch`).
         return { destination, heading: item, row, link };
       });
 
@@ -172,7 +191,11 @@ customElements.define(
         { destination: startDestination, row: start, link: startLink },
         ...items,
       ];
-      this.#rows.append(lens, start, list);
+      if ("ScrollTimeline" in globalThis) {
+        this.#lens = lens;
+        this.#rows.append(lens);
+      }
+      this.#rows.append(start, list);
       this.#nav.append(heading, this.#rows);
       this.append(this.#nav);
     }
@@ -191,13 +214,22 @@ customElements.define(
       this.#watching.observe(this.#main);
       // Watched at the heading rather than at the destination the row points to. A
       // section that grows — an image arriving, a fold opening — moves every marker
-      // below it, and the heading is the box that reports that. Where the destination is
-      // a generated target it has no size to report, so watching it would leave the map
-      // laid out against positions that have since moved, with nothing to say so.
+      // below it, and the heading is the box that reports that.
       for (const { destination, heading } of this.#sections) {
         const watched = heading ?? destination;
         if (watched !== this.#main) this.#watching.observe(watched);
       }
+      // A row's link follows its destination's id. A revision can give a heading an id
+      // of its own over the one this widget lent it, or take an authored one away, and
+      // the widget stays built across a revision that leaves its own markup alone.
+      this.#renamed = new MutationObserver(() =>
+        this.#sections.forEach(({ destination, link }, position) => {
+          if (!destination.id) this.#targetFor(destination, position);
+          keeps(link, "href", `#${destination.id}`);
+        }),
+      );
+      for (const { destination } of this.#sections)
+        this.#renamed.observe(destination, { attributeFilter: ["id"] });
       this.#scrollSource.addEventListener("scroll", this.#onScroll, { passive: true });
       this.#main.addEventListener("toggle", this.#onToggle, true);
       this.#main.addEventListener("load", this.#onLoad, true);
@@ -245,17 +277,28 @@ customElements.define(
         );
       });
       this.#fitRows();
+      this.#lensInputs = "";
       this.#paint();
     }
 
+    // A row's shift moves its label and dot (a transform and an inset), never the row, so
+    // the rows are measured where they stand and each shift is written once, as fitted.
     #fitRows() {
+      this.#mapPositions = [];
+      const shifts = this.#fitLabels();
+      this.#sections.forEach(({ row }, index) => {
+        if (shifts.has(index))
+          row.style.setProperty("--lf-toc-row-shift", `${shifts.get(index)}px`);
+        else row.style.removeProperty("--lf-toc-row-shift");
+      });
+    }
+
+    // Each fitted row's shift, by section index.
+    #fitLabels() {
+      const shifts = new Map();
       this.removeAttribute("data-lf-compact");
       this.removeAttribute("data-lf-outline");
-      for (const { row } of this.#sections)
-        row.style.removeProperty("--lf-toc-row-shift");
-
-      this.#mapPositions = [];
-      if (getComputedStyle(this.#rows).display !== "flex") return;
+      if (getComputedStyle(this.#rows).display !== "flex") return shifts;
       const track = this.#rows.getBoundingClientRect();
       this.#mapHeight = track.height;
 
@@ -299,7 +342,7 @@ customElements.define(
         const focused = document.activeElement;
         if (focused instanceof HTMLElement && this.#nav.contains(focused))
           focused.scrollIntoView({ block: "nearest" });
-        return;
+        return shifts;
       }
 
       let prefix = 0;
@@ -340,11 +383,11 @@ customElements.define(
         for (let at = block.start; at <= block.end; at += 1) {
           const label = layout.labels[at];
           const fitted = top + label.prefix;
-          const { row } = this.#sections[label.index];
-          row.style.setProperty("--lf-toc-row-shift", `${fitted - label.ideal}px`);
           this.#mapPositions[label.index] = fitted;
+          shifts.set(label.index, fitted - label.ideal);
         }
       }
+      return shifts;
     }
 
     #mapPosition(position) {
@@ -405,16 +448,13 @@ customElements.define(
 
     #paint() {
       if (!this.#rows || !this.#scroller || !this.#positions.length) return;
-      const clear = landingInsets(this.#scroller).top;
-      const visibleStart = this.#scroller.scrollTop + clear;
-      const visibleEnd = this.#scroller.scrollTop + this.#scroller.clientHeight;
-      const start = this.#mapPosition(visibleStart);
-      const end = Math.max(start, this.#mapPosition(visibleEnd));
-      this.#rows.style.setProperty("--lf-toc-window-start", `${start}px`);
-      this.#rows.style.setProperty(
-        "--lf-toc-window-size",
-        `${Math.max(this.#mapHeight * 0.012, end - start)}px`,
-      );
+      // What the user can read is the scroller's landing band, clear of the banner over
+      // its top and the bottom bar over its bottom.
+      const clear = landingInsets(this.#scroller);
+      const visibleStart = this.#scroller.scrollTop + clear.top;
+      const visibleEnd =
+        this.#scroller.scrollTop + this.#scroller.clientHeight - clear.bottom;
+      this.#standLens(clear);
 
       const threshold = visibleStart + Math.min(32, (visibleEnd - visibleStart) * 0.08);
       let current = 0;
@@ -433,6 +473,61 @@ customElements.define(
       this.#currentLink = link;
     }
 
+    // Keyframes are set again only when a measure has moved the map, or the scroller's
+    // length or landing band has changed; a scroll alone reaches the early return.
+    #standLens(clear) {
+      if (!this.#lens) return;
+      const scroller = this.#scroller;
+      const reach = scroller.scrollHeight - scroller.clientHeight;
+      const band = scroller.clientHeight - clear.top - clear.bottom;
+      const inputs = `${reach} ${band} ${clear.top}`;
+      if (inputs === this.#lensInputs) return;
+      this.#lensInputs = inputs;
+      const floor = Math.max(LENS_FLOOR, this.#mapHeight * 0.012);
+      const span = (scrolled) => {
+        const start = this.#mapPosition(scrolled + clear.top);
+        return {
+          start,
+          size: Math.max(start, this.#mapPosition(scrolled + clear.top + band)) - start,
+        };
+      };
+      const transform = ({ start, size }) =>
+        `translateY(${layoutPx(start)}) scaleY(${atLayoutPrecision(Math.max(floor, size))})`;
+      if (reach <= 0) {
+        this.#lensMotion?.cancel();
+        this.#lensMotion = null;
+        keeps(this.#lens, "style", `transform: ${transform(span(0))};`);
+        return;
+      }
+      // The map is linear between the scroll positions where the band's top or foot
+      // meets a destination or the document's ends, and where the lens meets its floor.
+      const bends = [this.#contentStart, this.#contentEnd, ...this.#positions]
+        .flatMap((position) => [position - clear.top, position - clear.top - band])
+        .filter((scrolled) => scrolled > 0 && scrolled < reach);
+      const stops = [...new Set([0, reach, ...bends])].sort((a, b) => a - b);
+      const floored = stops.flatMap((scrolled, index) => {
+        const next = stops[index + 1];
+        if (next === undefined) return [scrolled];
+        const [from, to] = [span(scrolled).size, span(next).size];
+        if ((from - floor) * (to - floor) >= 0) return [scrolled];
+        return [
+          scrolled,
+          scrolled + ((floor - from) / (to - from)) * (next - scrolled),
+        ];
+      });
+      const frames = floored.map((scrolled) => ({
+        offset: scrolled / reach,
+        transform: transform(span(scrolled)),
+      }));
+      this.#lens.removeAttribute("style");
+      if (this.#lensMotion) this.#lensMotion.effect.setKeyframes(frames);
+      else
+        this.#lensMotion = this.#lens.animate(frames, {
+          timeline: new globalThis.ScrollTimeline({ source: scroller, axis: "block" }),
+          fill: "both",
+        });
+    }
+
     #destinationFor(heading, position) {
       const section = heading.closest("section[id]");
       if (section?.querySelector(HEADING_SELECTOR) === heading) return section;
@@ -445,14 +540,8 @@ customElements.define(
       let id = stem;
       let suffix = 2;
       while (document.getElementById(id)) id = `${stem}-${suffix++}`;
-
-      const target = document.createElement("span");
-      target.id = id;
-      target.className = "lf-toc-target lf-ui";
-      target.dataset.lfGen = "1";
-      target.setAttribute("aria-hidden", "true");
-      heading.before(target);
-      return target;
+      heading.id = id;
+      return heading;
     }
   },
 );

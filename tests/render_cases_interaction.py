@@ -3,12 +3,12 @@
 import json
 from datetime import datetime, timedelta
 
-from interact_support import append_command, deciding_verb
+from interact_support import add_test_widget, append_command
 from leaf import event_log as events_model
+from leaf.schema import ELEMENT_ID
 from render_harness import (
     EXAMPLES,
     TOKEN,
-    author_test_widget,
     leaf_page,
 )
 
@@ -47,11 +47,9 @@ diff --git a/gateway/limits.py b/gateway/limits.py
 """,
 )
 
-# The panel's list, in the order it stands, with the headings among the threads: a
-# heading is its own words, a thread its id. One query, because what is asserted about
-# the order is always about both — a run is a heading and the threads it names.
-LIST_RUNS = """() => [...document.querySelector(".lf-threads").children]
-  .map((n) => (n.dataset.group ? "§ " + n.textContent : n.dataset.id))
+# The panel's list, in the order it stands: each thread by its id.
+LIST_ORDER = """() => [...document.querySelector(".lf-threads").children]
+  .map((n) => n.dataset.id)
   .filter(Boolean)"""
 
 
@@ -208,8 +206,8 @@ mornings last winter.</p></section>
 )
 
 
-# The other place a question lives: a widget that seats its own conversation
-# (`x-conversation`), where the answer is words rather than a pick. The durable-draft
+# The other place a question lives: a widget that seats its own thread
+# (`x-thread-seat`), where the answer is words rather than a pick. The durable-draft
 # tests stand on one because a seat is where a single draft has two views at once — the
 # cell in the page and the row in the panel — which is the whole of what those tests
 # compare. `jobs` names the seat, so the `say:jobs` draft key and a comment anchored to
@@ -225,13 +223,6 @@ SEATED_QUESTION_PAGE = leaf_page(
 </lf-command>
 """,
 )
-
-
-def sent_events(page_dir):
-    return [
-        json.loads(line)
-        for line in (page_dir / "events.jsonl").read_text().splitlines()
-    ]
 
 
 NESTED_ASK_PAGE = leaf_page(
@@ -341,9 +332,9 @@ EXHIBIT_EXTENT = """
 }
 """
 
-SPECIMEN_EXAMPLES = [p for p in EXAMPLES if "<lf-specimen" in p.read_text()]
-assert SPECIMEN_EXAMPLES, (
-    "no shipped example holds a specimen — the sweep below would drive the fixture "
+SAMPLE_EXAMPLES = [p for p in EXAMPLES if "<lf-sample" in p.read_text()]
+assert SAMPLE_EXAMPLES, (
+    "no shipped example holds a sample — the sweep below would drive the fixture "
     "page alone, and the rule it holds is one the corpus is the whole test of"
 )
 TABLE_REPLY = """The ceilings, unchanged:
@@ -469,7 +460,7 @@ SHORT_SUGGESTION = leaf_page(
 # Every animation the page starts, held at time zero so a test can read it rather than
 # race it. What it catches is everything through `motion()`, which is the layer's only
 # caller of `animate` — folds and the board's FLIP, each started synchronously inside
-# the gesture that causes it. Opening a panel or tray starts none. CSS animations run outside it
+# the gesture that causes it. Opening a panel or drawer starts none. CSS animations run outside it
 # and are never seen, `grow` among them. Installed before anything runs, so the first
 # frame is already held.
 #
@@ -553,11 +544,11 @@ ASKS_PAGE = leaf_page(
   <lf-milestone id="m-build" status="active"><strong>Build the feeders</strong></lf-milestone>
   <lf-milestone id="m-install" status="blocked"><strong>Install and watch</strong></lf-milestone>
 </lf-milestones>
-<lf-specimen id="spec" label="a decision">
+<lf-sample id="spec" label="a decision">
   <lf-options id="spec-opts" choose>
     <lf-option id="spec-paper"><strong>Paper maps</strong></lf-option>
   </lf-options>
-</lf-specimen>
+</lf-sample>
 """,
 )
 ASKS_IN_ORDER = [
@@ -673,9 +664,9 @@ ASK_IN_A_CARD_PAGE = leaf_page(
 # shows through — every shipped widget draws one, and a wrapper a page styles boxless
 # hangs it on the boxes its contents make — so what says the walk is in one place is
 # the outermost page element wearing it, never the count of elements that do. Scoped to
-# main because the Asks tray's row mirrors the same fact in the chrome.
+# main because the Asks drawer's row mirrors the same fact in the chrome.
 STANDING_ASK = "main [data-lf-ask]:not([data-lf-ask] [data-lf-ask])"
-# Where the tray's rows say their decision's own words, which is the half of a row a static
+# Where the drawer's rows say their decision's own words, which is the half of a row a static
 # lint can never read: the words are whatever the page renders, after every upgrade.
 # Every widget that measures a number off a live box, authored into the page and sent in
 # a reply, so the two readings of each can be compared instead of pinned to a number. The
@@ -744,8 +735,8 @@ CHANGE_SHAPES_PAGE = leaf_page(
 )
 # A group that takes a pick and a paragraph beside it, so the diff below has one real
 # change to find while the generated add-option cell remains runtime chrome.
-CONVERSATION_DIFF_PAGE = leaf_page(
-    "conversation-diff",
+THREAD_DIFF_PAGE = leaf_page(
+    "thread-diff",
     """
 <h1 id="cd-h">Bracket order</h1>
 <p id="cd-lede">The south pair is up and drawing traffic.</p>
@@ -1221,7 +1212,7 @@ RELATIVE_WIDGET_PAGE = leaf_page(
 )
 
 RELATIVE_WIDGET_MODULE = """\
-import { once, widgetController } from "/runtime/widget-api.js";
+import { keeps, once, widgetController } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-tally",
@@ -1234,7 +1225,7 @@ customElements.define(
     }
     disconnectedCallback() { this.#stop?.(); this.#stop = null; }
     renderState(state) {
-      this.setAttribute("count", Number(this.getAttribute("count")) + Number(state.step.value));
+      keeps(this, "count", Number(this.getAttribute("count")) + Number(state.step.value));
       this.querySelector("pre").append(state.caption.value);
     }
   },
@@ -1326,7 +1317,7 @@ customElements.define(
 def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
     """Vendor <lf-drift> as a project widget, and hand back the page it renders."""
     monkeypatch.chdir(tmp_path)
-    author_test_widget(tmp_path, "lf-drift", upgrade=True)
+    add_test_widget(tmp_path / ".leaf", "lf-drift", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
     declarations["lf-drift"]["properties"]["offset"] = {
@@ -1336,7 +1327,7 @@ def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
     declarations["lf-drift"].setdefault("required", []).append("offset")
     declarations["lf-drift"]["x-example"] = declarations["lf-drift"][
         "x-example"
-    ].replace('id="drift-example"', 'id="drift-example" offset="120"')
+    ].replace('id="drift"', 'id="drift" offset="120"')
     declarations["lf-drift"]["properties"]["deep"] = {"type": "boolean"}
     declarations["lf-drift"]["properties"]["bare"] = {"type": "boolean"}
     deep = deep or bare
@@ -1405,57 +1396,6 @@ TWO_HOLDER_PAGE = leaf_page(
 )
 
 
-def trial_family(tmp_path):
-    """A third-party settlement family in one project package.
-
-    Registry declarations relate its owners and slots. The owner modules only define
-    their elements, so anything a test sees settle is the layer's doing. Only
-    lf-proposed names two owners, for the selector case that test exercises.
-    """
-    for tag, upgrade in (
-        ("lf-trial", True),
-        ("lf-pilot", True),
-        ("lf-current", False),
-        ("lf-proposed", False),
-    ):
-        author_test_widget(tmp_path, tag, upgrade=upgrade)
-    source = tmp_path / ".leaf" / "registry.json"
-    declarations = json.loads(source.read_text())
-    example = {
-        "lf-trial": '<lf-trial id="x-trial"><lf-current><p>As it stands.</p></lf-current>'
-        "<lf-proposed><p>As proposed.</p></lf-proposed></lf-trial>",
-        "lf-pilot": '<lf-pilot id="x-pilot"><lf-proposed><p>As proposed.</p>'
-        "</lf-proposed></lf-pilot>",
-    }
-    # `pause` retires nothing: an outcome that displaces a decision in the fold,
-    # there for the test that holds the mark to following it out.
-    for tag, outcomes in (
-        ("lf-trial", ["adopt", "shelve", "pause"]),
-        ("lf-pilot", ["run", "shelve"]),
-    ):
-        declarations[tag]["x-state"] = {"decide": deciding_verb(outcomes)}
-        declarations[tag]["properties"]["restated"] = {"type": "boolean"}
-        declarations[tag]["x-content"] = "members"
-        declarations[tag]["x-example"] = example[tag]
-    for tag, owners, outcome in (
-        ("lf-current", ["lf-trial"], "adopt"),
-        ("lf-proposed", ["lf-trial", "lf-pilot"], "shelve"),
-    ):
-        declarations[tag] |= {"x-owners": owners, "x-retired-when": outcome}
-        declarations[tag].pop("x-example", None)
-        declarations[tag].pop("required", None)
-    source.write_text(json.dumps(declarations))
-    # The fixture styles every tag as a card; a slot is a slot, the way the shipped
-    # family's lf-old/lf-new draw no box of their own. Left as cards, the slots carry
-    # margins that stand trapped under the holder's frame once a settled sibling is
-    # hidden — a real TRAPPED_MARGINS finding about the fixture, not about the gate.
-    theme = tmp_path / ".leaf" / "theme.css"
-    theme.write_text(
-        theme.read_text() + "\nlf-current, lf-proposed "
-        "{ display: block; margin: 0; padding: 0; border: none; --lf-block-frame: initial; }\n"
-    )
-
-
 # The two-holder page with a second, undecided trial beside the first: the instance a
 # module that invents settlement gets caught on, since on the decided one its mark
 # only repeats the log.
@@ -1479,9 +1419,9 @@ def resolve(a, b):
 
 > which one wins?
 
-<lf-grid columns="3">
+<lf-callout>
   <div>a tile</div>
-</lf-grid>
+</lf-callout>
 
 Unsafe destinations stay words: [script](javascript:alert(1)), [inline data](data:text/html,boom), [local file](file:///tmp/secret), and [custom handler](editor://open/project).
 """
@@ -1532,11 +1472,11 @@ THREAD_ASKS = [
 ]
 
 # A widget the shipped packages no longer have: one the user owes an answer on that
-# also seats a conversation of its own. Those two facts together are what produce the
+# also seats a thread of its own. Those two facts together are what produce the
 # layer's one split between the user's list and the unanswered decisions — a thread
 # standing in the seat while the agent has the next word takes the widget off the list
 # without answering it (`seat_with_agent`, `seatWithAgent`). `lf-options` supplied the
-# pair until 292de9c made the user's cell an add form and dropped `x-conversation`, and
+# pair until 292de9c made the user's cell an add form and dropped `x-thread-seat`, and
 # both halves of the split are still implemented, still described, and reachable by any
 # package that declares both. So the guard is declared here rather than borrowed from
 # whichever shipped entry happens to carry it: the reading under test is the layer's, and
@@ -1549,7 +1489,7 @@ SEATED_ASK_ENTRY = {
     ),
     "type": "object",
     "properties": {
-        "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+        "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
         "asks": {"type": "boolean"},
         "restated": {"type": "boolean"},
     },
@@ -1569,7 +1509,7 @@ SEATED_ASK_ENTRY = {
         }
     },
     "x-awaits": {"when": {"asks": [True]}, "answered": {"settle": {}}},
-    "x-conversation": {"when": {"asks": [True]}},
+    "x-thread-seat": {"when": {"asks": [True]}},
     "x-example": '<lf-verdict id="verdict-example" asks>Ship it?</lf-verdict>',
 }
 # The press paints before it sends, which is what `lf-options` does with a pick and the
@@ -1577,7 +1517,7 @@ SEATED_ASK_ENTRY = {
 # the answer is already on the page, so a refusal is not a refusal the user can see —
 # the control flips, nothing is logged, and the next poll puts it back saying nothing.
 SEATED_ASK_MODULE = """\
-import { conversationBox, offer, once, widgetController } from "/runtime/widget-api.js";
+import { keeps, keepsText, threadBox, offer, once, widgetController } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-verdict",
@@ -1599,7 +1539,7 @@ customElements.define(
         });
       };
       this.append(this.press);
-      const seat = conversationBox(this, "Say something about this");
+      const seat = threadBox(this, "Say something about this");
       if (seat) this.append(seat);
       this.#stop ??= this.#controller.subscribe(() => {});
     }
@@ -1610,15 +1550,15 @@ customElements.define(
     }
 
     settled() {
-      this.press.textContent = "Accepted";
-      this.press.setAttribute("aria-pressed", "true");
+      keepsText(this.press, "Accepted");
+      keeps(this.press, "aria-pressed", true);
     }
 
     renderState(state) {
       if (state.settle.value) this.settled();
       else {
-        this.press.textContent = "Accept";
-        this.press.setAttribute("aria-pressed", "false");
+        keepsText(this.press, "Accept");
+        keeps(this.press, "aria-pressed", false);
       }
     }
   },

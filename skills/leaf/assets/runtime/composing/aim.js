@@ -1,10 +1,11 @@
 /* This module owns captured presses for modifier aim, Design mode, and the target
- * chooser. Each claims a complete press before authored controls can act on it. */
+ * picker. Each claims a complete press before authored controls can act on it. */
 import { spell } from "../keyboard/bindings.js";
 import { pageCommand } from "../keyboard/register.js";
 import { pointerAt, pressIsKeyboardActivation } from "../pointer.js";
-import { elementFromPointAcross, inChrome } from "../passages.js";
+import { elementFromPointAcross, inChrome, leafSurface } from "../passages.js";
 import { aimTargetAt } from "../anchor-resolution.js";
+import { pointInto } from "../pointed-place.js";
 
 // While ⌥ is held the page shows what a click would take — the item under
 // the pointer wears the aim's box (refreshAim), so the sequence
@@ -15,12 +16,13 @@ import { aimTargetAt } from "../anchor-resolution.js";
 // the keyup with it, and a page left armed under nobody's hand is a claim the user
 // cannot dismiss.
 export function createAim({
+  marginTargetAt,
   refreshAim,
   commentOnTarget,
   standDown,
   drawModeActive,
   designMode,
-  targetChooser,
+  targetPicker,
 }) {
   let aiming = false;
   // Design is the active input mode, so the sequence is unavailable while it stands. Keep
@@ -36,6 +38,7 @@ export function createAim({
   // twice in two platforms' glyphs.
   const AIM = {
     id: "aim.comment",
+    touch: false,
     modifier: "Alt",
     keys: [],
     label: `${spell("Alt")} click`,
@@ -48,12 +51,26 @@ export function createAim({
   // is no reason to say nothing: the press still acts (it moves the draft onto another
   // target), so the promise still paints — what stood down here left that one press made
   // blind.
+  //
+  // The margin layer is chrome that stands over the page, and a row there is about the
+  // page element it stands by, so over a row the aim is at that element: the row is the
+  // page's corner the user is pointing at, as it is in Design mode.
+  function onPage(node) {
+    const over = node && inChrome(node) ? marginTargetAt(node) : node;
+    return over && !inChrome(over) ? over : null;
+  }
   function aimedTarget() {
     const pointer = pointerAt();
     if (pointer.x < 0) return null;
-    const at = elementFromPointAcross(pointer.x, pointer.y);
-    if (!at || inChrome(at)) return null;
-    return aimTargetAt(at);
+    return pointedTarget(onPage(elementFromPointAcross(pointer.x, pointer.y)));
+  }
+  // The target a press names, with the row inside it the press landed on: a comment on a
+  // target taller than the window stands where the user pointed (pointed-place.js).
+  function pointedTarget(at) {
+    const target = at && aimTargetAt(at);
+    // A drawing's part already names where on the picture it is.
+    const point = target?.anchor.visual ? null : pointInto(target?.element, at);
+    return target && { ...target, point };
   }
   function setAiming(on) {
     aiming = on;
@@ -97,9 +114,9 @@ export function createAim({
   // is an item under it, and acts on nothing where there isn't. That is what the cursor is
   // already saying, over everything the chrome doesn't hold out of it. Falling through to
   // the page instead would leave the user reading the box to find out which of the
-  // two a press is about to be — and a suggestion's ✓ Accept hangs in the page's own
-  // column, outside the element it decides, so there is nothing above it to aim at and
-  // getting that wrong sends Claude a decision.
+  // two a press is about to be — and a suggestion's ✓ Accept stands in the margin
+  // layer over the page, so a press let through there sends Claude a decision. The aim
+  // takes it as a press on the change it stands by.
   //
   // A press is its down, its up and the click they make, a double press one event more, and
   // the aim takes every one of them: which a widget listens on is not something the runtime
@@ -123,9 +140,12 @@ export function createAim({
     // under way when the key goes down keeps the events it is waiting for, and one that
     // ends after the aim's own press can still be ended.
     if (ev.type === "pointerdown") {
-      const designTarget = designMode.press(ev.target);
+      // The node pressed, not the widget host a shadow tree retargets it to: a Leaf
+      // surface a widget seats in its own shadow tree is only visible from inside.
+      const pressed = ev.composedPath()[0];
+      const designTarget = designMode.press(pressed);
       const aim =
-        aimIsAvailable() && ev.getModifierState(AIM.modifier) && !inChrome(ev.target);
+        aimIsAvailable() && ev.getModifierState(AIM.modifier) && onPage(ev.target);
       // The item the outline is naming, through the reading that named it (aimedTarget,
       // which aimTarget and so the box itself go through) rather than through this event's own
       // target. Both are hit tests at the one place the pointer is, and asking twice is what
@@ -133,11 +153,11 @@ export function createAim({
       // builds its own, and where two boxes share an edge — every cell of a joined group,
       // which butt with no gap between them — nothing makes the two tie-break the same way.
       // A user ⌥-pressing on that seam was outlined one option and commented on the next.
-      const choosing = targetChooser.active() && !inChrome(ev.target);
+      const choosing = targetPicker.active() && !leafSurface(pressed);
       claimedPress = choosing
-        ? { chooser: aimTargetAt(ev.composedPath()[0]) }
+        ? { picker: pointedTarget(pressed) }
         : designTarget
-          ? { designMode: designMode.target(ev.target) }
+          ? { designMode: designMode.target(pressed) }
           : aim
             ? { aim: aimedTarget() }
             : null;
@@ -153,7 +173,7 @@ export function createAim({
     if (ev.type === "mousedown" || ev.type === "click") ev.preventDefault();
     ev.stopPropagation();
     if (ev.type !== "click") return;
-    if (claimedPress.chooser) targetChooser.choose(claimedPress.chooser);
+    if (claimedPress.picker) targetPicker.choose(claimedPress.picker);
     else if (claimedPress.aim) commentOnTarget(claimedPress.aim);
     else if (claimedPress.designMode) designMode.open(claimedPress.designMode);
   }

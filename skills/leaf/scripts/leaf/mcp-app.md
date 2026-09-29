@@ -5,9 +5,9 @@ Leaf interface can be evaluated in shipped MCP Apps hosts. Codex's default
 handoff opens the canonical page in its browser pane; the inline app is an
 explicit experiment, not a prerequisite for full Leaf in Codex.
 
-A developer-only direct-resource probe under `scripts/mcp-app/direct-*` bundles the
-canonical vendored runtime and routes reads/writes through MCP tools to the same
-PageStateService and event admission. The probe uses the Heating Review page with
+A developer-only direct-resource probe under `notes/mcp-apps/probe/direct-*`
+bundles the canonical vendored runtime and routes reads/writes through MCP tools to
+the same PageStateService and event admission. The probe uses the Heating Review page with
 its inline chart data.
 Experiment 56 in `notes/mcp-apps/` established a keyboard choice and an anchored
 comment with no nested Leaf iframe or external resource requests in the official
@@ -65,12 +65,14 @@ is registered. Its exact `http://localhost:<port>` origin is the resource's sole
 no `service.json`, and drops every path when it exits. There is no wildcard CSP,
 query token, cookie, or durable host key in the tool result.
 
-The canonical page contract speaks root-relative Leaf routes. At this multiplexing
-boundary, every HTML response and validated frozen `markup` value in state passes
-through document route scoping, textual served assets scope their known routes, and
-version URLs in state receive the page prefix. Together these adapt `api`, `runtime`,
-`widgets`, `vendor`, `media`, registry, theme, icon, and runtime paths below the
-capability. This keeps arbitrary package modules on the ordinary
+The canonical page contract speaks root-relative Leaf paths, and this boundary is
+one more host with a page root of its own: the capability path. Delivery addresses
+what a document, stylesheet, or authored module names exactly as the ordinary server
+does (`revision_delivery.py`), with media at the page root and everything else at the
+revision's address beneath it. Layer modules keep their rooted imports and resolve
+through the document's import map, the runtime reaches `api` routes through the page
+root its document declares, and version URLs and frozen `markup` in state are
+addressed at the page root. This keeps arbitrary package modules on the ordinary
 `/runtime/widget-api.js` contract while ensuring every subsequent request proves the
 same page capability. Unknown or unscoped paths receive 404. The nested frame
 therefore runs the same authored document, package modules, comments, actions,

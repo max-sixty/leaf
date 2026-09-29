@@ -24,7 +24,8 @@ class AdmissionReadings:
     The contract gates and the meaning stamped after them read the same log, so
     they share one fold of it rather than each paying for their own."""
 
-    def __init__(self, events: list, registry: dict):
+    def __init__(self, view, events: list, registry: dict):
+        self.view = view
         self.events = events
         self.registry = registry
         self._pages: dict = {}
@@ -33,10 +34,10 @@ class AdmissionReadings:
     def thread(self):
         return frozen_thread_reading(self.events, self.registry)
 
-    def page(self, document, revision: int):
+    def page(self, revision: int):
         if revision not in self._pages:
             self._pages[revision] = page_reading(
-                document, self.events, self.registry, revision
+                self.view.reading(revision, self.registry), self.events, revision
             )
         return self._pages[revision]
 
@@ -99,7 +100,7 @@ def answer_meaning(
     withdrawn = entry.get("x-withdrawn-as")
     declined = withdrawn is not None and event["detail"].get("outcome") == withdrawn
     if event_document(event)["kind"] == "page":
-        reading = readings.page(sender, event["revision"])
+        reading = readings.page(event["revision"])
         byid = sender.by_id
     else:
         reading = readings.thread
@@ -122,11 +123,6 @@ def answer_meaning(
     )
 
 
-def request_unit(event: dict, spec: dict) -> str:
-    """The request seat uses the holder unless its verb names a detail field."""
-    return event["detail"][spec["unit"]] if "unit" in spec else event["widget"]
-
-
 def admit_widget_event(sender, event: dict, readings: AdmissionReadings) -> dict:
     """Stamp server-owned meaning after command validation, under the append lock.
 
@@ -139,29 +135,22 @@ def admit_widget_event(sender, event: dict, readings: AdmissionReadings) -> dict
         scope = "thread"
     entry = registry[record["tag"]]
     admitted = dict(event)
-    if event["kind"] == "request":
-        spec = entry["x-request"]["verbs"][event["action"]]
-        unit = request_unit(event, spec)
-        admitted["meaning"] = {"scope": scope, "unit": unit}
-    else:
-        admitted["meaning"] = state_meaning(event, entry, scope)
-        position = entry["x-state"][event["action"]].get("record") or {}
-        if position.get("kind") == "position":
-            # The authored units the rank lies among, in their order on the sending
-            # document: a later document that authors them differently has placed
-            # the unit itself (`projection.move_absorbed`).
-            reading = (
-                readings.page(sender, event["revision"])
-                if scope == "page"
-                else readings.thread
-            )
-            byid = reading.document.by_id if scope == "page" else reading.by_id
-            admitted["meaning"]["among"] = authored_positions(
-                event["widget"], position, byid, reading.spoken, registry
-            )[event["detail"][position["value"]]]
-        answers, closes = answer_meaning(sender, record, admitted, readings)
-        if answers:
-            admitted["meaning"]["answer"] = closes
+    admitted["meaning"] = state_meaning(event, entry, scope)
+    position = entry["x-state"][event["action"]].get("record") or {}
+    if position.get("kind") == "position":
+        # The authored units the rank lies among, in their order on the sending
+        # document: a later document that authors them differently has placed
+        # the unit itself (`projection.move_absorbed`).
+        reading = (
+            readings.page(event["revision"]) if scope == "page" else readings.thread
+        )
+        byid = reading.document.by_id if scope == "page" else reading.by_id
+        admitted["meaning"]["among"] = authored_positions(
+            event["widget"], position, byid, reading.spoken, registry
+        )[event["detail"][position["value"]]]
+    answers, closes = answer_meaning(sender, record, admitted, readings)
+    if answers:
+        admitted["meaning"]["answer"] = closes
     return admitted
 
 
@@ -173,7 +162,7 @@ def admitted_contract_error(
     The stored meaning already fixes the identities admission derived, so no
     candidate can move those. What folds still read through the vocabulary is the
     verb's declaration — its fold unit, which decides the shape its state takes,
-    its record form, created child, update field, or request binding — and that
+    its record form, created child, or update field — and that
     must stay what the event's own captured registry said. The
     candidate side comes from the document being checked, except that thread widgets
     live in their frozen markup for the page's whole lifetime.
@@ -184,18 +173,6 @@ def admitted_contract_error(
     else:
         record = recorded = thread.by_id[event["widget"]]
     entry = registry[record["tag"]]
-    if event["kind"] == "request":
-        before_request = recorded_registry[recorded["tag"]]["x-request"]
-        after_request = entry["x-request"]
-        before = before_request["verbs"][event["action"]]
-        after = after_request["verbs"][event["action"]]
-        if (
-            before_request.get("records") != after_request.get("records")
-            or before.get("bind") != after.get("bind")
-            or before.get("unit") != after.get("unit")
-        ):
-            return f"request {event['id']} changes its admitted record binding"
-        return None
     before = recorded_registry[recorded["tag"]]["x-state"][event["action"]]
     after = entry["x-state"][event["action"]]
     for field, label in (

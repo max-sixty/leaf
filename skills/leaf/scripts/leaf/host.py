@@ -16,13 +16,16 @@ import json
 import os
 import socket
 import sys
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import ClassVar
 
 from leaf.files import read_json
-from leaf.leases import adapter_is_live
-from leaf.machine import ancestry, process_argv
+from leaf.leases import adapter_is_live, hooks_ran
+from leaf.machine import ancestry, pid_alive, process_argv
 
 
 @dataclass(frozen=True)
@@ -42,9 +45,11 @@ class Harness:
     What differs between harnesses is how a leaf's input reaches the session
     between its turns, and the methods below answer for that carrier:
 
-    - Claude Code runs a `leaf wait`/`leaf wait --ack` loop itself, watched by the
-      host's Stop and prompt hooks. It is the one carrier that stops while its
-      session lives on, which is why it is the one with a `nudge`.
+    - Claude Code's model keeps a background `leaf wait` running, which ends when
+      input arrives and so opens a turn; the host's prompt hook, which runs as that
+      turn begins, and its Stop hook put the input in the turn's context and
+      confirm it (`hook_delivers`). The wait is the one carrier part that stops
+      while its session lives on, which is why this is the harness with a `nudge`.
     - Codex has a detached adapter that outlives the turn and proves itself by
       holding the adapter lease. It queues each delivery with `codex queue`, or
       starts its turn over the task's App Server when Leaf can reach one.
@@ -56,6 +61,10 @@ class Harness:
     agent: str
 
     name: ClassVar[str]
+    # Whether the host's hooks can carry input into the turn: they freeze, confirm,
+    # and hand over the whole delivery, and `leaf wait` only wakes the session.
+    # `hooks_carry` says whether they do for this session.
+    hook_delivers: ClassVar[bool] = False
 
     @classmethod
     def from_claim(cls, claim: dict) -> "Harness":
@@ -81,6 +90,13 @@ class Harness:
         this."""
         return listening
 
+    def hooks_carry(self) -> bool:
+        """Whether this session's hooks carry its input: its host runs hooks that
+        can, and one has run for this session. Until one has, `leaf wait` prints
+        the delivery for its reader to confirm, so a session whose hooks never run
+        still reads its input rather than being woken to an empty turn."""
+        return self.hook_delivers and hooks_ran(self.session)
+
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
         """What to do about events past this page's cursor that nothing will
         carry."""
@@ -92,10 +108,19 @@ class Harness:
 
     @classmethod
     def run_ack(cls, delivery_id: str) -> str:
-        """How this session runs the `leaf wait --ack` that confirms one delivery
-        and goes on waiting: the verb phrase the delivery's `acknowledge` ends
-        with. A wait held in a background task is the default."""
+        """How the reader of this session's printed delivery runs the `leaf wait
+        --ack` that confirms it and goes on waiting: the verb phrase the
+        delivery's `acknowledge` ends with. A harness whose hook carries input
+        prints no delivery; a wait held in a background task is the default."""
         return f"start `leaf wait --ack {delivery_id}` as the next background task"
+
+    @classmethod
+    def continue_turn(cls, message: str) -> dict:
+        """The Stop hook output that keeps the ending turn going with `message` as
+        new context: a block, which every host that runs Leaf's hooks honours. It
+        is Codex's only way, since its Stop output schema (0.156) has no
+        `hookSpecificOutput`."""
+        return {"decision": "block", "reason": message}
 
     def nudge(self, page_dir: Path) -> bool:
         """Put this page's new input in front of the session, and say whether
@@ -107,22 +132,52 @@ class Harness:
         along with the session it served."""
         return False
 
+    def title_generator(self) -> Callable[[str, Path], dict] | None:
+        """How the page server names a thread a user opens on this session's page,
+        as the comment is admitted (`thread_titles`), or None where it cannot.
+
+        Only a host whose model any process on the machine can ask has one. An App
+        Server carrier names the thread instead, as it starts the turn answering
+        it, since the page server cannot reach that server."""
+        return None
+
+    def live_turn(self) -> dict | None:
+        """What the host itself says about this session right now, or None where it
+        says nothing a reader can take.
+
+        `{"state": "busy" | "waiting" | "idle", "since": <iso>}`, dated by the
+        host's own last change: `idle` once no turn runs, `waiting` while a turn
+        holds a dialog open in the session's own window. `activity.claimant_turn`
+        weighs it by that date against the claim's turn stamps, which the hooks
+        write and so cannot see a turn end that runs no hook."""
+        return None
+
 
 class EnvironmentHarness(Harness):
     """A harness the environment implies, by the variable its session id arrives
     in. It also names the display default a launch that set no LEAF_AGENT gets.
-    A harness that declares itself, as an embedded host does, states neither."""
+    A harness that declares itself, as an embedded host does, states neither.
+
+    `identity_variables` is every variable the harness reads to know which
+    session this is and how long it lives: its session variables, then the ones
+    `lifetime` reads."""
 
     default_agent: ClassVar[str]
     session_variables: ClassVar[tuple[str, ...]]
+    identity_variables: ClassVar[tuple[str, ...]]
 
 
 class ClaudeCodeHarness(EnvironmentHarness):
-    """Claude Code: a wait loop the model runs, and a socket to reach it with."""
+    """Claude Code: a wait the model keeps running to wake it, hooks that carry
+    input into the turn, and a socket to reach it with."""
 
     name = "claude-code"
     default_agent = "Claude"
     session_variables = ("CLAUDE_CODE_SESSION_ID",)
+    identity_variables = (*session_variables, "CLAUDE_PID", "CLAUDE_JOB_DIR")
+    # Claude Code runs the prompt hook on every turn a background task's end
+    # opens, idle or mid-turn, and adds what it returns to that turn's context.
+    hook_delivers = True
 
     def lifetime(self) -> dict:
         """A session the user sits at is a process, and Claude Code states it
@@ -154,8 +209,23 @@ class ClaudeCodeHarness(EnvironmentHarness):
                 return {"job": str(Path(job).resolve())}
         return {"pid": int(os.environ["CLAUDE_PID"])}
 
+    @classmethod
+    def continue_turn(cls, message: str) -> dict:
+        """Claude Code continues a turn on a Stop hook's `additionalContext` as it
+        does on a block, and labels it "Stop hook additional context" rather than
+        "Stop hook error": its schema calls that field non-error feedback after
+        which the conversation continues, and a probe at 2.1.284 saw the turn go
+        on and the next Stop arrive with `stop_hook_active`. Nothing Leaf's Stop
+        hook says is an error, so it takes this channel."""
+        return {
+            "hookSpecificOutput": {
+                "hookEventName": "Stop",
+                "additionalContext": message,
+            }
+        }
+
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
-        return "`leaf wait` prints them."
+        return "Leaf's hook puts them in your context at your next turn."
 
     def nothing_listening(self, page_dir: Path, *, listening: bool) -> str:
         return (
@@ -163,12 +233,49 @@ class ClaudeCodeHarness(EnvironmentHarness):
             "pages, or run `leaf status <page> idle` if this page is done."
         )
 
+    def live_turn(self) -> dict | None:
+        """The session's live status in Claude Code's session registry
+        (`claude_code_session_records`), from the newest record whose process
+        still runs: `waiting` while a turn holds a dialog open (a permission
+        prompt, a question), `idle` once no turn runs (`shell` too, which is idle
+        with a background command running), and `busy` otherwise.
+
+        Its `idle` is the one reading of a turn's end that an interrupt moves:
+        Escape ends a turn without running the Stop hook, and the record turns
+        `idle` at that moment (measured at Claude Code 2.1.283). `busy` is weaker:
+        a background job's record stays `busy` across turn endings while its
+        background work runs, so it does not prove a turn is running. The record
+        belongs to the worker hosting the session's current sitting, so a
+        background job whose worker has retired has none."""
+        stamped = [
+            record
+            for record in claude_code_session_records(self.session)
+            if isinstance(record.get("statusUpdatedAt"), int | float)
+            and isinstance(record.get("pid"), int)
+            and pid_alive(record["pid"])
+        ]
+        record = max(stamped, key=lambda item: item["statusUpdatedAt"], default={})
+        state = {"busy": "busy", "waiting": "waiting", "idle": "idle", "shell": "idle"}
+        if record.get("status") not in state:
+            return None
+        return {
+            "state": state[record["status"]],
+            "since": datetime.fromtimestamp(record["statusUpdatedAt"] / 1000)
+            .astimezone()
+            .isoformat(),
+        }
+
+    def title_generator(self) -> Callable[[str, Path], dict]:
+        from leaf.thread_titles import claude_code_title
+
+        return claude_code_title
+
     def nudge(self, page_dir: Path) -> bool:
         return message_claude_code_session(
             self.session,
-            f"leaf: {page_dir} has new input and no `leaf wait` is running "
-            "for this session to deliver it. Start an unnamed `leaf wait` "
-            "as a background task.",
+            f"leaf: {page_dir} has new input, which arrives with this message, "
+            "and no `leaf wait` is running for this session. Start an unnamed "
+            "`leaf wait` as a background task so later input wakes you.",
         )
 
 
@@ -192,6 +299,7 @@ class CodexHarness(EnvironmentHarness):
     name = "codex"
     default_agent = "Codex"
     session_variables = ("LEAF_SESSION_ID", "CODEX_THREAD_ID")
+    identity_variables = session_variables
 
     def lifetime(self) -> dict:
         """Codex states no process, so this one is discovered: the nearest
@@ -320,13 +428,19 @@ _ENVIRONMENT_HARNESSES: tuple[type[EnvironmentHarness], ...] = (
 HARNESSES: dict[str, type[Harness]] = {
     harness.name: harness for harness in (*_ENVIRONMENT_HARNESSES, EmbeddedHarness)
 }
-# Every variable a host session states its id in. A build that publishes pages
-# scrubs the set so the builder's own session does not sign them
-# (`scripts/site.py`).
-SESSION_VARIABLES = tuple(
-    variable
-    for harness in _ENVIRONMENT_HARNESSES
-    for variable in harness.session_variables
+# The display name a launch gives its session, whichever harness it runs under.
+AGENT_VARIABLE = "LEAF_AGENT"
+# Every variable that makes a process a host session: each harness's identity and
+# the display name. A process that must not act as the session it was started from
+# scrubs the set: a build that publishes pages (`leaf-dev site`), an eval's child
+# (`dev/leaf_dev/harness.py`), the test suite (`tests/conftest.py`).
+IDENTITY_VARIABLES = (
+    *(
+        variable
+        for harness in _ENVIRONMENT_HARNESSES
+        for variable in harness.identity_variables
+    ),
+    AGENT_VARIABLE,
 )
 
 
@@ -346,7 +460,7 @@ def session_harness() -> Harness | None:
             if session := os.environ.get(variable):
                 return harness(
                     session=session,
-                    agent=os.environ.get("LEAF_AGENT") or harness.default_agent,
+                    agent=os.environ.get(AGENT_VARIABLE) or harness.default_agent,
                 )
     return None
 
@@ -373,18 +487,69 @@ def message_identity() -> dict:
     return {"agent": harness.agent, "session": harness.session}
 
 
+def claude_code_sessions() -> Path:
+    """Claude Code's session registry: one `<pid>.json` per running session."""
+    config = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
+    return config / "sessions"
+
+
+def claude_code_session_records(session_id: str) -> list[dict]:
+    """The registry records Claude Code publishes for a session, found by id.
+
+    Each session writes `sessions/<pid>.json` in its config directory, carrying
+    `sessionId`, `pid`, its live `status` and when it last changed
+    (`statusUpdatedAt`, epoch milliseconds), and `messagingSocketPath`. It is
+    found by session id each time rather than written into the claim, because a
+    background job's worker pid, and the record with it, changes over the job's
+    life; a worker that died without removing its record leaves a second one.
+    Each record is another program's live file, and a session can exit between
+    listing and reading it, so a file that vanished or was caught mid-write is
+    passed over.
+
+    Every state read asks this of each claimed page, so a listing is reused for
+    `REGISTRY_READ_S` while the directory's own stamp holds, well inside the
+    presence cache's interval: a record added, removed or atomically replaced
+    moves the stamp at once."""
+    sessions = claude_code_sessions()
+    try:
+        stamp = sessions.stat().st_mtime_ns
+    except OSError:
+        return []
+    held = _registry_cache.get(sessions)
+    if (
+        held is None
+        or held[1] != stamp
+        or time.monotonic() - held[0] >= REGISTRY_READ_S
+    ):
+        held = (time.monotonic(), stamp, _registry_records(sessions))
+        _registry_cache[sessions] = held
+    return [record for record in held[2] if record.get("sessionId") == session_id]
+
+
+REGISTRY_READ_S = 1.0
+_registry_cache: dict[Path, tuple[float, int, list[dict]]] = {}
+
+
+def _registry_records(sessions: Path) -> list[dict]:
+    records = []
+    for record_path in sessions.glob("*.json"):
+        try:
+            record = json.loads(record_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(record, dict):
+            records.append(record)
+    return records
+
+
 def message_claude_code_session(session_id: str, text: str) -> bool:
     """Put `text` into a Claude Code session as a user message, through the
     messaging socket every session binds, and say whether a socket took it.
 
-    A session publishes itself as `sessions/<pid>.json` in its config directory,
-    carrying `sessionId` and `messagingSocketPath`, beside a 0600
-    `<pid>.<hash>.key` holding the `peerToken` the socket authenticates. The
-    record is found by session id when the message is sent rather than written
-    into the claim, because a background job's worker pid, and the socket with
-    it, changes over the job's life. The socket reads newline JSON and answers
-    nothing: an auth line, then a user frame whose `session_id` makes a socket
-    that has since passed to another session drop it.
+    Each registry record for the session (`claude_code_session_records`) names the
+    socket, beside a 0600 `<pid>.<hash>.key` holding the `peerToken` it authenticates.
+    The socket reads newline JSON and answers nothing: an auth line, then a user frame
+    whose `session_id` makes a socket that has since passed to another session drop it.
 
     The recipient decides delivery. Measured on Claude Code 2.1.274: a session
     in a prompting permission mode queues the text as a user turn, which wakes
@@ -400,13 +565,9 @@ def message_claude_code_session(session_id: str, text: str) -> bool:
     between reading its record and connecting, so a file that vanished, was
     caught mid-write, lacks a field this reads, or names a socket nobody listens
     on skips that record."""
-    config = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
-    sessions = config / "sessions"
-    for record_path in sessions.glob("*.json"):
+    sessions = claude_code_sessions()
+    for record in claude_code_session_records(session_id):
         try:
-            record = json.loads(record_path.read_text(encoding="utf-8"))
-            if record["sessionId"] != session_id:
-                continue
             key_path = next(sessions.glob(f"{record['pid']}.*.key"))
             token = json.loads(key_path.read_text(encoding="utf-8"))["peerToken"]
             address = record["messagingSocketPath"]

@@ -4,6 +4,7 @@ import {
   synNodes,
   syntax,
   watchData,
+  keepsText,
 } from "/runtime/widget-api.js";
 
 customElements.define(
@@ -37,7 +38,7 @@ customElements.define(
           (record, prior) => sourceNode(this, record, prior),
           { snapshot },
         );
-        this.classList.add("lf-rendered");
+        this.classList.toggle("lf-rendered", true);
       } catch (error) {
         if (rendering !== this.rendering || !this.isConnected) return;
         failSoft(this, error, source);
@@ -47,8 +48,11 @@ customElements.define(
 );
 
 function sourceNode(widget, { snapshot, tokens }, prior) {
-  const figure = prior ?? document.createElement("figure");
-  figure.className = "lf-text-document-view";
+  const figure =
+    prior ??
+    Object.assign(document.createElement("figure"), {
+      className: "lf-text-document-view",
+    });
   let caption = figure.querySelector(":scope > figcaption");
   let pre = figure.querySelector(":scope > pre");
   if (!caption || !pre) {
@@ -59,7 +63,7 @@ function sourceNode(widget, { snapshot, tokens }, prior) {
   }
   const label = widget.getAttribute("label") ?? widget.getAttribute("source");
   const heading = snapshot ? label : `${label} · no data`;
-  if (caption.textContent !== heading) caption.textContent = heading;
+  keepsText(caption, heading);
   const code = pre.querySelector("code");
   const source = tokens.map(({ text }) => text).join("");
   if (code.textContent !== source) code.replaceChildren(...synNodes(tokens));

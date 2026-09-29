@@ -1,0 +1,45 @@
+# Added with a sidebar's track as its aside (#1363). Base at ec9572b46 put the summary
+# in a last `div` (0 of 3); the change put it in an `aside` before the body (2 of 3).
+# Rewritten to a code review's verdict and file list, it also fails a stuck `aside`:
+# base at eee4a2d6d 0 of 3, the change 3 of 3.
+schema_version: '1.0'
+name: sidebar-track-is-its-aside
+description: "A sidebar page: its track is the Layout's `aside`, written where a reader of the stacked page needs it, so a code review's verdict and the list of what it covers come before the body on a phone."
+tags:
+- layout
+execution:
+  prompt: |
+    Write a Leaf page for the user: your review of pull request #412, which moves web
+    sessions off the Redis cluster `sess-redis-prod` onto Postgres. The review goes
+    through the change area by area, six of them (the session store, the schema
+    migration, the dual-write shim, the cutover flag, the load test, the rollback
+    script), each with the diff excerpt that matters and your findings. It has a short
+    verdict (approve, with two follow-ups before the cutover) and the list of the six
+    areas with how many findings each has. The user works through the areas one by one
+    in a window about 900px wide beside their editor, where they want the verdict and
+    the list kept beside the area they are reading, and checks the verdict on their
+    phone before the team meeting.
+
+    The page directory is not reachable from here, so reply with the complete
+    `index.html`, rather than writing a file.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-page-authoring
+  type: tool_used
+  tool: Read
+  input_match: page-authoring
+- name: judgment
+  type: llm
+  criteria: |
+    Read the HTML. Pass only if all of these hold. `main` has class `layout-sidebar`.
+    The verdict and the list of areas stand together in an `aside` that is a direct
+    child of `main`, and that `aside` comes before the element holding the six areas in
+    the document's order, so a phone, which stacks the two, shows the verdict and the
+    list first. The page's own CSS does not rebuild the arrangement: fail if it declares
+    a grid or flex layout for `main`, or moves the verdict with `order`. Keeping the
+    verdict in view is fine when the sticky block sits inside an `aside` with
+    `align-self: stretch`; fail if `position: sticky` is on the `aside` itself, which on
+    a phone would stand the stacked verdict over the areas.

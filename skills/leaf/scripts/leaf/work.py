@@ -4,17 +4,19 @@ import sys
 from pathlib import Path
 
 from .asks import quoted_in
-from .events import awaits_agent, build_threads, note_settlements, spoken_turns
+from .events import build_threads, note_settlements
 from .files import latest_revision
-from .passages import enclosing_of, page_passages
+from .passages import page_passages
 from .projection import (
     StateProjection,
+    frozen_thread_reading,
     page_reading,
     retirement_outcomes,
     rewritten_bodies,
 )
 from .registry.storage import require_registry
-from .structure import parse_revision
+from .revision_artifact import read_revision
+from .thread_context import id_subject
 from .workflows import canonical_workflows
 
 
@@ -22,7 +24,7 @@ def standing_work_claims(status: dict, events: list) -> list:
     """The transient work claims the durable exchange has not ended.
 
     A claim starts after one exact log sequence. Thread work ends at the agent's
-    next reply in that conversation; widget work ends at a later version note
+    next reply in that thread; widget work ends at a later version note
     that explicitly settles its id. The sequence boundary matters in both
     directions: renewing work after an answer creates a new claim, and an old
     answer cannot settle it merely because it names the same subject.
@@ -31,7 +33,7 @@ def standing_work_claims(status: dict, events: list) -> list:
     whole test. Resolution is not one: it only hides a thread claim and an
     unresolve shows it again, so both callers asked for the resolved threads back
     and the question was never really being asked. What this reading wants of a
-    conversation is who has spoken in it since the claim, so it reads the
+    thread is who has spoken in it since the claim, so it reads the
     messages and never the resolution — which is why it names no page.
     """
     threads = build_threads(events, {})
@@ -39,7 +41,7 @@ def standing_work_claims(status: dict, events: list) -> list:
     for claim in status.get("work", []):
         subject = claim["subject"]
         after = claim["after"]
-        if subject["kind"] == "conversation":
+        if subject["kind"] == "thread":
             thread = threads.get(subject["id"])
             if thread is None:
                 continue
@@ -97,53 +99,104 @@ def widget_work_without_targets(
     return sorted(missing)
 
 
-def work_subject(page_dir: Path, events: list, target: str) -> dict:
-    """Resolve one bare CLI id to a typed, locally renderable work subject."""
+def page_subject(page_dir: Path, events: list, name: str) -> dict | None:
+    """What `name` names (`thread_context.id_subject`), against the page the user is
+    looking at: the newest revision's widgets, and the widgets its threads' messages
+    froze. Every command that takes an id reads it here, so each resolves it alike."""
+    revision = latest_revision(page_dir)
+    if revision is None:
+        return id_subject(events, set(), {}, {}, name)
+    registry = require_registry(page_dir)
+    return id_subject(
+        events,
+        {
+            element
+            for element, rec in read_revision(page_dir, revision).document.by_id.items()
+            if rec["tag"] in registry
+        },
+        frozen_thread_reading(events, registry).thread_by_widget,
+        read_revision(page_dir, revision).enclosing,
+        name,
+    )
+
+
+def work_subject(page_dir: Path, events: list, target: str, *, standing: list) -> dict:
+    """Resolve one bare CLI id to a typed, locally renderable work subject.
+
+    Any id a delivery names as an event's address resolves: a page widget, or a
+    thread by its root, by any message in it, or by a widget frozen into its
+    markup. A thread claim also names an input the thread holds, a message or a
+    move on its frozen widgets, and that exact input reads Working
+    (`workflows.canonical_workflows`). Renewing a claim keeps the input the
+    `standing` claim on that thread names while the thread still holds it, so
+    Working stays beside what prompted the work; otherwise it names the newest."""
     widget = None
     widget_revision = None
     widget_projection = None
     registry = None
+    page = None
     html = None
-    spk: dict = {}
     widget_revision = latest_revision(page_dir)
     if widget_revision is not None:
-        document = parse_revision(page_dir, widget_revision)
-        html = document.html
         registry = require_registry(page_dir)
-        page = page_reading(document, events, registry, widget_revision)
+        page = page_reading(
+            read_revision(page_dir, widget_revision).under(registry),
+            events,
+            widget_revision,
+        )
+        document = page.document
+        html = document.html
         widget_projection = page.projection
-        spk = page.spoken
-        rec = page.document.by_id.get(target)
-        if rec and rec["tag"] in registry:
-            widget = rec
 
     # Against the page this command has already read: it loads the vendored
     # registry above and raises where that gate refuses, so folding threads
     # against no page here bought nothing and could answer differently from
-    # `page state` for the same conversation.
-    threads = build_threads(events, enclosing_of(spk))
-    thread = threads.get(target)
+    # `page state` for the same thread.
+    threads = build_threads(events, page.within if page is not None else {})
+    frozen = frozen_thread_reading(events, registry) if registry is not None else None
+    subject = page_subject(page_dir, events, target)
+    thread_id = subject["id"] if subject and subject["kind"] == "thread" else None
+    thread = threads.get(thread_id) if thread_id is not None else None
+    if subject and subject["kind"] == "widget":
+        target = subject["id"]
+        widget = page.document.by_id[target]
 
-    if thread is not None and widget is not None:
-        sys.exit(
-            f"{target} names both a comment thread and a page widget; "
-            "rename one so --on has one subject"
-        )
     if thread is not None:
         if thread["resolved"]:
             sys.exit(
                 f"{target} is a resolved comment thread; reopen it before claiming work"
             )
         work = {
-            "subject": {"kind": "conversation", "id": target},
+            "subject": {"kind": "thread", "id": thread_id},
             "after": events[-1]["seq"] if events else 0,
         }
-        if awaits_agent(thread):
-            work["event"] = next(
-                message["id"]
-                for message in reversed(spoken_turns(thread))
-                if message["author"] != "agent"
+        widgets = frozen.thread_by_widget if frozen is not None else {}
+
+        def holder(subject: dict) -> str | None:
+            if subject["kind"] == "thread":
+                return subject["id"]
+            return widgets.get(subject["id"])
+
+        held = [
+            item
+            for item in canonical_workflows(
+                [], threads, frozen, page=page, events=events
             )
+            if item["next_actor"] == "agent" and holder(item["subject"]) == thread_id
+        ]
+        inputs = [item["input"] for item in sorted(held, key=lambda item: item["seq"])]
+        kept = next(
+            (
+                claim.get("event")
+                for claim in standing
+                if claim["subject"] == work["subject"]
+            ),
+            None,
+        )
+        if kept in inputs:
+            work["event"] = kept
+        elif inputs:
+            work["event"] = inputs[-1]
         return work
     if widget is not None:
         assert (

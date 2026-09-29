@@ -18,12 +18,12 @@ agent that reached for the wrong id where the right one goes.
 
 from pathlib import Path
 
-from .data import read_contracts, read_data
+from .data import read_contracts
 from .files import list_revisions
-from .passages import active_enclosing
-from .registry.storage import load_registry
-from .revision_artifact import read_registry
-from .structure import SourceDocument, parse_revision
+from .passages import SourceReading
+from .registry.storage import page_vocabulary
+from .revision_artifact import active_enclosing, read_revision
+from .structure import SourceDocument
 
 
 class PageView:
@@ -45,14 +45,18 @@ class PageView:
 
     def document(self, revision: int) -> SourceDocument:
         """The authored markup one immutable revision froze."""
-        return parse_revision(self._page_dir, revision)
+        return read_revision(self._page_dir, revision).document
+
+    def reading(self, revision: int, registry: dict) -> SourceReading:
+        """That markup read under `registry`, held across appends where it is the
+        vocabulary the revision captured (`RevisionReading.under`)."""
+        return read_revision(self._page_dir, revision).under(registry)
 
     def registry(self, revision: int | None) -> dict | None:
-        """The vocabulary a revision captured, or the page's own where it has no
-        revision yet. None on a page nothing has vendored a layer into."""
-        if revision is None:
-            return load_registry(self._page_dir)
-        return read_registry(self._page_dir, revision)
+        """The vocabulary a revision captured, or the candidate's where the page has
+        no revision yet (`page_vocabulary`). None on a page nothing has vendored a
+        layer into."""
+        return page_vocabulary(self._page_dir, revision)
 
     @property
     def within(self) -> dict:
@@ -63,10 +67,6 @@ class PageView:
     def contracts(self) -> dict[str, str]:
         """Each recorded data source's contract, without reading its value."""
         return read_contracts(self._page_dir)
-
-    def data(self, registry: dict) -> dict:
-        """The typed external sources, each judged against `registry`."""
-        return read_data(self._page_dir, registry)
 
     def responses(self, events: list) -> dict[str, dict]:
         """Where each event the log still owes work for is answered."""

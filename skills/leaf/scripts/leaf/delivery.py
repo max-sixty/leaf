@@ -1,7 +1,7 @@
-"""Host-neutral capture and reading of immutable Leaf deliveries.
+"""Host-neutral capture, reading, and receipt of immutable Leaf deliveries.
 
 A delivery is transport-independent input: one or more complete page batches,
-each preserving the page's monotonic event order. Conversation membership is
+each preserving the page's monotonic event order. Thread membership is
 context, not a partition key, and response requirements are a snapshot of the
 standing projection at capture. Response commands validate the current page
 again when they write, so this snapshot never becomes settlement authority.
@@ -15,9 +15,9 @@ The envelope names the carrier that brings it into an agent's context, and the
 two facts that differ by carrier are stated once for the whole delivery rather
 than per event. `acknowledge` says who confirms receipt: the reader of a `leaf
 wait`, in the way its harness runs that command, or nobody, where the carrier
-confirmed it itself. And a carrier whose turn speaks for the delivery, App Server,
+confirmed it itself, as a hook does when it hands the whole envelope to the turn. And a carrier whose turn speaks for the delivery, App Server,
 turns the one thread reply the delivery owes into a `turn` answer, which that
-turn's own messages write; every other carrier leaves it a `reply` for `leaf
+turn's own messages write; every other carrier leaves it a `reply` for `leaf thread
 reply`. Each event's `answer` is that same address, so its `answering` clauses
 follow from the answer rather than from the carrier.
 """
@@ -35,30 +35,35 @@ from .event_contracts import append_admitted
 from .event_log import flocked
 from .files import read_json, write_json
 from .gesture_words import GestureWords, revisions_on_disk
+from .host import claim_harness, session_harness
 from .machine import state_home
-from .passages import active_enclosing
 from .registry.contract import RegistryError, event_clauses
 from .registry.reactions import described
 from .registry.storage import active_registry
+from .revision_artifact import active_enclosing
 from .schema import CURSOR_FILE
 from .served_state.page import full_state
 from .service import (
     PageTransaction,
     delivery_reply_attempt,
+    open_session_turn,
+    owned_pages,
     requires_agent_attention,
+    unacknowledged,
 )
 from .thread_context import (
     batch_threads,
     thread_memberships,
-    thread_roots,
+    thread_names,
     thread_structure,
     thread_widgets,
 )
 
 DELIVERY_FORMAT = "leaf-delivery-v3"
-# The routes that carry a delivery to an agent: `leaf wait`'s output, a pointer
-# queued with `codex queue`, and a turn Leaf starts over Codex App Server.
-CARRIERS = ("wait", "queue", "app-server")
+# The routes that carry a delivery to an agent: `leaf wait`'s output, a host hook's
+# context for the turn it opens, a pointer queued with `codex queue`, and a turn
+# Leaf starts over Codex App Server.
+CARRIERS = ("wait", "hook", "queue", "app-server")
 # The one carrier whose turn writes the delivery's thread reply with its own
 # messages.
 TURN_CARRIER = "app-server"
@@ -66,7 +71,7 @@ DELIVERY_ID = re.compile(r"[0-9a-f]{8}")
 _BATCH_FIELDS = (
     "page",
     "through_seq",
-    "conversations",
+    "threads",
     "handling",
     "events",
 )
@@ -147,16 +152,16 @@ def _registry(page_dir: Path):
         return None
 
 
-def _subject(event: dict, conversations: list[str], by_id: dict[str, dict]) -> dict:
+def _subject(event: dict, threads: list[str], by_id: dict[str, dict]) -> dict:
     """Name what one event changes without using prose as an identifier."""
-    if event["kind"] in {"action", "request", "report"}:
+    if event["kind"] in {"action", "report"}:
         return {"kind": "widget", "id": event["widget"]}
     if event["kind"] == "undo":
         original = by_id.get(event["undoes"])
         if original is not None:
-            return _subject(original, conversations, by_id)
-    if conversations:
-        return {"kind": "conversation", "id": conversations[0]}
+            return _subject(original, threads, by_id)
+    if threads:
+        return {"kind": "thread", "id": threads[0]}
     return {"kind": "page"}
 
 
@@ -182,13 +187,11 @@ def batch_data(page_dir: Path, transaction, batch: list[dict]) -> dict:
     registry = _registry(page_dir)
     events = transaction.events
     within = active_enclosing(page_dir)
-    roots = thread_roots(events)
-    structure = thread_structure(events)
-    widget_conversations = thread_widgets(structure, roots)
+    names = thread_names(events)
     memberships = thread_memberships(
         events,
-        roots,
-        widget_conversations,
+        names,
+        thread_widgets(thread_structure(events), names),
         within,
     )
     responses = current_responses(page_dir, events)
@@ -197,11 +200,11 @@ def batch_data(page_dir: Path, transaction, batch: list[dict]) -> dict:
 
     captured = []
     for event in batch:
-        conversations = memberships.get(event["id"], [])
+        threads = memberships.get(event["id"], [])
         entry = {
             **described(event, registry),
-            "subject": _subject(event, conversations, by_id),
-            "conversations": conversations,
+            "subject": _subject(event, threads, by_id),
+            "threads": threads,
         }
         # The browser's retry key: the log keeps it to recognise a resent post, and
         # the agent has no use for it.
@@ -216,7 +219,7 @@ def batch_data(page_dir: Path, transaction, batch: list[dict]) -> dict:
     return {
         "page": str(page_dir),
         "through_seq": max(event["seq"] for event in batch),
-        "conversations": batch_threads(events, batch, within),
+        "threads": batch_threads(events, batch, within),
         "events": captured,
     }
 
@@ -226,7 +229,7 @@ def carried_answer(answer: dict, carrier: str, delivery_id: str) -> dict:
 
     A plain reply delivered into a turn of its own is that turn's to write, with
     its opening and final messages, under the reply attempt the delivery names; the
-    same reply reaching an agent any other way stays `leaf reply`'s. Every other
+    same reply reaching an agent any other way stays `leaf thread reply`'s. Every other
     answer is the same on every carrier."""
     if answer["kind"] == "reply" and carrier == TURN_CARRIER:
         return {
@@ -251,7 +254,7 @@ def handled(batch: dict, carrier: str, delivery_id: str) -> dict:
     # event and reads the thread's digest, so the event says only what applies to
     # its own thread: a reader skimming a batch for what is new reads its events and
     # can skip the digest.
-    digests = {thread["id"]: thread for thread in batch["conversations"]}
+    digests = {thread["id"]: thread for thread in batch["threads"]}
     clause_ids: dict[str, str] = {}
     events = []
     for event in batch["events"]:
@@ -265,12 +268,10 @@ def handled(batch: dict, carrier: str, delivery_id: str) -> dict:
             if "answer" in event
             else {}
         )
-        digest = next(
-            (digests[c] for c in event["conversations"] if c in digests), None
-        )
+        digest = next((digests[c] for c in event["threads"] if c in digests), None)
         read = {**entry, **owed}
         if digest is not None:
-            read["conversation"] = digest
+            read["thread"] = digest
         clauses = event_clauses(read, registry)
         refs = [
             clause_ids.setdefault(clause["text"], f"h{len(clause_ids) + 1}")
@@ -443,3 +444,75 @@ def receive_batch(
     yield [delivered[seq] for seq in expected]
     if max(expected) > page.cursor:
         write_json(page.page_dir / CURSOR_FILE, {"seq": max(expected)})
+
+
+def receive_delivery(delivery_id: str) -> list[Path]:
+    """Confirm complete input a `leaf wait` printed, as its reader, and record its
+    entry into this consumer's turn. Printing cannot confirm receipt."""
+    harness = session_harness()
+    return receive(read_delivery(delivery_id), harness.session if harness else None)
+
+
+def receive(payload: dict, session_id: str | None) -> list[Path]:
+    """Confirm one complete delivery and record its entry into `session_id`'s turn.
+
+    Each page uses its own transaction. Interrupted multi-page receipt can be
+    retried against the same immutable bounds; no receipt transfers ownership.
+    Sibling turns open after releasing the page locks, so concurrent receipts
+    never nest transactions across pages.
+    """
+    pages = [receive_one(batch, session_id) for batch in payload["batches"]]
+    if session_id:
+        open_session_turn(session_id)
+    return pages
+
+
+def receive_one(batch: dict, session_id: str | None) -> Path:
+    """Confirm one page's batch of a delivery and record its entry into
+    `session_id`'s turn, under that page's transaction; raise `ReceiptRefused`
+    when the page no longer matches."""
+    page_dir = Path(batch["page"])
+    with (
+        PageTransaction(page_dir) as page,
+        receive_batch(page, batch, session_id=session_id) as events,
+    ):
+        turn = page.open_turn(session_id) if session_id else None
+        record_pickup(page, events, session=session_id, turn=turn)
+    return page_dir
+
+
+def pending_batches(session_id: str) -> list[dict]:
+    """Every page's pending input for a session whose hooks carry it, one batch
+    per page, captured under that page's transaction and not yet confirmed.
+
+    Receipt is a separate step, taken when the carrier hands the batches over:
+    it rechecks ownership and the captured events, and anything appended between
+    the two readings stays pending, above the cursor it advances."""
+    batches = []
+    for page_dir in owned_pages(session_id):
+        try:
+            with PageTransaction(page_dir) as page:
+                claim = page.active_claim
+                if not (
+                    claim
+                    and claim["id"] == session_id
+                    and claim_harness(claim).hooks_carry()
+                ):
+                    continue
+                if batch := unacknowledged(page.events, page.cursor):
+                    batches.append(batch_data(page_dir, page, batch))
+        except FileNotFoundError:
+            continue
+    return batches
+
+
+def take_input(session_id: str) -> dict | None:
+    """Freeze and confirm a hook-carried session's pending input as its hook
+    does, and return the delivery, or None when nothing is pending. For a driver
+    standing in for the host, such as the demo recorder."""
+    batches = pending_batches(session_id)
+    if not batches:
+        return None
+    payload = freeze_delivery(batches, carrier="hook")
+    receive(payload, session_id)
+    return payload

@@ -14,9 +14,9 @@
 # `uv.lock` ships in the install, so a host runs the versions the suite last
 # passed on.
 #
-# The dev group is what the suite and `scripts/` need on top of the runtime:
-# pytest, the accessibility checks, the demo recorder's frames, and the filesystem
-# watcher behind `scripts/preview.py`. These run here rather than carrying
+# The dev group is what the suite and `leaf-dev` need on top of the runtime:
+# pytest, the accessibility checks, screenshot assertions, and the filesystem
+# watcher behind `leaf-dev preview`. These run here rather than carrying
 # dependency headers of their own — developer tools like the suite, so one environment
 # covers both. `bin/leaf` passes `--no-dev`, so an install never fetches the group,
 # though the lock records it.
@@ -36,7 +36,7 @@
 # metadata when `package check` holds it to the dependency policy (`packages.py`).
 #
 # Playwright is a runtime dependency because the skill's own flow runs the
-# browser: `version check --render` gates every finished page and `version
+# browser: `page check --render` gates every finished page and `version
 # export` copies one. Its wheel lands in each version's environment as links
 # into uv's shared cache, so the disk it takes is paid once per machine, not
 # per install. A `--with` overlay carries no console scripts, so it is not a
@@ -82,19 +82,33 @@ dev = [
   "pytest-xdist>=3",
   "axe-playwright-python>=0.1.4",
   "pre-commit>=4.6.2",
-  # Browser screenshot assertions and scripts/record-demo.py's frames.
+  # Browser screenshot assertions.
   "pillow>=12.1",
   "pytest-regtest>=2.7",
   # The YAML snapshots `interact_support.yaml_document` writes.
   "pyyaml>=6",
-  # scripts/preview.py's watcher. 1.1.0 is the first release with a wheel for the
+  # `leaf-dev preview`'s watcher. 1.1.0 is the first release with a wheel for the
   # interpreter this project runs on; earlier ones would build Rust from source.
   "watchfiles>=1.1.0",
   # Every requirement a bundled package script's header declares, repeated here so
   # this lock pins what the suite runs those scripts against and a fresh machine
   # needs no network after setup.
   "unidiff>=1",
+  # The developer tooling package in `dev/`.
+  "leaf-dev",
+  # The Python server behind leaf.page, in `worker/`.
+  "leaf-website",
 ]
+
+# An install never syncs the members, but uv reads their `pyproject.toml` files to
+# check the lock on every unfrozen run, so a partial copy of the tree that runs
+# `bin/leaf` carries them (`leaf_dev.harness.PAYLOAD`).
+[tool.uv.workspace]
+members = ["dev", "worker"]
+
+[tool.uv.sources]
+leaf-dev = { workspace = true }
+leaf-website = { workspace = true }
 
 # The suite is round trips through a real browser rather than computation, so tests
 # shard independently: every test gets its own tmp_path, XDG homes, and server.
@@ -105,7 +119,4 @@ dev = [
 # `-n0` to debug a single test.
 [tool.pytest.ini_options]
 addopts = "-n 2 --dist loadgroup --regtest-consider-line-endings"
-# `scripts/` is not a package; the suite imports its example-data module directly.
-# The `leaf` package needs no entry here: the project installs itself editable.
-pythonpath = ["scripts"]
 markers = ["nightly: a pull request can land without it; `--run-nightly` runs it"]

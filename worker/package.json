@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "cd .. && uv run scripts/site.py",
-    "deploy:dev": "../scripts/deploy-site-dev.sh",
+    "build": "cd .. && uv run leaf-dev site",
+    "deploy:dev": "./deploy-dev.sh",
     "dev": "npm run build && wrangler dev",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
@@ -21,6 +21,6 @@
     "smol-toml": "1.7.1",
     "typescript": "^7.0.2",
     "vitest": "^5.0.0",
-    "wrangler": "^4.130.0"
+    "wrangler": "^4.143.1"
   }
 }

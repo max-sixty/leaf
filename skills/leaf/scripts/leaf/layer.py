@@ -5,6 +5,7 @@ import json
 import re
 import subprocess
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import NamedTuple
 
@@ -23,7 +24,7 @@ from .schema import (
     PLUGIN_ROOT,
     VENDORED_FILES,
 )
-from .styles import css_syntax_errors
+from .styles import confined, css_syntax_errors
 from .validation.compatibility import incoming_registry
 
 
@@ -172,32 +173,95 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
     return winners
 
 
+# The document's cascade tiers, lowest first. The chrome's form-control clearing
+# (`lf-reset`, runtime/chrome.css) stays below everything that chooses a face. The
+# kernel, every package, and each widget module's adopted sheet (runtime/stylesheets.js)
+# share one layer, so they rank against each other by specificity and order as they
+# always have. The kernel's Layouts sit above it, and the page's own stylesheet,
+# unlayered, above both: a Layout resets what a widget sets on the boxes it arranges,
+# and a page overrides either. The page's rules reach Leaf's own controls only where
+# they name them (runtime/page-sheets.js). The chrome and marks sheets stay unlayered,
+# since their paint must beat page and widget alike (chrome.css).
+CASCADE_LAYERS = ("lf-reset", "lf-base", "lf-layouts")
+
+
+def _sheet(source: Path) -> str:
+    try:
+        css = source.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        sys.exit(f"{source} must be UTF-8")
+    if errors := css_syntax_errors(css, str(source)):
+        sys.exit(errors[0])
+    return css if css.endswith("\n") else css + "\n"
+
+
+def widget_confinement(root: Path) -> tuple[str, str] | None:
+    """The conditions a package's rules meet: in the document, the element is one of
+    the package's widgets or stands inside one; in a declared shadow tree, the tree's
+    host is one of them, which is the one element outside the tree a selector in it can
+    name. None for a package that declares no widget."""
+    registry = root / "registry.json"
+    tags = (
+        sorted(
+            tag for tag in json.loads(registry.read_text()) if not tag.startswith("$")
+        )
+        if registry.is_file()
+        else []
+    )
+    if not tags:
+        return None
+    listed = ", ".join(tags)
+    host = f":host(:is({listed}))"
+    return f":where({listed}, :is({listed}) *)", f":where({host}, {host} *)"
+
+
+# A root's own stylesheets, in the order the document's theme.css reads them.
+ROOT_SHEETS = ("shadow.css", "theme.css")
+
+
 def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     """The layer's two stylesheets, each in layer precedence order.
 
     A root's shadow.css holds the rules a declared shadow tree has to see as well as
     the document: the stage copies the composed shadow.css into each tree, and the
     document's theme.css reads each root's shadow.css just ahead of its theme.css.
+
+    In the document, every root's sheets are the `lf-base` cascade layer, and the
+    kernel's layouts.css, which names `lf-layouts` itself, comes last. A shadow tree's
+    sheet stays unlayered: a renderer that brings its own layered CSS into the tree
+    (the diff's) keeps ranking below it.
+
+    A package that declares widgets styles those widgets and nothing else
+    (`widget_confinement`): in the document each of its rules matches only an element
+    that is one of them or stands inside one, and in the shadow sheet every declared
+    tree receives, only an element of a tree one of them hosts. A package that
+    declares none is a theme, and reaches the page and every tree the way the kernel's
+    own sheets do.
     """
     if not any((root / "theme.css").is_file() for root in inputs):
         sys.exit("the incoming layer has no theme.css")
-    sheets = {"theme.css": [], "shadow.css": []}
-    for root in inputs:
-        for name in ("shadow.css", "theme.css"):
+    theme = [f"@layer {', '.join(CASCADE_LAYERS)};\n"]
+    shadow = []
+    for position, root in enumerate(inputs):
+        where = widget_confinement(root) if position else None
+        for name in ROOT_SHEETS:
             source = root / name
             if not source.is_file():
                 continue
+            css = _sheet(source)
             try:
-                css = source.read_text(encoding="utf-8")
-            except UnicodeDecodeError:
-                sys.exit(f"{source} must be UTF-8")
-            if errors := css_syntax_errors(css, str(source)):
-                sys.exit(errors[0])
-            css = css if css.endswith("\n") else css + "\n"
-            sheets["theme.css"].append(css)
-            if name == "shadow.css":
-                sheets["shadow.css"].append(css)
-    return {name: "".join(parts).encode() for name, parts in sheets.items()}
+                placed = confined(css, where[0]) if where else css
+                if name == "shadow.css":
+                    shadow.append(confined(css, where[1]) if where else css)
+            except ValueError as error:
+                sys.exit(f"{source}: {error}; state a widget's rules on the widget")
+            theme.append(f"@layer lf-base {{\n{placed}}}\n")
+    if (layouts := inputs[0] / "layouts.css").is_file():
+        theme.append(_sheet(layouts))
+    return {
+        "theme.css": "".join(theme).encode(),
+        "shadow.css": "".join(shadow).encode(),
+    }
 
 
 def composed_guidance(inputs: list[Path]) -> dict[str, bytes]:
@@ -282,10 +346,11 @@ def payload_runtime_fingerprint() -> str:
 
     The kernel is the payload's own directory, so this reads the same from any working
     directory and on any machine, and a page's selected packages cannot move it. That
-    is what the browser gates need: they serve probe modules out of the Leaf running
-    the command and the runtime those modules import out of the page, and a page's
-    recorded layer fingerprint cannot be recomposed away from the project its packages
-    were resolved in. `page init` records this reading under `$layer.runtime`.
+    is what a page's server and the browser gates need: each runs out of the Leaf
+    running the command against the runtime out of the page, and a page's recorded
+    layer fingerprint cannot be recomposed away from the project its packages were
+    resolved in. `page init` records this reading under `$layer.runtime`, and
+    `foreign_runtime` compares the two.
     """
     runtime = ASSETS / "runtime"
     return files_identity(
@@ -297,8 +362,41 @@ def payload_runtime_fingerprint() -> str:
     )
 
 
+def foreign_runtime(page_dir: Path, layer: dict) -> str | None:
+    """Why this Leaf cannot serve a page, given its recorded `$layer`: the page's
+    runtime came from another Leaf. None when the page carries this Leaf's own.
+
+    Whatever serves a page runs the Leaf that started it, while the page's browser
+    runtime is whatever its last `page init` copied in, and the two speak one
+    contract: the state a server sends and the probe modules the render gate serves
+    beside the page's runtime. Served by another Leaf, the page breaks in the
+    browser on every read, in a way that reads as a defect in the page. Every page
+    server, the gate's included, refuses on this one reading (`http.page_endpoint`).
+
+    It compares only the runtime's modules (`payload_runtime_fingerprint`), so a
+    contract change made on the Python side alone passes it. A page vendored before
+    the identity was recorded names none, and is refused too.
+    """
+    vendored = layer.get("runtime")
+    running = payload_runtime_fingerprint()
+    if vendored == running:
+        return None
+    return (
+        f"{page_dir} was vendored from another Leaf's runtime: its layer names "
+        f"{vendored or 'no runtime identity'}, and this Leaf ({PLUGIN_ROOT}) ships "
+        f"{running}. Leaf serves and checks a page only against the runtime it "
+        f"ships, so re-vendor it with `leaf page init {page_dir}`."
+    )
+
+
 def payload_provenance(*, include_path: bool = False) -> dict:
-    """Describe the Leaf payload that is running this command, when its source can."""
+    """Describe the Leaf payload that is running this command, when its source can.
+
+    Beside the commit, one of two dates says how old the payload is: `committed`,
+    the commit's committer date, where Git can read it; or `installed`, when a host
+    copied the payload into its plugin cache without `.git`. Both are ISO 8601 with
+    an offset.
+    """
     provenance = {"path": str(PLUGIN_ROOT)} if include_path else {}
     # Claude Code copies a marketplace plugin without its .git directory into a cache
     # whose final component is the resolved plugin version. Leaf leaves its manifest
@@ -313,7 +411,16 @@ def payload_provenance(*, include_path: bool = False) -> dict:
         and parents[3].name == "plugins"
         and re.fullmatch(r"[0-9a-f]{7,40}", PLUGIN_ROOT.name)
     ):
-        provenance.update(commit=PLUGIN_ROOT.name, dirty=False)
+        # The copy stamps every file with the time it was made, and Leaf never
+        # rewrites its own modules. A host copies only the marketplace's newest
+        # commit, one update sweep after it lands, so this dates the commit to
+        # within that sweep; the commit date itself left with `.git`.
+        installed = datetime.fromtimestamp(Path(__file__).stat().st_mtime, UTC)
+        provenance.update(
+            commit=PLUGIN_ROOT.name,
+            dirty=False,
+            installed=installed.astimezone().isoformat(timespec="seconds"),
+        )
         return provenance
 
     git = ["git", "--no-optional-locks", "-C", str(PLUGIN_ROOT)]
@@ -332,6 +439,12 @@ def payload_provenance(*, include_path: bool = False) -> dict:
     if len(lines) != 2 or Path(lines[0]).resolve() != PLUGIN_ROOT.resolve():
         return provenance
     provenance["commit"] = lines[1]
+    provenance["committed"] = subprocess.run(
+        [*git, "show", "--no-patch", "--format=%cI", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
     try:
         dirty = subprocess.run(
             [
@@ -352,6 +465,21 @@ def payload_provenance(*, include_path: bool = False) -> dict:
     if dirty.returncode == 0:
         provenance["dirty"] = bool(dirty.stdout)
     return provenance
+
+
+def provenance_label(provenance: dict) -> str:
+    """One line naming a payload's commit and date, as `payload_provenance` read it.
+
+    `+` marks uncommitted changes, as the page banner does.
+    """
+    commit = provenance.get("commit")
+    if not commit:
+        return "unknown source"
+    label = commit + ("+" if provenance.get("dirty") else "")
+    for kind in ("committed", "installed"):
+        if kind in provenance:
+            return f"{label}, {kind} {provenance[kind]}"
+    return label
 
 
 def compose_layer(roots: list[Path]) -> LayerComposition:

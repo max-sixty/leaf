@@ -1,16 +1,22 @@
 /* Revision-bound widget identity captured before a content module upgrades the DOM.
 
    A controller receives no caller-supplied declaration or scope. Leaf records the
-   authored owner, its declared ancestors, exhibit fence, and direct request offers
-   while the revision's markup is still intact. Later physical reparenting is layout;
+   authored owner, its declared ancestors, and exhibit fence while the revision's
+   markup is still intact. Later physical reparenting is layout;
    semantic commands keep using this captured document coordinate. A data renderer may
    replace a widget node while preserving its authored id; that replacement reuses the
-   same revision-bound descriptor. */
+   same revision-bound descriptor.
+
+   The binding also answers the other way, id to element, for the layer's own paint:
+   a message's frozen markup is bound when it is prepared, before the thread mounts
+   it, so what the projection paints on it arrives with the node. */
 import { runtime } from "./context.js";
 import { authoredParents } from "./projection/authored.js";
+import { elementById } from "./passages.js";
 
 const byElement = new WeakMap();
 const byId = new Map();
+const elements = new Map();
 
 const declaredTags = () =>
   Object.keys(runtime.registry).filter((tag) => !tag.startsWith("$"));
@@ -33,29 +39,6 @@ const declaredAncestors = (element) => {
     if (parent.id && runtime.registry[parent.localName])
       ancestors.push({ id: parent.id, tag: parent.localName });
   return ancestors;
-};
-
-const requestOffers = (element, declaration) => {
-  const offers = declaration["x-request"]?.offers ?? {};
-  const captured = [];
-  for (const child of element.children) {
-    const attribute = offers[child.localName];
-    const verb = attribute && child.getAttribute(attribute);
-    if (verb) captured.push({ tag: child.localName, attribute, verb });
-  }
-  return captured;
-};
-
-const requestBindings = (element, declaration) => {
-  if (declaration["x-request"]?.records) return {};
-  const attributes = new Set(
-    Object.values(declaration["x-request"]?.verbs ?? {}).flatMap((request) =>
-      Object.values(request.bind ?? {}),
-    ),
-  );
-  return Object.fromEntries(
-    [...attributes].map((attribute) => [attribute, element.getAttribute(attribute)]),
-  );
 };
 
 const quotedBy = (element) => {
@@ -92,8 +75,6 @@ export function stageWidgetDescriptors(
       parent: ancestors[0] ?? null,
       ancestors,
       quoted: quotedBy(element),
-      bindings: requestBindings(element, declaration),
-      offers: requestOffers(element, declaration),
     };
     bindings.push({ element, descriptor });
     captured.set(element.id, descriptor);
@@ -109,12 +90,20 @@ export function commitWidgetDescriptors(stage, retired = new Set()) {
   // from the markup it replaced. The id survives the revision and the element does not,
   // so the id-keyed readings are the ones that would otherwise answer for a document
   // nobody is reading; the element-keyed ones leave with their elements.
-  for (const id of retired) byId.delete(id);
+  for (const id of retired) {
+    byId.delete(id);
+    elements.delete(id);
+  }
   for (const { element, descriptor } of stage.bindings) {
     byElement.set(element, descriptor);
     byId.set(descriptor.id, descriptor);
+    elements.set(descriptor.id, element);
   }
 }
+
+// The element standing for a widget id: the one the document holds under it, else the
+// bound node not yet mounted (a message's frozen markup before the thread places it).
+export const widgetElement = (id) => elementById(id) ?? elements.get(id) ?? null;
 
 export function widgetDescriptor(owner) {
   const captured = byElement.get(owner);
@@ -125,19 +114,5 @@ export function widgetDescriptor(owner) {
   return replacement;
 }
 
-export function descriptorStillMatches(owner, descriptor) {
-  if (owner.id !== descriptor.id || owner.localName !== descriptor.tag) return false;
-  if (
-    Object.entries(descriptor.bindings).some(
-      ([attribute, value]) => owner.getAttribute(attribute) !== value,
-    )
-  )
-    return false;
-  const currentOffers = requestOffers(owner, descriptor.declaration).sort(
-    (left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)),
-  );
-  const capturedOffers = [...descriptor.offers].sort((left, right) =>
-    JSON.stringify(left).localeCompare(JSON.stringify(right)),
-  );
-  return JSON.stringify(currentOffers) === JSON.stringify(capturedOffers);
-}
+export const descriptorStillMatches = (owner, descriptor) =>
+  owner.id === descriptor.id && owner.localName === descriptor.tag;

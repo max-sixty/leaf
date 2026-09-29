@@ -14,7 +14,13 @@
  * presentation describe the same available step. The standing scope handles letting go
  * of a page destination before the fallback ladder.
  */
-import { bindings, checked, word } from "./bindings.js";
+import {
+  answersTouch,
+  bindings,
+  checked,
+  touchPresses as pressesOf,
+  word,
+} from "./bindings.js";
 import { focused } from "./scopes.js";
 import { under } from "../shadow.js";
 
@@ -29,13 +35,13 @@ const COMMAND_REFERENCE = "command.reference.open";
 
 const STACK = [
   "command reference",
-  "shortcut shelf",
+  "expanded shortcut bar",
   "page map",
   "go to",
   "response options",
   "reactions",
   "page search",
-  "target chooser",
+  "target picker",
   ELEMENTS,
   // Among inner scopes the order is moot, since the modes and the Page Map stand it down
   // themselves.
@@ -65,7 +71,7 @@ const STACK = [
 const RUNG_LADDER = [
   "selection", // the selection, or the target a click captured
   "margin options", // the margin entry cluster the user unfolded
-  "tray", // the tray that holds the edge
+  "drawer", // the drawer that holds the edge
   "narrowing", // the narrowing the user put on the thread list
   "panel", // the thread panel
   "draw mode", // the drawing surface over the page
@@ -76,7 +82,7 @@ const RUNG_LADDER = [
 const PAGE_COMMANDS = [
   "ask.activate-nth",
   "comment.create",
-  "target.chooser.open",
+  "target.picker.open",
   "reaction.open",
   "page.search.open",
   "page.search.repeat",
@@ -93,6 +99,7 @@ const PAGE_COMMANDS = [
   "navigation.go-to.open",
   "draw.mode.enter",
   "design.mode.enter",
+  "annotations.toggle",
   // The reference's own binding. Its place here is nominal: renderShortcutBar gives it the
   // permanent More control instead of spending a hint slot on it.
   COMMAND_REFERENCE,
@@ -114,17 +121,23 @@ const place = (where, name) => {
     throw new Error(`leaf: ${String(name)} has no place in the page's keyboard`);
 };
 
-/** Declare a scope that stands wherever its own condition holds, rather than where the
- * user is standing. `name` is the place `STACK` holds for it; `declaration` carries the
- * same fields an element scope does — `title`, `root`, `when`, `at`, `claims`, `escape`,
- * `rows`. Called as the owner is constructed, so a row may close over its state. */
+/** Declare a scope at one place in the page's command order. Several instances of an
+ * owner may contribute there; each declaration answers whether its own element is
+ * active. The returned function removes that instance's declaration. */
 export function pageScope(name, declaration) {
   place(STACK, name);
-  if (scopes.has(name)) throw new Error(`leaf: ${name} is declared twice`);
-  scopes.set(name, declaration);
+  const declarations = scopes.get(name) ?? [];
+  declarations.push(declaration);
+  scopes.set(name, declarations);
   resolved = null;
   validated = false;
-  return declaration;
+  return () => {
+    const remaining = scopes.get(name)?.filter((item) => item !== declaration) ?? [];
+    if (remaining.length) scopes.set(name, remaining);
+    else scopes.delete(name);
+    resolved = null;
+    validated = false;
+  };
 }
 
 /** Declare one row of the page's own scope. `PAGE_COMMANDS` ranks it against every other
@@ -139,15 +152,20 @@ export function pageCommand(row) {
   return row;
 }
 
-/** Declare one step of Escape's fallback ladder: a function answering what the press would
+/** Declare one instance's step of Escape's fallback ladder: a function answering what the press would
  * take off right now, as `{says, does, out}` plus an optional `root` for the surface the
  * step is inside and the `lineWhen` and `promoteEscape` this step wants on the compact
  * line, or null where this step has nothing to take. `RUNG_LADDER` orders the steps. */
 export function pageRung(name, reading) {
   place(RUNG_LADDER, name);
-  if (rungs.has(name)) throw new Error(`leaf: the ${name} rung is declared twice`);
-  rungs.set(name, reading);
-  return reading;
+  const readings = rungs.get(name) ?? [];
+  readings.push(reading);
+  rungs.set(name, readings);
+  return () => {
+    const remaining = rungs.get(name)?.filter((item) => item !== reading) ?? [];
+    if (remaining.length) rungs.set(name, remaining);
+    else rungs.delete(name);
+  };
 }
 
 // Resolve from current focus and state. The innermost containing surface takes priority;
@@ -155,8 +173,10 @@ export function pageRung(name, reading) {
 function rung() {
   const steps = [];
   for (const name of RUNG_LADDER) {
-    const step = rungs.get(name)();
-    if (step) steps.push({ ...step, name });
+    for (const reading of rungs.get(name) ?? []) {
+      const step = reading();
+      if (step) steps.push({ ...step, name });
+    }
   }
   const here = focused();
   let surface = null;
@@ -194,11 +214,18 @@ function assemble() {
   if (absent.length)
     throw new Error(`leaf: the page's keyboard has no owner for ${absent.join(", ")}`);
   const rows = PAGE_COMMANDS.map((id) => commands.get(id));
+  // Every page command answers whether a finger needs a stand-in for its keys (AGENTS.md,
+  // "Touch routes"), so a new one meets the question where it is declared.
+  const unanswered = rows.filter((row) => !answersTouch(row)).map((row) => row.id);
+  if (unanswered.length)
+    throw new Error(
+      `leaf: ${unanswered.join(", ")} must declare \`touch\`: its words under a finger, or false where a finger reaches it directly`,
+    );
   const covering = rows.filter((row) => row.covering);
-  return STACK.map((name) => {
+  return STACK.flatMap((name) => {
     if (name === PAGE) return { rows };
     // Rooted at the surface the live step is inside, so a step off a covering panel or
-    // tray survives the floor that surface establishes while the page below it does not.
+    // drawer survives the floor that surface establishes while the page below it does not.
     if (name === RUNGS)
       return { root: () => rung()?.root ?? document, rows: [BACK_OUT] };
     if (name === COVERING)
@@ -229,8 +256,26 @@ export function pageScopes() {
   }
   return resolved;
 }
+// The presses a finger reaches through a banner control rather than a key (AGENTS.md,
+// "Touch routes"): each a page command declares, in line order, and each a page scope's
+// rows declare, scope by scope in STACK order, so the first that stands is the one the
+// user is innermost in. Read from the live register, since a scope may join or leave it.
+export function touchPresses() {
+  pageScopes();
+  return {
+    commands: PAGE_COMMANDS.flatMap((id) => pressesOf(commands.get(id))),
+    steps: STACK.flatMap((name) =>
+      typeof name === "string"
+        ? (scopes.get(name) ?? []).map((scope) => ({
+            scope,
+            presses: scope.rows.flatMap(pressesOf),
+          }))
+        : [],
+    ).filter(({ presses }) => presses.length),
+  };
+}
 export const universalCommandReference = () => commands.get(COMMAND_REFERENCE);
-export const textEntryScope = () => scopes.get("text entry");
+export const textEntryScope = () => scopes.get("text entry")?.[0];
 // What an interaction claiming the whole keyboard still lets through: the one route to
 // another layer, read off the row so a fact about a binding cannot be written where the
 // binding cannot correct it.

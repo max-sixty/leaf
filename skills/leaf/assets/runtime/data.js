@@ -1,13 +1,13 @@
 /* The accepted external data and its watchers.
 
    The browser orders data readings by when the server took them, independently of
-   `lastEventSeq`, because overlapping poll and POST responses can order the authorities
+   the log sequence, because overlapping poll and POST responses can order the authorities
    differently. `watchData(widget, input, callback)` delivers a clone of `{source,
    contract, revision, updated, value, origin}`, or `null` while the bound source has no
    readable value. It redelivers only when that source revision changes; overlapping
-   reads await the same in-flight rendering before stamping readiness. Its synchronous
-   time readings refresh independently of data delivery. Modules project the result
-   into the authored seat; they do not fetch it, mutate the accepted copy, or keep a
+   reads await the same in-flight rendering before stamping the version presented. Its
+   synchronous time readings refresh independently of data delivery. Modules project the
+   result into the authored seat; they do not fetch it, mutate the accepted copy, or keep a
    hidden current-value map of their own.*/
 
 import { offlineData, offlineInteractive, pageUrl, runtime } from "./context.js";
@@ -17,6 +17,7 @@ import {
   whenApplicationRegionsPresented,
 } from "./semantic-state.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
+import { setRuntimeRootAttribute } from "./root-state.js";
 import { registry } from "./registry.js";
 import { clocked } from "./presence.js";
 import { layerHeaders, reportPageError, sameDelivery } from "./layer-client.js";
@@ -32,23 +33,7 @@ export function acceptData(candidate, taken) {
     Array.isArray(candidate.sources)
   )
     throw new TypeError("state data must carry a version and sources");
-  const changed = applicationState.acceptData(candidate, taken);
-  // A reading that finds the data already presented is presented as it arrives.
-  if (!changed && document.body.dataset.lfDataVersion === runtime.data.version)
-    stampData(runtime.data.version);
-  return changed;
-}
-
-// The readiness stamp: the data version presented, and when the server took the
-// newest reading the page accepted. Render checks and export compare it with their own
-// state read. Any process may rewrite a source, so the page can move past the reader's
-// version, and a page that has presented a reading taken no earlier has caught up.
-function stampData(version) {
-  document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.dataVersion, version);
-  document.body.setAttribute(
-    PAGE_PAINT_ATTRIBUTE.dataTaken,
-    String(applicationState.dataTaken()),
-  );
+  return applicationState.acceptData(candidate, taken);
 }
 
 const subscriptions = new Set();
@@ -63,11 +48,13 @@ export async function notifyDataSubscribers() {
     regions,
     () => runtime.data.version === version,
   );
-  // The version becomes a readiness fact only after every subscriber has settled. A
+  // The version is presented only once every subscriber has settled, and the state
+  // answer carrying it is applied (`markStateApplied`) only after this returns. A
   // rejected package render is reported at its own boundary rather than turning every
   // later state read into the same page-wide failure. A data-only page therefore
   // cannot be read while an asynchronous projection is still pending.
-  if (version !== null && runtime.data.version === version) stampData(version);
+  if (version !== null && runtime.data.version === version)
+    setRuntimeRootAttribute(document.body, PAGE_PAINT_ATTRIBUTE.dataVersion, version);
 }
 
 // A source value remains the server snapshot's to own. Subscribers name one input on
@@ -152,7 +139,7 @@ export function watchData(element, input, callback) {
       );
     const revision = source ? (sourceStore?.revision ?? null) : null;
     // A value that fails its contract is the server's reading to report, in `page
-    // state` and `version check`; the page shows the source as holding nothing.
+    // state` and `page check`; the page shows the source as holding nothing.
     if (!source || !sourceStore || !Object.hasOwn(sourceStore, "value"))
       return deliver(null, revision, mounting);
     return deliver(

@@ -33,7 +33,7 @@
  * sends an `add` naming the new option and its words, then selects it through the same
  * `choose` action as every other pick. The option stands on the `add`'s own coordinate,
  * so a later pick leaves it in the group and only undoing the `add` takes it away. It is
- * not a conversation: if the agent needs clarification after carrying the option into
+ * not a thread: if the agent needs clarification after carrying the option into
  * the page, it can open a separate thread anchored to that option.
  *
  * The keyboard walk stops at options. Ask digits choose each authored option, then enter
@@ -52,7 +52,7 @@
  * That paint goes on the press and nowhere else, which is a rule rather than a
  * preference. A module writes an attribute in the author's namespace only where the
  * registry declares it as a verb's record form — `chosen` is one, so a version can
- * carry a pick and `version check` can hold the markup against the log's fold — and
+ * carry a pick and `page check` can hold the markup against the log's fold — and
  * the entry's `additionalProperties: false` is the whole of what else may stand
  * there. This module wrote two that nothing declared. `answered` recorded the
  * thread-only `answer` verb, and a thread's markup is frozen in the log, so no
@@ -66,9 +66,10 @@
  * as state a version had written.
  *
  * The keyboard path: every mark is a checkbox, so Tab reaches it and Space toggles. From a
- * mark, ↑/↓ walk the options (a clamp at the ends, not a wrap). The Ask owns 1–9 across
- * the whole question and projects them onto the option cells. The column is held whether
- * or not a key is in it, which is the theme's half of this. The rows are
+ * mark, the runtime's row walk moves among the options: ↑/↓ clamp at the ends, and Home and
+ * End land on them. The Ask owns 1–9 across the whole question and projects them onto the
+ * option cells. The column is held whether or not a key is in it, which is the theme's
+ * half of this. The rows are
  * declared per mark, on the mark rather than on the group — the group holds the option's
  * own argument too, and a scope over the whole subtree would promise to work an option with
  * focus on a link inside one. An armed `g` sequence keeps its own digits without this module
@@ -100,19 +101,17 @@ import { OptionAddition } from "./lf-options-addition.js";
 import { SettledOptions } from "./lf-options-settled.js";
 import {
   LitElement,
-  beginWalk,
-  conversationInput,
-  focused,
+  threadInput,
   html,
   inChrome,
+  keeps,
   commands,
-  landInConversation,
-  listWalkPosition,
+  landInThread,
   offer,
   quoted,
   reachedForWords,
+  rowWalk,
   notice,
-  walkRows,
   widgetController,
   worksInside,
   wrote,
@@ -163,31 +162,37 @@ class OptionControl extends LitElement {
     return this;
   }
 
+  // The host is not in the template, so its attributes are written here, each only
+  // where it moved.
   willUpdate() {
     this.classList.toggle("lf-ui", this.pressable);
-    this.dataset.lfGen = "1";
+    keeps(this, "data-lf-gen", "1");
     this.toggleAttribute("data-lf-said", false);
     this.toggleAttribute("data-lf-echo", false);
     if (!this.pressable) {
-      this.setAttribute("role", "img");
-      this.setAttribute("aria-label", `${SELECTED}: ${this.label}`);
-      this.removeAttribute("aria-checked");
-      this.removeAttribute("aria-disabled");
-      this.removeAttribute("data-lf-offer");
-      this.removeAttribute("data-lf-selectable-offer");
-      this.removeAttribute("tabindex");
+      keeps(this, "role", "img");
+      keeps(this, "aria-label", `${SELECTED}: ${this.label}`);
+      for (const name of [
+        "aria-checked",
+        "aria-disabled",
+        "data-lf-offer",
+        "data-lf-selectable-offer",
+        "tabindex",
+      ])
+        this.removeAttribute(name);
       return;
     }
-    this.setAttribute("role", "checkbox");
-    this.setAttribute(
+    keeps(this, "role", "checkbox");
+    keeps(
+      this,
       "aria-label",
       `${this.word}: ${this.label} — option ${this.position} of ${this.total}`,
     );
-    this.setAttribute("aria-checked", String(this.selected));
-    this.setAttribute("aria-disabled", String(!this.available));
-    this.dataset.lfOffer = "checkbox";
-    this.dataset.lfSelectableOffer = "";
-    this.tabIndex = this.available ? 0 : -1;
+    keeps(this, "aria-checked", this.selected);
+    keeps(this, "aria-disabled", !this.available);
+    keeps(this, "data-lf-offer", "checkbox");
+    keeps(this, "data-lf-selectable-offer", "");
+    keeps(this, "tabindex", this.available ? 0 : -1);
   }
 
   render() {
@@ -224,8 +229,7 @@ class DoneControl extends LitElement {
   }
 
   updated() {
-    if (this.busy) this.control?.setAttribute("aria-busy", "true");
-    else this.control?.removeAttribute("aria-busy");
+    keeps(this.control, "aria-busy", this.busy ? "true" : null);
   }
 
   render() {
@@ -306,7 +310,7 @@ customElements.define(
 
     #wire(exhibited) {
       this.#wired = true;
-      // Quoted material is exhibited, not offered, so a specimen renders exactly like a
+      // Quoted material is exhibited, not offered, so a sample renders exactly like a
       // group that was never choosable: it shows what a decision looks like without
       // taking one.
       this.#choosable = this.hasAttribute("choose") && !exhibited;
@@ -406,9 +410,9 @@ customElements.define(
     }
 
     // A page question owns the ordinary add form below its options. A question already
-    // inside a conversation has no second form; its surrounding thread owns the reply.
+    // inside a thread has no second form; its surrounding thread owns the reply.
     #reply() {
-      return this.#addition.input ? null : conversationInput(this);
+      return this.#addition.input ? null : threadInput(this);
     }
 
     // The one statement a live channel can't derive: the set is whole. One press,
@@ -466,7 +470,7 @@ customElements.define(
       this.#syncDone();
     }
 
-    // From a mark, ↑/↓ walk the options and Space toggles. The mark's own scope
+    // From a mark, the arrows walk the options and Space toggles. The mark's own scope
     // declares only those local mechanics (plus the thread's existing reply route).
     // The group contributes its ordered answer controls once, and core assigns their
     // contextual Ask bindings without the package maintaining a second digit map.
@@ -506,51 +510,24 @@ customElements.define(
             does: "Reply in this thread",
             line: "reply",
             when: () => Boolean(this.#reply()),
-            // The box hands the user back to the conversation it belongs to, and to
-            // this option where that conversation is nowhere to stand — the route
-            // `landInConversation` records for exactly that case, and the one Escape
+            // The box hands the user back to the thread it belongs to, and to
+            // this option where that thread is nowhere to stand — the route
+            // `landInThread` records for exactly that case, and the one Escape
             // out of a text box reads.
             run: () =>
-              landInConversation(this.#reply(), {
+              landInThread(this.#reply(), {
                 target: mark,
                 line: "back to question",
               }),
           },
-          {
-            id: "option.walk",
-            keys: ["ArrowUp", "ArrowDown"],
-            routes: [
-              {
-                id: "option.previous",
-                binding: "ArrowUp",
-                does: "Previous option",
-              },
-              { id: "option.next", binding: "ArrowDown", does: "Next option" },
-            ],
-            does: "Walk the options",
-            line: "walk the options",
-            lineWhen: false,
-            repeat: true,
-            run: (binding) => {
-              walkRows(marks, binding === "ArrowDown" ? 1 : -1);
-              const picked = [...this.#options()].map((option) =>
-                option.hasAttribute("chosen"),
-              );
-              const answered = this.#done?.control?.getAttribute("aria-pressed");
-              beginWalk("option", "Option", () => {
-                const options = [...this.#options()];
-                if (
-                  options.length !== picked.length ||
-                  options.some(
-                    (option, index) => option.hasAttribute("chosen") !== picked[index],
-                  ) ||
-                  this.#done?.control?.getAttribute("aria-pressed") !== answered
-                )
-                  return null;
-                return listWalkPosition(this.#marks(), focused());
-              });
-            },
-          },
+          // The Ask's numbered actions are what a question offers that no other list
+          // does, so they keep the shortcut bar's slots and the walk stays off it.
+          ...rowWalk({
+            id: "option",
+            noun: "Option",
+            plural: "options",
+            rows: () => this.#marks(),
+          }).map((row) => ({ ...row, lineWhen: false })),
           {
             id: "option.toggle",
             keys: [" "],

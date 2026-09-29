@@ -1,10 +1,17 @@
 """Browser probe readings for one settled color scheme, the once-per-version width
-sweep and alignment advice, and the finding each becomes."""
+sweep, the advice read from the desktop page and from the sweep, and the finding each
+becomes.
+
+A reading refuses a version only for a fault its author can fix by editing the page.
+A reading about Leaf's own chrome or theme, including one that would have to
+recognize a Leaf control by its markup to judge it, belongs in the suite, which holds
+Leaf's half."""
 
 import json
 from dataclasses import dataclass
+from itertools import pairwise
 
-from leaf.passages import page_passages
+from leaf.passages import SourceReading, page_passages
 from leaf.projection import (
     frozen_thread_reading,
     generated_children,
@@ -14,8 +21,111 @@ from leaf.projection import (
     rewritten_bodies,
 )
 from leaf.registry.state import retirement_slots
-from leaf.render_checks import evaluate_probe, wait_for_probe
+from leaf.render_checks import evaluate_probe, one_frame, rendered
 from leaf.structure import SourceDocument
+
+# A probe's arguments cross as JSON, so a node only CDP can name is handed to the
+# `issueNode` probe as the receiver of a call made on the node itself.
+_ISSUE_NODE = (
+    "function () { return globalThis.__leafRenderDriver"
+    ".call({name: 'issueNode', args: [this]}); }"
+)
+# A node in a child frame is that frame's to show, and the frame is the page's, so the
+# issue is placed at the frame element in the page's own document, where the probes
+# run. A cross-origin frame withholds that element, and the issue goes unplaced.
+_IN_PAGE = (
+    "function () { let node = this; const view = (n) => (n.ownerDocument ?? n)"
+    ".defaultView; while (node && view(node) !== top) node = view(node).frameElement;"
+    " return node; }"
+)
+
+
+def _issue_fields(value, key=""):
+    """Every scalar in an issue's details as (key, value), however deeply nested."""
+    if isinstance(value, dict):
+        for inner, item in value.items():
+            yield from _issue_fields(item, inner)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _issue_fields(item, key)
+    else:
+        yield key, value
+
+
+class DevtoolsIssues:
+    """The issues Chrome raises in DevTools' Issues panel for one page.
+
+    Chrome says some things only there and never in the console: a lazy image that
+    holds no room, a blocked or mixed-content request, a deprecated API, a form field
+    autofill cannot identify. The headless shell the suite runs raises Blink's issues
+    but not the autofill layer's.
+    Listening starts before navigation; the reading is taken once the page settles,
+    when the probe that locates a node has loaded."""
+
+    def __init__(self, page):
+        self._cdp = page.context.new_cdp_session(page)
+        self._raised = []
+        self._cdp.on(
+            "Audits.issueAdded", lambda event: self._raised.append(event["issue"])
+        )
+        self._cdp.send("Audits.enable")
+
+    def _node(self, backend_id: int) -> dict | None:
+        from playwright.sync_api import Error as PlaywrightError
+
+        try:
+            node = self._cdp.send("DOM.resolveNode", {"backendNodeId": backend_id})
+        except PlaywrightError:
+            return None  # the node left the document after Chrome raised the issue
+        in_page = self._call(node["object"], _IN_PAGE, by_value=False)
+        if in_page.get("subtype") == "null":
+            return None
+        # The frame element came back as the child frame's object. Resolving it again
+        # by id answers in its own document's context, where the probes are loaded.
+        described = self._cdp.send(
+            "DOM.describeNode", {"objectId": in_page["objectId"]}
+        )
+        page_node = self._cdp.send(
+            "DOM.resolveNode", {"backendNodeId": described["node"]["backendNodeId"]}
+        )
+        return self._call(page_node["object"], _ISSUE_NODE, by_value=True)["value"]
+
+    def _call(self, receiver: dict, function: str, *, by_value: bool) -> dict:
+        answer = self._cdp.send(
+            "Runtime.callFunctionOn",
+            {
+                "objectId": receiver["objectId"],
+                "functionDeclaration": function,
+                "returnByValue": by_value,
+            },
+        )
+        if "exceptionDetails" in answer:
+            raise RuntimeError(
+                "locating a DevTools issue's node failed: "
+                + answer["exceptionDetails"]["exception"]["description"]
+            )
+        return answer["result"]
+
+    def findings(self) -> list[str]:
+        """Each issue about something the page owns, where it is and what it names.
+
+        Details differ by issue type, so every scalar is written out except the
+        protocol's handles, which name nothing a reader can find in the source; the
+        first node handle is located instead."""
+        found = []
+        for issue in self._raised:
+            fields = list(_issue_fields(issue["details"]))
+            nodes = [v for k, v in fields if k == "nodeId" or k.endswith("NodeId")]
+            facts = [f"{k}={v}" for k, v in fields if not k.endswith("Id") and v != ""]
+            node = self._node(nodes[0]) if nodes else None
+            if node is not None and not node["owned"]:
+                continue
+            found.append(
+                f"DevTools issue {issue['code']}"
+                + (f" at {node['at']}" if node else "")
+                + (f" ({', '.join(facts)})" if facts else "")
+            )
+        return list(dict.fromkeys(found))
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +142,7 @@ class _SchemeContext:
     earlier: str | None
     replayed: bool
     unsettled: list
+    devtools: DevtoolsIssues
 
 
 def _projected_verbatim(document, registry, projection, authored_ids, source):
@@ -47,33 +158,31 @@ def _projected_verbatim(document, registry, projection, authored_ids, source):
 
 
 def _expected_verbatim(markup, events, registry, here):
-    """Expected preserving-owner readings in the page and frozen conversation.
+    """Expected preserving-owner readings in the page and frozen thread.
 
     Page actions are bounded by the immutable revision being rendered. Frozen message
-    markup has no later authored revision and therefore uses the conversation's whole
+    markup has no later authored revision and therefore uses the thread's whole
     action window. Both use the same passage projection as comment capture.
     """
-    document = SourceDocument(markup)
-    page = page_reading(document, events, registry, here)
+    page = page_reading(SourceReading(SourceDocument(markup), registry), events, here)
     expected = _projected_verbatim(
-        document,
+        page.document,
         registry,
         page.projection,
         page.document.ids,
         ("page", None),
     )
     thread = frozen_thread_reading(events, registry)
-    for event in events:
-        if fragment := event.get("markup"):
-            expected.update(
-                _projected_verbatim(
-                    SourceDocument(fragment),
-                    registry,
-                    thread.projection,
-                    thread.structure.ids,
-                    ("event", event["id"]),
-                )
+    for event_id, fragment in thread.structure.fragments.items():
+        expected.update(
+            _projected_verbatim(
+                fragment,
+                registry,
+                thread.projection,
+                thread.structure.ids,
+                ("event", event_id),
             )
+        )
     return expected
 
 
@@ -134,8 +243,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     unmarkable = evaluate_probe(page, "unmarkableElements")
     overflow = evaluate_probe(page, "rootOverflow")
     misplaced = evaluate_probe(page, "misplacedBoxes")
-    withheld = evaluate_probe(page, "withheldRoom")
-    silent_cuts = evaluate_probe(page, "silentCuts")
+    stranded = evaluate_probe(page, "strandedMargins")
     squeezed = evaluate_probe(page, "squeezedTables")
     clipped = evaluate_probe(page, "clippedControls")
     unreachable = evaluate_probe(page, "unreachableWords")
@@ -146,9 +254,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     # undeclared root's words silently anchor quotes astray. Generated controls
     # are UI rather than page words, so their implementation roots are exempt.
     undeclared_shadow = evaluate_probe(page, "undeclaredShadowRoots", registry)
-    unnamed_fields = (
-        evaluate_probe(page, "unnamedFormFields") if scheme == "light" else []
-    )
     # x-verbatim promises the words this scheme renders. Source provenance was
     # captured before upgrade, so anonymous page and frozen-message owners have the
     # same coordinate as the file reading without acquiring authored ids. Its file
@@ -158,17 +263,15 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     # Replay is scheme-blind, so one scheme's reading covers both.
     conflicts = []
     silent = []
-    missing_conversations = []
+    missing_threads = []
     undeclared_attrs = []
     retired = []
     if scheme == "light":
-        # x-conversation promises one page view per matching instance. A widget in
-        # thread chrome already has the thread's reply surface and conversationBox
+        # x-thread-seat promises one page view per matching instance. A widget in
+        # thread chrome already has the thread's reply surface and threadBox
         # deliberately returns none there. Everywhere else, ask the merged registry
         # for the instances and the module's own marker for the host it placed.
-        missing_conversations = evaluate_probe(
-            page, "missingConversations", declarations
-        )
+        missing_threads = evaluate_probe(page, "missingThreads", declarations)
         # Behind the caught-up wait above: a report moves a painted attribute and
         # the pass that speaks it runs before the stamp, so a reading taken any
         # earlier asks after a word the page has not been asked to say yet. A page
@@ -190,7 +293,9 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
             # about.
             if slots := retirement_slots(registry):
                 reading = page_reading(
-                    SourceDocument(markup), state["events"], registry, here
+                    SourceReading(SourceDocument(markup), registry),
+                    state["events"],
+                    here,
                 )
                 outcomes = retirement_outcomes(reading.projection.actions)
                 holders = []
@@ -209,55 +314,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
                     )
                 if holders:
                     retired = evaluate_probe(page, "retiredSlots", holders)
-    # One scheme, the palettes carrying no geometry between them, and before the
-    # medium moves: a box's inset is what it declared in either.
-    #
-    # The document's boxes, not the layer's over them. This is the only reading
-    # here that reaches the runtime's own chrome, and it reaches it by accident:
-    # inside `display: none` an element's own display is still `block` and its
-    # padding and margins still resolve, so a shut panel answers with numbers that
-    # look like the page's. They are not the panel's own. A size container query
-    # does not match in there, so a rule switching a slot between two forms is
-    # stuck on one of them, and a percentage margin comes back unresolved for
-    # `px` to read as its bare number. Every box reading beside this one sees zero
-    # and stops, which is the honest answer.
-    #
-    # And the finding would be one the author cannot act on. Everything in here is
-    # somebody else's: the layer's own parts, told to them in the words of a class
-    # no page of theirs has, and a widget an agent sent in a reply, frozen in an
-    # append-only log and admitted at a door of its own. Either way the version
-    # would stay refused with no edit that clears it, which is why the coarse
-    # question — which document is this in — is the right one to ask here. That is the failure examples/AGENTS.md names as the
-    # reason a gate reading was moved out once already. The layer's half is leaf's
-    # own to hold, and the suite holds it with the panel open, where the styles are
-    # the panel's and the margin is one somebody can see.
-    trapped = (
-        [t for t in evaluate_probe(page, "trappedMargins") if not t["chrome"]]
-        if scheme == "light"
-        else []
-    )
-    # Last, and in one scheme: paper has no color scheme, and the medium has to be
-    # put back before anything else reads a box.
-    on_paper = []
-    if scheme == "light":
-        screen = evaluate_probe(page, "paperWords")
-        page.emulate_media(media="print")
-        paper = evaluate_probe(page, "paperWords")
-        # Paper is laid out by rules no other medium runs, and it is the medium
-        # nobody looks at, so the readings that only paper can fail are taken here
-        # while it holds: words drawn over each other, and room that prints nothing.
-        on_paper = [f"[print] {c}" for c in evaluate_probe(page, "coveredWords")]
-        on_paper += [f"[print] {v}" for v in evaluate_probe(page, "paperVoids")]
-        page.emulate_media(media="screen")
-        # Paired on the words as well as the position: the page is live, and a state
-        # landing between the two readings would otherwise shift one against the
-        # other and report whatever happened to line up. A pair that disagrees says
-        # nothing, which is the right way round — the next run reads it again.
-        on_paper += [
-            f"[print] {s['at']} drops {json.dumps(s['text'])}, which it says on screen"
-            for s, p in zip(screen, paper, strict=False)
-            if s["text"] == p["text"] and s["shown"] and not p["shown"]
-        ]
     # Last: these probes render temporary complete states. Compare carried actions
     # against the authored baseline, restore current state, then prove idempotence.
     # The caught-up wait ensures they observe the same settled projection as the
@@ -266,7 +322,9 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     if scheme == "light" and replayed:
         if earlier is not None:
             projection = page_reading(
-                SourceDocument(markup), state["events"], registry, here
+                SourceReading(SourceDocument(markup), registry),
+                state["events"],
+                here,
             ).projection
             carried = [
                 event["id"]
@@ -284,13 +342,10 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
                     },
                 )
         relative = evaluate_probe(page, "relativeReplays")
-    # The print reset and replay above can resize what an observer watches. Chrome
+    # The replay above can resize what an observer watches. Chrome
     # delivers that notice in the next rendering turn, so closing on the write
-    # would call an attempt complete before its last error channel had spoken. Ask
-    # synchronously and poll the presented-frame fact from the driver: a compositor
-    # that never draws cannot strand page.evaluate on its unresolved Promise.
-    requested_frame = evaluate_probe(page, "requestFrame")
-    wait_for_probe(page, "framePresented", requested_frame)
+    # would call an attempt complete before its last error channel had spoken.
+    one_frame(page)
     found = [f"[{scheme}] console: {e}" for e in errors]
     for failure in failsoft:
         owner = f"<{failure['tag']}" + (
@@ -323,8 +378,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         for u in unmarkable
     ]
     found += [f"[{scheme}] {text}" for _key, text in _overflow(overflow, misplaced)]
-    found += [f"[{scheme}] {w}" for w in withheld]
-    found += [f"[{scheme}] {c}" for c in silent_cuts]
+    found += [f"[{scheme}] {s}" for s in stranded]
     found += [f"[{scheme}] {s}" for s in squeezed]
     found += [
         f"[{scheme}] the control .{c['ctrl'].split()[0]}"
@@ -342,20 +396,14 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
             f"(an undeclared root's words anchor quotes astray; declare "
             f"x-shadow): {', '.join(undeclared_shadow)}"
         )
-    for field in unnamed_fields:
-        label = f" labelled {field['label']!r}" if field["label"] else ""
-        class_name = f" class={field['className']!r}" if field["className"] else ""
-        found.append(
-            f"[{scheme}] <{field['tag']}{class_name}>{label} has neither an id nor "
-            "a name, so Chrome cannot identify the form field"
-        )
+    found += [f"[{scheme}] {issue}" for issue in context.devtools.findings()]
     found += [f"[{scheme}] {d}" for d in dishonest_verbatim]
     found += [f"[{scheme}] {s}" for s in silent]
-    for c in missing_conversations:
+    for c in missing_threads:
         found.append(
-            f"[{scheme}] <{c['tag']} id={c['id']!r}> declares x-conversation but "
+            f"[{scheme}] <{c['tag']} id={c['id']!r}> declares x-thread-seat but "
             f"rendered {c['hosts']} matching hosts; its module must place exactly "
-            "one conversationBox"
+            "one threadBox"
         )
     for u in {(x["tag"], x["attr"]): x for x in undeclared_attrs}.values():
         found.append(
@@ -364,23 +412,10 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
             "form (x-state) if a version is meant to carry it, or write the state "
             "on the chrome the module built"
         )
-    for t in {(x["tag"], x["edge"]): x for x in trapped}.values():
-        box = f"<{t['tag']}" + (f" class={t['cls']!r}" if t["cls"] else "") + ">"
-        found.append(
-            f"[{scheme}] {box} draws {t['drawn']:g}px of inset and shows "
-            f"{t['drawn'] + t['margin']:g}px {t['edge']} what it holds "
-            f"(id={t['id']!r}): its {t['edge'] == 'above' and 'first' or 'last'} "
-            f"block is a <{t['child']}> reserving {t['margin']:g}px against a "
-            f"neighbour it hasn't got, and the box is where that margin stops. "
-            f"Declare --lf-block-frame: 1 in the rule that draws the frame, so the trim "
-            f"in theme.css reaches it"
-        )
-
     found += [f"[{scheme}] {r}" for r in retired]
     found += [f"[{scheme}] {u}" for u in unsettled]
     found += [f"[{scheme}] {c}" for c in conflicts]
     found += [f"[{scheme}] {r}" for r in relative]
-    found += on_paper
     notices = [f"[{scheme}] console: {e}" for e in resize_notices]
     return found, notices
 
@@ -399,37 +434,158 @@ def _overflow(overflow: int, misplaced: list) -> list[tuple[tuple[str, str], str
 
 
 # The widths the sweep takes a loaded page through: a version holds at every width from
-# the narrowest phone to the desktop viewport, and the fixed viewports read it at two. A
+# the narrowest phone to a wide desktop window, and the fixed viewports read it at two. A
 # grid that stacks at one width can leave its narrow track narrower than what it holds
-# just above it, a band neither viewport lands in.
-SWEEP_WIDTHS = range(360, 1201, 40)
+# just above it, a band neither viewport lands in, and the margin's residents arrive
+# above the desktop viewport.
+SWEEP_WIDTHS = range(360, 1921, 40)
+
+# What of the page's own stands in its margin: the tokens the margin pass writes on
+# `main` (margin-layout.js, `settleResidency`), less the rail, which holds only Leaf's
+# markers and never moves the column.
+MARGIN_READING = (
+    "(document.querySelector('main')?.getAttribute('data-lf-margin') ?? '')"
+    ".split(' ').filter(t => t && t !== 'rail').join(' ')"
+)
 
 
-def swept_overflow(page, viewports) -> list[str]:
-    """Sideways overflow the fixed viewports miss, at the narrowest width it starts.
+def _settle_at(page, width: int, height: int) -> None:
+    page.set_viewport_size({"width": width, "height": height})
+    # What the resize set moving in script (an observer, the layout that observer's
+    # write causes, and whatever that chains into) has run and been laid out.
+    rendered(page)
 
-    Resizes the loaded page rather than rendering it again, and re-reads only the two
-    sideways readings, which are geometry: the rest of the gate reads words, paint and
-    state, which the fixed viewports already see. The fixed widths are swept too, and a
-    fault met at one of them is dropped here, because that viewport's own reading
-    already reports it in both schemes. The sweep runs at the desktop height, so a fault
-    only a phone-height workspace posture shows is the phone viewport's to report."""
+
+def open_widgets(registry: dict) -> list[str]:
+    """The widgets whose content is the page's own markup or members."""
+    return [
+        tag
+        for tag, entry in registry.items()
+        if tag.startswith("lf-") and entry.get("x-content") in ("markup", "members")
+    ]
+
+
+def sweep(page, viewports, open_tags) -> list[tuple[int, dict]]:
+    """The loaded page's geometry at every sweep width, widest first.
+
+    Resizes the loaded page rather than rendering it again, and reads only geometry:
+    the rest of the gate reads words, paint and state, which the fixed viewports
+    already see. The fixed widths are swept too. The sweep runs at the desktop height,
+    so a fault only a phone-height workspace posture shows is the phone viewport's to
+    report."""
     height = viewports[0]["height"]
     fixed = {viewport["width"] for viewport in viewports}
-    seen = {}
+    readings = []
     # Widest first, in steps, so a layout script settles from the width before rather
     # than from the desktop: a jump from 1200px straight to 360px left an lf-shot laid
     # out for the desktop for a frame under load, and the sweep read that frame.
     for width in sorted({*SWEEP_WIDTHS, *fixed}, reverse=True):
-        page.set_viewport_size({"width": width, "height": height})
-        # One rendering turn for the resize to be heard, then the runtime's settled
-        # reading, so what it set moving in script (an observer, the layout that
-        # observer's write causes, and whatever that chains into) has run and been laid out.
-        wait_for_probe(page, "framePresented", evaluate_probe(page, "requestFrame"))
-        wait_for_probe(page, "renderingSettled")
-        for key, text in _overflow(
-            evaluate_probe(page, "rootOverflow"), evaluate_probe(page, "misplacedBoxes")
-        ):
+        _settle_at(page, width, height)
+        readings.append(
+            (
+                width,
+                {
+                    "overflow": evaluate_probe(page, "rootOverflow"),
+                    "misplaced": evaluate_probe(page, "misplacedBoxes"),
+                    "margin": page.evaluate(MARGIN_READING),
+                    "arrangement": evaluate_probe(page, "arrangedBoxes", open_tags),
+                    "panes": evaluate_probe(page, "heldPanes"),
+                },
+            )
+        )
+    return readings
+
+
+def arrangement_changes(readings) -> list[tuple[int, str, str]]:
+    """Where the page's own arrangement changes, widest first, at the sweep's steps.
+
+    For each step across which a flex or grid box of the page's own splits its children
+    into rows differently, the narrowest swept width at which the wider arrangement still
+    holds, the first box that changes (a selector), and what changes below it
+    (`<div id=regions> 1+2 → 1+1+1`). That is the arrangement at its tightest, the width an
+    author most needs to see."""
+    changes = []
+    for (high, above), (_low, below) in pairwise(readings):
+        wide = {box["path"]: box for box in above["arrangement"]}
+        narrow = {box["path"]: box["rows"] for box in below["arrangement"]}
+        moved = [path for path, box in wide.items() if narrow.get(path) != box["rows"]]
+        if moved:
+            said = "; ".join(
+                f"{wide[path]['at']} {wide[path]['rows']} → "
+                f"{narrow.get(path, 'unarranged')}"
+                for path in moved
+            )
+            changes.append((high, moved[0], said))
+    return changes
+
+
+def stacked_panes(readings, desktop: int) -> list[str]:
+    """Each workspace body that stacks its panes in one column while the Layout still
+    fills the window, where at the `desktop` width it stands them side by side, with the
+    swept widths it stacks them at.
+
+    A full-height workspace shares one window's height among its panes, so a column of
+    panes there is either a design of rows, which the page shows at its desktop width
+    too, or a side-by-side design's narrow fallback arriving before the Layout lets the
+    page scroll: three panes at 800x768 left one a 28px body. The desktop reading says
+    which the page is, so a body of rows that adds columns only in an ultrawide window
+    is not in question."""
+    meant = {
+        body["at"]
+        for width, reading in readings
+        if width == desktop
+        for body in reading["panes"]
+        if body["beside"] > 1
+    }
+    stacked = {}
+    for width, reading in readings:
+        for body in reading["panes"]:
+            if body["held"] and body["beside"] == 1 and body["at"] in meant:
+                stacked.setdefault(body["at"], []).append(width)
+    found = []
+    for at, widths in stacked.items():
+        low, high = min(widths), max(widths)
+        span = f"{low}px" if low == high else f"{low}–{high}px"
+        found.append(
+            f"at {span} wide, {at} stacks its panes in one column while the workspace "
+            "fills the window, so they share one window's height; stack them only "
+            "where the Layout stops holding it (page-authoring.md, A workspace)"
+        )
+    return found
+
+
+def margin_changes(page, readings, height: int) -> list[int]:
+    """The widths at which the page's margin content changes, narrowest first.
+
+    For each sweep step across which what stands in the margin differs, the narrowest
+    width at which the wider reading holds, found by halving the step on the loaded
+    page. That is where each resident first stands in the margin, with the least room it
+    will ever have there, so the gate renders the page at each."""
+    stepped = sorted((width, reading["margin"]) for width, reading in readings)
+    changes = []
+    for (low, below), (high, above) in pairwise(stepped):
+        if below == above:
+            continue
+        while high - low > 1:
+            middle = (low + high) // 2
+            _settle_at(page, middle, height)
+            if page.evaluate(MARGIN_READING) == above:
+                high = middle
+            else:
+                low = middle
+        changes.append(high)
+    return changes
+
+
+def swept_overflow(readings, viewports) -> list[str]:
+    """Sideways overflow the fixed viewports miss, at the narrowest width it starts.
+
+    A fault met at a fixed width is dropped here, because that viewport's own reading
+    already reports it in both schemes."""
+    fixed = {viewport["width"] for viewport in viewports}
+    seen = {}
+    for width, reading in readings:
+        for key, text in _overflow(reading["overflow"], reading["misplaced"]):
             widths, _text = seen.setdefault(key, ([], text))
             widths.append(width)
     found = []
@@ -442,20 +598,28 @@ def swept_overflow(page, viewports) -> list[str]:
     return found
 
 
-def alignment_advice(page) -> list[str]:
-    """Advice when a page's grids split on more lines than any one of them needs."""
-    reading = evaluate_probe(page, "misalignedSplits")
-    if reading["unshared"] < 1:
-        return []
+# The drawn size below which a shrunk label is advised about. The theme's drawing idiom
+# sets its labels at 10–12px in the viewBox's units (theme.css, `svg.drawing`; its 9px
+# step glyph is one bold numeral on a dot), so an idiom drawing shown at its own width
+# stays clear of it, and one shrunk by a fifth does not.
+LEGIBLE_LABEL_PX = 10
+
+
+def shrunk_label_advice(page) -> list[str]:
+    """Advice naming each drawing whose fit to its box draws labels too small to read.
+
+    Read at the desktop viewport, where the other advice is: a narrower window scales a
+    drawing further still, and which of its widths a page answers for is not settled here.
+    Advice rather than a failure because the remedy is a choice of composition — larger
+    labels, fewer of them, a narrower drawing, more room — that only the author can make,
+    and a page that makes none of them still says everything it says."""
     width = page.viewport_size["width"]
-    named = ", ".join(
-        f"{grid['at']} at {', '.join(f'{x}px' for x in grid['splits'])}"
-        for grid in reading["grids"]
-    )
     return [
-        (
-            f"at {width}px wide the page's grids split at {reading['unshared']} more "
-            f"place(s) than its busiest grid needs — {named}: lay a sheet on one set "
-            "of tracks (page-authoring.md, the sheet)"
-        )
+        f"at {width}px wide {d['at']} draws {d['labels']} label(s) below "
+        f"{LEGIBLE_LABEL_PX}px, the smallest ({d['words']!r}) at {d['drawn']:g}px from "
+        f"the {d['set']:g}px it was set at: the drawing is scaled to fit its box and its "
+        "labels with it, so set them larger in the viewBox's units, draw the viewBox "
+        "nearer the width it is shown at, or give it more room "
+        "(authoring-evidence.md, Interactive and visual evidence)"
+        for d in evaluate_probe(page, "shrunkLabels", LEGIBLE_LABEL_PX)
     ]

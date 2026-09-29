@@ -1,9 +1,10 @@
-// `syncLayout` derives only floating chrome placement and reservations from current
-// chrome boxes. CSS owns the document shell: `body` is the named `lf-shell` inline-size
-// container, `main` composes its left and right claims, and queries grant or withdraw
-// margin postures. JavaScript may hear the shell's content-box size without deriving a
-// posture or mirroring cramped state. `layoutSizes` schedules `syncLayout` and page
-// repaint after a width change. No auxiliary surface changes the shell: each stands over
+// `syncLayout` derives floating chrome placement and reservations from current chrome
+// boxes, and asks which residents stand in the page's margin (`scheduleResidency`,
+// margin-layout.js), the one posture JavaScript decides for the document: it reads the
+// room beside `main`, which the page's own CSS sets. CSS owns the rest of the shell:
+// `body` is the named `lf-shell` inline-size container, and a query on it may answer a
+// narrow column's facts. `layoutSizes` schedules `syncLayout` and page repaint after a
+// width change. No auxiliary surface changes the shell: each stands over
 // the page. A height-only change sends `pageShifted` directly so a content reflow
 // re-places document-attached paint without re-running chrome reservation.
 //
@@ -20,31 +21,31 @@
 // and browser UI all use that same root. Root scroll events are reported on `document`,
 // while nested scrollports report on their elements. Use `scrollerFor(el)` where a widget
 // may be one an agent sent, since a widget in a message is scrolled by the panel's own
-// list and by nothing else. Threads and trays are alternate auxiliary surfaces, so only
+// list and by nothing else. Threads and drawers are alternate auxiliary surfaces, so only
 // one stands at a time, over the page and taking no width from it. Leaves always covers
-// the page. Threads and the Asks tray cover it only where they would leave less than a
+// the page. Threads and the Asks drawer cover it only where they would leave less than a
 // usable page beside them, one rule for both (`standsBeside`, auxiliary-surfaces.js;
 // `--lf-auxiliary-beside`, theme.css); elsewhere the page beside them stays live.
 // Auxiliary modality is a shared inert boundary outside this geometry owner; the
-// reference and Page Map keep native `showModal()`. `--strip-l`, `--strip-r`,
-// `--lf-room`, `--lf-sidebar-posture`, and `--lf-rail-posture` are CSS-owned readings
-// resolved on `main`, which is the named `lf-content-frame` style container a margin
-// resident asks for them. The bottom
-// band is a stated height (`--lf-band-h`, theme.css) rather than a reading, so whatever
-// has to end above it reads that token; `--lf-claim-right` is the project-layer
-// extension claim.
+// reference and Page Map keep native `showModal()`. `--lf-room` and
+// `--lf-sidebar-posture` are CSS-owned readings resolved on `main`, which is the named
+// `lf-content-frame` style container a margin resident asks for them. The bottom bar is
+// a stated height (`--lf-bottom-bar-h`, theme.css) rather than a reading, so whatever has to
+// end above it reads that token.
 
 // Application composition supplies feature-local geometry. This owner cannot open
-// auxiliary surfaces, send commands, or reconcile conversation DOM.
+// auxiliary surfaces, send commands, or reconcile thread DOM.
 import { sizeObserver } from "./rendering.js";
 import { drawnEdge } from "./drawn-edge.js";
-import { overlaps } from "./geometry.js";
+import { overlapsAcross } from "./rect.js";
 import { standsBeside } from "./auxiliary-surfaces.js";
+import { scheduleResidency } from "./margin-layout.js";
+import { syncLayoutRegion } from "./reading-regions.js";
 
 // The width the panel stands at for a user who has not moved its edge. 420 since
 // threads carry questions — option rows are the one thread content that can't scroll or
 // scale its width away, and 360 crowded them. A default rather than the width, because
-// what a conversation needs is a fact about the conversation: a thread quoting a table
+// what a thread needs is a fact about the thread: a thread quoting a table
 // wants room the same thread quoting a sentence does not, and only the user looking at
 // it knows which this is. So the edge is a thing they take hold of (`drawnEdge`), and
 // this is where it stands until they do. theme.css spells the same default for the
@@ -68,11 +69,10 @@ export function createChromeLayout({
   elements: { panel, closeBtn, panelFoot, threadsBox, shortcutBarEl, bottomStatusEl },
   scheduleThreadPreviewPosition,
   bottomChromeBoxes,
-  restateTrayEdge,
+  restateDrawerEdge,
   syncAuxiliarySurfaces,
   syncReactLayout,
   refreshFab,
-  dockSeats,
   pageShifted,
   repaint,
   repaintPage,
@@ -85,21 +85,21 @@ export function createChromeLayout({
   // Every writer here is a writer of the chrome, so nothing this function does resizes the
   // box it reads.
   function syncLayout() {
+    syncLayoutRegion();
+    scheduleResidency();
     scheduleThreadPreviewPosition();
     const panelLive = panelIsOpen() && !panelCovers();
-    const overlapsAcross = (one, other) =>
-      one.left < other.right && other.left < one.right;
     const foot = panelFoot.getBoundingClientRect();
     // Over a live page, the thread panel owns the right of the window all the way to its
     // foot. Cap the line's room at its edge rather than letting a long hint cross into it.
     const panelRoom = (panelLive ? commentsEdge.width() : 0) + "px";
     shortcutBarEl.style.setProperty("--lf-shortcut-bar-right", panelRoom);
     bottomStatusEl.style.setProperty("--lf-shortcut-bar-right", panelRoom);
-    // The rail stands in the page's right margin, and over a live page the panel stands
-    // over that margin at any window short of about 1700px. The markers are still drawn,
-    // under the panel, so the rail's own posture says nothing; what says the user lost
-    // them is a rail row the panel's edge reaches. Where one does, the banner offers the
-    // Page Map in their place, as it does where the rail is not drawn at all (chrome.css).
+    // Over a live page the panel stands over the page's right margin at any window short
+    // of about 1700px, and over the pins at the column's edge at the same widths. The
+    // markers are still drawn, under the panel; what says the user lost them is a margin
+    // row the panel's edge reaches. Where one does, the banner offers the Page Map in
+    // their place, as it does where the markers are pins (chrome.css).
     // Where the panel stands, not where its slide has carried it this frame: offsetLeft
     // ignores the slide's transform.
     const panelLeft = panelLive ? panel.offsetLeft : Infinity;
@@ -107,25 +107,21 @@ export function createChromeLayout({
       ...document.querySelectorAll(".lf-margin-projection .lf-margin-cluster"),
     ].some(
       (row) =>
-        !row.classList.contains("lf-docked") &&
+        !row.classList.contains("lf-withheld") &&
         row.getBoundingClientRect().right > panelLeft,
     );
     panel.closest(".lf-chrome")?.toggleAttribute("data-lf-rail-covered", railCovered);
-    // The status stands in the bottom band (chrome.css) and moves only to stay live above
-    // a covering panel's foot: unlike the inert shortcut guide, notices are live feedback
-    // from the foreground action. Everything the page ends above is the band's stated
-    // height, so nothing here writes a reservation for the document or the trays.
-    bottomStatusEl.style.bottom = "";
-    bottomStatusEl.style.translate = "";
-    const status = bottomStatusEl.getBoundingClientRect();
-    if (panelCovers() && status.height && overlaps(status, foot)) {
-      bottomStatusEl.style.bottom = `calc(${panelFoot.offsetHeight + 14}px + var(--lf-safe-bottom))`;
-      bottomStatusEl.style.translate = "none";
-    }
+    // The status stands in the bottom bar (chrome.css) and rises above a covering panel's
+    // foot, which stands over the bar's right end: unlike the inert shortcut guide,
+    // notices are live feedback from the foreground action. The stylesheet places it by
+    // the panel's modal state and this foot height. Everything the page ends above is the
+    // bottom bar's stated height, so nothing here writes a reservation for the document or
+    // the drawers.
+    bottomStatusEl.style.setProperty("--lf-panel-foot-h", `${foot.height}px`);
     // A region gives up the part of a bottom surface that stands over it: the band from
     // that surface's top down to the region's own foot, plus air above it. Read off the
     // rendered box, since what crosses the panel's list is a status whose place follows
-    // the panel's foot rather than a stated band.
+    // the panel's foot rather than the bottom bar's stated height.
     const roomBelow = (region) => {
       const clearances = bottomChromeBoxes()
         .filter((box) => overlapsAcross(box, region) && region.bottom > box.top)
@@ -142,7 +138,6 @@ export function createChromeLayout({
     threadsBox.style.paddingBottom = listClear;
     threadsBox.style.scrollPaddingBottom = listClear;
     syncFloats();
-    dockSeats();
   }
   // The response bar lives in the viewport plane, and syncLayout is where its usable
   // reading boundary changes shape — a resize moves every rect. Re-place it against the
@@ -162,8 +157,8 @@ export function createChromeLayout({
   // no gesture to repaint from.
   //
   // A height-only body resize is repaint-only. An image or font can move a later target
-  // without resizing that target or mutating the DOM, while sending that ordinary page
-  // growth through syncLayout would feed it into the writer that reserves flow content.
+  // without resizing that target or mutating the DOM, and that ordinary page growth
+  // changes nothing syncLayout writes.
   // A width change schedules syncLayout and its page repaint in the following animation
   // frame, outside ResizeObserver delivery, so a reservation changing another watched
   // chrome box cannot create an undelivered-notification loop. A height-only change calls
@@ -199,7 +194,7 @@ export function createChromeLayout({
     commentsEdge.handle(panel, () => closeBtn);
     addEventListener("resize", () => {
       commentsEdge.state();
-      restateTrayEdge();
+      restateDrawerEdge();
       syncAuxiliarySurfaces();
       pageShifted();
       syncLayout();
@@ -210,9 +205,9 @@ export function createChromeLayout({
     layoutSizes.observe(bottomStatusEl);
   }
 
-  // The thread panel's edge, on the right, and the tray panel's, on the left. Each keeps
+  // The thread panel's edge, on the right, and the drawer panel's, on the left. Each keeps
   // the user's choice in their own store rather than the tab's, because where a user
-  // keeps their conversations, and how much of the page they will give a tray, is the
+  // keeps their threads, and how much of the page they will give a drawer, is the
   // chrome they arrange and expect to find arranged wherever they are reading (see
   // `userStore`). Live activation keeps the edges themselves; document travel and reload
   // restore the same choices, so no revision or visit asks the user to draw them again.

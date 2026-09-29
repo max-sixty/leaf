@@ -136,7 +136,7 @@ function interventions(goal, open) {
 
 function stopped(goal, open, nested, read) {
   const role = commandRole(goal, "goal");
-  if (read(goal).conversation.heldBy) return true;
+  if (read(goal).thread.heldBy) return true;
   if (nested.length) return true;
   if (!role.stopped.includes(roleState(goal, "goal", read))) return false;
   if (open.has(goal.id)) return true;
@@ -164,7 +164,7 @@ function goalView(goal, open, read) {
       ? latestReport.ts
       : null;
   const nested = interventions(goal, open);
-  const held = Boolean(read(goal).conversation.heldBy);
+  const held = Boolean(read(goal).thread.heldBy);
   return {
     element: goal,
     role,

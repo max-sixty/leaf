@@ -18,10 +18,12 @@
      route may override `line` and `label` for the case where a nearer scope shadows only
      its sibling binding.
    - `label` optionally overrides the compact keycap in the command's own scope. A keyless
-     row must declare one, unless a Decision command can fall back to its `decision` action
-     name in the command reference.
-     An Ask instead shows the resolved binding beside that separate action name, so an
-     inline hint always says what the user actually presses.
+     row must declare one, unless it is a Decision. One an Ask seats (it carries the
+     Ask's `bindingBadge`) is pressed by the digit its Ask gives it, and the command
+     reference names it only under that digit, while the user stands in the Ask; any
+     other falls back to its `decision` name there. An Ask shows the resolved binding
+     beside that separate action name, so an inline hint always says what the user
+     actually presses.
    - `control` is the visible element that activates the capability. `decision` is a
      non-empty action-name string or a function returning one; it includes that command in
      its containing Ask. The row may carry an existing `bindingBadge`. Routes may carry
@@ -43,7 +45,7 @@
      next press — F7, ⌥ click, a press on a draft's own box.
    - `lineWhen` is optional projection-only visibility on the shortcut bar. Unlike `when`, it
      never changes whether the command dispatches or appears in the command reference, and an
-     active sequence shows every live row regardless of it.
+     active sequence offers every live row regardless of it.
    - `promoteEscape` says whether an Escape row takes the line's second visible slot. On
      by default; a local action that happens to clear state can leave the slot to the
      next action on that state. A step of the ladder sets the same field for the shared
@@ -59,6 +61,12 @@
      at the user's current position.
    - `run` performs one result. A run-less row names a press it does not make: the
      platform's own on a link, or one another scope's row already runs.
+   - `touch` is the words of the banner control that stands in for a press under a
+     finger, or a function when state chooses them, on a page command or a page-scope row
+     a finger has no other way to reach (keyboard/AGENTS.md, "Touch routes"). A row with
+     `routes` makes a different press per route, so its words go on each route that needs
+     a control, and the row's own `touch` can only be `false`. Every page command
+     answers it, `false` where a finger reaches the result directly.
    - A command that enters a layer declares no way back out of it. The layer's own
      owner declares that step, against the layer standing rather than against the press
      that opened it, so one state has one way out however the user reached it.
@@ -100,6 +108,8 @@
    `aria-keyshortcuts` and exposes the complete route through its title and the keyboard
    command reference. Call `paintKeys` when a state change moves row liveness so this projection
    and the visible surfaces change together. */
+import { coarsePointer } from "../pointer.js";
+
 // Which platform's spelling, and which modifier is the sequence's. Up here rather than beside
 // the text inputs because the spelling table below is the first thing that needs it.
 const MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
@@ -159,11 +169,18 @@ export const spell = (binding) => {
 // A soft keyboard has no Shift key with which to make a newline. A coarse pointer
 // is the available signal for that surface: leave its Return native, while a
 // fine-pointer keyboard can submit with Return and edit with Shift+Return.
-const softKeyboard = () => matchMedia("(pointer: coarse)").matches;
+const softKeyboard = () => coarsePointer.matches;
 export const submitBindings = () =>
   softKeyboard() ? ["Mod+Enter"] : ["Enter", "Mod+Enter"];
 export const submitLabel = () => spell(submitBindings()[0]);
-export const submitHint = () => (softKeyboard() ? "" : submitLabel());
+// Whether a surface advertises keys: a key drawn where the user has no keyboard names a
+// press they cannot make, and costs room on the smallest window there is. The same
+// finger reading hides the shortcut bar (chrome.css, `(pointer: coarse)`); every
+// runtime surface that paints a key it was not asked for — a field's send key, the
+// contextual key that enters it — asks this rather than the pointer. A map the user
+// armed from a keyboard (Go-to, the target picker) is an answer, not an advert, and
+// draws regardless.
+export const advertisesKeys = () => !coarsePointer.matches;
 // Speech keeps every declared modifier explicit. A compact keycap may show Shift+t as T,
 // which is the keyboard's face, while a listener needs the physical press because many
 // speech configurations do not distinguish letter case.
@@ -236,6 +253,28 @@ export const labelOf = (row) => {
 // and the overlay alike, so no surface can promise a press the dispatcher refuses. A guard
 // inside `run` instead is a liveness no surface can see.
 export const live = (row) => !row.when || row.when();
+
+// The presses a finger needs a control for: the row's one press, or each route of a routed
+// row that names its words. `id` is the command the press invokes.
+export const touchPresses = (row) =>
+  row.routes
+    ? commandRoutes(row)
+        .filter((route) => route.touch)
+        .map((route) => ({
+          id: route.id,
+          row,
+          binding: route.binding,
+          words: route.touch,
+        }))
+    : row.touch
+      ? [{ id: row.id, row, binding: undefined, words: row.touch }]
+      : [];
+// Whether a row has said which of its presses a finger needs: `false` on the row for none,
+// or an answer on every route.
+export const answersTouch = (row) =>
+  row.touch !== undefined ||
+  (commandRoutes(row).length > 0 &&
+    commandRoutes(row).every((route) => route.touch !== undefined));
 
 // Prose is allowed to change; a command's identity is not. The register uses this name
 // to merge repeated widget instances and to route an action chosen in the command reference back
@@ -460,6 +499,17 @@ export function checked(rows, where) {
         `leaf: row ${i} of ${where} leaves the native press to the platform but runs no result`,
       );
     if (!row.id) throw new Error(`leaf: row ${i} of ${where} has no stable command id`);
+    if (row.touch && (!row.run || row.routes))
+      throw new Error(
+        `leaf: ${row.id} stands in for its keys under a finger, so it needs a run, and a routed row names its words on each route`,
+      );
+    if (
+      commandRoutes(row).some((route) => route.touch) &&
+      (!row.run || row.touch === false)
+    )
+      throw new Error(
+        `leaf: ${row.id} gives a route a finger's words, so it needs a run and no row-level touch: false`,
+      );
     if (typeof row.id !== "string" || !COMMAND_ID.test(row.id))
       throw new Error(
         `leaf: row ${i} of ${where} names ${String(row.id)}, which is not a stable command id`,
@@ -552,7 +602,7 @@ export function checked(rows, where) {
 // was invisible: the key worked and the page under-promised it.
 //
 // A link is the case that keeps this honest. Enter follows an <a> and Space scrolls the
-// page, so the leaves tray binds Enter alone and is right to — the shared fact is what a
+// page, so the leaves drawer binds Enter alone and is right to — the shared fact is what a
 // button answers, not what a control does.
 export const PRESS = ["Enter", " "];
 
@@ -569,12 +619,4 @@ export const clampedRow = (
   const at = rows.indexOf(current);
   const next = at < 0 ? entry : at + dir;
   return rows[Math.max(0, Math.min(rows.length - 1, next))];
-};
-
-// Focus the clamped row and return it for list walks that also project something from the
-// landing, such as the version comparison.
-export const walkRows = (rows, dir) => {
-  const row = clampedRow(rows, document.activeElement, dir, 0);
-  row?.focus();
-  return row;
 };

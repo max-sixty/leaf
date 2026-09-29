@@ -84,7 +84,7 @@ def event_clauses(entry: dict, registry: dict | None) -> list[dict]:
 
     `entry` is the event record, plus the `answer` a delivery captured when the
     event owes one, routed for the carrier delivering it (`workflows` and
-    `delivery` own those derivations), and the `conversation` digest of the thread
+    `delivery` own those derivations), and the `thread` digest of the thread
     it belongs to (`thread_context` owns that one). A `when` can therefore read any
     of them as well as the record, so a clause states the case a delivery is in
     rather than naming a condition the delivery already settles, such as a
@@ -283,7 +283,8 @@ def declares_string(field_schema) -> bool:
 def decides(spec: dict) -> bool:
     """Whether one verb is a deciding verb: its detail declares the reserved
     `outcome`, which says which retirable members leave the page (x-retired-when,
-    x-withdrawn-as). The runtime's `decidingVerb` reads the same field."""
+    x-withdrawn-as). The browser reads the answer from `$decisions`
+    (`registry.state.stamp_decisions`)."""
     return "outcome" in spec["detail"].get("properties", {})
 
 
@@ -313,7 +314,9 @@ WRITERS = {"action": "user", "report": "agent"}
 
 
 def verb_writer(spec: dict) -> str:
-    """The side that writes one x-state verb: `agent` where it says so, else `user`."""
+    """The side that writes one x-state verb: `agent` where it says so, else `user`.
+    The browser's `adoptRegistry` resolves the same default at intake, and
+    `tests/verb_writer_cases.json` holds both to it."""
     return spec.get("writer", "user")
 
 

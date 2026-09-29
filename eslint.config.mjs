@@ -2,6 +2,20 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+// The runtime's primitives, by path under `runtime/`: modules that may use the browser
+// but import no owner, which the rule naming them below holds.
+const runtimePrimitives = [
+  "anchor-coordinate.js",
+  "chrome.js",
+  "dom-children.js",
+  "focus.js",
+  "keeps.js",
+  "rendering.js",
+  "repaint.js",
+  "root-state.js",
+  "thread/identity.js",
+];
+
 // The browser's names the layer uses, for `no-undef`: a moved function that lost an
 // import must fail the hook rather than bind to `window.*` on the first page that
 // reaches it. Only names in use are listed — `open`, `top`, `parent`, `origin`, `escape`
@@ -11,6 +25,10 @@ const browserGlobals = Object.fromEntries(
   [
     "AbortController",
     "CSS",
+    "CSSImportRule",
+    "CSSKeyframesRule",
+    "CSSScopeRule",
+    "CSSStyleRule",
     "CSSStyleSheet",
     "CustomEvent",
     "DOMException",
@@ -28,9 +46,11 @@ const browserGlobals = Object.fromEntries(
     "HTMLSpanElement",
     "Highlight",
     "IntersectionObserver",
+    "MouseEvent",
     "MutationObserver",
     "Node",
     "NodeFilter",
+    "OffscreenCanvas",
     "Range",
     "Response",
     "ResizeObserver",
@@ -706,17 +726,17 @@ export default [
     },
   },
   {
-    files: ["scripts/vendor-src/pierre/*.mjs"],
+    files: ["build/pierre/*.mjs"],
     rules: { "no-undef": "error" },
   },
   {
-    files: ["scripts/vendor-src/pierre/build.mjs"],
+    files: ["build/pierre/build.mjs"],
     languageOptions: { globals: { process: "readonly" } },
   },
   {
     // This transport boot entry loads Leaf after installing the MCP fetch bridge.
     // It may boot /leaf.js, but must not reach private runtime owners.
-    files: ["scripts/mcp-app/direct-entry.js"],
+    files: ["notes/mcp-apps/probe/direct-entry.js"],
     rules: {
       "no-restricted-syntax": [
         "error",
@@ -731,7 +751,7 @@ export default [
   {
     // The site verifier resolves the release-scoped runtime URL from the page under
     // test. That URL is data, so its two imports cannot be static dependency edges.
-    files: ["scripts/verify-site-browser.js"],
+    files: ["dev/leaf_dev/verify_site_browser.js"],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
     rules: {
       "no-undef": "error",
@@ -744,11 +764,6 @@ export default [
           ),
       ],
     },
-  },
-  {
-    files: ["scripts/record-demo-browser.js"],
-    languageOptions: { globals: browserGlobals, sourceType: "script" },
-    rules: { "no-undef": "error" },
   },
   {
     files: ["skills/leaf/scripts/leaf/mcp-page-ready.js"],
@@ -824,9 +839,9 @@ export default [
       "skills/leaf/scripts/leaf/render-checks/runtime.js",
     ],
     rules: {
-      // Render checks compare the publisher's historical selections and current
-      // presentation. Those validation readings are deliberately private rather than
-      // part of the package-facing widget controller.
+      // Render checks compare the publisher's historical selections. That validation
+      // reading is deliberately private rather than part of the package-facing widget
+      // controller.
       "no-restricted-imports": [
         "error",
         {
@@ -935,27 +950,22 @@ export default [
     // would make every caller acquire that owner's initialization and paint graph.
     // A vendored bundle is not an owner: it initializes nothing, paints nothing, and
     // reaches no other module, so a primitive may take an algorithm from one rather
-    // than write a second copy of it beside the layer's. Nor is `rendering.js`, the
-    // primitive every rendering callback is counted through.
-    files: [
-      "skills/leaf/assets/runtime/anchor-coordinate.js",
-      "skills/leaf/assets/runtime/chrome.js",
-      "skills/leaf/assets/runtime/dom-children.js",
-      "skills/leaf/assets/runtime/focus.js",
-      "skills/leaf/assets/runtime/rendering.js",
-      "skills/leaf/assets/runtime/repaint.js",
-      "skills/leaf/assets/runtime/root-state.js",
-      "skills/leaf/assets/runtime/conversation/identity.js",
-    ],
+    // than write a second copy of it beside the layer's. Nor is another primitive,
+    // whose own imports this same rule holds: `rendering.js`, which every rendering
+    // callback is counted through, or `focus.js`, which a primitive that moves the
+    // user's node asks to keep them standing on it.
+    files: runtimePrimitives.map((name) => `skills/leaf/assets/runtime/${name}`),
     rules: {
       "no-restricted-imports": [
         "error",
         {
           patterns: [
             {
-              regex: "^(?!/vendor/|\\./rendering\\.js$)",
+              regex: `^(?!/vendor/|\\.\\.?/(?:${runtimePrimitives
+                .map((name) => name.replaceAll(".", "\\."))
+                .join("|")})$)`,
               message:
-                "Runtime primitives must remain independent of other owners; only a /vendor/ bundle or rendering.js may be imported.",
+                "Runtime primitives must remain independent of other owners; only a /vendor/ bundle or another primitive may be imported.",
             },
           ],
         },
@@ -971,15 +981,15 @@ export default [
     },
   },
   {
-    // Conversation folding accepts values; it must not obtain them from browser
+    // Thread folding accepts values; it must not obtain them from browser
     // stores or painters. The current derived reading has the same dependency floor.
     files: [
       "skills/leaf/assets/runtime/projection/model.js",
       "skills/leaf/assets/runtime/projection/state.js",
       "skills/leaf/assets/runtime/pending/model.js",
       "skills/leaf/assets/runtime/pending/state.js",
-      "skills/leaf/assets/runtime/conversation/model.js",
-      "skills/leaf/assets/runtime/conversation/state.js",
+      "skills/leaf/assets/runtime/thread/model.js",
+      "skills/leaf/assets/runtime/thread/state.js",
     ],
     rules: {
       "no-restricted-imports": [
@@ -988,8 +998,8 @@ export default [
           patterns: [
             {
               regex:
-                "^(?!\\.\\./(?:anchor-coordinate|semantic-state)\\.js$|(?:\\.\\./conversation/|\\./)(?:identity|workflow)\\.js$|\\./model\\.js$)",
-              message: "Conversation readings depend only on pure record operations.",
+                "^(?!\\.\\./(?:anchor-coordinate|collapse|semantic-state)\\.js$|(?:\\.\\./thread/|\\./)(?:identity|workflow)\\.js$|\\./model\\.js$)",
+              message: "Thread readings depend only on pure record operations.",
             },
           ],
         },
@@ -998,8 +1008,7 @@ export default [
         "error",
         {
           selector: "ImportExpression",
-          message:
-            "Conversation readings declare their record dependencies statically.",
+          message: "Thread readings declare their record dependencies statically.",
         },
       ],
       "no-restricted-globals": [

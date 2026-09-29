@@ -3,15 +3,16 @@
 from leaf import anchor_capture as anchor_capture_model
 from leaf import passages as passages_model
 from leaf.registry import storage as registry_storage
+from leaf.render_checks import rendered
+from leaf.schema import ELEMENT_ID
 from leaf.structure import SourceDocument
 from render_harness import (
     SHELL_BOX,
     leaf_page,
-    rendered,
 )
 
 # ---------- anchors written without a browser ----------
-# `leaf comment` writes an anchor by reading the mapped revision; the runtime
+# `leaf thread open` writes an anchor by reading the mapped revision; the runtime
 # resolves it against the DOM that revision becomes. Nothing static can check that those
 # two readings agree, and every way they can come apart — a widget's upgrade, an
 # attribute rendered as text, the space a block boundary stands for — only exists
@@ -19,7 +20,7 @@ from render_harness import (
 
 
 def written_anchors(page_dir, html, limit=40):
-    """Anchors `leaf comment` would write for windows over a page's own prose. A
+    """Anchors `leaf thread open` would write for windows over a page's own prose. A
     window the page says twice, or one crossing a fence, is refused on purpose —
     skipping those here is that refusal, and what survives is exactly what the command
     promises to place."""
@@ -100,7 +101,7 @@ GENERIC_VISUAL_LAYER = {
         "description": "A generic rendered visual used to exercise Leaf's package contract.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
             "parts": {"type": "string", "minLength": 1},
         },
         "required": ["id", "parts"],
@@ -206,7 +207,7 @@ SHADOW_VISUAL_LAYER = {
         "description": "A clipped shadow-root visual used to exercise Leaf's package contract.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
             "parts": {"type": "string", "minLength": 1},
         },
         "required": ["id", "parts"],
@@ -384,7 +385,7 @@ graph LR
 )
 # What a diagram is doing with the width it was given, beside what the board on the same
 # page is doing with the width it was given: the drawing's own size, the box around it,
-# and whether either had to scroll.
+# and whether that box had to scroll. Whether the page did is `root_overflow`'s.
 DIAGRAM_ROOM = """() => {
     const holder = document.getElementById('flow');
     const svg = holder.querySelector('svg');
@@ -404,8 +405,7 @@ DIAGRAM_ROOM = """() => {
                        .getPropertyValue('--wide')),
              board: board.getBoundingClientRect().width,
              column: mb.width - parseFloat(ms.paddingLeft) - parseFloat(ms.paddingRight),
-             scrolls: holder.scrollWidth > holder.clientWidth,
-             sideways: document.body.scrollWidth - document.body.clientWidth };
+             scrolls: holder.scrollWidth > holder.clientWidth };
 }"""
 # A diagram whose renderer rejects the type, which is the shape of every soft failure: the
 # module replaces the element's body with the message and the source it choked on. Its
@@ -637,10 +637,9 @@ DRAWING_PLACEMENT = """() => {
                  box: { left: h.left, right: h.right },
                  scrolls: holder.scrollWidth > holder.clientWidth };
     };
-    return { col, docked: acts.classList.contains('lf-docked'),
+    return { col, place: acts.closest('.lf-margin-cluster')?.dataset.lfPlace,
              rail: acts.getBoundingClientRect().left,
-             small: at('small'), flow: at('flow'),
-             sideways: document.body.scrollWidth - document.body.clientWidth };
+             small: at('small'), flow: at('flow') };
 }"""
 # A widget that declares width beside one that doesn't, so what the assertions turn on is
 # the declaration and not the tag: both are widgets, both hold more than the column shows
@@ -731,6 +730,16 @@ LONG_LINE_DIFF_PAGE = leaf_page(
     + _filler("lead", 30)
     + '<lf-diff id="patch" source="review-patch" review><pre></pre></lf-diff>'
     + _filler("tail", 30),
+)
+
+# The same review as the body of a workspace pane, where the pane's body is the box that
+# scrolls the rows rather than the window under the banner.
+PANE_DIFF_PAGE = leaf_page(
+    "pane patch",
+    "<header><h1 id='t'>Review</h1></header>"
+    '<lf-pane id="patch-pane" label="Patch"><header><h2>Patch</h2></header>'
+    '<lf-diff id="patch" source="review-patch" review><pre></pre></lf-diff></lf-pane>',
+    layout="workspace",
 )
 
 # The same review bound as a manifest of collapsed files, the form a captured patch
@@ -884,8 +893,7 @@ ROOM_GEOMETRY = (
     + SHELL_BOX
     + """,
              board: box('sprint'), diff: box('patch'), prose: box('prose'),
-             note: box('note'), later: box('later'),
-             sideways: document.body.scrollWidth - document.body.clientWidth };
+             note: box('note'), later: box('later') };
 }"""
 )
 # A wide widget inside each of the two kinds of holder: a box that paints (the quoted
@@ -904,12 +912,12 @@ FRAMED_WIDE_PAGE = leaf_page(
     <lf-column id="s2" label="Done"></lf-column>
   </lf-board>
 </section>
-<lf-specimen id="quoted" label="a board">
-  <lf-board id="in-specimen">
+<lf-sample id="quoted" label="a board">
+  <lf-board id="in-sample">
     <lf-column id="q1" label="Todo"><lf-card id="qk1"><strong>One</strong></lf-card></lf-column>
     <lf-column id="q2" label="Done"></lf-column>
   </lf-board>
-</lf-specimen>
+</lf-sample>
 <lf-ask id="pick-decision"><h2>Should the option include evidence?</h2>
 <lf-options id="pick" choose>
   <lf-option id="opt-a"><strong>With evidence</strong>
@@ -946,7 +954,7 @@ graph LR
   </lf-card></lf-column>
   <lf-column id="e2" label="Done"></lf-column>
 </lf-board>
-<lf-grid id="nums">
+<div class="layout-tiles" id="nums">
   <lf-metric id="me1" value="410ms">p95, with the path it measures
     <lf-diagram id="in-metric"><pre>
 graph LR
@@ -954,7 +962,7 @@ graph LR
   B --> C[worker]
 </pre></lf-diagram>
   </lf-metric>
-</lf-grid>
+</div>
 <lf-tasks id="plan">
   <lf-task id="t-outer" status="active"><strong>Rebuild the feeders</strong>
     <lf-task id="t-inner" status="review"><strong>Fit the baffles</strong>
@@ -995,36 +1003,35 @@ graph LR
 # wrong is the gate — and the gate could not see through the scroll: `answeredFor`
 # excused anything inside one, which is every card on every board.
 FRAMED_SCROLLER_PAGE = FRAMED_WIDE_PAGE.replace(
-    "<main>",
-    "<main>\n<div id='own-frame' style='border: 1px solid #999; overflow-x: auto'>"
+    '<main class="layout-column">',
+    "<main class=\"layout-column\">\n<div id='own-frame' style='border: 1px solid #999; overflow-x: auto'>"
     "<lf-board id='framed'><lf-column id='f1' label='Todo'>"
     "<lf-card id='fk1'><strong>One</strong></lf-card></lf-column>"
     "<lf-column id='f2' label='Done'></lf-column></lf-board></div>",
 )
 
 
-# How far the exhibit stands outside the page's own box, and the rail it was supposed to
-# leave — both edges, since a room read too wide spends itself on whichever side is free.
-# One reading for the live page and for a copy of it, the fault being the same fault. The
-# room the page states comes with it, so a test waiting for the box to be read again has
-# the reading it is waiting to see changed.
+# How far the exhibit stands into the room a margin resident states it takes
+# (`--lf-taken-l`, `--lf-taken-r`, layouts.css), on both edges, since a room read too
+# wide spends itself on whichever side is free. The room the page states comes with it,
+# so a test waiting for the box to be read again has the reading it is waiting to see
+# changed.
 RAIL_FIT = """() => {
-    const b = document.body;
-    const box = b.getBoundingClientRect();
+    const box = document.body.getBoundingClientRect();
     const main = document.querySelector('main');
     const length = (name) => {
       const probe = document.createElement('i');
-      probe.style.cssText = `position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(${name})`;
+      probe.style.cssText = `position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(${name}, 0px)`;
       main.append(probe);
       const width = probe.getBoundingClientRect().width;
       probe.remove();
       return width;
     };
-    const left = length('--strip-l'), right = length('--strip-r');
+    const left = length('--lf-taken-l'), right = length('--lf-taken-r');
     const r = document.getElementById('plan').getBoundingClientRect();
-    return { rail: `${right}px`, widget: r.width, room: length('--lf-room'),
-             past: Math.max(r.right - (box.right - right), box.left + left - r.left),
-             content: box.width - left - right };
+    return { taken: `${right}px`, widget: r.width, room: length('--lf-room'),
+             right: r.right,
+             past: Math.max(r.right - (box.right - right), box.left + left - r.left) };
 }"""
 # The room the document leaves at each end for a bar standing over it. Both are boxes in
 # the flow, so the reading is the flow's own: what stands above the page's first block and
@@ -1038,8 +1045,7 @@ CHROME_ROOM = """() => {
              line: document.querySelector('.lf-shortcut-bar').offsetHeight };
 }"""
 # The same reading taken at the stamp, which is the one moment nothing out here can
-# reach: a MutationObserver's callback is a microtask off the stamp's own write, and
-# the frame after it is where the runtime's layout observer restates the room.
+# reach: a MutationObserver's callback is a microtask off the stamp's own write.
 AT_THE_HANDOVER = (
     "window.__handover = null;\n"
     "new MutationObserver(() => { window.__handover ??= (" + RAIL_FIT + ")(); })\n"
@@ -1058,12 +1064,11 @@ LATE_MARGIN_PAGE = leaf_page(
 """,
 )
 
-# A widget that hangs its controls in the page margin, and can only say how wide a margin
-# once it has heard what they will say — so the claim rides an answer rather than the
-# upgrade that asked for it. lf-suggestion is the same widget with a measurement it
-# happens to be able to take on the spot, which is why the moment a claim lands was never
-# anybody's subject. The request is answered by the test, which is what puts the claim
-# after the handover on every machine rather than on a fast one.
+# A project widget that stands in the page's right margin and states the room it takes
+# there, and can only say how wide once it has heard what its controls will say — so the
+# statement rides an answer rather than the upgrade that asked for it. The request is
+# answered by the test, which is what puts it after the handover on every machine rather
+# than on a fast one.
 LATE_MARGIN_WIDGET = """\
 import { once } from "/runtime/widget-api.js";
 
@@ -1073,15 +1078,15 @@ customElements.define(
     connectedCallback() {
       if (!once(this)) return;
       fetch("/margin-width").then(() =>
-        document.body.style.setProperty("--lf-claim-right", "160px"),
+        document.body.style.setProperty("--lf-taken-r", "160px"),
       );
     }
   },
 );
 """
 # Where the two things in the right margin stand, and how much of the board is over the
-# controls. The controls are what the strip was reserved for, and they hang off the column
-# rather than out of the strip, so the strip's own edge says nothing about where they are.
+# controls. The controls stand in the rail, and they hang off the column rather than out
+# of the rail's strip, so the strip's own edge says nothing about where they are.
 RAIL_BAND_PAGE = leaf_page(
     "rail band",
     """
@@ -1122,15 +1127,16 @@ RAIL_BANDS = """() => {
     return { rows: [...document.querySelectorAll(
                  '[data-lf-margin-for="sug-copy"], [data-lf-margin-for="sug-card"]'
              )].map(r => ({
-                 ...box(r), docked: r.classList.contains('lf-docked') })),
+                 ...box(r), for: r.dataset.lfMarginFor, place: r.dataset.lfPlace,
+                 pressable: r.contains(document.elementFromPoint(
+                   (box(r).left + box(r).right) / 2, (box(r).top + box(r).bottom) / 2)) })),
              plan: box(document.getElementById('plan')),
              later: box(document.getElementById('later')),
              column: { left: mb.left + parseFloat(ms.paddingLeft),
                        right: mb.right - parseFloat(ms.paddingRight) },
              pageLeft: bb.left + parseFloat(bs.paddingLeft),
              pageGutter: parseFloat(ms.paddingLeft),
-             pageRight: bb.right - parseFloat(bs.paddingRight),
-             sideways: body.scrollWidth - body.clientWidth };
+             pageRight: bb.right - parseFloat(bs.paddingRight) };
 }"""
 
 
@@ -1153,12 +1159,10 @@ graph LR
 </pre></lf-diagram>
 """,
 )
-# A drawing inside a tab panel, which is the shape the reading was written over: the
-# panel's card is the frame a wide exhibit may not leave, the graph is drawn wider than
-# the frame's own inset, and no room the page has can be given to it — so scrolling is
-# the layer's honest answer and WITHHELD_ROOM is right to be quiet about it. Beside it a
-# line of code short enough to fit, which is what the reading must stay quiet about too.
-# The cut box is a drawing on purpose: a cut line of code announces itself by being a
+# A drawing inside a tab panel: the panel's card is the frame a wide exhibit may not
+# leave, the graph is drawn wider than the frame's own inset, and no room the page has
+# can be given to it — so scrolling is the layer's honest answer. Beside it a line of
+# code short enough to fit, which must carry no mark. The cut box is a drawing on purpose: a cut line of code announces itself by being a
 # line, where a graph that continues past its edge looks exactly like a graph that ends
 # there.
 CUT_BOXES_PAGE = leaf_page(
@@ -1177,6 +1181,28 @@ graph LR
   </lf-tab>
 </lf-tabs>
 <pre id="short">one short line</pre>
+""",
+)
+# A five-step plan drawn left to right, the shape three agent-written pages gave their
+# plan, and the same five steps drawn top-down beside it: the chain runs past the room a
+# 1440px window gives it, and the stack fits the column, so it is the control a shaded
+# edge must not appear on.
+PLAN_STEPS = """\
+  A[1. Snapshot the primary and restore it on the new cluster] --> B[2. Start logical replication from the old primary]
+  B --> C[3. Verify row counts and checksums on every table]
+  C --> D[4. Cut writes over during the maintenance window]
+  D --> E[5. Retire the old primary after seven quiet days]
+"""
+LONG_CHAIN_PAGE = leaf_page(
+    "long chain",
+    f"""
+<h1 id="t">Plan</h1>
+<lf-diagram id="chain"><pre>
+flowchart LR
+{PLAN_STEPS}</pre></lf-diagram>
+<lf-diagram id="stack"><pre>
+flowchart TD
+{PLAN_STEPS}</pre></lf-diagram>
 """,
 )
 
@@ -1209,8 +1235,8 @@ SQUEEZED_BOARD_PAGE = leaf_page(
 # has no rule for a project's own furniture and cannot — this is the case the two claims
 # in it are declarations of, seen from the side where nobody has declared anything.
 OWN_MARGIN_FURNITURE = WIDE_AND_NARROW_PAGE.replace(
-    "<main>",
-    "<main>\n<div id='own-rail' style='position: absolute; left: 100%;"
+    '<main class="layout-column">',
+    "<main class=\"layout-column\">\n<div id='own-rail' style='position: absolute; left: 100%;"
     " margin-left: 22px; top: 0; width: 160px; height: 600px'>Mine.</div>",
 )
 # One reply holding both answers to the question the block-content lists ask: chips are
@@ -1257,10 +1283,10 @@ it reaches this part of the page.</p>
 """,
 )
 
-# Wide enough for an exhibit to grow after the note's 384px strip, but narrow enough
-# that room, not the 1080px shared cap, binds in both live and copied media. With no
-# surplus over prose, a board never asks to share the note's margin.
-NOTE_BAND = 1400
+# Wide enough for a note to hang in the margin with the column centred, the room
+# either side of it holding the note's 384px, with an exhibit growing past prose into
+# that same margin.
+NOTE_BAND = 1600
 
 
 def _painted_line(page):

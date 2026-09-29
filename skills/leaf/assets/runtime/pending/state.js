@@ -1,14 +1,14 @@
 /* Transport handles for the application's immutable, ordered pending attempts.
 
-   The semantic root owns every event and status. This adapter retains only promises
-   and their resolvers; an in-flight delivery reads its latest record by attempt id.
-   Presentation accounting is the only door that resolves a receipt read race. */
+   The semantic root owns every event and its lifecycle state. This adapter retains only
+   promises and their resolvers; an in-flight delivery reads its latest record by attempt
+   id. Presentation accounting is the only door that resolves a receipt read race. */
 import { applicationState, readApplication } from "../semantic-state.js";
 
 export function createPendingLedger({ newAttempt, enqueue }) {
   const handles = new Map();
   const snapshot = () => readApplication().unresolved;
-  const remove = (entry) => applicationState.remove(new Set([entry.event.attempt]));
+  const sending = () => readApplication().effective.sending;
 
   return {
     enqueue(event) {
@@ -33,8 +33,8 @@ export function createPendingLedger({ newAttempt, enqueue }) {
         get message() {
           return current()?.message ?? null;
         },
-        get readEvent() {
-          return current()?.readEvent ?? null;
+        get admitted() {
+          return current()?.admitted ?? null;
         },
         answer,
         read,
@@ -49,24 +49,26 @@ export function createPendingLedger({ newAttempt, enqueue }) {
       return handle;
     },
     snapshot,
-    nextUnanswered: () => {
-      const entry = snapshot().find((entry) => !entry.answered);
-      return entry ? handles.get(entry.event.attempt) : null;
+    sending,
+    nextSending: () => {
+      const [attempt] = sending();
+      return attempt ? handles.get(attempt) : null;
     },
-    hasUnresolved: () => snapshot().length > 0,
-    remove,
-    reject(entry) {
-      for (const attempt of applicationState.reject(entry.event.attempt))
-        if (attempt !== entry.event.attempt) handles.get(attempt)?.resolve(null);
+    releasable: () => applicationState.releasable(),
+    release: (entries) =>
+      applicationState.release(new Set(entries.map((entry) => entry.event.attempt))),
+    refuse(entry) {
+      for (const attempt of applicationState.refuse(entry.event.attempt))
+        handles.get(attempt)?.resolve(null);
     },
     accept(entry, event) {
       applicationState.accept(entry.event.attempt, event);
     },
-    account(receipts) {
-      const removed = applicationState.accountPresented(receipts);
+    present(receipts) {
+      const left = applicationState.present(receipts);
       for (const receipt of receipts)
         handles.get(receipt.attempt)?.resolveRead(receipt);
-      return removed.length > 0;
+      return left.length > 0;
     },
     nameParent(entry, receipts) {
       applicationState.nameParent(entry.event.attempt, receipts);

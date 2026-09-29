@@ -16,7 +16,7 @@
 import { countTraffic } from "./traffic.js";
 import { activityTransitionDue, tickClock } from "./presence.js";
 import {
-  passiveSpecimen,
+  passiveSample,
   offlineInteractive,
   offlineState,
   pageUrl,
@@ -382,11 +382,11 @@ export function createStateFeed({
     const initialPresentation = readAndPresent();
     if (offlineInteractive) return;
     initialPresentation.finally(() => {
-      // A contained page is a fixed specimen controlled by its parent gallery. It needs
+      // A passive sample is a fixed replay controlled by its parent gallery. It needs
       // the first reading to render production chrome, but another news stream and
       // heartbeat would duplicate the outer page's connection for a picture that cannot
       // accept user input or durable updates.
-      if (passiveSpecimen) {
+      if (passiveSample) {
         const retry = () => {
           if (document.body.hasAttribute("data-lf-presented")) return;
           if (!readAnswered) void ask();
@@ -422,7 +422,7 @@ const TICK_MS = 2000;
 
 // How long the page waits before reopening a news stream the server refused.
 // This is a retry delay, not a polling cadence; an open stream delivers news immediately.
-export const RETRY_MS = 2000;
+const RETRY_MS = 2000;
 
 // How long the news stream may say nothing before the page takes it for dead. The
 // server speaks at least every five seconds, so half a minute of silence is a

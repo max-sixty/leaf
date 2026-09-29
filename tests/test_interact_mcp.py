@@ -12,6 +12,7 @@ from urllib.parse import urljoin
 import pytest
 from interact_support import PAGE, run_async, yaml_document
 from leaf import event_log as events_model
+from leaf import interaction_log as interaction_model
 from leaf.files import replace_files, revision_path
 from leaf.mcp_app import APP_MIME, SNAPSHOT_FORMAT, app_snapshot, apply_event
 from leaf.mcp_page import PAGE_RESOURCE_URI, ProcessPageServer
@@ -23,8 +24,8 @@ from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
 
-def test_mcp_specimens_keep_the_parent_capability_and_their_own_log(page_dir):
-    template = '<template id="practice" data-specimen><h1>Practice</h1><p id="child-text">A child page.</p></template>'
+def test_mcp_samples_keep_the_parent_capability_and_their_own_log(page_dir):
+    template = '<template id="practice" data-sample><h1>Practice</h1><p id="child-text">A child page.</p></template>'
     (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
     activation = activate_source(page_dir)
     assert activation.error is None
@@ -34,14 +35,14 @@ def test_mcp_specimens_keep_the_parent_capability_and_their_own_log(page_dir):
         with urllib.request.urlopen(urljoin(parent, "api/state")) as response:
             state = json.load(response)
         request = urllib.request.Request(
-            urljoin(parent, "api/specimens"),
+            urljoin(parent, "api/samples"),
             data=b'{"template":"practice"}',
             headers={"Leaf-Layer": state["layer"]["generation"]},
         )
         with urllib.request.urlopen(request) as response:
             path = json.load(response)["url"]
         child = urljoin(parent, path)
-        assert child.startswith(parent + "api/specimens/")
+        assert child.startswith(parent + "api/samples/")
         with urllib.request.urlopen(child) as response:
             document = response.read()
             assert b"A child page." in document
@@ -68,6 +69,22 @@ def test_mcp_specimens_keep_the_parent_capability_and_their_own_log(page_dir):
                 json.load(response)["state"]["events"][-1]["text"] == "Child feedback"
             )
         assert events_model.read_events(page_dir) == []
+        request = urllib.request.Request(
+            urljoin(child, "api/interaction"),
+            data=b'{"session":"mcp-tab","entries":[{"type":"click","location":"/"}]}',
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(request) as response:
+            assert response.status == 204
+        trace = (
+            (page_dir / interaction_model.INTERACTIONS_FILE).read_text().splitlines()
+        )
+        capability = urllib.parse.urlsplit(parent).path.split("/")[2]
+        assert all(capability not in row for row in trace)
+        sample = path.rstrip("/").split("/")[-1]
+        assert any(
+            json.loads(row).get("page") == f"/api/samples/{sample}" for row in trace
+        )
     finally:
         pages.close()
 
@@ -166,7 +183,7 @@ def test_mcp_write_requires_attempt_identity(page_dir):
     assert events_model.read_events(page_dir) == []
 
 
-@pytest.mark.parametrize("kind", ["action", "request"])
+@pytest.mark.parametrize("kind", ["action", "resolve"])
 def test_mcp_snapshot_write_rejects_non_comment_event_kinds(page_dir, kind):
     result = apply_event(
         str(page_dir),
@@ -197,7 +214,7 @@ def test_mcp_refuses_an_anchor_on_static_widget_source(page_dir):
 
     assert result.is_error is True
     # A person selecting text in the panel reads this refusal, and they have no flags,
-    # so it names the recourse rather than a `leaf comment` option.
+    # so it names the recourse rather than a `leaf thread open` option.
     refusal = result.content[0].text
     assert "data body is its source" in refusal
     assert "--quote" not in refusal and "--section" not in refusal
@@ -345,7 +362,7 @@ def test_stdio_snapshot_write_boundary_accepts_only_comments(page_dir):
                         },
                     },
                 )
-                for kind in ("action", "request")
+                for kind in ("action", "resolve")
             ]
             accepted = await session.call_tool(
                 "leaf_snapshot_apply_event",

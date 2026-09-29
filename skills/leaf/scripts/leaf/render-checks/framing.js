@@ -1,4 +1,5 @@
-import { inChrome } from "/runtime/widget-api.js";
+import { declarationFor, inChrome } from "/runtime/widget-api.js";
+import { at } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
 // A box that draws an inset and shows a different one. A child's outer margin normally
@@ -57,11 +58,15 @@ export function trappedMargins() {
       }
       if (node.nodeType !== 1) continue;
       const s = getComputedStyle(node);
-      if (s.display === "none") continue;
+      if (s.display === "none" || node.hasAttribute("hidden")) continue;
       if (s.position === "absolute" || s.position === "fixed") continue;
       if (s.float !== "none") continue;
       if (s.display === "contents") {
-        out.push(...flow(node));
+        for (const child of flow(node))
+          out.push({
+            ...child,
+            contents: [node.tagName.toLowerCase(), ...(child.contents || [])],
+          });
         continue;
       }
       if (node.matches(".lf-ui, [data-lf-gen]")) {
@@ -72,34 +77,72 @@ export function trappedMargins() {
     }
     return out;
   };
+  // Follow an edge only through boxes whose children's margins can collapse through
+  // them, which is where a margin inside the frame reaches the frame's edge. The shared
+  // trim follows every edge child, so a margin found on this path means the frame
+  // itself has not declared (or something overrides the trim).
+  const edgeMargin = (kid, edge, through = []) => {
+    if (!kid.node) return null;
+    const path = [...through, ...(kid.contents || [])];
+    const side = edge === "above" ? "Top" : "Bottom";
+    const end = edge === "above" ? "Start" : "End";
+    const own = px(kid.s["marginBlock" + end]);
+    let deeper = null;
+    const s = kid.s;
+    if (
+      !holds(s) &&
+      s.containerType === "normal" &&
+      !s.display.startsWith("inline") &&
+      !s.display.includes("flex") &&
+      !s.display.includes("grid") &&
+      !px(s["padding" + side]) &&
+      !px(s["border" + side + "Width"]) &&
+      getComputedStyle(kid.node, edge === "above" ? "::before" : "::after").content ===
+        "none"
+    ) {
+      const kids = flow(kid.node);
+      if (kids.length) {
+        deeper = edgeMargin(edge === "above" ? kids[0] : kids[kids.length - 1], edge, [
+          ...path,
+          kid.node.tagName.toLowerCase(),
+        ]);
+      }
+    }
+    return own >= (deeper?.margin || 0)
+      ? { margin: own, child: kid.node.tagName.toLowerCase(), through: path }
+      : deeper;
+  };
   const found = [];
   for (const root of openRoots(document))
     for (const el of root.querySelectorAll("*")) {
       const s = getComputedStyle(el);
-      if (s.display === "none" || s.display === "contents") continue;
+      if (s.display === "none" || s.display === "contents" || el.closest("[hidden]"))
+        continue;
       // An inline box lays no vertical margin out, so it traps nothing.
       if (s.display.startsWith("inline") && s.display !== "inline-block") continue;
       if (s.display.includes("flex") || s.display.includes("grid")) continue;
       const kids = flow(el);
       if (!kids.length) continue;
-      for (const [edge, side, end, kid, pseudo] of [
-        ["above", "Top", "Start", kids[0], "::before"],
-        ["below", "Bottom", "End", kids[kids.length - 1], "::after"],
+      for (const [edge, side, kid, pseudo] of [
+        ["above", "Top", kids[0], "::before"],
+        ["below", "Bottom", kids[kids.length - 1], "::after"],
       ]) {
         if (!kid.node) continue;
         if (getComputedStyle(el, pseudo).content !== "none") continue;
         const drawn = px(s["padding" + side]) + px(s["border" + side + "Width"]);
         if (!drawn && !holds(s)) continue;
-        const margin = px(kid.s["marginBlock" + end]);
-        if (margin > 0.5)
+        const leak = edgeMargin(kid, edge);
+        if (leak && leak.margin > 0.5)
           found.push({
             tag: el.tagName.toLowerCase(),
             id: el.id || null,
             cls: el.classList[0] || null,
             edge,
             drawn,
-            margin,
-            child: kid.node.tagName.toLowerCase(),
+            margin: leak.margin,
+            child: leak.child,
+            through: leak.through,
+            frameDeclared: s.getPropertyValue("--lf-block-frame").trim() === "1",
             chrome: inChrome(el),
           });
       }
@@ -107,6 +150,109 @@ export function trappedMargins() {
   return found;
 }
 
-// How long the render gate waits on the server for one of the documents it reads.
-// The same patience playwright gives `wait_for_function` above it, and stated here
-// because it is the number that turns a wedged server into a sentence.
+// The items a flex or grid box lays out: its children the page put there and the box
+// places, which leaves out what is not drawn, what is out of flow, and the layer's own
+// generated boxes. The arrangement reading (layout.js) counts the same items.
+export const laidOutItems = (box) =>
+  [...box.children].filter((child) => {
+    if (child.matches(".lf-ui, [data-lf-gen]")) return false;
+    const c = getComputedStyle(child);
+    return c.display !== "none" && c.position !== "absolute" && c.position !== "fixed";
+  });
+
+// A box that lays its children out side by side and stands at a frame's edge, where the
+// shared trim took the margin off its edge item but not off the items beside it: the row
+// no longer lines up. The trim follows the edge through whatever stands at it, and a
+// stylesheet cannot ask a box for its display, so a flex or grid box says so itself
+// (`--lf-holds-edge: 1`, theme.css) and this says when one hasn't. Items are in one row
+// when their margin boxes start (or end) on the same line.
+export function splitEdges() {
+  const px = (v) => parseFloat(v) || 0;
+  const found = [];
+  for (const root of openRoots(document))
+    for (const el of root.querySelectorAll("*")) {
+      const s = getComputedStyle(el);
+      if (!s.display.includes("flex") && !s.display.includes("grid")) continue;
+      if (el.closest("[hidden]")) continue;
+      if (s.getPropertyValue("--lf-holds-edge").trim() === "1") continue;
+      const items = laidOutItems(el);
+      if (items.length < 2) continue;
+      for (const [edge, token, prop, item, line] of [
+        [
+          "above",
+          "--lf-frame-start",
+          "marginBlockStart",
+          items[0],
+          (b, m) => b.top - m,
+        ],
+        [
+          "below",
+          "--lf-frame-end",
+          "marginBlockEnd",
+          items[items.length - 1],
+          (b, m) => b.bottom + m,
+        ],
+      ]) {
+        if (s.getPropertyValue(token).trim() !== "1") continue;
+        const own = px(getComputedStyle(item)[prop]);
+        if (own > 0.5) continue;
+        const at = line(item.getBoundingClientRect(), own);
+        const beside = items
+          .filter((other) => other !== item)
+          .map((other) => {
+            const m = px(getComputedStyle(other)[prop]);
+            return { m, at: line(other.getBoundingClientRect(), m) };
+          })
+          .find(({ m, at: other }) => m > 0.5 && Math.abs(other - at) < 2);
+        if (beside)
+          found.push({
+            tag: el.tagName.toLowerCase(),
+            id: el.id || null,
+            cls: el.classList[0] || null,
+            edge,
+            margin: beside.m,
+            chrome: inChrome(el),
+          });
+      }
+    }
+  return found;
+}
+
+// The runtime's own apparatus standing among the elements the page wrote. A page's rules
+// read its structure: which child is first, last, or only, and what an `h2 + p` rule
+// finds next. An element the runtime adds beside the page's own changes those answers for
+// as long as it stands, so the page's own rules restyle and move its content, which
+// nothing Leaf draws may do (assets/AGENTS.md, "Space and scrolling"). What the runtime
+// says about an element stands in the chrome instead (details-shelf.js).
+//
+// The page's own elements are the document tree under `main`, the authored content root.
+// A widget's own children are its module's to arrange, whether the layer declares it or
+// the page defines it, and so is everything inside one whose content is not the page's
+// markup; inside a markup container, such as a tab's panel, the page's elements are the
+// page's again. The developer gallery's section asks for the runtime's replay controls
+// (`data-interaction-gallery`), so its row is furniture the page requested. An inline box's children are
+// its run of words, where the question is not which block comes first or next, so a code
+// block's highlighting or the mark ending a link's words is not this.
+export function apparatusAmongAuthored() {
+  const generated = ".lf-ui, [data-lf-gen]";
+  const declared = (el) =>
+    declarationFor(el, "type") !== undefined || customElements.get(el.localName);
+  const modules = (parent) => {
+    if (declared(parent) || parent.matches("[data-interaction-gallery]")) return true;
+    for (
+      let at = parent.parentElement;
+      at && at.localName !== "main";
+      at = at.parentElement
+    )
+      if (declared(at)) return declarationFor(at, "x-content") !== "markup";
+    return false;
+  };
+  const found = new Set();
+  for (const el of document.querySelectorAll(`main :is(${generated})`)) {
+    const parent = el.parentElement;
+    if (parent.closest(generated) || inChrome(parent) || modules(parent)) continue;
+    if (getComputedStyle(parent).display === "inline") continue;
+    found.add(`${at(el)} stands among the children of ${at(parent)}`);
+  }
+  return [...found];
+}

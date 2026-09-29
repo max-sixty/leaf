@@ -1,7 +1,16 @@
-/* Anchor and projected-datum travel.
+/* Travel to a place on the page.
+ *
+ * A place is what an anchor names (anchor-resolution.js): an addressed element, which
+ * is what a fragment names too, a passage inside one, or a part of a widget, a projected
+ * datum or a visual part. A thread travels to the place its anchor names, a fragment
+ * link to its element, an Ask to its own arrival region, and a module's
+ * `navigateToDatum` to the part its declared reference addresses. Whichever route names
+ * it, a part is drawn through the one `revealAddressed`, what holds the place opens
+ * through the one `reveal`, and the surface hiding it is cleared through the one
+ * `clearFor`; where focus lands stays each route's own.
  *
  * Travel owns effects above readonly resolution and paint. It receives the current
- * semantic threads and the synchronous conversation refresh from the application root;
+ * semantic threads and the synchronous thread refresh from the application root;
  * subordinate geometry never imports the presenter. A trip keeps its original user
  * intent through hydration, reveal and presentation. Newer input or another trip
  * cancels its landing without cancelling the data the page is loading. Every trip, to a
@@ -9,39 +18,51 @@
  * the destination and then decides whether the user is already there or departs. A
  * departure leaves a history entry, so browser Back returns the user to where they
  * were reading; a journey, trips each leaving from the last one's landing, is one
- * entry.
+ * entry. A fragment link's trip (`followFragment`) departs by the browser's own entry,
+ * and Back or Forward to a place the page has hidden since (`returnToFragment`) is a
+ * trip that departs by none.
  */
 
 import {
   addressedElements,
+  fragmentTarget,
   referencedProjection,
-  revealVisualPart,
   requireReference,
+  revealAddressed,
   sectionOf,
 } from "./anchor-resolution.js";
 import {
   clippedContents,
   clipsPast,
   landingBand,
-  landingInsets,
   placeHolder,
   shownBox,
   shownRect,
 } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
-import { scrollerFor } from "./reading-regions.js";
+import { scrollersOf } from "./reading-regions.js";
 import { pushEntry, replaceEntry } from "./history.js";
-import { moveScrollerBy, pageScroller } from "./scrolling.js";
-import { renderedParent, upFrom } from "./shadow.js";
+import { moveScrollerBy, pageScroller, reachable } from "./scrolling.js";
+import { renderedParent } from "./shadow.js";
 import { closestAcross } from "./passages.js";
 import { reveal } from "./widget-elements.js";
 import { retainUserIntent } from "./user-intent.js";
+import { standingPoint } from "./pointed-place.js";
+
+// The browser's rule for landing the element a fragment names: its start at its
+// scroller's landing edge, which a sticky header's declared room keeps clear. Travel
+// applies it where the browser's own landing does not reach the element: at an arrival
+// the page reshapes after the browser landed it (version.js, `aimArrival`), and at a
+// traversal, where the browser restores an offset instead (`returnToFragment`).
+export function scrollToFragment(element) {
+  element.scrollIntoView({ block: "start", inline: "nearest", behavior: "instant" });
+}
 
 export function createAnchorTravel({
   anchors,
   surfaces,
   currentThreads,
-  refreshConversation,
+  refreshThread,
   announce,
 }) {
   let travelIntent = 0;
@@ -59,7 +80,7 @@ export function createAnchorTravel({
   // next trip pushes again. A journey is not a walk (the glossary's ordered movement
   // among one kind of destination): steps of a thread walk and of an Ask walk, or a
   // press on a margin marker, can all be trips of one journey. The landing is a lookup
-  // rather than a node because the conversation pass repaints marks, and the entry
+  // rather than a node because the thread pass repaints marks, and the entry
   // carries a token for this document's journey because only this load holds the
   // lookup.
   const journeyPrefix = `${performance.timeOrigin}:`;
@@ -124,6 +145,48 @@ export function createAnchorTravel({
     return true;
   }
 
+  // A fragment link naming an element of the page is a trip there whose departure is
+  // the browser's: the navigation has already added the entry Back returns to, whoever
+  // followed it — a press on a page link or a reply's reference, a Go-to hint. What the
+  // platform lacks for a page place is travel's to add, the same as for any other
+  // destination: clear the surface hiding it (a covering Threads panel left the page
+  // scrolling behind it, the link's own thread still in front), and reveal what holds
+  // it, which reaches a widget's own disclosure as well as `hidden="until-found"` (a
+  // worker in a shut goal is `display: none`, and the browser landed on nothing). It
+  // then lands by the browser's own fragment rule (`land`, history.js), which moves
+  // `:target` and the sequential focus starting point with it, so the arrival at a
+  // fresh load (version.js, `aimArrival`) and one in session reveal and land alike. A
+  // fragment naming nothing here is not claimed, and the browser keeps it.
+  function followFragment(url, land) {
+    const where = fragmentTarget(url.hash);
+    return where && fragmentTrip(where, land);
+  }
+
+  // Back or Forward restores the offset the entry was left at (history.js), which is
+  // where the user was reading while the page still holds the place the entry's
+  // fragment names. Once that place is no longer shown, closed since in a tab, a
+  // disclosure or a widget's own shut state, the offset was read over a page that has
+  // changed, and restoring it lands on whatever now sits at that pixel. The fragment is
+  // then the one thing the entry still says, so the traversal is a trip to it that
+  // departs by no new entry: the same clearing and reveal as a followed link. The
+  // browser's own landing on a traversal is that offset, so travel lands the place by
+  // the fragment rule itself (`scrollToFragment`).
+  function returnToFragment(url) {
+    const where = fragmentTarget(url.hash);
+    return where && !where.checkVisibility()
+      ? fragmentTrip(where, () => scrollToFragment(where))
+      : null;
+  }
+
+  function fragmentTrip(where, land) {
+    const mayArrive = retainTravel();
+    return async () => {
+      mayArrive.handoff(() => surfaces.clearFor(where));
+      await reveal(where, mayArrive);
+      if (mayArrive()) land();
+    };
+  }
+
   async function navigateToDatum(
     owner,
     attribute,
@@ -140,9 +203,9 @@ export function createAnchorTravel({
       return false;
     }
 
-    // The widget owns filters and lazy projection. Ask it to make the semantic key
-    // reachable before interpreting DOM presence.
-    const hydration = source.lfRevealDatum?.(key);
+    // The widget owns filters, lazy projection, and the state a visual draws. Ask it to
+    // make the key reachable before interpreting DOM presence.
+    const hydration = revealAddressed(source, key);
     if (hydration?.then) await hydration;
     if (!mayArrive()) return false;
     source = referencedProjection(owner, attribute);
@@ -177,30 +240,61 @@ export function createAnchorTravel({
     return true;
   }
 
+  // Where in its scroller's landing band a destination's top stands. An element keeps
+  // the room its own `scroll-margin-top` asks for, which is the browser's rule for every
+  // native landing: a destination wearing the ring outside itself asks for the ring's
+  // room, and a landing flush with the band's edge cut the ring off there.
   function centreBy(where, block = "center", box = pageScroller) {
     const rect =
       where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
-    const view = shownBox(box);
-    const clear = landingInsets(box).top;
+    const band = landingBand(box);
+    const room = band.bottom - band.top;
+    const margin =
+      where instanceof Range
+        ? 0
+        : Number.parseFloat(getComputedStyle(where).scrollMarginTop) || 0;
     const place =
       where instanceof Range
-        ? (view.height - rect.height) / 2
+        ? (room - rect.height) / 2
         : block === "start"
-          ? clear
-          : Math.max((view.height - rect.height) / 2, clear);
-    return rect.top - view.top - place;
+          ? margin
+          : Math.max((room - rect.height) / 2, margin);
+    return rect.top - band.top - place;
   }
 
   // Reading-region membership also covers fixed chrome, but its viewport position does
-  // not move with that region. Stop at a fixed boundary before applying scroll arithmetic
-  // to it; a scroller inside that boundary still owns its ordinary descendants.
-  function scrollingBoxFor(element) {
-    const box = scrollerFor(element);
-    for (let node = element; node; node = upFrom(node)) {
-      if (node === box) return box;
-      if (getComputedStyle(node).position === "fixed") return null;
+  // not move with that region, so a fixed boundary ends the scrollers that move it
+  // (`scrollersOf`); a scroller inside that boundary still owns its ordinary descendants.
+  const scrollingBoxFor = (element) => scrollersOf(element).next().value ?? null;
+
+  // Centre a destination in the box that scrolls it, then bring it into each box around
+  // that one only as far as it must: a bounded block the page shows leaves the page
+  // still, and one scrolled out of the window comes back with the destination in it.
+  // Each move is reckoned from where the moves inside it leave the destination, so a
+  // glide in the inner box composes with the one around it.
+  function centreThrough(where, holder, block, behavior) {
+    const [box, ...around] = scrollersOf(holder);
+    if (!box) return;
+    const rect =
+      where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
+    let { top, bottom } = rect;
+    const centre = centreBy(where, block, box);
+    let moved = reachable(box, centre);
+    moveScrollerBy(box, centre, behavior);
+    for (const outer of around) {
+      top -= moved;
+      bottom -= moved;
+      const band = landingBand(outer);
+      if (!band) return;
+      const by =
+        top < band.top
+          ? top - band.top
+          : bottom > band.bottom
+            ? Math.min(bottom - band.bottom, top - band.top)
+            : 0;
+      moved = reachable(outer, by);
+      if (Math.abs(moved) >= 1) moveScrollerBy(outer, moved, behavior);
     }
-    return null;
   }
 
   function scrollRevealedElement(
@@ -214,11 +308,9 @@ export function createAnchorTravel({
       behavior: block === "nearest" ? behavior : "instant",
     });
     if (block === "nearest") return;
-    const box = scrollingBoxFor(element);
     // The document and nested reading regions share this path. Only the scroller that
-    // actually owns the element receives the final centring move.
-    if (!box) return;
-    moveScrollerBy(box, centreBy(element, block, box), behavior);
+    // actually owns the element receives the centring move.
+    centreThrough(element, element, block, behavior);
   }
 
   // Synchronous: the move is the caller's gesture, so its intent is the one standing now.
@@ -249,14 +341,11 @@ export function createAnchorTravel({
     if (!shown) return false;
     const { holder, destination, seen } = shown;
     const box = scrollingBoxFor(holder);
-    const view = shownBox(box ?? pageScroller);
-    const { top: clearAbove, bottom: clearBelow } = box
-      ? landingInsets(box)
-      : { top: 0, bottom: 0 };
+    const band = box ? landingBand(box) : shownBox(pageScroller);
     const close = (a, b) => Math.abs(a - b) <= 0.5;
     return (
-      destination.top >= view.top + clearAbove - 0.5 &&
-      destination.bottom <= view.bottom - clearBelow + 0.5 &&
+      destination.top >= band.top - 0.5 &&
+      destination.bottom <= band.bottom + 0.5 &&
       close(seen.top, destination.top) &&
       close(seen.right, destination.right) &&
       close(seen.bottom, destination.bottom) &&
@@ -290,7 +379,7 @@ export function createAnchorTravel({
         byY = destination.bottom - bottom;
       if (byX || byY) box.scrollBy({ left: byX, top: byY, behavior: "instant" });
     }
-    moveScrollerBy(targetScroller, centreBy(where, "center", targetScroller), behavior);
+    centreThrough(where, holder, "center", behavior);
   }
 
   function scrollToRange(where, behavior = scrollBehavior()) {
@@ -304,12 +393,18 @@ export function createAnchorTravel({
   // and synchronously repaint before reading placement. The second refresh after reveal
   // handles outlets or fallback placement whose geometry appears only when opened.
   // Where a thread's travel lands: its first mark, or the element its anchor placed.
-  const threadDestination = (id) =>
-    anchors.marksFor(id)[0] ?? anchors.placedAt(id)?.element ?? null;
+  // A thread pointed into its target is travelled to at the row its own margin row
+  // stands by (pointed-place.js), which a target taller than the window would otherwise
+  // leave off screen.
+  const threadDestination = (id) => {
+    const placement = anchors.placedAt(id);
+    const where = anchors.marksFor(id)[0] ?? placement?.element ?? null;
+    return standingPoint(placement?.target, placement?.point) ?? where;
+  };
 
   async function scrollToThread(id, { land = null, keep = false } = {}) {
     const mayArrive = retainTravel();
-    const thread = currentThreads().find((candidate) => candidate.root.id === id);
+    const thread = currentThreads().find((candidate) => candidate.id === id);
     const anchor = thread?.anchor;
     const status = anchors.placedAt(id)?.status;
     const hydrating =
@@ -323,11 +418,11 @@ export function createAnchorTravel({
     if (hydrating) {
       const source = sectionOf(anchor);
       // A visual draws the state holding its part synchronously; a lazy datum may load.
-      if (anchor.visual) revealVisualPart(source, anchor.visual);
-      const hydration = anchor.datum && source?.lfRevealDatum?.(anchor.datum);
+      const hydration =
+        source && revealAddressed(source, anchor.visual ?? anchor.datum);
       if (hydration?.then) await hydration;
       if (!mayArrive() || sectionOf(anchor) !== source) return false;
-      await refreshConversation();
+      await refreshThread();
       if (!mayArrive()) return false;
     }
 
@@ -338,10 +433,10 @@ export function createAnchorTravel({
     await reveal(holder, mayArrive);
     if (!mayArrive()) return false;
     // The marks, the placement and the widget outlet this arrival lands in are all
-    // written by the conversation pass. Wait for it: a claim is synchronous but its
+    // written by the thread pass. Wait for it: a claim is synchronous but its
     // paint is not, so reading the destination in this turn would find the page as the
     // press left it.
-    await refreshConversation();
+    await refreshThread();
     if (!mayArrive()) return false;
     where = threadDestination(id);
     if (!where) return false;
@@ -358,6 +453,8 @@ export function createAnchorTravel({
 
   return {
     trip,
+    followFragment,
+    returnToFragment,
     navigateToDatum,
     scrollToElement,
     scrollRevealedElement,

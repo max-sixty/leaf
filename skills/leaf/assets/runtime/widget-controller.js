@@ -7,12 +7,9 @@
    proof. Local editing defers the render region at its newest unpublished reading. */
 import { applicationState, attachWidgetPresentation } from "./semantic-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";
-import { decidingVerb } from "./registry.js";
-import { renderRetired, settlementSlots } from "./passages.js";
 import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.js";
 import { failSoft } from "./widget-upgrade.js";
-import { DRAGGING_CHANGED } from "./widget-elements.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
+import { dragHeld, watchDragRelease } from "./widget-elements.js";
 
 const controllers = new WeakMap();
 const lifecycles = new WeakMap();
@@ -21,21 +18,11 @@ const ancestorRefreshes = new Set();
 let ancestorRefreshQueued = false;
 const gestureDeferred = new Set();
 
-document.addEventListener(DRAGGING_CHANGED, () => {
-  if (document.querySelector(".lf-dragging")) return;
+watchDragRelease(() => {
   const pending = [...gestureDeferred];
   gestureDeferred.clear();
   for (const resume of pending) resume();
 });
-
-function renderSettlement(owner, state) {
-  const outcomes = settlementSlots()[owner.localName];
-  if (!outcomes) return;
-  const outcome = state[decidingVerb(owner.localName)].detail?.outcome ?? null;
-  if (outcomes[outcome]) owner.setAttribute(PAGE_PAINT_ATTRIBUTE.settlement, outcome);
-  else owner.removeAttribute(PAGE_PAINT_ATTRIBUTE.settlement);
-  renderRetired(owner, outcome);
-}
 
 const visitElements = (node, visit) => {
   if (!(node instanceof Element)) return;
@@ -107,24 +94,10 @@ const unavailable = (reading) =>
         { ...entry, available: false, undo: [] },
       ]),
     ),
-    requests: Object.fromEntries(
-      Object.entries(reading.requests).map(([verb, entry]) => [
-        verb,
-        { ...entry, available: false },
-      ]),
-    ),
   });
 
 const commandTarget = (target) =>
   typeof target === "string" && target ? target : null;
-
-const undoCandidate = (reading, target) => {
-  const wanted = commandTarget(target);
-  if (!wanted) return null;
-  return Object.values(reading.actions)
-    .flatMap(({ undo }) => undo)
-    .find((event) => event.attempt === wanted || event.id === wanted);
-};
 
 function createWidgetController(owner) {
   if (!(owner instanceof Element))
@@ -192,11 +165,6 @@ function createWidgetController(owner) {
           ),
         );
       }
-      try {
-        renderSettlement(owner, reading.state);
-      } catch (error) {
-        failures.push(error);
-      }
       // Auxiliary subscribers may read DOM established by the total render. If that
       // prerequisite failed, the one fail-soft owns this reading instead of running
       // callbacks against a partial view.
@@ -257,10 +225,9 @@ function createWidgetController(owner) {
 
   const publish = () => {
     const reading = read();
-    if (deferred || document.querySelector(".lf-dragging")) {
+    if (deferred || dragHeld()) {
       holdRender(reading);
-      if (document.querySelector(".lf-dragging"))
-        gestureDeferred.add(resumeGestureRender);
+      if (dragHeld()) gestureDeferred.add(resumeGestureRender);
       return;
     }
     presentRender(reading, [...subscriptions]);
@@ -279,7 +246,7 @@ function createWidgetController(owner) {
       // remembered parent prevents the parent's corrective reparenting from looping.
       if (parentChanged && applicationState.read().document.authored.has(descriptor.id))
         refreshAncestorControllers(owner);
-      // A controller can first appear when conversation presentation mounts frozen
+      // A controller can first appear when thread presentation mounts frozen
       // markup after the global projection pass. Re-run coordinate/provenance work now
       // that this owner and its units exist; state application coalesces the request.
       invalidateDom();
@@ -339,68 +306,21 @@ function createWidgetController(owner) {
         }
       };
     },
-    request(unit) {
-      const declaration = descriptor.declaration["x-request"];
-      if (!declaration?.records)
-        throw new TypeError("Widget does not declare record requests");
-      if (typeof unit !== "string" || !unit)
-        throw new TypeError("Request unit must be a non-empty string");
-      const select = (reading) => {
-        const seat = reading.requestUnits[unit] ?? null;
-        return immutable({
-          request: seat,
-          requests: Object.fromEntries(
-            Object.entries(reading.requests).map(([verb, offer]) => [
-              verb,
-              {
-                ...offer,
-                available:
-                  offer.available &&
-                  seat?.phase === "ready" &&
-                  seat.seat.offered !== false,
-              },
-            ]),
-          ),
-        });
-      };
-      return Object.freeze({
-        read: () => select(read()),
-        subscribe: (callback) => this.subscribe((reading) => callback(select(reading))),
-        dispatch: (command) => {
-          const field = declaration.verbs?.[command?.verb]?.unit;
-          if (command?.kind !== "request" || command.detail?.[field] !== unit)
-            throw new TypeError("Request detail must name this unit");
-          return this.dispatch(command);
-        },
-      });
-    },
     dispatch(command) {
-      const semantic = ["action", "request"].includes(command?.kind);
+      const action = command?.kind === "action";
       const undo = command?.kind === "undo";
-      if (!semantic && !undo)
-        throw new TypeError(
-          "Widget dispatch needs an action, request, or exact undo command",
-        );
+      if (!action && !undo)
+        throw new TypeError("Widget dispatch needs an action or exact undo command");
       if (
-        semantic &&
+        action &&
         (typeof command.verb !== "string" ||
           !command.verb ||
           command.detail === null ||
           typeof (command.detail ?? {}) !== "object")
       )
-        throw new TypeError(
-          "Widget action and request commands need {kind, verb, detail}",
-        );
+        throw new TypeError("Widget action commands need {kind, verb, detail}");
       if (!descriptorStillMatches(owner, descriptor)) return null;
-      const before = read();
-      if (undo && !undoCandidate(before, command.target)) return null;
-      if (
-        semantic &&
-        !(command.kind === "action"
-          ? before.actions[command.verb]?.available
-          : before.requests[command.verb]?.available)
-      )
-        return null;
+      if (action && !read().actions[command.verb]?.available) return null;
       const delivery = dispatchWidget(
         descriptor,
         undo ? { kind: "undo", target: commandTarget(command.target) } : command,
@@ -466,15 +386,9 @@ export function widgetController(owner) {
     const resolve = () => (implementation ??= createWidgetController(owner));
     controller = Object.freeze(
       Object.fromEntries(
-        [
-          "read",
-          "subscribe",
-          "request",
-          "dispatch",
-          "reference",
-          "defer",
-          "present",
-        ].map((method) => [method, (...args) => resolve()[method](...args)]),
+        ["read", "subscribe", "dispatch", "reference", "defer", "present"].map(
+          (method) => [method, (...args) => resolve()[method](...args)],
+        ),
       ),
     );
     controllers.set(owner, controller);

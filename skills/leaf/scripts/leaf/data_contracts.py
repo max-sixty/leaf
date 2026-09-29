@@ -8,9 +8,10 @@ from referencing.exceptions import Unresolvable
 
 from .files import list_revisions
 from .registry.contract import aware_instant, json_validator
-from .revision_artifact import read_registry
+from .revision_artifact import read_revision
 from .schema import DATA_SOURCE_NAME
-from .structure import SourceDocument, parse_revision
+from .structure import SourceDocument
+from .thread_context import logged_fragment
 
 
 class DataError(click.ClickException):
@@ -139,15 +140,15 @@ def page_data_documents(
     for revision in list_revisions(page_dir):
         documents.append(
             (
-                parse_revision(page_dir, revision).lf_elements,
+                read_revision(page_dir, revision).document.lf_elements,
                 f"revision r{revision}",
             )
         )
     for event in events:
-        if markup := event.get("markup"):
+        if event.get("markup"):
             documents.append(
                 (
-                    SourceDocument(markup).lf_elements,
+                    logged_fragment(event).lf_elements,
                     f"event {event['id']!r} markup",
                 )
             )
@@ -160,21 +161,23 @@ def page_data_document_readings(
 ) -> list[tuple[list, str, dict]]:
     """Immutable data-consuming documents with their captured registries."""
     revisions = list_revisions(page_dir)
-    registries = {revision: read_registry(page_dir, revision) for revision in revisions}
+    registries = {
+        revision: read_revision(page_dir, revision).registry for revision in revisions
+    }
     documents = [
         (
-            parse_revision(page_dir, revision).lf_elements,
+            read_revision(page_dir, revision).document.lf_elements,
             f"revision r{revision}",
             registries[revision],
         )
         for revision in revisions
     ]
     for event in events:
-        if markup := event.get("markup"):
+        if event.get("markup"):
             revision = event.get("revision") or max(registries)
             documents.append(
                 (
-                    SourceDocument(markup).lf_elements,
+                    logged_fragment(event).lf_elements,
                     f"event {event['id']!r} markup",
                     registries[revision],
                 )
@@ -242,7 +245,7 @@ def initial_data_document_readings(
     """A fresh page's source and seeded markup share its initial registry."""
     return [(authored, "index.html", registry)] + [
         (
-            SourceDocument(event["markup"]).lf_elements,
+            logged_fragment(event).lf_elements,
             f"event {event['id']!r} markup",
             registry,
         )

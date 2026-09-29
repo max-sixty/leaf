@@ -1,6 +1,8 @@
 """Durable and process-owned page servers."""
 
+import contextlib
 import errno
+import json
 import logging
 import secrets
 import socket
@@ -13,12 +15,12 @@ from urllib.parse import urlsplit
 
 import uvicorn
 
-from .detached import Handshake, start_detached
+from .detached import Handshake, StartRefused, start_detached
 from .event_log import require_cross_process_locking
 from .files import read_json, write_json
 from .host import session_harness
 from .http import page_app, page_endpoint
-from .layer import payload_provenance
+from .layer import payload_provenance, provenance_label
 from .leases import lock_is_held, page_locked, release_lease, take_lease
 from .registry.storage import layer_metadata
 from .schema import SERVER_LOCK, SERVICE_FILE
@@ -31,7 +33,7 @@ from .server import (
     running_server,
     stop_when_service_ends,
 )
-from .service import PageTransaction, starting_claim
+from .service import PageTransaction, claim_is_active, page_claim, starting_claim
 
 TEMPORARY_SERVER_NOTE = "server   temporary (stops with this command)"
 
@@ -110,7 +112,7 @@ class LeafHTTPServer:
             access_log=False,
             lifespan="off",
             # A page speaks HTTP. Left on, an upgrade would arrive as a scope the
-            # page's own gate never sees, ahead of the key and the route scoping.
+            # page's own gate never sees, ahead of the key and the page's routes.
             ws="none",
         )
 
@@ -142,7 +144,7 @@ class LeafHTTPServer:
     def server_close(self) -> None:
         """Release the listening socket this server has kept."""
         self.socket.close()
-        self.specimens.close()
+        self.samples.close()
 
 
 class TemporaryPageServer:
@@ -229,16 +231,9 @@ def cmd_serve_temporary(page_dir: Path) -> None:
     """Run the process-owned page server used by browser automation."""
     require_cross_process_locking()
     server = TemporaryPageServer(page_dir)
-    print(server.url, flush=True)
+    print(json.dumps({"url": server.url}), flush=True)
     print(TEMPORARY_SERVER_NOTE, file=sys.stderr, flush=True)
     server.run()
-
-
-def _provenance_label(provenance: dict) -> str:
-    commit = provenance.get("commit")
-    if not commit:
-        return "unknown source"
-    return commit + ("+dirty" if provenance.get("dirty") else "")
 
 
 def startup_note(page_dir: Path) -> str:
@@ -258,10 +253,10 @@ def startup_note(page_dir: Path) -> str:
             lifetime_note(page_dir),
             loopback_note(page_dir),
             f"page     {page_dir}",
-            f"layer    {fingerprint} ({_provenance_label(layer.get('producer', {}))})",
+            f"layer    {fingerprint} ({provenance_label(layer.get('producer', {}))})",
             (
                 f"runtime  {runtime.get('path', 'unknown payload')} "
-                f"({_provenance_label(runtime)})"
+                f"({provenance_label(runtime)})"
             ),
         )
         if line
@@ -305,7 +300,7 @@ def _announce_server(page_dir: Path, url: str, handshake: Handshake | None) -> b
     order a reader of its streams takes them."""
     if handshake is not None:
         return handshake.announce({"url": url})
-    print(url, flush=True)
+    print(json.dumps({"url": url}), flush=True)
     print(startup_note(page_dir), file=sys.stderr, flush=True)
     return True
 
@@ -343,13 +338,11 @@ def _take_server_lease(page_dir: Path, handshake: Handshake | None):
     sys.exit(f"another server run is serving {page_dir}; re-run")
 
 
-def _bind_server(page_dir: Path, access: dict, token: str, ports: list, lease):
+def _bind_server(page_dir: Path, access: dict, endpoint, ports: list, lease):
     """Bind the first available port, preserving a recorded address contract."""
     for port in ports:
         try:
-            return LeafHTTPServer(
-                (access["bind"], port), page_endpoint(page_dir, token)
-            )
+            return LeafHTTPServer((access["bind"], port), endpoint)
         except OSError as error:
             if error.errno == errno.EADDRINUSE and "port" not in access:
                 continue
@@ -411,12 +404,15 @@ def cmd_serve(
 
         access = page_access(page_dir, host)
         token = host_key()
+        # Before the lease and the record: a page this Leaf cannot serve refuses
+        # here, leaving the service as it found it.
+        endpoint = page_endpoint(page_dir, token)
         base = 41000 + zlib.crc32(str(page_dir.resolve()).encode()) % 4000
         ports = [access["port"]] if "port" in access else [*range(base, base + 10), 0]
         lease = _take_server_lease(page_dir, handshake)
         if lease is None:
             return
-        httpd = _bind_server(page_dir, access, token, ports, lease)
+        httpd = _bind_server(page_dir, access, endpoint, ports, lease)
         service = _service_record(access, httpd, standing, claimed, runtime)
         write_json(page_dir / SERVICE_FILE, service)
         url = page_url(service["host"], service["port"], token)
@@ -460,8 +456,9 @@ def start_server(
 
     Returns where the page is and what ends it — the URL the child minted and
     the note for the lifetime it recorded. Raises `StartRefused` with the child's
-    reason: a stale bind, a taken port, a flag the running server contradicts, or
-    a claim this session no longer holds.
+    reason: a stale bind, a taken port, a flag the running server contradicts, a
+    claim this session no longer holds, or a page vendored from another Leaf's
+    runtime.
     """
     require_cross_process_locking()
     answer = start_detached(
@@ -491,25 +488,145 @@ def claim_and_start(
         return start_server(page_dir, host, standing)
 
 
-def cmd_stop(page_dir: Path) -> str:
-    """Disable the desired service and wait until its process lease is released.
+def cmd_stop(page_dir: Path, restart: str | None = None) -> bool:
+    """Disable the desired service, wait until its process lease is released, and
+    say whether a server was running.
 
     The barrier is taking the lease under the page lock, without waiting:
     held together, they keep a new start out of the gap between the old server's
     exit and this return. The wait between attempts is outside the transition,
-    since a serving process may need it to withdraw an uncommitted start."""
+    since a serving process may need it to withdraw an uncommitted start.
+
+    `restart` marks the disabled record as `restarting_server`'s own. A plain stop
+    writes an unmarked one even over a service already down, so a stop made while
+    a restart holds the service down takes the restart's claim to it away. The
+    record is this stop's to write once, on its first pass: a later pass only
+    disables a service something enabled meanwhile, and keeps whatever mark the
+    record then carries, so a restart waiting out the old server's lease does not
+    write its mark back over a plain stop that landed during the wait."""
     require_cross_process_locking()
     stopped = False
+    first = True
     while True:
         with page_locked(page_dir):
             # The server may release its lease immediately after we disable it.
             stopped = stopped or lock_is_held(page_dir / SERVER_LOCK)
             service = read_json(page_dir / SERVICE_FILE)
-            if service and service["enabled"]:
+            if service and first:
+                disabled = {
+                    **{
+                        key: value for key, value in service.items() if key != "restart"
+                    },
+                    "enabled": False,
+                    **({"restart": restart} if restart else {}),
+                }
+                if disabled != service:
+                    write_json(page_dir / SERVICE_FILE, disabled)
+            elif service and service["enabled"]:
                 write_json(page_dir / SERVICE_FILE, {**service, "enabled": False})
+            first = False
             lease = take_lease(page_dir / SERVER_LOCK)
             if lease is not None:
                 release_lease(lease)
-                return "stopped server" if stopped else "no server running"
+                return stopped
         stopped = True
         time.sleep(0.05)
+
+
+@contextlib.contextmanager
+def restarting_server(page_dir: Path):
+    """Hold a page's service down for the block, and start it again after.
+
+    `page init` re-vendors inside this, since no server runs across a re-vendor:
+    the layer it serves and the code it runs are both what the re-vendor replaces.
+    The service goes down through `cmd_stop`, since a disabled service is what keeps
+    a revival and a second start out of the block. A watching `leaf wait` goes on
+    watching through the gap: a stopped service does not end a wait
+    (`session-lifetime.md`, "Lifetime").
+
+    Only an enabled service comes back, under its recorded lifetime and address; a
+    stopped one stays stopped, and a page never served has nothing to hold down. A
+    session service comes back only for the session holding its claim, and claims
+    nothing to do it: the claim is still that session's, and taking it again would
+    reopen a turn the Stop hook closed. Another live session's service is refused
+    before anything stops, since only that session could start it again. One whose
+    session has ended has no owner to come back for, so it is stopped and stays
+    stopped for the next `server start` to claim.
+
+    The service comes back only after a block that completed. The caller decides
+    whatever can refuse before it enters, while the page is still served; a block
+    that fails anyway, or is interrupted, leaves a page nobody vouches for, and a
+    server started over it could run this Leaf's code against the layer the page
+    kept. So the service stays stopped, and says so.
+
+    Nor does it come back over a stop made during the block. The disabled record
+    this writes carries a mark of its own, which any other stop replaces, and the
+    service is enabled again only while the mark is still there. The start that
+    follows is a revival, "only if still enabled", so a stop after that is kept
+    too. A start the server then refuses leaves the service enabled and down, as
+    a dead server is, for a watching `leaf wait` to revive or report. Nothing but
+    this block reads the mark, so one a killed restart leaves behind is inert: the
+    next start or stop writes a record without it.
+    """
+    service = read_json(page_dir / SERVICE_FILE)
+    if not service or not service["enabled"]:
+        yield
+        return
+    standing = service["lifetime"] == "standing"
+    comes_back = standing or _restarts_for_this_session(page_dir)
+    mark = secrets.token_hex(8) if comes_back else None
+    cmd_stop(page_dir, restart=mark)
+    if not comes_back:
+        print(
+            f"{page_dir}'s server belonged to a session that has ended, so it stays "
+            f"stopped; `leaf server start {page_dir}` serves it for this one.",
+            file=sys.stderr,
+        )
+        yield
+        return
+    try:
+        yield
+    except BaseException:
+        print(
+            f"{page_dir}'s server stays stopped; `leaf server start {page_dir}` "
+            "serves it again.",
+            file=sys.stderr,
+        )
+        raise
+    with page_locked(page_dir):
+        service = read_json(page_dir / SERVICE_FILE)
+        resumed = bool(service and service.get("restart") == mark)
+        if resumed:
+            del service["restart"]
+            write_json(page_dir / SERVICE_FILE, {**service, "enabled": True})
+    if not resumed:
+        print(
+            f"{page_dir}'s server was stopped while it was re-vendored, so it stays "
+            "stopped.",
+            file=sys.stderr,
+        )
+        return
+    try:
+        start_server(page_dir, standing=standing, revive=True)
+    except StartRefused as error:
+        sys.exit(f"{page_dir}'s server did not start again: {error}")
+
+
+def _restarts_for_this_session(page_dir: Path) -> bool:
+    """Whether this command may restart a session service: its claim is this
+    session's. False when no live session holds it any more; an exit when
+    another one does."""
+    claim = page_claim(page_dir)
+    if not claim_is_active(claim):
+        return False
+    harness = session_harness()
+    if harness is None or (claim["harness"], claim["id"]) != (
+        harness.name,
+        harness.session,
+    ):
+        sys.exit(
+            f"{page_dir} is served for another session, and only that session can "
+            "start its server again; re-vendor it from there, or take the page over "
+            f"first with `leaf server start {page_dir}`"
+        )
+    return True

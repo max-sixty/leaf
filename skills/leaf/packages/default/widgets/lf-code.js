@@ -26,7 +26,7 @@
  * experimental) in that same grammar. A number outside the block addresses nothing,
  * so a driver can offer one key to several excerpts of the same file. */
 import {
-  dataBody,
+  bodyText,
   once,
   failSoft,
   layoutChanged,
@@ -59,7 +59,7 @@ const rowSpan = (row) =>
     ? [Number(row.dataset.from), Number(row.dataset.to)]
     : [Number(row.dataset.line)];
 
-// The numbers the body's lines carry, in body order. `version check` holds `lines` to
+// The numbers the body's lines carry, in body order. `page check` holds `lines` to
 // one strictly ascending number per body line (x-numbering), so the two agree here.
 const numbering = (el, count) =>
   el.hasAttribute("lines")
@@ -93,7 +93,7 @@ customElements.define(
       // which line they are about, so a note never sits between two halves of the
       // source and there is no interrupted-line arithmetic to get right.
       const notes = [...this.querySelectorAll(":scope > lf-note")];
-      const source = dataBody(this).replace(/^\n+/, "").replace(/\s+$/, "");
+      const source = bodyText(this);
       try {
         const lang = this.getAttribute("language");
         // One representation either way: an uncolored block is the whole source as a
@@ -108,15 +108,13 @@ customElements.define(
           const at = Number(note.getAttribute("at"));
           byLine.set(at, [...(byLine.get(at) ?? []), note]);
         }
-        // No tab stop written here: the box scrolls in the light DOM, where the
-        // runtime's reachScrollers pass grants one to every scrollable box alike —
-        // lf-diff writes its own only because that pass cannot see into a shadow
-        // tree.
+        // No tab stop written here: the runtime's reachScrollers pass grants one to
+        // every scrollable box alike.
         const pre = document.createElement("pre");
         // The gutter fits the widest number, so an excerpt from deep in a file keeps
         // its code aligned with its notes.
         pre.style.setProperty("--lf-code-digits", String(numbers.at(-1)).length);
-        // Every note's line has a row: `version check` refuses an `at` outside the
+        // Every note's line has a row: `page check` refuses an `at` outside the
         // block (x-lines), so there is no leftover to sweep up.
         lines.forEach((tokens, i) => {
           const n = numbers[i];

@@ -54,16 +54,7 @@ class PageStateService:
             source_error=source_error,
             view_revision=view_revision,
             active_override=active_override,
-            documents_override=snapshot.documents if snapshot is not None else None,
-            registry_override=snapshot.registry if snapshot is not None else None,
-            registries_override=(
-                {
-                    revision: artifact.registry
-                    for revision, artifact in snapshot.artifacts.items()
-                }
-                if snapshot is not None
-                else None
-            ),
+            readings_override=snapshot.readings if snapshot is not None else None,
             data_override=snapshot.data if snapshot is not None else None,
             versions_override=snapshot.versions if snapshot is not None else None,
             presence_override=snapshot.presence if snapshot is not None else None,
@@ -96,10 +87,8 @@ class PageStateService:
         state["reading"] = (
             self.page_snapshot.reading
             if self.page_snapshot is not None
-            else reading
-            + "."
-            + presence_model.presence_fingerprint(
-                state["listening"], state["session_alive"], state["others"]
+            else served_reading.join_reading(
+                reading, presence_model.presence_fingerprint(state, state["others"])
             )
         )
         return state
@@ -112,13 +101,11 @@ class PageStateService:
                 if active is None:
                     raise ValueError(missing_revision(self.page_dir))
                 events = page.events
-                documents_override = None
-                registry_override = None
+                readings_override = None
         else:
             active = self.page_snapshot.active
             events = list(self.page_snapshot.events)
-            documents_override = self.page_snapshot.documents
-            registry_override = self.page_snapshot.registry
+            readings_override = self.page_snapshot.readings
         latest_seq = events[-1]["seq"] if events else 0
         if through_seq > latest_seq:
             raise ValueError(
@@ -137,21 +124,13 @@ class PageStateService:
             active,
             present,
             now_iso(),
-            documents_override=documents_override,
-            registry_override=registry_override,
-            registries_override=(
-                {
-                    revision: artifact.registry
-                    for revision, artifact in self.page_snapshot.artifacts.items()
-                }
-                if self.page_snapshot is not None
-                else None
-            ),
+            readings_override=readings_override,
             include_active_view=False,
         )
         if projected is None:
             raise ValueError("page registry cannot be projected")
+        view, _reading = projected
         # Activity belongs to the complete state reading, not a historical
         # document-view fetch. Keep one public route for the canonical answer.
-        projected.pop("activity", None)
-        return projected
+        view.pop("activity", None)
+        return view

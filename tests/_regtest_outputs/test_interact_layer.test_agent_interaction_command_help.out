@@ -3,29 +3,15 @@ Usage: leaf wait [OPTIONS] PAGE
 
   Watch every page this session holds \u2014 plus PAGE, claimed first, when given.
 
-  Print one page's complete ordered batch, conversation context, and response
+  Print one page's complete ordered batch, thread context, and response
   requirements as an immutable delivery, whose `acknowledge` says how to confirm
-  it. `leaf delivery read <id>` reads that same delivery.
+  it. `leaf delivery read <id>` reads that same delivery. Where the host's hook
+  carries input into the turn, as in Claude Code, print one line naming the page
+  with new input instead, and end.
 
 Options:
   --ack DELIVERY_ID  Confirm receipt of this complete delivery before waiting.
   --help             Show this message and exit.
-
-## leaf delivery claim --help
-Usage: leaf delivery claim [OPTIONS] DELIVERY_ID
-
-  Claim one still-outstanding user move from DELIVERY_ID.
-
-  The page and subject come from the immutable delivery. Current page state is
-  checked in the same transaction that writes the Working receipt, so a stale
-  delivery is a successful no-op rather than a claim on newer input.
-
-Options:
-  --event EVENT_ID  Claim this delivered event instead of the first outstanding
-                    user move.
-  --detail TEXT     What the page says the agent is doing (default: "Reading
-                    your feedback").
-  --help            Show this message and exit.
 
 ## leaf delivery read --help
 Usage: leaf delivery read [OPTIONS] DELIVERY_ID
@@ -36,82 +22,71 @@ Options:
   --help  Show this message and exit.
 
 ## leaf page state --help
-Usage: leaf page state [OPTIONS] PAGE
+Usage: leaf page state [OPTIONS] PAGE [ID]
 
   Fold the log onto the active revision and print the result as one JSON object:
-  effective content with source and edit addresses, standing state, reports,
-  open Asks, conversation summaries, versions, presence, and bound data. Content
-  follows the same document projection as the browser.
+  the active revision's file, standing state, reports, open Asks, thread
+  summaries, versions, presence, and bound data. Read the active revision's HTML
+  beside it for the document.
+
+  ID narrows the reading to what it names. A message, or a widget frozen into
+  one, names its thread: the reading is that thread with a page of its messages,
+  their frozen markup, and the state on its widgets, paged by --after and
+  --limit. A widget on the page names itself: its element, the moves and reports
+  standing on it, its Asks, and its workflows.
 
 Options:
-  --help  Show this message and exit.
-
-## leaf conversation read --help
-Usage: leaf conversation read [OPTIONS] PAGE CONVERSATION_ID
-
-  Print one current conversation and a page of its exact event history.
-
-Options:
-  --after SEQ            [default: 0; x>=0]
-  --limit INTEGER RANGE  [default: 50; 1<=x<=100]
+  --after SEQ            a thread's history after this sequence (default: from
+                         its start)  [x>=0]
+  --limit INTEGER RANGE  how many of a thread's messages to print (default: 50)
+                         [1<=x<=100]
   --help                 Show this message and exit.
 
-## leaf conversation summarize --help
-Usage: leaf conversation summarize [OPTIONS] PAGE CONVERSATION_ID
+## leaf thread summarize --help
+Usage: leaf thread summarize [OPTIONS] PAGE
 
-  Replace FROM through THROUGH in the panel with a Markdown summary.
+  Replace --from through --through in the panel with a Markdown summary.
 
-  The original messages remain in the append-only transcript and can always be
-  revealed. A later overlapping summary replaces this one.
-
-Options:
-  --from ID     [required]
-  --through ID  [required]
-  --text TEXT   summary Markdown (default: stdin)
-  --json        print the summary event
-  --help        Show this message and exit.
-
-## leaf conversation title --help
-Usage: leaf conversation title [OPTIONS] PAGE CONVERSATION_ID
-
-  Name the conversation for the thread panel; repeat to rename it.
-
-  Choose a few descriptive words when first handling a conversation. Keep the
-  title stable unless its subject changes. This adds no message or reply.
+  Both name messages in one thread, which is the thread summarized. The original
+  messages remain in the append-only transcript and can always be revealed. A
+  later overlapping summary replaces this one.
 
 Options:
-  --text TEXT  short descriptive title (at most 80 characters)  [required]
-  --json       print the title event
-  --help       Show this message and exit.
+  --from MESSAGE     [required]
+  --through MESSAGE  [required]
+  --text TEXT        summary Markdown (default: stdin)
+  --help             Show this message and exit.
 
 ## leaf status --help
 Usage: leaf status [OPTIONS] PAGE {working|waiting|idle} [DETAIL]
 
   Set the agent's banner state.
 
-  Use working with DETAIL naming your current work, or waiting with the answer
-  you want from the user. Waiting without DETAIL invites text comments. Use idle
-  when finished; unacknowledged input and unanswered user moves prevent it.
+  Use working with DETAIL, required, naming your current work and its subject,
+  or waiting with the answer you want from the user. Waiting without DETAIL
+  invites text comments. Use idle when finished; unacknowledged input and
+  unanswered user moves prevent it.
 
-  With working, --on names an open conversation or page widget and requires
-  DETAIL. The user sees it beside that subject as well as in the banner. Your
-  next reply ends a thread claim; a version stamp with --completes ends a widget
-  claim. Renew the status as work changes: a claim left after your turn ends, or
-  without updates, eventually reads as stalled.
+  With working, --on names an open thread, by any message in it, or a widget:
+  whatever a delivered event gives as its address, which then reads Working. The
+  user sees DETAIL beside that subject as well as in the banner. Your next reply
+  ends a thread claim; `leaf page stamp --completes` ends a widget claim. Renew
+  the status as work changes: a claim left after your turn ends, or without
+  updates, eventually reads as stalled.
 
 Options:
-  --on SUBJECT  The open conversation or local page widget this work is about.
+  --on SUBJECT  The open thread or widget this work is about.
   --help        Show this message and exit.
 
-## leaf comment --help
-Usage: leaf comment [OPTIONS] PAGE
+## leaf thread open --help
+Usage: leaf thread open [OPTIONS] PAGE
 
   Open a thread as the agent (--text or stdin): anchored where --quote or
   --section points at a passage, general where neither does \u2014 a question about
   the work as a whole.
 
   The user answers it in the browser. Refuses a quote the active revision does
-  not hold, or holds more than once.
+  not hold, or holds more than once. The comment's id is the thread's.
 
 Options:
   --quote TEXT   passage text from the active revision
@@ -119,27 +94,26 @@ Options:
   --part ID      declared visual part within --section
   --text TEXT    comment text (default: stdin)
   --markup TEXT  widget markup to render after the text, validated here
-  --json         print the comment event instead
+  --title TEXT   name the thread for the panel unless it has a name: a few
+                 words, at most 80 characters
   --help         Show this message and exit.
 
-## leaf reply --help
-Usage: leaf reply [OPTIONS] PAGE
+## leaf thread reply --help
+Usage: leaf thread reply [OPTIONS] PAGE [THREAD]
 
   Post a threaded reply as the agent (--text or stdin).
 
   Answer user input with --for EVENT_ID. With exactly one outstanding reply in
-  this turn's opened delivery, omit it to select that reply. To add a new agent
-  message when no reply is owed, use --to ID --initiates.
+  this turn's opened delivery, omit it to select that reply. THREAD, by any
+  message in it, posts a new agent message there instead, refused while that
+  thread owes a reply.
 
   --quote, --section, and --part move the thread's current anchor; --detach
   removes it when the subject leaves the page. The original anchor stays in the
   log. A reply validates and activates any changed source before posting.
 
 Options:
-  --to ID         conversation message ID for --initiates; inferred when
-                  answering --for
   --for EVENT_ID  delivery event whose current reply obligation this answers
-  --initiates     start an agent turn only when this conversation owes no reply
   --quote TEXT    new passage text to move this thread onto
   --section ID    new element ID, or scope for --quote
   --part ID       new declared visual part within --section
@@ -148,35 +122,53 @@ Options:
   --text TEXT     reply text (default: stdin)
   --markup TEXT   widget markup to render after the text, validated here
   --awaits        the reply's prose asks the user a question
-  --json          print the reply event instead
+  --title TEXT    name the thread for the panel unless it has a name: a few
+                  words, at most 80 characters
   --help          Show this message and exit.
 
-## leaf resolve --help
-Usage: leaf resolve [OPTIONS] PAGE
+## leaf thread edit --help
+Usage: leaf thread edit [OPTIONS] PAGE MESSAGE
 
-  Close a thread as the agent.
+  Replace the visible text of MESSAGE, an agent-authored comment or reply, or
+  with --title rename the thread MESSAGE is in, whoever opened it.
 
-  The user ordinarily closes a thread; the Leaf skill's references/conversation-
-  threads.md says when the agent does. Refuses a thread that asked for a version
-  until a stamped version answers it. The panel names who resolved it.
-
-Options:
-  --to ID  a message in the thread to close  [required]
-  --json   print the resolve event instead
-  --help   Show this message and exit.
-
-## leaf receipt --help
-Usage: leaf receipt [OPTIONS] PAGE REQUEST succeeded|failed
-
-  Record exactly one terminal host outcome for REQUEST.
+  The original and every revision remain in the append-only event log. Frozen
+  widget markup is not editable. Keep a title stable unless the thread's subject
+  changes.
 
 Options:
-  --text TEXT  host outcome (default: stdin)
-  --json       print the receipt event instead
-  --help       Show this message and exit.
+  --text TEXT   replacement text (default: stdin, unless --title)
+  --title TEXT  rename MESSAGE's thread for the panel: a few words, at most 80
+                characters
+  --help        Show this message and exit.
 
-## leaf version check --help
-Usage: leaf version check [OPTIONS] PAGE
+## leaf thread resolve --help
+Usage: leaf thread resolve [OPTIONS] PAGE THREAD
+
+  Close THREAD, by any message in it, as the agent.
+
+  The user ordinarily closes a thread; the Leaf skill's references/threads.md
+  says when the agent does. Refuses a thread that asked for a version until a
+  stamped version answers it. The panel names who resolved it.
+
+Options:
+  --help  Show this message and exit.
+
+## leaf page report --help
+Usage: leaf page report [OPTIONS] PAGE WIDGET VERB [NAME=VALUE]...
+
+  Report a state change onto a page widget, as a worker.
+
+  The verb and its fields are the widget's own agent-written x-state verb \u2014
+  `leaf page report <page> t-parser status status=review` moves a task. The page
+  paints the report live as provisional news; it stands until a version absorbs
+  or overrules it, and the page's watcher wakes to fold it in.
+
+Options:
+  --help  Show this message and exit.
+
+## leaf page check --help
+Usage: leaf page check [OPTIONS] PAGE
 
   Check PAGE/index.html.
 
@@ -188,8 +180,8 @@ Options:
   --render  also check the rendered page in the host's browser
   --help    Show this message and exit.
 
-## leaf version stamp --help
-Usage: leaf version stamp [OPTIONS] PAGE
+## leaf page stamp --help
+Usage: leaf page stamp [OPTIONS] PAGE
 
   Stamp PAGE/index.html with a changelog.
 
@@ -201,5 +193,4 @@ Usage: leaf version stamp [OPTIONS] PAGE
 Options:
   --text TEXT         changelog text (default: stdin)
   --completes WIDGET  active widget work this version completes (repeatable)
-  --json              print the note event instead
   --help              Show this message and exit.

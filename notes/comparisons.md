@@ -216,7 +216,7 @@ exist are the host's and they are strict — one page, no backend, no relative l
 MiB, and a CSP that blocks every external script, stylesheet, font, image, `fetch`, XHR
 and WebSocket, with Google Fonts the one exception. leaf arrives at nearly the same CSP
 from the opposite direction, by vendoring every asset into the page directory and having
-`version check` require it.
+`page check` require it.
 
 What survives a revision is where the two designs actually differ, and it is the same
 difference this note draws against Plannotator and lavish-axi. Artifacts have versions:
@@ -373,7 +373,7 @@ live DOM in the user's browser after fonts and finite animations settle — page
 overflow, controls outside the viewport, text clipped by a clipping ancestor, text drawn
 over — suppresses everything explicable, and files what survives in an inbox with a
 lifecycle, where the user batches a repair into one tagged prompt.
-`version check --render` already fails a version on most of that class, and does it as a
+`page check --render` already fails a version on most of that class, and does it as a
 gate before the URL goes out rather than as an inbox after. What the vocabulary can't
 reach is content- and user-dependent: leaf draws each version at one viewport
 (`RENDER_VIEWPORT`, 1200x900) in both colour schemes, so nothing a phone user sees is
@@ -478,7 +478,7 @@ That makes the two catalogs close enough to read side by side. CopilotKit's is
 React or Lit renderer for each, and TypeScript checking that the two halves match.
 leaf's registry is a JSON Schema per `lf-` tag, with theme rules and an optional ES
 module beside it. Both check the agent's use of the vocabulary before it reaches a
-screen — Zod on the tool arguments, `version check` on the markup. What differs is when
+screen — Zod on the tool arguments, `page check` on the markup. What differs is when
 the vocabulary is written, and by whom. A CopilotKit catalog is part of the application,
 written by its developer before the agent ever runs, and the agent's contribution is the
 component tree and the data filling it. leaf's agent writes the page from scratch every
@@ -492,7 +492,7 @@ D3 off a CDN and call back through host functions the app exposed. The two proje
 trust that page from opposite ends. CopilotKit treats generated UI as unsafe, puts an
 origin boundary around it, and then lets it reach the network. leaf treats the page as
 yours, gives it the whole window, and vendors every asset into the page directory under
-one CSP that `version check` requires, so a published page cannot phone home. Which
+one CSP that `page check` requires, so a published page cannot phone home. Which
 posture is right follows from who is reading: a user of someone's product, or the person
 whose own session wrote the page.
 
@@ -518,14 +518,14 @@ screen a token at a time. leaf has no state object. The version's markup states 
 initial condition, the log records every transition, and the standing state is the fold
 over it. Each widget's `renderState` receives the complete result, including the
 initial values restored by undo. CopilotKit streams down to the token, where a leaf page changes
-a version at a time and `leaf report` is what lets a dashboard tick over between
-versions. leaf keeps a decision across a rewrite: a card the user moved is still where
+a version at a time and `leaf page report` is what lets a dashboard tick over
+between versions. leaf keeps a decision across a rewrite: a card the user moved is still where
 they moved it after the agent publishes v4, and taking that back costs the author the
 word `restated`. CopilotKit has nothing equivalent because it has nothing to rewrite —
 the components are fixed before the run, and state is the only thing that moves.
 
 Both have to say how anyone knows the agent's UI came out right, and they answer at
-different layers. leaf gates the version: `version check` reads the markup against the
+different layers. leaf gates the version: `page check` reads the markup against the
 registry, and `--render` loads it in a real browser in both colour schemes and fails it
 for overflow, an unusable widget box, a relative replay, an attribute no entry declares.
 CopilotKit checks the boundary and then watches the stream — Zod on every tool argument,
@@ -594,7 +594,7 @@ A herdr arrangement has no past. A pane the agent moved is moved, and there is n
 layout for the move to disagree with. leaf's page has versions, so the same joint control
 raises a question herdr never has to answer: what becomes of the card the user dragged
 when the agent publishes a rewrite of that board. The log outranking the document is the
-answer to it — a surviving action replays onto the later version, and `version check`
+answer to it — a surviving action replays onto the later version, and `page check`
 refuses a rewrite that silently cancels a decision unless the author marks it `restated`.
 Sharing control over a live arrangement is nearly free; over a document that keeps its
 past it costs a reconciliation design.
@@ -651,7 +651,7 @@ Its expression language is where it diverges from leaf furthest. `$state` reads 
 Pointer into a state model, `$cond` picks a branch, `$template` interpolates, `$computed`
 calls a registered function, `$bindState` binds two ways, `watch` fires an action when a
 value changes, and `setState` writes back. Behaviour lives in the spec. leaf puts it in a
-module beside the registry entry, which is why `version check` can read a page and say
+module beside the registry entry, which is why `page check` can read a page and say
 what it will do, and why a leaf action is a fact appended to a log rather than a write to
 a store. That store is the real collision: it is exactly the second copy of the user's
 state that leaf's design refuses, and a leaf page holding one would have two answers to
@@ -675,8 +675,8 @@ TypeScript — `exposeComponent(Component, {description, name, props, children})
 one. What it has instead is Skillet, a Zod-shaped schema language in which
 `s.streaming.string()` marks a value safe to render half-written, and a streaming JSON
 parser that mounts a component while the model is still writing its props. That is the
-axis leaf is weakest on: a leaf page changes a version at a time, `leaf report` is what
-lets a dashboard tick over between them, and nothing in leaf paints a sentence as it
+axis leaf is weakest on: a leaf page changes a version at a time,
+`leaf page report` is what lets a dashboard tick over between them, and nothing in leaf paints a sentence as it
 arrives. It is also the axis leaf's design makes expensive, since a version is published
 whole and a comment anchors into it.
 
@@ -706,7 +706,7 @@ read rather than a fence the agent is kept behind; leaf's CSP guards against a p
 phoning home, not against the agent. The tree is the second decision. An abstract tree
 can be forced valid at generation, by constrained decoding against the catalog's
 schema, and can land on toolkits HTML never reaches; leaf accepts checking after the
-markup exists, in `version check`, to keep the artifact a document. Both trades follow
+markup exists, in `page check`, to keep the artifact a document. Both trades follow
 from who is reading, and both are the introduction's bet in miniature: a catalog's
 ceiling is fixed at design time, while fluency in HTML rises with every model.
 
@@ -751,7 +751,7 @@ interfaces in leaf's place — and reading them answered all three.
 
 Rendering one of these specs inside a leaf widget is mechanically the easiest thing in this
 note: it is the shape `lf-diagram` already has, a vendored bundle and a module beside a
-registry entry. What it costs is the reading stack. `version check` reads markup against
+registry entry. What it costs is the reading stack. `page check` reads markup against
 the registry, so everything inside the widget would be opaque to it; the passage reading
 would need a fence around the whole box, so nothing inside could be quoted, anchored or
 diffed; and the spec's state model would stand beside the log as a second answer to what
@@ -846,7 +846,7 @@ mechanism, or the two existing host hooks.
   application calls for users who never see a terminal, none of the loop applies; that is
   what CopilotKit and AG-UI are for.
 - **A page that has to outlive the session.** The server and the wait go down with it.
-  The page directory stays on disk and `version export` writes a file that opens
+  The page directory stays on disk and `page export` writes a file that opens
   offline, but no agent answers it afterwards. A Claude Code artifact is hosted and outlives the session
   that published it; a document a team will edit for months belongs in the repository.
 - **Editing the document yourself.** The user works the affordances the page offers —
@@ -879,7 +879,7 @@ above checked each for movement; none has become a page-and-log loop:
   paused tool call. leaf's decisions are the same act on a page instead of in a queue.
 - **In-app annotators** — [InstantCode](https://github.com/nguyenvanduocit/instantCode), [Agentation](https://github.com/benjitaylor/agentation), [pi-annotate](https://github.com/nicobailon/pi-annotate), [Vibe Annotations](https://github.com/RaphaelRegnier/vibe-annotations): click an
   element in your running app, leave a note, and the agent gets the DOM path back. The
-  same gesture as a leaf comment, aimed at software rather than at a document.
+  same gesture as a leaf thread open, aimed at software rather than at a document.
 - **`gh pr review`** — the incumbent, and what most people actually use.
 
 Two lists index this ground and are worth re-reading rather than re-deriving:

@@ -8,6 +8,7 @@ import {
   saveDraft,
   sendDraft,
   notice,
+  TEXT_FIELD,
   watchDraft,
   wireInput,
 } from "/runtime/widget-api.js";
@@ -65,9 +66,8 @@ export class OptionAddition {
 
   #buildForm() {
     this.#form = offer("form", "lf-another");
-    this.#input = offer("textarea");
+    this.#input = offer(TEXT_FIELD);
     this.#input.name = "option";
-    this.#input.rows = 1;
     this.#input.setAttribute("aria-label", ANOTHER);
     this.#add = offer("button", "lf-btn", "Add");
     this.#add.setAttribute("aria-label", "Add and select option");
@@ -76,14 +76,14 @@ export class OptionAddition {
     this.#input.value = loadDraft(this.#context) ?? "";
     this.#form.append(this.#bindingBadge, this.#input, this.#add);
     this.#syncInput = wireInput(this.#input, {
-      hint: "Another option — add to select",
+      hint: "Add another option",
       sends: "add and select option",
       icon: "add",
       sendBtn: this.#add,
       allowsMedia: () => "Images can be added to comments, not options",
       busy: () => !this.available(),
       hasContent: (raw) => Boolean(raw.trim()),
-      layout: this.#paintEmpty,
+      paint: this.#paintEmpty,
       save: () => this.remember(this.#picked()),
       send: (text, _raw, owns) => this.#submit(text, owns),
     });

@@ -1,10 +1,12 @@
-"""Construction-linked document inspection, derived from the canonical state fold.
+"""The construction reading of a thread's frozen markup, derived from the canonical
+state fold.
 
-This is semantic HTML and its effective inputs, not a second widget renderer.
-Exact event bodies, generated children and placement retain their event authority.
-Opaque widgets expose their source and declared data rather than invented screen
-text. Every source location belongs to the immutable document that was read;
-mutable-source locations are offered only when that source is the same document.
+`leaf page state <page> <thread>` prints it for each message that carries markup:
+semantic HTML and its effective inputs, not a second widget renderer. Exact event
+bodies, generated children and placement retain their event authority. Opaque widgets
+expose their source and declared data rather than invented screen text. A page's own
+document has no such reading: its HTML is the active revision file, read beside `page
+state`'s standing `state`.
 """
 
 from copy import deepcopy
@@ -84,9 +86,8 @@ def constructed_content(
     stored: dict,
     page_dir: Path,
     *,
-    editable: bool,
     retired: set,
-    conversation: str | None = None,
+    thread: str,
 ) -> list:
     """Read structure, effective values, and mutation owners from one snapshot.
 
@@ -110,18 +111,7 @@ def constructed_content(
             if identity:
                 by_id[identity] = node
                 parents[identity] = parent
-            if conversation is not None:
-                node["edit"] = {
-                    "kind": "conversation",
-                    "conversation": conversation,
-                }
-            else:
-                node["edit"] = {
-                    "kind": "source",
-                    "matches_active": editable,
-                }
-                if identity:
-                    node["edit"]["id"] = identity
+            node["edit"] = {"kind": "thread", "thread": thread}
             entry = registry.get(node["tag"], {})
             if entry.get("x-upgrade"):
                 node["vocabulary"] = node["tag"]
@@ -146,18 +136,8 @@ def constructed_content(
                 "attrs": {"id": identity},
                 "content": [generated["text"]],
                 "source": event_origin(generated["event"]),
-                "edit": {
-                    "kind": "generated",
-                    "owner": widget,
-                    "id": identity,
-                    "operation": "author-in-owner",
-                },
+                "edit": {"kind": "thread", "thread": thread},
             }
-            if conversation is not None:
-                child["edit"] = {
-                    "kind": "conversation",
-                    "conversation": conversation,
-                }
             owner["content"].append(child)
             by_id[identity] = child
     # Owner and verb → the position record a standing move places units by.
@@ -176,10 +156,6 @@ def constructed_content(
         if record := spec.get("record"):
             reading["construction"] = record
         owner.setdefault("state", []).append(reading)
-        if conversation is None:
-            owner["edit"]["override_requires"] = (
-                "restate" if event["kind"] == "action" else "absorb-or-overrule"
-            )
         if not record:
             continue
         value = event["detail"].get(record["value"])
@@ -259,7 +235,7 @@ def constructed_content(
             result.append(node)
         return result
 
-    if conversation is None:
+    if thread is None:
         main = next((node for node in by_id.values() if node["tag"] == "main"), None)
 
         # Main need not carry an id; find it in the already parsed tree.

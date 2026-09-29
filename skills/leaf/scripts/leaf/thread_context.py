@@ -1,5 +1,6 @@
 """Thread identity, frozen markup, and bounded delivery context."""
 
+from functools import lru_cache
 from typing import NamedTuple
 
 from leaf.events import (
@@ -14,31 +15,32 @@ from leaf.schema import MESSAGE_KINDS
 from leaf.structure import SourceDocument
 
 
-def comment_ids(events: list[dict]) -> set[str]:
-    """Comment roots present in the log, excluding orphaned reply parents."""
-    return {event["id"] for event in events if event["kind"] == "comment"}
+def thread_ids(events: list[dict]) -> set[str]:
+    """The id of every thread the log holds, including one whose opening message
+    it lost: the namespace a declaration naming a thread (`resolves`,
+    `data-sample-threads`) is checked against."""
+    return set(thread_names(events).values())
 
 
-def specimen_events(
+def sample_events(
     document: SourceDocument, events: list[dict], selected: set[str]
 ) -> list[dict]:
-    """Copy the selected conversation closures the log holds into a child's log.
+    """Copy the selected thread closures the log holds into a child's log.
 
     The selection is authored markup naming records the log owns, and the document
-    is what starts a page: one served before any conversation stands in it — a first
+    is what starts a page: one served before any thread stands in it — a first
     version, or a page re-created from its source without the log it shipped beside
-    — opens its specimens the same as any other. So a root the log does not hold
-    reads here as absent and the child begins without that conversation, rather than
-    the template's declaration deciding whether the page works at all.
+    — opens its samples the same as any other. So a thread the log does not hold
+    reads here as absent and the child begins without it, rather than the
+    template's declaration deciding whether the page works at all.
 
     That leaves a mistyped id to the one reader who can tell it from a page that has
-    not been written into yet: `scripts/corpus.py` selects against a history it is
-    generating from, where every declared root exists by construction, and refuses
+    not been written into yet: `leaf-dev corpus` selects against a history it is
+    generating from, where every declared thread exists by construction, and refuses
     one that names nothing."""
-    roots = thread_roots(events)
-    selected = selected & comment_ids(events)
+    names = thread_names(events)
     memberships = thread_memberships(
-        events, roots, thread_widgets(thread_structure(events), roots), document.within
+        events, names, thread_widgets(thread_structure(events), names), document.within
     )
     return [
         {
@@ -50,25 +52,85 @@ def specimen_events(
     ]
 
 
-def thread_roots(events: list) -> dict:
-    """Message id → the id of the comment that opened its thread.
+def thread_message(events: list, thread: str, name: str) -> str:
+    """The message an event written into `thread` names, when `name` reached it.
 
-    Two readings of the panel's own document resolve a reply to its root, and they
-    must answer alike: an Ask and a question naming different conversations for one
-    message is a disagreement no reader could account for. (`build_threads` walks the
-    same relation to a different end — the thread object itself, with its resolution —
-    so it keeps its own walk, and answers the same way where the log is torn.)
+    `name` itself where it is a message of the thread. Otherwise the thread through
+    its opening comment, or, where the log lost that comment, through the first
+    message the thread still holds, as the panel answers it."""
+    names = thread_names(events)
+    logged = {event["id"] for event in events}
+    if names.get(name) == thread and name in logged:
+        return name
+    if thread in logged:
+        return thread
+    return next(
+        message
+        for message, owner in names.items()
+        if owner == thread and message != thread
+    )
 
-    A reply whose root the log lost stands as its own thread rather than raising.
-    `read_events` skips a line nothing could be done with and keeps reading, and a
-    user who can see the reply is owed the rest of the page around it."""
-    root = {}
+
+def id_subject(
+    events: list,
+    page_widgets: set[str],
+    thread_by_widget: dict,
+    within: dict,
+    name: str,
+) -> dict | None:
+    """The subject any id a command takes names: `{"kind": "widget", "id"}` for a
+    widget on the page, `{"kind": "thread", "id"}` for a thread. None where it names
+    neither.
+
+    A thread is named by its own id, any message in it, a widget frozen into its
+    markup, or any other event whose history it is part of
+    (`thread_memberships`). An event on a page widget, a move or a worker's report,
+    names that widget, and an undo names what the gesture it withdraws named. A page id cannot collide with any of these:
+    `validation.markup.id_errors` refuses an authored id in the shape the log mints,
+    and message markup and versions refuse each other's ids."""
+    if name in page_widgets:
+        return {"kind": "widget", "id": name}
+    names = thread_names(events)
+    thread = names.get(name) or thread_by_widget.get(name)
+    if thread is None:
+        event = next((event for event in events if event["id"] == name), None)
+        if event is None:
+            return None
+        if event.get("widget") in page_widgets:
+            return {"kind": "widget", "id": event["widget"]}
+        if event["kind"] == "undo":
+            return id_subject(
+                events, page_widgets, thread_by_widget, within, event["undoes"]
+            )
+        memberships = thread_memberships(events, names, thread_by_widget, within)
+        thread = next(iter(memberships[name]), None)
+    return {"kind": "thread", "id": thread} if thread is not None else None
+
+
+def thread_names(events: list) -> dict:
+    """Every name that reaches a thread → that thread's id.
+
+    The names are the thread's own id and the id of each message in it, which a
+    reply, edit, or resolve names. A thread's id is the id of the comment that
+    opened it, and it stays so where the log lost that comment: a reply whose
+    parent the log does not hold opens a thread under the parent's id, which the
+    runtime's `threadNames` and `build_threads` key it on too. `read_events` skips
+    a torn line and keeps reading, and a user who can see the reply is owed the
+    rest of the page around it.
+
+    Two readings of the panel's own document resolve a message to its thread, and
+    they must answer alike: an Ask and a question naming different threads for one
+    message is a disagreement no reader could account for. (`build_threads` walks
+    the same relation to a different end — the thread object itself, with its
+    resolution — so it keeps its own walk, and answers the same way where the log
+    is torn.)"""
+    names = {}
     for e in events:
         if e["kind"] == "comment":
-            root[e["id"]] = e["id"]
+            names[e["id"]] = e["id"]
         elif e["kind"] == "reply":
-            root[e["id"]] = root.get(e["parent"], e["parent"])
-    return root
+            names[e["id"]] = names.setdefault(e["parent"], e["parent"])
+    return names
 
 
 class ThreadStructure(NamedTuple):
@@ -77,20 +139,37 @@ class ThreadStructure(NamedTuple):
     fragments: dict
 
 
+def logged_fragment(event: dict) -> SourceDocument:
+    """The parse of one logged event's frozen markup, shared read-only.
+
+    The log is append-only and a logged event is never rewritten, so its markup is
+    one immutable fragment for the page's lifetime, and every reader of the log
+    takes this one parse of it. The parse is a function of the markup alone, so it
+    is held by that text, which names it exactly whichever page and log it came
+    from. Markup a writer hands in has not been admitted yet and is another fact:
+    its gate parses it afresh (`validation.admission.check_markup`)."""
+    return _fragment(event["markup"])
+
+
+@lru_cache(maxsize=4096)
+def _fragment(markup: str) -> SourceDocument:
+    return SourceDocument(markup)
+
+
 def thread_structure(events: list) -> ThreadStructure:
-    """Parse each logged markup fragment once into the panel's id universe."""
+    """Each logged markup fragment (`logged_fragment`) as the panel's id universe."""
     ids, by_id, fragments = set(), {}, {}
     for e in events:
-        if markup := e.get("markup"):
-            fragment = SourceDocument(markup)
+        if e.get("markup"):
+            fragment = logged_fragment(e)
             fragments[e["id"]] = fragment
             ids.update(fragment.ids)
             by_id.update(fragment.by_id)
     return ThreadStructure(ids, by_id, fragments)
 
 
-def thread_widgets(structure: ThreadStructure, roots: dict) -> dict:
-    """Widget id → the conversation whose frozen markup holds it.
+def thread_widgets(structure: ThreadStructure, names: dict) -> dict:
+    """Widget id → the thread whose frozen markup holds it.
 
     The relation on its own, apart from `frozen_thread_reading`, which carries it
     alongside the records and words a vocabulary supplies. A caller needing only
@@ -98,66 +177,64 @@ def thread_widgets(structure: ThreadStructure, roots: dict) -> dict:
     rather than the log, so the caller that already holds them does not parse
     every fragment a second time."""
     return {
-        widget: roots[event_id]
+        widget: names[event_id]
         for event_id, fragment in structure.fragments.items()
-        if event_id in roots
+        if event_id in names
         for widget in fragment.by_id
     }
 
 
-def event_threads(event: dict, roots: dict, widgets: dict) -> list:
-    """The conversations one event belongs to — empty for news about the page.
+def event_threads(event: dict, names: dict, widgets: dict) -> list:
+    """The threads one event belongs to — empty for news about the page.
 
     Every kind that belongs to a thread names it differently, and none of them
     names it outright: a message through the message it answers, a resolve
-    through any message in the thread, an action two ways at once. One reading
+    through any name in `thread_names`, an action two ways at once. One reading
     of that relation, so a delivery and a projection cannot put the same event
-    in different conversations.
+    in different threads.
 
-    An action or request on a sent widget belongs to the conversation that supplied
-    its frozen contract. An action also belongs to the conversation it settles,
+    An action on a sent widget belongs to the thread that supplied
+    its frozen contract. An action also belongs to the thread it settles,
     which admitted `meaning.answer` names — the same key `build_threads` folds on to close
     one. Those are usually different threads and often only the second exists: the
     shipped settling verb is `lf-suggestion`'s decide, whose widget stands on the
-    page and in no conversation at all. Reading the widget alone left the gesture
+    page and in no thread at all. Reading the widget alone left the gesture
     that closes a thread as the one gesture arriving with nothing behind it.
 
-    A `report` carries a widget too and belongs to no conversation: `cmd_report`
+    A `report` carries a widget too and belongs to no thread: `cmd_report`
     validates its target against the active revision's own elements, so one
     can never name a widget an agent sent."""
     kind = event["kind"]
     if kind in MESSAGE_KINDS:
-        named = [roots.get(event["id"])]
+        named = [names.get(event["id"])]
     elif kind == "edit":
-        named = [roots.get(event["message"])]
-    elif kind in {"summary", "conversation_title"}:
-        named = [event["conversation"]]
+        named = [names.get(event["message"])]
+    elif kind in {"summary", "thread_title"}:
+        named = [event["thread"]]
     elif kind in {"resolve", "unresolve"}:
-        parent = event["parent"]
-        named = [roots.get(parent) or (parent if parent in roots.values() else None)]
-    elif kind in {"action", "request"}:
-        named = [
-            widgets.get(event["widget"]),
-            event["meaning"].get("answer") if kind == "action" else None,
-        ]
+        named = [names.get(event["parent"])]
+    elif kind == "action":
+        named = [widgets.get(event["widget"]), event["meaning"].get("answer")]
     else:
         return []
     return [thread for thread in dict.fromkeys(named) if thread]
 
 
 def thread_memberships(
-    events: list, roots: dict, widgets: dict, within: dict
+    events: list, names: dict, widgets: dict, within: dict
 ) -> dict[str, list[str]]:
-    """Event id → every conversation whose history that event changes.
+    """Event id → every thread whose history that event changes.
 
-    Leaf owns the relation because each event kind names its conversation in a
+    Leaf owns the relation because each event kind names its thread in a
     different way. Some name none directly: a later action on one widget
     supersedes its earlier answer, an undo inherits the gesture's membership, and
     a version note can retract what an answer rested on.
 
-    This is the shared join for exact event selection and wait delivery. Current
+    This is the shared join for wait delivery and sampled thread closures. Current
     resolution still comes from `build_threads`; membership says which raw
     records explain that fold rather than becoming another state projection.
+    Read state and the history feed read the direct relation, `event_threads`:
+    a move the user made in a thread, rather than every thread it changed.
     """
     memberships: dict[str, list[str]] = {}
     settled_by_coordinate: dict[tuple, list[str]] = {}
@@ -165,22 +242,20 @@ def thread_memberships(
     for event in events:
         if event["kind"] == "undo":
             named = memberships.get(event["undoes"], [])
-        elif event["kind"] == "receipt":
-            named = memberships.get(event["request"], [])
         else:
-            named = event_threads(event, roots, widgets)
+            named = event_threads(event, names, widgets)
         if event["kind"] == "action":
             coordinate = event_coordinate(event)
             named = [*named, *settled_by_coordinate.get(coordinate, [])]
-            if root := event["meaning"].get("answer"):
-                settled_by_coordinate.setdefault(coordinate, []).append(root)
-                settling_actions.append((event, root))
+            if answered := event["meaning"].get("answer"):
+                settled_by_coordinate.setdefault(coordinate, []).append(answered)
+                settling_actions.append((event, answered))
         elif event["kind"] == "note" and (restated := set(event.get("restated", []))):
             named = [
                 *named,
                 *(
-                    root
-                    for action, root in settling_actions
+                    answered
+                    for action, answered in settling_actions
                     if event["revision"] > action["revision"]
                     and restated.intersection(action_rests_on(action, within))
                 ),
@@ -212,14 +287,14 @@ MESSAGE_FIELDS = (
     "edited",
 )
 
-# How much of one conversation a wait digest carries: the message that opened it,
+# How much of one thread a wait digest carries: the message that opened it,
 # because it holds the question the thread is about, and the most recent, being
-# what a new one answers. `leaf events --conversation` selects the exchange whole when
-# a reader needs the middle.
+# what a new one answers. `leaf page state <page> <thread>` pages through the
+# exchange when a reader needs the middle.
 #
 # The bound is the point. A delivery reprints the entire thread every time,
 # because the agent it is for may hold none of it — so unbounded, the header
-# grows with the conversation until it alone outgrows the output it prints
+# grows with the thread until it alone outgrows the output it prints
 # into. That is the one shape acknowledgement cannot recover from: the ack rule
 # says to rerun with more capacity, and a rerun prints the same oversize header,
 # so nothing can ever be acked and the wait repeats forever.
@@ -249,18 +324,18 @@ def ends_kept(items: list, pin: frozenset = frozenset()) -> list:
 def thread_digest(
     thread: dict, omit: frozenset = frozenset(), pin: frozenset = frozenset()
 ) -> dict:
-    """One conversation as a reader away from the panel needs it: its current page
+    """One thread as a reader away from the panel needs it: its current page
     location or prior anchor when detached, who closed it, and what was said.
 
     `omit` drops messages by log sequence, which is how a delivery carries the
     exchange its own events land in without printing them twice. `pin` keeps a
     message the bound would otherwise drop. `elided` says how many went, so a
-    reader can tell a short conversation from a shortened one and knows to
-    read the exact records with `leaf events --conversation`."""
+    reader can tell a short thread from a shortened one and knows to
+    page through the rest with `leaf page state <page> <thread> --after`."""
     kept = [m for m in thread["msgs"] if m["seq"] not in omit]
     shown = ends_kept(kept, pin)
     return {
-        "id": thread["root"]["id"],
+        "id": thread["id"],
         "title": thread["title"],
         "anchor": thread["anchor"],
         "detached_from": thread["detached_from"],
@@ -275,20 +350,20 @@ def thread_digest(
 
 
 def batch_threads(events: list, batch: list, within: dict) -> list:
-    """The conversations a delivered batch lands in, with what was said before it.
+    """The threads a delivered batch lands in, with what was said before it.
 
-    Every named conversation carries its current metadata, even when the batch
+    Every named thread carries its current metadata, even when the batch
     contains all of its messages. An event alone does not carry its title.
     A reply names the message it
     answers, an action its widget and whatever it settles, an undo an event.
     Those ids are the session's own memory of the exchange, and a session that
     has compacted, or one picking the page up, no longer holds it — so the news
     arrives with nothing behind it and the reply goes out against half a
-    conversation. The envelope carries the rest, once per thread however many of
+    thread. The envelope carries the rest, once per thread however many of
     its events the batch holds, and leaves out the batch's own messages because
     they follow on the next lines.
 
-    A widget an agent sent is part of the conversation too, so `actions` carries
+    A widget an agent sent is part of the thread too, so `actions` carries
     what the user did to one: without it the question reaches the agent and
     the answer does not, and the reply reopens something already settled.
     `page state` gets none of these, because it folds them into its own `state`
@@ -308,10 +383,10 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
     what a verb's unit is, and they need no window: thread markup is
     frozen, so no version bounds it and no retraction floor reaches it, and undo
     is the whole of what unseats one."""
-    roots = thread_roots(events)
+    names = thread_names(events)
     structure = thread_structure(events)
-    widgets = thread_widgets(structure, roots)
-    memberships = thread_memberships(events, roots, widgets, within)
+    widgets = thread_widgets(structure, names)
+    memberships = thread_memberships(events, names, widgets, within)
     named = []
     for event in batch:
         for thread in memberships[event["id"]]:
@@ -347,7 +422,7 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
         spoken_for |= {
             e["widget"]
             for e in batch
-            if e["kind"] in {"action", "request"} and widgets.get(e["widget"]) == t
+            if e["kind"] == "action" and widgets.get(e["widget"]) == t
         }
         pin = frozenset(
             sent

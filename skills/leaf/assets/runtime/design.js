@@ -1,14 +1,15 @@
-/* This module owns layer-review (design) mode, its targets, and legend geometry. */
+/* This module owns Design mode, its targets, and legend geometry. */
 import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
-import { documentPoint, shownRect } from "./geometry.js";
+import { bannerFoot, documentPoint, shownRect } from "./geometry.js";
 import { el, WORKS } from "./widget-elements.js";
 import { tabStore } from "./storage.js";
 import { isAddressable, ADDRESSABLE, addressableAt } from "./anchor-resolution.js";
-import { closestAcross, inChrome } from "./passages.js";
+import { closestAcross, inChrome, leafSurface } from "./passages.js";
 import { tagsDeclaring } from "./registry.js";
 import { designName, DESIGN_MODE_KEY } from "./design-readings.js";
 import { pageCommand, pageRung, pageScope } from "./keyboard/register.js";
 import { under } from "./shadow.js";
+import { coarsePointer } from "./pointer.js";
 
 // The name of what the pointer is over in design mode, floated at its corner. Chrome
 // nothing presses (pointer-events none, in the stylesheet); refreshAim is its one
@@ -23,12 +24,17 @@ export const legendRoot = el("div", "lf-ui lf-legend");
 legendRoot.setAttribute("aria-hidden", "true");
 
 /* The user marking presentation or interaction intent: what a widget looks like or
- * does, a control, the runtime's own chrome. A mode rather than a sequence, because it is
- * entered for a batch of remarks and changes what a press means everywhere: a press
- * comments on what it lands on and does nothing else, so a card can be pointed at
- * without moving it and a pick mark without picking. Prose keeps the browser's
- * selection — words are still the way to point at words — and a plain click on prose
- * comments on the block it is in. `designModeOn` is the state; the body marker, the banner's
+ * does, a control on the page. A mode rather than a sequence, because it is entered for
+ * a batch of remarks and changes what a press on the page means: a press comments on
+ * what it lands on and does nothing else, so a card can be pointed at without moving it
+ * and a pick mark without picking. The mode is about what the agent made: the page, a
+ * margin entry, which stands for a page item or is a widget's own action, and a widget
+ * the agent sent in a reply. Leaf's own chrome — the banner and More, a panel, its
+ * close and its edge — works as it does outside the mode, as it does for the target
+ * picker: a remark on it has no reader who can act on it, and a mode that took it
+ * would take the way out of whatever the mode's own send opened. Prose keeps the
+ * browser's selection — words are still the way to point at words — and a plain click on
+ * prose comments on the block it is in. `designModeOn` is the state; the body marker, the banner's
  * wash, the toggle's pressed face and the name under the pointer are its renderings,
  * written by the one setter, and every comment opened while it stands carries
  * `about: "design"`, which is how the agent tells design intent from a remark about
@@ -41,6 +47,9 @@ export function createDesignMode({
   composer,
   closePreview,
   marginTargetAt,
+  closeDrawMode,
+  closeTargetPicker,
+  closeReactionMode,
   banner,
   announce,
   repaint,
@@ -50,9 +59,16 @@ export function createDesignMode({
   let designModeOn = false;
 
   function setDesignMode(on, { spoken = true } = {}) {
-    // Design mode reinterprets presses on the page and chrome as interface comments, so
-    // retire the thread card rather than leave a conversation up that no press can work.
-    if (on) closePreview();
+    // Design mode reinterprets presses on the page and its margin as interface comments,
+    // so retire the thread card rather than leave a thread up that no press can work.
+    // The page is in one mode at a time, as Draw mode's own setter keeps it. A finger
+    // reaches this from More while the picker or Draw mode holds, where no key could.
+    if (on) {
+      closePreview();
+      closeDrawMode();
+      closeTargetPicker();
+      closeReactionMode();
+    }
     designModeOn = on;
     document.body.toggleAttribute("data-lf-design-mode", on);
     banner.toggleAttribute("data-lf-design-mode", on);
@@ -63,7 +79,11 @@ export function createDesignMode({
     if (spoken)
       announce(
         on
-          ? "Design mode: a click comments on what it lands on — a widget, a control, the chrome. Escape leaves."
+          ? `Design mode: a click comments on what it lands on — a widget, a control, a picture. ${
+              coarsePointer.matches
+                ? "Exit Design mode on the banner leaves."
+                : "Escape leaves."
+            }`
           : "Design mode off",
       );
     syncGeneral(); // the general box's hint says which of the two it posts
@@ -97,10 +117,24 @@ export function createDesignMode({
   // every rect is read, and only then is anything placed.
   const legendBoxes = new Map(); // addressable → { box, radius, tagW }
   const legendSizes = sizeObserver(() => pageGeometry.pageShifted());
+  // The legend's own writes are mutations too, inside the chrome, and so is the runtime's
+  // paint on page elements: a mark rewrites its classes, in the runtime's namespace, on
+  // every repaint, which a shift starts. A repaint that heard either would never stop,
+  // and on a page with reactions it didn't, at thousands of mutations a second.
+  const authoredClasses = (value) =>
+    (value ?? "")
+      .split(/\s+/)
+      .filter((name) => name && !name.startsWith("lf-"))
+      .sort()
+      .join(" ");
+  const movesPage = (r) =>
+    !inChrome(r.target) &&
+    !(
+      r.attributeName === "class" &&
+      authoredClasses(r.oldValue) === authoredClasses(r.target.getAttribute("class"))
+    );
   const legendMoves = new MutationObserver((records) => {
-    // The legend's own writes are mutations too, inside the chrome; a repaint that heard
-    // itself would never stop.
-    if (records.some((r) => !inChrome(r.target))) pageGeometry.pageShifted();
+    if (records.some(movesPage)) pageGeometry.pageShifted();
   });
   let legendFrame = 0;
   // One tag's height, measured once: where a box's top is nearer the banner than this,
@@ -125,6 +159,7 @@ export function createDesignMode({
       subtree: true,
       childList: true,
       attributes: true,
+      attributeOldValue: true,
       characterData: true,
     });
     const addressables = [...document.querySelectorAll(ADDRESSABLE)].filter(
@@ -156,7 +191,7 @@ export function createDesignMode({
     }
     // The reads.
     const clips = new Map();
-    const bannerFoot = banner.getBoundingClientRect().bottom;
+    const roomTop = bannerFoot();
     const placed = addressables.map((addressable) => {
       const entry = legendBoxes.get(addressable);
       entry.radius ??= getComputedStyle(addressable).borderRadius;
@@ -191,7 +226,7 @@ export function createDesignMode({
         height: r.bottom - r.top + 2 + "px",
         borderRadius: radius,
       });
-      const inward = r.top - legendTagH < bannerFoot;
+      const inward = r.top - legendTagH < roomTop;
       box.classList.toggle("lf-in", inward);
       if (!tagW) continue;
       const left = r.left - 1;
@@ -215,30 +250,34 @@ export function createDesignMode({
     }
   }
 
-  // What a design press is about: the nearest thing with an id — an addressable element, the same
-  // answer the ⌥ aim gives, or inside the chrome the part the runtime named — and the
-  // control the press landed on where it landed on one, since "the grip" and "the card"
-  // are different remarks. Nothing where the press is the mode's own machinery: the
-  // composer being typed into, the 💬 that opens it, the name floating under the pointer.
-  const DESIGN_OWN = ".lf-composer, .lf-fab-bar, .lf-inspect";
+  // What a design press is about: the nearest addressable element, the same answer the ⌥
+  // aim gives; the item a margin entry stands for; or inside a Leaf surface the nearest
+  // authored id within it, a widget an agent sent, whose module's generated parts wear
+  // the runtime's namespace and are passed over — and the control the press landed on
+  // where it landed on one, since "the grip" and "the card" are different remarks.
+  // Nothing on the rest of a Leaf surface, which keeps working (the header above), even
+  // where its owner seated it inside a widget on the page. A margin entry answers only
+  // where it is nearer than the surface: a thread a diff seats in a line's margin row is
+  // the thread's, not the row's.
+  const MARGIN_ENTRY = ".lf-margin-entry, [data-lf-margin-for]";
+  function authoredAt(at) {
+    const surface = leafSurface(at);
+    const margin = closestAcross(at, MARGIN_ENTRY);
+    const standsFor =
+      margin && (!surface || under(margin, surface)) && marginTargetAt(at);
+    if (standsFor) return standsFor;
+    if (!surface) return addressableAt(at);
+    const authored = closestAcross(at, '[id]:not([id^="lf-"])');
+    return authored && under(authored, surface) ? authored : null;
+  }
   // Asked at use: widget-elements.js's selector reaches this module back through the
   // geometry helpers, so it is not readable as this module evaluates.
   const controls = () => `${WORKS},[data-lf-offer]`;
   function designTarget(node) {
     const at = node?.nodeType === 1 ? node : node?.parentElement;
-    if (!at || closestAcross(at, DESIGN_OWN)) return null;
+    if (!at) return null;
     const marginTarget = marginTargetAt(at);
-    // In the layer, the nearest id — but the author's before the runtime's. The runtime's
-    // own parts wear its namespace and are the target themselves; a widget an agent sent
-    // wears an authored id and its module's generated parts wear the runtime's, so passing
-    // over those lands on the widget, which is where `addressableAt` lands out on the page. Taking
-    // the nearest of any kind anchored a design comment on `lf-diagram-3` — a number that
-    // changes with draw order — and `layerPart` then read it back as a part of the layer.
-    const el =
-      marginTarget ??
-      (inChrome(at)
-        ? (closestAcross(at, '[id]:not([id^="lf-"])') ?? closestAcross(at, "[id]"))
-        : addressableAt(at));
+    const el = authoredAt(at);
     if (!el) return null;
     const control = closestAcross(at, controls());
     const part =
@@ -257,10 +296,10 @@ export function createDesignMode({
     return said || control.tagName.toLowerCase();
   }
 
-  // Which presses the mode takes at the press, ahead of the page: everything but prose and
-  // the mode's own machinery. A widget, a control, a picture, the chrome — none has words
-  // to select and each has something a press would otherwise do, and the mode's promise is
-  // that it does none of it. Whether the press has a durable target decides only whether a
+  // Which presses the mode takes at the press, ahead of the page: everything on the page
+  // but prose, and whatever in the chrome the agent made. A widget, a control, a picture —
+  // none has words to select and each has something a press would otherwise do, and the
+  // mode's promise is that it does none of it. Whether the press has a durable target decides only whether a
   // composer can open; it never gives the activation back to the page. Prose is left to the
   // browser, so a drag still selects, and the click that ends a plain press on it reaches
   // the handler in the entry module rather than being taken here.
@@ -268,12 +307,8 @@ export function createDesignMode({
     [...tagsDeclaring(() => true), controls(), "svg", "img", "figure"].join(",");
   function designPress(target) {
     const at = target?.nodeType === 1 ? target : target?.parentElement;
-    return Boolean(
-      designModeOn &&
-      at &&
-      !closestAcross(at, DESIGN_OWN) &&
-      (inChrome(at) || closestAcross(at, PRESSED())),
-    );
+    if (!designModeOn || !at) return false;
+    return Boolean(leafSurface(at) ? authoredAt(at) : closestAcross(at, PRESSED()));
   }
 
   // The one way a design target becomes the composer's anchor: the element by id, and the
@@ -306,13 +341,14 @@ export function createDesignMode({
         id: "design.mode.comment",
         keys: [],
         label: "click",
-        does: "Comment on what the click lands on — a widget, a control, the chrome; prose still selects",
+        does: "Comment on what the click lands on — a widget, a control, a picture; prose still selects",
       },
       {
         id: "design.mode.exit",
         keys: ["l"],
         does: "Exit Design mode",
         line: "exit Design mode",
+        touch: "Exit Design mode",
         run: () => setDesignMode(false),
       },
     ],
@@ -336,8 +372,10 @@ export function createDesignMode({
   pageCommand({
     id: "design.mode.enter",
     keys: ["l"],
-    does: "Enter Design mode: comment on the layer — a widget, a control, the chrome — rather than the page",
+    does: "Enter Design mode: comment on how the page looks and works — a widget, a control, a picture — rather than its words",
     line: "design mode",
+    touch: "Design mode",
+    when: () => !designModeOn,
     run: () => setDesignMode(true),
   });
 

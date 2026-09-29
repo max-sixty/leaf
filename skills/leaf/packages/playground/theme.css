@@ -1,19 +1,16 @@
-/* A playground is an instrument laid out as a sheet's body beside its rail: the real
+/* A playground is an instrument laid out as a wide page's body beside its rail: the real
  * preview is the stage and owns the larger field, and the controls stand above the
- * instruction they write, with its actions, in a rail beside it. It is a workspace whose
- * relationship is declared, built from the layout layer's grammar: a grid of three panes
- * (data-lf-reading-role, packages/default/theme.css). That grammar decides who scrolls;
- * here the playground only places the panes and draws them.
+ * instruction they write, with its actions, in a rail beside it. Its regions are three
+ * generated panes (data-lf-reading-role="pane", the kernel's theme.css), whose bodies
+ * scroll where a workspace Layout fills the window (layouts.css); here the playground
+ * only places the panes and draws them.
  *
  * Each region is drawn once. The playground itself is no card: the stage is the
- * preview's own well, and each rail pane is a panel as a sheet draws its regions
+ * preview's own well, and each rail pane is a panel as a wide page draws its regions
  * (theme.css, section.panel), so a candidate the page draws on the stage is the only
  * surface inside the well rather than a card in a well in a card. */
 lf-playground {
   --lf-block-frame: 1;
-  /* Passes a held workspace's height to its grid of regions (default theme). */
-  --lf-passes-hold: 1;
-  min-height: var(--lf-track-min);
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--sp-4);
@@ -29,18 +26,18 @@ lf-playground:has(> .lf-playground-split) {
   grid-template-rows: minmax(0, 1fr);
 }
 
-/* The body and rail of a sheet (page-authoring.md, the sheet): the same `2fr 1fr` and
- * gutter an lf-grid body and rail draw, so a playground on a sheet stands on the lines
- * the page's other regions do. The stage spans the rail's two rows; the controls take
- * their content's height and the instruction stands under them. Narrower than 51rem
- * (lf-grid's width for a 2fr 1fr template, default theme), a document's column included,
- * a rail would be too narrow for the controls it holds, so the regions stack in reading
- * order: the stage, the controls, the instruction. */
+/* The stage beside a rail: the preview takes two thirds and spans the rail's two rows; the
+ * controls take their content's height and the instruction stands under them. Narrower
+ * than 43.5rem, a document's column included, a rail would be too narrow for the controls
+ * it holds, so the regions stack in reading order: the stage, the controls, the
+ * instruction. */
 .lf-playground-split {
+  display: grid;
+  gap: var(--sp-4);
   grid-template-columns: minmax(0, 1fr);
 }
 
-@container (min-width: 51rem) {
+@container (min-width: 43.5rem) {
   .lf-playground-split {
     grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
     grid-template-rows: auto 1fr;
@@ -56,21 +53,29 @@ lf-playground:has(> .lf-playground-split) {
   }
 }
 
-/* Held in a bounded workspace, the controls give up height and scroll while the
- * instruction and its actions stay whole under them, down to the controls' floor; below
- * it the instruction takes its track rather than its content's height, and its body
- * scrolls instead of running past the workspace. */
+/* Full-height (a workspace Layout gives it a definite height to fill, `--lf-full-height`),
+ * the playground and its split take that height, the controls give up height and scroll
+ * while the instruction and its actions stay whole under them, down to the controls'
+ * floor; below it the instruction takes its track rather than its content's height, and
+ * its body scrolls instead of running past the window. */
 @media screen {
-  @container lf-workspace (min-width: 720px) and (min-height: 480px) {
-    @container style(--lf-held: 1) {
-      @container (min-width: 51rem) {
-        html:root .lf-playground-split {
-          grid-template-rows: minmax(12rem, 1fr) auto;
-        }
+  @container style(--lf-full-height: 1) {
+    lf-playground {
+      min-block-size: 0;
+      margin-block: 0;
+    }
 
-        html:root .lf-playground-instruction-region {
-          align-self: stretch;
-        }
+    .lf-playground-split {
+      min-block-size: 0;
+    }
+
+    @container (min-width: 43.5rem) {
+      html:root .lf-playground-split {
+        grid-template-rows: minmax(12rem, 1fr) auto;
+      }
+
+      html:root .lf-playground-instruction-region {
+        align-self: stretch;
       }
     }
   }
@@ -86,6 +91,7 @@ lf-playground:has(> .lf-playground-split) {
 lf-playground .lf-playground-preview-region > .lf-playground-preview-body {
   display: flex;
   flex-direction: column;
+  --lf-pane-top: 0px;
   padding: 0;
 }
 
@@ -95,7 +101,7 @@ lf-playground .lf-playground-preview-region > .lf-playground-preview-body {
   flex: 1 0 auto;
 }
 
-/* A rail pane is a panel: the card a sheet draws each region in, titled in the panel's
+/* A rail pane is a panel: the card a wide page draws each region in, titled in the panel's
  * small capitals. */
 :is(.lf-playground-controls-region, .lf-playground-instruction-region) {
   border-color: var(--rule);
@@ -112,7 +118,8 @@ lf-playground
 lf-playground
   :is(.lf-playground-controls-region, .lf-playground-instruction-region)
   > :not(header, footer) {
-  padding: 12px 18px 16px;
+  --lf-pane-top: 12px;
+  padding: var(--lf-pane-top) 18px 16px;
 }
 
 lf-playground
@@ -251,13 +258,6 @@ lf-playground-setting {
   display: none;
 }
 
-.lf-playground-presets .lf-btn,
-.lf-playground-actions .lf-btn {
-  min-height: var(--aim-floor);
-  padding: var(--sp-2) var(--sp-3);
-  font: 600 var(--t-6)/1.2 var(--sans);
-}
-
 /* The stage: one well the preview's artifacts stand on. A stage the rail beside it holds
  * taller than the artifacts sets them in its middle rather than leaving its lower half
  * bare, and one they overflow starts them at its top. */
@@ -301,19 +301,6 @@ lf-playground-value {
   color: var(--ink-2);
   font: var(--t-6)/1.3 var(--sans);
   text-align: end;
-}
-
-.lf-playground-copy-trigger {
-  box-sizing: border-box;
-  min-height: var(--aim-floor);
-  height: auto;
-  white-space: nowrap;
-  padding: var(--sp-2) var(--sp-3);
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--field);
-  color: var(--ink-2);
-  font: 600 var(--t-6)/1.2 var(--sans);
 }
 
 .lf-playground-copy-label.success,

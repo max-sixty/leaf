@@ -45,11 +45,13 @@ lf-agent[state="done"] > strong, lf-agent[state="idle"] > strong { color: var(--
 /* Silence against a claim of work. The word is the module's and says the whole of it;
  * the tint is the bonus, using the vocabulary's amber for work that needs attention. */
 .lf-cold { color: var(--warn-ink); background: var(--warn-tint);
-           padding: 0 8px; border-radius: var(--chip-r); font-size: var(--t-6); }
+           padding: var(--chip-pad); border-radius: var(--chip-r); font-size: var(--t-6);
+           line-height: var(--chip-lh); }
 /* The state, in the vocabulary's own semantics: green for finished, accent for the one
  * in flight, amber for waiting, red for stuck, and neutral for a worker with nothing to
  * do — which is not a fault and is not tinted as one. */
-.lf-state { padding: 0 8px; border-radius: var(--chip-r); font-size: var(--t-6);
+.lf-state { padding: var(--chip-pad); border-radius: var(--chip-r); font-size: var(--t-6);
+            line-height: var(--chip-lh);
             white-space: nowrap; background: var(--chip); color: var(--ink-2); }
 .lf-state-working { background: color-mix(in srgb, var(--accent) 14%, transparent);
                     color: var(--accent); }
@@ -66,7 +68,7 @@ lf-agent[state="reaped"] > strong { color: var(--ink-2); }
  * ready to be reviewed. A nested Decision assigns that review. */
 lf-tasks, lf-command { display: block; margin: 14px 0; }
 /* A goal row stacks its chips under its name from the room the command has, which a
-   command inside a worker's disclosure or beside an open tray has less of than the
+   command inside a worker's disclosure or beside an open drawer has less of than the
    window says. */
 lf-command { container: lf-command / inline-size; }
 lf-task { display: block; position: relative; padding-left: 26px; margin: 8px 0; }
@@ -91,10 +93,14 @@ lf-task[status="done"] > strong { color: var(--muted); }
  * at a glance, and a disclosure put its rows one press away from the question it
  * answers. The outcome reads top to bottom — its name, the done fraction as a length,
  * the fraction and horizon in words — over one tile per count. */
+/* The apparatus voice for this package's words (packages/default/theme.css says why
+ * every package states its own). */
+.lf-state, .lf-heard, .lf-cold {
+  font-family: var(--sans); font-variant-numeric: tabular-nums; }
 /* The seat in a rail stacks its panels the way the rail's own grid stacks its cells:
  * the gap is the grid's, so a panel the command drew and one the page authored stand
  * the same distance apart. */
-lf-command-readings { display: grid; gap: var(--lf-grid-gap, var(--sp-4)); }
+lf-command-readings { display: grid; gap: var(--sp-4); }
 lf-command-readings > section.panel { margin: 0; }
 .lf-command-outcome { display: grid; gap: var(--sp-2); }
 .lf-command-outcome > strong { font: 600 var(--t-3)/1.25 var(--sans); }
@@ -137,7 +143,8 @@ lf-command-readings > section.panel { margin: 0; }
 .lf-stopped-view a:hover, .lf-fleet-view a:hover { color: var(--accent); }
 .lf-stopped-why, .lf-fleet-remit { display: block; margin-top: 2px;
   font: var(--t-6)/1.4 var(--sans); }
-.lf-stopped-age { margin-right: var(--sp-1); padding: 0 6px; border-radius: var(--chip-r);
+.lf-stopped-age { margin-right: var(--sp-1); padding: var(--chip-pad);
+  border-radius: var(--chip-r);
   background: var(--chip); color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .lf-stopped-view li:is([data-lf-reason="stalled"], [data-lf-reason="blocked"]) .lf-stopped-why {
   color: var(--danger-ink); }
@@ -145,50 +152,28 @@ lf-command-readings > section.panel { margin: 0; }
   .lf-stopped-why { color: var(--warn-ink); }
 .lf-fleet-view li > .lf-state { margin-left: var(--sp-1); }
 
-lf-command [data-lf-command-goal] { display: grid;
-  grid-template-columns: minmax(12rem, 1fr) auto auto;
-  column-gap: var(--sp-3); align-items: baseline; }
-lf-command [data-lf-command-goal] > strong { grid-column: 1; }
-lf-command [data-lf-command-goal] > .lf-task-meta { grid-column: 2 / 4;
-  display: flex; align-items: center;
-  justify-content: flex-end; gap: var(--sp-1); min-width: max-content; }
-.lf-task-meta > span, .lf-task-crew { border: 0; border-radius: var(--chip-r); padding: 1px 7px;
-  background: var(--chip); color: var(--ink-2); font: inherit; font-size: var(--t-6); }
+/* A goal is authored prose, so it lays out as prose: a grid made every inline piece of
+   it a cell of its own, and a goal ending "Last worktree: <a>atlas/dedupe-attempt</a>."
+   stood on three rows with its full stop alone on the last. The generated chips lead
+   the goal (lf-command.js) and float to its right, level with the title, which wraps
+   short of them. Containing the float makes the goal a frame its children's margins
+   stop at, so it says so and the theme trims them there. */
+lf-command [data-lf-command-goal] { display: flow-root; --lf-block-frame: 1; }
+lf-command [data-lf-command-goal] > strong { display: block; }
+lf-command [data-lf-command-goal] > .lf-task-meta { float: right;
+  display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end;
+  gap: var(--sp-1); margin-left: var(--sp-3); max-width: 50%; }
+.lf-task-meta > span, .lf-task-crew { border: 0; border-radius: var(--chip-r);
+  padding: var(--chip-pad); background: var(--chip); color: var(--ink-2);
+  font: var(--t-6) / var(--chip-lh) var(--sans); }
 .lf-task-crew { cursor: pointer; color: var(--accent); }
 .lf-task-meta > .lf-task-held { color: var(--warn-ink); background: var(--warn-tint); }
 .lf-task-meta > .lf-task-signal { color: var(--accent); }
-lf-command [data-lf-command-goal] > :not(strong):not(.lf-task-meta):not([data-lf-command-goal]):not([data-lf-command-worker]):not(.lf-conversation) {
-  grid-column: 1 / -1; }
-lf-command [data-lf-command-goal] > [data-lf-command-goal],
-lf-command [data-lf-command-goal] > [data-lf-command-worker],
-lf-command [data-lf-command-goal] > .lf-conversation {
-  grid-column: 1 / -1; }
 lf-command [data-lf-command-goal] > [data-lf-command-worker] {
   display: none; margin: var(--sp-2) 0 0 12px; }
 lf-command [data-lf-command-goal][data-lf-open] > [data-lf-command-worker] { display: block; }
 lf-command [data-lf-command-goal][data-lf-held] {
   background: linear-gradient(90deg, var(--warn-tint), transparent 72%); }
-
-/* Host operations are a compact command set, distinct from lf-options' replayable
- * document decisions. The prose stays authored and selectable; the trailing press is
- * apparatus after it, and a linked receipt replaces its availability with a terminal account. */
-lf-operations { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-  gap: var(--sp-2); margin: var(--sp-3) 0; }
-lf-operation { display: block; padding: var(--sp-3);
-  border: 1px solid var(--rule); border-radius: var(--r); background: var(--paper);
-  --lf-block-frame: 1; }
-lf-operation:has(> lf-request-control[data-lf-requested]) {
-  background: color-mix(in srgb, var(--accent) 7%, var(--paper)); }
-/* The press follows the prose it acts on. Held beside it, in a gutter the card kept
- * down its whole height, it left a 14rem card's prose a hundred pixels a line. */
-lf-operation > lf-request-control > .lf-request-press {
-  display: block; width: fit-content; margin-top: var(--sp-2); }
-lf-operations > .lf-request-render-root > .lf-request-status {
-  grid-column: 1 / -1; color: var(--muted); font: var(--t-6) var(--sans); }
-lf-operations > .lf-request-render-root > .lf-request-status[data-status="failed"] {
-  color: var(--danger-ink); }
-lf-operations > .lf-request-render-root > .lf-request-status[data-status="succeeded"] {
-  color: var(--ok-ink); }
 
 lf-worktree { display: block; margin: var(--sp-2) 0; padding-left: var(--sp-3);
   border-left: 2px solid var(--rule); }

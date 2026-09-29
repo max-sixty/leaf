@@ -21,14 +21,21 @@ export const shadowRootsIn = (root) =>
     .map((host) => host.shadowRoot)
     .filter(Boolean);
 export const pageShadowRoots = () => shadowRootsIn(document);
+// The host of `root` when it is a shadow root, else null: the one test of whether a climb
+// crosses to a host. It asks the root's kind, since other roots answer `host` too — a
+// document names its `<form name="host">` there, and a detached subtree's root is an
+// element, an `<a>` or `<area>` whose `host` is its URL's. The kind is its node type
+// rather than `instanceof ShadowRoot`, whose class belongs to one window: an iframe's
+// runtime climbs its parent document's elements out to the frame's place in the page.
+export const shadowHost = (root) =>
+  root?.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? (root.host ?? null) : null;
 // The parent, crossing a shadow root's boundary on the way up: the ordinary parent within
 // a tree, and the host where a tree runs out. It is the one walk every reading that
 // climbs out of a widget takes. Every question the runtime asks about where a node sits —
 // which section, which block, which passage cell, whether it is chrome — is asked of the
 // page, and a climb that stops at a shadow root answers about the widget's own markup
 // instead.
-export const upFrom = (node) =>
-  node?.parentElement ?? node?.getRootNode()?.host ?? null;
+export const upFrom = (node) => node?.parentElement ?? shadowHost(node?.getRootNode());
 // The same step through the tree as rendered: a node slotted into a shadow tree renders
 // inside its slot, so the slot is where it is scrolled and ordered, not its light parent.
 export const renderedParent = (node) => node?.assignedSlot ?? upFrom(node);
@@ -44,7 +51,7 @@ export const renderedParent = (node) => node?.assignedSlot ?? upFrom(node);
 // narrowing a search to that section threw away every candidate inside it and the
 // passage resolved to nothing — the anchor captured, the mark never painted.
 export const under = (node, root) => {
-  for (let a = node; a; a = a.parentNode ?? a.host ?? null) if (a === root) return true;
+  for (let a = node; a; a = a.parentNode ?? shadowHost(a)) if (a === root) return true;
   return false;
 };
 
@@ -55,7 +62,7 @@ export const under = (node, root) => {
 // questions, which the platform answers only within one tree, are asked of this.
 export const hostIn = (node, root) => {
   let at = node;
-  while (at && at.getRootNode() !== root) at = at.getRootNode().host ?? null;
+  while (at && at.getRootNode() !== root) at = shadowHost(at.getRootNode());
   return at;
 };
 
@@ -68,6 +75,9 @@ export const overIn = (el, selector, frame) => {
 // A label a widget declared as the page speaking (relabel), which the anchor pass reads
 // over the chrome it sits in.
 export const SAID = "[data-lf-said]";
+// The pair `uiInside` weighs, the nearer deciding. The passage walk reads the same pair one
+// element at a time on its way down (passages.js, `chromeMark`).
+export const UI_MARKS = `.lf-ui, ${SAID}`;
 // The same question one node at a time: is this the runtime's own chrome rather than the
 // document? Every affordance asks it before acting on where the pointer or the caret is.
 // The nearest element that answers wins: a declared label is the page's words inside the
@@ -87,7 +97,7 @@ export const SAID = "[data-lf-said]";
 // that what a mark may hang on, what a settlement has emptied, and what a quote may
 // name cannot come apart.
 export const uiInside = (el, within) => {
-  const near = el && overIn(el, `.lf-ui, ${SAID}`, within);
+  const near = el && overIn(el, UI_MARKS, within);
   return Boolean(near) && !near.matches(SAID);
 };
 export const inUi = (node) =>

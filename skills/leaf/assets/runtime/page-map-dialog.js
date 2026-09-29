@@ -12,24 +12,32 @@
    place focus synchronously, set `closeOwnsFocus`, and prevent the later close event from
    overwriting that route.
 
+   The dialog is a list with a search above it. Up and Down walk its rows, Down or Enter
+   in the search enters the list at the first match, and a row's Enter is its own press.
+   A finger opens the map on its first row rather than in the search, since focusing the
+   search raises a soft keyboard over the list the finger came to tap.
+
    Boot supplies margin commands and readings to one constructed map owner. Its
    mount attaches the dialog and binds controls; importing the module does not
    install application callbacks or activate the map. */
 
 import { nextRender } from "./rendering.js";
 import { blockAt, says } from "./passages.js";
-import { letGo } from "./focus.js";
+import { handBack, holdFocus, letGo } from "./focus.js";
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import { iconTemplate } from "./icons.js";
-import { focused, paintKeys } from "./keyboard/scopes.js";
-import { el, offer } from "./widget-elements.js";
+import { keys, paintKeys } from "./keyboard/scopes.js";
+import { coarsePointer } from "./pointer.js";
+import { rowWalk } from "./walk-position.js";
+import { closeControl, el, offer } from "./widget-elements.js";
+import { keepsHidden, keepsText } from "./keeps.js";
 import { placeKeeper } from "./user-place.js";
 import {
   BANNER_CONTROL_RANK,
   bannerControlDoor,
   registerBannerControl,
   showBannerControl,
-} from "./banner-shelf.js";
+} from "./banner-toolbar.js";
 import {
   clearMarginEntryControls,
   marginContributionSource,
@@ -58,8 +66,10 @@ dialog.setAttribute("aria-label", "Page Map");
 dialog.setAttribute("aria-modal", "true");
 const dialogHead = el("div", "lf-page-map-head");
 dialogHead.append(el("strong", "", "Page Map"));
-const dialogClose = el("button", "lf-btn", "Close");
-dialogClose.type = "button";
+const dialogClose = closeControl({
+  name: "Close Page Map",
+  title: "Close Page Map (Esc)",
+});
 dialogHead.append(dialogClose);
 const dialogSearch = offer("wa-input", "lf-page-map-search lf-label-hidden");
 dialogSearch.type = "search";
@@ -84,11 +94,18 @@ dialogEmpty.hidden = true;
 dialogEmpty.setAttribute("role", "status");
 dialog.append(dialogHead, dialogSearch, dialogList, dialogEmpty);
 
+// The rows a walk or the search's Enter can land on: every pressable entry the search
+// has not hidden. A status is words beside the rows, not a stop among them.
+const mapRows = () =>
+  [...dialogList.querySelectorAll("button.lf-page-map-action")].filter((row) =>
+    row.checkVisibility(),
+  );
+
 export function createPageMapDialog({
   activeInMargin,
   activateItem,
   faceFor,
-  focusFallback,
+  mapControlPlaces,
   targetFor,
 }) {
   let entries = [];
@@ -143,8 +160,7 @@ export function createPageMapDialog({
     const returnTo = from;
     closeOwnsFocus = true;
     dialog.close();
-    if (returnTo?.isConnected && returnTo.checkVisibility())
-      returnTo.focus({ preventScroll: true });
+    handBack(returnTo);
     marginContributionSource(offered).registration.activate(record.key, {
       origin: control,
       surface: "map",
@@ -248,9 +264,13 @@ export function createPageMapDialog({
   `;
 
   function renderSheet() {
-    const standing = focused();
-    const active = dialog.contains(standing) ? standing : null;
-    const hold = place.take();
+    const restoreFocus = holdFocus(dialog);
+    place.around(() => presentSheet());
+    // A control the filter hid or the render removed hands the user to the search.
+    restoreFocus?.(dialogSearch);
+  }
+
+  function presentSheet() {
     const query = dialogSearch.value.trim().toLocaleLowerCase();
     const searchTextByKey = new Map(
       entries.map((entry) => {
@@ -297,16 +317,13 @@ export function createPageMapDialog({
     const shown = groups.filter(
       (group) => !query || group.search.includes(query),
     ).length;
-    dialogEmpty.textContent = query
-      ? "No matching actions, statuses, or locations"
-      : "No margin controls, status indicators, or locations yet";
-    dialogEmpty.hidden = shown !== 0;
-    place.finish(hold);
-    if (active) {
-      if (!active.isConnected || !active.checkVisibility())
-        dialogSearch.focus({ preventScroll: true });
-      else if (focused() !== active) active.focus({ preventScroll: true });
-    }
+    keepsText(
+      dialogEmpty,
+      query
+        ? "No matching actions, statuses, or locations"
+        : "No margin controls, status indicators, or locations yet",
+    );
+    keepsHidden(dialogEmpty, shown !== 0);
   }
 
   function pageMapInvoker() {
@@ -317,7 +334,7 @@ export function createPageMapDialog({
     entries = nextEntries;
     const label = `Map (${entries.length})`;
     showBannerControl(mapButton, entries.length > 0);
-    if (mapButton.textContent !== label) mapButton.textContent = label;
+    keepsText(mapButton, label);
     if (dialog.open) renderSheet();
   }
 
@@ -356,7 +373,10 @@ export function createPageMapDialog({
             ),
         )
       : group?.querySelector(".lf-page-map-action");
-    (destination ?? dialogSearch).focus({ preventScroll: true });
+    (
+      destination ??
+      (coarsePointer.matches ? (mapRows()[0] ?? dialogClose) : dialogSearch)
+    ).focus({ preventScroll: true });
     paintKeys();
   }
 
@@ -370,8 +390,19 @@ export function createPageMapDialog({
     dialog.close();
   }
 
+  // The page has the map's keys while the map has entries, open or not, so the command
+  // reference can say what the dialog's keys do before the user opens it; they answer
+  // only from inside it, where focus puts the user.
+  const mapHasEntries = () => entries.length > 0;
+
   function mount(root) {
     dialogSearch.addEventListener("input", renderSheet);
+    keys(
+      dialog,
+      "In the Page Map",
+      rowWalk({ id: "map", noun: "Entry", plural: "entries", rows: mapRows }),
+      mapHasEntries,
+    );
     mapButton.onclick = enterPageMap;
     // Escape is one step of the page's unwind, and a modal's parent is the page it
     // stands over, so this press lands the user there. Leaf performs the whole step
@@ -394,12 +425,41 @@ export function createPageMapDialog({
       target = null;
       paintKeys();
       if (focusOwned) return;
-      if (returnTo?.isConnected && returnTo.checkVisibility())
-        returnTo.focus({ preventScroll: true });
-      else focusFallback();
+      handBack(returnTo, ...mapControlPlaces());
     });
     dialogClose.onclick = () => dialog.close();
     root.append(dialog);
+    dialogSearch.updateComplete.then(declareSearchKeys);
+  }
+
+  // The search box's own keys, declared on the exact input so they stand before its
+  // typing, which keeps Down and Enter as caret and form keys that do nothing in a
+  // one-line box. Escape stays the dialog's.
+  function declareSearchKeys() {
+    const hasRows = () => mapRows().length > 0;
+    keys(
+      dialogSearch.input,
+      "In the Page Map's search",
+      [
+        {
+          id: "map.search.enter",
+          keys: ["ArrowDown"],
+          does: "Go from the search to the first entry",
+          line: "to the entries",
+          when: hasRows,
+          run: () => mapRows()[0].focus(),
+        },
+        {
+          id: "map.search.open",
+          keys: ["Enter"],
+          does: "Open the first matching entry",
+          line: "open first",
+          when: hasRows,
+          run: () => mapRows()[0].click(),
+        },
+      ],
+      mapHasEntries,
+    );
   }
   return {
     pageMapIsActive,

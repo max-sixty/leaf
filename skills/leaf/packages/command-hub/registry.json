@@ -5,7 +5,7 @@
       "lf-worktree": {
         "description": "Current worktree evidence keyed by the id of its authored lf-worktree seat.",
         "guidance": {
-          "coordinator": "After worktree evidence changes, replace the complete page-bound source snapshot rather than republishing it as prose or appending an event:\n\n```bash\nleaf data set \"$PAGE\" <source-id> --file worktrees.json\n```\n\nRead `data_bindings` from `leaf page state \"$PAGE\"` to find source ids using the `lf-worktree` contract and their consuming widget ids. `worktrees.json` is an object keyed by authored worktree widget id. Each value carries `branch`, `base`, `head`, non-negative `ahead`, `behind`, `additions`, `deletions`, and `commits`, a `tests` value of `passing`, `failing`, `running`, or `not-run`, an RFC 3339 `observedAt` timestamp with a timezone, and optional `files` and `diff` strings. Keep a key stable for the same worktree. Gather these facts with host tools; Leaf validates, transports, and presents them but does not run git or inspect worker directories."
+          "coordinator": "After worktree evidence changes, replace the complete page-bound source snapshot rather than republishing it as prose or appending an event:\n\n```bash\nleaf data set \"$PAGE\" <source-id> --file worktrees.json\n```\n\nRead `data_bindings` from `leaf page state \"$PAGE\"` to find source ids using the `lf-worktree` contract and their consuming widget ids. `worktrees.json` is an object keyed by authored worktree widget id. Each value carries `branch`, `base`, `head`, non-negative `ahead`, `behind`, `additions`, `deletions`, and `commits`, a `tests` value of `passing`, `failing`, `running`, or `not-run`, an RFC 3339 `observedAt` timestamp with a timezone, and optional `files` and `diff` strings. Keep a key stable for the same worktree, and give a different worktree a new authored lf-worktree id; a reused id would attach old comments to the wrong worktree. Gather these facts with host tools; Leaf validates, transports, and presents them but does not run git or inspect worker directories."
         },
         "schema": {
           "type": "object",
@@ -226,7 +226,7 @@
     }
   },
   "lf-tasks": {
-    "description": "A hierarchy of work: what a project is made of, who holds each piece, and where each piece stands. Children are lf-task elements, nesting freely — the tree is the plan's own shape, so write the decomposition as it is rather than flattening it. Where lf-milestones is a flat rail of stages on a schedule and lf-board is a set the reviewer re-orders, lf-tasks is structure: a parent's children are what doing it means, and the upgrade counts each parent's subtree into a generated done-fraction chip so the tree reads as progress without a widget of its own. Statuses change through live source revisions, or between saves by a worker's `leaf report` (lf-task's agent-written x-state verb) — the page keeps up with the work — and comments anchor per task, so keep every task's id stable across revisions.",
+    "description": "A hierarchy of work: what a project is made of, who holds each piece, and where each piece stands. Children are lf-task elements, nesting freely — the tree is the plan's own shape, so write the decomposition as it is rather than flattening it. Where lf-milestones is a flat rail of stages on a schedule and lf-board is a set the reviewer re-orders, lf-tasks is structure: a parent's children are what doing it means, and the upgrade counts each parent's subtree into a generated done-fraction chip so the tree reads as progress without a widget of its own. Statuses change through live source revisions, or between saves by a worker's `leaf page report` (lf-task's agent-written x-state verb) — the page keeps up with the work — and comments anchor per task, so keep every task's id stable across revisions.",
     "type": "object",
     "properties": {
       "id": {
@@ -264,7 +264,7 @@
     "x-example": "<lf-command id=\"aviary-command\" label=\"A squirrel-proof garden\" phase=\"week 2 of 4\">\n  <lf-agent id=\"lead\" state=\"working\"><strong>lead</strong> Coordinates the whole garden.</lf-agent>\n  <lf-task id=\"goal-feeders\" status=\"active\">\n    <strong>Rebuild the feeders</strong>\n    <lf-agent id=\"w-1\" state=\"working\" on=\"goal-feeders\"><strong>w-1</strong> Fitting the baffles.</lf-agent>\n  </lf-task>\n</lf-command>"
   },
   "lf-command-readings": {
-    "description": "Where a command's readings stand when they belong beside its tree rather than at its head: the outcome with its done fraction and counts, the stopped work oldest first, and the live workers. Author it empty, with `for` naming the lf-command, in the rail of a sheet whose body holds the tree; the command fills it and keeps it current. Without one, the command heads itself with the same panels.",
+    "description": "Where a command's readings stand when they belong beside its tree rather than at its head: the outcome with its done fraction and counts, the stopped work oldest first, and the live workers. Author it empty, with `for` naming the lf-command, in the rail of a wide page whose body holds the tree; the command fills it and keeps it current. Without one, the command heads itself with the same panels.",
     "type": "object",
     "properties": {
       "id": {
@@ -281,7 +281,6 @@
     ],
     "additionalProperties": false,
     "x-content": "empty",
-    "x-measure": "group",
     "x-refers": {
       "for": {
         "via": "$command.widgets",
@@ -291,10 +290,10 @@
       }
     },
     "x-upgrade": true,
-    "x-example": "<lf-grid id=\"plan-sheet\" columns=\"2fr 1fr\">\n  <lf-command id=\"garden-command\" label=\"A squirrel-proof garden\" phase=\"week 2 of 4\">\n    <lf-task id=\"goal-feeders\" status=\"active\"><strong>Rebuild the feeders</strong></lf-task>\n  </lf-command>\n  <lf-command-readings for=\"garden-command\"></lf-command-readings>\n</lf-grid>"
+    "x-example": "<div class=\"layout-sidebar\">\n  <lf-command id=\"garden-command\" label=\"A squirrel-proof garden\" phase=\"week 2 of 4\">\n    <lf-task id=\"goal-feeders\" status=\"active\"><strong>Rebuild the feeders</strong></lf-task>\n  </lf-command>\n  <aside><lf-command-readings for=\"garden-command\"></lf-command-readings></aside>\n</div>"
   },
   "lf-task": {
-    "description": "One piece of the work. Lead with a <strong> title; prose follows, and child lf-task elements after the prose are its decomposition. `status` colors the marker: planned, active, blocked (stuck — the prose says on what), review (finished by whoever held it and ready to be reviewed), stalled (work produced no durable progress), or done. Status describes the work. User work is a nested Ask whose widget supplies the answer control; the task rolls that Ask through the plan but never originates one. `owner` names who holds the work, `when` is a free-text schedule label, and `tags` adds one chip per entry. A parent with children gets a generated done-fraction chip. The `status` report is provisional agent state (`leaf report <page> <task-id> status status=review`); a stamped version absorbs or overrules it through `overruled` (see $report).",
+    "description": "One piece of the work. Lead with a <strong> title; prose follows, and child lf-task elements after the prose are its decomposition. `status` colors the marker: planned, active, blocked (stuck — the prose says on what), review (finished by whoever held it and ready to be reviewed), stalled (work produced no durable progress), or done. Status describes the work. User work is a nested Ask whose widget supplies the answer control; the task rolls that Ask through the plan but never originates one. `owner` names who holds the work, `when` is a free-text schedule label, and `tags` adds one chip per entry. A parent with children gets a generated done-fraction chip. The `status` report is provisional agent state (`leaf page report <page> <task-id> status status=review`); a stamped version absorbs or overrules it through `overruled` (see $report).",
     "type": "object",
     "properties": {
       "id": {
@@ -347,12 +346,11 @@
       "lf-task"
     ],
     "x-content": "markup",
-    "x-measure": "group",
     "x-paints": [
       "status"
     ],
     "x-upgrade": true,
-    "x-conversation": {
+    "x-thread-seat": {
       "when": {
         "talk": [
           true
@@ -420,311 +418,10 @@
       }
     },
     "x-guidance": {
-      "author": "Keep one empty, stable worktree address beside each worker whose evidence the host can inspect:\n\n```html\n<lf-worktree id=\"tree-wren\" source=\"project-worktrees\"></lf-worktree>\n```\n\nThe page chooses the source id. Reuse one id for widgets that read the same snapshot, or use different ids when a page has independent worktree feeds."
+      "author": "Keep one empty, stable worktree address beside each worker whose evidence the host can inspect:\n\n```html\n<lf-worktree id=\"tree-wren\" source=\"project-worktrees\"></lf-worktree>\n```\n\nThe page chooses the source id. Reuse one source id for widgets that read the same snapshot, or use different source ids when a page has independent worktree feeds. Give a replacement worktree a new element id."
     },
     "x-upgrade": true,
     "x-space": "wide",
     "x-example": "<lf-command id=\"project-command\">\n  <lf-agent id=\"wren\" state=\"working\">\n    <strong>wren</strong> Owns the feed rebuild.\n    <lf-worktree id=\"tree-wren\" source=\"project-worktrees\"></lf-worktree>\n  </lf-agent>\n</lf-command>"
-  },
-  "lf-operations": {
-    "description": "A set of consequential host operations offered for one goal and its exact disposable worker and worktree. Put a live set inside lf-ask; each lf-operation child supplies the user-facing argument while this holder sends one typed x-request carrying those three stable ids. The ready holder is one of the user's Asks; an accepted request hands the turn to the host and locks the set while it works. `leaf receipt` links one succeeded or failed outcome. Failure returns the Ask and reopens the controls, while success leaves the completed instruction visible until a later authored revision updates the plan. Use this for effects such as starting a worker, landing a branch, or archiving work. Use lf-options instead for a policy or authored-state decision that Leaf itself can replay.",
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
-      "target": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
-      "worker": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
-      "worktree": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
-    },
-    "required": [
-      "id",
-      "target",
-      "worker",
-      "worktree"
-    ],
-    "additionalProperties": false,
-    "x-content": "members",
-    "x-guidance": {
-      "author": "Set `target`, `worker`, and `worktree` to the page ids of the goal and the exact disposable host objects the operation acts on, and offer each command as one `<lf-operation verb=\"…\">`. The package owns the allowed verbs; do not encode a command in an lf-option id or prose and ask the coordinator to guess it.",
-      "coordinator": "A `request` from this widget asks you to run one host operation. Dispatch on its declared `action` and typed `detail.target`, `detail.worker`, and `detail.worktree`; verify those exact objects against current host state, and act through the host's native task and worktree tools. Check there for an earlier run of this request before you start, merge, or remove anything, and resume or record that run rather than repeating it. `restart` preserves the named worktree, reaps the named worker, and launches a fresh worker for `target`; `park` removes the target from the active plan without discarding the named worktree; `drop` reaps the named worker and archives its worktree; `land` merges the named worktree; `hold` keeps it unmerged; `request-changes` retains the review request and starts a fresh revision worker from that worktree; `land-as-is` lands the named worktree and retires the named reviser. The revision you save after success is the plan the operation produced. Leaf validates and records this protocol but does not call host APIs itself."
-    },
-    "x-refers": {
-      "target": {
-        "via": "$command.widgets",
-        "where": {
-          "role": "goal"
-        }
-      },
-      "worker": {
-        "via": "$command.widgets",
-        "where": {
-          "role": "worker"
-        }
-      },
-      "worktree": {
-        "via": "$command.widgets",
-        "where": {
-          "role": "evidence"
-        }
-      }
-    },
-    "x-request": {
-      "ask": true,
-      "region": true,
-      "offers": {
-        "lf-operation": "verb"
-      },
-      "verbs": {
-        "restart": {
-          "bind": {
-            "target": "target",
-            "worker": "worker",
-            "worktree": "worktree"
-          },
-          "detail": {
-            "type": "object",
-            "properties": {
-              "target": {
-                "type": "string",
-                "minLength": 1
-              },
-              "worker": {
-                "type": "string",
-                "minLength": 1
-              },
-              "worktree": {
-                "type": "string",
-                "minLength": 1
-              }
-            },
-            "required": [
-              "target",
-              "worker",
-              "worktree"
-            ],
-            "additionalProperties": false
-          }
-        },
-        "park": {
-          "bind": {
-            "target": "target",
-            "worker": "worker",
-            "worktree": "worktree"
-          },
-          "detail": {
-            "type": "object",
-            "properties": {
-              "target": {
-                "type": "string",
-                "minLength": 1
-              },
-              "worker": {
-                "type": "string",
-                "minLength": 1
-              },
-              "worktree": {
-                "type": "string",
-                "minLength": 1
-              }
-            },
-            "required": [
-              "target",
-              "worker",
-              "worktree"
-            ],
-            "additionalProperties": false
-          }
-        },
-        "drop": {
-          "bind": {
-            "target": "target",
-            "worker": "worker",
-            "worktree": "worktree"
-          },
-          "detail": {
-            "type": "object",
-            "properties": {
-              "target": {
-                "type": "string",
-                "minLength": 1
-              },
-              "worker": {
-                "type": "string",
-                "minLength": 1
-              },
-              "worktree": {
-                "type": "string",
-                "minLength": 1
-              }
-            },
-            "required": [
-              "target",
-              "worker",
-              "worktree"
-            ],
-            "additionalProperties": false
-          }
-        },
-        "land": {
-          "bind": {
-            "target": "target",
-            "worker": "worker",
-            "worktree": "worktree"
-          },
-          "detail": {
-            "type": "object",
-            "properties": {
-              "target": {
-                "type": "string",
-                "minLength": 1
-              },
-              "worker": {
-                "type": "string",
-                "minLength": 1
-              },
-              "worktree": {
-                "type": "string",
-                "minLength": 1
-              }
-            },
-            "required": [
-              "target",
-              "worker",
-              "worktree"
-            ],
-            "additionalProperties": false
-          }
-        },
-        "hold": {
-          "bind": {
-            "target": "target",
-            "worker": "worker",
-            "worktree": "worktree"
-          },
-          "detail": {
-            "type": "object",
-            "properties": {
-              "target": {
-                "type": "string",
-                "minLength": 1
-              },
-              "worker": {
-                "type": "string",
-                "minLength": 1
-              },
-              "worktree": {
-                "type": "string",
-                "minLength": 1
-              }
-            },
-            "required": [
-              "target",
-              "worker",
-              "worktree"
-            ],
-            "additionalProperties": false
-          }
-        },
-        "request-changes": {
-          "bind": {
-            "target": "target",
-            "worker": "worker",
-            "worktree": "worktree"
-          },
-          "detail": {
-            "type": "object",
-            "properties": {
-              "target": {
-                "type": "string",
-                "minLength": 1
-              },
-              "worker": {
-                "type": "string",
-                "minLength": 1
-              },
-              "worktree": {
-                "type": "string",
-                "minLength": 1
-              }
-            },
-            "required": [
-              "target",
-              "worker",
-              "worktree"
-            ],
-            "additionalProperties": false
-          }
-        },
-        "land-as-is": {
-          "bind": {
-            "target": "target",
-            "worker": "worker",
-            "worktree": "worktree"
-          },
-          "detail": {
-            "type": "object",
-            "properties": {
-              "target": {
-                "type": "string",
-                "minLength": 1
-              },
-              "worker": {
-                "type": "string",
-                "minLength": 1
-              },
-              "worktree": {
-                "type": "string",
-                "minLength": 1
-              }
-            },
-            "required": [
-              "target",
-              "worker",
-              "worktree"
-            ],
-            "additionalProperties": false
-          }
-        }
-      }
-    },
-    "x-upgrade": true,
-    "x-example": "<lf-command id=\"project-command\">\n  <lf-task id=\"goal-review\" status=\"blocked\">\n    <strong>Review the branch</strong>\n    <lf-agent id=\"review-worker\" state=\"waiting\"><strong>review-worker</strong> Owns the reviewed branch.<lf-worktree id=\"review-tree\" source=\"project-worktrees\"></lf-worktree></lf-agent>\n    <lf-ask id=\"review-commands-decision\">\n      <h3>What should the host do?</h3>\n      <lf-operations id=\"review-commands\" target=\"goal-review\" worker=\"review-worker\" worktree=\"review-tree\">\n        <lf-operation verb=\"land\"><strong>Land it</strong> Tests are green. <em>My take: land while the evidence is current.</em></lf-operation>\n        <lf-operation verb=\"request-changes\"><strong>Request changes</strong> Start a fresh reviser.</lf-operation>\n      </lf-operations>\n    </lf-ask>\n  </lf-task>\n</lf-command>"
-  },
-  "lf-operation": {
-    "description": "One user-facing command inside lf-operations. `verb` chooses a request declaration on the holder; the child prose explains the consequence and remains selectable. State the author's preference as ordinary prose in the operation itself, such as `<em>My take: land while the evidence is current.</em>`. The holder owns the gesture and the target so sibling commands are one atomic choice surface.",
-    "type": "object",
-    "properties": {
-      "verb": {
-        "enum": [
-          "restart",
-          "park",
-          "drop",
-          "land",
-          "hold",
-          "request-changes",
-          "land-as-is"
-        ]
-      }
-    },
-    "required": [
-      "verb"
-    ],
-    "additionalProperties": false,
-    "x-owners": [
-      "lf-operations"
-    ],
-    "x-content": "markup",
-    "x-upgrade": false
   }
 }

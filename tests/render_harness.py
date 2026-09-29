@@ -27,6 +27,7 @@ Playwright's default Chromium launch selects its separate headless shell. The
 matching build is installed once with `playwright install chromium --only-shell`.
 """
 
+import difflib
 import itertools
 import json
 import math
@@ -37,11 +38,10 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit
 
 import pytest
 from click.testing import CliRunner
-from example_data import regression_sources
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -50,20 +50,24 @@ from leaf import render_checks as render_checks_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import structure as structure_model
+from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
+from leaf_dev.example_data import regression_sources
+from leaf_dev.page_fixtures import package_selection_args, prepare_page, read_fixture
 from model_folds import leaf_page
-from page_fixtures import package_selection_args, prepare_page, read_fixture
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 
 ROOT = Path(__file__).parent.parent
+WRITE_WATCH_SOURCE = Path(__file__).with_name("write_watch.js")
+SHIFT_WATCH_SOURCE = Path(__file__).with_name("shift_watch.js")
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
 EXAMPLES = sorted((ROOT / "examples").glob("*.html"))
 assert EXAMPLES, "no examples found — parametrizing over an empty list tests nothing"
 FEATURE_GALLERY = ROOT / "examples" / "developer" / "feature-gallery.html"
 assert FEATURE_GALLERY.is_file(), "the developer feature gallery is missing"
 DEVELOPER_PAGES = tuple(sorted((ROOT / "examples" / "developer").glob("*.html")))
-# The inputs scripts/corpus.py composes. The corpus is a generated presentation of
+# The inputs `leaf-dev corpus` composes. The corpus is a generated presentation of
 # the public pages plus the feature gallery, not another author source. Every authored-
 # content sweep uses this source set, while public-site tests read the top-level glob.
 PUBLIC_EXAMPLES = tuple(p for p in EXAMPLES if p.stem != "corpus")
@@ -73,8 +77,8 @@ assert PUBLIC_EXAMPLES and len(PUBLIC_EXAMPLES) + 1 == len(EXAMPLES), (
 CORPUS_SOURCES = (*PUBLIC_EXAMPLES, *regression_sources(), *DEVELOPER_PAGES)
 CORPUS_PAGE = ROOT / "examples" / "corpus.html"
 # The bytes an example names but cannot hold: a lf-shot's pair, content-addressed
-# exactly as `leaf page media` names it in a real page directory. examples/AGENTS.md
-# lists every publisher that has to lay this beside the markup, this one among them.
+# exactly as `leaf page media` names it in a real page directory. Every builder of
+# a page directory lays this beside the markup (examples/AGENTS.md, "Media").
 EXAMPLE_MEDIA = ROOT / "examples" / "media"
 
 PASSAGE_SOURCES = (
@@ -102,7 +106,7 @@ def stamp_page(
     complete_args = [arg for widget in completes for arg in ("--completes", widget)]
     result = CliRunner().invoke(
         cli_model.cli,
-        ["version", "stamp", "--json", str(page_dir), "--text", text, *complete_args],
+        ["page", "stamp", str(page_dir), "--text", text, *complete_args],
         catch_exceptions=False,
     )
     assert result.exit_code == 0, result.output
@@ -163,8 +167,8 @@ shadow index is ready we set up the comparison job and roll back the old one.</p
 <p id="q">A passage far enough down the page that a composer opened on it leaves the
 first paragraph uncovered, which is what lets a test click a highlight up there.</p>
 <figure id="fig"><svg viewBox="0 0 120 40" width="120" height="40" role="img"
-aria-label="specimen"><rect x="2" y="2" width="116" height="36" fill="none"
-stroke="currentColor"></rect></svg><figcaption>A specimen, for element anchors.</figcaption></figure>
+aria-label="sample"><rect x="2" y="2" width="116" height="36" fill="none"
+stroke="currentColor"></rect></svg><figcaption>A sample, for element anchors.</figcaption></figure>
 """,
 ).format(
     filler="\n".join(
@@ -220,9 +224,9 @@ SAID_PAGE = leaf_page(
     "said",
     """
 <h1 id="h">This week</h1>
-<lf-grid id="numbers">
+<div class="layout-tiles" id="numbers">
   <lf-metric id="m-open" value="1,204" delta="+18%" direction="up-good">Open sessions</lf-metric>
-</lf-grid>
+</div>
 <lf-board id="board">
   <lf-column id="col-now" label="In flight">
     <lf-card id="c-importer"><strong>Wire the importer</strong> Half done.</lf-card>
@@ -258,11 +262,11 @@ BOARD_PAGE = leaf_page(
 # the card's answer to the pointer is a lift and the row's is a wash — two rules keyed on
 # the form, and a corpus holding only quoted cards leaves the row's pair matching nothing
 # anywhere.
-SPECIMEN_PAGE = leaf_page(
-    "specimen",
+SAMPLE_PAGE = leaf_page(
+    "sample",
     """
 <h1 id="h">What a decision looks like</h1>
-<lf-specimen id="spec" label="a decision">
+<lf-sample id="spec" label="a decision">
   <lf-options id="quoted-group" choose>
     <lf-option id="q-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
     <lf-option id="q-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
@@ -292,7 +296,7 @@ SPECIMEN_PAGE = leaf_page(
       <lf-old>Refill every feeder each morning.</lf-old>
       <lf-new>Refill when the camera shows it half-empty.</lf-new>
     </lf-suggestion></p>
-</lf-specimen>
+</lf-sample>
 <lf-ask id="live-group-decision"><h2>How should the schema migrate?</h2>
 <lf-options id="live-group" choose>
   <lf-option id="l-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
@@ -335,22 +339,22 @@ REPLY_HOST_PAGE = leaf_page(
 
 # Claude answering with a question to put and, beside it, the framing that question
 # replaced — quoted, so the reply asks one thing rather than two. The words ride
-# `text` and the widgets ride `markup`, as `leaf reply` writes them.
-SPECIMEN_TEXT = (
+# `text` and the widgets ride `markup`, as `leaf thread reply` writes them.
+SAMPLE_TEXT = (
     "Two shapes for the same question — first the one I'd ship, then, for the "
     "record, the framing it replaces:"
 )
-SPECIMEN_MARKUP = """<lf-ask id="rp-live-decision"><h3>How should the schema migrate?</h3>
+SAMPLE_MARKUP = """<lf-ask id="rp-live-decision"><h3>How should the schema migrate?</h3>
 <lf-options id="rp-live" choose>
   <lf-option id="rp-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="rp-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
 </lf-options></lf-ask>
-<lf-specimen id="rp-spec" label="the April thread">
+<lf-sample id="rp-spec" label="the April thread">
   <lf-options id="rp-quoted" choose>
     <lf-option id="rp-memory"><strong>App memory</strong> Nothing to build.</lf-option>
     <lf-option id="rp-sticky"><strong>Sticky sessions</strong> Until an instance recycles.</lf-option>
   </lf-options>
-</lf-specimen>
+</lf-sample>
 """
 
 # Two decisions for a user to take and a later version to honor, carry, or
@@ -385,7 +389,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
     """Publish HTML as the newest version of a fresh page directory and serve it,
     as the real server does — vendoring included, so the assets under test are this
     repo's. Markup is one version; an example is every version it ships, stamped
-    oldest first, so a revised one arrives with a chooser, a base to compare against
+    oldest first, so a revised one arrives with a picker, a base to compare against
     and a thread opened before the revision.
 
     Handed an example's path rather than its markup, it also lays in the three
@@ -395,6 +399,11 @@ def serve(tmp_path, monkeypatch, initialized_page):
     standing log make together, and a corpus that reads only the markup is reading
     half of it. A thread and any widget a message carries exist nowhere else, so
     without this every sweep is green over a page the user never gets.
+
+    `seed_log=False` leaves an example's log out while still laying in its media, for a
+    test that appends those events itself. `layer_registry` and `layer_widgets` add a
+    project package, a registry and its widget modules, for a reading the layer makes
+    from declarations, so the test does not depend on which shipped tag declares them.
 
     Each call gets its own directory, reached through `serve.page_dir`. Sharing one
     meant a test that serves two examples in a single body re-initialised over the
@@ -579,15 +588,15 @@ def post_event(page, url, **kwargs):
 # inside the thing under test; that watcher was a second representation of the outbox's
 # lifecycle, and it needed a protocol of its own to keep step — a post a reload killed
 # that no event reported, a waiter woken before the listeners that counted, a body read
-# with no deadline. The runtime already states arrival for this user (`lfUpgraded`,
-# `lfApplied`, `lfPresented`) and current readiness through its coordinator; delivery is
-# one more fact it states rather than one the
-# harness infers, and nothing is injected to obtain it.
+# with no deadline. The runtime already states its readiness for this user
+# (`lfReadiness`); delivery is one more fact it states rather than one the harness
+# infers, and nothing is injected to obtain it.
 class Traffic:
     """One page's trips to the server, as the runtime counts them.
 
     The runtime keeps the ledger (runtime/traffic.js) and paints it on the root
-    element as `data-lf-traffic`; this reads it. `pending` is the outbox's own list of attempts with
+    element as `data-lf-traffic`; this reads it. `sends` counts attempts, so a retry is a
+    second send. `pending` is the outbox's own list of attempts with
     no delivery outcome yet, so a failed request stays pending while the outbox retries
     it, and a definitive refusal or a response naming the accepted attempt clears it.
     That is delivery. Whether the page then applied the returned state is a separate
@@ -742,62 +751,109 @@ def holding(page, held, count, what):
         page.wait_for_timeout(20)
 
 
+_NOTES_OF = """(holder) => {
+    const root = document.querySelector(holder);
+    const named = root ? [root, ...root.querySelectorAll('*')] : [];
+    return [...new Set(named.flatMap((el) => el.ariaDetailsElements ?? []))]
+        .filter((note) => note.matches('.lf-mark-note'));
+}"""
+
+
+def expect_comment_notes(page, holder, count):
+    """Wait until the element `holder` (a selector) and the elements inside it name
+    `count` comment notes as their details (anchor-note-view.js)."""
+    page.wait_for_function(
+        f"([holder, count]) => ({_NOTES_OF})(holder).length === count",
+        arg=[holder, count],
+    )
+
+
+def comment_note(page, holder):
+    """The first comment note the element `holder` (a selector), or one inside it, names
+    as its details.
+
+    A note stands in the chrome rather than in its block, so a block's own note is found
+    through the relation a screen reader follows. The locator is resolved by position
+    among the chrome's notes, so take it once the note stands and use it before another
+    block's note goes."""
+    page.wait_for_function(f"(holder) => ({_NOTES_OF})(holder).length > 0", arg=holder)
+    index = page.evaluate(
+        f"""(holder) => [...document.querySelectorAll('.lf-mark-note')]
+            .indexOf(({_NOTES_OF})(holder)[0])""",
+        holder,
+    )
+    return page.locator(".lf-mark-note").nth(index)
+
+
+def accessible_details(page, selector):
+    """The names of what the element `selector` names as its details, read from the
+    browser's accessibility tree: what a screen reader is given, not the DOM attribute
+    that asked for it."""
+    cdp = page.context.new_cdp_session(page)
+    try:
+        root = cdp.send("DOM.getDocument")["root"]["nodeId"]
+        node = cdp.send("DOM.querySelector", {"nodeId": root, "selector": selector})
+
+        def ax(**at):
+            return cdp.send(
+                "Accessibility.getPartialAXTree", {**at, "fetchRelatives": False}
+            )["nodes"][0]
+
+        return [
+            ax(backendNodeId=related["backendDOMNodeId"])["name"]["value"]
+            for prop in ax(nodeId=node["nodeId"]).get("properties", [])
+            if prop["name"] == "details"
+            for related in prop["value"].get("relatedNodes", [])
+        ]
+    finally:
+        cdp.detach()
+
+
+def plant_quiet_word(page, selector, holding):
+    """Hang a word for a user listening (`.lf-quiet`, the shape a widget's quiet word
+    takes) at the end of the first `selector` element whose text holds `holding`, and
+    return it as a locator."""
+    page.evaluate(
+        """([selector, holding]) => {
+          const holder = [...document.querySelectorAll(selector)]
+            .find((el) => el.textContent.includes(holding));
+          const word = Object.assign(document.createElement('span'), {
+            id: 'planted-quiet', className: 'lf-ui lf-quiet', textContent: 'quiet word',
+          });
+          word.dataset.lfGen = '1';
+          holder.append(word);
+        }""",
+        [selector, holding],
+    )
+    return page.locator("#planted-quiet")
+
+
 # The other direction of the same trip. Nothing a test writes into the page directory
 # announces itself — a declared status, a changed wait lease, an appended event all reach
 # the page when it next reads — so an assertion made straight after the write is waiting
 # on whatever budget expect() happens to carry. Timed, that wait takes 1.8 to 2.3 of the
 # default five seconds, and it takes them every time.
 #
-# So ask the page what it holds. The server names each state it serves with a reading
-# and the runtime paints the one it has completely applied, so "has this page taken in
-# what I just wrote" is one comparison and names no transport. Counting answered
-# requests said the same thing only while a fixed interval made them the same thing:
-# the page now asks when its news stream says the page has moved, so a count of asks
-# started here reaches the answer that carries the news only by luck of the ordering.
-#
-# The wanted reading is re-read each round rather than fixed at entry, because the page
-# is allowed to move past it — a work claim ages, a neighbour writes — and a wait pinned
-# to a reading the page has already overtaken would sit out its whole deadline.
-def _server_reading(page):
-    """What the server would answer with now, asked without disturbing the page.
+# So ask the page whether it has caught up with what the server holds: its readiness
+# reading answers that against an `/api/state` answer, and names no transport.
+# Counting answered requests said the same thing only while a fixed interval made them
+# the same thing: the page now asks when its news stream says the page has moved, so a
+# count of asks started here reaches the answer that carries the news only by luck of
+# the ordering.
+def told(page):
+    """Wait until the page has taken in everything the server now holds.
 
-    Through the context's request API rather than the page: it carries the same cookie,
-    and it is not seen by page routes or by the traffic watcher, so a test that stubs or
-    counts /api/state sees exactly what it did before this call existed.
-    """
+    Call it after the test writes a version, event, status, or lease behind a live
+    page, before reading that page. It asks only through the `state` stage: a test may
+    write behind a page it is holding mid-gesture, where the rest of readiness waits on
+    the gesture rather than the write. The server's answer is asked through the
+    context's request API rather than the page: it carries the same cookie, and it is
+    not seen by page routes or by the traffic watcher, so a test that stubs or counts
+    /api/state sees exactly what it did before this call existed."""
     origin = urlsplit(page.url)
     answer = page.request.get(f"{origin.scheme}://{origin.netloc}/api/state")
     assert answer.ok, f"the server would not say what it holds: {answer.status}"
-    return answer.json()["reading"]
-
-
-def told(page):
-    """Wait until the page has taken in everything the server now holds."""
-    deadline = time.monotonic() + 30
-    began = None
-    while True:
-        want = _server_reading(page)
-        if began is None:
-            began = want
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise AssertionError(
-                f"the page never took in what the server holds: waiting for {began}, "
-                f"the page last applied "
-                f"{page.evaluate('() => document.body?.dataset.lfReading')}"
-            )
-        try:
-            page.wait_for_function(
-                "want => document.body?.dataset.lfReading === want",
-                arg=want,
-                timeout=min(500, remaining * 1000),
-                polling=50,
-            )
-            return
-        except PlaywrightTimeout:
-            # Either the page has not caught up yet or the revision moved under this
-            # wait. Both are answered by asking again with what the server holds now.
-            continue
+    wait_until_ready(page, answer.json(), through="state")
 
 
 def nudge(page_dir):
@@ -824,61 +880,6 @@ def ticked(page):
         }"""
     )
     page.wait_for_function("() => window.__lfTicked")
-
-
-def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
-    """Author one small widget in the project package for browser fixtures."""
-    package = root / ".leaf"
-    created = CliRunner().invoke(cli_model.cli, ["package", "init", str(package)])
-    assert created.exit_code == 0, created.output
-    registry_path = package / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    entry = {
-        "description": f"A <{tag}> test block.",
-        "type": "object",
-        "properties": {"id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "markup",
-        "x-upgrade": upgrade,
-        "x-example": f'<{tag} id="{tag.removeprefix("lf-")}-example">Example</{tag}>',
-    }
-    if upgrade:
-        entry["x-verbatim"] = True
-    registry[tag] = entry
-    registry_path.write_text(json.dumps(registry, indent=2))
-    with (package / "theme.css").open("a") as theme:
-        theme.write(
-            f"\n{tag} {{\n"
-            "  display: block;\n"
-            "  margin: var(--sp-3) 0;\n"
-            "  padding: var(--sp-3);\n"
-            "  border: 1px solid var(--rule);\n"
-            "  border-radius: var(--r);\n"
-            "  background: var(--card);\n"
-            "  --lf-block-frame: 1;\n"
-            "}\n"
-        )
-    if upgrade:
-        (package / "widgets" / f"{tag}.js").write_text(
-            'import { once, widgetController } from "/runtime/widget-api.js";\n\n'
-            "customElements.define(\n"
-            f'  "{tag}",\n'
-            "  class extends HTMLElement {\n"
-            "    #controller = widgetController(this);\n"
-            "    #stop = null;\n"
-            "    connectedCallback() {\n"
-            "      once(this);\n"
-            "      this.#stop ??= this.#controller.subscribe(() => {});\n"
-            "    }\n"
-            "    disconnectedCallback() {\n"
-            "      this.#stop?.();\n"
-            "      this.#stop = null;\n"
-            "    }\n"
-            "  },\n"
-            ");\n"
-        )
-    return package
 
 
 # `z` is the one press whose subject is read rather than pointed at, so the dispatcher
@@ -965,21 +966,6 @@ def held_stale(context):
     return stale
 
 
-# Shared readiness for `open_page` and manual navigation. Initial upgrade/replay
-# stamps remain set during later work, so also require the current presentation
-# and declared post-presentation work to settle. See tests/AGENTS.md,
-# "A page is ready when it says what has finished".
-BOTH_STAMPS = """() => {
-  if (
-    document.body.dataset.lfUpgraded !== '1' ||
-    document.body.dataset.lfApplied === undefined ||
-    document.body.dataset.lfPresented !== '1'
-  ) return false;
-  const entry = document.querySelector('script[data-lf-entry]');
-  if (!(entry?.lfCurrentPresentationReady?.() ?? false)) return false;
-  if (!(entry.lfRenderingSettled?.() ?? false)) return false;
-  return entry.lfPageArrived?.() ?? false;
-}"""
 FIRST_PAINT = """() => performance
   .getEntriesByType('paint')
   .some(entry => entry.name === 'first-contentful-paint')"""
@@ -1001,7 +987,7 @@ stamps the page raises over it — on no stated end of its own, so it took
 Playwright's implicit 30s: a deadline on the work a page does rather than on a
 fact another process states, and no more room for all of it than
 `SERVED_TIMEOUT_MS` gives a single probe. The corpus is the heaviest page the
-suite carries it on: a cold handover of it reaches `BOTH_STAMPS` in 16-18s on an
+suite carries it on: a cold handover of it reaches readiness in 16-18s on an
 idle four-core host, and in 19-24s once the nightly's second worker is driving a
 browser beside it. That is 80% of the old budget at the top of the range, and the
 nightly for 95a542a9 spent all of it on
@@ -1011,7 +997,7 @@ nightly for 95a542a9 spent all of it on
 implicit: a page whose server was replaced under it comes back up through this
 same handover. The harness's remaining unstated navigations — `opened_tab`'s
 `goto`, and the runtime install `wait_for_revision` waits for — keep the implicit
-default, as do the direct `BOTH_STAMPS` waits in the test modules. Those are
+default, as do the direct `wait_until_ready` calls in the test modules. Those are
 re-waits and primings on small fixtures, none of them has failed, and they are a
 change to make on their own terms rather than inside a CI repair.
 
@@ -1021,18 +1007,46 @@ there yet, so it is set where a merely slow handover still finishes and a wedged
 one still fails well inside the nightly step's own bound. Waiting longer weakens
 no claim, since the stamps say the same thing whenever they arrive and nothing
 here reads how quickly a page came up — the suite's startup readings are the
-phase profile `scripts/verify-site-local.sh` takes."""
-STORED_DRAFT_TEXT = """ctx => {
+phase profile `leaf-dev verify-site wrangler` takes."""
+
+
+def draft_key(page, ctx: str) -> str:
+    """The `localStorage` key the page's own draft store keeps the draft at `ctx`
+    under, page scope included (`whereDraft`, runtime/drafts.js)."""
+    return page.evaluate(
+        """async ctx => (await window.__lfRuntimeImport('/runtime/drafts.js'))
+          .whereDraft(ctx).key""",
+        ctx,
+    )
+
+
+_STORED_DRAFT_TEXT = """key => {
   try {
-    const record = JSON.parse(localStorage.getItem('lf-draft:' + ctx));
+    const record = JSON.parse(localStorage.getItem(key));
     return record && !record.settled ? record.text : null;
   } catch { return null; }
 }"""
-STORED_DRAFT_SETTLED = """ctx => {
+_STORED_DRAFT_SETTLED = """key => {
   try {
-    return JSON.parse(localStorage.getItem('lf-draft:' + ctx))?.settled === true;
+    return JSON.parse(localStorage.getItem(key))?.settled === true;
   } catch { return false; }
 }"""
+
+
+def stored_draft_text(page, ctx: str) -> str | None:
+    """The words storage holds for the draft at `ctx`, or None once it is settled or
+    absent: what another tab or a reload would find, whatever this tab shows."""
+    return page.evaluate(_STORED_DRAFT_TEXT, draft_key(page, ctx))
+
+
+def stored_draft_settled(page, ctx: str) -> bool:
+    """Whether storage holds the draft at `ctx` as settled (its tombstone)."""
+    return page.evaluate(_STORED_DRAFT_SETTLED, draft_key(page, ctx))
+
+
+def until_draft_settled(page, ctx: str) -> None:
+    """Wait until storage holds the draft at `ctx` as settled."""
+    page.wait_for_function(_STORED_DRAFT_SETTLED, arg=draft_key(page, ctx))
 
 
 _BROWSER_PROBLEM_LISTS = None
@@ -1063,14 +1077,31 @@ def clean_browser():
     assert problems == [], problems
 
 
+def judge_shifts():
+    """Judge every layout shift each watched page makes, once the frames the test's
+    last act changed have painted (`shift_watch.js`, `lfShiftsJudged`).
+
+    Chrome hands a frame's shifts to the observer only after it paints, so a test whose
+    last act moves the page would end before the report. `conftest.py` calls this as
+    the test body returns, while the pages' servers still answer: a page left painting
+    after its server is gone lets its failed fetches reach the console."""
+    for page, _ in _BROWSER_PROBLEM_LISTS or ():
+        if not page.is_closed():
+            for frame in page.frames:
+                frame.evaluate("() => window.lfShiftsJudged?.()")
+
+
 def watched(page):
     """Collect browser problems into one retained list per page.
 
     Console warnings/errors and uncaught exceptions are joined by window errors
     without exceptions, installed through the same `install_window_errors` helper
-    the render gate uses. Call before navigation so the init script takes effect.
-    Repeated calls return the existing list. `tests/AGENTS.md`, "A page is ready
-    when it says what has finished", owns consumption and cleanup policy."""
+    the render gate uses, by DOM writes that change nothing (`write_watch.js`), and
+    by layout shifts without input or that carry a field being typed in
+    (`shift_watch.js`).
+    Call before navigation so the init scripts take effect.
+    Repeated calls return the existing list. `tests/AGENTS.md`, "Consume a browser
+    error where it is caused", owns consumption and cleanup policy."""
     assert _BROWSER_PROBLEM_LISTS is not None, (
         "watched pages need the function-scoped browser fixture"
     )
@@ -1087,6 +1118,8 @@ def watched(page):
     page.on("console", console_message)
     page.on("pageerror", lambda e: errors.append(str(e)))
     render_checks_model.install_window_errors(page)
+    page.add_init_script(path=WRITE_WATCH_SOURCE)
+    page.add_init_script(path=SHIFT_WATCH_SOURCE)
     # Diagnostics join the document's captured module graph, not the mutable layer.
     page.add_init_script(
         script="""window.__lfRuntimeImport = path => {
@@ -1119,7 +1152,7 @@ def restarting(page):
     """
     mark = len(page.lf_errors)
     yield
-    page.wait_for_function(BOTH_STAMPS, timeout=HANDOVER_DEADLINE_MS)
+    wait_until_ready(page, timeout_ms=HANDOVER_DEADLINE_MS)
     del page.lf_errors[mark:]
 
 
@@ -1164,60 +1197,6 @@ def consume_browser_errors(page, *expected):
     return errors
 
 
-# Frame waits compose into page scripts such as RING_NEW_STOP. Since evaluate
-# supplies no timeout, their page-side timer rejects when frames stop arriving.
-# It cannot bound a blocked renderer main thread: that also stops setTimeout.
-FRAME_DEADLINE_MS = 30_000
-FRAMES = (
-    "(turns) => new Promise((rendered, ranOut) => {\n"
-    "  const deadline = setTimeout(\n"
-    "    () => ranOut(new Error(`only ${turns - left} of ${turns} rendering turns arrived`)),\n"
-    f"    {FRAME_DEADLINE_MS});\n"
-    "  let left = turns;\n"
-    "  const step = () => {\n"
-    "    if (--left > 0) return requestAnimationFrame(step);\n"
-    "    setTimeout(() => {\n"
-    "      clearTimeout(deadline);\n"
-    "      rendered();\n"
-    "    });\n"
-    "  };\n"
-    "  requestAnimationFrame(step);\n"
-    "})"
-)
-# One turn is the frame a write has been through: nested animation-frame callbacks have one
-# complete rendering turn between them, so this states rendered progress rather than
-# elapsed time between two frame polls. Each wait ends in a task queued from its last
-# callback, after that update's ResizeObserver deliveries.
-ONE_FRAME = f"() => ({FRAMES})(1)"
-RENDERING_SETTLED = """() => {
-  const settled = document.querySelector('script[data-lf-entry]')?.lfRenderingSettled;
-  if (!settled) throw new Error('this document has no Leaf rendering reading');
-  return settled();
-}"""
-
-
-def rendered(page):
-    """Wait until the runtime has rendered what the input so far asked for.
-
-    Its settled reading (runtime/rendering.js) says nothing it queued is waiting and its
-    last rendering update was quiet. A read after a coalesced repaint, however many
-    updates that repaint chains through, waits here instead of guessing a count. One
-    whole update passes first, observers included, so a change no Leaf callback took
-    part in — a wheel, a resize — has had its turn to unsettle the reading.
-
-    Work that re-queues itself on every update never settles: a fold the test holds
-    mid-animation keeps its place hold correcting each frame. Wait `ONE_FRAME` there,
-    where one update is the claim."""
-    page.evaluate(ONE_FRAME)
-    try:
-        page.wait_for_function(RENDERING_SETTLED, timeout=FRAME_DEADLINE_MS)
-    except PlaywrightTimeout as error:
-        raise AssertionError(
-            "the page's rendering never settled: counted work was queued again on "
-            "every update"
-        ) from error
-
-
 # What navigate reports when a ResizeObserver loop notice comes back on the confirming
 # navigation, so a one-off notice is dropped and a recurring one fails the test.
 RECURRING_RESIZE_NOTICE = (
@@ -1225,7 +1204,7 @@ RECURRING_RESIZE_NOTICE = (
 )
 
 
-def navigate(page, url, *, wait_until="load", ready=BOTH_STAMPS):
+def navigate(page, url, *, wait_until="load", upgraded=True):
     """Navigate through a complete page handover, classifying only the
     ResizeObserver notices raised during that navigation.
 
@@ -1239,10 +1218,16 @@ def navigate(page, url, *, wait_until="load", ready=BOTH_STAMPS):
     def complete_navigation():
         start = len(errors)
         page.goto(url, wait_until=wait_until, timeout=HANDOVER_DEADLINE_MS)
-        page.wait_for_function(ready, timeout=HANDOVER_DEADLINE_MS)
+        if upgraded:
+            wait_until_ready(page, timeout_ms=HANDOVER_DEADLINE_MS)
+        else:
+            page.wait_for_function(
+                "() => document.querySelector('.lf-banner') !== null",
+                timeout=HANDOVER_DEADLINE_MS,
+            )
         # Let the rendering turn that earned the readiness stamp finish. A loop
         # notice is delivered by that turn, rather than by the DOM write alone.
-        page.evaluate(ONE_FRAME)
+        one_frame(page)
         fresh = errors[start:]
         del errors[start:]
         notices = [
@@ -1330,7 +1315,7 @@ def expect_banner_control_offered(control, *, offered=True):
 
     Secondary controls live under a closed More ancestor, so ordinary visibility reads
     the ancestor rather than the control. Its own computed display includes both the
-    owner's presence and conditional offer without treating the shelf's news paint as
+    owner's presence and conditional offer without treating the toolbar's news paint as
     application authority.
     """
     if offered:
@@ -1360,12 +1345,12 @@ def open_page(
     because the URL a handover carries already has a query holding the page's key: a
     test appending its own `?pin` overwrote that key and got a page that never loaded.
 
-    `upgraded` waits for the page's arrival facts and the coordinator's current
-    presentation reading, with `BOTH_STAMPS` above saying what each answers.
+    `upgraded` waits until the page states it is ready (`wait_until_ready`, whose
+    stages are the runtime's `pageReadiness`).
 
     Navigation waits for `load`, so the stylesheet and media that determine layout have
-    arrived. Network silence is not a readiness fact; the stamps state that the document
-    and its log finished applying, and the coordinator states that their current
+    arrived. Network silence is not a readiness fact; the page's own readiness reading
+    states that the document and its log finished applying and that their current
     presentation work has settled.
 
     `color_scheme` sets the medium before page modules evaluate. A supplied context owns
@@ -1393,11 +1378,7 @@ def open_page(
         page,
         url,
         wait_until=wait_until,
-        ready=(
-            BOTH_STAMPS
-            if upgraded
-            else "() => document.querySelector('.lf-banner') !== null"
-        ),
+        upgraded=upgraded,
     )
     return page
 
@@ -1414,7 +1395,15 @@ def opened_tab(page, destination, press, timeout=10_000):
     `page` must belong to an explicitly created context such as `one_user`. Playwright
     refuses `context.new_page()` on the owner context created by `browser.new_page()`,
     which is what `open_page` uses when no context is passed.
+
+    A handover link's target may already stand at the address the runtime leaves once
+    it takes the key out of the address bar, so either spelling is the arrival.
     """
+    parts = urlsplit(destination)
+    query = parse_qsl(parts.query, keep_blank_values=True)
+    keyless = parts._replace(
+        query=urlencode([p for p in query if p[0] != "t"])
+    ).geturl()
     browser_session = page.context.browser.new_browser_cdp_session()
 
     def page_targets():
@@ -1447,7 +1436,7 @@ def opened_tab(page, destination, press, timeout=10_000):
                     f"one press opened {len(opened)} page targets: "
                     f"{sorted(opened.values())}"
                 )
-            if list(opened.values()) == [destination]:
+            if len(opened) == 1 and set(opened.values()) <= {destination, keyless}:
                 break
             remaining = deadline - time.monotonic()
             if remaining <= 0:
@@ -1508,7 +1497,6 @@ def opened_tab(page, destination, press, timeout=10_000):
 # The arm is the render gate's own, which needs it for the other end of the same
 # fact: interception comes back down when a route list empties, and requests
 # crossing that transition are lost just as silently.
-NEVER_ASKED_FOR = render_gate_model.INTERCEPTION_ARM
 arm_interception = render_gate_model.arm_interception
 
 
@@ -1577,7 +1565,7 @@ class WatchedBrowser:
     `unwatched` exposes the underlying browser for product gates that deliberately
     open faulty pages and report those faults themselves. Ordinary clean-page
     journeys use the wrapped browser. Fixture policy lives in `tests/AGENTS.md`,
-    "A page is ready when it says what has finished"."""
+    "Consume a browser error where it is caused"."""
 
     def __init__(self, browser):
         self._browser = browser
@@ -1635,8 +1623,8 @@ def margins_laid_out(page):
     window — but only on the runs where the frame had not landed yet, which is why the
     same probe condensed on one run and not the next.
 
-    The pending frame is not a fact to wait a frame for (`tests/AGENTS.md`, "a fixed
-    number of animation frames only guesses"), so the work is run instead of guessed at.
+    The pending frame is not a fact to wait a frame for (`tests/AGENTS.md`, "A wait
+    consumes a fact the system states"), so the work is run instead of guessed at.
     Whether the observer schedules it at all is `test_render_margin.py`'s subject, not
     that of a test reading the layout it produces.
 
@@ -1656,6 +1644,73 @@ def margins_laid_out(page):
     )
 
 
+def margin_entry(owner: str, key: str | None = None) -> str:
+    """The selector for the margin entries a contribution registered under `owner`,
+    narrowed to its entry `key` when one is given. A page script that must find the
+    control itself takes this; a test otherwise takes `margin_control`."""
+    selector = f'[data-lf-margin-entry-owner="{owner}"]'
+    return selector if key is None else f'{selector}[data-lf-margin-entry-key="{key}"]'
+
+
+def margin_control(scope, owner: str, key: str | None = None, *, visible=True):
+    """A margin entry within `scope` (a page, frame, or locator) by its contribution's
+    owner key and its own entry key; only the visible one unless `visible` is False."""
+    return scope.locator(margin_entry(owner, key) + (":visible" if visible else ""))
+
+
+# A content widget's contribution key is its module's own choice, and these two are the
+# suite's one spelling of each: `lf-draft` registers as `draft:<id>`, `lf-suggestion`
+# as `suggestion:<id>`.
+def draft_owner(draft_id: str) -> str:
+    return f"draft:{draft_id}"
+
+
+def suggestion_owner(suggestion_id: str) -> str:
+    return f"suggestion:{suggestion_id}"
+
+
+def draft_control(scope, key: str, draft_id: str, *, visible=True):
+    """The draft `draft_id`'s margin entry `key` (edit, save, cancel)."""
+    return margin_control(scope, draft_owner(draft_id), key, visible=visible)
+
+
+def suggestion_control(scope, suggestion_id: str, key=None, *, visible=True):
+    """The suggestion `suggestion_id`'s margin entry `key` (accept, reject, undo), or
+    all of its entries."""
+    return margin_control(scope, suggestion_owner(suggestion_id), key, visible=visible)
+
+
+def any_owner_entry(kind: str, key: str | None = None) -> str:
+    """The selector for a margin entry any `kind` widget (`draft`, `suggestion`)
+    registered, for a probe that plants one example on a page rather than tracking a
+    particular id. `margin_entry` locates one owner exactly."""
+    selector = f'[data-lf-margin-entry-owner^="{kind}:"]'
+    return selector if key is None else f'{selector}[data-lf-margin-entry-key="{key}"]'
+
+
+def any_draft_control(scope, key: str | None = None, *, visible=True):
+    """Any draft's margin entry `key` on the page, for the same reason `any_owner_entry`
+    exists rather than `draft_control`."""
+    return scope.locator(
+        any_owner_entry("draft", key) + (":visible" if visible else "")
+    )
+
+
+def any_suggestion_control(scope, key: str | None = None, *, visible=True):
+    """Any suggestion's margin entry `key` on the page, or all of its entries."""
+    return scope.locator(
+        any_owner_entry("suggestion", key) + (":visible" if visible else "")
+    )
+
+
+def command_reference_rows(page, heading):
+    """The rows of the command reference table titled `heading`."""
+    heading_id = page.get_by_role("heading", name=heading, exact=True).get_attribute(
+        "id"
+    )
+    return page.locator(f'tbody[aria-labelledby="{heading_id}"]')
+
+
 # The page shell's box on screen: where the document's room starts and ends. The runtime
 # reads the same edge as `shellRight` (geometry.js). This is the suite's one spelling of it, read off the DOM
 # rather than through that function, so a test comparing it with a region's box compares
@@ -1669,14 +1724,16 @@ SHELL_BOX = """(() => {
 })()"""
 
 
-def page_right(page):
-    """Where the page shell ends on the right; see `SHELL_BOX`."""
-    return page.evaluate(f"() => {SHELL_BOX}.right")
-
-
 # How long a scroller holds one position before its travel is over, counted in the
 # browser's own rendering frames.
 SCROLL_STILL_FRAMES = 3
+
+# Put the user nowhere, with the next Tab starting at the top of the document: the
+# runtime's own let-go (focus.js, `releaseFocus`). Body holds no stop of its own, so
+# `document.body.focus()` moves nothing on a page whose root does not scroll.
+RELEASE_FOCUS = """async () =>
+  (await window.__lfRuntimeImport('/runtime/focus.js')).releaseFocus()"""
+
 
 SCROLL_STILL = """([selector, axis, frames]) => {
   const box = selector ? document.querySelector(selector) : document.scrollingElement;
@@ -1731,6 +1788,15 @@ def panel_settled(page, open=True):
     )
 
 
+def regions_side_by_side(regions: str, columns: str = "1fr 1fr") -> str:
+    """The page's own stylesheet setting a workspace body's panes side by side, as a
+    page writes it: a grid, which stacks where the workspace flows."""
+    return f"""<style>
+#{regions} {{ display: grid; grid-template-columns: {columns}; gap: var(--sp-4); }}
+@media (width < 720px) {{ #{regions} {{ grid-template-columns: 1fr; }} }}
+</style>"""
+
+
 def pane_posture(page, pane, posture):
     """Wait until a pane is `bounded` (its body scrolls) or in `flow` (it does not).
 
@@ -1748,21 +1814,21 @@ def pane_posture(page, pane, posture):
     )
 
 
-def holds_the_window(page, block, held):
+def fills_the_window(page, block, fills):
     """Wait until a block does, or does not, fill the window with the page at rest.
 
-    A held block is the whole page: its bottom edge is inside the window and the
+    A block that fills it is the whole page: its bottom edge is inside the window and the
     document has nothing to scroll, so the block's own panes carry what overflows. A
     flowing block runs past the window and the page scrolls it.
     """
     page.wait_for_function(
-        """([node, held]) => {
+        """([node, fills]) => {
           const bottom = node.getBoundingClientRect().bottom;
           const page = document.scrollingElement;
           return (bottom <= innerHeight + 1
-            && page.scrollHeight <= page.clientHeight + 1) === held;
+            && page.scrollHeight <= page.clientHeight + 1) === fills;
         }""",
-        arg=[block.element_handle(), held],
+        arg=[block.element_handle(), fills],
     )
 
 
@@ -1770,7 +1836,7 @@ def resized(page, width, height):
     """Resize and wait for the page's listeners and rendering update.
 
     `set_viewport_size` alone does not prove that resize listeners ran. The
-    counter is installed after the runtime's listeners; `ONE_FRAME` then lets
+    counter is installed after the runtime's listeners; `one_frame` then lets
     the document's scrolling area catch up before the caller measures it.
     Wait separately for any resulting motion whose geometry is under test.
 
@@ -1786,7 +1852,14 @@ def resized(page, width, height):
     }""")
     page.set_viewport_size({"width": width, "height": height})
     page.wait_for_function("() => window.lfResizes > window.lfResizesWas")
-    page.evaluate(ONE_FRAME)
+    one_frame(page)
+
+
+def root_overflow(page) -> float:
+    """How far the page scrolls sideways, as the render gate reads it (`rootOverflow`):
+    at the root scrollport the runtime scrolls. `body` is not that scroller, and a page
+    that narrows it reads as overflowing where the window scrolls nothing."""
+    return render_checks_model.evaluate_probe(page, "rootOverflow")
 
 
 def hold_selection(page, start, end, steps=8, frame_the_press=False):
@@ -1825,10 +1898,27 @@ def select(page, start, end, steps=8):
     page.mouse.up()
 
 
+def write(box, text):
+    """Replace a text box's words the way typing them would, as `fill` does.
+
+    `fill` refuses the runtime's text field: the node it would type into sits in the
+    field's closed shadow root. This puts the user in the box through its own `focus()`,
+    selects what it holds, and inserts the words as one input, which the field hears as
+    the user's edit and announces with `input`. A native textarea takes it the same way.
+    Read the words back with `to_have_js_property("value", ...)`."""
+    expect(box).to_be_visible()
+    box.focus()
+    box.evaluate("box => box.select()")
+    if text:
+        box.page.keyboard.insert_text(text)
+    elif box.evaluate("box => box.value"):
+        box.page.keyboard.press("Delete")
+
+
 def compare_with(page, version=None):
     """Mark what changed since a version, the way the page offers it.
 
-    The chooser opens and the row for that version carries the press, beside the note
+    The picker opens and the row for that version carries the press, beside the note
     that says in words what it changed. With no version named it is the one before the
     version being read — the first Compare in the menu, a row offering one only where it is
     older than this."""
@@ -1839,3 +1929,202 @@ def compare_with(page, version=None):
         else page.locator(f'.lf-version-diff[data-lf-version="{version}"]')
     )
     press.click()
+
+
+def scroll_writes(page, steps, scroller="document.scrollingElement"):
+    """Scroll `scroller` (a page expression) by each of `steps`, waiting for every
+    repaint a step queues, and return each DOM write the scroll caused, numbered by
+    step. The pointer is moved off the page's controls first, so the scroll brings
+    nothing new under it."""
+    page.mouse.move(2, 300)
+    rendered(page)
+    page.evaluate("() => { window.lfWrites = []; window.lfWriteStep = null; }")
+    start = page.evaluate(f"() => {scroller}.scrollTop")
+    for index, step in enumerate(steps):
+        page.evaluate(
+            f"([index, step]) => {{ window.lfWriteStep = index; "
+            f"{scroller}.scrollBy(0, step); }}",
+            [index, step],
+        )
+        rendered(page)
+    assert page.evaluate(f"() => {scroller}.scrollTop") == start + sum(steps), (
+        "the scroll did not go where its steps lead"
+    )
+    return page.evaluate(
+        "() => { const w = window.lfWrites; window.lfWrites = null; return w; }"
+    )
+
+
+def scroll_followers(writes):
+    """The places a scroll writes on more than two of its steps, as findings.
+
+    A state the scroll changes crosses a small pass at most once each way, while a
+    position written from scroll events is written on every step, a frame behind the
+    browser, which carries a box that CSS lays out (an anchor, a sticky offset, a scroll
+    timeline) with the scroll itself. A write that changes nothing needs no reading
+    here: the browser fixture fails it wherever it happens (`write_watch.js`)."""
+    places = {}
+    for w in writes:
+        places.setdefault(w["key"], []).append(w)
+    found = []
+    for written in places.values():
+        what = f"{written[0]['type']} {written[0]['attribute'] or ''} on {written[0]['target']}"
+        steps = {w["step"] for w in written}
+        if len(steps) > 2:
+            found.append(f"{what} follows the scroll, written on {len(steps)} steps")
+    return found
+
+
+# The page as its DOM states it: `<html>`'s attributes, then each element in the body and
+# in every open shadow tree by where it stands, with its attributes sorted, and the words
+# of each text node. Comments are Lit's markers, which `live_counts` counts instead.
+# `data-lf-traffic` is the runtime's request ledger, which the page's clock moves. An
+# inline style is a set of declarations, read sorted: a property taken off and set again
+# stands last in the attribute's text and says the same.
+PAGE_STATE = """() => {
+  const said = (node) => (a) => a.name === "style"
+    ? `style=${JSON.stringify([...node.style].map((property) =>
+        `${property}: ${node.style.getPropertyValue(property)}` +
+        (node.style.getPropertyPriority(property) ? " !important" : "")).sort().join("; "))}`
+    : `${a.name}=${JSON.stringify(a.value)}`;
+  const lines = [[...document.documentElement.attributes]
+    .filter((a) => a.name !== "data-lf-traffic")
+    .map(said(document.documentElement)).sort().join(" ")];
+  const walk = (parent, path) => {
+    for (const node of parent.childNodes) {
+      if (node.nodeType === Node.TEXT_NODE && node.data.trim())
+        lines.push(`${path} ${JSON.stringify(node.data.trim())}`);
+      if (node.nodeType !== Node.ELEMENT_NODE) continue;
+      const here = `${path} > ${node.localName}${node.id ? "#" + node.id : ""}`;
+      lines.push(`${here} ${[...node.attributes].map(said(node)).sort().join(" ")}`);
+      if (node.shadowRoot) walk(node.shadowRoot, `${here} ::shadow`);
+      walk(node, here);
+    }
+  };
+  walk(document.body, "body");
+  return lines;
+}"""
+
+
+def page_state(page):
+    """The page as its DOM states it (`PAGE_STATE`), one line per element and text."""
+    return page.evaluate(PAGE_STATE)
+
+
+def state_changes(before, after):
+    """The lines of `page_state` one reading holds and the other does not, marked `-`
+    for the first and `+` for the second."""
+    return [
+        line
+        for line in difflib.unified_diff(before, after, lineterm="", n=0)
+        if not line.startswith(("---", "+++", "@@"))
+    ]
+
+
+def live_counts(page):
+    """What the page's renderer holds after a full collection, as {what: count}: its DOM
+    nodes, those in its documents, comments included, and every detached node something
+    still retains, and its event listeners. A count that climbs across repetitions of one
+    gesture is a leak whether what it counts piles up in the page or behind it."""
+    session = page.context.new_cdp_session(page)
+    try:
+        session.send("HeapProfiler.collectGarbage")
+        session.send("Performance.enable")
+        metrics = session.send("Performance.getMetrics")["metrics"]
+    finally:
+        session.detach()
+    counted = {"Nodes": "nodes", "JSEventListeners": "event listeners"}
+    return {counted[m["name"]]: m["value"] for m in metrics if m["name"] in counted}
+
+
+def still_page(browser, url, width=1200):
+    """The page at `url` for a reader who asked for reduced motion, under a clock that
+    stays on one instant, so what changes on it is what the test did: no film plays
+    itself and no age ticks over to the next minute while the test reads."""
+    context = browser.new_context(
+        viewport={"width": width, "height": 900}, reduced_motion="reduce"
+    )
+    context.clock.set_fixed_time(time.time())
+    return open_page(browser, url, context=context)
+
+
+# Two of the page's clock ticks and room to spare (`TICK_MS`, state-feed.js): at rest the
+# clock is all that runs, and a tick that wrote would write inside the window.
+REST_SECONDS = 5
+
+
+def left_alone(page):
+    """Wait until the page has finished arriving: rendered, with any notice it opened
+    with gone and the pointer off its controls, so nothing the arrival started is still
+    changing it when a test begins its own reading."""
+    rendered(page)
+    expect(page.locator(".lf-notice.show")).to_have_count(0)
+    page.mouse.move(2, 300)
+    rendered(page)
+
+
+# Armed in each of the page's documents: its writes (`write_watch.js`), the frames it asks
+# for, counted where they are asked for, and each time the focus lands in it.
+_REST_ARM = """() => {
+  window.lfWrites = [];
+  window.lfWriteStep = null;
+  const rest = (window.lfRest = { frames: {}, focus: 0 });
+  const request = window.requestAnimationFrame;
+  window.requestAnimationFrame = (callback) => {
+    // The first caller past the runtime's scheduler, which is whose loop it is.
+    const site = new Error().stack.split("\\n").slice(2)
+      .find((line) => !line.includes("/runtime/rendering.js"))?.trim() ?? "";
+    return request.call(window, (time) => {
+      rest.frames[site] = (rest.frames[site] ?? 0) + 1;
+      callback(time);
+    });
+  };
+  document.addEventListener("focusin", () => rest.focus++, { capture: true });
+}"""
+_REST_READ = """() => {
+  const writes = window.lfWrites;
+  window.lfWrites = null;
+  const endless = document.getAnimations()
+    .filter((animation) => animation.playState === "running" &&
+      animation.effect?.getComputedTiming().iterations === Infinity)
+    .map((animation) => `${animation.animationName ?? animation.id} on ` +
+      `${animation.effect.target.localName}.${[...animation.effect.target.classList].join(".")}`);
+  return { writes, ...window.lfRest, endless };
+}"""
+
+
+def at_rest(page):
+    """What the page does while nobody touches it, as findings: each place it writes,
+    each frame it asks for, each time it moves the focus, and each animation it runs
+    without end, in its own document and each one it frames, such as a live sample.
+
+    It starts once the page is `left_alone` and watches for `REST_SECONDS`. Frames are
+    counted where they are asked for, so a loop that writes nothing but still wakes the
+    page every frame is named too."""
+    left_alone(page)
+    frames = page.frames
+    for frame in frames:
+        frame.evaluate(_REST_ARM)
+    time.sleep(REST_SECONDS)
+    findings = []
+    for frame in frames:
+        rest = frame.evaluate(_REST_READ)
+        where = "" if frame == page.main_frame else f" in {urlsplit(frame.url).path}"
+        places = {
+            f"{w['type']} {w['attribute'] or ''} on {w['target']}"
+            for w in rest["writes"]
+        }
+        findings += [
+            *(f"{place} written at rest{where}" for place in sorted(places)),
+            *(
+                f"a frame asked for {site} ran {n} times at rest{where}"
+                for site, n in rest["frames"].items()
+            ),
+            *(
+                [f"the focus moved {rest['focus']} times at rest{where}"]
+                if rest["focus"]
+                else []
+            ),
+            *(f"{animation} runs without end{where}" for animation in rest["endless"]),
+        ]
+    return findings

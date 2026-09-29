@@ -1,25 +1,53 @@
-"""Filesystem change readings for a served page."""
+"""The readings that name one served view of a page.
+
+A served reading is the page's file stamp (`page_reading`, or a snapshot's own)
+followed by a fingerprint of who is present (`presence.presence_fingerprint`), which
+moves on its own clock. `/api/state` answers with one, the news stream says one each
+time it changes, and the browser compares them whole. `join_reading` builds the form
+and `reading_files` takes the file stamp back out; nothing else spells it.
+"""
 
 import hashlib
 from pathlib import Path
 
-from ..files import STAGED, file_stamp
-from ..schema import DATA_DIR, EVENTS_FILE, VIEWED_FILE
+from ..files import STAGED, entry_stamps, file_stamp
+from ..schema import (
+    DATA_DIR,
+    EVENTS_FILE,
+    INTERACTIONS_FILE,
+    SESSION_FILES,
+    VIEWED_FILE,
+)
 from ..service import claim_path
 
-# The one thing a reading must not be built from. The server writes `viewed.json` for
-# as long as a visible tab holds the page's news stream, so counting it would make the
-# page's own presence change the page's token: a stream asking "has anything changed?"
-# would be told yes, by its own listener.
-UNWATCHED = frozenset({VIEWED_FILE})
+# Diagnostic writes cannot move application state. The server writes `viewed.json`
+# while a visible tab holds the news stream and `interactions.jsonl` for every request
+# it answers; counting either would make a read say it changed itself.
+UNWATCHED = frozenset({VIEWED_FILE, INTERACTIONS_FILE})
+
+
+def join_reading(files: str, presence: str) -> str:
+    """The served reading of one view: its file stamp, then its presence.
+
+    Both halves are hex digests, so the dot is the only one in the reading."""
+    return f"{files}.{presence}"
+
+
+def reading_files(reading: str) -> str:
+    """The file stamp a served reading was joined from (`join_reading`).
+
+    Two readings with the same file stamp were taken over the same page, whoever
+    was present at each."""
+    files, _, _ = reading.partition(".")
+    return files
 
 
 def page_reading(page_dir: Path) -> str:
     """A short token naming this reading of the page.
 
-    Every direct child of the page directory, rather than the files a state response is
-    known to read. The known-list is unmaintainable in the way that does not fail
-    loudly: leave one out and the page simply stops hearing about that kind of news,
+    Every direct child of the page directory except diagnostics, rather than the files
+    a state response is known to read. The known-list is unmaintainable in the way
+    that does not fail loudly: leave one out and the page simply stops hearing news,
     with nothing red to say so. The authored `page/` tree is also stamped recursively:
     changing a module dependency or stylesheet is a candidate revision even when the
     HTML stays unchanged. So is `data/`, whose value files another process may rewrite
@@ -55,12 +83,16 @@ HISTORY = frozenset({EVENTS_FILE, "revisions"})
 def source_readings(page_dir: Path) -> tuple[str, str]:
     """The page's reading split in two: its source, and its history.
 
-    The same stamps `page_reading` takes, less the claim, which says who is
-    listening rather than what the page is. History is `HISTORY`; source is every
-    other stamp, so a file nothing names here counts as source and moves the
-    activation it could change.
+    The same stamps `page_reading` takes, less the claim and the session files
+    (`SESSION_FILES`), which say who is working on the page rather than what it is.
+    History is `HISTORY`; source is every other stamp, so a file nothing names here
+    counts as source and moves the activation it could change. Leaving the session
+    out is what lets an agent declare its status, acknowledge a delivery, or take a
+    wait without the next state read validating the whole page again.
     """
-    stamps = _page_stamps(page_dir)
+    stamps = [
+        stamp for stamp in _page_stamps(page_dir) if stamp[0] not in SESSION_FILES
+    ]
     return (
         _token([stamp for stamp in stamps if stamp[0] not in HISTORY]),
         _token([stamp for stamp in stamps if stamp[0] in HISTORY]),
@@ -68,11 +100,7 @@ def source_readings(page_dir: Path) -> tuple[str, str]:
 
 
 def _page_stamps(page_dir: Path) -> list[tuple[str, object]]:
-    stamps = sorted(
-        (entry.name, file_stamp(entry))
-        for entry in page_dir.iterdir()
-        if entry.name not in UNWATCHED and not STAGED.fullmatch(entry.name)
-    )
+    stamps = entry_stamps(page_dir, UNWATCHED)
     stamps.extend(
         (entry.relative_to(page_dir).as_posix(), file_stamp(entry))
         for tree in ("page", DATA_DIR)

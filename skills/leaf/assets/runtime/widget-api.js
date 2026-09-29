@@ -7,32 +7,27 @@
    served page, as `/runtime/widget-api.js`, so a search of `runtime/` for a re-export's
    importer comes back empty whether or not the export is reachable. What answers that
    question is the browser gate, which fails to parse every probe module at once. */
-import { defineRequestElement } from "./request-elements.js";
-
 export { LitElement, html } from "../vendor/browser-runtime.js";
 export { widgetController } from "./widget-controller.js";
 // The rank a position record carries for a unit dropped at an index in a container.
 export { rankAt } from "./projection/model.js";
-export async function mountSpecimen(frame, options) {
-  const owner = await import("./specimen.js");
-  return owner.mountSpecimen(frame, options);
+export async function mountSample(frame, options) {
+  const owner = await import("./sample.js");
+  return owner.mountSample(frame, options);
 }
+export { dressSamples, wear } from "./dress.js";
 
 export { USER_VIEW_RESTORE_CASES } from "./restore-state.js";
-export {
-  addressableName,
-  addressableSays,
-  addressableWord,
-} from "./anchor-resolution.js";
+export { ADDRESSABLE, addressableLabel, addressableWord } from "./anchor-resolution.js";
 // The name Threads, the margin, and reactions give a comment's anchor.
-export { anchorLabel } from "./conversation/messages.js";
+export { anchorLabel } from "./thread/messages.js";
 // The page's `main`, or the body of the message whose markup a node stands in.
 export { authoredScope } from "./passages.js";
 export { navigateToDatum } from "./application.js";
 // Experimental: one widget marking part of another (indication.js).
 export { indicate } from "./indication.js";
 export {
-  declareCoverRoom,
+  declareStickyHeaders,
   landingInsets,
   shownBand,
   shownBox,
@@ -43,23 +38,29 @@ export { placeKeeper } from "./user-place.js";
 export { inUi, uiInside, upFrom } from "./shadow.js";
 // Putting the user on an element that may be no tab stop of its own, which is what a
 // widget landing them anywhere but a control needs: the lend leaves with the first blur.
-export { focusDestination } from "./focus.js";
+// Holding the user's place, caret included, across a move or re-render of the node they
+// stand on. TEXT_FIELD is the tag of the box a widget offers for the user to write
+// Markdown in; TEXT_BOX matches it and any native textarea.
+export { focusDestination, holdFocus, TEXT_BOX, TEXT_FIELD } from "./focus.js";
+// Making an element's children a list, moving only what is out of place and keeping the
+// user standing in a node it moves.
+export { setChildren } from "./dom-children.js";
 export { openAsks, watchAsks } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
-export { conversationBox, consumeThreads } from "./application.js";
-export { readThreads } from "./conversation/state.js";
-export { turns as threadTurns, threadSummary } from "./conversation/model.js";
-export { conversationInput } from "./conversation/landing.js";
-export { landInConversation, openThread } from "./application.js";
+export {
+  threadBox,
+  consumeThreads,
+  mountThreadViews,
+  threadActions,
+} from "./application.js";
+export { readThreads } from "./thread/state.js";
+export { watchThreads } from "./thread/watch.js";
+export { turns as threadTurns, threadSummary } from "./thread/model.js";
+export { threadInput } from "./thread/landing.js";
+export { landInThread, openThread } from "./application.js";
 export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
-export {
-  PRESS,
-  labelOf,
-  submitBindings,
-  submitLabel,
-  walkRows,
-} from "./keyboard/bindings.js";
+export { PRESS, labelOf, submitBindings, submitLabel } from "./keyboard/bindings.js";
 export {
   commandScope,
   focused,
@@ -69,7 +70,7 @@ export {
 } from "./keyboard/scopes.js";
 export { repaint } from "./repaint.js";
 export { cancelRender, nextFrame, nextRender, sizeObserver } from "./rendering.js";
-export { beginWalk, listWalkPosition } from "./walk-position.js";
+export { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
 export {
   MARGIN_ENTRY_SCHEMA,
   marginEntry,
@@ -85,6 +86,12 @@ export {
   renderMarkdown,
 } from "./markdown.js";
 export { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
+// Where two images differ, gathered into regions (image-difference.js).
+export {
+  compareImages,
+  describeDifference,
+  differenceKind,
+} from "./image-difference.js";
 export { pageScroller } from "./scrolling.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";
@@ -104,7 +111,6 @@ export {
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
 export { announce, notice } from "./notifications.js";
-export { defineRequestElement };
 export { alignText, alignedNodes } from "./text-alignment.js";
 export {
   inChrome,
@@ -116,10 +122,10 @@ export {
   verbatimOwnerIdentity,
   wrote,
 } from "./passages.js";
-export { ago, clocked, clockValue, quietSince } from "./presence.js";
+export { ago, clocked, clockValue, quietSince, shortAgo } from "./presence.js";
 export { shallowSigs } from "./application.js";
 export { shadowStage } from "./shadow-stage.js";
-export { agentName, revisionLabel } from "./context.js";
+export { revisionLabel } from "./context.js";
 export { loadDeferred, watchData } from "./data.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
 export {
@@ -153,14 +159,14 @@ export {
   syntax,
   tokenLines,
 } from "./syntax.js";
-export { dataBody, failSoft, once } from "./widget-upgrade.js";
+export { bodyText, dataBody, failSoft, once } from "./widget-upgrade.js";
 export { watchUpdates } from "./application.js";
 export { saidAt, updateSequence, watchHistory } from "./updates.js";
 export {
   HIDDEN,
   LAYOUT,
   dragging,
-  keeps,
+  el,
   layoutChanged,
   measure,
   offer,
@@ -171,3 +177,4 @@ export {
   selectableOffer,
   worksInside,
 } from "./widget-elements.js";
+export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";

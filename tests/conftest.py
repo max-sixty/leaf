@@ -11,6 +11,8 @@ from typing import NamedTuple
 import pytest
 from leaf import event_log as events_model
 from leaf import files as files_model
+from leaf import host as host_model
+from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf.mcp_page import ProcessPageServer
 from playwright.sync_api import sync_playwright
@@ -197,6 +199,10 @@ def initialized_page(_page_pool):
     test whose subject is initialization, re-vendoring or an overlay still
     crosses the real `page init` boundary by calling this with a shape of its
     own — or by not calling it at all.
+
+    Runtime and vendor files are hard links shared with the shape, so a test never
+    writes through one in place: re-vendoring replaces those files, and the next loan
+    rejects an in-place write by name.
     """
     lent = []
 
@@ -235,10 +241,30 @@ def pytest_addoption(parser):
         default=False,
         help="Also run the complete browser and published-site integration suites",
     )
+    parser.addoption(
+        "--nightly-changed-since",
+        metavar="REF",
+        help="Also run the nightly-marked tests in the test files changed since REF",
+    )
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_call(item):
+    """A test body that returns has its last shifts judged before its fixtures end
+    (`render_harness.judge_shifts`)."""
+    from render_harness import judge_shifts
+
+    result = yield
+    judge_shifts()
+    return result
 
 
 def pytest_collection_modifyitems(config, items):
-    """Broad discovery stays cheap; explicit selections run what they name."""
+    """Broad discovery stays cheap; explicit selections run what they name.
+
+    A change that moves a browser behaviour usually edits the test that holds it, so both
+    landing gates add the nightly tests in the test files the change touches
+    (`--nightly-changed-since`): those run before it lands rather than on main after."""
     selected = (
         config.getoption("keyword")
         or config.getoption("markexpr")
@@ -247,16 +273,51 @@ def pytest_collection_modifyitems(config, items):
     )
     if config.getoption("--run-nightly") or selected:
         return
-    nightly = [item for item in items if "nightly" in item.keywords]
-    items[:] = [item for item in items if "nightly" not in item.keywords]
+    changed = set()
+    if since := config.getoption("--nightly-changed-since"):
+        diff = subprocess.run(
+            ["git", "diff", "--name-only", f"{since}...HEAD", "--", "tests"],
+            cwd=config.rootpath,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if diff.returncode:
+            raise pytest.UsageError(
+                f"--nightly-changed-since {since}: {diff.stderr.strip()}"
+            )
+        changed = {config.rootpath / path for path in diff.stdout.split()}
+    kept, nightly = [], []
+    for item in items:
+        skipped = "nightly" in item.keywords and item.path not in changed
+        (nightly if skipped else kept).append(item)
+    items[:] = kept
     config.hook.pytest_deselected(items=nightly)
 
 
-# A host session states its identity in the environment, under names of its own.
-# The suite is a Claude Code session, and `session_harness` reads that set first, so
-# a test about a Codex session, or about no session at all, takes it away.
-CLAUDE_IDENTITY = ("CLAUDE_CODE_SESSION_ID", "CLAUDE_PID", "CLAUDE_JOB_DIR")
-CODEX_IDENTITY = ("CODEX_THREAD_ID", "LEAF_SESSION_ID", "LEAF_AGENT")
+# A host session states its identity in the environment, under names of its own
+# (`host.IDENTITY_VARIABLES`). The suite is a Claude Code session, and
+# `session_harness` reads that set first, so a test about a Codex session takes
+# this away, and a test about no session at all takes the whole set (`sessionless`).
+CLAUDE_IDENTITY = host_model.ClaudeCodeHarness.identity_variables
+# The Claude Code sessions `isolated_session` marks as hooked: the worker's own
+# and the id lifecycle fixtures claim under (`record_claim`).
+HOOKED_SESSIONS = (f"pytest-{os.getpid()}", "s1")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def failing_claude(tmp_path_factory):
+    """Put a `claude` that fails at once ahead of the developer's own on PATH, for
+    the rest of the run, before any fixture starts a server. A Claude Code page
+    server asks `claude` to name each thread a user opens (`thread_titles`), from a
+    thread that can outlive the test that posted the comment, so no teardown may
+    restore the real one under it; a test about titling puts its own `claude`
+    first."""
+    programs = tmp_path_factory.mktemp("host-programs")
+    claude = programs / "claude"
+    claude.write_text("#!/bin/sh\nexit 1\n")
+    claude.chmod(0o755)
+    os.environ["PATH"] = f"{programs}{os.pathsep}{os.environ['PATH']}"
 
 
 @pytest.fixture(autouse=True)
@@ -284,18 +345,25 @@ def isolated_session(tmp_path_factory, monkeypatch):
     it would read before this fixture sets it and after `monkeypatch` unsets it
     (tests/AGENTS.md, "A process the suite starts ends with the run")."""
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path_factory.mktemp("state")))
+    for name in host_model.IDENTITY_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
+    # Claude Code's session registry, where a live turn is read
+    # (`host.claude_code_session_records`): empty, so no session of the developer's
+    # answers for a test's.
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path_factory.mktemp("claude")))
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", f"pytest-{os.getpid()}")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    monkeypatch.delenv("CLAUDE_JOB_DIR", raising=False)
-    for name in CODEX_IDENTITY:
-        monkeypatch.delenv(name, raising=False)
+    # A Claude Code session whose host runs Leaf's hooks, as the plugin installs
+    # them, so its `leaf wait` only wakes it (`Harness.hooks_carry`).
+    for session in HOOKED_SESSIONS:
+        leases_model.mark_hooks(session)
     return machine_model.state_home()
 
 
 @pytest.fixture
 def sessionless(monkeypatch):
     """A command run from outside any host session: a terminal, a login item."""
-    for name in CLAUDE_IDENTITY + CODEX_IDENTITY:
+    for name in host_model.IDENTITY_VARIABLES:
         monkeypatch.delenv(name, raising=False)
 
 
@@ -311,7 +379,7 @@ def _retire(process: subprocess.Popen) -> None:
     """End one started process, and anything still in the group it leads.
 
     A child given a session of its own leads a group, and what it spawns joins
-    that group: `scripts/preview.py` re-executes into `uv run`, which holds the
+    that group: `leaf-dev preview` re-executes into `uv run`, which holds the
     watcher as a child, so the handle the test keeps names the launcher rather
     than the process doing the work. Ending the handle alone leaves the watcher
     running — past the test, past the run, still serving its page and still

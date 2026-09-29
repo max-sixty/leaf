@@ -1,9 +1,9 @@
 /* Meaningful news from complete, accepted page readings.
 
-   The server owns conversation content, user obligations, request lifecycles,
-   response conditions, and page activity. This module compares those readings after
-   presentation. It remembers which source versions were observed, not a second
-   account of what the page currently means.
+   The server owns thread content, user obligations, response conditions, and page
+   activity. This module compares those readings after presentation. It remembers
+   which source versions were observed, not a second account of what the page
+   currently means.
 
    New agent content is the server's `unread` reading, the same one the Threads panel
    and banner paint: a version is news the first time this tab sees it unread, and
@@ -11,29 +11,33 @@
    not read is news on the first reading too, since it arrived while they were away.
    Every other kind of news is a change between readings, so the first reading
    establishes it without announcing it. */
-import { moved } from "./conversation/model.js";
+import { moved } from "./thread/model.js";
 
 const identity = (record) => record.attempt ?? record.id;
 
-export function semanticNewsReading(state) {
-  const page = state.browser.views[String(state.active.revision)]?.document;
-  if (!page) throw new Error("The active page has no browser reading");
+// News reads the shown revision's view: the one the page just presented, whose Asks
+// the drawer and banner count paint. While an activation waits (a gesture defers it, or
+// the document is a pinned version), an Ask the active revision adds is not on this
+// page yet; it becomes news when a revision holding it is presented.
+export function semanticNewsReading(root) {
+  const page = root.effective.view?.document;
+  if (!page) throw new Error("The shown page has no browser reading");
+  const state = root.authoritative;
   return {
     page,
-    conversation: state.browser.conversation,
+    thread: state.browser.thread,
     workflows: state.workflows,
     activity: state.activity,
-    requestOutcomes: state.browser.request_outcomes,
   };
 }
 
 // Unread agent content, oldest move first. A failure reply is unread content too, but
 // its news is the failed response's, announced from its workflow.
-function unreadContent(conversation) {
-  return conversation.threads
+function unreadContent(threadView) {
+  return threadView.threads
     .flatMap((thread) =>
       thread.unread.map(({ message: id, version }) => ({
-        thread: thread.root.id,
+        thread: thread.id,
         message: thread.msgs.find((message) => message.id === id),
         version,
       })),
@@ -42,32 +46,29 @@ function unreadContent(conversation) {
     .sort((a, b) => moved(a.message).seq - moved(b.message).seq);
 }
 
-function userObligations(page, conversation) {
+function userObligations(page, threadView) {
   const held = new Map();
   for (const ask of page.asks.user)
     held.set(JSON.stringify(["page", ask.id]), { source: ask.id, thread: null });
   const askedThreads = new Set();
-  for (const ask of conversation.asks.user) {
-    held.set(JSON.stringify(["thread", ask.conversation, ask.id]), {
+  for (const ask of threadView.asks.user) {
+    held.set(JSON.stringify(["thread", ask.thread, ask.id]), {
       source: ask.id,
-      thread: ask.conversation,
+      thread: ask.thread,
     });
-    askedThreads.add(ask.conversation);
+    askedThreads.add(ask.thread);
   }
-  for (const thread of conversation.threads) {
+  for (const thread of threadView.threads) {
     if (
       thread.attention?.kind === "needs_user" &&
       thread.attention.reason === "ask" &&
-      !askedThreads.has(thread.root.id) &&
+      !askedThreads.has(thread.id) &&
       thread.user_prompt
     )
-      held.set(
-        JSON.stringify(["thread-turn", thread.root.id, thread.user_prompt.version]),
-        {
-          source: thread.user_prompt.message,
-          thread: thread.root.id,
-        },
-      );
+      held.set(JSON.stringify(["thread-turn", thread.id, thread.user_prompt.version]), {
+        source: thread.user_prompt.message,
+        thread: thread.id,
+      });
   }
   return held;
 }
@@ -87,8 +88,8 @@ function responseFailures(workflows) {
       key,
       kind: workflow.condition.kind,
       input: workflow.input,
-      thread: workflow.subject.kind === "conversation" ? workflow.subject.id : null,
-      seq: workflow.seq ?? 0,
+      thread: workflow.thread,
+      seq: workflow.seq,
     };
     failures.set(key, failure);
   }
@@ -99,14 +100,13 @@ const agentAvailable = (activity) =>
   activity.held && ["listening", "working"].includes(activity.kind);
 
 export function observeSemanticNews(prior, reading) {
-  const content = unreadContent(reading.conversation);
-  const obligations = userObligations(reading.page, reading.conversation);
+  const content = unreadContent(reading.thread);
+  const obligations = userObligations(reading.page, reading.thread);
   const failures = responseFailures(reading.workflows);
   const available = agentAvailable(reading.activity);
   const first = prior === null;
   const observed = {
     content: new Set(prior?.content),
-    receipts: new Set(prior?.receipts),
     failures: new Set(prior?.failures),
     obligations: new Set(obligations.keys()),
     obligationEpisodes: new Map(prior?.obligationEpisodes),
@@ -125,17 +125,6 @@ export function observeSemanticNews(prior, reading) {
         version,
       });
     observed.content.add(version);
-  }
-  for (const { request, widget, receipt } of reading.requestOutcomes) {
-    if (!first && !observed.receipts.has(receipt.id))
-      news.push({
-        kind: "request_outcome",
-        key: `request:${receipt.id}`,
-        request,
-        widget,
-        receipt,
-      });
-    observed.receipts.add(receipt.id);
   }
   for (const failure of failures.values()) {
     if (!first && !observed.failures.has(failure.key))
@@ -170,21 +159,17 @@ export function observeSemanticNews(prior, reading) {
   return { observed, news };
 }
 
-// A waiting status-line notice keeps the historical receipts but drops assertions
-// that the latest successfully presented reading has since superseded. In particular,
+// A waiting status-line notice drops assertions that the latest successfully
+// presented reading has since superseded. In particular,
 // an answer can replace a failure while the user's own command holds the line.
 export function currentSemanticNews(news, reading, observed) {
-  const versions = new Set(
-    unreadContent(reading.conversation).map(({ version }) => version),
-  );
-  const obligations = userObligations(reading.page, reading.conversation);
+  const versions = new Set(unreadContent(reading.thread).map(({ version }) => version));
+  const obligations = userObligations(reading.page, reading.thread);
   const failures = responseFailures(reading.workflows);
   return news.flatMap((item) => {
     switch (item.kind) {
       case "agent_content":
         return versions.has(item.version) ? [item] : [];
-      case "request_outcome":
-        return [item];
       case "response_failure": {
         const current = failures.get(item.key.slice("response:".length));
         return current ? [{ ...item, condition: current.kind }] : [];
@@ -214,14 +199,13 @@ export function semanticNewsNotice(news) {
   const byKind = (kind) => news.filter((item) => item.kind === kind);
   const content = byKind("agent_content");
   const failures = byKind("response_failure");
-  const requests = byKind("request_outcome");
   const obligations = byKind("user_obligation");
   const availability = byKind("agent_available");
   const clauses = [];
 
   if (content.length === 1) {
     const { message } = content[0];
-    const agent = message.agent || "Agent";
+    const { agent } = message;
     const verb = message.kind === "reply" ? "reply" : "comment";
     clauses.push(
       message.edited
@@ -244,13 +228,6 @@ export function semanticNewsNotice(news) {
         count === 1
           ? `Response ${condition}`
           : `${plural(count, "response")} ${condition}`,
-      );
-  }
-  for (const status of ["failed", "succeeded"]) {
-    const count = requests.filter((item) => item.receipt.status === status).length;
-    if (count)
-      clauses.push(
-        count === 1 ? `Request ${status}` : `${plural(count, "request")} ${status}`,
       );
   }
   if (obligations.length)

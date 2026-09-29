@@ -16,7 +16,6 @@ server.
 
 import functools
 import html as html_module
-import importlib.util
 import json
 import os
 import re
@@ -26,18 +25,24 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import urlsplit
 
+import leaf_website as website_server
 import pytest
 from conftest import LENT_LINKED_DIRS
-from example_data import catalog_sources, data_operations, example_versions
 from interact_support import running_http_server
 from leaf import data as data_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
+from leaf import layer as layer_model
 from leaf import schema as schema_model
 from leaf.event_log import _parse_events, read_events
 from leaf.events import bare_reaction, build_threads
 from leaf.passages import enclosing_ids
+from leaf.render_checks import wait_until_ready
+from leaf.render_gate import version as render_gate_model
 from leaf.structure import SourceDocument
+from leaf_dev import site as site_build
+from leaf_dev.example_data import catalog_sources, data_operations, example_versions
+from leaf_dev.leaf_assets import pinned_assets, raw_prefix, specification
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_layout import banner_control
@@ -45,15 +50,17 @@ from render_cases_layout import banner_control
 # The suite's own page primitives, so a navigation here waits on what every other
 # navigation waits on. tests/AGENTS.md, "A wait consumes a fact the system states".
 from render_harness import (
-    BOTH_STAMPS,
+    HANDOVER_DEADLINE_MS,
     consume_browser_errors,
     displayed,
     expect_banner_control_offered,
     navigate,
     open_page,
+    root_overflow,
     select,
     sending,
     take_browser_errors,
+    write,
 )
 
 ROOT = Path(__file__).parent.parent
@@ -62,19 +69,11 @@ EXAMPLES = ROOT / "examples"
 FEATURE_GALLERY = EXAMPLES / "developer" / "feature-gallery.html"
 DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
 
-_spec = importlib.util.spec_from_file_location("site", ROOT / "scripts" / "site.py")
-site_build = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(site_build)
-_server_spec = importlib.util.spec_from_file_location(
-    "website_server", ROOT / "worker" / "server.py"
-)
-website_server = importlib.util.module_from_spec(_server_spec)
-_server_spec.loader.exec_module(website_server)
 
 # The theme's paper, light and dark, as the browser reports a background.
 PAPER = {"light": "rgb(250, 249, 245)", "dark": "rgb(25, 24, 21)"}
 PHONE = {"width": 390, "height": 844}
-GALLERY_THREAD_TEXT = "Gallery conversation: I moved the practice exercise before lunch"
+GALLERY_THREAD_TEXT = "Gallery thread: I moved the practice exercise before lunch"
 
 # The module-scoped build and host are one shared setup, so they belong to one
 # xdist work unit rather than being rebuilt independently on every worker.
@@ -110,23 +109,17 @@ def authored_examples():
 
 
 def framed_root_examples():
-    """Every example whose whole `main` is one root workspace.
+    """Every example whose `main` is a workspace (`.layout-workspace`).
 
     Derived rather than listed, so a new one is gated without naming it here. The
-    reading is `leaf.structure`'s, the one `version check` admits and the browser
+    reading is `leaf.structure`'s, the one `page check` admits and the browser
     takes, so an omitted `</p>` cannot split the two counts.
     """
     framed = []
     for page in authored_examples():
         parsed = SourceDocument(page.read_text(encoding="utf-8"))
         main = next(node for node in parsed.nodes if node["tag"] == "main")
-        children = [
-            child
-            for child in main["content"]
-            if isinstance(child, dict)
-            and child["tag"] not in ("script", "style", "template")
-        ]
-        if len(children) == 1 and children[0]["tag"] == "lf-workspace":
+        if "layout-workspace" in main["attrs"].get("class", "").split():
             framed.append(page.stem)
     assert framed, "the corpus published no framed-root example to check"
     return sorted(framed)
@@ -152,7 +145,7 @@ class ReleasedAssetEndpoint(website_server.WebsitePageEndpoint):
     One public origin is two servers in production: `worker/src/index.ts` answers
     `/_leaf-release/<release>/<key>/…` out of the build's sibling asset tree and
     hands every other route to this adapter, inside the user's own container.
-    A specimen captures that release namespace as its asset root, so a child page
+    A sample captures that release namespace as its asset root, so a child page
     this adapter serves names dependencies only the edge holds; a fixture standing
     the adapter up alone serves a document whose runtime nothing answers for.
 
@@ -254,29 +247,25 @@ def opened(page, url):
 
 def test_product_pages_vendor_the_composed_theme(site):
     """Every authored product source becomes an independent complete page."""
-    theme_halves = [
-        ROOT / "skills" / "leaf" / "assets" / "theme.css",
-        ROOT / "skills" / "leaf" / "packages" / "default" / "theme.css",
-        *(
-            theme
-            for name in json.loads((EXAMPLES / "layer.json").read_text())
-            for theme in (ROOT / "skills" / "leaf" / "packages" / name).glob(
-                "theme.css"
-            )
-        ),
-        DOCS / "package" / "theme.css",
-    ]
-    assert all(source.is_file() for source in theme_halves)
+    packages = tuple(json.loads((EXAMPLES / "layer.json").read_text()))
+    inputs = [*layer_model.layer_inputs(packages), DOCS / "package"]
+    expected_theme = layer_model.composed_sheets(inputs)["theme.css"]
     for page in pages_under(DOCS):
         target = site_build.product_page(site, page.name)
         published = (target / "index.html").read_text()
         source_markup = page.read_text()
         assert 'href="/theme.css"' not in source_markup, page.name
         assert published == source_markup, page.name
-        for theme in theme_halves:
-            assert theme.read_text().rstrip() in (target / "theme.css").read_text(), (
-                f"{page.name} is missing {theme.parent.name}'s theme"
-            )
+        assert (target / "theme.css").read_bytes() == expected_theme, page.name
+
+
+@pytest.mark.parametrize("source", pages_under(DOCS), ids=lambda p: p.stem)
+def test_published_product_page_renders(site, browser, source):
+    product = site_build.product_page(site, source.name)
+    with hosting_model.TemporaryPageServer(product) as server:
+        url = f"{server.origin}/versions/v1.html?t={server.token}"
+        failures = render_gate_model.render_version(browser, url).failures
+    assert failures == [], "\n".join(failures)
 
 
 def test_published_examples_keep_the_site_theme_out_of_their_layer(site):
@@ -306,7 +295,7 @@ def test_published_example_has_the_normal_leaf_layout(hosted, browser, serve):
     for width in (390, 1200):
         for page in (normal, published):
             page.set_viewport_size({"width": width, "height": 900})
-            page.wait_for_function(BOTH_STAMPS)
+            wait_until_ready(page)
         assert published.evaluate(layout) == normal.evaluate(layout)
 
 
@@ -341,24 +330,35 @@ def test_page_layers_stay_inside_their_page_directories(site):
         assert not (site / name).exists(), f"unscoped runtime directory: {name}"
 
 
+def test_the_readme_draws_its_images_from_the_pinned_assets():
+    """GitHub renders the README with no build to fetch into, so its images are raw
+    URLs into max-sixty/leaf-assets. Each names the pinned revision, which `publish`
+    moves them to, and a file that revision holds."""
+    repository, revision = specification()
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    images = re.findall(
+        rf"{re.escape(raw_prefix(repository))}([0-9a-f]{{40}})/([^\"\s)]+)", readme
+    )
+    assert images, "the README draws no image from the asset repository"
+    assert {pinned for pinned, _ in images} == {revision}
+    assets = pinned_assets()
+    assert [path for _, path in images if not (assets / path).is_file()] == []
+
+
 def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     """The edge gets served Leaf documents and browser assets, never session state."""
     assets = site_build.asset_site(site)
+    pinned = pinned_assets()
     product_media = {
         Path(media_url(source)).name: source
         for source in (
-            path for pattern in ("*.gif", "*.png") for path in DOCS.glob(pattern)
+            pinned / site_build.SOCIAL_CARD,
+            *(
+                pinned / "examples" / f"example-{page.stem}.jpg"
+                for page in catalog_sources()
+            ),
         )
     }
-    product_media.update(
-        {
-            Path(media_url(source)).name: source
-            for source in (
-                site_build.example_previews() / f"example-{page.stem}.jpg"
-                for page in catalog_sources()
-            )
-        }
-    )
     assert {path.name for path in (assets / "media").iterdir()} == set(product_media)
     for name, source in product_media.items():
         assert (assets / "media" / name).read_bytes() == source.read_bytes()
@@ -619,7 +619,7 @@ def test_a_website_example_keeps_its_version_identity_and_history(
     page.wait_for_url(
         re.compile(r"/examples/log-retention/versions/v1\.html(?:\?pin=)?$")
     )
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
 
     expect(page.locator(".lf-version")).to_have_text("v1")
     expect(page.locator("#ret-cost-keep")).to_have_count(0)
@@ -632,6 +632,25 @@ def test_a_website_example_keeps_its_version_identity_and_history(
     )
     pinned = page.evaluate("() => fetch('../api/state').then(r => r.json())")
     assert pinned["versions"] == versions
+
+
+def test_a_nested_page_keeps_one_draft_across_its_version_addresses(
+    served_example, browser
+):
+    """A published example lives under its own directory, and its live root and each
+    version address are one page to what the tab keeps: a comment typed on one is the
+    draft on the other."""
+    _, url = served_example("log-retention")
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()  # the box lives in the panel
+    write(page.locator(".lf-general leaf-text"), "Kept across addresses")
+
+    opened(page, f"{url}versions/v1.html")
+    expect(page.locator(".lf-version")).to_have_text("v1")
+    # The open panel is the user's standing arrangement, so it is open here too.
+    expect(page.locator(".lf-general leaf-text")).to_have_js_property(
+        "value", "Kept across addresses"
+    )
 
 
 def test_the_published_notification_example_runs_its_authored_module(
@@ -679,9 +698,7 @@ def test_a_replaced_ephemeral_server_reloads_the_active_tab(served_example, brow
     with page.expect_navigation(wait_until="load", timeout=10_000):
         page.evaluate(
             """async () => {
-                  const script = document.querySelector("script[data-lf-server]");
-                  const url = new URL("runtime/layer-client.js", new URL(script.dataset.lfEntry, location.origin));
-                  const client = await import(url.href);
+                  const client = await window.__lfRuntimeImport("/runtime/layer-client.js");
                   client.observeSession(new Response(null, {headers: {
                     "Leaf-Session": "active", "Leaf-Server": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
                   }}));
@@ -690,7 +707,7 @@ def test_a_replaced_ephemeral_server_reloads_the_active_tab(served_example, brow
                   }})), 0);
                 }"""
         )
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
 
 
 def test_a_layer_mismatch_signals_startup_failure_on_window(served_example, browser):
@@ -878,7 +895,7 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
             response = page.goto(url, wait_until="load")
             assert response
             servers.append(response.header_value("Leaf-Server"))
-            page.wait_for_function(BOTH_STAMPS)
+            wait_until_ready(page)
         assert servers[0] and servers[0] == servers[1]
         follower.evaluate(
             """() => {
@@ -888,9 +905,7 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
         )
         leader.evaluate(
             """async server => {
-              const script = document.querySelector("script[data-lf-server]");
-              const url = new URL("runtime/layer-client.js", new URL(script.dataset.lfEntry, location.origin));
-              const client = await import(url.href);
+              const client = await window.__lfRuntimeImport("/runtime/layer-client.js");
               client.observeSession(new Response(null, {headers: {
                 "Leaf-Session": "active", "Leaf-Server": server
               }}));
@@ -918,7 +933,7 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
     )
     for name in names:
         page.goto(product_url(hosted, name), wait_until="load")
-        page.wait_for_function(BOTH_STAMPS)
+        wait_until_ready(page)
         assert page.evaluate("document.compatMode") == "CSS1Compat", name
         source = (DOCS / name).read_text(encoding="utf-8")
         expected_title = re.search(r"<title>(.*?)</title>", source, re.DOTALL)
@@ -1034,22 +1049,17 @@ def test_an_invalid_product_document_stops_the_build(tmp_path, monkeypatch):
     monkeypatch.setattr(site_build, "DOCS", staged_docs)
 
     with pytest.raises(SystemExit) as stopped:
-        site_build.build(tmp_path / "invalid-site", verify_links=False)
+        site_build.build(tmp_path / "invalid-site")
     assert "<script src>" in str(stopped.value)
 
 
 def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
     hosted, browser
 ):
-    """The catalog is useful HTML first; mounting its shared Leaf layer must not move it.
+    """The catalog's position and width are set before the runtime loads.
 
-    The column and the cards are read separately because they answer for different
-    halves of the same promise. `main` is the page's own box, and the catalog is a
-    declared wide exhibit whose width the theme resolves from the authored attribute
-    rather than the one the runtime paints. Both are therefore settled before the
-    module lands, including the margin rail the prepaint bootstrap has already
-    claimed, and a card that resizes or slides under the user's cursor is the
-    failure this names.
+    The map-only sidebar has no vertical room before or after the runtime moves
+    its contents into the margin, so mounting Leaf does not move the cards.
     """
     boot = []
     page = browser.new_page(viewport={"width": 1724, "height": 1036})
@@ -1065,7 +1075,7 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
         initial_catalog = catalog.bounding_box()
 
         boot.pop().continue_()
-        page.wait_for_function(BOTH_STAMPS)
+        wait_until_ready(page)
         final = page.locator("main").bounding_box()
         assert {key: final[key] for key in ("x", "y", "width")} == pytest.approx(
             {key: initial[key] for key in ("x", "y", "width")}, abs=1
@@ -1093,14 +1103,13 @@ def test_published_workspaces_keep_their_allocation_without_site_note(
     """A published workspace owns main and keeps its bounded reading regions."""
     page = open_page(browser, f"{hosted}/examples/{name}/")
     page.set_viewport_size({"width": 1200, "height": 900})
-    workspace = page.locator("body > main > lf-workspace")
-    expect(workspace.locator(":scope > header > .sitenote")).to_have_count(0)
-    expect(page.locator("body > main > .sitenote")).to_have_count(0)
+    expect(page.locator("body > main.layout-workspace")).to_have_count(1)
+    expect(page.locator("body > main .sitenote")).to_have_count(0)
     page.wait_for_function(
         """() => {
           const page = document.documentElement;
           const regions = document.querySelectorAll(
-            'body > main > lf-workspace :is(lf-pane, [data-lf-reading-role="pane"])');
+            'body > main.layout-workspace [data-lf-reading-role="pane"]');
           const bodies = [...regions].map(region =>
             [...region.children].find(child => !child.matches('header, footer')));
           return page.scrollHeight === page.clientHeight && bodies.length > 0
@@ -1121,14 +1130,14 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
     expected = {source.stem for source in catalog_sources()}
     authored = {source.stem for source in authored_examples()}
     assert authored - expected, "the fixture has no unlisted example route to exercise"
-    previews = site_build.example_previews()
+    previews = pinned_assets() / "examples"
     assert {path.name for path in previews.glob("example-*.jpg")} >= {
         f"example-{stem}.jpg" for stem in expected
     }
 
     page = browser.new_page()
     page.goto(f"{hosted}/examples/", wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(page.locator(".lf-chrome")).to_have_count(1)
     entries = page.locator(".example-catalog > li .example-link")
     assert entries.count() == len(expected)
@@ -1164,7 +1173,7 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
     developer_galleries = page.locator("#developer-galleries")
     expect(developer_galleries).to_be_visible()
     developer_galleries.scroll_into_view_if_needed()
-    expect(developer_galleries.locator("a.developer-gallery-link")).to_have_count(1)
+    expect(developer_galleries.locator("a.developer-gallery-link")).to_have_count(2)
     expect(page.locator("iframe, lf-tabs")).to_have_count(0)
     published = {path.name for path in (site / "examples").iterdir() if path.is_dir()}
     assert published == authored | {source.stem for source in DEVELOPER_PAGES}
@@ -1177,6 +1186,9 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
     expect(product_gallery).to_contain_text("Core product gallery")
     expect(product_gallery).to_contain_text("focused core interaction replays")
     expect(product_gallery).to_have_attribute("href", "/examples/feature-gallery/")
+    threads_gallery = developer_galleries.locator("#thread-panel-gallery")
+    expect(threads_gallery).to_contain_text("Four live panel views")
+    expect(threads_gallery).to_have_attribute("href", "/examples/thread-panel-gallery/")
 
 
 def test_the_interaction_gallery_drives_real_widgets(serve, browser):
@@ -1189,7 +1201,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
     url = serve(FEATURE_GALLERY)
     page_dir = serve.page_dir
     # Let every child present before starting the timed sequence. Otherwise the
-    # first replay can finish while open_page still waits for another specimen.
+    # first replay can finish while open_page still waits for another sample.
     context = browser.new_context(reduced_motion="reduce")
     page = open_page(browser, f"{url}#bg-interactions", context=context)
     before = read_events(page_dir)
@@ -1217,7 +1229,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         """controls => {
                 const cluster = controls.closest('.lf-margin-cluster');
                 const box = controls.getBoundingClientRect();
-                return !cluster.classList.contains('lf-docked')
+                return cluster.dataset.lfPlace === 'rail'
                     && box.left >= 0 && box.right <= innerWidth;
             }"""
     )
@@ -1295,7 +1307,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
             }"""
     )
     assert gallery.locator(
-        ".interaction-control, .interaction-setting, .interaction-status"
+        ".lf-interaction-control, .lf-interaction-setting, .lf-interaction-status"
     ).evaluate_all("nodes => nodes.map(node => getComputedStyle(node).fontSize)") == [
         "11.5px",
         "11.5px",
@@ -1422,13 +1434,15 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
             else None
         ),
     )
-    page = open_page(browser, serve(FEATURE_GALLERY), context=context)
+    page = open_page(
+        browser, f"{serve(FEATURE_GALLERY)}#bg-interactions", context=context
+    )
     # The user's own standing intent, written the way a user writes it. It has to
     # survive out here for the frames' silence about it to say anything.
     page.locator(".lf-threads-toggle").click()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     page.reload(wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     gallery = page.locator("#bg-interactions")
     ready = gallery.locator("[data-interaction-frame][data-interaction-ready]")
     expect(ready).to_have_count(4)
@@ -1442,7 +1456,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
     assert page.evaluate("() => document.activeElement?.tagName") != "IFRAME"
     # The positive ready edge is where each inner page would open its own news
     # stream and two-second heartbeat. Hold through that interval: only the outer
-    # page and operable specimen own live leases; the passive replays stop after one read.
+    # page and operable sample own live leases; the passive replays stop after one read.
     page.wait_for_timeout(2_200)
     assert news_frames and not any(
         name.startswith("interaction-") for name in news_frames
@@ -1503,7 +1517,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
     )
 
     page.keyboard.press("w")
-    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
 
 
 def test_reduced_motion_leaves_gallery_play_explicit(serve, browser):
@@ -1557,6 +1571,9 @@ def test_the_interaction_gallery_reads_where_it_is_now(serve, browser):
     gallery = page.locator("#bg-interactions")
     status = gallery.locator("[data-interaction-status]")
     expect(status).to_have_text("Ready")
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Interactions", exact=True
+    ).click()
     gallery.evaluate("node => node.scrollIntoView({block: 'start'})")
     expect(status).to_have_text("Playing")
 
@@ -1577,8 +1594,14 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
         "Ready — motion will start only when you press Play", timeout=15_000
     )
 
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Threads", exact=True
+    ).click()
     page.locator('[data-lf-margin-for="bg-thread-text"] > .lf-margin-marker').click()
     expect(page.locator("#lf-margin-preview")).to_contain_text(GALLERY_THREAD_TEXT)
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Interactions", exact=True
+    ).click()
     comment_tab.click()
     comment_frame = gallery.locator(
         "#bg-interaction-comment [data-interaction-frame]"
@@ -1595,8 +1618,10 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
     expect(comment_input).to_have_attribute(
         "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
     )
-    expect(comment_input).to_have_value(
-        re.compile(r"should the practice exercise come before lunch\?")
+    expect(comment_input).to_have_js_property(
+        "value",
+        "Gallery thread: should the practice exercise come before lunch? "
+        "Try replying here; the agenda is fictional.",
     )
     toggle.click()
     expect(status).to_have_text("Complete", timeout=10_000)
@@ -1639,6 +1664,7 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
     # restored reading position leaves it is not something this test arranges.
     comment_tab.click()
     page.reload(wait_until="domcontentloaded")
+    wait_until_ready(page, timeout_ms=HANDOVER_DEADLINE_MS)
     gallery = page.locator("#bg-interactions")
     status = gallery.locator("[data-interaction-status]")
     expect(status).to_have_text(
@@ -1726,7 +1752,7 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
         assert held, "no contained state read was held"
         held.pop().continue_()
         page.wait_for_load_state("load")
-        page.wait_for_function(BOTH_STAMPS)
+        wait_until_ready(page)
         expect(gallery.locator("iframe[data-interaction-ready]")).to_have_count(
             4, timeout=20_000
         )
@@ -1754,7 +1780,7 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
             storage_url,
         )
         assert storage["liveRoot"] is True
-        assert "/api/specimens/" in storage["pageScope"]
+        assert "/api/samples/" in storage["pageScope"]
         contained_document.evaluate(
             "dispatchEvent(new PageTransitionEvent('pagehide'))"
         )
@@ -1772,7 +1798,7 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
 
 
 def test_a_contained_page_retries_a_failed_first_state_read(serve, browser):
-    """A specimen retries startup state without retaining a live page feed."""
+    """A sample retries startup state without retaining a live page feed."""
     url = serve(FEATURE_GALLERY)
     context = browser.new_context(reduced_motion="reduce")
     page = context.new_page()
@@ -1937,7 +1963,7 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
             re.compile(r"\blf-rendered\b")
         )
         expect(page.locator("#pr-exact-patch details").first).to_be_visible()
-        page.wait_for_function(BOTH_STAMPS)
+        wait_until_ready(page)
         presented_shell = {
             key: page.locator("body > main").bounding_box()[key]
             for key in initial_shell
@@ -1980,7 +2006,7 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
 
 
 def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
-    """An example that ships a log arrives mid-conversation through the real projection.
+    """An example that ships a log arrives mid-thread through the real projection.
 
     The thread is the one thing no markup describes, so a copy of the markup could never
     carry one however it was written. Leaf reads the complete page directory's log into
@@ -1993,7 +2019,7 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     page = open_page(browser, url)
     source = EXAMPLES / "ship-review.html"
     events = _parse_events(source.with_suffix(".jsonl").read_bytes())
-    conversations = [
+    threads = [
         thread
         for thread in build_threads(
             events,
@@ -2001,10 +2027,10 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
         ).values()
         if not bare_reaction(thread)
     ]
-    opened = sum(not thread["resolved"] for thread in conversations)
-    resolved = len(conversations) - opened
+    opened = sum(not thread["resolved"] for thread in threads)
+    resolved = len(threads) - opened
     assert opened and resolved, "the shipped seed must cover both thread states"
-    expect(page.locator(".lf-threads-toggle")).to_have_text(f"Threads ({opened})")
+    expect(page.locator(".lf-threads-toggle")).to_have_text(f"Open threads: {opened}")
     page.locator(".lf-threads-toggle").click()
     expect(
         page.locator('.lf-thread-panel [data-filter-value="resolved"]')
@@ -2068,7 +2094,7 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
     # Selection offers the compact field without entering it, so the browser's
     # own selection is still there for a native copy.
     expect(page.locator(".lf-fab-input")).to_be_visible()
-    page.locator(".lf-composer textarea").fill("Can the migration fix ship first?")
+    write(page.locator(".lf-composer leaf-text"), "Can the migration fix ship first?")
     with sending(page, "the anchored comment"):
         page.keyboard.press("ControlOrMeta+Enter")
 
@@ -2082,11 +2108,11 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
     expect(thread).to_contain_text("Can the migration fix ship first?")
     expect(thread.locator("blockquote")).to_contain_text(selected)
     expect(page.locator(".lf-threads-toggle")).to_have_text(
-        f"Threads ({opened_with + 1})"
+        f"Open threads: {opened_with + 1}"
     )
     expect(thread.locator(".lf-msg.agent")).to_have_count(0)
     page.reload(wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     thread = page.locator(
         ".lf-thread-panel .lf-thread", has_text="Can the migration fix ship first?"
     )
@@ -2118,7 +2144,7 @@ def test_a_published_decision_survives_reload(served_example, browser):
     assert "heat-opt-floor" in page.evaluate(chosen)
     expect(decisions).to_have_text("Asks 1/1")
     page.reload(wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(decisions).to_have_text("Asks 1/1")
     assert "heat-opt-floor" in page.evaluate(chosen)
 
@@ -2147,11 +2173,11 @@ def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
     _, url = served_example("heat-loss")
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()  # the box lives in the panel
-    page.locator(".lf-general textarea").fill("Where does this go?")
+    write(page.locator(".lf-general leaf-text"), "Where does this go?")
     page.locator(".lf-general .lf-compose-submit").click()
     # One, and typed: this example ships no log, so the count is the comment
     # just written and nothing else.
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 1")
     # The page's own scroller (the runtime's `pageScroller`), moved the way a
     # user moves it far enough down that the landmark is worth restoring.
     page.evaluate(
@@ -2171,7 +2197,7 @@ def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
     )
     _, plain_url = served_example(plain)
     opened(page, plain_url)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 0")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == 0, (
         "the second example opened at the offset left on the first"
     )
@@ -2194,7 +2220,5 @@ def test_the_pages_fit_a_phone(site, hosted, browser):
     page = browser.new_page(viewport=PHONE)
     for name in site_build.PRODUCT_ROUTES:
         page.goto(product_url(hosted, name), wait_until="load")
-        overflow = page.evaluate(
-            "() => { const b = document.body; return b.scrollWidth - b.clientWidth; }"
-        )
-        assert overflow <= 0, f"{name} scrolls {overflow}px sideways on a phone"
+        overflow = root_overflow(page)
+        assert overflow == 0, f"{name} scrolls {overflow}px sideways on a phone"

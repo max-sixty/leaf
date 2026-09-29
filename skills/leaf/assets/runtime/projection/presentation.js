@@ -1,12 +1,15 @@
-/* Coordinate, provenance, and chrome commit for the semantic projection.
+/* Coordinate, provenance, settlement, and chrome commit for the semantic projection.
 
-   Widget controllers render total state and own their presentation proof. This adapter
-   retains the coordinate commits needed by coverage, provenance, chrome, and pending
-   release. It is an epoch presenter and paints first in the pass, because the words it
-   materializes inside authored elements are nodes the conversation then resolves its
-   passages over. Its one document-wide drag gate withholds that global projection work
-   while the gesture's own controller holds its local reading; the region stays open
-   until the gesture ends and a fresh claim supersedes it. */
+   Widget controllers run each module's own rendering of total state and own its
+   presentation proof. This adapter paints what the layer derives for every widget,
+   whether or not its module subscribed: the restated and origin marks and each
+   holder's settlement. It retains the coordinate commits needed by coverage,
+   provenance, chrome, and pending release. It is an epoch presenter and paints first
+   in the pass, because the words it materializes inside authored elements are nodes
+   the thread then resolves its passages over. Its one document-wide drag gate
+   withholds that global projection work while the gesture's own controller holds its
+   local reading; the region stays open until the gesture ends and a fresh claim
+   supersedes it. */
 import { authoredStates } from "./authored.js";
 import { projectionOrigins } from "./model.js";
 import { projectionDeferred, setProjectionDeferred } from "./state.js";
@@ -17,12 +20,18 @@ import {
   PRESENTATION_ORDER,
 } from "../semantic-state.js";
 import { runtime } from "../context.js";
-import { authored, elementById, inChrome, pageQueryAll } from "../passages.js";
+import { decisionFor } from "../registry.js";
+import { dragHeld, watchDragRelease } from "../widget-elements.js";
+import { widgetElement } from "../widget-descriptors.js";
 import {
-  PAGE_PAINT_ATTRIBUTE,
-  PAGE_PAINT_ATTRIBUTES,
-  renderQuiet,
-} from "../presentation.js";
+  authored,
+  elementById,
+  inChrome,
+  pageQueryAll,
+  renderRetired,
+} from "../passages.js";
+import { PAGE_PAINT_ATTRIBUTE, isPagePaint, renderQuiet } from "../presentation.js";
+import { keeps } from "../keeps.js";
 const committedEvent = (commit) => commit?.entry?.e.id ?? null;
 
 function paintStateOrigins(projection) {
@@ -50,16 +59,37 @@ function paintStateOrigins(projection) {
     }
     for (const target of wanted) {
       touched.add(target);
-      if (target.getAttribute(attr) !== "1") target.setAttribute(attr, "1");
+      keeps(target, attr, "1");
     }
   }
   return touched;
 }
 
+// A holder's settlement is the registry's slot relation read against its deciding
+// verb's standing outcome, so the layer paints it for every holder whether or not its
+// module renders anything. A module with a choreography of its own (lf-suggestion's
+// fold) has already run it in the publication, before this pass writes the same mark.
+// A holder in a message's frozen markup is painted before the thread mounts it, so it
+// joins the panel settled and the thread's passages skip what it retired.
+function paintSettlements(widgets) {
+  for (const [widgetId, { state }] of widgets) {
+    const owner = widgetElement(widgetId);
+    const decision = owner && decisionFor(owner.localName);
+    if (!decision) continue;
+    const outcome = state[decision.verb]?.detail?.outcome ?? null;
+    keeps(
+      owner,
+      PAGE_PAINT_ATTRIBUTE.settlement,
+      decision.retires[outcome] ? outcome : null,
+    );
+    renderRetired(owner, outcome);
+  }
+}
+
 export function createProjectionPresentation({ onDeferredReady }) {
   const committedProjection = new Map();
 
-  let projectionDragObserver = null;
+  let stopWatchingDrag = null;
 
   const presenter = applicationPresenter({
     region: "projection:chrome",
@@ -147,19 +177,17 @@ export function createProjectionPresentation({ onDeferredReady }) {
   const retireProjectionCoverage = () =>
     document.body.removeAttribute(PAGE_PAINT_ATTRIBUTE.applied);
 
+  // A drag holds the projection until the last one ends (widget-elements.js).
   function watchProjectionDrag() {
-    if (projectionDragObserver) return;
-    projectionDragObserver = new MutationObserver(() => {
-      if (document.querySelector(".lf-dragging")) return;
-      projectionDragObserver.disconnect();
-      projectionDragObserver = null;
+    stopWatchingDrag ??= watchDragRelease(() => {
+      unwatchProjectionDrag();
       onDeferredReady();
     });
-    projectionDragObserver.observe(document.body, {
-      attributes: true,
-      subtree: true,
-      attributeFilter: ["class"],
-    });
+  }
+
+  function unwatchProjectionDrag() {
+    stopWatchingDrag?.();
+    stopWatchingDrag = null;
   }
 
   function presentCurrent(snapshot) {
@@ -176,17 +204,16 @@ export function createProjectionPresentation({ onDeferredReady }) {
       setProjectionDeferred(false);
       return projection;
     }
-    if (document.querySelector(".lf-dragging")) {
+    if (dragHeld()) {
       setProjectionDeferred(true);
       watchProjectionDrag();
       return projection;
     }
-    projectionDragObserver?.disconnect();
-    projectionDragObserver = null;
+    unwatchProjectionDrag();
     setProjectionDeferred(false);
     for (const entry of projection.classified.values())
       for (const id of entry.restated ?? [])
-        elementById(id)?.setAttribute(PAGE_PAINT_ATTRIBUTE.restated, "1");
+        keeps(elementById(id), PAGE_PAINT_ATTRIBUTE.restated, "1");
     for (const [widgetId, { entries }] of snapshot.effective.widgets) {
       const widget = elementById(widgetId);
       if (!widget) continue;
@@ -208,17 +235,13 @@ export function createProjectionPresentation({ onDeferredReady }) {
     }
     for (const [coordinate, commit] of committedProjection)
       if (!elementById(commit.widgetId)) committedProjection.delete(coordinate);
+    paintSettlements(snapshot.effective.widgets);
     const originTargets = paintStateOrigins(projection);
     renderQuiet(document.body, originTargets);
-    document.body.setAttribute(
+    keeps(
+      document.body,
       PAGE_PAINT_ATTRIBUTE.applied,
-      String(
-        projectionCoverage(
-          projection,
-          snapshot.authoritative?.browser.views[String(snapshot.document.revision)]
-            ?.coverage,
-        ),
-      ),
+      String(projectionCoverage(projection, snapshot.effective.view?.coverage)),
     );
     return projection;
   }
@@ -227,7 +250,9 @@ export function createProjectionPresentation({ onDeferredReady }) {
   // the next claim supersedes the hold and tries the current semantic root again.
   function paintReading(snapshot) {
     const prior = runtime.restoringState;
-    if (snapshot.unresolved.some((entry) => entry.rejected && entry.projection))
+    if (
+      snapshot.unresolved.some((entry) => entry.state === "refused" && entry.projection)
+    )
       runtime.restoringState = true;
     try {
       const projection = presentCurrent(snapshot);
@@ -263,7 +288,7 @@ export function shallowSigs(root) {
     if (!isAuthored(node)) continue;
     const attrs = Object.fromEntries(
       [...node.attributes]
-        .filter((attribute) => !PAGE_PAINT_ATTRIBUTES.has(attribute.name))
+        .filter((attribute) => !isPagePaint(attribute.name))
         .map((attribute) => [attribute.name, attribute.value])
         .sort(([left], [right]) => left.localeCompare(right)),
     );

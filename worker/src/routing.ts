@@ -7,16 +7,12 @@ export const HTTP_SESSION_COOKIE = "leaf-page-local";
 export const ACTIVE_COOKIE_PREFIX = "__Host-leaf-active";
 export const HTTP_ACTIVE_COOKIE_PREFIX = "leaf-active-local";
 
-const PAGE_RESOURCE =
-  /^(?:api|guidance|media|revisions|runtime|vendor|versions|widgets)(?:\/|$)|^(?:icon\.svg|leaf\.js|registry\.json|shadow\.css|theme\.css)$/;
 const SESSION_ID = /^[0-9a-f]{32}$/;
 const RELEASE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 const PAGE_ROOT = /^(?:\/|\/[a-z0-9-]+(?:\/[a-z0-9-]+)*)$/;
 const RELEASE_ASSET =
   /^\/_leaf-release\/(?:[0-9a-f]{40}|[0-9a-f]{64})\/[a-z0-9-]+$/;
 const STATE = /^\/_leaf\/state\/[a-z0-9-]+\.json$/;
-// The card image a shared link unfurls into, at the page root that stores it.
-const CARD = /^(?:\/[a-z0-9-]+)*\/media\/[0-9a-f]{16}\.[a-z]+$/;
 
 const sitePageSchema = z
   .object({
@@ -29,7 +25,10 @@ const sitePageSchema = z
       ),
     ),
     description: z.string().check(z.minLength(1)),
-    image: z.string().check(z.regex(CARD)),
+    // The card image a shared link unfurls into: a path on this site, which the
+    // container's page head joins to the origin. The build names the media file and
+    // proves it resolves (`check_links` in `dev/leaf_dev/site.py`).
+    image: z.string().check(z.startsWith("/")),
     kind: z.union([z.literal("product"), z.literal("example")]),
     layer: z.string().check(z.minLength(1)),
     state: z.string().check(z.regex(STATE)),
@@ -50,9 +49,26 @@ const sitePageSchema = z
     ),
   );
 
+// A page's URL namespace beneath its root, by kind: its browser layer's directories,
+// the directories its session writes, and the vendored files (`schema.BROWSER_DIRS`,
+// `SESSION_ROUTE_DIRS`, `VENDORED_FILES`). `leaf-dev site` writes it into the
+// manifest. The API directory is the page server's protocol prefix, fixed with the
+// endpoints under it that this Worker handles by name.
+const API_DIR = "api";
+const routeDir = z.string().check(z.regex(/^[a-z]+$/));
+const pageRoutesSchema = z.object({
+  layer: z.array(routeDir),
+  session: z.array(routeDir),
+  files: z.array(z.string().check(z.regex(/^[a-z0-9-]+\.[a-z]+$/))),
+});
+
 const siteManifestSchema = z
   .object({
     release: z.string().check(z.regex(RELEASE)),
+    // The header policy every HTML response adds, since a document's own <meta>
+    // policy cannot govern its ancestors (`structure.FRAME_ANCESTORS_CSP`).
+    frame_ancestors: z.string().check(z.startsWith("frame-ancestors ")),
+    routes: pageRoutesSchema,
     pages: z.record(z.string().check(z.regex(PAGE_ROOT)), sitePageSchema),
   })
   .check((context) => {
@@ -84,14 +100,24 @@ export function parseSiteManifest(value: unknown): SiteManifest {
   return result.data;
 }
 
+const within = (dirs: string[], inside: string): boolean =>
+  dirs.some((dir) => inside === dir || inside.startsWith(`${dir}/`));
+
+function pageResource(routes: SiteManifest["routes"], inside: string): boolean {
+  return (
+    routes.files.includes(inside) ||
+    within([API_DIR, ...routes.layer, ...routes.session], inside)
+  );
+}
+
 export function releaseAssetRoute(
   pathname: string,
-  pages: Record<string, SitePage>,
+  { pages, routes }: SiteManifest,
 ): { route: PageRoute; pathname: string } | null {
   for (const [root, page] of Object.entries(pages)) {
     if (!pathname.startsWith(`${page.assets}/`)) continue;
     const inside = pathname.slice(page.assets.length + 1);
-    if (!PAGE_RESOURCE.test(inside) || inside.startsWith("api/")) return null;
+    if (!pageResource(routes, inside) || within([API_DIR], inside)) return null;
     const publicRoot = root === "/" ? "" : root;
     return {
       route: { root, inside, ...page },
@@ -103,7 +129,7 @@ export function releaseAssetRoute(
 
 export function pageRoute(
   pathname: string,
-  pages: Record<string, SitePage>,
+  { pages, routes }: SiteManifest,
 ): PageRoute | null {
   const roots = Object.keys(pages).sort((left, right) => right.length - left.length);
   for (const root of roots) {
@@ -113,7 +139,7 @@ export function pageRoute(
       inside = "";
     } else if (pathname.startsWith(`${publicRoot}/`)) {
       inside = pathname.slice(publicRoot.length + 1);
-      if (!PAGE_RESOURCE.test(inside)) continue;
+      if (!pageResource(routes, inside)) continue;
     } else {
       continue;
     }
@@ -123,12 +149,16 @@ export function pageRoute(
 }
 
 export function isPageApiRequest(route: PageRoute | null): boolean {
-  return route?.inside === "api" || route?.inside.startsWith("api/") || false;
+  return route !== null && within([API_DIR], route.inside);
 }
 
-export function isPageSessionFileRequest(route: PageRoute | null): boolean {
-  const directory = route?.inside.split("/", 1)[0];
-  return ["media", "revisions", "versions"].includes(directory ?? "");
+/** A file the page's session writes after its publish, which a static miss may still
+ * find in its container. */
+export function isPageSessionFileRequest(
+  route: PageRoute | null,
+  { routes }: SiteManifest,
+): boolean {
+  return route !== null && within(routes.session, route.inside);
 }
 
 /** The page's live document: the stable address a revision activates by reloading. */

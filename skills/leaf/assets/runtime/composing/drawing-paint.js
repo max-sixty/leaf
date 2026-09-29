@@ -1,14 +1,23 @@
 /* Passive replay of user drawings.
  *
- * Gesture capture supplies the active and draft drawings. Conversation presentation
+ * Gesture capture supplies the active and draft drawings. Thread presentation
  * supplies threads and readonly anchor placement. This module owns only SVG paint,
  * retained node identity, resize observation, and its scheduled geometry refresh.
+ *
+ * Each mark is fixed and anchored (CSS anchor positioning) to the box its target
+ * anchors through, or to `main` for a drawing on the page as a whole, with its frame
+ * written as insets from that anchor. The browser carries it through every scroll that
+ * moves the anchor, a fixed box adds nothing to the document's scrollable overflow
+ * however far a stroke reaches, and a repaint after a scroll finds every mark's
+ * description unchanged and keeps the node it has.
  */
 
 import { cancelRender, nextRender, sizeObserver } from "../rendering.js";
 import { setChildren } from "../dom-children.js";
 import { shownBox } from "../geometry.js";
+import { atLayoutPrecision } from "../keeps.js";
 import { el } from "../widget-elements.js";
+import { anchorElement, anchorName } from "../anchor-names.js";
 import { validDrawing } from "./drawing-record.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -70,12 +79,18 @@ export function createDrawingPaint({ anchors, activeDrawing, draftDrawings }) {
     const frame = drawingFrame(drawing);
     const { width, height } = frame;
     if (!width || !height) return null;
-    const left = box.left + frame.x;
-    const top = box.top + frame.y;
+    const holder = target
+      ? anchorElement(target)
+      : (document.querySelector("main") ?? document.body);
+    const at = holder.getBoundingClientRect();
+    const anchor = anchorName(holder);
+    const left = atLayoutPrecision(box.left + frame.x - at.left);
+    const top = atLayoutPrecision(box.top + frame.y - at.top);
     const data = pathData(drawing);
     const described = JSON.stringify([
       className,
       id,
+      anchor,
       left,
       top,
       width,
@@ -98,8 +113,9 @@ export function createDrawingPaint({ anchors, activeDrawing, draftDrawings }) {
     svg.setAttribute("preserveAspectRatio", "none");
     svg.setAttribute("aria-hidden", "true");
     Object.assign(svg.style, {
-      left: `${left}px`,
-      top: `${top}px`,
+      positionAnchor: anchor,
+      left: `calc(anchor(left) + ${left}px)`,
+      top: `calc(anchor(top) + ${top}px)`,
       width: `${width}px`,
       height: `${height}px`,
     });
@@ -117,15 +133,10 @@ export function createDrawingPaint({ anchors, activeDrawing, draftDrawings }) {
     mounting = new Map();
     for (const thread of threads) {
       if (thread.resolved || !thread.root.drawing) continue;
-      const place = thread.root.anchor ? anchors.placedAt(thread.root.id) : null;
+      const place = thread.root.anchor ? anchors.placedAt(thread.id) : null;
       if (thread.root.anchor && (!place || place.status === "outdated")) continue;
       const target = place ? (place.target ?? place.element) : null;
-      const painted = mark(
-        thread.root.drawing,
-        target,
-        "lf-drawing-posted",
-        thread.root.id,
-      );
+      const painted = mark(thread.root.drawing, target, "lf-drawing-posted", thread.id);
       if (painted) {
         marks.push(painted);
         if (target) nextObserved.add(target);

@@ -4,12 +4,12 @@
     <title>leaf event log</title>
     <meta
       name="description"
-      content="How Leaf records every widget move as an event in an append-only log, how a package declares the verbs, and how the fold turns the standing events into the page's state, shown with a real captured log and a specimen you can operate."
+      content="How Leaf records every widget move as an event in an append-only log, how a package declares the verbs, and how the fold turns the standing events into the page's state, shown with a real captured log and a sample you can operate."
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   </head>
   <body class="site-page">
-    <main>
+    <main class="layout-column">
       <nav class="sitenav" aria-label="Site">
         <a class="brand" href="/">leaf</a>
         <a href="/examples/">Examples</a>
@@ -76,8 +76,7 @@ flowchart LR
               <td>Log</td>
               <td>
                 One record per line, append-only: messages and thread moves, actions and
-                reports, undos, versions and sign-offs, requests and receipts, and
-                bookkeeping such as reads
+                reports, undos, versions and sign-offs, and bookkeeping such as reads
               </td>
               <td>Leaf</td>
             </tr>
@@ -110,17 +109,16 @@ flowchart LR
       <section id="try">
         <h2>Try it: each gesture lands as one event</h2>
         <p id="try-walkthrough">
-          The specimen below is a complete Leaf page with a log of its own, and its feed
-          lists that log newest first. Click into the specimen, type
+          The sample below is a complete Leaf page with a log of its own, and its feed
+          lists that log newest first. Click into the sample, type
           <em>After the canary is healthy</em> into <em>Another option</em>, and press
           <kbd>Enter</kbd>: the feed gains an <code>add</code> and then a pick. Pick
           <em>Later</em>. Then press <kbd>z</kbd> three times. The first press brings
           your own option's pick back, the second leaves nothing picked while your
-          option stays, and the third removes the option. Reset starts the specimen
-          over.
+          option stays, and the third removes the option. Reset starts the sample over.
         </p>
-        <lf-specimen id="try-specimen" label="release question">
-          <template id="try-page" data-specimen>
+        <lf-sample id="try-sample" label="release question">
+          <template id="try-page" data-sample>
             <lf-ask id="ship-ask">
               <h2>When should this ship?</h2>
               <lf-options id="ship" choose>
@@ -132,9 +130,9 @@ flowchart LR
                 >
               </lf-options>
             </lf-ask>
-            <lf-activity id="specimen-feed"></lf-activity>
+            <lf-activity id="sample-feed"></lf-activity>
           </template>
-        </lf-specimen>
+        </lf-sample>
       </section>
 
       <section id="verbs">
@@ -184,7 +182,7 @@ flowchart LR
           <lf-note at="6"
             >How the standing pick reads in markup: <code>chosen</code> on each picked
             option. The agent writes it into the next version, and
-            <code>version check</code> refuses a version that contradicts it.</lf-note
+            <code>page check</code> refuses a version that contradicts it.</lf-note
           >
           <lf-note at="13"
             >The unit is the value of <code>detail.option</code>, so each added option
@@ -310,8 +308,8 @@ flowchart LR
       <section id="fold">
         <h2>The fold keeps the latest standing action at each coordinate</h2>
         <p id="fold-lede">
-          These are the specimen's gestures above, made in Chrome against a copy of the
-          specimen's page. The group shows the fold of whatever still stands after each
+          These are the sample's gestures above, made in Chrome against a copy of the
+          sample's page. The group shows the fold of whatever still stands after each
           one.
         </p>
         <table id="fold-steps">
@@ -357,14 +355,14 @@ flowchart LR
           </tbody>
         </table>
         <p id="captured-how">
-          <code>leaf events</code> printed the log below, one record per line; here each
-          record is broken over a few lines. The first line of the log, at
+          <code>leaf page events</code> printed the log below, one record per line; here
+          each record is broken over a few lines. The first line of the log, at
           <code>seq</code> 1, is the <code>note</code> that published the page's first
           version. The browser minted the added option's id and each
           <code>attempt</code>.
         </p>
-        <!-- Captured by driving this page's specimen markup in Chrome on a scratch
-             page and printing its log with `leaf events PAGE`. The suite replays
+        <!-- Captured by driving this page's sample markup in Chrome on a scratch
+             page and printing its log with `leaf page events PAGE`. The suite replays
              these commands through the append door and fails, printing the records
              to paste here, when the door would store anything different:
              tests/test_product_page.py::test_the_event_log_page_shows_the_records_the_door_writes -->
@@ -436,8 +434,8 @@ flowchart LR
           </li>
           <li>
             <strong>The user's <code>undo</code></strong> withdraws one gesture of their
-            own: an action, a resolve or reopen, or an approval. Messages and requests
-            stand once sent.
+            own: an action, a resolve or reopen, or an approval. Messages stand once
+            sent.
           </li>
           <li>
             <strong>The author's <code>restated</code></strong
@@ -456,9 +454,9 @@ flowchart LR
         <h2>An agent's state moves through the same fold</h2>
         <p id="reports-writer">
           A verb that declares <code>"writer": "agent"</code> is the agent's:
-          <code>leaf report</code> appends a <code>report</code> at a coordinate like an
-          action's, and it stands until a stamped version answers it. The package
-          contract's
+          <code>leaf page report</code> appends a <code>report</code> at a coordinate
+          like an action's, and it stands until a stamped version answers it. The
+          package contract's
           <a
             href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#user-state"
             >User state</a
@@ -470,8 +468,8 @@ flowchart LR
       <section id="follow">
         <h2>A program can follow the log as it grows</h2>
         <p id="follow-feed">
-          <code>leaf events PAGE --follow</code> prints every stored record and then
-          each one the door admits as it lands, and a reader that restarts with
+          <code>leaf page events PAGE --follow</code> prints every stored record and
+          then each one the door admits as it lands, and a reader that restarts with
           <code>--after</code> the last <code>seq</code> it printed picks up where it
           stopped.
         </p>
@@ -492,7 +490,7 @@ flowchart LR
           <li>
             <a
               href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/scripts/leaf/events.md"
-              >Events and conversation</a
+              >Events and threads</a
             >: every event kind, undo, admission and <code>meaning</code>, and the
             change feed.
           </li>

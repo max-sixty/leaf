@@ -8,7 +8,7 @@
  * Expanded clusters have six seats including the route to the complete Page Map.
  * Failure, work in flight, and engagement keep completion controls exposed. An
  * explicitly focused contribution uses those seats alone; an open thread keeps its
- * aggregate control inside the budget. Thread membership retains conversation order.
+ * aggregate control inside the budget. Thread membership retains thread order.
  * A contributed representation suppresses the matching generated kind. Workflow
  * receipts use the surviving primary when available, before any control is painted.
  * Expansion and an open thread are explicit mechanical inputs, not application facts.
@@ -41,14 +41,23 @@ export const KINDS = Object.freeze(
         priority: 3,
         indication: true,
       },
+      queued: {
+        label: "Queued",
+        icon: "pickup",
+        priority: 3,
+        indication: true,
+      },
       pickup: {
         label: "Picked up",
         icon: "pickup",
         priority: 3,
         indication: true,
       },
+      // Every receipt whose progress stopped short: one past the pickup grace, one
+      // whose turn ended or went quiet, one the host failed. A single receipt reads
+      // under its own label; this names a group of them.
       waiting: {
-        label: "Waiting for pickup",
+        label: "Stalled update",
         icon: "waiting",
         priority: 3,
         indication: true,
@@ -95,7 +104,7 @@ const deriveEntryState = (entry) => {
 };
 // Every state but idle keeps the cluster open, so the reading is the absence of idle
 // rather than a second list of states beside the grammar's.
-export const entryState = (entry) => entry.state;
+const entryState = (entry) => entry.state;
 export const entryEngaged = (entry) => entry.state !== "idle";
 
 export const contributionItem = (offered, record, surface = "margin", cluster = null) =>
@@ -131,7 +140,7 @@ const deriveReadingChoices = (items) => {
   if (threadList.length)
     choices.push({
       // One target owns one thread margin entry. Membership changes repaint its badge and
-      // card without replacing the control that owns an open conversation.
+      // card without replacing the control that owns an open thread.
       key: "threadList",
       kind: "comment",
       items: threadList,
@@ -166,6 +175,16 @@ export const secondaryCount = (entry, primary) =>
 export const optionsOffered = (entry, primary) =>
   secondaryCount(entry, primary) > RESTING_MARGIN_ENTRY_BUDGET - 1;
 
+// The words a reading's control shows: its kind's word, plural for several items, or
+// the one item's own label where it has one (an Ask's question). Accessible names keep
+// the kind's word and say the subject beside it.
+export function readingLabel(choice) {
+  const face = readingFace(choice);
+  const items = choice?.items ?? [];
+  if (items.length > 1) return `${face.label}s`;
+  return items[0]?.label || face.label;
+}
+
 export function markerFace(entry) {
   const kinds = kindsIn(entry, { markerOnly: true });
   const choice = primaryReading(entry);
@@ -174,7 +193,7 @@ export function markerFace(entry) {
   return {
     kinds,
     face,
-    label: faceCount > 1 ? `${face.label}s` : face.label,
+    label: readingLabel(choice),
     // The badge describes this margin entry's result. Other readings live behind `…`
     // and must not make a thread margin entry appear to open more threadList than it does.
     count: faceCount,
@@ -215,7 +234,7 @@ const userAttention = (items) => {
   return first;
 };
 export const awaitingUser = (items) => Boolean(userAttention(items));
-// Agent messages the user has not taken in, across every conversation a reading
+// Agent messages the user has not taken in, across every thread a reading
 // carries: each Thread's canonical `unread`, summed rather than re-derived.
 export const unreadIn = (items) =>
   items.reduce((sum, item) => sum + (item.unread ?? 0), 0);

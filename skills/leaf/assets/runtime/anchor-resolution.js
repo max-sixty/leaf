@@ -1,22 +1,23 @@
 /* Durable anchor interpretation.
  *
  * This module reads authored markup and resolves semantic coordinates into the current
- * document. It owns no controls, travel, paint, conversation state, or command path.
+ * document. It owns no controls, travel, paint, thread state, or command path.
  * Selection capture and file-side capture produce the same quote/context coordinate;
  * `resolveAnchor` is the only search implementation, so repeated text detaches unless
  * its context identifies one occurrence.
  */
 
 import { sameAnchor } from "./anchor-coordinate.js";
-import { resolvedElement, resolvedPassage } from "./resolved-target.js";
-import { inUi, under, upFrom } from "./shadow.js";
+import { resolvedElement, resolvedPassage, targetElement } from "./resolved-target.js";
+import { inUi, uiInside, under, upFrom } from "./shadow.js";
 import {
+  registeredVisualPart,
+  registeredVisualPartAt,
+  registeredVisualPartLabel,
+  registeredVisualParts,
+  revealRegisteredVisualPart,
   revealsVisualParts,
-  revealVisualPart as revealRegisteredVisualPart,
-  visualPart as registeredVisualPart,
-  visualPartAt as registeredVisualPartAt,
-  visualPartLabel as registeredVisualPartLabel,
-  visualParts as registeredVisualParts,
+  visualPartAdmission,
 } from "./visual-parts.js";
 import {
   authoredScope,
@@ -24,16 +25,17 @@ import {
   closestAcross,
   DATUM,
   elementById,
+  elementReading,
   findQuote,
   inChrome,
   pageDocument,
   pageQueryAll,
-  quoteFrom,
   settledAway,
-  textNodesUnder,
+  TEXT_BLOCK,
 } from "./passages.js";
 import { registry, tagsDeclaring } from "./registry.js";
 import { PRESSABLE, PRESSES } from "./widget-elements.js";
+import { excerptWords } from "./margin-entry-model.js";
 
 // Anchors are durable coordinates, so every route that can mint one begins only after
 // replay has reconciled the authored document. The presentation root owns the writer.
@@ -48,22 +50,25 @@ export function setAnchoringReady(ready) {
 export const sectionOf = (anchor) =>
   anchor?.section ? elementById(anchor.section) : null;
 
-function currentDatums(source, key) {
+function currentDatums(source, key, identity = null, dataSource = null) {
   if (!source?.id) return [];
   return pageQueryAll(DATUM).filter(
     (datum) =>
       under(datum, source) &&
       datum.dataset.lfProjection === source.id &&
-      datum.dataset.lfDatum === key,
+      (dataSource === null || datum.dataset.lfSource === dataSource) &&
+      (identity === null
+        ? datum.dataset.lfDatum === key
+        : datum.dataset.lfIdentity === identity),
   );
 }
 
-export const currentDatum = (source, key) => {
+const currentDatum = (source, key) => {
   const matches = currentDatums(source, key);
   return matches.length === 1 ? matches[0] : null;
 };
 
-export function suppliedDatum(source, key) {
+function suppliedDatum(source, key) {
   const supplied = source?.lfDataDatum?.(key);
   return supplied instanceof Element &&
     under(supplied, source) &&
@@ -115,25 +120,25 @@ export function addressedElements(source, key) {
   return datum ? [datum] : [];
 }
 
-// A generated visual part keeps a semantic id the provider declaration bounds: a token
-// authored in its `parts` attribute, or any longer id one of its `prefixes` begins.
-// Element ids never escape into the event log; the declaration bounds the inventory
-// core will trust. The rank is an id's place in that declaration, which orders the
-// visual's targets: its authored token's index, 0 for every prefixed id so they keep
-// registration order, and -1 for an id it does not admit. Null when the visual
-// declares no parts at all.
-const visualPartRank = (visual) => {
-  const declaration = registry[visual?.localName]?.["x-visual"];
-  if (!declaration || typeof declaration !== "object") return null;
-  if (declaration.prefixes)
-    return (id) =>
-      declaration.prefixes.some((prefix) => id !== prefix && id.startsWith(prefix))
-        ? 0
-        : -1;
-  const tokens =
-    visual.getAttribute(declaration.parts)?.trim().split(/\s+/).filter(Boolean) ?? [];
-  return (id) => tokens.indexOf(id);
-};
+// Travel's half of that key space: ask the widget to draw what a key addresses before
+// anything reads it. A visual part drawn only in another state is drawn now, as
+// `registerVisualParts` promises; a lazy datum answers with its hydration promise. Every
+// travel to a part of a widget asks this, a thread's anchor (`anchor.visual` or
+// `anchor.datum`) and a module's `navigateToDatum` key alike, so neither route reaches a
+// part the other cannot.
+export function revealAddressed(source, key) {
+  if (revealVisualPart(source, key)) return null;
+  return source.lfRevealDatum?.(key) ?? null;
+}
+
+// A generated visual part keeps a semantic id its provider's declaration admits
+// (`visualPartAdmission`). Element ids never escape into the event log; the
+// declaration bounds the inventory core will trust. No rank when the visual declares
+// no parts at all.
+const visualPartRank = (visual) =>
+  visual
+    ? visualPartAdmission(visual, registry[visual.localName]?.["x-visual"])?.rank
+    : null;
 
 const wholeVisualSurface = (element) =>
   registry[element?.localName]?.["x-visual"] ? element : null;
@@ -149,7 +154,7 @@ export function visualParts(visual) {
 
 const admitsVisualPart = (visual, part) => visualPartRank(visual)?.(part) >= 0;
 
-export function visualPart(visual, part) {
+function visualPart(visual, part) {
   return admitsVisualPart(visual, part) ? registeredVisualPart(visual, part) : null;
 }
 
@@ -159,7 +164,7 @@ export function revealVisualPart(visual, part) {
     : null;
 }
 
-export function visualPartAt(visual, target) {
+function visualPartAt(visual, target) {
   const rank = visualPartRank(visual);
   return rank
     ? registeredVisualPartAt(visual, target, (part) => rank(part.id) >= 0)
@@ -211,7 +216,7 @@ export function visualAt(target, { unclaimed = true } = {}) {
     if (element) element = outermostAcross(element, genericVisualSelector);
   }
   if (!element) return null;
-  const seat = closestAcross(element, '[id]:not(.lf-ui):not([id^="lf-"])');
+  const seat = closestAcross(element, ADDRESSABLE);
   return seat ? { element, id: seat.id, part: visualPartAt(element, target) } : null;
 }
 
@@ -278,21 +283,13 @@ export function addressableWord(addressable) {
 // The label is rooted at the addressable and reads its authored words. Generated annotation
 // chrome is excluded by the same passage reader used for anchor resolution. Display
 // surfaces constrain these complete words to their available space.
-export function addressableSays(addressable, omitted = null) {
+export function addressableSays(addressable) {
   if (!addressable) return "";
-  const subtracts = Boolean(omitted && addressable.contains(omitted));
   const own =
-    !subtracts && registry[addressable.localName]?.["x-word"] === "module"
+    registry[addressable.localName]?.["x-word"] === "module"
       ? addressable.lfSays?.()
       : "";
-  return (
-    own ||
-    quoteFrom(
-      textNodesUnder(addressable).filter(
-        (segment) => !subtracts || !omitted.contains(segment.node),
-      ),
-    )
-  );
+  return own || elementReading(addressable);
 }
 
 // What names an element, where the authoring contract gives it a name
@@ -302,14 +299,15 @@ export function addressableSays(addressable, omitted = null) {
 // before it; elements may, as a titled member's comparison chips stand in the band
 // above its title and an eyebrow above a header's heading. The words are read the way
 // `addressableSays` reads them, and generated chrome is skipped, so it never names
-// anything. An element the contract gives no name answers "", and a caller that
-// needs words for it takes `addressableSays`.
+// anything: chrome inside the element, asked about the element's own insides, since
+// a widget an agent sent in a reply stands inside the thread panel's chrome and its
+// heading is still its name. An element the contract gives no name answers "".
 const TITLES = "summary, h1, h2, h3, h4, h5, h6, strong";
 function leadingTitle(container) {
   for (const node of container.childNodes) {
     if (node.nodeType === Node.TEXT_NODE && node.data.trim()) return "";
-    if (node.nodeType !== Node.ELEMENT_NODE || inUi(node)) continue;
-    if (node.matches(TITLES)) return quoteFrom(textNodesUnder(node));
+    if (node.nodeType !== Node.ELEMENT_NODE || uiInside(node, container)) continue;
+    if (node.matches(TITLES)) return elementReading(node);
     if (node.localName === "header") return leadingTitle(node);
   }
   return "";
@@ -321,12 +319,61 @@ export function addressableName(element) {
   return declared || leadingTitle(element);
 }
 
-const aimLabel = (
-  addressable,
-  says = addressableSays(addressable) ||
-    addressable?.getAttribute("aria-label") ||
-    addressable?.querySelector("[aria-label]")?.getAttribute("aria-label"),
-) => [addressableWord(addressable), says].filter(Boolean).join(": ");
+// What the chrome calls an element away from it: an Asks drawer row, a Page Map heading,
+// a thread's anchor, a feed row. The element's name comes first: `addressableName`,
+// else its own caption, the `aria-label` its author gave it, or a control's <label>.
+// An element whose words are its own (a block of prose, anything holding text of its
+// own, or a module that answers `lfSays`) is otherwise named by them, cut short. Any other
+// element's words are its members' run together, a question's with its options' and
+// their chips', which name nothing, so it takes the name of the nearest element
+// holding it that has one, short of the document it stands in (the page's column, or
+// a message's body): a question's options by the question, a chart by its section.
+// Past that, plain markup is named by its words cut short, and a registered widget by
+// nothing: empty, and the caller says the element's word (`addressableWord`), which it
+// usually shows beside this anyway.
+const LABEL_WORDS = 60;
+const captionOf = (element) => {
+  const caption = [...element.children].find(
+    (child) => child.matches("figcaption, caption") && !uiInside(child, element),
+  );
+  return caption ? elementReading(caption) : "";
+};
+// A form control's caption is its <label>.
+const ownName = (element) =>
+  addressableName(element) ||
+  captionOf(element) ||
+  element.getAttribute("aria-label")?.trim() ||
+  (element.labels?.[0] ? elementReading(element.labels[0]) : "") ||
+  "";
+const saysItself = (element) =>
+  element.matches(TEXT_BLOCK) ||
+  (registry[element.localName]?.["x-word"] === "module" && element.lfSays?.()) ||
+  [...element.childNodes].some(
+    (node) => node.nodeType === Node.TEXT_NODE && node.data.trim(),
+  );
+export function addressableLabel(element) {
+  if (!element) return "";
+  const own = ownName(element);
+  if (own) return own;
+  if (saysItself(element)) return excerptWords(addressableSays(element), LABEL_WORDS);
+  const scope = authoredScope(element);
+  for (let at = upFrom(element); at && at !== scope; at = upFrom(at)) {
+    const name = ownName(at);
+    if (name) return name;
+  }
+  // A registered widget has a word of its own, which says more than its members' words
+  // run together. Plain markup has none worth saying (a `div`), so its words, or the
+  // name of the picture it holds, are the last resort.
+  if (registry[element.localName]) return "";
+  return excerptWords(
+    addressableSays(element) ||
+      element.querySelector("[aria-label]")?.getAttribute("aria-label"),
+    LABEL_WORDS,
+  );
+}
+
+const aimLabel = (addressable, says = addressableLabel(addressable)) =>
+  [addressableWord(addressable), says].filter(Boolean).join(": ");
 
 const addressableAimTarget = (addressable) => ({
   anchor: { section: addressable.id },
@@ -347,6 +394,7 @@ export const anchorForDatum = (datum, fields = {}) => {
     ...(datum.dataset.lfSource && sourceRevision
       ? { source: datum.dataset.lfSource, source_revision: sourceRevision }
       : {}),
+    ...(datum.dataset.lfIdentity ? { identity: datum.dataset.lfIdentity } : {}),
   };
 };
 
@@ -362,7 +410,7 @@ export function datumAimTarget(datum) {
   };
 }
 
-// Pointer aim and target-chooser hints share this reading. The returned element is the
+// Pointer aim and target-picker hints share this reading. The returned element is the
 // element the coordinate resolves to, so the promise and eventual mark agree.
 export function aimTargetAt(node) {
   const visual = visualAt(node, { unclaimed: false });
@@ -397,14 +445,24 @@ export function aimTargets() {
 export function resolveAnchor(anchor, text = "") {
   if (anchor.datum) {
     const source = sectionOf(anchor);
-    const datums = currentDatums(source, anchor.datum);
+    const datums = currentDatums(
+      source,
+      anchor.datum,
+      anchor.identity ?? null,
+      anchor.source ?? null,
+    );
+    // The emitter's subject identity follows replacements. Other projected keys can
+    // name a location within one value (such as a diff line), so those remain pinned
+    // to the value the user saw.
     const anchoredToData =
       typeof anchor.source === "string" && typeof anchor.source_revision === "string";
     const basis = datums[0] ?? source;
     const basisMatches =
       !anchoredToData ||
       (basis?.dataset.lfSource === anchor.source &&
-        basis.dataset.lfSourceRevision === anchor.source_revision);
+        (anchor.identity
+          ? datums.length > 0 && basis.dataset.lfIdentity === anchor.identity
+          : basis.dataset.lfSourceRevision === anchor.source_revision));
     if (!basisMatches) {
       const contextual = source?.lfDataDatum?.(anchor.datum, { outdated: true });
       const fallback =
@@ -443,7 +501,7 @@ export function resolveAnchor(anchor, text = "") {
     return segments.length
       ? {
           ...resolvedPassage({
-            place: blockAt(segments[0].node) ?? datums[0],
+            place: segments[0].block ?? datums[0],
             segments,
           }),
           datumElement: datums[0],
@@ -495,7 +553,7 @@ export function resolveAnchor(anchor, text = "") {
   return segments.length
     ? resolvedPassage({
         // Attached chrome belongs beside the passage's readable block or authored item.
-        place: blockAt(segments[0].node) ?? addressableAt(segments[0].node),
+        place: segments[0].block ?? addressableAt(segments[0].node),
         segments,
       })
     : null;
@@ -511,3 +569,10 @@ export function fragmentId(fragment) {
     return raw;
   }
 }
+
+// The page element a fragment names: the anchor `{section}` it spells, resolved as every
+// other anchor is, so an id in chrome, in a message's own markup, or on content a
+// revision settled away names nothing here. A fresh load's arrival, a followed link, and
+// a reply's reference all read their destination through this.
+export const fragmentTarget = (fragment) =>
+  fragment ? targetElement(resolveAnchor({ section: fragmentId(fragment) })) : null;

@@ -1,0 +1,42 @@
+# Added with package Thread views (#1288). Base at cb6de1f85 wrote no
+# `mountThreadViews` call (0 of 3); main at 0a9195539 3 of 3. The change itself
+# passed 2 of 3, the third run ending on an unrelated notice.
+schema_version: '1.0'
+name: thread-widget-mirrors
+description: "A package widget can render core Thread conversations in independent filtered views without taking their page placement."
+tags:
+- packages
+- threads
+execution:
+  prompt: |
+    You are writing a Leaf package widget module. A page will contain two instances of
+    `<lf-thread-board>`, each with its own `filter` attribute. Each instance should
+    display the matching Threads as complete Leaf conversation views inside its own
+    element. Both must update when a Thread changes, and removing one must leave the
+    other working. Keep the Threads at their original page or margin position too.
+
+    The page directory is not reachable from here. Reply with the JavaScript module
+    for the custom element, rather than writing a file.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-packages
+  type: tool_used
+  tool: Read
+  input_match: packages
+- name: mounts-core-thread-views
+  type: regex
+  pattern: mountThreadViews\s*\(
+- name: renders-mirrors
+  type: regex
+  pattern: surfaces\.render\s*\(
+- name: judgment
+  type: llm
+  criteria: |
+    Read the JavaScript. Pass only if each element instance owns its own filter and
+    outlets, uses `mountThreadViews` to receive the shared Thread collection and calls
+    `surfaces.render(thread.key, outlet)` for matching Threads. It must unregister on
+    disconnect, and must not create another Leaf instance, post raw Thread events, or
+    use `surfaces.place` (which would take a Thread away from its margin position).

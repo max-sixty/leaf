@@ -30,6 +30,12 @@ const RELEASE = "a".repeat(64);
 const LAYER = "edge-layer";
 const MANIFEST = {
   release: RELEASE,
+  frame_ancestors: "frame-ancestors 'none'",
+  routes: {
+    layer: ["runtime", "widgets", "vendor"],
+    session: ["media", "revisions", "versions"],
+    files: ["leaf.js", "theme.css", "shadow.css", "registry.json", "icon.svg"],
+  },
   pages: {
     "/": {
       assets: `/_leaf-release/${RELEASE}/root`,
@@ -168,11 +174,11 @@ describe("product-site delivery", () => {
     expect(env.ASSETS.fetch).toHaveBeenCalledTimes(3);
   });
 
-  it("routes specimen documents, assets, and events to the private container without agent work", async () => {
+  it("routes sample documents, assets, and events to the private container without agent work", async () => {
     const sessionId = "03".repeat(16);
-    const specimen = `/examples/triage-board/api/specimens/${"04".repeat(16)}`;
+    const sample = `/examples/triage-board/api/samples/${"04".repeat(16)}`;
     const eventId = "05".repeat(16);
-    const attempt = "specimen-comment";
+    const attempt = "child-sample-comment";
     const containerFetch = vi.fn(async () => Response.json({
       ok: true,
       state: {
@@ -184,11 +190,11 @@ describe("product-site delivery", () => {
     const waitUntil = vi.fn();
     const env = environment();
     for (const [method, path] of [
-      ["POST", "/examples/triage-board/api/specimens"],
-      ["GET", `${specimen}/`],
-      ["GET", `${specimen}/revisions/r1-0123456789abcdef/leaf.js`],
-      ["GET", `${specimen}/api/state`],
-      ["POST", `${specimen}/api/event`],
+      ["POST", "/examples/triage-board/api/samples"],
+      ["GET", `${sample}/`],
+      ["GET", `${sample}/revisions/r1-0123456789abcdef/leaf.js`],
+      ["GET", `${sample}/api/state`],
+      ["POST", `${sample}/api/event`],
     ]) {
       const response = await worker.fetch(new Request(`https://leaf.page${path}`, {
         method,
@@ -230,7 +236,7 @@ describe("product-site delivery", () => {
       expect(assetFetch).toHaveBeenCalledOnce();
       expect(getContainer).not.toHaveBeenCalled();
       expect(response.headers.get("Content-Security-Policy")).toBe(
-        "frame-ancestors 'none'",
+        MANIFEST.frame_ancestors,
       );
       expect(response.headers.get("Set-Cookie")).toMatch(
         /^__Host-leaf-page=[0-9a-f]{32}; Path=\/; Secure; HttpOnly; SameSite=Lax$/,
@@ -275,6 +281,170 @@ describe("product-site delivery", () => {
         presentedMs: 310,
         firstContentfulPaintMs: 115,
       });
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
+  it("records bounded client interaction batches at the edge", async () => {
+    const sessionId = "17".repeat(16);
+    const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const env = environment();
+    const url = "https://leaf.page/examples/triage-board/api/interaction";
+    const headers = { Cookie: `__Host-leaf-page=${sessionId}` };
+    const batch = {
+      session: "tab-1",
+      entries: [
+        {
+          ts: "2026-09-25T12:00:00.000Z",
+          sequence: 1,
+          type: "click",
+          target: ["button#save", "div"],
+          nodes: [12, 3],
+          control: "button#save",
+          controlNode: 12,
+          pointer: { x: 12, y: 24, button: 0, secret: "pointer-secret" },
+        },
+        {
+          ts: "2026-09-25T12:00:01.000Z",
+          sequence: 2,
+          type: "input",
+          target: ['input[name="private-token"]:nth-of-type(2)'],
+          key: "s",
+          code: "KeyS",
+          location: "/?token=location-secret#fragment-secret",
+          path: "/secret-path",
+          value: "value-secret",
+          data: "data-secret",
+          selection: "selection-secret",
+          clipboard: "clipboard-secret",
+          label: "label-secret",
+          error: "error-secret",
+          json: "json-secret",
+          arbitrarySecret: "arbitrary-secret",
+        },
+        {
+          ts: "2026-09-25T12:00:02.000Z",
+          sequence: 3,
+          type: "command",
+          id: "navigation.back",
+          binding: "Mod+ArrowLeft",
+          label: "command-secret",
+        },
+        {
+          ts: "2026-09-25T12:00:03.000Z",
+          sequence: 4,
+          type: "event_response",
+          kind: "action",
+          status: 200,
+          attempt: "attempt-secret",
+          error: "response-secret",
+        },
+        {
+          ts: "2026-09-25T12:00:04.000Z",
+          sequence: 5,
+          type: "interaction_part",
+          originalType: "input",
+          partOf: 2,
+          part: 0,
+          parts: 2,
+          json: "part-secret",
+        },
+      ],
+    };
+    try {
+      const accepted = await worker.fetch(
+        new Request(url, { method: "POST", headers, body: JSON.stringify(batch) }),
+        env,
+      );
+      expect(accepted.status).toBe(204);
+      expect(logged).toHaveBeenCalledOnce();
+      expect(logged.mock.calls[0][0]).toEqual({
+        component: "leaf-interaction",
+        event: "client_batch",
+        reference: "964433995543",
+        route: "/examples/triage-board",
+        release: RELEASE,
+        session: "tab-1",
+        entries: [
+          {
+            ts: "2026-09-25T12:00:00.000Z",
+            sequence: 1,
+            type: "click",
+            target: ["button", "div"],
+            nodes: [12, 3],
+            control: "button",
+            controlNode: 12,
+            pointer: { x: 12, y: 24, button: 0 },
+          },
+          {
+            ts: "2026-09-25T12:00:01.000Z",
+            sequence: 2,
+            type: "input",
+            target: ["input:nth-of-type(2)"],
+          },
+          {
+            ts: "2026-09-25T12:00:02.000Z",
+            sequence: 3,
+            type: "command",
+            id: "navigation.back",
+            binding: "Mod+ArrowLeft",
+          },
+          {
+            ts: "2026-09-25T12:00:03.000Z",
+            sequence: 4,
+            type: "event_response",
+            kind: "action",
+            status: 200,
+          },
+          {
+            ts: "2026-09-25T12:00:04.000Z",
+            sequence: 5,
+            type: "interaction_part",
+            originalType: "input",
+            partOf: 2,
+            part: 0,
+            parts: 2,
+          },
+        ],
+      });
+      expect(JSON.stringify(logged.mock.calls[0][0])).not.toContain("secret");
+      expect(getContainer).not.toHaveBeenCalled();
+
+      const invalid = await worker.fetch(
+        new Request(url, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ ...batch, entries: [{ type: "click" }] }),
+        }),
+        env,
+      );
+      const unbound = await worker.fetch(
+        new Request(url, { method: "POST", body: JSON.stringify(batch) }),
+        env,
+      );
+      const oversized = await worker.fetch(
+        new Request(url, {
+          method: "POST",
+          headers,
+          body: "x".repeat(128 * 1024 + 1),
+        }),
+        env,
+      );
+      const tooMany = await worker.fetch(
+        new Request(url, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ ...batch, entries: Array(101).fill(batch.entries[0]) }),
+        }),
+        env,
+      );
+      expect(invalid.status).toBe(400);
+      expect(unbound.status).toBe(400);
+      expect(oversized.status).toBe(413);
+      expect(tooMany.status).toBe(400);
+      expect(logged).toHaveBeenCalledOnce();
+      expect(getContainer).not.toHaveBeenCalled();
     } finally {
       logged.mockRestore();
     }

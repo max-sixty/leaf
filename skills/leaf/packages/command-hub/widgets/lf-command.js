@@ -3,7 +3,7 @@
  * one answer about progress and workers.
  *
  * The three readings are panels that stand open, each titled by what it counts. They
- * head the command, or fill the lf-command-readings that names it, so a sheet lays the
+ * head the command, or fill the lf-command-readings that names it, so a wide page lays the
  * tree in its body and the readings in the rail beside it. The command owns the panels
  * it drew wherever they stand: each paint puts them at the head of the current seat, so
  * a seat that arrives or leaves moves them rather than stranding one copy and drawing
@@ -14,18 +14,22 @@
  * not take the page's readings. */
 import {
   PRESS,
-  clockValue,
-  conversationBox,
+  threadBox,
   declarationFor,
   addressableWord,
+  holdFocus,
   authoredScope,
   commands,
+  keeps,
+  keepsText,
   matchesWhen,
   offer,
   once,
   projectData,
   relabel,
   selectableOffer,
+  shortAgo,
+  TEXT_BOX,
   watchUpdates,
 } from "/runtime/widget-api.js";
 import {
@@ -110,7 +114,7 @@ function heading(title) {
 
 function retitle(box, title) {
   const node = box.querySelector(":scope > h2");
-  if (node.textContent !== title) relabel(node, title, { says: true });
+  relabel(node, title, { says: true });
 }
 
 // A route to a row, not a second place the page says its name. The label is copied off
@@ -129,15 +133,9 @@ function retitle(box, title) {
 function button(label, target, cls = "") {
   const node = offer("a", cls);
   relabel(node, label, { says: "echo" });
+  // Following it opens a shut goal around a worker as any trip does, through the goal's
+  // `lf-reveal` below.
   node.href = `#${target.id}`;
-  node.addEventListener("click", () => {
-    if (commandRole(target, "worker")) {
-      const command = closestCommandRole(target, "command");
-      const goal = closestCommandRole(target.parentElement, "goal");
-      if (goal && closestCommandRole(goal, "command") === command)
-        setWorkers(goal, true);
-    }
-  });
   return node;
 }
 
@@ -196,13 +194,10 @@ function projectionFocus(plan) {
   const title = active.parentElement === root && active.localName === "h2";
   const viewName = active.dataset.lfView;
   const offerClass = [...active.classList].find((cls) => cls.startsWith("lf-task-"));
+  const restoreFocus = holdFocus(root);
+  // A panel moved to a new seat keeps its nodes, so the hold lands on the same one; a
+  // repainted panel stands in the control keyed the same way.
   return () => {
-    if (document.activeElement === active) return;
-    // A panel moved to a new seat keeps its nodes; the move alone dropped focus.
-    if (active.isConnected) {
-      active.focus({ preventScroll: true });
-      return;
-    }
     const replacementRoot = kind
       ? view(plan, kind)
       : goal?.querySelector(":scope > .lf-task-meta");
@@ -217,7 +212,7 @@ function projectionFocus(plan) {
           : title
             ? replacementRoot?.querySelector(":scope > h2")
             : null;
-    replacement?.focus({ preventScroll: true });
+    restoreFocus(replacement);
   };
 }
 
@@ -241,7 +236,7 @@ function openFleet(plan, mode) {
 function setWorkers(goal, open) {
   goal.toggleAttribute("data-lf-open", open);
   const crew = goal.querySelector(":scope > .lf-task-meta .lf-task-crew");
-  crew?.setAttribute("aria-expanded", String(open));
+  keeps(crew, "aria-expanded", open);
 }
 
 function toggleWorkers(goal) {
@@ -252,10 +247,10 @@ function configureGoal(goal) {
   if (configured.has(goal)) return;
   configured.add(goal);
   goal.dataset.lfCommandGoal = "1";
-  const conversationRole = declarationFor(goal, "x-conversation");
-  if (conversationRole && matchesWhen(goal, conversationRole.when)) {
-    const conversation = conversationBox(goal, "Say something here");
-    if (conversation) goal.append(conversation);
+  const threadRole = declarationFor(goal, "x-thread-seat");
+  if (threadRole && matchesWhen(goal, threadRole.when)) {
+    const thread = threadBox(goal, "Say something here");
+    if (thread) goal.append(thread);
   }
   goal.addEventListener("lf-reveal", (event) => {
     const target = event.detail?.target;
@@ -267,7 +262,7 @@ function configureGoal(goal) {
   });
   goal.addEventListener("click", (event) => {
     if (!directCommandRole(goal, "worker").length) return;
-    if (event.target.closest("button, a, textarea, input, summary, [data-lf-offer]"))
+    if (event.target.closest(`button, a, ${TEXT_BOX}, input, summary, [data-lf-offer]`))
       return;
     if (
       closestCommandRole(event.target, "command") !==
@@ -335,11 +330,8 @@ function renderGoal(goal) {
     meta.append(crew);
   }
   if (goal.held) meta.append(chip("paused by you", "lf-task-held"));
-  const strong = goal.element.querySelector(":scope > strong");
-  const quiet = goal.element.querySelector(":scope > .lf-quiet");
-  if (quiet) quiet.after(meta);
-  else if (strong) strong.after(meta);
-  else goal.element.prepend(meta);
+  // First, so the chips float level with the title (theme.css).
+  goal.element.prepend(meta);
   return true;
 }
 
@@ -404,17 +396,9 @@ function renderHeader(snapshot) {
   return true;
 }
 
-function age(goal) {
-  return clockValue((now) => {
-    if (!goal.stoppedAt) return "age unknown";
-    const at = new Date(goal.stoppedAt).getTime();
-    if (!Number.isFinite(at)) return "age unknown";
-    const minutes = Math.max(0, Math.floor((now - at) / 60000));
-    if (minutes < 60) return `${minutes}m`;
-    const hours = Math.floor(minutes / 60);
-    return hours < 24 ? `${hours}h` : `${Math.floor(hours / 24)}d`;
-  });
-}
+// `stoppedAt` is a server stamp or a `stopped-at` the registry admitted as a date-time,
+// so the one reading left to make is its absence.
+const age = (goal) => (goal.stoppedAt ? shortAgo(goal.stoppedAt) : "age unknown");
 
 function renderStopped(snapshot) {
   const { plan } = snapshot;
@@ -433,7 +417,7 @@ function renderStopped(snapshot) {
       const shown = box?.querySelector(
         `li[data-lf-goal="${goal.element.id}"] .lf-stopped-age`,
       );
-      if (shown) shown.textContent = age(goal);
+      keepsText(shown, age(goal));
     }
     return false;
   }

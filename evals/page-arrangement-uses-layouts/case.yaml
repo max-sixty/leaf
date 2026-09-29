@@ -1,0 +1,45 @@
+# Added with the Layout classes (#1246). Base at aec3eea3d wrote `lf-grid` and
+# `main[data-width]` (0 of 3); the change wrote a sidebar page with tiles (3 of 3).
+schema_version: '1.0'
+name: page-arrangement-uses-layouts
+description: "Arranging a page: a page wider than the column takes a shipped Layout class on main or a block, rather than a retired element or its own grid."
+tags:
+- layout
+execution:
+  prompt: |
+    You are writing a Leaf page that tracks a service migration for the user, who will
+    keep it open on a desktop monitor and check it through the day. Your notes:
+
+    - Five headline numbers: services migrated 14 of 22, error rate 0.4% (down from
+      0.9%), p95 latency 212 ms (up 8 ms), rollbacks this week 1, days to cutover 9.
+    - The main body is a table of the 22 services: name, owner, stage (planned,
+      shadowing, cut over, rolled back), and last deploy.
+    - Beside the table, a short column the user glances at: who is on call, the next
+      two cutover windows, and a link to the runbook.
+
+    The page directory is not reachable from here, so reply with the complete `<main>`
+    element, and any `<style>` the page needs, rather than writing a file.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-page-authoring
+  type: tool_used
+  tool: Read
+  input_match: page-authoring
+- name: uses-a-layout
+  type: regex
+  pattern: class="[^"]*\blayout-(wide|sidebar|tiles|workspace)\b
+- name: judgment
+  type: llm
+  criteria: |
+    Read the HTML. Pass only if all of these hold. The page is arranged with Leaf's
+    Layout classes: `main` carries a Layout class that makes it wider than the reading
+    column (`layout-wide`, `layout-sidebar`, `layout-tiles` or `layout-workspace`), the
+    table and the side column stand beside each other through `layout-sidebar` (on
+    `main` or on a block inside it), and the five numbers sit in a block arranged by
+    `layout-tiles`. It uses none of `lf-grid`, `lf-workspace`, or a `data-width`
+    attribute on `main`. Any `<style>` adjusts a Layout rather than rebuilding one: fail
+    if the page's own CSS declares a grid or flex arrangement for the table and side
+    column or for the numbers.

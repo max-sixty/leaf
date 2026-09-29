@@ -1,0 +1,40 @@
+# Added with typed Thread actions for packages (#1288). Base at a47182f22 made no
+# typed action calls (0 of 3); the change 3 of 3.
+schema_version: '1.0'
+name: thread-widget-actions
+description: "A package gives its own Thread controls the same typed actions as Leaf's controls."
+tags:
+- packages
+- threads
+execution:
+  prompt: |
+    Write a Leaf package widget module for `<lf-thread-queue>`. It shows the current
+    Threads with one Resolve/Reopen button per Thread and a reply input with Send for
+    the selected Thread. The widget should update after either its own action or a
+    change elsewhere in Leaf, and unsubscribe when removed. Use Leaf's supported API
+    for Thread actions; do not render Leaf's built-in conversation view.
+
+    The page directory is not reachable from here. Reply with the JavaScript module.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-packages
+  type: tool_used
+  tool: Read
+  input_match: packages
+- name: watches-threads
+  type: regex
+  pattern: watchThreads\s*\(
+- name: uses-typed-actions
+  type: regex
+  pattern: threadActions\.(reply|resolve|reopen)\s*\(
+- name: judgment
+  type: llm
+  criteria: |
+    Pass only if the JavaScript uses `watchThreads` for the shared Thread collection,
+    keeps its own selected Thread by `thread.key`, calls `threadActions.reply` for Send
+    and `threadActions.resolve` or `threadActions.reopen` for settlement, and stops its
+    subscription on disconnect. It must not post raw events, use a private runtime
+    module, or mount Leaf's built-in Thread view.

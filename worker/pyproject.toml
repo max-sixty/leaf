@@ -1,0 +1,20 @@
+# The Python server behind leaf.page, as the package `leaf_website`. The website's
+# container installs it with `uv sync --package leaf-website` and runs
+# `python -m leaf_website`; the root dev group installs it editable, so the site build
+# (`leaf_dev.site`), `leaf-dev verify-site` and the suite import it. `bin/leaf`, which
+# runs `--no-dev`, never installs it.
+[project]
+name = "leaf-website"
+version = "0"
+requires-python = ">=3.10"
+dependencies = ["leaf"]
+
+[tool.uv.sources]
+leaf = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.9"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = ""

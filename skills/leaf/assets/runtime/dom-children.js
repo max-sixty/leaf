@@ -1,18 +1,36 @@
 /* Retained DOM child reconciliation. */
 import { diffArrays } from "/vendor/jsdiff.esm.js";
+import { holdFocus } from "./focus.js";
 
 const detach = (node) => node.remove();
 
 // Make `parent`'s children `nodes`, in order, without moving a node already in place.
 // Removing stale nodes first leaves each following survivor exactly one place forward.
+// One removed is its caller's to hand on, since only the caller knows what stands in
+// for it.
 export function setChildren(parent, nodes, remove = detach) {
   const keep = new Set(nodes);
   for (const child of [...parent.childNodes]) if (!keep.has(child)) remove(child);
+  order(parent, nodes);
+}
+
+// Put `nodes` in order under `parent`, walking past the children `passed` names, and
+// moving only a node that is not already where it belongs. A node that does move keeps
+// the user standing in it: the hold is read before the first move, while the focus it
+// reads is still intact, and only a pass that moves anything takes one.
+function order(parent, nodes, passed = () => false) {
+  let restoreFocus = null;
   let cursor = parent.firstChild;
   for (const node of nodes) {
-    if (node === cursor) cursor = cursor.nextSibling;
-    else parent.insertBefore(node, cursor);
+    while (cursor && passed(cursor)) cursor = cursor.nextSibling;
+    if (node === cursor) {
+      cursor = cursor.nextSibling;
+      continue;
+    }
+    restoreFocus ??= holdFocus(parent) ?? (() => false);
+    parent.insertBefore(node, cursor);
   }
+  restoreFocus?.();
 }
 
 /* Apply the difference between two authored revisions to the page standing between them.
@@ -52,6 +70,10 @@ export function setChildren(parent, nodes, remove = detach) {
    - `retire(element)`: this live element is leaving, with every element under it.
    - `declared(element)`: an upgraded widget, whose children are its controller's. Asked
      of the held element; a match names the same element on both sides.
+   - `reaches(before, after)`: this widget's controller leaves its members where the
+     author wrote them, and the two revisions differ only inside those members. What
+     changed is then authored markup the patch can write, and nothing the controller
+     built from the widget is stale.
    - `unchanged(before, after)`: that widget's authored markup is the same markup. The
      caller compares the digests each revision's capture recorded.
    - `same(before, after)`: two source elements are spelled the same way, read past the
@@ -187,7 +209,7 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
       continue;
     }
     if (node.nodeType !== Node.ELEMENT_NODE) writeText(live, node.data);
-    else if (!atomic(before, live, rules)) patchTree(before, node, rules);
+    else if (!atomic(before, node, live, rules)) patchTree(before, node, rules);
     else if (!kept(before, node, rules)) {
       // Its interior is not this patch's to reach into, so a changed one cannot be
       // corrected from outside. It leaves, and its replacement arrives as a new element.
@@ -198,7 +220,11 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
     rules.pairs.set(node, live);
     if (live.parentNode === liveParent) placed.push(live);
   }
-  place(liveParent, placed, rules.generated);
+  // `setChildren`'s ordering pass, walking past what the runtime put here. A node
+  // already standing in its place is left alone, which is the whole point: the common
+  // revision moves nothing at all. A kept node the revision moves keeps the user
+  // standing in it, as nothing else would: the carry restores only replaced nodes.
+  order(liveParent, placed, rules.generated);
 }
 
 // Whether this element's interior is beyond the patch. A widget's is its controller's
@@ -207,8 +233,11 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
 // block's one authored text node stood, and the nodes this patch paired are then not
 // there to write through — putting one back would stand the source's own text beside
 // the colouring of it. Both are read the same way afterwards: whole, or not at all.
-const atomic = (before, live, rules) =>
-  rules.declared(before) ||
+// A widget whose controller only builds beside its members is neither, for a revision
+// that leaves everything but their interiors alone: a page written as tabs keeps every
+// tab the author did not touch, rather than rebuilding the page for one sentence.
+const atomic = (before, after, live, rules) =>
+  (rules.declared(before) && !rules.reaches(before, after)) ||
   [...tree(before).childNodes].some(
     (node) => rules.pairs.get(node)?.parentNode !== tree(live),
   );
@@ -311,15 +340,3 @@ const interchangeable = (held, wanted) =>
   held.nodeType === wanted.nodeType &&
   (held.nodeType !== Node.ELEMENT_NODE ||
     (held.localName === wanted.localName && !(held.id && wanted.id)));
-
-// The ordering pass of `setChildren`, walking past what the runtime put here. A node
-// already standing in its place is left alone, which is the whole point: the common
-// revision moves nothing at all.
-function place(parent, nodes, generated) {
-  let cursor = parent.firstChild;
-  for (const node of nodes) {
-    while (cursor && generated(cursor)) cursor = cursor.nextSibling;
-    if (node === cursor) cursor = cursor.nextSibling;
-    else parent.insertBefore(node, cursor);
-  }
-}

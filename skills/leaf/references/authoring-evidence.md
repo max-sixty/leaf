@@ -19,7 +19,7 @@ freshness channel. After every run:
    itself ran; an earlier instant is already behind the write and reads as stale
    the moment it is authored.
 
-If the source's `updated` instant later moves past `at`, `version check` advises
+If the source's `updated` instant later moves past `at`, `page check` advises
 that the pinned number needs another look. This detects a rerun the version
 missed, not a measurement that is merely old. Use one source id for one stable
 measurement definition.
@@ -34,7 +34,7 @@ Use `lf-diagram` for flows, state machines, sequences, class relationships, ER
 schemas, and the other Mermaid families its entry lists. It travels in the `diagram`
 package rather than in every page: initialize a page that wants one with
 `leaf page init --package diagram <page>`, then read the entry for styling and where
-its renderer parts from Mermaid. `version check --render` reports a diagram the
+its renderer parts from Mermaid. `page check --render` reports a diagram the
 renderer refuses or draws empty, not one it draws only in part, so inspect each
 rendered diagram. Without visual access, check the source's labels and relations
 against the claims it supports, and state those claims in prose or a table beside it
@@ -44,10 +44,13 @@ so the user need not rely on an uninspected picture. Follow `page-authoring.md`,
 Draw what Mermaid's automatic layout cannot put where it belongs, such as a page
 layout, geometry, a wireframe, or a thumbnail inside an option, as the `svg.drawing`
 idiom in a `<figure>` with an `id`, and give the figure `data-width="wide"` when it
-needs the room. Keep it schematic: a window is a rounded box, a line of text a grey
-bar, a marker a dot, and only what the figure is about takes the accent colour. Put
-the states being compared side by side in one figure at one scale, drawn alike except
-where they differ. The idiom's classes paint in theme tokens, so the drawing follows
+needs the room. The figure scales the drawing to its width, labels included, so draw
+the `viewBox` near the width it is shown at: 1600 units in a 720px column draw an 11px
+label at 5px, and `page check --render` advises when a label is drawn under 10px.
+Keep it schematic: a window is a rounded box, a line of text a grey bar, a marker a
+dot, and only what the figure is about takes the accent colour. Put the states being
+compared side by side in one figure at one scale, drawn alike except where they
+differ. The idiom's classes paint in theme tokens, so the drawing follows
 the light and dark schemes; an SVG file added with `leaf page media` loads as an image
 and cannot read them. Give a mark particular to the subject a page-local class on the
 same tokens. Keep the `<figcaption>` for what the drawing cannot show, and inspect
@@ -120,8 +123,20 @@ collapsed or share a compact frame with alternatives. A bound `lf-diff` keeps on
 element, supplies its text. Add `collapsed` to a large diff so each file starts closed;
 a comment or navigation target still opens the file that owns its line.
 
-Run `leaf page media <page> <file>…` and use the printed `/media/…` path for
-images. Never inline image bytes. For a real visual change, use `lf-shot` with
-before and after captures from the same viewport. Put invented examples inside
-`lf-specimen` and make them visibly fictional. Render tickets, source locations,
-and URLs as real links.
+Run `leaf page media <page> <file>…` and use each printed `/media/…` `path` for
+images. Never inline image bytes. Put invented examples inside `lf-sample` and
+make them visibly fictional. Render tickets, source locations, and URLs as real
+links.
+
+For a real visual change, use `lf-shot` with before and after captures from the
+same viewport, of the versions the page compares. Before writing the prose and
+`alt` around a pair, open both images and compare them where the change should be.
+Add `outlines`, and the pair outlines each region where its images differ and counts
+them on its rail. Leave it off where most outlines would mark what the pair is not
+about, such as live data that moved between captures you cannot retake, and say in
+the prose where to look. Either way, the rail reads "identical", "only slight
+changes" where no pixel moved far, or "changed throughout" where most of the image
+changed. Where it reads "identical", or no outline stands where the prose puts the
+change, capture a case that shows the change, or say that nothing changed. Where it
+reads "only slight changes", the reader will hardly see the change, so name it in the
+prose, or say that nothing but redrawing changed.

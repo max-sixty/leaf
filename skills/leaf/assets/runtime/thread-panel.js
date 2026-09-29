@@ -1,33 +1,31 @@
 /* Open, close, and toggle the thread panel. The panel must be shown before
- * synchronous conversation reconciliation: hidden-dialog geometry is zero. Opening
+ * synchronous thread reconciliation: hidden-dialog geometry is zero. Opening
  * preserves the invoker's focus. A close by pointer hands focus to the surviving toggle
- * when focus was inside. Layout receives no surface commands, and refreshConversation is
+ * when focus was inside. Layout receives no surface commands, and refreshThread is
  * supplied by the application so this owner never imports a presenter.
  *
  * This owner declares the panel's Escape ladder. Once the user releases a selected
  * thread to the whole panel, narrowing unwinds before the panel closes. Closing the
  * panel lands the user on the document. Thread selection and release belong to
- * keyboard/page.js; leaving text entry belongs to conversation/landing.js. */
-import { inPanel as panelFocusIsInside } from "./conversation/panel-elements.js";
-import { narrowed, threadSearchActive } from "./conversation/narrowing.js";
-import { letGo } from "./focus.js";
+ * keyboard/page.js; leaving text entry belongs to thread/landing.js. */
+import { handBack, letGo } from "./focus.js";
 import { pageRung } from "./keyboard/register.js";
-import { currentAuxiliarySurface } from "./auxiliary-surfaces.js";
 import { slide } from "./motion.js";
-
-export const panelIsOpen = () => currentAuxiliarySurface() === "threads";
+import { pressIsKeyboardActivation } from "./pointer.js";
 
 export function createThreadPanelController({
   auxiliarySurfaces,
-  elements: { panel, toggleBtn, threadsBox },
-  widen,
-  activeInlineThread,
+  elements: { panel, toggleBtn, threadsBox, inPanel: panelFocusIsInside },
+  key = "threads",
+  narrowing,
+  threadHere,
   showThread,
-  refreshConversation,
+  refreshThread,
   closeReactionMode,
   closePreview,
   syncGeneral,
 }) {
+  const panelIsOpen = () => auxiliarySurfaces.selectedSurface() === panel;
   // Opening a <dialog> runs the browser's dialog focusing steps whichever way it is opened,
   // so the invoker has to be given its focus back: raising the panel is not a request to
   // leave where the user was standing, and the toggle that lost it would otherwise hold
@@ -46,27 +44,25 @@ export function createThreadPanelController({
       invoker.focus({ preventScroll: true });
   }
   function setPanel(open, options) {
-    if (open || panelIsOpen())
-      auxiliarySurfaces.select(open ? "threads" : null, options);
+    if (open || panelIsOpen()) auxiliarySurfaces.select(open ? key : null, options);
   }
   function paintPanel(open, phase) {
     // Closing while focus is inside would drop it on body, the user's place lost
     // silently; it lands on the one control that reopens what just closed, which is where
     // the pointer already is. The Escape step below lands the user on the page instead.
-    if (!open && panel.contains(document.activeElement))
-      toggleBtn.focus({ preventScroll: true });
+    if (!open && panel.contains(document.activeElement)) handBack(toggleBtn);
     panel.classList.toggle("open", open);
     toggleBtn.setAttribute("aria-expanded", String(open));
     if (open) {
       // The layer before what goes in it. The panel is a dialog, and a dialog nobody has
       // shown yet is display:none, so anything rendered into it measures zero — and
-      // refreshConversation is where the anchor pass runs for the threads it draws. A mark hangs
+      // refreshThread is where the anchor pass runs for the threads it draws. A mark hangs
       // on the boxes its element shows through (shownParts), so a widget an agent sent in
       // a reply resolved to an element with no box, took no mark, and left the thread
       // still open in the panel pointing at nothing on either side.
       showPanelLayer();
       if (phase === "gesture") slide(panel, "right", "in");
-      refreshConversation();
+      refreshThread();
       syncGeneral(); // a restored draft has to reach the Send button's disabled state
     } else if (panel.open) {
       // Closed at once, with no slide out: the panel is a dialog that the thread list,
@@ -76,8 +72,8 @@ export function createThreadPanelController({
     }
     if (open) closePreview();
   }
-  auxiliarySurfaces.registerAuxiliarySurface({
-    key: "threads",
+  const stopSurface = auxiliarySurfaces.registerAuxiliarySurface({
+    key,
     surface: panel,
     scroller: () => threadsBox,
     // The panel stands over the right of the page, and the page beside it stays live: a
@@ -88,27 +84,30 @@ export function createThreadPanelController({
     show: ({ phase }) => paintPanel(true, phase),
     hide: () => paintPanel(false),
   });
+  let mounted = false;
+  let pressedInlineThread = null;
+  const rememberInlineThread = () => {
+    pressedInlineThread = threadHere()?.dataset.thread ?? null;
+  };
+  const toggle = (event) => {
+    const pressed = pressIsKeyboardActivation(event) ? null : pressedInlineThread;
+    pressedInlineThread = null;
+    if (panelIsOpen()) {
+      setPanel(false);
+      return;
+    }
+    const inlineThread = pressed ?? threadHere()?.dataset.thread;
+    if (inlineThread) showThread(inlineThread, { focus: "thread" });
+    else setPanel(true);
+  };
   function mountThreadPanel() {
-    let pressedInlineThread = null;
-    toggleBtn.addEventListener("pointerdown", () => {
-      pressedInlineThread = activeInlineThread()?.dataset.thread ?? null;
-    });
-    toggleBtn.addEventListener("pointercancel", () => {
-      pressedInlineThread = null;
-    });
-    toggleBtn.addEventListener("pointerup", () => {
-      setTimeout(() => (pressedInlineThread = null));
-    });
-    toggleBtn.onclick = () => {
-      if (panelIsOpen()) {
-        setPanel(false);
-        return;
-      }
-      const inlineThread = pressedInlineThread ?? activeInlineThread()?.dataset.thread;
-      pressedInlineThread = null;
-      if (inlineThread) showThread(inlineThread, { focus: "thread" });
-      else setPanel(true);
-    };
+    if (mounted) return;
+    mounted = true;
+    // The press moves focus off the inline thread before its click arrives, so a pointer
+    // click reads the thread the press recorded. A keyboard click has no press and reads
+    // the thread where it stands.
+    toggleBtn.addEventListener("pointerdown", rememberInlineThread);
+    toggleBtn.onclick = toggle;
     addEventListener("resize", closeReactionMode);
   }
 
@@ -117,15 +116,15 @@ export function createThreadPanelController({
   // reference without occupying that slot. Both are rooted at the panel, so they survive
   // the width at which it covers the page and becomes the floor.
   const yieldsToSearch = () =>
-    !threadSearchActive() || !panelFocusIsInside(panelIsOpen);
-  pageRung("narrowing", () =>
-    panelIsOpen() && narrowed()
+    !narrowing.threadSearchActive() || !panelFocusIsInside(panelIsOpen);
+  const stopNarrowingRung = pageRung("narrowing", () =>
+    panelIsOpen() && narrowing.narrowed()
       ? {
           root: panel,
           says: "show all",
           does: "Show every thread again",
           lineWhen: yieldsToSearch(),
-          out: (...args) => widen(...args),
+          out: () => narrowing.widen(),
         }
       : null,
   );
@@ -133,7 +132,7 @@ export function createThreadPanelController({
   // the document, so that is where this step lands the user — whatever opened the
   // panel, and never the toggle, which is where `setPanel` puts focus first so that a
   // close by pointer has somewhere to leave it.
-  pageRung("panel", () =>
+  const stopPanelRung = pageRung("panel", () =>
     panelIsOpen()
       ? {
           root: panel,
@@ -148,5 +147,16 @@ export function createThreadPanelController({
       : null,
   );
 
-  return { setPanel, mountThreadPanel };
+  function dispose() {
+    if (mounted) {
+      toggleBtn.removeEventListener("pointerdown", rememberInlineThread);
+      if (toggleBtn.onclick === toggle) toggleBtn.onclick = null;
+      globalThis.removeEventListener("resize", closeReactionMode);
+      mounted = false;
+    }
+    stopPanelRung();
+    stopNarrowingRung();
+    stopSurface?.();
+  }
+  return { panelIsOpen, setPanel, mountThreadPanel, dispose };
 }

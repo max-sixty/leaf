@@ -1,4 +1,4 @@
-"""Options, specimens, and decision presentation tests."""
+"""Options, samples, and decision presentation tests."""
 
 import io
 import json
@@ -8,12 +8,13 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from interact_support import append_command
+from interact_support import append_command, record_claim
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import schema as schema_model
 from leaf import service as service_model
+from leaf.render_checks import rendered
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -25,12 +26,11 @@ from render_cases_interaction import (
     INLINE_CASE_PAGE,
     NESTED_ASK_PAGE,
     PAINTED_PAGE,
+    SAMPLE_EXAMPLES,
     SETTLED_ASK_PAGE,
-    SPECIMEN_EXAMPLES,
     STACKED_OPTIONS_PAGE,
     TABLE_REPLY,
     live_url,
-    sent_events,
 )
 from render_cases_navigation import (
     TWICE_PAGE,
@@ -41,10 +41,10 @@ from render_harness import (
     EXAMPLES,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
+    SAMPLE_MARKUP,
+    SAMPLE_PAGE,
+    SAMPLE_TEXT,
     SETTLED_PAGE,
-    SPECIMEN_MARKUP,
-    SPECIMEN_PAGE,
-    SPECIMEN_TEXT,
     _traffic,
     _until,
     ask_actions_hint,
@@ -54,13 +54,17 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    regions_side_by_side,
     resized,
+    root_overflow,
     round_trip,
     sending,
     shortcut_bar_text,
     stamp_page,
+    suggestion_control,
     told,
     wait_for_revision,
+    write,
 )
 
 pytestmark = pytest.mark.nightly
@@ -92,7 +96,7 @@ def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
         const transform = getComputedStyle(document.getElementById("page-pulse")).transform;
 
         const dot = document.querySelector(".lf-dot");
-        dot.classList.add("working");
+        dot.classList.toggle("working", true);
         const runtimeAnimation = dot.getAnimations()[0];
         return {
             pageDistance: transform === "none" ? null : new DOMMatrix(transform).m41,
@@ -379,7 +383,7 @@ def test_option_words_render_markdown_without_losing_the_user_draft(browser, ser
     )
 
     group = page.locator("#jobs")
-    group.get_by_role("textbox", name="Another option").fill("Keep **both** routes")
+    write(group.get_by_role("textbox", name="Another option"), "Keep **both** routes")
     group.get_by_role("button", name="Add and select option").click()
     added = group.locator(":scope > lf-option[data-lf-added]")
     expect(added.locator("strong")).to_have_text("both")
@@ -391,7 +395,7 @@ def test_option_words_render_markdown_without_losing_the_user_draft(browser, ser
     round_trip(page)
     adds = [
         event["detail"]
-        for event in sent_events(serve.page_dir)
+        for event in events_model.read_events(serve.page_dir)
         if event.get("kind") == "action" and event.get("action") == "add"
     ]
     assert adds == [
@@ -571,7 +575,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     expect(option_hints).to_have_text(["1", "2"])
     expect(option_hints.first).to_be_visible()
     write_hint = page.locator("#storage-options > .lf-another > .lf-key-badge")
-    box = page.locator("#storage-options > .lf-another textarea")
+    box = page.locator("#storage-options > .lf-another leaf-text")
     expect(write_hint).to_have_text("3")
     expect(write_hint).to_be_visible()
 
@@ -587,7 +591,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
     page.keyboard.press("a")
     mark = page.locator("#storage-evict .lf-pick")
-    box = page.locator("#storage-options > .lf-another textarea")
+    box = page.locator("#storage-options > .lf-another leaf-text")
     page.keyboard.press("Tab")
     expect(mark).to_be_focused()
     expect(mark).to_have_attribute("role", "checkbox")
@@ -609,13 +613,13 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     expect(page.locator("#storage-stop .lf-pick")).to_be_focused()
     page.keyboard.press("Tab")
     expect(box).to_be_focused()
-    box.fill("Keep both layers")
+    write(box, "Keep both layers")
     page.keyboard.press("Shift+Enter")
     page.keyboard.type("Keep them together")
     page.keyboard.press("Shift+Enter")
     page.keyboard.type("Preserve both histories")
-    expect(box).to_have_value(
-        "Keep both layers\nKeep them together\nPreserve both histories"
+    expect(box).to_have_js_property(
+        "value", "Keep both layers\nKeep them together\nPreserve both histories"
     )
     expect(box).to_have_attribute("aria-keyshortcuts", "Enter Meta+Enter Control+Enter")
     expect(page.locator("#storage-options > lf-option[data-lf-added]")).to_have_count(0)
@@ -640,7 +644,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     expect(mark).to_be_focused()
     expect(chosen).to_have_attribute("role", "checkbox")
     expect(chosen).to_have_attribute("aria-checked", "true")
-    expect(page.locator("#storage-options > .lf-another textarea")).not_to_be_focused()
+    expect(page.locator("#storage-options > .lf-another leaf-text")).not_to_be_focused()
     page.close()
 
     # Native focus scrolling reads the fixed shortcut bar as part of the root scrollport's
@@ -653,7 +657,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     # reading goes green over the travel it is about; the assertion before the presses says
     # so rather than leaving it to the window's height to be right. Chrome's focus
     # scroll moves a stop only when it stands wholly outside the padded band, so the
-    # window is one where the arrival leaves the field wholly under the bottom band.
+    # window is one where the arrival leaves the field wholly under the bottom bar.
     page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
     resized(page, 390, 600)
     clearance = """() => document.querySelector('.lf-shortcut-bar').getBoundingClientRect().top
@@ -671,7 +675,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     assert covered < 0, f"the arrival left the add field {covered}px clear of the line"
     for _ in range(3):
         page.keyboard.press("Tab")
-    box = page.locator("#storage-options > .lf-another textarea")
+    box = page.locator("#storage-options > .lf-another leaf-text")
     expect(box).to_be_focused()
     landed = page.evaluate(clearance)
     assert landed >= 20, f"the shortcut bar covers the add field by {-landed}px"
@@ -883,6 +887,69 @@ def test_an_ask_leads_with_one_authored_heading(browser, serve, ask, group, ques
     )
 
 
+def test_a_first_ask_starts_at_the_pages_content_edge_even_in_a_live_sample(
+    browser, serve
+):
+    """An Ask's heading begins at the edge of the frame that holds it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "First Ask",
+                """<lf-ask id="page-ask"><h2>Choose the route</h2>
+<lf-options id="page-options" choose><lf-option id="page-route">Route A</lf-option></lf-options>
+</lf-ask>
+<p id="between-asks">Context before another question.</p>
+<lf-ask id="later-ask"><h2>Choose the backup</h2>
+  <lf-options id="later-options" choose><lf-option id="later-route">Route B</lf-option></lf-options>
+</lf-ask>
+<div id="own-frame" style="padding: 24px; border: 1px solid; --lf-block-frame: 1">
+  <lf-ask id="framed-ask"><h2>Choose the route</h2>
+    <lf-options id="framed-options" choose><lf-option id="framed-route">Route A</lf-option></lf-options>
+  </lf-ask>
+</div>
+<lf-sample id="sample" label="a first Ask">
+  <template id="sample-page" data-sample>
+    <lf-ask id="sample-ask"><h2>Choose the route</h2>
+      <lf-options id="sample-options" choose><lf-option id="sample-route">Route A</lf-option></lf-options>
+    </lf-ask>
+  </template>
+</lf-sample>""",
+            )
+        ),
+    )
+
+    for root in (page, page.frame_locator("#sample iframe")):
+        gap = root.locator("main").evaluate(
+            """main => {
+                const heading = main.querySelector('lf-ask > h2');
+                return heading.getBoundingClientRect().top
+                  - main.getBoundingClientRect().top
+                  - parseFloat(getComputedStyle(main).paddingTop);
+            }"""
+        )
+        assert abs(gap) < 1, f"the first Ask leaves {gap}px above its question"
+
+    framed_gap = page.locator("#own-frame").evaluate(
+        """frame => {
+            const heading = frame.querySelector('lf-ask > h2');
+            const style = getComputedStyle(frame);
+            return heading.getBoundingClientRect().top
+              - frame.getBoundingClientRect().top
+              - parseFloat(style.borderTopWidth)
+              - parseFloat(style.paddingTop);
+        }"""
+    )
+    assert abs(framed_gap) < 1, f"a framed Ask leaves {framed_gap}px above its question"
+    later_gap = page.locator("#later-ask > h2").evaluate(
+        """heading => heading.getBoundingClientRect().top
+          - document.querySelector('#between-asks').getBoundingClientRect().bottom"""
+    )
+    assert abs(later_gap - 48) < 1, (
+        f"an Ask later in the page keeps {later_gap}px rather than 48px above its question"
+    )
+
+
 @pytest.mark.parametrize("group", ["cards", "rows"])
 def test_joined_option_cells_share_edges_and_text_column(browser, serve, group):
     """Read over the joined option cells and the full-width Done control.
@@ -988,17 +1055,108 @@ def test_joined_option_cells_share_edges_and_text_column(browser, serve, group):
     )
 
 
+WIDE_PROSE = (
+    "Each alternative was measured against the same traffic and the same failover "
+    "days, so the figures in the cards below compare directly with one another."
+)
+WIDE_ASK_PAGE = leaf_page(
+    "Options on a wide page",
+    f"""
+<h1>Where sessions live</h1>
+<div id="layout">
+<section id="body">
+<lf-ask id="cell-decision"><h2>Where should a session live?</h2>
+<p>{WIDE_PROSE}</p>
+<lf-options id="cell-cards" choose>
+  <lf-option id="cc-redis"><strong>Redis</strong> A store we already run.</lf-option>
+  <lf-option id="cc-pg"><strong>Postgres</strong> One fewer moving part.</lf-option>
+</lf-options></lf-ask>
+<lf-ask id="rows-decision"><h2>Which jobs are worth starting?</h2>
+<p>{WIDE_PROSE}</p>
+<lf-options id="cell-rows" choose multiple>
+  <lf-option id="cr-drill">A revocation drill</lf-option>
+  <lf-option id="cr-rotate">Key rotation for the fallback cookie</lf-option>
+</lf-options></lf-ask>
+</section>
+<section id="aside"><p>Beside the argument.</p></section>
+</div>
+<lf-ask id="page-decision"><h2>Who owns the migration?</h2>
+<p>{WIDE_PROSE}</p>
+<lf-options id="page-cards" choose>
+  <lf-option id="pc-platform"><strong>Platform</strong> They run the store.</lf-option>
+  <lf-option id="pc-accounts"><strong>Accounts</strong> They own the table.</lf-option>
+</lf-options></lf-ask>
+""",
+    head=regions_side_by_side("layout", "2fr 1fr"),
+    layout="wide",
+)
+
+
+def test_a_choose_group_on_a_wide_page_draws_its_cells_to_its_own_frame(browser, serve):
+    """A joined group's frame, dividers and marks belong to its options, so on a page
+    wider than the column every cell reaches the frame, however wide the box the page
+    stands the group in. Declared a group of members instead, it passed the measure
+    through: the frame took the grid cell's or the page's whole width while each option
+    stopped at the measure, so every mark and every hairline between options ended
+    100px and more short of the frame's right edge, over an empty strip.
+
+    In a grid cell and straight on a wide page, and in both forms: the frame is what
+    differs between a grid cell and the page, and a row has the hairline without the
+    trailing mark."""
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = open_page(browser, serve(WIDE_ASK_PAGE), context=context)
+    readings = page.evaluate(
+        """() => ['cell-cards', 'cell-rows', 'page-cards'].map((id) => {
+          const group = document.getElementById(id);
+          const box = group.getBoundingClientRect();
+          const inner = box.right - parseFloat(getComputedStyle(group).borderRightWidth);
+          const cells = [...group.children].filter((cell) => cell.checkVisibility());
+          const prose = group.closest('lf-ask').querySelector(':scope > p');
+          return {
+            id,
+            frame: box.width,
+            holder: group.parentElement.getBoundingClientRect().width,
+            prose: prose ? prose.getBoundingClientRect().width : null,
+            cells: cells.map((cell) => {
+              const mark = cell.querySelector(':scope > .lf-pick');
+              return {
+                what: cell.id || cell.className || cell.tagName.toLowerCase(),
+                short: inner - cell.getBoundingClientRect().right,
+                divider: parseFloat(getComputedStyle(cell).borderBottomWidth),
+                mark: mark ? inner - mark.getBoundingClientRect().right : null,
+              };
+            }),
+          };
+        })"""
+    )
+    for group in readings:
+        # The premise: the frame the group stands in is wider than the measure, which
+        # is the only place the two readings of a group can differ.
+        assert group["holder"] > group["prose"] + 100, group
+        options = [cell for cell in group["cells"] if cell["mark"] is not None]
+        assert len(options) == 2 and len(group["cells"]) > 2, group
+        short = [cell for cell in group["cells"] if abs(cell["short"]) > 0.5]
+        assert not short, f"#{group['id']}'s cells stop short of its frame: {short}"
+        assert all(cell["divider"] > 0 for cell in group["cells"][:-1]), group
+        # A card hangs its mark at the frame's end; a row hangs its at the leading edge
+        # (test_every_row_hangs_its_mark_at_the_same_column), so only its hairline
+        # has the frame's end to reach.
+        if "cards" in group["id"]:
+            far = [cell for cell in options if cell["mark"] > 16]
+            assert not far, f"#{group['id']}'s marks stand in from its frame: {far}"
+
+
 def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
-    """A specimen is a mention, not a use. The exhibited widgets render at full
+    """A sample is a mention, not a use. The exhibited widgets render at full
     fidelity — that is the whole point of showing one — but wire nothing that
     would carry the user's edits back, so an example decision can't be
     answered and an example board can't be dragged. The unquoted copies on the
     same page are the control: they prove the affordances are missing because
-    the specimen suppressed them, not because the upgrade failed.
+    the sample suppressed them, not because the upgrade failed.
 
     Presentation and view state are not input, so they still run: a quoted
     settled group collapses like any other."""
-    url = serve(SPECIMEN_PAGE)
+    url = serve(SAMPLE_PAGE)
     # The rule stands at the log's own door as well as in the browser's controller, so
     # the state a quoted widget would reconcile cannot be written in the first place.
     # Any sender reaches that door; this one is the CLI's side of it.
@@ -1060,24 +1218,14 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     )
     expect(page.locator("#quoted-suggestion lf-old")).to_be_visible()
     expect(page.locator("#quoted-suggestion lf-new")).to_be_visible()
-    assert (
-        page.locator(
-            "[data-lf-margin-entry-owner='suggestion:quoted-suggestion']"
-        ).count()
-        == 0
-    )
+    assert suggestion_control(page, "quoted-suggestion", visible=False).count() == 0
     expect(page.locator(".lf-answer-all")).to_have_text("Accept all (1)")
     expect_banner_control_offered(page.locator(".lf-answer-all"))
 
     # The control: the same markup unquoted wires all of it.
     assert page.locator('#live-group .lf-pick[role="checkbox"]').count() == 2
     assert page.locator("#live-board .lf-grip").count() == 1
-    assert (
-        page.locator(
-            "[data-lf-margin-entry-owner='suggestion:live-suggestion']"
-        ).count()
-        == 2
-    )
+    assert suggestion_control(page, "live-suggestion", visible=False).count() == 2
 
     # Nor the room for one. A quoted card stands at the height of a live titled card:
     # neither carries the old footer strip, and the live card's header state is out of
@@ -1151,7 +1299,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
             f"{page.locator(quiet).evaluate(css)} against {quiet_rest} at rest"
         )
 
-    # View state still runs inside a specimen: the settled group collapsed.
+    # View state still runs inside a sample: the settled group collapsed.
     assert page.locator("#quoted-settled lf-option:visible").count() == 0
     page.locator("#quoted-settled .lf-settled").click()
     assert page.locator("#quoted-settled lf-option:visible").count() == 3
@@ -1166,7 +1314,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     # opening the quoted group is what the lines above are about.
     #
     # Both card states, because the lift has one rule for an ordinary card and another
-    # for the one the document records as chosen. Both carry the specimen exclusion.
+    # for the one the document records as chosen. Both carry the sample exclusion.
     page.locator("#live-settled .lf-settled").click()
     # Both folds have to be over before a card's box-shadow means anything. Opening a
     # group brings its rings in on the same transition the lift uses, so a rest value
@@ -1229,7 +1377,7 @@ def test_a_pick_keeps_the_group_frame_visually_stable(browser, serve):
     The projection still carries `data-lf-user-override`; the selected row's check and tint
     show the choice while the group's permanent frame stays visually unchanged.
     """
-    page = open_page(browser, serve(SPECIMEN_PAGE))
+    page = open_page(browser, serve(SAMPLE_PAGE))
     group = page.locator("#live-group")
     frame = "el => [getComputedStyle(el).border, getComputedStyle(el).outlineStyle]"
     before = group.evaluate(frame)
@@ -1601,9 +1749,9 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     assert not option.evaluate(picked), "selecting the option's evidence answered it"
 
-    assert [e for e in sent_events(serve.page_dir) if e["kind"] == "action"] == [], (
-        "the user working the evidence sent Claude a decision they never made"
-    )
+    assert [
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
+    ] == [], "the user working the evidence sent Claude a decision they never made"
 
     # And the option's own words still answer it, which is what the card is for.
     page.keyboard.press("Escape")
@@ -1613,7 +1761,7 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     round_trip(page)
     assert [
         e["detail"]["options"]
-        for e in sent_events(serve.page_dir)
+        for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "action"
     ] == [["ro-column"]]
 
@@ -1784,6 +1932,41 @@ def test_one_chip_holds_every_short_fact(browser, serve):
         )
 
 
+def test_long_chip_labels_stay_inside_a_narrow_column(browser, serve):
+    """A long authored identifier must wrap inside each chip's own box, even when
+    its containing column is narrower than the identifier's intrinsic width."""
+    label = "getMarginThreadCardPlacementForTheViewport"
+    source = (
+        CHIP_PAGE.replace("experimental", label)
+        .replace("reversible", label)
+        .replace('owner="finch"', f'owner="{label}"')
+        .replace(
+            "</head>",
+            "<style>#intro, #p-keep, #t-camera .lf-chips { width: 240px; }</style></head>",
+        )
+    )
+    page = open_page(browser, serve(source))
+    for chip_selector in (
+        "#intro > .tag",
+        "#p-keep > lf-chip",
+        "#t-camera .lf-chips > span",
+    ):
+        expect(page.locator(chip_selector)).to_have_text(label)
+        geometry = page.locator(chip_selector).evaluate("""el => {
+            const parent = el.parentElement;
+            const parentBox = parent.getBoundingClientRect();
+            const contentRight = parentBox.right - parseFloat(getComputedStyle(parent).paddingRight);
+            const chipBox = el.getBoundingClientRect();
+            return { chipRight: chipBox.right, contentRight, lines: chipBox.height / parseFloat(getComputedStyle(el).lineHeight) };
+        }""")
+        assert geometry["chipRight"] <= geometry["contentRight"] + 1, (
+            f"{chip_selector} paints past its containing column: {geometry}"
+        )
+        assert geometry["lines"] > 1, (
+            f"{chip_selector} should wrap its long identifier: {geometry}"
+        )
+
+
 def test_what_a_widget_paints_it_says_to_a_user_listening(browser, serve):
     """A tint is a fact to whoever can see it and nothing at all to whoever can't. A
     task's marker and an event's kind band each carried their whole meaning in colour,
@@ -1898,7 +2081,7 @@ def test_a_pick_states_the_whole_set(browser, serve):
     round_trip(page)
     picks = [
         (e["widget"], e["detail"])
-        for e in sent_events(serve.page_dir)
+        for e in events_model.read_events(serve.page_dir)
         if e.get("action") == "choose"
     ]
     assert picks == [
@@ -1963,7 +2146,7 @@ def test_a_send_waits_for_the_send_before_it(browser, serve):
     round_trip(page)
     assert [
         e["detail"]["options"]
-        for e in sent_events(serve.page_dir)
+        for e in events_model.read_events(serve.page_dir)
         if e.get("action") == "choose"
     ] == [["br-steel"], ["br-cedar"]]
 
@@ -2017,7 +2200,9 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
     page.locator("#job-heater").click()
     round_trip(page)
     assert [
-        e["detail"]["options"] for e in sent_events(d) if e.get("widget") == "jobs"
+        e["detail"]["options"]
+        for e in events_model.read_events(d)
+        if e.get("widget") == "jobs"
     ] == [
         ["job-mounts"],
         ["job-mounts", "job-camera"],
@@ -2147,7 +2332,7 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
 
     picks = [
         (e["widget"], e["detail"])
-        for e in sent_events(serve.page_dir)
+        for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "action"
     ]
     assert picks == [("jobs", {"options": ["job-heater"]})], picks
@@ -2265,14 +2450,14 @@ def test_the_box_is_offered_only_where_something_can_answer_it(browser, serve):
     )
 
 
-def test_the_specimen_gutter_is_painted_in_both_schemes(browser, serve):
-    """The gutter is the whole marking, and it is the one part of a specimen with
+def test_the_sample_gutter_is_painted_in_both_schemes(browser, serve):
+    """The gutter is the whole marking, and it is the one part of a sample with
     a color of its own: a token with no dark half would leave the bar
     transparent and the quoting silently gone. Nothing else catches that — not even
-    the sweep that now drives a specimen through render_version in both palettes,
+    the sweep that now drives a sample through render_version in both palettes,
     since a transparent border is not an error, resizes no box, and leaves every
     word selectable."""
-    url = serve(SPECIMEN_PAGE)
+    url = serve(SAMPLE_PAGE)
     for scheme in ("light", "dark"):
         page = browser.new_page(color_scheme=scheme)
         page.goto(url, wait_until="load")
@@ -2284,8 +2469,8 @@ def test_the_specimen_gutter_is_painted_in_both_schemes(browser, serve):
 
 @pytest.mark.parametrize(
     "source",
-    [SPECIMEN_PAGE, *SPECIMEN_EXAMPLES],
-    ids=["fixture", *(p.stem for p in SPECIMEN_EXAMPLES)],
+    [SAMPLE_PAGE, *SAMPLE_EXAMPLES],
+    ids=["fixture", *(p.stem for p in SAMPLE_EXAMPLES)],
 )
 def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serve):
     """The gutter marks what is quoted and nothing else, at both ends, and two separate
@@ -2294,7 +2479,7 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
     the marking around a line the page never said. And a table cell is a margin barrier,
     so the room the exhibit's outermost blocks reserve against neighbours they haven't
     got could not collapse out and was painted as bar instead — sixteen pixels of it
-    over the first card and under the last, on every specimen shipped.
+    over the first card and under the last, on every sample shipped.
 
     Geometry can't answer the top. The element's own rect is the table wrapper's and
     takes in the caption, while the bar is painted on the table box inside it, which
@@ -2304,38 +2489,43 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
     middle of the window: a clip is the viewport's, so one strip over the whole bar
     would cap the sweep at the tallest exhibit a window can hold.
 
-    Driven over every specimen in the corpus rather than the fixture alone, because
-    what the theme can reach is the specimen's direct children and what it cannot is
+    Driven over every sample in the corpus rather than the fixture alone, because
+    what the theme can reach is the sample's direct children and what it cannot is
     whichever widget hands its boxes to the flow instead. That gap is invisible in the
     stylesheet and shows only as a bar longer than what it marks, so the corpus is
     where the next one gets caught."""
     from PIL import Image  # a dev dependency already, for the demo recorder
 
-    # Serve each example with its data and history: live specimens can select
-    # authored conversations as part of the exhibit.
+    # Serve each example with its data and history: live samples can select
+    # authored threads as part of the exhibit.
     page = open_page(browser, serve(source))
     scale = page.evaluate("() => devicePixelRatio")
-    # Rendered, not merely present. A specimen inside a tab panel the page is not
+    # Rendered, not merely present. A sample inside a tab panel the page is not
     # showing sits in skipped content, which still reports its last laid-out rect — a
     # position the page cannot be scrolled to, since the room it names is not in the
     # document's height. `checkVisibility` is the question `lf-suggestion` already asks
     # for the same reason.
-    specimens = page.locator("lf-specimen").evaluate_all(
-        "els => els.filter(e => e.checkVisibility()).map(e => e.id)"
+    samples = page.locator("lf-sample").evaluate_all(
+        """elements => elements.map(sample => {
+            const path = [];
+            for (let tab = sample.closest('lf-tab'); tab;
+                 tab = tab.parentElement.closest('lf-tab')) {
+                path.push({set: tab.parentElement.id, label: tab.getAttribute('label')});
+            }
+            return {id: sample.id, path: path.reverse()};
+        })"""
     )
-    if not specimens:
-        owners = page.locator("#corpus > lf-tab:has(lf-specimen)")
-        assert owners.count(), (
-            "this page declares a specimen but no visible exhibit or corpus panel owns it"
-        )
-        label = owners.first.get_attribute("label")
-        page.get_by_role("tab", name=label, exact=True).click()
-        specimens = page.locator("lf-specimen").evaluate_all(
-            "els => els.filter(e => e.checkVisibility()).map(e => e.id)"
-        )
-    assert specimens, "this page shows no specimen: the reading below asserts nothing"
+    assert samples, "this page declares no sample: the reading below asserts nothing"
 
-    for spec in specimens:
+    for sample in samples:
+        for owner in sample["path"]:
+            page.locator(f"#{owner['set']}").get_by_role(
+                "tab", name=owner["label"], exact=True
+            ).click()
+        spec = sample["id"]
+        assert page.locator(f"#{spec}").evaluate("el => el.checkVisibility()"), (
+            f"{spec} remained hidden after opening its tabs"
+        )
         ink = tuple(
             int(n)
             for n in re.findall(
@@ -2430,7 +2620,7 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
             f"#{spec}'s marking ends at {found['bottom']} and the exhibit at "
             f"{found['bottom-exhibit']}: the bar outlives what it marks — most likely "
             f"a trailing margin inside a child that generates no box, which the "
-            f"theme's rule for the specimen's last child cannot reach"
+            f"theme's rule for the sample's last child cannot reach"
         )
         if found["note"] is not None:
             assert found["note"] <= found["top"] + 1, (
@@ -2440,17 +2630,17 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
             )
 
 
-def test_a_specimen_holds_a_wide_exhibit_inside_the_column(browser, serve):
+def test_a_sample_holds_a_wide_exhibit_inside_the_column(browser, serve):
     """An exhibit wider than the column scrolls inside its own box, as it does
     anywhere else on the page. What makes that true here is one declaration —
-    a table sizes to its content, so without `table-layout: fixed` the specimen
+    a table sizes to its content, so without `table-layout: fixed` the sample
     grows to the board's width and hands the document a sideways scrollbar, taking
     the comment layer's anchoring off screen with it.
 
     Read at a viewport narrow enough for the board to want more room than the
     column has; at the render sweep's own 1200px the board fits and nothing here
     can fail."""
-    page = open_page(browser, serve(SPECIMEN_PAGE))
+    page = open_page(browser, serve(SAMPLE_PAGE))
     page.evaluate(
         """() => document.addEventListener('lf-margin-layout', () => {
           window.lfMarginLayoutWidth = innerWidth;
@@ -2459,31 +2649,30 @@ def test_a_specimen_holds_a_wide_exhibit_inside_the_column(browser, serve):
     resized(page, 380, 900)
     page.wait_for_function("() => window.lfMarginLayoutWidth === 380")
     wide = page.evaluate(
-        "() => [document.documentElement.scrollWidth,"
-        " document.documentElement.clientWidth,"
+        "() => [document.documentElement.clientWidth,"
         " Math.round(document.getElementById('spec').getBoundingClientRect().width),"
         " document.getElementById('quoted-board').scrollWidth]"
     )
-    document, column, specimen, board = wide
+    column, sample, board = wide
     assert board > column, (
         f"the board is {board}px in a {column}px column: it has to want more room "
         f"than the column has, or nothing below is being tested"
     )
-    assert specimen <= column, f"the specimen is {specimen}px in a {column}px column"
-    assert document == column, (
-        f"the document scrolls sideways ({document}px against {column}px): the "
-        f"exhibit widened the specimen instead of scrolling inside it"
+    assert sample <= column, f"the sample is {sample}px in a {column}px column"
+    assert root_overflow(page) == 0, (
+        "the document scrolls sideways: the exhibit widened the sample instead of "
+        "scrolling inside it"
     )
 
 
-def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
+def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
     """The panel is where a live question actually gets put — Claude's replies
     carry widget markup — so it is also where a quoted one has to stay quoted.
     One reply holds both: the question wires up and its pick reaches the log,
     the exhibit beside it does neither, and the gutter marking it renders in the
-    panel's narrower column as it does in the document. The theme's specimen
+    panel's narrower column as it does in the document. The theme's sample
     rules and quoted()'s closest() both have to reach outside <main>, and
-    nothing else in the suite renders a specimen there."""
+    nothing else in the suite renders a sample there."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
     events_model.append_event(
@@ -2503,8 +2692,8 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
             "author": "agent",
             "parent": "c-decision",
             "revision": 1,
-            "text": SPECIMEN_TEXT,
-            "markup": SPECIMEN_MARKUP,
+            "text": SAMPLE_TEXT,
+            "markup": SAMPLE_MARKUP,
         },
     )
     page = open_page(browser, url)
@@ -2514,7 +2703,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
         '#rp-live .lf-pick[role="checkbox"]'
     )  # the reply's widgets upgraded
 
-    # The gutter renders in the panel: the specimen rules aren't scoped to the
+    # The gutter renders in the panel: the sample rules aren't scoped to the
     # document's column, and neither is the label — which reaches the panel only
     # because renderSaid runs over a reply's markup too, where no custom element
     # upgrade would have carried it.
@@ -2531,7 +2720,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
     assert gutter[0] != "0px" and gutter[1] not in (
         "rgba(0, 0, 0, 0)",
         "transparent",
-    ), f"the panel's specimen carries no gutter: {gutter}"
+    ), f"the panel's sample carries no gutter: {gutter}"
     assert (
         page.locator("#rp-quoted lf-option").count() == 2
     )  # and the exhibit is all there
@@ -2564,6 +2753,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
     status = message.locator(":scope > .lf-msg-head .lf-msg-sending")
     expect(page.locator("#rp-live > .lf-msg-sending")).to_have_count(0)
     expect(status).to_have_text("Sent")
+    record_claim(d)
     with service_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(transaction, actions)
     told(page)
@@ -2670,3 +2860,77 @@ def test_a_thread_questions_done_press_wears_its_address_and_one_workflow(
     statuses = message.locator(":scope > .lf-msg-head .lf-msg-sending")
     expect(statuses).to_have_count(1)
     expect(statuses).to_have_text("Sent")
+
+
+def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
+    """A titled card's pick mark and the digit the Ask walk puts in its place share one
+    seat in the card's corner, and a margin pin standing in that corner steps below the
+    controls it finds there. It found the 11px mark alone, so once an answer brought the
+    pin it stood over the lower edge of the first card's digit, which then gave way to a
+    chip hung on the mark's corner, 10px higher, with the mark showing under it. The mark
+    now takes the digit's box, and every card wears its own digit. A chosen card is filled
+    in the tint of an ok chip, so its "recommended" chip keeps a ground of its own there."""
+    page = open_page(
+        browser, serve(next(p for p in EXAMPLES if p.stem == "alert-review"))
+    )
+    resized(page, 1440, 900)
+    page.keyboard.press("a")
+    expect(page.locator("#ar-canary-decision")).to_be_focused()
+    page.keyboard.press("2")
+    expect(page.locator("#ar-canary-suppress")).to_have_attribute("chosen", "")
+    # The answer's pin stands in the first card's corner, where the seats are.
+    expect(page.locator('.lf-margin-entry[aria-label^="Sent"]')).to_be_visible()
+    rendered(page)
+    seats = page.evaluate(
+        """() => [...document.querySelectorAll('#ar-canary-choice > lf-option')].map((o) => {
+          const badge = o.querySelector(':scope > .lf-key-badge');
+          const pick = o.querySelector(':scope > .lf-pick').getBoundingClientRect();
+          const box = badge.getBoundingClientRect();
+          return {worn: badge.hasAttribute('data-lf-ask-binding-badge'),
+                  top: box.top - o.getBoundingClientRect().top,
+                  seat: Math.abs(pick.height - box.height) < 1.5};
+        })"""
+    )
+    assert all(seat["worn"] and seat["seat"] for seat in seats), seats
+    assert len({round(seat["top"]) for seat in seats}) == 1, seats
+    expect(
+        page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")
+    ).to_have_count(0)
+    page.keyboard.press("1")
+    chosen = page.locator("#ar-canary-consecutive")
+    expect(chosen).to_have_attribute("chosen", "")
+    grounds = chosen.evaluate(
+        """o => [getComputedStyle(o).backgroundColor,
+                 getComputedStyle(o.querySelector('lf-chip[tone="ok"]')).backgroundColor]"""
+    )
+    assert grounds[0] != grounds[1], grounds
+
+
+def test_an_ask_digit_hangs_off_a_corner_clear_of_its_neighbours(browser, serve):
+    """The walk hangs an Ask control's digit off the control's upper-left corner. In the
+    notification playground at 1024px its Create button wraps under Reset and Copy, 8px
+    below them, and a digit hung on that corner stood over Reset's; it now takes the first
+    corner that stands over no other control."""
+    page = open_page(
+        browser, serve(next(p for p in EXAMPLES if p.stem == "notification-playground"))
+    )
+    resized(page, 1024, 768)
+    page.keyboard.press("a")
+    chip = page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")
+    expect(chip).to_have_count(1)
+    reading = chip.evaluate(
+        """chip => {
+          const box = chip.getBoundingClientRect();
+          const create = [...document.querySelectorAll('button')]
+            .find((b) => b.textContent.trim() === 'Create notification')
+            .getBoundingClientRect();
+          const hit = (r) => r.width && box.left < r.right && r.left < box.right
+            && box.top < r.bottom && r.top < box.bottom;
+          const others = [...document.querySelectorAll('main button')]
+            .filter((b) => b.textContent.trim() !== 'Create notification')
+            .map((b) => b.getBoundingClientRect())
+            .filter(hit);
+          return {covers: others.length, touches: hit(create)};
+        }"""
+    )
+    assert reading == {"covers": 0, "touches": True}, reading

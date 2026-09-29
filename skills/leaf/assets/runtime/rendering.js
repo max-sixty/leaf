@@ -22,6 +22,16 @@
    next callback reads the page; a longer asynchronous tail, which the browser would
    drain between its own frame callbacks, lands after it.
 
+   `afterScript` is for a paint that must land before anything else can happen, but only
+   once, from where the script that asked for it leaves things: it runs at the microtask
+   checkpoint that ends that script (an event listener, a frame callback, a task). A
+   render that one step of a script invalidates and a later step invalidates again, such
+   as a control replaced and the focus landing on its successor, would otherwise paint
+   the moment between them and then put back what it took off, a write that changes
+   nothing. A callback asked for again before it runs runs once, and one that throws is
+   reported as a frame callback's failure is while the others still run. Steps in
+   separate listeners of one event are separate scripts.
+
    `nextFrame` is for a step that must not run in the pass that asked for it: an
    animation tick, a loop that follows the page frame by frame, a pause for one frame.
    Asked for inside a pass, it runs in the next frame's; asked for outside one, it is
@@ -45,7 +55,7 @@
    update, which may land after the check), what vendored bundles schedule for
    themselves, and a layout change no counted callback or observer takes part in. A
    reader outside the page that caused such a change lets one rendering update pass
-   before it asks (`rendered` in tests/render_harness.py).
+   before it asks (`rendered` in scripts/leaf/render_checks.py).
 
    A document nobody can see gets no rendering updates: a hidden page, and a child page
    whose frame is not rendered — an inactive tab's panel and a closed disclosure hold
@@ -110,6 +120,24 @@ async function pass(time) {
   for (const entry of afterPaint) queued.set(...entry);
   afterPaint = new Map();
   if (queued.size) frame = requestAnimationFrame(pass);
+}
+
+const owedThisScript = new Set();
+function settleScript() {
+  // A callback asked for while the others run is visited too: a Set's iteration reaches
+  // what joins it before the end.
+  for (const callback of owedThisScript) {
+    owedThisScript.delete(callback);
+    try {
+      callback();
+    } catch (error) {
+      reportError(error);
+    }
+  }
+}
+export function afterScript(callback) {
+  if (!owedThisScript.size) queueMicrotask(settleScript);
+  owedThisScript.add(callback);
 }
 
 /** A `ResizeObserver` whose deliveries the settled reading counts. */

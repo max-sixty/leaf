@@ -12,7 +12,6 @@ of that name takes it and removes it on release.
 
 import contextlib
 import functools
-import hashlib
 import os
 import signal
 import sys
@@ -26,6 +25,7 @@ from leaf.event_log import (
 )
 from leaf.machine import state_home
 from leaf.schema import WAITER_LOCK
+from leaf.state_paths import HOOKS_SUFFIX, TITLES_SUFFIX, session_file
 
 try:
     import fcntl
@@ -186,15 +186,9 @@ def adapter_lease_path(session_id: str) -> Path:
 
 
 def session_state_path(session_id: str, suffix: str) -> Path:
-    """Address one state-home file belonging to a single host session.
-
-    A host's session id is not a filename, so the session is named by a digest of
-    it. Every file one session owns — its leases, their start mark and locks, and a
-    Codex task's deliveries and adapter log — is that one name with a different
-    suffix, in a directory this creates.
-    """
-    key = hashlib.sha256(session_id.encode()).hexdigest()[:32]
-    return sessions_home() / f"{key}.{suffix}"
+    """`state_paths.session_file`, with its directory created."""
+    sessions_home()
+    return session_file(session_id, suffix)
 
 
 def sessions_home() -> Path:
@@ -202,6 +196,31 @@ def sessions_home() -> Path:
     sessions = state_home() / "sessions"
     sessions.mkdir(exist_ok=True)
     return sessions
+
+
+def hooks_path(session_id: str) -> Path:
+    """The mark a Leaf hook leaves each time it runs for this session."""
+    return session_state_path(session_id, HOOKS_SUFFIX)
+
+
+def titles_log(session_id: str) -> Path:
+    """Where this session's page servers record the thread titles they asked for
+    (`thread_titles`), until the session ends."""
+    return session_state_path(session_id, TITLES_SUFFIX)
+
+
+def mark_hooks(session_id: str) -> None:
+    """Record that the host ran a Leaf hook for this session. The mark stands for
+    the session's life, and its SessionEnd hook removes it."""
+    hooks_path(session_id).touch()
+
+
+def hooks_ran(session_id: str) -> bool:
+    """Whether the host has run a Leaf hook for this session. A host whose hooks
+    can carry input carries it only where they run: a session launched without the
+    plugin's hooks, with hooks disabled, or whose hooks read another state home
+    never marks this one."""
+    return hooks_path(session_id).exists()
 
 
 def adapter_is_live(session_id: str) -> bool:

@@ -6,6 +6,10 @@
    dispatcher has withdrawn. A row inside a sequence scope carries that sequence's steps,
    so a destination reached through `g` says the whole shortcut.
 
+   This pass is the one writer of such a control's `title`. The control's owner names it
+   in `data-lf-key-title`, and a static control's first title is taken as that name, so
+   the owner and this pass never take turns rewriting the one attribute.
+
    The pass runs in the standing chrome's frame, so every name it writes goes through
    `keeps` and says nothing where the control already says it. Restated title or shortcut
    metadata is news to whatever is reading the page — the mutation stream a screen reader
@@ -13,7 +17,7 @@
    watches. */
 import { ariaShortcuts, bindings, labelOf, live, word } from "./bindings.js";
 import { pageScopes, universalCommandReference } from "./register.js";
-import { keeps } from "../widget-elements.js";
+import { keeps } from "../keeps.js";
 
 const stepsBefore = (scope) => word(scope?.sequencePrefix ?? scope?.sequence) ?? [];
 const shortcutIn = (scope, row) =>
@@ -51,8 +55,10 @@ export function paintCoreControls() {
       // aria-keyshortcuts has no syntax for sequential shortcuts: its spaces separate
       // alternatives. The complete sequence remains in the overlay, tooltip, and
       // accessible command reference instead of claiming its final press works alone.
-      if (active && !scope.sequence)
-        keeps(control, "aria-keyshortcuts", ariaShortcuts([row], false));
-      else control.removeAttribute("aria-keyshortcuts");
+      keeps(
+        control,
+        "aria-keyshortcuts",
+        active && !scope.sequence ? ariaShortcuts([row], false) : null,
+      );
     }
 }

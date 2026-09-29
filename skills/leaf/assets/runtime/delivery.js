@@ -9,9 +9,8 @@
 import { postEvent } from "./layer-client.js";
 import { notice } from "./notifications.js";
 import { pendingTraffic } from "./traffic.js";
-import { unresolvedAttempts } from "./pending/model.js";
 
-export const RETRY_MS = 2000;
+const RETRY_MS = 2000;
 const retryPause = () => new Promise((resolve) => setTimeout(resolve, RETRY_MS));
 
 export function createDelivery({
@@ -30,7 +29,7 @@ export function createDelivery({
       ledger.nameParent(entry, currentReceipts());
       if (!ledger.nameUndo(entry, currentReceipts())) return { accepted: null };
       const { event } = entry;
-      if (entry.readEvent) return { accepted: entry.readEvent };
+      if (entry.admitted) return { accepted: entry.admitted };
       const sent = await Promise.race([
         postEvent(event).then(
           (response) => ({ response }),
@@ -99,12 +98,12 @@ export function createDelivery({
     draining = true;
     try {
       for (;;) {
-        const entry = ledger.nextUnanswered();
+        const entry = ledger.nextSending();
         if (!entry) break;
         const { accepted, application } = await deliver(entry);
         if (accepted) ledger.accept(entry, accepted);
-        else ledger.reject(entry);
-        pendingTraffic(unresolvedAttempts(ledger.snapshot()));
+        else ledger.refuse(entry);
+        pendingTraffic(ledger.sending());
         try {
           if (!accepted) {
             await settleRejected(entry);

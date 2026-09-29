@@ -7,9 +7,10 @@ export function createStanding({
   markHere,
   paintStanding,
   paintSelectedMarginEntries,
+  paintTouchControls,
   renderShortcutBar,
   paintGoToHints,
-  paintTargetChooserHints,
+  paintTargetPickerHints,
   paintCoreControls,
   paintVersionShortcuts,
   paintInputs,
@@ -22,26 +23,33 @@ export function createStanding({
     // feature painters have settled it. Selection changes only the entry representing
     // that reading; focus, open state, and agent work keep their separate contours.
     paintSelectedMarginEntries();
-    // The shortcut bar is geometry for every Go-to and target-chooser hint painted around it. Render
-    // its new words first, then let chrome-layout.js place that resulting
-    // box before any consumer reads it. ResizeObserver remains the door for font, window,
-    // and other size changes; state-driven content changes complete in this frame rather
-    // than leaving placement and hints one observer frame behind.
+    // A finger's stand-ins for the keys, whose step on the banner's row is a box chrome
+    // layout measures, as the shortcut bar's words are.
+    paintTouchControls();
+    // The shortcut bar is geometry for every Go-to and target-picker hint painted around
+    // it. Render its new words first, then let chrome-layout.js place that resulting box
+    // before any consumer reads it. ResizeObserver remains the door for font, window, and
+    // other size changes; state-driven content changes complete in this frame rather than
+    // leaving placement and hints one observer frame behind.
     renderShortcutBar();
   }
 
-  // Controls and geometry that depend on the laid-out content above.
+  // Controls and geometry that depend on the laid-out content above. Text boxes paint
+  // first: their contextual hints read which box is shown, and the Go-to chips below read
+  // each send button's aria-disabled to decide whether it is a destination. Nothing a box
+  // paints changes geometry — a placeholder never widens its box and a disabled send keeps
+  // its size — so chrome layout above measures the composer before this paint.
   function paintStandingGeometry() {
+    paintInputs();
     // The chips are where the user can go, beside the ring saying where they are and the
     // line saying what the next press does — one paint, because a chip repainted by its
     // own door alone went stale on the door it did not
     // have: a poll that retires an Ask moves the list under an armed window, and only the
     // panel's own render was calling the chip pass.
     paintGoToHints();
-    paintTargetChooserHints();
+    paintTargetPickerHints();
     paintCoreControls();
     paintVersionShortcuts();
-    paintInputs();
   }
 
   return { paintStandingContent, paintStandingGeometry };

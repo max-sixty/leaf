@@ -1,4 +1,4 @@
-"""The run plain `version check` gives a page's own code.
+"""The run plain `page check` gives a page's own code.
 
 A page can carry code of its own: module scripts, and page widgets below `/page/`,
 with whatever each imports. No static reading can say whether that
@@ -23,9 +23,10 @@ or replay, and code that throws only after a gesture or a timer is not reached.
 
 from leaf.render_checks import (
     RENDER_VIEWPORT,
-    evaluate_probe,
-    wait_for_presentation,
+    PageNotReady,
+    rendered,
     wait_for_probe,
+    wait_until_ready,
 )
 from leaf.revision_artifact import RevisionArtifact
 from leaf.structure import SourceDocument
@@ -71,19 +72,15 @@ def run_page_code(browser, url: str) -> list[str]:
     page.route("**/api/event", report)
     try:
         page.goto(url)
-        wait_for_probe(page, "upgraded")
-        state = served(page, url, "/api/state").json()
-        applied = sum(e["kind"] in ("action", "report") for e in state["events"])
-        stage = wait_for_presentation(page, state, applied)
-        if stage is not None:
-            return [*reports, f"the runtime never passed its {stage} stage"]
+        wait_until_ready(page, served(page, url, "/api/state").json())
         # A widget that paints from a rendering callback throws there, not in its
         # upgrade; once the rendering has settled, every callback it queued has run.
-        wait_for_probe(page, "framePresented", evaluate_probe(page, "requestFrame"))
-        wait_for_probe(page, "renderingSettled")
+        rendered(page)
         # The report is posted asynchronously, and the route above answers it only
         # while this process is waiting on the page.
         wait_for_probe(page, "sendsAcked")
+    except PageNotReady as error:
+        return [*reports, str(error)]
     except PlaywrightError as error:
         # A wait that timed out names what never arrived; any other browser error
         # is as much a failed run, and the reports already taken still stand.

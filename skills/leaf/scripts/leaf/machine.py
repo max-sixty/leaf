@@ -18,6 +18,8 @@ from pathlib import Path
 
 import psutil
 
+from .state_paths import state_home_path
+
 # A process reading fails in two ways worth answering with None: the process is
 # gone (NoSuchProcess, and ZombieProcess under it), or it belongs to another user
 # and its command line is closed to us (AccessDenied). psutil's other errors come
@@ -89,7 +91,8 @@ def process_argv(pid: int) -> list[str] | None:
 def state_home() -> Path:
     """$XDG_STATE_HOME/leaf (~/.local/state/leaf/) — pages/ holds page
     directories by convention, claims/ the last claimant of every known page,
-    sessions/ the live watcher leases, packages/ the packages `package install` copied here, and access.json
+    sessions/ the live watcher leases, packages/ the packages `package install` copied here,
+    screens/ the last render check's screens of each page, and access.json
     the one key every page here is served with (`host_key`). State, not config:
     claim records carry pids and absolute paths, while page service records
     carry ports, so this state is bound to this machine, as is the key that
@@ -99,10 +102,7 @@ def state_home() -> Path:
     and a log that outranks the document, and a 0644 file under a traversable
     path hands it to anyone on a shared machine. One writer for the mode, since
     every path into the state home resolves through this call."""
-    home = (
-        Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state")
-        / "leaf"
-    )
+    home = state_home_path()
     home.mkdir(mode=0o700, parents=True, exist_ok=True)
     return home
 

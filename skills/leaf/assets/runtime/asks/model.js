@@ -6,8 +6,9 @@
    selection boundary. DOM resolution belongs to the views that need controls, words,
    focus, or geometry; it cannot change which Asks exist or whether they await the
    user. */
-import { applicationState, readApplication } from "../semantic-state.js";
+import { readApplication } from "../semantic-state.js";
 import { registry } from "../registry.js";
+import { watchProjection } from "../projection-watch.js";
 
 const reading = () => readApplication().effective.asks;
 
@@ -23,14 +24,8 @@ export function approvalBlockingAsks() {
   return application.effective.asks.unanswered;
 }
 
-// The first reading is synchronous. The owner is a lifetime assertion for the public
-// widget contract; callers still own disconnecting the returned subscription.
 export function watchAsks(owner, callback) {
-  if (!(owner instanceof Element))
-    throw new TypeError("An Ask watcher needs an element owner");
   if (typeof callback !== "function")
     throw new TypeError("An Ask watcher needs a callback");
-  return applicationState
-    .select((root) => root.effective.asks.user)
-    .subscribe(() => callback(openAsks()));
+  return watchProjection(owner, () => callback(openAsks()));
 }

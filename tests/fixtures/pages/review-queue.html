@@ -2,252 +2,258 @@
 <html lang="en">
   <head>
     <title>Release review queue</title>
+    <style>
+      /* The regions side by side, stacked where the workspace flows. */
+      #review-regions {
+        display: grid;
+        grid-template-columns: minmax(16rem, 1fr) 2fr;
+        gap: var(--sp-4);
+      }
+      @media (width < 720px) {
+        #review-regions {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
   </head>
   <body>
-    <main data-width="available">
-      <lf-workspace id="review-workspace">
-        <header>
-          <p class="eyebrow">release review · eight items</p>
-          <h1>Review the 2.8 release</h1>
-        </header>
+    <main class="layout-workspace" id="review-workspace">
+      <header>
+        <p class="eyebrow">release review · eight items</p>
+        <h1>Review the 2.8 release</h1>
+      </header>
 
-        <lf-grid id="review-regions" columns="1fr 2fr">
-          <lf-pane id="review-queue" label="Items">
-            <header><h2>Queue</h2></header>
-            <div>
-              <nav aria-label="Review items">
-                <ul>
-                  <li>
-                    <a href="#review-auth"><strong>Authentication retry</strong></a>
-                    <p>Ready · customer sign-in · medium risk</p>
-                  </li>
-                  <li>
-                    <a href="#review-cache"><strong>Cache migration</strong></a>
-                    <p>Ready · automatic rollback · high risk</p>
-                  </li>
-                  <li>
-                    <a href="#review-email"><strong>Receipt email</strong></a>
-                    <p>Ready · refund receipts · low risk</p>
-                  </li>
-                  <li>
-                    <a href="#review-export"><strong>Ledger export</strong></a>
-                    <p>Ready · finance integration · medium risk</p>
-                  </li>
-                  <li>
-                    <a href="#review-search"><strong>Order search</strong></a>
-                    <p>Accessibility reviewed · support workflow · low risk</p>
-                  </li>
-                  <li>
-                    <a href="#review-worker"><strong>Settlement worker</strong></a>
-                    <p>Ready · asynchronous processing · medium risk</p>
-                  </li>
-                  <li>
-                    <a href="#review-billing"
-                      ><strong>Billing reconciliation</strong></a
-                    >
-                    <p>Ready · legacy reporting path · high risk</p>
-                  </li>
-                  <li>
-                    <a href="#review-webhook"><strong>Webhook delivery</strong></a>
-                    <p>Ready · partner integrations · low risk</p>
-                  </li>
-                </ul>
-              </nav>
-              <section id="review-notes">
-                <h3>Release notes</h3>
+      <div id="review-regions">
+        <lf-pane id="review-queue" label="Items">
+          <header><h2>Queue</h2></header>
+          <div>
+            <nav aria-label="Review items">
+              <ul>
+                <li>
+                  <a href="#review-auth"><strong>Authentication retry</strong></a>
+                  <p>Ready · customer sign-in · medium risk</p>
+                </li>
+                <li>
+                  <a href="#review-cache"><strong>Cache migration</strong></a>
+                  <p>Ready · automatic rollback · high risk</p>
+                </li>
+                <li>
+                  <a href="#review-email"><strong>Receipt email</strong></a>
+                  <p>Ready · refund receipts · low risk</p>
+                </li>
+                <li>
+                  <a href="#review-export"><strong>Ledger export</strong></a>
+                  <p>Ready · finance integration · medium risk</p>
+                </li>
+                <li>
+                  <a href="#review-search"><strong>Order search</strong></a>
+                  <p>Accessibility reviewed · support workflow · low risk</p>
+                </li>
+                <li>
+                  <a href="#review-worker"><strong>Settlement worker</strong></a>
+                  <p>Ready · asynchronous processing · medium risk</p>
+                </li>
+                <li>
+                  <a href="#review-billing"><strong>Billing reconciliation</strong></a>
+                  <p>Ready · legacy reporting path · high risk</p>
+                </li>
+                <li>
+                  <a href="#review-webhook"><strong>Webhook delivery</strong></a>
+                  <p>Ready · partner integrations · low risk</p>
+                </li>
+              </ul>
+            </nav>
+            <section id="review-notes">
+              <h3>Release notes</h3>
+              <p>Two items change stored data. Four affect behavior at request time.</p>
+              <details id="review-method">
+                <summary>How this queue was ordered</summary>
                 <p>
-                  Two items change stored data. Four affect behavior at request time.
+                  Data changes lead, followed by customer-visible paths and workers.
                 </p>
-                <details id="review-method">
-                  <summary>How this queue was ordered</summary>
-                  <p>
-                    Data changes lead, followed by customer-visible paths and workers.
-                  </p>
-                </details>
-              </section>
-            </div>
-          </lf-pane>
+              </details>
+            </section>
+          </div>
+        </lf-pane>
 
-          <lf-pane id="review-detail" label="Selected item">
-            <header><h2>Details</h2></header>
-            <div id="review-items">
-              <section id="review-auth">
-                <h3>Authentication retry</h3>
-                <dl>
-                  <dt>Status</dt>
-                  <dd>Ready for release</dd>
-                  <dt>Owner</dt>
-                  <dd>Identity platform</dd>
-                  <dt>Reach</dt>
-                  <dd>Web and mobile sign-in</dd>
-                </dl>
+        <lf-pane id="review-detail" label="Selected item">
+          <header><h2>Details</h2></header>
+          <div id="review-items">
+            <section id="review-auth">
+              <h3>Authentication retry</h3>
+              <dl>
+                <dt>Status</dt>
+                <dd>Ready for release</dd>
+                <dt>Owner</dt>
+                <dd>Identity platform</dd>
+                <dt>Reach</dt>
+                <dd>Web and mobile sign-in</dd>
+              </dl>
+              <p>
+                The client retries one expired-session response after refreshing its
+                credentials. Other authorization failures return immediately.
+              </p>
+              <p>
+                Concurrent calls from the same tab share one refresh request. Waiting
+                calls reuse its result when a busy page reaches session expiry.
+              </p>
+              <h4>Release evidence</h4>
+              <ul>
+                <li>
+                  An expired session refreshes once and repeats the original call.
+                </li>
+                <li>A revoked session returns the first authorization failure.</li>
+                <li>A failed refresh leaves the original request unsuccessful.</li>
+                <li>Five concurrent calls share one refresh response.</li>
+                <li>The retry preserves the original idempotency key.</li>
+              </ul>
+              <details id="review-auth-evidence">
+                <summary>Inspect the remaining concern</summary>
                 <p>
-                  The client retries one expired-session response after refreshing its
-                  credentials. Other authorization failures return immediately.
+                  The mobile client waits up to three seconds for the shared refresh.
+                  The release check must confirm that a slow network still surfaces the
+                  sign-in screen instead of leaving the request pending.
                 </p>
-                <p>
-                  Concurrent calls from the same tab share one refresh request. Waiting
-                  calls reuse its result when a busy page reaches session expiry.
-                </p>
-                <h4>Release evidence</h4>
-                <ul>
-                  <li>
-                    An expired session refreshes once and repeats the original call.
-                  </li>
-                  <li>A revoked session returns the first authorization failure.</li>
-                  <li>A failed refresh leaves the original request unsuccessful.</li>
-                  <li>Five concurrent calls share one refresh response.</li>
-                  <li>The retry preserves the original idempotency key.</li>
-                </ul>
-                <details id="review-auth-evidence">
-                  <summary>Inspect the remaining concern</summary>
-                  <p>
-                    The mobile client waits up to three seconds for the shared refresh.
-                    The release check must confirm that a slow network still surfaces
-                    the sign-in screen instead of leaving the request pending.
-                  </p>
-                </details>
-                <h4>Rollback</h4>
-                <p>
-                  The client flag can disable the retry without changing session or
-                  credential data. Requests then follow the previous single-attempt
-                  path.
-                </p>
-              </section>
-              <section id="review-cache">
-                <h3>Cache migration</h3>
-                <p>
-                  The deploy copies active entries to the new key format before readers
-                  switch. It mirrors writes for 24 hours and returns readers to the old
-                  keys automatically if the post-switch counts diverge.
-                </p>
-                <pre><code>copy active keys
+              </details>
+              <h4>Rollback</h4>
+              <p>
+                The client flag can disable the retry without changing session or
+                credential data. Requests then follow the previous single-attempt path.
+              </p>
+            </section>
+            <section id="review-cache">
+              <h3>Cache migration</h3>
+              <p>
+                The deploy copies active entries to the new key format before readers
+                switch. It mirrors writes for 24 hours and returns readers to the old
+                keys automatically if the post-switch counts diverge.
+              </p>
+              <pre><code>copy active keys
 verify counts
 switch readers
 mirror writes 24h
 expire old keys</code></pre>
-                <lf-ask id="review-cache-decision">
-                  <h4>What should happen if post-switch verification fails?</h4>
-                  <p>
-                    Both choices keep the old keys available while the migration is
-                    checked.
-                  </p>
-                  <lf-options id="review-cache-rollback" choose settled>
-                    <lf-option id="review-cache-auto" chosen>
-                      <strong>Switch readers back automatically</strong> Mirror writes
-                      for 24 hours, then return to the old keys if counts diverge.
-                    </lf-option>
-                    <lf-option id="review-cache-hold">
-                      <strong>Stop for operator review</strong> Keep readers on the new
-                      keys until an operator inspects the mismatch.
-                    </lf-option>
-                  </lf-options>
-                </lf-ask>
-              </section>
-              <section id="review-email">
-                <h3>Receipt email</h3>
+              <lf-ask id="review-cache-decision">
+                <h4>What should happen if post-switch verification fails?</h4>
                 <p>
-                  Refund receipts now show the original charge and the refunded amount
-                  in the settlement currency.
+                  Both choices keep the old keys available while the migration is
+                  checked.
                 </p>
-                <ul>
-                  <li>Partial refunds keep the original order number.</li>
-                  <li>Repeated refunds list each settlement separately.</li>
-                  <li>Failed sends remain available for retry.</li>
-                </ul>
-              </section>
-              <section id="review-export">
-                <h3>Ledger export</h3>
-                <p>
-                  The exporter writes numeric amounts without display formatting and
-                  records the schema version beside each batch.
-                </p>
-                <details id="review-export-rollback">
-                  <summary>Rollback path</summary>
-                  <p>
-                    Readers accept the previous schema until the new batch is verified.
-                  </p>
-                </details>
-              </section>
-              <section id="review-search">
-                <h3>Order search</h3>
-                <p>
-                  Archived orders follow the existing filter instead of disappearing
-                  when a customer narrows by status.
-                </p>
-                <p>Pagination retains the filter on every subsequent request.</p>
-              </section>
-              <section id="review-worker">
-                <h3>Settlement worker</h3>
-                <p>
-                  Jobs that fail validation leave the shared queue and enter a review
-                  list with their source record attached.
-                </p>
-                <pre><code>validate -> settle
-        -> review</code></pre>
-              </section>
-              <section id="review-billing">
-                <h3>Billing reconciliation</h3>
-                <p>
-                  The close job compares settlement totals with the ledger before it
-                  publishes the monthly report. A mismatch stops publication and keeps
-                  both source summaries attached to the run.
-                </p>
-                <h4>Samples checked</h4>
-                <ul>
-                  <li>A partial refund posted after capture.</li>
-                  <li>Two refunds against one charge.</li>
-                  <li>A settlement converted into the reporting currency.</li>
-                  <li>A late adjustment received during the comparison.</li>
-                </ul>
-                <div id="review-billing-difference">
-                  <h4>Legacy difference stays on its reporting path</h4>
-                  <p>
-                    One legacy invoice rounds tax before currency conversion. It remains
-                    in the old reporting path, so the current run closes without
-                    changing the historical ledger entry.
-                  </p>
-                </div>
-                <lf-ask id="review-billing-decision">
-                  <h4>Where should the legacy invoice be reconciled?</h4>
-                  <p>
-                    The one-cent difference is confined to invoices created before the
-                    reporting migration.
-                  </p>
-                  <lf-options id="review-billing-path" choose settled>
-                    <lf-option id="review-billing-legacy" chosen>
-                      <strong>Keep it on the old reporting path</strong> Close the
-                      current run without changing the historical ledger entry.
-                    </lf-option>
-                    <lf-option id="review-billing-correct">
-                      <strong>Correct the ledger entry</strong> Move the invoice into
-                      the new path after finance approves the adjustment.
-                    </lf-option>
-                  </lf-options>
-                </lf-ask>
-              </section>
-              <section id="review-webhook">
-                <h3>Webhook delivery</h3>
-                <p>
-                  Delivery attempts retain the event id across retries. Partners can
-                  deduplicate a delayed event without provider-specific headers.
-                </p>
-                <p>
-                  The retry schedule and signing secret remain unchanged. The release
-                  adds the stable id to the documented request body.
-                </p>
-              </section>
-            </div>
-            <footer>
+                <lf-options id="review-cache-rollback" choose settled>
+                  <lf-option id="review-cache-auto" chosen>
+                    <strong>Switch readers back automatically</strong> Mirror writes for
+                    24 hours, then return to the old keys if counts diverge.
+                  </lf-option>
+                  <lf-option id="review-cache-hold">
+                    <strong>Stop for operator review</strong> Keep readers on the new
+                    keys until an operator inspects the mismatch.
+                  </lf-option>
+                </lf-options>
+              </lf-ask>
+            </section>
+            <section id="review-email">
+              <h3>Receipt email</h3>
               <p>
-                <strong>Review closed.</strong> This revision incorporates both answers:
-                automatic cache rollback and the legacy billing reporting path. All
-                eight items are ready for the 2.8 release.
+                Refund receipts now show the original charge and the refunded amount in
+                the settlement currency.
               </p>
-            </footer>
-          </lf-pane>
-        </lf-grid>
-      </lf-workspace>
+              <ul>
+                <li>Partial refunds keep the original order number.</li>
+                <li>Repeated refunds list each settlement separately.</li>
+                <li>Failed sends remain available for retry.</li>
+              </ul>
+            </section>
+            <section id="review-export">
+              <h3>Ledger export</h3>
+              <p>
+                The exporter writes numeric amounts without display formatting and
+                records the schema version beside each batch.
+              </p>
+              <details id="review-export-rollback">
+                <summary>Rollback path</summary>
+                <p>
+                  Readers accept the previous schema until the new batch is verified.
+                </p>
+              </details>
+            </section>
+            <section id="review-search">
+              <h3>Order search</h3>
+              <p>
+                Archived orders follow the existing filter instead of disappearing when
+                a customer narrows by status.
+              </p>
+              <p>Pagination retains the filter on every subsequent request.</p>
+            </section>
+            <section id="review-worker">
+              <h3>Settlement worker</h3>
+              <p>
+                Jobs that fail validation leave the shared queue and enter a review list
+                with their source record attached.
+              </p>
+              <pre><code>validate -> settle
+        -> review</code></pre>
+            </section>
+            <section id="review-billing">
+              <h3>Billing reconciliation</h3>
+              <p>
+                The close job compares settlement totals with the ledger before it
+                publishes the monthly report. A mismatch stops publication and keeps
+                both source summaries attached to the run.
+              </p>
+              <h4>Samples checked</h4>
+              <ul>
+                <li>A partial refund posted after capture.</li>
+                <li>Two refunds against one charge.</li>
+                <li>A settlement converted into the reporting currency.</li>
+                <li>A late adjustment received during the comparison.</li>
+              </ul>
+              <div id="review-billing-difference">
+                <h4>Legacy difference stays on its reporting path</h4>
+                <p>
+                  One legacy invoice rounds tax before currency conversion. It remains
+                  in the old reporting path, so the current run closes without changing
+                  the historical ledger entry.
+                </p>
+              </div>
+              <lf-ask id="review-billing-decision">
+                <h4>Where should the legacy invoice be reconciled?</h4>
+                <p>
+                  The one-cent difference is confined to invoices created before the
+                  reporting migration.
+                </p>
+                <lf-options id="review-billing-path" choose settled>
+                  <lf-option id="review-billing-legacy" chosen>
+                    <strong>Keep it on the old reporting path</strong> Close the current
+                    run without changing the historical ledger entry.
+                  </lf-option>
+                  <lf-option id="review-billing-correct">
+                    <strong>Correct the ledger entry</strong> Move the invoice into the
+                    new path after finance approves the adjustment.
+                  </lf-option>
+                </lf-options>
+              </lf-ask>
+            </section>
+            <section id="review-webhook">
+              <h3>Webhook delivery</h3>
+              <p>
+                Delivery attempts retain the event id across retries. Partners can
+                deduplicate a delayed event without provider-specific headers.
+              </p>
+              <p>
+                The retry schedule and signing secret remain unchanged. The release adds
+                the stable id to the documented request body.
+              </p>
+            </section>
+          </div>
+          <footer>
+            <p>
+              <strong>Review closed.</strong> This revision incorporates both answers:
+              automatic cache rollback and the legacy billing reporting path. All eight
+              items are ready for the 2.8 release.
+            </p>
+          </footer>
+        </lf-pane>
+      </div>
     </main>
   </body>
 </html>

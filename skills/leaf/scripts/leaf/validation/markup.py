@@ -1,41 +1,20 @@
 """Shared structural and authored-markup validation rules."""
 
-import re
 from pathlib import Path
 
-from leaf.schema import MEDIA_DIR
+from markdown_it import MarkdownIt
+
+from leaf.schema import MEDIA_DIR, SERVED_PATH
 from leaf.structure import (
     AUTHORED_ALLOCATIONS,
-    HEADING_TAGS,
+    PAGE_ALLOCATIONS,
     SECTIONING_TAGS,
     SourceDocument,
     links_with_rel,
 )
 from leaf.styles import inline_presentation_override_errors
 
-# One media reference as a message's Markdown writes it: an inline destination, or the
-# definition a reference-style link resolves through, read where the runtime's own
-# `isCanonicalMediaUrl` reads one — so a path standing in a sentence or a fence keeps
-# being the author's words rather than a file the page owes. Any `/media/…` it names,
-# which is the predicate the markup door's attribute harvest already keeps: the
-# directory holds digest-named files and nothing else, so every other destination is
-# one it cannot answer either.
-MEDIA_REFERENCE = re.compile(
-    rf"(?:\]\(\s*|^ {{0,3}}\[[^\]\n]+\]:\s*)<?(/{MEDIA_DIR}/[^\s)>]+)",
-    re.MULTILINE,
-)
-
-
-def reserved_ids_error(ids: list) -> str:
-    """The one sentence for an authored id in the runtime's own namespace, shared by the
-    version lint and the thread-markup one — page ids and a reply's are one universe, so
-    what keeps both clear of the runtime's is one rule. leaf.js coins document ids
-    under `lf-` (`lf-composer-quote`) and points ARIA at them, so an authored id there
-    redirects the reference to the page."""
-    return (
-        "ids in the runtime's own lf- namespace (it coins lf-composer-quote there, "
-        f"and points ARIA at them): {ids}"
-    )
+_message_markdown = MarkdownIt("commonmark")
 
 
 def reserved_marker_errors(parser) -> list:
@@ -53,18 +32,39 @@ def reserved_marker_errors(parser) -> list:
 
 
 def id_errors(parser) -> list:
-    """What a parsed page's own names must not do: repeat, or trespass on the runtime's
-    own namespace — its ids, and its markers. One reader, because the two gates that decision
-    are asking the same thing of the same parser: a version, and a catalog example, which
-    is markup an author writes from. Written twice, the second gate is the one that goes
-    on not asking whatever the first one learns to."""
+    """What a parsed markup's own names must not do: repeat, hold whitespace, or trespass
+    on the runtime's own namespace — its ids, and its markers. One reader, because every
+    gate that decides this is asking the same thing of the same parser: a version, a
+    catalog example, which is markup an author writes from, and a message's widget
+    markup, since page ids and a reply's are one universe. Written twice, the second
+    gate is the one that goes on not asking whatever the first one learns to."""
     errors = []
     if parser.duplicate_ids:
         errors.append(
             f"duplicate ids (anchors need unique targets): {parser.duplicate_ids}"
         )
+    # HTML forbids whitespace in an id, and nothing downstream refuses one: the browser
+    # still finds the element, so a comment anchors on the whole string and the page
+    # reads as working. The id is then a thread's address, and renaming it means moving
+    # the thread first; authoring is the one moment the fix costs nothing.
+    if parser.spaced_ids:
+        errors.append(
+            f"ids containing whitespace, which HTML forbids in an id: {parser.spaced_ids}"
+        )
+    # leaf.js coins document ids under `lf-` (`lf-composer-quote`) and points ARIA at
+    # them, so an authored id there redirects the reference to the page.
     if parser.reserved_ids:
-        errors.append(reserved_ids_error(parser.reserved_ids))
+        errors.append(
+            "ids in the runtime's own lf- namespace (it coins lf-composer-quote there, "
+            f"and points ARIA at them): {parser.reserved_ids}"
+        )
+    # A command's ID names a widget or a message, whichever the page holds; the log
+    # mints message ids in this shape, so an authored one could name both.
+    if parser.event_shaped_ids:
+        errors.append(
+            "ids shaped like the event ids the log mints (eight hex digits), which "
+            f"commands would read as a message: {parser.event_shaped_ids}"
+        )
     return errors + reserved_marker_errors(parser)
 
 
@@ -114,99 +114,6 @@ def unpointable_blocks(parser: SourceDocument) -> list:
     return lines
 
 
-def main_roots(parser: SourceDocument) -> tuple:
-    """`main` and the authored blocks directly in it: text, and elements other than
-    script, style and template."""
-    main = next((node for node in parser.nodes if node["tag"] == "main"), None)
-    if main is None:
-        return None, []
-    return main, [
-        node
-        for node in main["content"]
-        if (isinstance(node, str) and node.strip())
-        or (
-            isinstance(node, dict)
-            and node["tag"] not in {"script", "style", "template"}
-        )
-    ]
-
-
-def sole_workspace(roots: list, registry: dict) -> dict | None:
-    """The workspace that is `main`'s only block, if one is."""
-    if (
-        len(roots) == 1
-        and isinstance(roots[0], dict)
-        and registry.get(roots[0]["tag"], {}).get("x-reading-role") == "workspace"
-    ):
-        return roots[0]
-    return None
-
-
-def workspace_sheet_errors(parser: SourceDocument, registry: dict) -> list:
-    """A workspace holds the window as a sheet's sole content, so a page whose only
-    block is a workspace declares the sheet. Without it the workspace flows in the
-    reading column, which is never what a page made of one workspace means."""
-    main, roots = main_roots(parser)
-    workspace = sole_workspace(roots, registry)
-    if workspace is None or main["attrs"].get("data-width") in {"wide", "available"}:
-        return []
-    return [
-        (
-            f"line {main['line']}: <main> holds only <{workspace['tag']}>, and a "
-            "workspace holds the window as a sheet's sole content: write "
-            '<main data-width="available">'
-        )
-    ]
-
-
-def missing_outline(parser: SourceDocument, registry: dict) -> list:
-    """A document with several headings and nothing that lists them. Advice, never a
-    gate: the outline widget's own entry states the default — a page with two or
-    more headings carries one — and this is that default's feedback loop, the way
-    unpointable_blocks is the id rule's.
-
-    The registry says which element is the outline (x-outline), so a layer shipping
-    its own navigation gets its own tag back and a layer shipping none stays quiet
-    instead of naming an element the page could not declare. Two headings is a
-    deliberately low bar. An author who reads the line and still leaves the page
-    bare has answered it: on a page short enough to take in whole, a list of its
-    headings says nothing the page has not already said."""
-    main, roots = main_roots(parser)
-    if main is not None:
-        workspace = sole_workspace(roots, registry) is not None
-        page_navigation = (
-            roots
-            and len(roots) <= 2
-            and isinstance(roots[-1], dict)
-            and registry.get(roots[-1]["tag"], {}).get("x-page-navigation") is True
-            and (
-                len(roots) == 1
-                or (isinstance(roots[0], dict) and roots[0]["tag"] == "header")
-            )
-        )
-        if workspace or page_navigation:
-            return []
-    outline = sorted(
-        # Widgets only — a $ entry is a layer-wide namespace, not a tag a page can
-        # write, and $keys spells its members in the x- keys' own names.
-        tag
-        for tag, entry in registry.items()
-        if tag.startswith("lf-") and entry.get("x-outline")
-    )
-    if not outline or any(record["tag"] in outline for record in parser.lf_elements):
-        return []
-    headings = [node for node in parser.nodes if node["tag"] in HEADING_TAGS]
-    if len(headings) < 2:
-        return []
-    return [
-        (
-            f"{len(headings)} headings and no <{outline[0]}>: one in an "
-            "aside.sidebar near the opening lists them, unless the page is compact "
-            "enough that its outline is already visible at a glance"
-        )
-    ]
-
-
 def structure_errors(parser: SourceDocument) -> list:
     """Structural complaints and source elements missing a required end tag."""
     errors = list(parser.errors)
@@ -252,12 +159,46 @@ def page_boundary_errors(parser: SourceDocument) -> list:
 
 
 def authored_allocation_errors(parser: SourceDocument) -> list:
-    """Authored allocations use the layer's named values."""
+    """Authored allocations use the layer's named values, and a page's own allocation
+    stands on its `body`."""
+    return (
+        [
+            f"{at(item, item['attr'] + '=' + repr(item['value']))} has an invalid value; "
+            f"expected one of {', '.join(AUTHORED_ALLOCATIONS[item['attr']])}"
+            for item in parser.authored_allocations
+            if item["value"] not in AUTHORED_ALLOCATIONS[item["attr"]]
+        ]
+        + [
+            f"{at(item, item['attr'])} belongs on <body>, where it says whether the page "
+            f"keeps a rail"
+            for item in parser.authored_allocations
+            if item["attr"] in PAGE_ALLOCATIONS and item["tag"] != "body"
+        ]
+        + [
+            f"{at(item, item['attr'])} sizes a block in the page's flow, and <main> is the "
+            "page: its width is a Layout class on it (layout-wide, layout-sidebar, "
+            "layout-workspace)"
+            for item in parser.authored_allocations
+            if item["attr"] not in PAGE_ALLOCATIONS and item["tag"] == "main"
+        ]
+    )
+
+
+def unarranged_main(parser: SourceDocument) -> list:
+    """Advice for a `main` with no Layout class. Nothing arranges such a page, so its
+    blocks run the window's width; the page's own CSS may mean exactly that, which is
+    why this is advice rather than an error."""
+    main = next((node for node in parser.nodes if node["tag"] == "main"), None)
+    if main is None or any(
+        name.startswith("layout-") for name in main["attrs"].get("class", "").split()
+    ):
+        return []
     return [
-        f"{at(item, item['attr'] + '=' + repr(item['value']))} has an invalid value; "
-        f"expected one of {', '.join(AUTHORED_ALLOCATIONS[item['attr']])}"
-        for item in parser.authored_allocations
-        if item["value"] not in AUTHORED_ALLOCATIONS[item["attr"]]
+        (
+            "<main> has no Layout class, so nothing arranges the page and its blocks "
+            'run the window\'s width; class="layout-column" sets the reading column, '
+            "unless the page's own CSS arranges it"
+        )
     ]
 
 
@@ -324,21 +265,33 @@ def text_media_errors(text: str, page_dir: Path) -> list:
     through the one door that never asked. `check_markup` runs only when `--markup` is
     given, and text on its own reached the log unread.
 
-    A reference is a link or image destination, never a scan of the words: the runtime
-    resolves `/media/…` off a token's href and nowhere else, `version check` says the
-    same of authored markup, and `inline_assets` learned it from an export a text scan
-    crashed. So a path quoted in prose is the author writing about leaf, and only a
-    destination is a file the directory has to answer. A destination is written two
-    ways, and `marked` resolves both to the same href: inline after `](`, or as the
-    definition a reference-style `![shot][ref]` points at. The residual is a fence
-    quoting either construct — the one `inline_assets` names and accepts too — and a
-    definition nothing references, which renders nothing but reads as one."""
-    return _unanswered_media(set(MEDIA_REFERENCE.findall(text)), page_dir)
+    A reference is a rendered link or image destination, never a scan of the words.
+    Parsing the Markdown resolves referenced definitions and leaves fenced examples
+    and unused definitions as text, so neither asks for a file the page will not load."""
+    refs = {
+        url
+        for token in _message_markdown.parse(text)
+        for child in token.children or ()
+        if child.type in {"link_open", "image"}
+        if (url := child.attrGet("href" if child.type == "link_open" else "src"))
+        and url.startswith(f"/{MEDIA_DIR}/")
+    }
+    return _unanswered_media(refs, page_dir)
 
 
 def _unanswered_media(refs, page_dir: Path) -> list:
-    return [
-        f"{ref} isn't in the page directory; `leaf page media` puts it there"
-        for ref in sorted(refs)
-        if not (page_dir / ref.lstrip("/")).is_file()
-    ]
+    """Every `/media/…` reference the page will not answer: one whose name the server
+    never serves (`schema.MEDIA_DIGEST`), whatever the directory holds under it, and
+    one the directory has not got."""
+    errors = []
+    for ref in sorted(refs):
+        if not SERVED_PATH.fullmatch(ref):
+            errors.append(
+                f"{ref} isn't a name `leaf page media` gives, so the page never "
+                "serves it"
+            )
+        elif not (page_dir / ref.lstrip("/")).is_file():
+            errors.append(
+                f"{ref} isn't in the page directory; `leaf page media` puts it there"
+            )
+    return errors

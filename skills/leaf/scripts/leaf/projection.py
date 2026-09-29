@@ -15,13 +15,14 @@ from leaf.events import (
     retractions,
     taken_back,
 )
-from leaf.passages import EMPTY, collapse, enclosing_of, spoken
+from leaf.passages import EMPTY, SourceReading, collapse, enclosing_of
 from leaf.registry.contract import WRITERS, decides, event_spec, state_specs
 from leaf.registry.state import retirement_slots
+from leaf.schema import agent_name
 from leaf.structure import SourceDocument
 from leaf.thread_context import (
     ThreadStructure,
-    thread_roots,
+    thread_names,
     thread_structure,
     thread_widgets,
 )
@@ -56,7 +57,7 @@ def _report_updates(projection) -> list[dict]:
                 "ts": event["ts"],
                 "revision": event["revision"],
                 "seq": event["seq"],
-                "agent": event.get("agent"),
+                "agent": agent_name(event),
                 "session": event.get("session"),
                 "disposition": (
                     "effective"
@@ -72,7 +73,7 @@ def _report_updates(projection) -> list[dict]:
 
 def _claim_effective(claim: dict, threads: dict, events: list) -> bool:
     target = claim["target"]
-    if target["kind"] == "conversation":
+    if target["kind"] == "thread":
         thread = threads.get(target["id"])
         return bool(
             thread
@@ -101,7 +102,6 @@ def _claim_updates(claims: list, threads: dict, events: list) -> list[dict]:
             ),
         }
         for claim in claims
-        if claim.get("scope") != "interaction"
     ]
 
 
@@ -327,9 +327,14 @@ class StateProjection(NamedTuple):
 
     `absorbed` holds the moves whose container this document authors differently
     from the revision the move was made on (`move_absorbed`). Every revision that
-    does passed `version check` against the fold that held the move, so its markup
+    does passed `page check` against the fold that held the move, so its markup
     wrote the unit where the move put it. An absorbed move still stands, as a
-    written-back pick does, but no longer places its unit: the markup does."""
+    written-back pick does, but no longer places its unit: the markup does.
+
+    `standing` holds every action that survives, neither taken back nor retracted;
+    `actions` is the newest of them at each coordinate. A browser withdrawing the one
+    on top locally falls back to the next of these rather than judging survival
+    again."""
 
     actions: dict
     reports: dict
@@ -337,33 +342,44 @@ class StateProjection(NamedTuple):
     report_settlements: dict
     classified: dict
     absorbed: frozenset
+    standing: frozenset
 
 
 class PageReading(NamedTuple):
     """One page document and the durable state folded against that exact source."""
 
-    document: SourceDocument
+    reading: SourceReading
     revision: int
     events: list
-    registry: dict
-    spoken: dict
     projection: StateProjection
 
     @property
+    def document(self) -> SourceDocument:
+        return self.reading.document
+
+    @property
+    def registry(self) -> dict:
+        return self.reading.registry
+
+    @property
+    def spoken(self) -> dict:
+        return self.reading.spoken
+
+    @property
     def within(self) -> dict:
-        return enclosing_of(self.spoken)
+        return self.reading.within
 
 
 class FrozenThreadReading(NamedTuple):
     """The panel's frozen markup and durable state as one document.
 
     No revision window or retraction floor bounds this projection. The markup
-    was frozen into the log, so its actions read the whole conversation window.
+    was frozen into the log, so its actions read the whole thread window.
     """
 
     structure: ThreadStructure
     spoken: dict
-    roots: dict
+    thread_by_name: dict
     thread_by_widget: dict
     projection: StateProjection
 
@@ -378,6 +394,16 @@ class FrozenThreadReading(NamedTuple):
             for fragment in self.structure.fragments.values()
             for record in fragment.lf_elements
         ]
+
+    def subject_thread(self, subject: dict) -> str | None:
+        """The thread a workflow or update subject stands in: a thread subject is
+        its own, a widget frozen into a message is its thread's, and a page widget
+        stands in none."""
+        if subject["kind"] == "thread":
+            return subject["id"]
+        if subject["kind"] == "widget":
+            return self.thread_by_widget.get(subject["id"])
+        return None
 
 
 def state_projection(
@@ -406,6 +432,7 @@ def state_projection(
     withdrawn = taken_back(events)
     settled = report_settlements(events, upto)
     actions = {}
+    standing = set()
     reports = {}
     settlement_versions = {}
     classified = {}
@@ -430,6 +457,7 @@ def state_projection(
             if event["id"] in withdrawn or action_retracted(event, floors, within):
                 continue
             actions[coordinate] = entry
+            standing.add(event["id"])
         elif settled_at := settled.get(event["id"]):
             settlement_versions[coordinate] = max(
                 settlement_versions.get(coordinate, 0), settled_at
@@ -453,6 +481,7 @@ def state_projection(
         settlement_versions,
         classified,
         absorbed,
+        frozenset(standing),
     )
 
 
@@ -469,22 +498,22 @@ def with_action(
     return projection._replace(
         actions={**projection.actions, coordinate: entry},
         desired={**projection.desired, coordinate: entry},
+        standing=projection.standing | {event["id"]},
     )
 
 
 def frozen_thread_reading(events: list, registry: dict) -> FrozenThreadReading:
     """Project every frozen message fragment through one shared reading."""
     structure = thread_structure(events)
-    roots = thread_roots(events)
+    by_name = thread_names(events)
     spk = {}
-    for event in events:
-        if markup := event.get("markup"):
-            spk.update(spoken(SourceDocument(markup), registry))
-    by_widget = thread_widgets(structure, roots)
+    for fragment in structure.fragments.values():
+        spk.update(SourceReading(fragment, registry).spoken)
+    by_widget = thread_widgets(structure, by_name)
     return FrozenThreadReading(
         structure,
         spk,
-        roots,
+        by_name,
         by_widget,
         state_projection(events, structure.by_id, spk, registry, None, floors={}),
     )
@@ -555,7 +584,7 @@ def move_absorbed(
     revision the move was made on: other units, or the same in another order, than
     the move's `meaning.among`. The rank lies among those authored units, so it lands
     in the gap the user chose only while they stand as they did; a document that
-    changes them has written the unit itself (`version check`). `orders` caches each
+    changes them has written the unit itself (`page check`). `orders` caches each
     owner's authored order across the calls one reading makes."""
     among = event["meaning"].get("among")
     if among is None:
@@ -675,23 +704,25 @@ def folded_value(e: dict, spec: dict):
     return value
 
 
-def page_reading(
-    document: SourceDocument, events: list, registry: dict, revision: int
-) -> PageReading:
+def page_reading(reading: SourceReading, events: list, revision: int) -> PageReading:
     """Read one page's markup and log window through one construction.
 
-    Document inspection and the passage readings used by `leaf comment` and
-    `version check` share declarations, floors, and the log window. The parser
-    and spoken reading travel with the projection for callers that need its
-    authored construction."""
-    spk = spoken(document, registry)
+    Document inspection and the passage readings used by `leaf thread open` and
+    `page check` share declarations, floors, and the log window. The document's
+    own reading (`SourceReading`) travels with the projection for callers that need
+    its authored construction; a stored revision's is held across reads, so only
+    the fold over the log is taken here."""
     return PageReading(
-        document,
+        reading,
         revision,
         events,
-        registry,
-        spk,
-        state_projection(events, document.by_id, spk, registry, revision),
+        state_projection(
+            events,
+            reading.document.by_id,
+            reading.spoken,
+            reading.registry,
+            revision,
+        ),
     )
 
 

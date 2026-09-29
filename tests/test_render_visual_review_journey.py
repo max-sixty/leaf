@@ -17,7 +17,7 @@ from render_cases_layout import (
 from render_harness import (
     CORPUS_SOURCES,
     consume_browser_errors,
-    holds_the_window,
+    fills_the_window,
     leaf_page,
     open_page,
     resized,
@@ -98,13 +98,13 @@ def go_to(page, target, kind="Control"):
 def comment_on_target(page, target):
     """Choose one rendered datum through Leaf's keyboard target map."""
     page.keyboard.press("s")
-    hints = page.locator(".lf-target-chooser-hint[data-lf-hint-code]")
+    hints = page.locator(".lf-target-picker-hint[data-lf-hint-code]")
     expect(hints.first).to_be_visible()
     code = target.evaluate(
         """target => {
           const at = target.getBoundingClientRect();
           const chips = [...document.querySelectorAll(
-            '.lf-target-chooser-hint[data-lf-hint-code]')];
+            '.lf-target-picker-hint[data-lf-hint-code]')];
           return chips.map(chip => {
             const box = chip.getBoundingClientRect();
             return {code: chip.dataset.lfHintCode,
@@ -112,20 +112,25 @@ def comment_on_target(page, target):
           }).sort((a, b) => a.distance - b.distance)[0]?.code ?? null;
         }"""
     )
-    assert code, "the rendered datum had no target-chooser hint"
+    assert code, "the rendered datum had no target-picker hint"
     page.keyboard.type(code)
 
 
 def assert_keyboard_focus(page, control):
-    """The focused destination declares a visible treatment and is not covered."""
+    """The focused destination declares a visible treatment and is not covered.
+
+    A text field always shows its focus, as a textarea does. Chrome never gives a host
+    that delegates focus `:focus-visible`, so the field's treatment keys on `:focus`,
+    and that is the state asked of it here."""
     expect(control).to_be_focused()
     focus = control.evaluate(
         """node => {
           const box = node.getBoundingClientRect();
           const hit = document.elementFromPoint(
             box.left + box.width / 2, box.top + box.height / 2);
+          const shown = node.localName === 'leaf-text' ? ':focus' : ':focus-visible';
           return {
-            focusVisible: node.matches(':focus-visible'),
+            focusVisible: node.matches(shown),
             unobscured: Boolean(hit && (hit === node || node.contains(hit))),
             inViewport: box.top >= 0 && box.left >= 0
               && box.bottom <= innerHeight && box.right <= innerWidth,
@@ -228,10 +233,8 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     review_url = serve(
         leaf_page(
             "authenticated navigation review",
-            '<lf-workspace id="journey-workspace">'
-            '<lf-visual-review id="journey" source="journey-run"></lf-visual-review>'
-            "</lf-workspace>",
-            width="available",
+            '<lf-visual-review id="journey" source="journey-run"></lf-visual-review>',
+            layout="workspace",
         ),
         packages=("visual-review",),
     )
@@ -353,7 +356,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     response = user.context.request.get(f"{target_base}v1.html")
     assert response.status == 403
     widget = user.locator("#journey")
-    holds_the_window(user, widget, True)
+    fills_the_window(user, widget, True)
     first = widget.locator('[data-lf-datum="open-release-list"]')
     second = widget.locator('[data-lf-datum="follow-release-link"]')
     first_images = first.locator("lf-shot img")
@@ -420,8 +423,8 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     expect(field).to_be_focused()
     user.keyboard.type("Restore Back to releases")
     resized(user, 390, 760)
-    holds_the_window(user, widget, False)
-    expect(field).to_have_value("Restore Back to releases")
+    fills_the_window(user, widget, False)
+    expect(field).to_have_js_property("value", "Restore Back to releases")
     assert_keyboard_focus(user, field)
     field.evaluate("node => node.setSelectionRange(8, 12, 'backward')")
     shifted = record | {
@@ -436,7 +439,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     data_model.cmd_data_set(review_dir, "journey-run", shifted)
     told(user)
     expect(second.locator(".lf-vr-result")).to_contain_text("without a return route")
-    expect(field).to_have_value("Restore Back to releases")
+    expect(field).to_have_js_property("value", "Restore Back to releases")
     assert_keyboard_focus(user, field)
     assert field.evaluate(
         "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
@@ -455,12 +458,12 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     user.keyboard.press("g")
     user.keyboard.press("Shift+d")
     expect(field).to_be_focused()
-    expect(field).to_have_value("Restore Back to releases")
+    expect(field).to_have_js_property("value", "Restore Back to releases")
     assert_keyboard_focus(user, field)
 
     resized(user, 1366, 768)
-    holds_the_window(user, widget, True)
-    expect(field).to_have_value("Restore Back to releases")
+    fills_the_window(user, widget, True)
+    expect(field).to_have_js_property("value", "Restore Back to releases")
     assert_keyboard_focus(user, field)
     user.keyboard.press("Escape")
     expect(field).to_be_hidden()
@@ -476,7 +479,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     user.keyboard.press("g")
     user.keyboard.press("Shift+d")
     expect(field).to_be_focused()
-    expect(field).to_have_value("Restore Back to releases")
+    expect(field).to_have_js_property("value", "Restore Back to releases")
     field.press("End")
     user.keyboard.type(" on the candidate detail page.")
     with sending(user, "the navigation correction comment"):
@@ -493,6 +496,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
         "datum": "follow-release-link",
         "source": "journey-run",
         "source_revision": drafted_revision,
+        "identity": "follow-release-link",
     }
     review_events = [
         event
@@ -539,7 +543,9 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     user.keyboard.press("Shift+t")
     threads = user.get_by_role("dialog")
     expect(threads).to_contain_text("Restore Back to releases")
-    expect(threads).to_contain_text("Earlier data")
+    expect(threads.locator(".lf-quote")).to_have_attribute(
+        "title", "Jump to this passage"
+    )
 
     review_events = [
         event
@@ -560,3 +566,34 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     assert capture_key not in exported.read_text(encoding="utf-8")
     assert capture_key not in data_text
     assert "?t=" not in data_text
+
+
+def test_a_visual_review_states_where_its_pair_differs_in_every_view(browser, serve):
+    """lf-shot's rail is hidden outside Flip, and the default focus crop hides the
+    outlines, since it shows one part of the frame. A focus authored on an area that
+    did not change would then show nothing, so the case's position line states the
+    reading, with the strong changes the focus leaves out, and the full frame outlines
+    every region."""
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    widget = page.locator("#visual-review-run")
+    case = widget.locator(".lf-vr-case:not([hidden])")
+    marks = case.locator(".lf-shotframe").first.locator(".lf-shotdiff > span")
+    expect(widget).to_have_attribute("data-inspection-scope", "focus")
+    expect(case.locator(".lf-vr-case-position")).to_have_text(
+        "Case 1 of 3 · Changed · 4 changed areas (1 outside the focus)"
+    )
+    expect(marks.first).to_be_hidden()
+
+    widget.get_by_role("radio", name="Full frame").click()
+    expect(widget).to_have_attribute("data-inspection-scope", "full")
+    expect(case.locator(".lf-vr-shot-host")).to_have_attribute(
+        "data-focus-active", "false"
+    )
+    expect(marks).to_have_count(4)
+    expect(marks.first).to_be_visible()
+    # Below the compare view's frame label, where the image starts.
+    image_top, first_mark_top = case.locator(".lf-shotframe").first.evaluate(
+        """frame => [frame.querySelector('img').getBoundingClientRect().top,
+                    frame.querySelector('.lf-shotdiff').getBoundingClientRect().top]"""
+    )
+    assert first_mark_top == pytest.approx(image_top, abs=1)

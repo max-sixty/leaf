@@ -9,12 +9,16 @@
 import {
   indicate,
   inlineMarkdownFragment,
+  keeps,
+  keepsText,
   loadMarkdown,
+  nextRender,
   offer,
   once,
   onMotionPreferenceChange,
   reducedMotion,
   registerVisualParts,
+  sizeObserver,
 } from "/runtime/widget-api.js";
 import {
   INPUTS,
@@ -91,6 +95,7 @@ customElements.define(
     #C = null;
     #themeWatch = null;
     #autoPlayTimer = 0;
+    #laidOut = 0;
 
     connectedCallback() {
       this.#resolvePalette();
@@ -99,9 +104,11 @@ customElements.define(
         if (!reducedMotion())
           this.#autoPlayTimer = setTimeout(() => {
             this.#autoPlayTimer = 0;
+            // Shown, not merely laid out: a film in a tab the user has not opened still
+            // has boxes, and playing there repaints the page for nobody.
             if (
               this.isConnected &&
-              this.getClientRects().length &&
+              this.checkVisibility() &&
               document.visibilityState === "visible"
             )
               this.#play();
@@ -125,10 +132,27 @@ customElements.define(
         attributes: true,
         attributeFilter: ["data-theme", "class", "style"],
       });
+      // The drawing is laid out at the stage's width (sort.js, `geometry`), so a pane
+      // that changes width lays it out again. The new layout changes the stage's height,
+      // so it waits for the rendering pass after this delivery rather than feeding the
+      // height back into it.
+      let relayout = 0;
+      const sized = sizeObserver(() => {
+        if (relayout || this.#svgWidth() === this.#laidOut) return;
+        relayout = nextRender(() => {
+          relayout = 0;
+          if (!this.isConnected) return;
+          this.#layout();
+          this.#paint();
+          this.parts?.update();
+        });
+      });
+      sized.observe(this.stage);
       this.#themeWatch = () => {
         scheme.removeEventListener("change", repaint);
         stopMotionWatch();
         observer.disconnect();
+        sized.disconnect();
       };
       this.#paint();
     }
@@ -162,8 +186,18 @@ customElements.define(
       this.#C = C;
     }
 
+    // The SVG's own width, which the drawing's units are pixels of.
+    #svgWidth() {
+      return Math.round(this.svg.getBoundingClientRect().width);
+    }
+
+    #layout() {
+      this.#laidOut = this.#svgWidth();
+      this.painter.layout(this.#laidOut);
+    }
+
     #build() {
-      const stage = document.createElement("div");
+      const stage = (this.stage = document.createElement("div"));
       stage.className = "sort-stage";
       this.svg = document.createElementNS(SVGNS, "svg");
       this.svg.setAttribute("role", "img");
@@ -281,6 +315,7 @@ customElements.define(
 
       this.addEventListener("keydown", (e) => this.#key(e));
       this.append(stage, this.narration, this.timeline, bar, inputs, this.stats);
+      this.#layout();
       this.#load();
     }
 
@@ -289,20 +324,26 @@ customElements.define(
       this.#values = makeInput(this.#input, this.#seed);
       this.#film = trace(this.#values);
       this.#plain = plainMergeComparisons(this.#values);
-      this.shuffleBtn.disabled = this.#input !== "random";
+      this.shuffleBtn.toggleAttribute("disabled", this.#input !== "random");
       this.#t = 0;
       this.#step = -1;
-      this.scrub.max = this.#film.total;
+      keeps(this.scrub, "max", this.#film.total);
       this.momentCount.style.width = `${String(this.#film.steps.length).length}ch`;
-      this.momentTail.textContent = ` of ${this.#film.steps.length} · click to pause · Option/Alt-click to comment`;
+      keepsText(
+        this.momentTail,
+        ` of ${this.#film.steps.length} · click to pause · Option/Alt-click to comment`,
+      );
       this.#paintTimeline();
       this.#paint();
     }
 
+    // Neighbouring steps often say the same thing, and the note is rebuilt only when
+    // its words, or how Markdown renders them, changed.
     #renderNote() {
-      this.noteEl.replaceChildren(
-        inlineMarkdownFragment(this.#film.steps[this.#step].note, false),
-      );
+      const note = document.createElement("span");
+      note.append(inlineMarkdownFragment(this.#film.steps[this.#step].note, false));
+      if (note.innerHTML !== this.noteEl.innerHTML)
+        this.noteEl.replaceChildren(...note.childNodes);
     }
 
     // The timeline strip: each step's span coloured by phase, so where the time goes
@@ -340,21 +381,23 @@ customElements.define(
       const fr = frame(this.#film, this.#t);
       this.painter.paint(this.#film, fr, this.#C);
       this.scrub.value = this.#t;
-      this.playhead?.setAttribute("x", (1000 * this.#t) / this.#film.total - 1.5);
+      keeps(this.playhead, "x", (1000 * this.#t) / this.#film.total - 1.5);
       if (fr.i !== this.#step) {
         this.#step = fr.i;
         const s = fr.step;
-        this.phaseEl.textContent = PHASE_NAME[s.phase];
+        keepsText(this.phaseEl, PHASE_NAME[s.phase]);
         this.#renderNote();
         this.momentEl.dataset.part = `moment:${this.#input}:${this.#seed}:${fr.i}`;
-        this.momentCount.textContent = fr.i + 1;
-        this.dataset.phase = s.phase;
+        keepsText(this.momentCount, fr.i + 1);
+        keeps(this, "data-phase", s.phase);
         const final = s.kind === "done";
-        this.stats.textContent =
+        keepsText(
+          this.stats,
           `${s.cmp} comparisons and ${s.moves} element moves so far` +
-          (final
-            ? `. A plain top-down merge sort needs ${this.#plain} comparisons on this input.`
-            : `, of ${this.#film.comparisons} in all.`);
+            (final
+              ? `. A plain top-down merge sort needs ${this.#plain} comparisons on this input.`
+              : `, of ${this.#film.comparisons} in all.`),
+        );
         this.#indicate(s.line ? LINES[s.line] : null);
         this.dispatchEvent(
           new CustomEvent("sort-step", {
@@ -447,9 +490,10 @@ customElements.define(
       this.#autoPlayTimer = 0;
       this.#playing = false;
       cancelAnimationFrame(this.#raf);
-      if (this.playBtn)
-        this.playBtn.textContent =
-          this.#film && this.#t >= this.#film.total - 0.01 ? "Replay" : "Play";
+      keepsText(
+        this.playBtn,
+        this.#film && this.#t >= this.#film.total - 0.01 ? "Replay" : "Play",
+      );
     }
   },
 );

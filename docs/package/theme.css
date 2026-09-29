@@ -6,8 +6,8 @@ body.site-page main {
   padding-top: 28px;
 }
 
-/* The nav holds the reading column even where a page widens main for its exhibits,
- * so the brand and routes stay in one place from page to page. */
+/* The nav holds the reading column whatever Layout the page gives main, so the brand
+ * and routes stay in one place from page to page. */
 body.site-page nav.sitenav {
   display: flex;
   flex-wrap: wrap;

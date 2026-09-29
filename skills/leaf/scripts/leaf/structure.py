@@ -3,13 +3,11 @@
 import hashlib
 import re
 from html import escape
-from pathlib import Path
 from urllib.parse import urlsplit
 
 import turbohtml
 
-from .files import file_stamp, revision_path
-from .schema import MEDIA_DIR
+from .schema import EVENT_ID, MEDIA_DIR
 
 DELIVERY_ENCODING_META = '<meta charset="utf-8" data-lf-runtime>'
 UTF8_BOM = "\ufeff"
@@ -56,13 +54,8 @@ OPTIONAL_END = {
     "head",
     "body",
 }
-# How a plain code block names its language, matching leaf.js's own pattern. The
-# class is the universal one every Markdown renderer emits, so a block Claude wrote
-# elsewhere lands here unchanged.
-LANGUAGE_CLASS = re.compile(r"(?:^|\s)language-([\w+.#-]+)(?=\s|$)")
-
-# Attribute widths only count as pixels on these elements.
-PIXEL_WIDTH_TAGS = {"img", "svg", "table", "canvas", "iframe", "video", "object"}
+# HTML's ASCII whitespace: an id may hold none of it.
+ASCII_WHITESPACE = frozenset("\t\n\f\r ")
 
 # Blocks a user predictably points at whole rather than quoting: a run of code,
 # a table, a figure, an aside set off from the prose — and the sections
@@ -73,22 +66,20 @@ POINTABLE_TAGS = {"section", "article", "aside", "pre", "table", "figure"}
 # Where an aim that found no tighter id has escaped to: naming one of these is
 # naming most of the page.
 SECTIONING_TAGS = {"section", "article", "main", "body"}
-# The headings an outline of the page lists. h1 names the page, so it heads that
-# outline rather than standing in it. The outline widget selects the same set in the
-# browser (its own HEADING_SELECTOR).
-HEADING_TAGS = {"h2", "h3", "h4", "h5", "h6"}
-# The properties that overflow a column when pinned in pixels. max-width defines the
-# column instead, so it is read there and never counted here.
-OVERFLOW_PROPS = ("width", "min-width")
-# The allocations a page occurrence may state for any block, each attribute with the
-# values it takes: its width in the page's flow, and whether it bounds its own height.
+# The allocations a page occurrence may state, each attribute with the values it takes:
+# a block's width in the page's flow and whether it bounds its own height, and, on
+# `body` alone, whether the page claims the rail its margin rows stand in or keeps that
+# margin for its own residents.
 AUTHORED_ALLOCATIONS = {
     "data-width": ("column", "wide", "available"),
     "data-bound": ("start", "end"),
+    "data-rail": ("right", "none"),
 }
+# The allocations only the page's `body` states, being about the page as a whole.
+PAGE_ALLOCATIONS = frozenset({"data-rail"})
 # Page-level declarations the runtime reads from <meta name="lf-*"> in the head,
 # name → allowed content values (None = free-form). A misspelled name or value
-# would silently declare nothing in the browser, so `version check` owns this
+# would silently declare nothing in the browser, so `page check` owns this
 # vocabulary the way the registry owns lf-* elements.
 LF_META = {"lf-review": frozenset({"sign-off"})}
 # The public CDNs a page may load from, the set a Claude artifact page is given:
@@ -120,7 +111,7 @@ def external_reference(reference: str) -> bool:
 # runtime bootstrap and every authored module block, so only the inline scripts it
 # composed run. 'self' is the immutable page layer whole; base-uri and form-action
 # need their own directives because default-src governs only fetches. data: admits
-# the images `version export` inlines. 'unsafe-inline' admits the <style> block a
+# the images `page export` inlines. 'unsafe-inline' admits the <style> block a
 # page writes its own CSS in, and the one the theme arrives in on export.
 PAGE_CSP = (
     f"default-src 'self' {EXTERNAL_SOURCES}; base-uri 'none'; form-action 'none'; "
@@ -128,7 +119,8 @@ PAGE_CSP = (
     f"style-src 'self' 'unsafe-inline' {EXTERNAL_SOURCES}"
 )
 # A meta policy cannot govern the document's ancestors. The ordinary server adds this
-# separate header policy; the capability-scoped MCP transport is deliberately frameable.
+# separate header policy, and the site manifest carries it to the Worker; the
+# capability-scoped MCP transport is deliberately frameable.
 FRAME_ANCESTORS_CSP = "frame-ancestors 'none'"
 # Non-painting document structure that may stand outside the authored main. Head
 # metadata is allowed only while the parser is actually inside head.
@@ -166,33 +158,60 @@ def _srcset_urls(value: str):
             cursor += 1
 
 
-def resource_attribute_urls(tag: str, attrs: dict, name: str, value: str):
-    """Return the resource URLs carried by one admitted HTML attribute."""
+def source_index(source: str):
+    """Map the parser's (line, column) positions back to offsets in `source`.
+
+    The parser's own offsets count a CRLF as one character, so an edit placed by them
+    lands short of its span in a CRLF source; its lines and columns do not.
+    """
+    lines = [0, *(match.end() for match in re.finditer(r"\r\n?|\n", source))]
+    return lambda line, column: lines[line - 1] + column
+
+
+def element_attrs(element) -> dict:
+    """An element's attributes as its source spells them, a token list joined."""
+    return {
+        name: " ".join(value) if isinstance(value, list) else value
+        for name, value in element.attrs.items()
+    }
+
+
+def attribute_references(tag: str, attrs: dict, name: str, value: str):
+    """Yield the `(start, end)` span of each URL one attribute value carries.
+
+    A resource attribute carries the URLs the browser loads for it: an image's `src`
+    or `srcset`, a poster, an SVG image, filter image, or use `href`, an icon link.
+    Any other attribute whose whole value is a page media path names that media — a
+    link to a screenshot, a widget's before and after shot. Capture keeps what these
+    name and delivery re-addresses exactly these, so a revision's record and its
+    delivered document agree about which references it has.
+    """
     normalized_tag = tag.lower()
-    if name == "srcset" and normalized_tag in {"img", "source"}:
-        return tuple(url for _, _, url in _srcset_urls(value))
-    if name in {"src", "poster"} and normalized_tag not in {"script", "iframe"}:
-        return (value,)
-    if name in {"href", "xlink:href"} and (
-        normalized_tag in {"feimage", "image", "use"}
-        or normalized_tag == "link"
-        and "icon" in attrs.get("rel", [])
+    if name == "srcset":
+        if normalized_tag in {"img", "source"}:
+            yield from ((start, end) for start, end, _ in _srcset_urls(value))
+        return
+    if (
+        name in {"src", "poster"}
+        and normalized_tag not in {"script", "iframe"}
+        or name in {"href", "xlink:href"}
+        and (
+            normalized_tag in {"feimage", "image", "use"}
+            or normalized_tag == "link"
+            and "icon" in attrs.get("rel", [])
+        )
+        or value.startswith(f"/{MEDIA_DIR}/")
     ):
-        return (value,)
-    return ()
+        yield 0, len(value)
 
 
-def rewrite_resource_attribute(tag: str, attrs: dict, name: str, value: str, rewrite):
-    """Rewrite just the URL tokens in one resource-valued HTML attribute."""
-    urls = resource_attribute_urls(tag, attrs, name, value)
-    if not urls:
-        return value
-    if name != "srcset":
-        return rewrite(value)
-    rewritten = value
-    for start, end, url in reversed(tuple(_srcset_urls(value))):
-        rewritten = rewritten[:start] + rewrite(url) + rewritten[end:]
-    return rewritten
+def rewrite_attribute_references(
+    tag: str, attrs: dict, name: str, value: str, rewrite
+) -> str:
+    """Rewrite just the URL spans `attribute_references` reads in one value."""
+    for start, end in reversed(tuple(attribute_references(tag, attrs, name, value))):
+        value = value[:start] + rewrite(value[start:end]) + value[end:]
+    return value
 
 
 class SourceDocument:
@@ -201,7 +220,7 @@ class SourceDocument:
     TurboHTML owns HTML recovery and source locations. This class retains Leaf's
     authoring-specific indexes and its stricter errors for ambiguous source constructs:
     element ids and their enclosing widget, external assets and metadata, each lf-*
-    element's attributes and direct contents, title and width declarations, and the
+    element's attributes and direct contents, title and styles, and the
     exact authored construction. It does not maintain a second element stack or
     tree-building grammar, and it keeps foreign SVG as exact source rather than
     reconstructing it.
@@ -252,26 +271,19 @@ class SourceDocument:
         # screenshot that nothing displays.
         self.media_refs = set()
         self.page_resource_refs = set()
-        # What the version says about width, each where a document says it: CSS is what
-        # a <style> block holds, and a fixed width is what a rule, style="", or width=""
-        # states. The column check reads these three and nothing else.
-        self.css = ""
+        self.css = ""  # what the page's <style> blocks hold
         self.inline_styles = []  # {tag, line, style} per style="" declaration list
-        self.attr_widths = []  # {tag, line, value} per width="" counted as pixels
         # {tag, line, attr, value} per authored allocation: a data-width or data-bound.
         self.authored_allocations = []
         self.title = ""  # what <title> says, for the transcript's heading
         # {tag, line, attrs, parent, direct, children, text, body, holder}
         self.lf_elements = []
-        self.specimens = []
+        self.samples = []
         # id → the innermost lf-* element standing around it, an element's own id
         # standing in itself. Where an id lives is structure; which of those elements is
         # a slot a decision retires and which widget holds it is the registry's word,
         # read by whoever has one, so this parse need not know a widget by name.
         self.within = {}
-        # {tag, parent, lang, line} per element claiming a language — the coloring the
-        # runtime honors on a plain <pre><code>.
-        self.language_blocks = []
         # {tag, line, under} per id-less pointable block, where under is the nearest
         # ancestor carrying an id. This is where a user's aim would otherwise land.
         self.bare_blocks = []
@@ -285,17 +297,13 @@ class SourceDocument:
         self.nodes = []
         self.tree = None
         self._source = source
-        self._line_offsets = [0]
+        self._source_index = source_index(source)
         self._first_body_position = None
-        self.head_open_end = None
+        # (start, end) of the first html, head, and body start tag the source spells,
+        # and where its last </body> begins: where delivery writes into the document.
+        self.wrapper_tags = {}
+        self.body_close = None
         self._finish()
-
-    @staticmethod
-    def _attrs(element) -> dict:
-        return {
-            name: " ".join(value) if isinstance(value, list) else value
-            for name, value in element.attrs.items()
-        }
 
     @staticmethod
     def _position(element) -> tuple[int, int]:
@@ -312,9 +320,6 @@ class SourceDocument:
                 span.end_line, span.end_col
             )
         ]
-
-    def _source_index(self, line: int, column: int) -> int:
-        return self._line_offsets[line - 1] + column
 
     @staticmethod
     def _source_element(element) -> bool:
@@ -337,28 +342,28 @@ class SourceDocument:
             if token.type is turbohtml.TokenType.START_TAG and token.tag == "head"
         ]
         self.head_lines = [token.line for token in head_starts]
-        self.head_open_end = (
-            self._source_index(head_starts[0].line, head_starts[0].col)
-            + len(head_starts[0].source)
-            if head_starts
-            else None
-        )
+        for token in tokens:
+            if token.type is turbohtml.TokenType.START_TAG and token.tag in {
+                "html",
+                "head",
+                "body",
+            }:
+                start = self._source_index(token.line, token.col)
+                self.wrapper_tags.setdefault(
+                    token.tag, (start, start + len(token.source))
+                )
+            elif token.type is turbohtml.TokenType.END_TAG and token.tag == "body":
+                self.body_close = self._source_index(token.line, token.col)
         starts = {
             (token.line, token.col): token
             for token in tokens
             if token.type is turbohtml.TokenType.START_TAG
         }
-        recognized_ends = set()
         for element in self.tree.descendants:
             if not isinstance(element, turbohtml.Element):
                 continue
             location = element.source_location
-            if location is None:
-                continue
-            if location.end_tag is not None:
-                recognized_ends.add(
-                    (location.end_tag.start_line, location.end_tag.start_col)
-                )
+            if location is None or location.end_tag is not None:
                 continue
             start_source = self._span_source(location.start_tag).rstrip()
             if (
@@ -367,48 +372,8 @@ class SourceDocument:
             ):
                 self.unclosed.append((element.tag, element.source_line))
 
-        for token in tokens:
-            if (
-                token.type is turbohtml.TokenType.END_TAG
-                and token.tag not in VOID_TAGS | OPTIONAL_END
-                and (token.line, token.col) not in recognized_ends
-            ):
-                self.errors.append(
-                    f"stray </{token.tag}> at line {token.line} with no matching open tag"
-                )
-
-        duplicates = {}
-        start_tokens = list(starts.values())
         for error in self.tree.errors:
-            if error.code == "duplicate-attribute":
-                error_index = self._source_index(error.line, error.col)
-                token = next(
-                    (
-                        token
-                        for token in reversed(start_tokens)
-                        if (start := self._source_index(token.line, token.col))
-                        <= error_index
-                        < start + len(token.source)
-                    ),
-                    None,
-                )
-                if token is None:
-                    self.errors.append(
-                        f"duplicate attribute at line {error.line}; "
-                        "HTML keeps the first value"
-                    )
-                    continue
-                start = self._source_index(token.line, token.col)
-                match = re.search(
-                    r"([^\t\n\f\r />=]+)\s*$", token.source[: error_index - start]
-                )
-                duplicate = duplicates.setdefault(
-                    (token.line, token.col),
-                    {"tag": token.tag, "line": token.line, "names": set()},
-                )
-                if match:
-                    duplicate["names"].add(match.group(1).lower())
-            elif error.code == "non-void-html-element-start-tag-with-trailing-solidus":
+            if error.code == "non-void-html-element-start-tag-with-trailing-solidus":
                 token = starts.get((error.line, error.col))
                 tag = token.tag if token is not None else "element"
                 self.errors.append(
@@ -416,13 +381,6 @@ class SourceDocument:
                     f"slash and the element would swallow what follows — write "
                     f"<{tag} …></{tag}>"
                 )
-        for duplicate in duplicates.values():
-            names = sorted(duplicate["names"])
-            detail = f" names {names}" if names else ""
-            self.errors.append(
-                f"<{duplicate['tag']}> at line {duplicate['line']} has duplicate "
-                f"attribute{detail}; HTML keeps the first value"
-            )
 
     def _record_element(
         self,
@@ -510,8 +468,6 @@ class SourceDocument:
             self.inline_styles.append(
                 {"tag": tag, "line": line, "style": attrs["style"]}
             )
-        if tag in PIXEL_WIDTH_TAGS and attrs.get("width"):
-            self.attr_widths.append({"tag": tag, "line": line, "value": attrs["width"]})
         for attr in AUTHORED_ALLOCATIONS:
             if attr in attrs:
                 self.authored_allocations.append(
@@ -525,27 +481,26 @@ class SourceDocument:
         )
         if markers:
             self.reserved_markers.append((tag, line, markers))
-        self.media_refs.update(
-            reference
+        references = [
+            (name, value[start:end])
             for name, value in attrs.items()
             if isinstance(value, str)
-            for reference in (
-                resource_attribute_urls(tag, attrs, name, value)
-                or (() if name == "srcset" else (value,))
-            )
+            for start, end in attribute_references(tag, attrs, name, value)
+        ]
+        self.media_refs.update(
+            reference
+            for _, reference in references
             if reference.startswith(f"/{MEDIA_DIR}/")
         )
         self.page_resource_refs.update(
             reference
-            for name, value in attrs.items()
-            if isinstance(value, str)
-            for reference in resource_attribute_urls(tag, attrs, name, value)
+            for _, reference in references
             # A page file, or an absolute URL, which capture either leaves as written
             # or refuses with the origins the page's CSP admits.
             if reference.startswith(("/page/", "page/", "./page/", "https:", "http:"))
         )
 
-        if tag == "noscript" or (tag == "template" and "data-specimen" not in attrs):
+        if tag == "noscript" or (tag == "template" and "data-sample" not in attrs):
             self.errors.append(
                 f"<{tag}> at line {line}: the browser renders none of its content; "
                 "write it plainly or leave it out"
@@ -599,9 +554,9 @@ class SourceDocument:
                 if isinstance(child, turbohtml.Text)
             )
 
-    def _specimen_resources(self, template) -> None:
+    def _sample_resources(self, template) -> None:
         """Read the complete child document without merging its identity space."""
-        attrs = self._attrs(template)
+        attrs = element_attrs(template)
         location = template.source_location
         content_start = self._source_index(
             location.start_tag.end_line, location.start_tag.end_col
@@ -614,18 +569,20 @@ class SourceDocument:
         if not attrs.get("id"):
             line, _ = self._position(template)
             self.errors.append(
-                f"<template data-specimen> at line {line}: needs a stable id"
+                f"<template data-sample> at line {line}: needs a stable id"
             )
         source = (
             '<!doctype html><html lang="en"><head>'
             '<meta name="viewport" content="width=device-width, initial-scale=1">'
-            f"<title>{escape(attrs.get('id', 'Specimen'))}</title></head><body><main>"
-            # Preserve authored lines, including multiline tags in nested specimens.
+            f"<title>{escape(attrs.get('id', 'Sample'))}</title></head>"
+            # A sample shows a column page; the template is its content, not its frame.
+            '<body><main class="layout-column">'
+            # Preserve authored lines, including multiline tags in nested samples.
             + "\n" * (location.start_tag.end_line - 1)
             + self._source[content_start:content_end]
             + "</main></body></html>"
         )
-        self.specimens.append(
+        self.samples.append(
             {
                 "attrs": attrs,
                 "document": SourceDocument(source),
@@ -645,7 +602,7 @@ class SourceDocument:
         skip_implied = not source_element
         parent = element.parent
         parent_tag = parent.tag if isinstance(parent, turbohtml.Element) else None
-        attrs = self._attrs(element)
+        attrs = element_attrs(element)
         line, column = self._position(element)
 
         record = None
@@ -687,9 +644,9 @@ class SourceDocument:
             location = element.source_location
             end = location.end_tag or location.start_tag
             markup = self._source[
-                self._line_offsets[location.start_tag.start_line - 1]
-                + location.start_tag.start_col : self._line_offsets[end.end_line - 1]
-                + end.end_col
+                self._source_index(
+                    location.start_tag.start_line, location.start_tag.start_col
+                ) : self._source_index(end.end_line, end.end_col)
             ]
             node = {
                 "tag": element.tag,
@@ -725,23 +682,13 @@ class SourceDocument:
             self.nodes.append(node)
             child_output = node["content"]
 
-            language = LANGUAGE_CLASS.search(attrs.get("class") or "")
-            if language:
-                self.language_blocks.append(
-                    {
-                        "tag": element.tag,
-                        "parent": parent_tag,
-                        "lang": language.group(1),
-                        "line": line,
-                    }
-                )
             if element.tag in POINTABLE_TAGS and not attrs.get("id"):
                 under = next(
                     (
-                        (ancestor.tag, self._attrs(ancestor)["id"])
+                        (ancestor.tag, element_attrs(ancestor)["id"])
                         for ancestor in element.ancestors
                         if isinstance(ancestor, turbohtml.Element)
-                        and self._attrs(ancestor).get("id")
+                        and element_attrs(ancestor).get("id")
                     ),
                     None,
                 )
@@ -770,8 +717,8 @@ class SourceDocument:
                 ):
                     self.outside_main.append(f"text in <{element.tag}> at line {line}")
 
-        if element.tag == "template" and "data-specimen" in attrs:
-            self._specimen_resources(element)
+        if element.tag == "template" and "data-sample" in attrs:
+            self._sample_resources(element)
 
         if element.tag == "style":
             self.css += element.text
@@ -779,9 +726,6 @@ class SourceDocument:
             self.title += element.text
 
     def _finish(self):
-        self._line_offsets.extend(
-            match.end() for match in re.finditer(r"\r\n?|\n", self._source)
-        )
         self.tree = turbohtml.parse(self._source, scripting=True, source_locations=True)
         self._source_errors()
         for child in self.tree.children:
@@ -826,8 +770,18 @@ class SourceDocument:
 
     @property
     def reserved_ids(self) -> list:
-        """Ids that trespass on the runtime's own namespace (see reserved_ids_error)."""
+        """Ids that trespass on the runtime's own namespace (see id_errors)."""
         return sorted({i for i in self.all_ids if i.startswith("lf-")})
+
+    @property
+    def event_shaped_ids(self) -> list:
+        """Ids in the log's own event-id shape (see id_errors)."""
+        return sorted({i for i in self.all_ids if re.fullmatch(EVENT_ID, i)})
+
+    @property
+    def spaced_ids(self) -> list:
+        """Ids holding ASCII whitespace, which HTML forbids in one (see id_errors)."""
+        return sorted({i for i in self.all_ids if not ASCII_WHITESPACE.isdisjoint(i)})
 
 
 def rel_tokens(attrs: dict) -> frozenset[str]:
@@ -841,21 +795,6 @@ def links_with_rel(links: list[dict], rel: str) -> list[dict]:
     """The indexed links declaring one relation. `rel` carries a space-separated
     token list, so a relation is a token in it rather than a substring of it."""
     return [link for link in links if rel.lower() in rel_tokens(link["attrs"])]
-
-
-_revisions = {}  # revision file -> (its stamp, the parsed source document)
-
-
-def parse_revision(page_dir: Path, revision: int) -> SourceDocument:
-    """One cached source document for an immutable working revision."""
-    path = revision_path(page_dir, revision)
-    stamp = file_stamp(path)
-    if stamp and (held := _revisions.get(path)) and held[0] == stamp:
-        return held[1]
-    parser = SourceDocument(path.read_text(encoding="utf-8"))
-    if stamp:
-        _revisions[path] = (stamp, parser)
-    return parser
 
 
 def review_mode(document: SourceDocument):

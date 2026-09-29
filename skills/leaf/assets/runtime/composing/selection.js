@@ -1,7 +1,7 @@
 /* The selection composer: the response bar's field bound to a passage's draft.
 
    The selection composer keeps its passage painted after an explicit Comment gesture
-   moves focus into the textarea. Automatic passage selection leaves the native
+   moves focus into the field. Automatic passage selection leaves the native
    selection in place. Its `.lf-composer` wrapper contributes state and draft machinery
    through `display: contents`; only `.lf-fab-input` draws. `showComposer` states the
    whole visible outcome from `composerOpen`, `pendingAnchor`, and `fabAnchor`;
@@ -17,7 +17,8 @@
    Boot constructs the command owner with explicit travel, delivery, and repaint
    capabilities. Importing this module exposes only passive nodes and live draft
    readings. mount binds the field and its controls after those owners exist. */
-import { el, keeps, responseAction } from "../widget-elements.js";
+import { el, responseAction } from "../widget-elements.js";
+import { keeps, keepsHidden } from "../keeps.js";
 
 import {
   clearDraft,
@@ -28,7 +29,7 @@ import {
   watchDraft,
 } from "../drafts.js";
 
-import { pageSelection } from "./capture.js";
+import { pageSelection, rangeAnchor } from "./capture.js";
 import { focused, keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { PRESS } from "../keyboard/bindings.js";
@@ -40,7 +41,9 @@ import { elementById, inChrome } from "../passages.js";
 
 import { notice } from "../notifications.js";
 import { validDrawing } from "./drawing-record.js";
+import { commitPoint } from "../pointed-place.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
+import { textField } from "./text-field.js";
 
 // The floating field immediately accepts a comment on the target the user named.
 // Its ellipsis unfolds every other response the target offers. The field is the
@@ -49,13 +52,12 @@ import { beginWalk, listWalkPosition } from "../walk-position.js";
 // One affordance, raised only where the user has already pointed: a native text
 // selection or an explicit Comment target gesture on an item or visual part.
 export const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");
+fabBar.dataset.lfRuntime = ""; // Leaf's own when seated in a widget (passages.js, leafSurface)
 fabBar.setAttribute("role", "group");
 fabBar.setAttribute("aria-label", "Respond");
-export const fabInput = document.createElement("textarea");
+export const fabInput = textField();
 fabInput.className = "lf-ui lf-response-control lf-fab-input";
 fabInput.name = "comment";
-fabInput.rows = 1;
-fabInput.autocomplete = "off";
 fabInput.placeholder = "Comment…";
 fabInput.setAttribute("aria-label", "Comment");
 export const fab = responseAction(el("button", "lf-ui lf-fab"), {
@@ -64,7 +66,6 @@ export const fab = responseAction(el("button", "lf-ui lf-fab"), {
   behavior: "disclosure",
 });
 fab.id = "lf-comment-button";
-fab.setAttribute("aria-label", "Comment");
 fab.title = "Comment";
 const fabMore = responseAction(el("button", "lf-ui lf-response-more"), {
   icon: "more",
@@ -79,7 +80,6 @@ fabOptions.id = "lf-response-options";
 fabOptions.setAttribute("role", "group");
 fabOptions.setAttribute("aria-label", "Other responses");
 fabMore.setAttribute("aria-controls", fabOptions.id);
-fabMore.setAttribute("aria-expanded", "false");
 const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
   icon: "edit",
   label: "Suggest",
@@ -105,11 +105,10 @@ suggestCheck.type = "checkbox";
 suggestCheck.name = "suggest-replacement";
 suggestRow.append(suggestCheck, document.createTextNode("Suggest replacement text"));
 // The page-anchored composer is the extended Comment control itself. The hidden
-// composer node keeps the draft's controls and quote description, while this textarea
+// composer node keeps the draft's controls and quote description, while this field
 // stays in the response bar and never jumps to a second box.
 const composerInput = fabInput;
-// The mark is a paint, and a paint is nothing to a screen reader (see "Paint; don't wrap"
-// in AGENTS.md). So what the box is anchored to travels as the box's own description,
+// The mark is a paint, and a paint is nothing to a screen reader. So what the box is anchored to travels as the box's own description,
 // announced on focus — which is more than the visible quote ever said, since nothing
 // pointed a user at it.
 composerInput.setAttribute("aria-describedby", composerQuote.id);
@@ -120,6 +119,15 @@ fabBar.prepend(composer);
 export let pendingAnchor = null;
 export let pendingAbout = null;
 export let pendingDrawing = null;
+
+// The words of the element a comment was pointed at, as the passage that finds them
+// again once a re-render has replaced the element (pointed-place.js); null for none.
+function wordsOf(element) {
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  const words = rangeAnchor(range);
+  return words.quote?.trim() ? words : null;
+}
 export let composerOpen = false;
 
 export function createSelectionComposer({
@@ -133,25 +141,23 @@ export function createSelectionComposer({
   anchorTargetAt,
   bringForward,
   fabAnchorAt,
+  fabPointAt,
   fabPositioned,
   beginFabFocus,
   endFabFocus,
   landFabFocus,
-  refreshFab,
   showFab,
   formatGoToAddress,
   createComment,
   focusSurface,
   showThread,
-  refreshConversation,
+  refreshThread,
   wireInput,
 }) {
   const closeReactions = () => setReact(false);
   const openInlineThread = (id, options) => {
     const local = focusSurface(id, { focus: "thread" });
-    return (
-      local?.closest(".lf-conversation-thread") ?? marginOpenInlineThread(id, options)
-    );
+    return local?.closest(".lf-page-thread") ?? marginOpenInlineThread(id, options);
   };
 
   // What the open composer's comment is about: "design" for one opened in design mode, so
@@ -221,15 +227,15 @@ export function createSelectionComposer({
     }
     return best;
   }
-  // The kept draft an address can offer: startup reopens whatever it finds and lets
-  // placement decide, while a press promising a destination has to know there is one.
+  // The kept draft an address can offer: startup reopens the latest draft where its
+  // passage stands, while a press promising a destination has to know there is one.
   const keptDraft = () => pendingComposer((record) => anchorStands(record.anchor));
   let composerEpoch = 0;
   // What the box holds that a user would miss, asked once. The complete draft, because a
-  // pasted image is in it and not in the textarea, plus a drawing, which stands beside the
+  // pasted image is in it and not in the field, plus a drawing, which stands beside the
   // words rather than in them. Three places ask: the send's own guard, the sentence a
   // hiding box says about what became of the words, and the word Escape's row shows. They
-  // had a spelling each, and the one over the textarea alone read a box holding a picture
+  // had a spelling each, and the one over the field alone read a box holding a picture
   // and nothing else as empty.
   const holdsContent = (draft) => Boolean(draft || pendingDrawing);
   const composerHolds = () => holdsContent(syncComposer.value());
@@ -237,8 +243,8 @@ export function createSelectionComposer({
   // The composer's suggest-mode rendering — the offer of it, the button label and the
   // placeholder — derived from the standing state in one place, so the four paths that
   // set that state (toggle, open, close, another tab's keystroke) can't each restate
-  // half of it. The placeholder itself is wireInput's to write; syncComposer repaints it
-  // from the hint above.
+  // half of it. The placeholder itself is wireInput's to paint, from the box's hint;
+  // syncComposer asks for that paint.
   function syncSuggestMode() {
     // A suggestion is replacement text for a passage of the page; a remark about the
     // layer proposes no words, whatever it quotes.
@@ -251,7 +257,7 @@ export function createSelectionComposer({
       collapse: true,
     });
     keeps(fabSuggest, "aria-label", suggest ? "Suggest" : "Comment");
-    fabSuggest.title = suggest ? "Suggest" : "Comment";
+    keeps(fabSuggest, "title", suggest ? "Suggest" : "Comment");
     syncComposer();
     syncResponseOptions();
     repaint(); // the submit action says which of the two the box will do
@@ -349,12 +355,15 @@ export function createSelectionComposer({
   }
 
   function syncResponseOptions(anchor = fabAnchorAt()) {
-    fabSuggest.hidden = !(
-      anchor?.quote &&
-      !designModeActive() &&
-      (!composerOpen || (!pendingAbout && !pendingDrawing))
+    keepsHidden(
+      fabSuggest,
+      !(
+        anchor?.quote &&
+        !designModeActive() &&
+        (!composerOpen || (!pendingAbout && !pendingDrawing))
+      ),
     );
-    fabMore.hidden = !anchor || !responseOptionsAvailable();
+    keepsHidden(fabMore, !anchor || !responseOptionsAvailable());
     if (responseOptionsOpen && !responseOptionsAvailable())
       setResponseOptions(false, { place: false });
   }
@@ -384,14 +393,14 @@ export function createSelectionComposer({
           : "Draft kept — it returns when its passage does",
       );
     composerOpen = open;
-    // The wrapper contributes no card or box. Its textarea is the extended Comment
+    // The wrapper contributes no card or box. Its field is the extended Comment
     // control inside the response bar; the other composer controls stay hidden there.
     composer.style.display = open ? "contents" : "none";
     composer.toggleAttribute("data-lf-open", open);
-    // An explicit Comment gesture focuses the textarea and drops the native selection, so
+    // An explicit Comment gesture focuses the field and drops the native selection, so
     // this mark then becomes the durable pointer to the quoted passage. Automatic passage
     // selection leaves both readings standing until the user enters the field.
-    refreshConversation();
+    refreshThread();
     repaint();
   }
 
@@ -400,7 +409,9 @@ export function createSelectionComposer({
   // user text stays with its passage unless an explicit Comment gesture carries it.
   let seededQuote = "";
   // `about` defaults to the mode standing at the open — a composer opened in design mode
-  // is about design — and a restored draft passes the word it was saved with.
+  // is about design — and a restored draft passes the word it was saved with. A pointing
+  // gesture passes the row inside the target it landed on (`point`, pointed-place.js),
+  // or null; a route that names no point leaves the bar where it stands on this anchor.
   function openComposer(
     anchor,
     text,
@@ -410,12 +421,13 @@ export function createSelectionComposer({
       drawing = undefined,
       carry = false,
       focus = true,
+      point = undefined,
     } = {},
   ) {
     closeReactions();
     // A box holding nothing but the machine's seed is a box holding nothing. Asked of the
-    // seed rather than of the box, because an empty seed matches an empty textarea, and a
-    // draft that is one pasted image and no words has exactly that textarea.
+    // seed rather than of the box, because an empty seed matches an empty field, and a
+    // draft that is one pasted image and no words has exactly that field.
     if (seededQuote && composerInput.value === seededQuote) syncComposer.load("");
     seededQuote = "";
     const ctx = composerCtx(anchor || null);
@@ -451,19 +463,25 @@ export function createSelectionComposer({
     if (previousCtx !== ctx || drawingSupplied)
       pendingDrawing = validDrawing(drawing) ? drawing : null;
     const target = pendingAnchor?.section ? elementById(pendingAnchor.section) : null;
-    fabBar.dataset.lfPaintPlane = target && inChrome(target) ? "chrome" : "page";
+    keeps(
+      fabBar,
+      "data-lf-paint-plane",
+      target && inChrome(target) ? "chrome" : "page",
+    );
     if (text) syncComposer.load(text);
     suggestCheck.checked = Boolean(suggest);
-    syncSuggestMode();
-    // Chromium may collapse the native page Selection before dispatching the textarea's
+    // Chromium may collapse the native page Selection before dispatching the field's
     // focus event. Mark the handoff before showing the surface so that an intermediate
     // selectionchange cannot dismiss the durable passage this composer is opening on.
     let handoff = 0;
     if (focus) handoff = beginFabFocus();
     else endFabFocus();
     showComposer(true);
-    showFab(anchor);
-    syncComposer();
+    showFab(anchor, null, { point });
+    // The suggest mode renders against the bar once it stands on this anchor with the box
+    // open: rendered before, its response choices would follow the bar's previous
+    // anchor and flip as the bar arrived.
+    syncSuggestMode();
     // The landing waits on the placement this open is about to ask for, so it is set up
     // after the surface is shown rather than against the previous anchor's placement.
     if (focus) {
@@ -500,7 +518,7 @@ export function createSelectionComposer({
       pendingDrawing = validDrawing(drawing) ? drawing : null;
       suggestCheck.checked = Boolean(suggest);
       syncSuggestMode();
-      refreshConversation();
+      refreshThread();
     });
   }
   // Hiding keeps the draft and closing discards it, but the mark goes down with the box
@@ -542,9 +560,11 @@ export function createSelectionComposer({
   // The one place a stored composer record becomes an open box. Startup reopens the most
   // recently touched draft through it, and the address below returns to that same record
   // mid-session; two hand-written copies of "what a record means" would be free to drift
-  // about the mode a draft was written in.
+  // about the mode a draft was written in. A record whose passage does not stand opens
+  // nothing: the box would go straight back down, saying its words were kept, and they
+  // return when the passage does.
   function openDraft(record = pendingComposer()) {
-    if (!record) return false;
+    if (!record || !anchorStands(record.anchor)) return false;
     openComposer(record.anchor, record.text, {
       suggest: Boolean(record.suggest),
       about: record.about ?? null,
@@ -603,7 +623,6 @@ export function createSelectionComposer({
           : true,
       hasContent: holdsContent,
       save: saveComposerDraft,
-      layout: refreshFab,
       send: async (_text, raw, owns, visible) => {
         const anchor = structuredClone(pendingAnchor);
         const ctx = composerCtx(anchor);
@@ -611,14 +630,19 @@ export function createSelectionComposer({
         const about = pendingAbout;
         const drawing = structuredClone(pendingDrawing);
         // The accepted comment becomes a thread, drawn as a card beside the passage unless
-        // Threads is open. Carry the submitted field's geometry into the new card.
+        // Threads is open. Carry the submitted field's geometry into the new card, which
+        // stands where the field did: by the row a pointing gesture named.
         const transition = threadTransitionOrigin(composerInput, visible);
+        const point = fabPointAt();
         const epoch = composerEpoch;
         const currentIntent = retainUserIntent();
         const sent = sendMessage(
           ctx,
           () => composerCtx(pendingAnchor) === ctx && owns(),
           (attempt) => {
+            // Kept under the attempt, which names the thread before and after the log
+            // answers (`threadKey`), with the words that find the row again.
+            if (point) commitPoint(attempt, point, wordsOf(point));
             const event = { anchor, attempt };
             if (raw) event.text = raw;
             if (suggestion) event.suggestion = true;
@@ -632,7 +656,7 @@ export function createSelectionComposer({
         // commits its keyed DOM asynchronously. Wait for that presentation before
         // choosing the destination: otherwise an already-open panel can be asked to
         // focus a pending thread before the thread exists.
-        await refreshConversation();
+        await refreshThread();
         // A later draft or selection keeps its focus. The accepted comment still belongs
         // in an open panel, including when revealing it must widen the panel's filter.
         const shouldReveal =

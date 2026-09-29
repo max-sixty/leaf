@@ -13,15 +13,13 @@
         margin-bottom: 4px;
       }
 
-      @container lf-shell (max-width: 1151px) {
-        #bg-sidebar {
-          display: none;
-        }
+      main:not([data-lf-margin~="map"], [data-lf-margin~="sidebar"]) #bg-sidebar {
+        display: none;
       }
     </style>
   </head>
   <body>
-    <main>
+    <main class="layout-column">
       <p class="eyebrow">developer playground</p>
       <h1 id="bg-title">Leaf feature gallery</h1>
       <p class="lede" id="bg-lede">
@@ -144,36 +142,42 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </lf-draft>
       </section>
 
-      <section id="bg-conversations">
+      <section id="bg-threads">
         <p class="eyebrow bg-feature-elements">
           Thread Button · inline thread · Threads panel
         </p>
         <h2>
           <strong>Threads</strong
-          ><span class="bg-feature-detail">: anchored conversations</span>
+          ><span class="bg-feature-detail">: anchored threads</span>
         </h2>
-        <p id="bg-conversations-guide">
-          With Threads closed, a Thread Button or marked passage opens the conversation
+        <p id="bg-threads-guide">
+          With Threads closed, a Thread Button or marked passage opens the thread
           inline; t moves to the next inline card and T to the previous one. Open
           Threads while one is focused, including with g T, and the same thread stays
           focused in the panel. The first filter row switches among Open, On you, On
           agent, and Resolved; the second composes Page or Anchored with Content or
-          Layer. Its count shows how many conversations share that passage.
+          Layer. Its count shows how many threads share that passage.
+        </p>
+        <p id="bg-thread-pending">
+          <strong>A title still pending.</strong> The workshop schedule leaves lunch
+          open. Open Threads to view it. Its row reads Generating title, muted with a
+          highlight sweeping through the words, until the agent gives the thread a short
+          name.
         </p>
         <p id="bg-thread-text">
-          <strong>An existing conversation.</strong> The sample agenda has room for one
-          more topic. Open the speech-bubble Button, reply, then resolve the thread.
+          <strong>An existing thread.</strong> The sample agenda has room for one more
+          topic. Open the speech-bubble Button, reply, then resolve the thread.
         </p>
         <p id="bg-thread-media">
-          <strong>Pasted images.</strong> That conversation includes an image supplied
-          by its companion thread log, outside this document. Click the image to inspect
-          it in Leaf’s Image preview. Paste a screenshot into its reply box to see the
+          <strong>Pasted images.</strong> That thread includes an image supplied by its
+          companion thread log, outside this document. Click the image to inspect it in
+          Leaf’s Image preview. Paste a screenshot into its reply box to see the
           thumbnail Leaf keeps in the draft without exposing image Markdown.
         </p>
         <p id="bg-resolved-text">
-          <strong>A resolved conversation.</strong> The room has a projector. Its
-          earlier question is resolved. Open Threads in the banner, select Resolved, and
-          try Reopen to bring its Button back to the page.
+          <strong>A resolved thread.</strong> The room has a projector. Its earlier
+          question is resolved. Open Threads in the banner, select Resolved, and try
+          Reopen to bring its Button back to the page.
         </p>
         <p id="bg-new-thread">
           <strong>A clean passage.</strong> Select some of these words, or Alt-click
@@ -341,8 +345,8 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               via="uv run bench-gallery"
               >184 ms</lf-num
             >, its timestamp, and the command that produced it. Because the source has a
-            newer update, <code>version check</code> reports that the measurement is
-            behind its source.
+            newer update, <code>page check</code> reports that the measurement is behind
+            its source.
           </p>
         </section>
       </section>
@@ -359,7 +363,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </p>
 
         <section id="bg-metrics-and-chart">
-          <p class="eyebrow bg-feature-elements">lf-grid · lf-metric · lf-chart</p>
+          <p class="eyebrow bg-feature-elements">lf-metric · lf-chart</p>
           <h3>
             <strong>Metrics</strong> and <strong>Chart</strong
             ><span class="bg-feature-detail">: values and trends</span>
@@ -367,7 +371,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           <p id="bg-metrics-guide">
             Metrics show individual values. A Chart compares the values across runs.
           </p>
-          <lf-grid id="bg-metrics">
+          <div id="bg-metrics" class="layout-tiles">
             <lf-metric id="bg-metric-complete" value="12" delta="+3" direction="up-good"
               >checks complete</lf-metric
             >
@@ -375,7 +379,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               >open failures</lf-metric
             >
             <lf-metric id="bg-metric-neutral" value="4 min">sample duration</lf-metric>
-          </lf-grid>
+          </div>
           <lf-chart id="bg-chart" kind="line" y="checks complete">
             <pre>
 run, baseline, candidate
@@ -514,24 +518,24 @@ gallery/
 
         <section id="bg-quoted-and-visual">
           <p class="eyebrow bg-feature-elements">
-            lf-specimen · lf-shot · lf-options · lf-option
+            lf-sample · lf-shot · lf-options · lf-option
           </p>
           <h3>
-            <strong>Specimen</strong> and <strong>Shot</strong
+            <strong>Sample</strong> and <strong>Shot</strong
             ><span class="bg-feature-detail">: fiction and before/after images</span>
           </h3>
-          <lf-specimen id="bg-specimen" label="an inert multiple-pick decision">
-            <lf-options id="bg-specimen-options" choose multiple>
-              <lf-option id="bg-specimen-paper">
+          <lf-sample id="bg-sample" label="an inert multiple-pick decision">
+            <lf-options id="bg-sample-options" choose multiple>
+              <lf-option id="bg-sample-paper">
                 <strong>Paper signs</strong> Nothing to charge.
               </lf-option>
-              <lf-option id="bg-specimen-screen">
+              <lf-option id="bg-sample-screen">
                 <strong>Display signs</strong> Easy to update.
               </lf-option>
             </lf-options>
-          </lf-specimen>
+          </lf-sample>
           <p id="bg-shot-guide">
-            Specimen labels invented content. Press the Shot Button or image to switch
+            Sample labels invented content. Press the Shot Button or image to switch
             between before and after.
           </p>
           <lf-shot
@@ -590,8 +594,8 @@ gallery/
             content keeps your exact words, selected options, and card order; source
             locations and edit routes distinguish authored content from user decisions
             and captured data. Change unrelated source wording and inspect again: those
-            user choices survive without copying them into HTML. Use
-            <code>--thread ID</code> to inspect a frozen conversation.
+            user choices survive without copying them into HTML. Add a thread id,
+            <code>leaf page state PAGE ID</code>, to inspect a frozen thread.
           </p>
         </details>
       </section>

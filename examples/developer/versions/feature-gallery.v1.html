@@ -4,15 +4,13 @@
     <title>Leaf feature gallery</title>
     <meta name="lf-review" content="sign-off" />
     <style>
-      @container lf-shell (max-width: 1151px) {
-        #bg-sidebar {
-          display: none;
-        }
+      main:not([data-lf-margin~="map"], [data-lf-margin~="sidebar"]) #bg-sidebar {
+        display: none;
       }
     </style>
   </head>
   <body>
-    <main>
+    <main class="layout-column">
       <p class="eyebrow">developer playground</p>
       <h1>Leaf feature gallery</h1>
       <p class="lede" id="bg-lede">
@@ -24,14 +22,14 @@
         <lf-toc id="bg-contents"></lf-toc>
       </aside>
       <p id="bg-start">
-        This gallery grows by feature, so a developer can add a focused specimen here
+        This gallery grows by feature, so a developer can add a focused sample here
         without inventing another example page. Start with Leaf’s own controls below,
         then use the contents spine when it fits beside the page, or open Map. Undo
         takes back a decision, and a live preview keeps experiments on reload.
       </p>
 
       <section id="bg-core-surfaces">
-        <h2>Start with the Asks tray</h2>
+        <h2>Start with the Asks drawer</h2>
         <p id="bg-core-surfaces-guide">
           The banner is Leaf’s persistent control surface, not part of this document.
           Open
@@ -49,11 +47,11 @@
         </lf-ask>
         <p id="bg-core-controls-guide">
           Then tour the rest of the injected controls: the status line reports who is
-          behind the page; <strong>Threads</strong> holds every conversation; the
-          versions menu opens v1 and its diff; <strong>Map</strong> collects page
-          locations (<kbd>g</kbd>, then <kbd>Shift+M</kbd>); and pressing
-          <strong>?</strong> twice opens the complete command reference.
-          <strong>All leaves</strong> appears when another Leaf page is live.
+          behind the page; <strong>Threads</strong> holds every thread; the versions
+          menu opens v1 and its diff; <strong>Map</strong> collects page locations
+          (<kbd>g</kbd>, then <kbd>Shift+M</kbd>); and pressing <strong>?</strong> twice
+          opens the complete command reference. <strong>All leaves</strong> appears when
+          another Leaf page is live.
         </p>
       </section>
 
@@ -126,16 +124,22 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </lf-draft>
       </section>
 
-      <section id="bg-conversations">
+      <section id="bg-threads">
         <h2>Open a thread, or start one</h2>
+        <p id="bg-thread-pending">
+          <strong>A title still pending.</strong> The workshop schedule leaves lunch
+          open. Open Threads to view it. Its row reads Generating title, muted with a
+          highlight sweeping through the words, until the agent gives the thread a short
+          name.
+        </p>
         <p id="bg-thread-text">
-          <strong>An existing conversation.</strong> The sample agenda has room for one
-          more topic. Open the speech-bubble Button, reply, then resolve the thread.
+          <strong>An existing thread.</strong> The sample agenda has room for one more
+          topic. Open the speech-bubble Button, reply, then resolve the thread.
         </p>
         <p id="bg-resolved-text">
-          <strong>A resolved conversation.</strong> The room has a projector. Its
-          earlier question is resolved. Open Threads in the banner, select Resolved, and
-          try Reopen to bring its Button back to the page.
+          <strong>A resolved thread.</strong> The room has a projector. Its earlier
+          question is resolved. Open Threads in the banner, select Resolved, and try
+          Reopen to bring its Button back to the page.
         </p>
         <p id="bg-new-thread">
           <strong>A clean passage.</strong> Select some of these words, or Alt-click
@@ -188,8 +192,8 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           >
         </p>
         <p id="bg-button-accepted-line">
-          <strong>Already settled.</strong> This second specimen arrives with an
-          accepted decision in its history:
+          <strong>Already settled.</strong> This second sample arrives with an accepted
+          decision in its history:
           <lf-suggestion id="bg-button-accepted"
             ><lf-old>meet outside.</lf-old
             ><lf-new>meet under the awning.</lf-new></lf-suggestion
@@ -275,7 +279,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               via="uv run bench-gallery"
               >184 ms</lf-num
             >. Its intentionally old <code>at</code> instant makes
-            <code>version check</code> advise that the measurement is behind its source,
+            <code>page check</code> advise that the measurement is behind its source,
             while the frozen value and its command remain part of this version.
           </p>
         </section>
@@ -290,7 +294,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
         <section id="bg-metrics-and-chart">
           <h3>Metrics and chart</h3>
-          <lf-grid id="bg-metrics">
+          <div id="bg-metrics" class="layout-tiles">
             <lf-metric id="bg-metric-complete" value="12" delta="+3" direction="up-good"
               >checks complete</lf-metric
             >
@@ -298,7 +302,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               >open failures</lf-metric
             >
             <lf-metric id="bg-metric-neutral" value="4 min">sample duration</lf-metric>
-          </lf-grid>
+          </div>
           <lf-chart id="bg-chart" kind="line" y="checks complete">
             <pre>
 run, baseline, candidate
@@ -407,17 +411,17 @@ gallery/
         </section>
 
         <section id="bg-quoted-and-visual">
-          <h3>Quoted specimen and before/after shot</h3>
-          <lf-specimen id="bg-specimen" label="an inert multiple-pick decision">
-            <lf-options id="bg-specimen-options" choose multiple>
-              <lf-option id="bg-specimen-paper">
+          <h3>Quoted sample and before/after shot</h3>
+          <lf-sample id="bg-sample" label="an inert multiple-pick decision">
+            <lf-options id="bg-sample-options" choose multiple>
+              <lf-option id="bg-sample-paper">
                 <strong>Paper signs</strong> Nothing to charge.
               </lf-option>
-              <lf-option id="bg-specimen-screen">
+              <lf-option id="bg-sample-screen">
                 <strong>Display signs</strong> Easy to update.
               </lf-option>
             </lf-options>
-          </lf-specimen>
+          </lf-sample>
           <p id="bg-shot-guide">
             Press the round Button or either image to flip the same frame between its
             before and after states.

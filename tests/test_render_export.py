@@ -13,13 +13,13 @@ from contextlib import ExitStack
 from pathlib import Path
 from typing import NamedTuple
 
-import preview as preview_model
 import pytest
 from click.testing import CliRunner
-from example_data import patch_manifest
+from conftest import LEAF_COMMAND
 from interact_support import install_payload, wait_for
 from leaf import cli as cli_model
 from leaf import data as data_model
+from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import files as files_model
@@ -28,8 +28,12 @@ from leaf import leases as leases_model
 from leaf import media as media_model
 from leaf import server as server_model
 from leaf import service as service_model
+from leaf.schema import ELEMENT_ID
 from leaf.structure import UTF8_BOM
+from leaf_dev import preview as preview_model
+from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
+from render_cases_interaction import ASK_PAGE
 from render_cases_navigation import (
     source_revision,
 )
@@ -41,12 +45,14 @@ from render_harness import (
     restarting,
     round_trip,
     sending,
+    write,
 )
 
 pytestmark = pytest.mark.nightly
 
 ROOT = Path(__file__).parent.parent
-PREVIEW_SCRIPT = str(ROOT / "scripts" / "preview.py")
+# `leaf-dev preview`, run by the interpreter this suite runs on.
+PREVIEW = [sys.executable, "-m", "leaf_dev", "preview"]
 
 
 @pytest.fixture
@@ -110,8 +116,7 @@ def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spa
     slot, page = preview_slot
     preview = spawn(
         [
-            sys.executable,
-            PREVIEW_SCRIPT,
+            *PREVIEW,
             "heat-loss",
             "--slot",
             slot,
@@ -151,7 +156,7 @@ def test_terminating_a_preview_stops_its_claimed_service(tmp_path, preview_slot,
     slot, page = preview_slot
     process, url = start_preview(
         spawn,
-        [sys.executable, PREVIEW_SCRIPT, "heat-loss", "--slot", slot, "--user"],
+        [*PREVIEW, "heat-loss", "--slot", slot, "--user"],
         tmp_path / "preview.log",
     )
     assert server_model.running_server(page)
@@ -173,7 +178,7 @@ def test_terminating_a_preview_while_its_service_starts_leaves_none(
     slot, page = preview_slot
     with (tmp_path / "preview.log").open("w", encoding="utf-8") as output:
         process = spawn(
-            [sys.executable, PREVIEW_SCRIPT, "heat-loss", "--slot", slot, "--user"],
+            [*PREVIEW, "heat-loss", "--slot", slot, "--user"],
             cwd=ROOT,
             stdout=output,
             stderr=subprocess.STDOUT,
@@ -213,8 +218,7 @@ def test_a_leaf_failure_exits_the_preview_without_a_wrapper_traceback(
     slot, _ = preview_slot
     result = subprocess.run(
         [
-            sys.executable,
-            PREVIEW_SCRIPT,
+            *PREVIEW,
             "--source",
             str(source),
             "--slot",
@@ -293,8 +297,7 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
         _, url = start_preview(
             spawn,
             [
-                sys.executable,
-                PREVIEW_SCRIPT,
+                *PREVIEW,
                 "--source",
                 str(source),
                 "--runtime",
@@ -342,8 +345,7 @@ def test_a_preview_records_real_gestures_outside_the_task(
     source.write_text(REPLAYED_PAGE, encoding="utf-8")
     runtime = install_payload(tmp_path / "driven-runtime")
     driven_command = [
-        sys.executable,
-        PREVIEW_SCRIPT,
+        *PREVIEW,
         "--source",
         str(source),
         "--runtime",
@@ -473,8 +475,7 @@ def test_an_unclaimed_preview_keeps_its_gestures_out_of_the_stop_hook(
     _, url = start_preview(
         spawn,
         [
-            sys.executable,
-            PREVIEW_SCRIPT,
+            *PREVIEW,
             "--source",
             str(source),
             "--runtime",
@@ -517,8 +518,7 @@ def watching(tmp_path, preview_slot, spawn, user: bool):
     process, url = start_preview(
         spawn,
         [
-            sys.executable,
-            PREVIEW_SCRIPT,
+            *PREVIEW,
             "--source",
             str(source),
             "--runtime",
@@ -547,9 +547,13 @@ def served_preview(tmp_path, preview_slot, spawn):
 def test_a_user_preview_restarts_under_its_original_codex_claim(
     tmp_path, preview_slot, codex_program, codex_env, spawn
 ):
-    """The claim names the Codex task above the preview, and survives each reload."""
+    """The claim names the Codex task above the preview, and survives each restart.
+
+    A restart is a runtime edit's: a source edit leaves the server up."""
     source = tmp_path / "detached.html"
     source.write_text(REPLAYED_PAGE)
+    runtime = install_payload(tmp_path / "detached-runtime")
+    theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
     slot, directory = preview_slot
     log = tmp_path / "preview.log"
     # The Codex task runs the preview as its own long-running command.
@@ -563,10 +567,11 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
                 "subprocess.run(sys.argv[2:], stdout=log, stderr=subprocess.STDOUT)"
             ),
             str(log),
-            sys.executable,
-            PREVIEW_SCRIPT,
+            *PREVIEW,
             "--source",
             str(source),
+            "--runtime",
+            str(runtime),
             "--slot",
             slot,
             "--user",
@@ -587,20 +592,21 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
     )
     claim = service_model.page_claim(directory)
     assert claim["pid"] == owner.pid
-    revised = source.read_text().replace("Rollout", "Detached revision")
-    source.write_text(revised)
+    with theme.open("a", encoding="utf-8") as stream:
+        stream.write("\nh1 { color: navy; }\n")
     wait_for(
         log.read_text,
         lambda output: "Reloaded detached" in output,
-        failure="the preview did not reload its source",
-        timeout=30,
+        failure="the preview did not restart for its runtime",
+        timeout=60,
     )
     assert server_model.running_server(directory)
     assert service_model.page_claim(directory) == claim
 
-    # SessionEnd can win while recompose waits for the page transaction.
+    # SessionEnd can win while the re-vendor waits for the page transaction.
     with service_model.PageTransaction(directory) as transaction:
-        source.write_text(revised.replace("Detached revision", "Released revision"))
+        with theme.open("a", encoding="utf-8") as stream:
+            stream.write("\nh1 { color: teal; }\n")
         wait_for(
             lambda: server_model.running_server(directory),
             lambda running: not running,
@@ -654,43 +660,36 @@ def test_preview_watches_runtime_and_source_without_losing_user_state(
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
     assert (directory / "events.jsonl").stat().st_ino == inode
 
+    # A source edit leaves the server up, so it is not a restart span: the tab takes
+    # the new revision in place, and anything it complains about is a fault.
     revised = original.replace("Rollout", "A watched source revision", 1)
-    with restarting(page):
-        source.write_text(revised, encoding="utf-8")
-        expect(
-            page.get_by_role("heading", name="A watched source revision")
-        ).to_be_visible(timeout=30000)
+    source.write_text(revised, encoding="utf-8")
+    expect(page.get_by_role("heading", name="A watched source revision")).to_be_visible(
+        timeout=30000
+    )
     expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
 
-    with restarting(page):
-        source.write_text("<p>invalid source</p>", encoding="utf-8")
-        wait_for(
-            log.read_text,
-            lambda output: "Preview update refused" in output,
-            failure="the invalid preview update was not refused",
-            timeout=30,
-        )
-        refused_generation = json.loads((directory / "registry.json").read_text())[
-            "$layer"
-        ]["generation"]
-        expect(page.locator("script[data-lf-server]")).to_have_attribute(
-            "data-lf-layer", refused_generation, timeout=30000
-        )
+    source.write_text("<p>invalid source</p>", encoding="utf-8")
+    wait_for(
+        log.read_text,
+        lambda output: "Preview update refused" in output,
+        failure="the invalid preview update was not refused",
+        timeout=30,
+    )
     expect(
         page.get_by_role("heading", name="A watched source revision")
     ).to_be_visible()
     assert (directory / "index.html").read_text() == revised
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
 
-    with restarting(page):
-        source.write_text(
-            revised.replace("A watched source revision", "Recovered watched source"),
-            encoding="utf-8",
-        )
-        expect(
-            page.get_by_role("heading", name="Recovered watched source")
-        ).to_be_visible(timeout=30000)
+    source.write_text(
+        revised.replace("A watched source revision", "Recovered watched source"),
+        encoding="utf-8",
+    )
+    expect(page.get_by_role("heading", name="Recovered watched source")).to_be_visible(
+        timeout=30000
+    )
     expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
     assert (directory / "events.jsonl").stat().st_ino == inode
@@ -720,6 +719,24 @@ def test_restarting_a_preview_discards_its_state_and_starts_it_fresh(
     expect(fresh.locator("#opt-shim")).not_to_have_attribute("chosen", "")
 
 
+def requested_documents(page):
+    """Record each document the page's main frame requests, in order.
+
+    A reload is a document request. `framenavigated` would also count the address the
+    bootstrap rewrites in place with `history.replaceState`, which loads nothing.
+    """
+    documents = []
+    page.on(
+        "request",
+        lambda request: (
+            documents.append(request.url)
+            if request.is_navigation_request() and request.frame == page.main_frame
+            else None
+        ),
+    )
+    return documents
+
+
 @pytest.mark.parametrize(
     "resource",
     [
@@ -743,13 +760,7 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
         standing.close()
     page = browser.new_page()
     failures = []
-    navigations = []
-    page.on(
-        "framenavigated",
-        lambda frame: (
-            navigations.append(frame.url) if frame == page.main_frame else None
-        ),
-    )
+    documents = requested_documents(page)
 
     def interrupt_resource(route):
         if failures:
@@ -779,7 +790,7 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
         with page.expect_response("**/registry.json") as response:
             pass
         assert response.value.ok
-        assert len(navigations) == 1
+        assert len(documents) == 1
         expect(status).to_be_visible()
         generation = json.loads((directory / "registry.json").read_text())["$layer"][
             "generation"
@@ -794,7 +805,7 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
         expect(status).not_to_be_visible()
     if resource == "widgets/lf-options.js":
         expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
-    assert len(navigations) == 2
+    assert len(documents) == 2
     assert (
         json.loads((directory / "registry.json").read_text())["$layer"]["generation"]
         == generation
@@ -811,13 +822,7 @@ def test_a_failed_bootstrap_hears_a_static_registry_generation(
     page = browser.new_page()
     failures = []
     probes = []
-    navigations = []
-    page.on(
-        "framenavigated",
-        lambda frame: (
-            navigations.append(frame.url) if frame == page.main_frame else None
-        ),
-    )
+    documents = requested_documents(page)
 
     def interrupt_entry(route):
         if failures:
@@ -827,7 +832,7 @@ def test_a_failed_bootstrap_hears_a_static_registry_generation(
         route.abort()
 
     def static_registry(route):
-        if len(navigations) > 1:
+        if len(documents) > 1:
             route.continue_()
             return
         probes.append(True)
@@ -850,7 +855,7 @@ def test_a_failed_bootstrap_hears_a_static_registry_generation(
             "data-lf-presented", "1", timeout=10000
         )
     assert len(probes) >= 2
-    assert len(navigations) == 2
+    assert len(documents) == 2
     expect(status).not_to_be_visible()
 
 
@@ -974,15 +979,111 @@ def test_terminating_a_preview_mid_update_leaves_no_service(served_preview):
         theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: navy; }\n")
-        deadline = time.monotonic() + 30
-        while json.loads((directory / "service.json").read_text())["enabled"]:
-            assert time.monotonic() < deadline, "watcher did not begin the update"
-            time.sleep(0.05)
+        wait_for(
+            lambda: json.loads((directory / "service.json").read_text())["enabled"],
+            lambda enabled: not enabled,
+            failure="watcher did not begin the update",
+            timeout=30,
+        )
         os.killpg(process.pid, signal.SIGTERM)
     process.wait(timeout=30)
     assert server_model.running_server(directory) is None
     assert (directory / "events.jsonl").is_file()
     assert (directory / "index.html").read_bytes() == source.read_bytes()
+
+
+@pytest.mark.parametrize("edit", ["source", "runtime"])
+def test_a_user_preview_update_keeps_the_sessions_wait_watching(
+    tmp_path, served_preview, spawn, edit
+):
+    """A `--user` preview's update leaves the session's wait watching.
+
+    The update used to disable the page's service for its whole length, and a wait
+    watching the page read that as a page it had lost: with no other page to carry,
+    it ended on every save. A source edit leaves the server up, and a runtime edit's
+    re-vendor restarts it, which a wait watches through as it watches any stopped
+    server. The comment after the update is the proof: only a wait still watching
+    delivers it.
+    """
+    source, runtime, directory, _, _, log = served_preview
+    waited = tmp_path / "wait.log"
+    with waited.open("w", encoding="utf-8") as output:
+        waiter = spawn(
+            [*LEAF_COMMAND, "wait"],
+            stdout=output,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+            text=True,
+        )
+    session = os.environ["CLAUDE_CODE_SESSION_ID"]
+    wait_for(
+        lambda: waiter.poll() is None and leases_model.wait_is_live(directory, session),
+        bool,
+        failure="the wait did not start watching the preview",
+        timeout=30,
+    )
+    if edit == "source":
+        source.write_text(
+            source.read_text().replace("Rollout", "A watched revision", 1)
+        )
+    else:
+        theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
+        with theme.open("a", encoding="utf-8") as stream:
+            stream.write("\nh1 { color: navy; }\n")
+    wait_for(
+        log.read_text,
+        lambda output: "Reloaded watched" in output,
+        failure="the preview did not finish its update",
+        timeout=60,
+    )
+    assert server_model.running_server(directory)
+    assert waiter.poll() is None, waited.read_text()
+
+    events_model.append_event(
+        directory,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": files_model.latest_revision(directory),
+            "text": "still there?",
+        },
+    )
+    assert waiter.wait(timeout=30) == 0, waited.read_text()
+    assert "has new input" in waited.read_text()
+    [batch] = delivery_model.take_input(session)["batches"]
+    assert [event["text"] for event in batch["events"]] == ["still there?"]
+
+
+def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(
+    served_preview,
+):
+    """A `--user` service still enabled with no server is the preview's to bring
+    back on its next update, and does not end it: that is a server that died, or
+    one a re-vendor could not start again (its recorded port taken), which is left
+    enabled and down in just this way. Only a stop, or the claim leaving this
+    session, ends the preview."""
+    source, _, directory, process, _, log = served_preview
+    port = server_model.running_server(directory)["port"]
+    killed = subprocess.run(
+        ["pkill", "-KILL", "-f", f"server _serve {directory}"], check=False
+    )
+    assert killed.returncode == 0
+    wait_for(
+        lambda: server_model.running_server(directory),
+        lambda running: running is None,
+        failure="the killed server still held its lease",
+    )
+    assert files_model.read_json(directory / "service.json")["enabled"]
+
+    source.write_text(source.read_text().replace("Rollout", "Back up", 1))
+    wait_for(
+        log.read_text,
+        lambda output: "Reloaded watched" in output,
+        failure="the preview did not bring its server back",
+        timeout=60,
+    )
+    assert process.poll() is None, log.read_text()
+    assert server_model.running_server(directory)["port"] == port
 
 
 # ---------- export: the page as one file ----------
@@ -1020,15 +1121,10 @@ customElements.define("lf-offline-test", class extends LitElement {
     });
   }
 
-  requestRun() {
-    return this.controller.dispatch({kind: "request", verb: "run", detail: {}});
-  }
-
   render() {
     const choice = this.reading.state.choose?.value ?? this.getAttribute("choice");
     const action = this.reading.actions.choose;
-    const request = this.reading.requests.run;
-    const unavailable = action.unavailable ?? request.unavailable;
+    const unavailable = action.unavailable;
     return html`
       <style>#local { color: rgb(12, 34, 56); }</style>
       <button id="local" @click=${() => { this.local += 1; this.requestUpdate(); }}>
@@ -1037,9 +1133,6 @@ customElements.define("lf-offline-test", class extends LitElement {
       <output id="local-value">${this.local}</output>
       <button id="choose" ?disabled=${!action.available} @click=${this.choose}>
         Choose on host
-      </button>
-      <button id="request" ?disabled=${!request.available} @click=${this.requestRun}>
-        Request host work
       </button>
       <output id="choice">${choice}</output>
       ${unavailable ? html`<p id="unavailable">${unavailable}</p>` : null}
@@ -1053,13 +1146,13 @@ OFFLINE_REGISTRY = {
         "description": "A page-owned offline export test widget.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
             "choice": {"type": "string"},
             "restated": {"type": "boolean"},
         },
         "required": ["id"],
         "additionalProperties": False,
-        "x-content": "members",
+        "x-content": "empty",
         "x-upgrade": True,
         "x-state": {
             "choose": {
@@ -1073,33 +1166,9 @@ OFFLINE_REGISTRY = {
                 "record": {"kind": "value", "attr": "choice", "value": "choice"},
             }
         },
-        "x-request": {
-            "offers": {"lf-offline-command": "verb"},
-            "verbs": {
-                "run": {
-                    "detail": {
-                        "type": "object",
-                        "properties": {},
-                        "additionalProperties": False,
-                    }
-                }
-            },
-        },
         "x-example": (
-            '<lf-offline-test id="offline-example" choice="idle">'
-            '<lf-offline-command verb="run">Run</lf-offline-command>'
-            "</lf-offline-test>"
+            '<lf-offline-test id="offline-example" choice="idle"></lf-offline-test>'
         ),
-    },
-    "lf-offline-command": {
-        "description": "One host request offered by the test widget.",
-        "type": "object",
-        "properties": {"verb": {"enum": ["run"]}},
-        "required": ["verb"],
-        "additionalProperties": False,
-        "x-owners": ["lf-offline-test"],
-        "x-content": "markup",
-        "x-upgrade": False,
     },
 }
 
@@ -1107,13 +1176,13 @@ OFFLINE_REGISTRY = {
 def test_interactive_export_with_an_ask_reaches_application_presentation(
     browser, serve, tmp_path
 ):
-    """Offline mode omits conversation chrome without leaving its ticket pending."""
+    """Offline mode omits thread chrome without leaving its ticket pending."""
     serve(ROOT / "examples" / "notification-playground.html")
     interactive = tmp_path / "interactive-with-ask.html"
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "version",
+            "page",
             "export",
             str(serve.page_dir),
             "--out",
@@ -1134,6 +1203,39 @@ def test_interactive_export_with_an_ask_reaches_application_presentation(
     expect(page.locator(".lf-chrome")).to_have_count(0)
 
 
+def test_an_interactive_export_paints_a_widget_owned_text_box(browser, serve, tmp_path):
+    """A text box paints in the standing paint, which an export mounts without chrome.
+
+    A choosable group builds its addition field offline too. Its placeholder, disabled
+    Add and empty-field flag are that paint's; focus alone repaints the placeholder with
+    its send key, and typing repaints the flag."""
+    serve(ASK_PAGE)
+    interactive = tmp_path / "interactive-addition.html"
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "export", str(serve.page_dir), "--out", str(interactive)],
+        env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
+    )
+    assert result.exit_code == 0, result.output
+
+    page = browser.new_page()
+    page.goto(interactive.as_uri(), wait_until="load")
+    expect(page.locator("body")).to_have_attribute(
+        "data-lf-presented", "1", timeout=10000
+    )
+    form = page.locator("#jobs > .lf-another")
+    field = form.locator("leaf-text")
+    add = form.locator(".lf-compose-submit")
+    expect(field).to_have_attribute("placeholder", "Add another option")
+    expect(add).to_have_attribute("aria-disabled", "true")
+    expect(add).to_have_attribute("data-lf-empty", "")
+    expect(add).to_be_hidden()
+    field.click()
+    expect(field).to_have_attribute("placeholder", "Add another option ⏎")
+    write(field, "Portrait sketch")
+    expect(add).not_to_have_attribute("data-lf-empty", "")
+
+
 def test_interactive_export_runs_captured_local_behavior_without_a_host(
     browser, serve, tmp_path
 ):
@@ -1142,9 +1244,7 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
         "offline interactive",
         """
 <h1>Offline interactive</h1>
-<lf-offline-test id="offline-widget" choice="idle">
-  <lf-offline-command verb="run">Run</lf-offline-command>
-</lf-offline-test>
+<lf-offline-test id="offline-widget" choice="idle"></lf-offline-test>
 <a id="jump" href="#destination">Jump locally</a>
 <h2 id="destination">Destination</h2>
 """,
@@ -1176,7 +1276,7 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "version",
+            "page",
             "export",
             str(serve.page_dir),
             "--out",
@@ -1185,7 +1285,7 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
         env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
     )
     assert result.exit_code == 0, result.output
-    assert "opens with no server" in result.output
+    assert json.loads(result.output)["file"] == str(interactive)
 
     page = browser.new_page(viewport={"width": 1000, "height": 800})
     external = []
@@ -1217,18 +1317,16 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     assert page.url.endswith("#destination")
 
     expect(page.locator("#offline-widget #choose")).to_be_disabled()
-    expect(page.locator("#offline-widget #request")).to_be_disabled()
     expect(page.locator("#offline-widget #unavailable")).to_have_text(
         "no agent or server is available"
     )
     refused = page.locator("#offline-widget").evaluate(
         """owner => [
           owner.choose(),
-          owner.requestRun(),
           owner.controller.dispatch({kind: 'undo', target: 'missing'}),
         ]"""
     )
-    assert refused == [None, None, None]
+    assert refused == [None, None]
     expect(page.locator("#offline-widget #choice")).to_have_text("chosen")
     assert external == []
 
@@ -1253,7 +1351,7 @@ def test_interactive_export_hydrates_captured_deferred_values_offline(
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "version",
+            "page",
             "export",
             str(serve.page_dir),
             "--out",
@@ -1312,7 +1410,7 @@ def test_playground_examples_keep_their_offline_interaction_mode(
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "version",
+            "page",
             "export",
             str(serve.page_dir),
             "--out",
@@ -1369,8 +1467,7 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
     out = ROOT / ".tmp" / "example-pr-walkthrough.html"
     result = subprocess.run(
         [
-            sys.executable,
-            PREVIEW_SCRIPT,
+            *PREVIEW,
             "pr-walkthrough",
             "--export",
         ],
@@ -1404,13 +1501,13 @@ def test_exporting_an_example_leaves_the_live_preview_untouched(
     """An offline handoff can be made while its live preview keeps serving."""
     live_source = (page_dir / "index.html").read_bytes()
     live_server = standing_server(page_dir)
-    import preview
-
-    monkeypatch.setattr(preview, "TMP", page_dir.parent)
-    monkeypatch.setattr(sys, "argv", ["preview.py", "pr-walkthrough", "--export"])
+    monkeypatch.setattr(preview_model, "TMP", page_dir.parent)
 
     try:
-        preview.main()
+        result = CliRunner().invoke(
+            preview_model.preview, ["pr-walkthrough", "--export"]
+        )
+        assert result.exit_code == 0, result.output
         assert live_server.poll() is None
         assert (page_dir / "index.html").read_bytes() == live_source
     finally:
@@ -1418,20 +1515,20 @@ def test_exporting_an_example_leaves_the_live_preview_untouched(
         live_server.wait(timeout=5)
 
 
-def test_export_refuses_server_dependent_specimens(serve, tmp_path):
+def test_export_refuses_server_dependent_samples(serve, tmp_path):
     serve(
         leaf_page(
-            "Live specimen",
-            '<lf-specimen id="practice" label="practice">'
-            '<template id="practice-source" data-specimen><h1>Child</h1></template>'
-            "</lf-specimen>",
+            "Live sample",
+            '<lf-sample id="practice" label="practice">'
+            '<template id="practice-source" data-sample><h1>Child</h1></template>'
+            "</lf-sample>",
         )
     )
     output = tmp_path / "offline.html"
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "version",
+            "page",
             "export",
             str(serve.page_dir),
             "--out",
@@ -1439,7 +1536,7 @@ def test_export_refuses_server_dependent_specimens(serve, tmp_path):
         ],
     )
     assert result.exit_code != 0
-    assert "Live specimens need a server" in result.output
+    assert "Live samples need a server" in result.output
     assert not output.exists()
 
 
@@ -1453,6 +1550,32 @@ def test_an_export_keeps_utf8(browser, serve, tmp_path):
     page.goto(out.as_uri(), wait_until="load")
     assert page.evaluate("document.characterSet") == "UTF-8"
     expect(page.get_by_role("heading", name="Café handoff")).to_be_visible()
+
+
+def test_an_export_keeps_its_quiet_words_off_screen(browser, serve, tmp_path):
+    """A status word written for a user listening (`.lf-quiet`) is clipped on screen in
+    an export as in the live page. The rule that clips it once lived only in the
+    chrome's sheet, which an export never adopts, so every milestone in an exported
+    file read "done" or "active" beside the dot that already said it."""
+    serve(
+        leaf_page(
+            "Quiet words",
+            '<h1>Quiet words</h1><lf-milestones><lf-milestone id="m" status="done">'
+            "<strong>Ship</strong></lf-milestone></lf-milestones>",
+        )
+    )
+    out = tmp_path / "quiet.html"
+    exporting_model.cmd_export(serve.page_dir, out, None)
+    page = browser.new_page()
+    page.goto(out.as_uri(), wait_until="load")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    quiet = page.locator("#m .lf-quiet")
+    expect(quiet).to_have_count(1)
+    box = quiet.evaluate(
+        "el => { const r = el.getBoundingClientRect();"
+        " return [r.width, r.height, getComputedStyle(el).clipPath]; }"
+    )
+    assert box[0] <= 1 and box[1] <= 1 and box[2] != "none", box
 
 
 def test_an_export_embeds_only_the_widgets_its_markup_names(browser, serve, tmp_path):
@@ -1675,7 +1798,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
             serve.page_dir,
             {"kind": "resolve", "author": "user", "parent": root["id"]},
         )
-    selector = f'lf-diff .lf-conversation-thread[data-thread="{root["id"]}"]'
+    selector = f'lf-diff .lf-page-thread[data-thread="{root["id"]}"]'
     live = open_page(browser, url)
     thread = live.locator(selector)
     expect(thread).to_have_count(1)
@@ -1698,10 +1821,10 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
             workflow_face
         )
     live.emulate_media(media="print")
-    expect(thread.locator(".lf-conversation-body")).to_be_visible()
+    expect(thread.locator(".lf-page-thread-body")).to_be_visible()
     assert (
         thread.locator(
-            "button:visible, textarea:visible, .lf-msg-sending:visible"
+            "button:visible, leaf-text:visible, .lf-msg-sending:visible"
         ).count()
         == 0
     )

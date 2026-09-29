@@ -1,4 +1,8 @@
-"""Agent status, waiting, and acknowledgement policy."""
+"""Agent status and the `leaf wait` watch.
+
+A watch revives the server of a live page it finds dead, so this module sits
+above the HTTP servers (`hosting`). Receipt, which every carrier shares, is
+`delivery`'s, so a host hook confirms input without importing a server."""
 
 import json
 import sys
@@ -7,17 +11,11 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import NamedTuple
 
-from .activity import unanswered
-from .delivery import (
-    batch_data,
-    freeze_delivery,
-    read_delivery,
-    receive_batch,
-    record_pickup,
-)
+from .activity import blocking_obligations, unanswered
+from .delivery import batch_data, freeze_delivery, receive_delivery
 from .detached import StartRefused
 from .files import file_stamp, next_reading, read_json
-from .host import Harness, session_harness
+from .host import Harness, claim_harness, session_harness
 from .hosting import start_server
 from .leases import (
     release_lease,
@@ -32,7 +30,6 @@ from .revisioning import activate_source
 from .schema import (
     ANSWER_ASK_INSTRUCTION,
     SERVICE_FILE,
-    STATUS_FILE,
 )
 from .served_state.page import full_state
 from .served_state.reading import page_reading
@@ -40,13 +37,11 @@ from .server import running_server
 from .service import (
     PageTransaction,
     claim_page,
-    open_session_turn,
     owned_pages,
+    read_status,
     unacknowledged,
 )
 from .work import standing_work_claims, work_subject
-
-DELIVERY_CLAIM_DETAIL = "Reading your feedback"
 
 # How often a watch rechecks a live page's server. It is also the longest a watch goes
 # without a pass on a page whose files have not moved: nothing else a pass reads
@@ -54,19 +49,15 @@ DELIVERY_CLAIM_DETAIL = "Reading your feedback"
 REVIVAL_CHECK_S = 5
 
 
-def check_local_claim(state: str, detail: str) -> None:
-    """What a local claim needs before it can name a subject.
-
-    A local claim says "I am on this now", so the two other states have nothing
-    to put there: `waiting` is the user's move, and `idle` is the end of the
-    agent's side. Its own function because `idle` takes a different route to the
-    same status write, and a claim admitted on one route and refused on the other
-    would be reported to the agent as written either way.
+def check_local_claim(state: str) -> None:
+    """A local claim says "I am on this now", so the two other states have
+    nothing to put there: `waiting` is the user's move, and `idle` is the end of
+    the agent's side. Its own function because `idle` takes a different route to
+    the same status write, and a claim admitted on one route and refused on the
+    other would be reported to the agent as written either way.
     """
     if state != "working":
         sys.exit("--on says what you are working on; use it with `working`")
-    if not detail:
-        sys.exit("--on needs a detail; a Working receipt with no words says nothing")
 
 
 def cmd_status(
@@ -74,139 +65,75 @@ def cmd_status(
     state: str,
     detail: str,
     on: str | None = None,
-) -> list[dict]:
-    """Write the declaration and return the user moves still owed an answer,
-    which the page goes on showing over a `waiting` written ahead of them."""
+) -> tuple[dict, list[dict]]:
+    """Write the declaration and return it, with the user moves still owed an
+    answer, which the page goes on showing over a `waiting` written ahead of them."""
+    # The banner's dot already says the agent is working; the sentence is the
+    # whole of what a working status adds, so a status without one is refused
+    # rather than shown as a bare "working".
+    if state == "working" and not detail:
+        sys.exit(
+            "working needs a detail naming the work and its subject, such as "
+            '"running the browser suite against the new banner"'
+        )
     with PageTransaction(page_dir) as page:
         activate_source(page_dir)
         work = None
         if on is not None:
-            check_local_claim(state, detail)
-            work = work_subject(page_dir, page.events, on)
-            previous = next(
-                (
-                    claim
-                    for claim in standing_work_claims(page.status, page.events)
-                    if claim["subject"] == work["subject"]
-                ),
-                None,
-            )
-            if previous and previous.get("event"):
-                work["event"] = previous["event"]
-        page.set_status(state, detail, work=work)
-        return full_state(page_dir, page.events)["activity"]["obligations"]
-
-
-def cmd_delivery_claim(
-    delivery_id: str,
-    detail: str | None = None,
-    event_id: str | None = None,
-) -> str:
-    """Mark one exact, still-outstanding move from a delivery as Working.
-
-    The immutable delivery supplies the page and candidate event identities. The
-    page transaction re-derives its unsettled workflows and writes the claim
-    under the same log lock, so a stale delivery cannot attach work to a newer
-    move merely because both belong to the same thread or widget.
-    """
-    # No detail is Leaf speaking for the agent, so the user hears something the
-    # moment their move is taken up. An agent that supplies one has said it itself,
-    # whatever words it chose.
-    stated = detail is not None
-    detail = detail if stated else DELIVERY_CLAIM_DETAIL
-    delivery = read_delivery(delivery_id)
-    candidates = []
-    for batch in delivery["batches"]:
-        events = [
-            event
-            for event in batch["events"]
-            if event_id is None or event["id"] == event_id
-        ]
-        if events:
-            candidates.append((Path(batch["page"]), events))
-    if event_id is not None and not candidates:
-        sys.exit(f"event {event_id!r} is not in delivery {delivery_id!r}")
-    if event_id is not None and len({page for page, _events in candidates}) > 1:
-        sys.exit(
-            f"event {event_id!r} occurs on more than one page in delivery "
-            f"{delivery_id!r}"
-        )
-
-    for page_dir, delivered_events in candidates:
-        with PageTransaction(page_dir) as page:
-            state = full_state(
+            check_local_claim(state)
+            work = work_subject(
                 page_dir,
                 page.events,
-                stored_status=page.status,
+                on,
+                standing=standing_work_claims(page.status, page.events),
             )
-            workflows = {
-                item.get("input"): item
-                for item in state["workflows"]
-                if item["answer"] is not None or item["subject"]["kind"] == "widget"
-            }
-            event = next(
-                (
-                    delivered
-                    for delivered in delivered_events
-                    if delivered["id"] in workflows
-                ),
-                None,
-            )
-            workflow = workflows.get(event["id"]) if event is not None else None
-            if workflow is None:
-                continue
-            target = workflow["subject"]
-            handling = {
-                "target": target,
-                "event": event["id"],
-                "after": page.events[-1]["seq"] if page.events else 0,
-            }
-            if target["kind"] == "widget":
-                handling["revision"] = workflow.get("revision")
-            page.set_status("working", detail, handling=handling, stated=stated)
-            return (
-                f"working on {target['kind']} {target['id']} for event "
-                f"{event['id']} — {detail}"
-            )
-
-    selected = f" event {event_id}" if event_id is not None else ""
-    return f"no outstanding user move{selected} in delivery {delivery_id}"
+        status = page.set_status(state, detail, work=work)
+        return status, full_state(page_dir, page.events)["activity"]["obligations"]
 
 
-def cmd_idle(page_dir: Path, detail: str, on: str | None) -> None:
+def cmd_idle(page_dir: Path, detail: str, on: str | None) -> dict:
     """Idle, unless the page still owes its user an answer.
 
     Idling over an event nobody has answered ends the leaf on a user still
     owed one — unread, or read and left. The watcher's whole batch, not the
     user-facing count, so a worker's report cannot be left standing as
-    provisional state forever either. The check and the transition share the
-    log lock, so an event arriving or an acknowledgement advancing the cursor
-    orders against them."""
+    provisional state forever either. The answers it holds the page for are
+    `activity.blocking_obligations`, a claimed move's included: the Stop hook lets
+    the turn that claimed one end over it, but closing the page answers nothing.
+    The check and the transition share the log lock, so an event arriving
+    or an acknowledgement advancing the cursor orders against them."""
     # Ahead of the transaction, which reaches `set_status` without a subject:
     # refused here, `idle --on` cannot be reported back as a claim the page
     # never took.
     if on is not None:
-        check_local_claim("idle", detail)
+        check_local_claim("idle")
     with PageTransaction(page_dir) as page:
         events = page.events
-        cursor = page.cursor
-        pending = len(unacknowledged(events, cursor))
+        state = full_state(page_dir, events)
+        claim = page.active_claim
+        harness = claim_harness(claim) if claim is not None else None
+        pending = len(unacknowledged(events, page.cursor))
         if pending:
-            sys.exit(
-                f"{pending} update{'s' if pending != 1 else ''} nobody has picked up; "
-                "read them with `leaf wait` before idling"
+            remedy = (
+                harness.input_unpicked(page_dir, listening=state["listening"])
+                if harness
+                else "`leaf wait` prints them."
             )
-        owed = [
-            obligation
-            for obligation in full_state(page_dir, events)["activity"]["obligations"]
-            if obligation["seq"] <= cursor
-        ]
+            sys.exit(
+                f"{pending} update{'s' if pending != 1 else ''} nobody has picked up, "
+                f"so the page cannot idle yet. {remedy}"
+            )
+        owed = blocking_obligations(
+            state,
+            carried=harness is not None
+            and harness.carrier_live(listening=state["listening"]),
+        )
         if owed:
             sys.exit(
                 f"{unanswered(owed, 'acknowledged')}; answer before idling. "
                 + ANSWER_ASK_INSTRUCTION
             )
-        page.set_status("idle", detail)
+        return page.set_status("idle", detail)
 
 
 class PageTick(NamedTuple):
@@ -233,7 +160,10 @@ class Watch:
     transition, then rereads under a new transaction; no delivery snapshot
     crosses that unlocked interval.
     `watch_state` is ownership/lifetime; `lost` separately says the server is
-    down with no restart left to make.
+    down with nothing left to bring it back: never served, or dead after a
+    revival that did not hold. A stopped service is not lost: `server stop` is
+    the agent's own move, and `page init` stops a served page to re-vendor it and
+    starts it again, so the wait watches a disabled service without reviving it.
 
     Between passes the watch follows `reading`, the stamps of what a pass reads:
     the machine's claims, which say which pages the session holds, and each page a
@@ -291,7 +221,7 @@ class Watch:
 
     def reading(self) -> tuple:
         """The stamps of everything the last pass read: the claims, and its pages."""
-        return (file_stamp(self.claims), *map(_page_stamp, self.watched))
+        return (file_stamp(self.claims), *map(_page_reading_or_none, self.watched))
 
     def mark(self) -> tuple:
         """What the next pass starts from, taken before it reads, so a write that
@@ -317,7 +247,7 @@ class Watch:
             # the harmless observation outside makes the lock boundary itself
             # testable: a claim or SessionEnd can win after page selection,
             # and _read must then decline every stale act.
-            observed = read_json(page_dir / STATUS_FILE)
+            observed = read_status(page_dir)
             try:
                 with PageTransaction(page_dir) as page:
                     reading, revive = self._read(page, observed)
@@ -369,9 +299,13 @@ class Watch:
         enabled = bool(service and service["enabled"])
         key, now, revive = str(page_dir), time.time(), False
         # Desired service state owns revival. Status says what the page is doing;
-        # it does not turn a deliberately disabled service back on.
-        if watch_state == "watching" and live and not enabled:
+        # it does not turn a disabled service back on, and a disabled one is not
+        # lost either: whoever stopped it may start it again.
+        if watch_state == "watching" and live and service is None:
             self._lost.add(key)
+        elif watch_state == "watching" and live and not enabled:
+            self._lost.discard(key)
+            self._revived.discard(key)
         elif watch_state == "watching" and live and now > self._check_at.get(key, 0):
             self._check_at[key] = now + REVIVAL_CHECK_S
             if running_server(page_dir):
@@ -412,7 +346,7 @@ class Watch:
         self.leases.clear()
 
 
-def _page_stamp(page_dir: Path) -> str | None:
+def _page_reading_or_none(page_dir: Path) -> str | None:
     """A page's reading, or None once its directory is gone."""
     try:
         return page_reading(page_dir)
@@ -552,32 +486,6 @@ def _ended_watch(readings: list[PageTick], page_dir: Path | None) -> int:
     return 2
 
 
-def receive_delivery(delivery_id: str) -> list[Path]:
-    """Confirm complete input and record its entry into this consumer's turn.
-
-    Each page uses its own transaction. Interrupted multi-page receipt can be
-    retried against the same immutable bounds; no receipt transfers ownership.
-    Sibling turns open after releasing the page locks, so concurrent receipts
-    never nest transactions across pages. Printing cannot confirm receipt.
-    """
-    payload = read_delivery(delivery_id)
-    harness = session_harness()
-    session_id = harness.session if harness else None
-    pages = []
-    for batch in payload["batches"]:
-        page_dir = Path(batch["page"])
-        with (
-            PageTransaction(page_dir) as page,
-            receive_batch(page, batch, session_id=session_id) as events,
-        ):
-            turn = page.open_turn(session_id) if session_id else None
-            record_pickup(page, events, session=session_id, turn=turn)
-        pages.append(page_dir)
-    if session_id:
-        open_session_turn(session_id)
-    return pages
-
-
 def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
     """Confirm a complete delivery, if given, then watch for the next batch.
 
@@ -602,8 +510,16 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
         return 2
 
     def print_delivery(reading: PageTick) -> None:
-        """Print immutable input; only the consumer can confirm receipt."""
-        print(delivery_json(reading, harness), flush=True)
+        """Print immutable input; only the consumer can confirm receipt. Where the
+        harness's hook carries input into the turn, the wait only wakes it."""
+        if harness and harness.hooks_carry():
+            print(
+                f"{reading.page_dir} has new input; Leaf's prompt hook puts it in "
+                "your context with this notification",
+                flush=True,
+            )
+        else:
+            print(delivery_json(reading, harness), flush=True)
 
     try:
         while True:

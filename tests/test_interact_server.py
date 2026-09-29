@@ -25,9 +25,7 @@ import pytest
 import tinycss2
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
-from example_data import patch_manifest
 from interact_support import (
-    COMMAND_SUBJECTS,
     PAGE,
     PAGE_PACKAGES,
     ROOT,
@@ -38,34 +36,40 @@ from interact_support import (
     fetch,
     live_versions,
     neighbour_page,
+    page_state,
     publish,
     read_page_data,
     record_claim,
     running_http_server,
+    thread_records,
+    vendored_by_another_leaf,
     wait_for,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import detached as detached_model
+from leaf import document_reading as document_reading_model
 from leaf import event_log as event_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
+from leaf import interaction_log as interaction_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf import media as media_model
 from leaf import page_snapshot as page_snapshot_model
+from leaf import passages as passages_model
 from leaf import presence as presence_model
 from leaf import projection as projection_model
 from leaf import publishing as publishing_model
 from leaf import render_checks as render_checks_model
 from leaf import revision_artifact as artifact_model
 from leaf import revisioning as revisioning_model
+from leaf import samples as samples_model
 from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import service as service_model
-from leaf import specimens as specimens_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
@@ -76,14 +80,169 @@ from leaf.served_state import page as served_page
 from leaf.served_state import reading as served_reading
 from leaf.served_state import service as served_service
 from leaf.structure import EXTERNAL_ORIGINS
-from page_fixtures import package_selection_args
+from leaf_dev.example_data import patch_manifest
+from leaf_dev.page_fixtures import package_selection_args
 
 
-def test_specimens_use_captured_resources_and_independent_event_logs(server, page_dir):
-    template = '<template id="practice" data-specimen><h1>Practice</h1><p id="child-copy">Child text.</p><script type="module" src="/page/specimen.js"></script></template>'
+def test_interaction_trace_records_browser_entries_and_every_request_outcome(
+    server, page_dir
+):
+    payload = {
+        "session": "tab-1",
+        "entries": [
+            {"type": "click", "target": "#approve", "source": "forged"},
+            {"type": "input", "value": "draft"},
+        ],
+    }
+    assert fetch(f"{server}/api/interaction", data=json.dumps(payload).encode()) == (
+        204,
+        b"",
+    )
+    assert (
+        fetch(f"{server}/api/interaction", data=b'{"session":"tab-1","entries":[]}')[0]
+        == 400
+    )
+    assert (
+        fetch(
+            f"{server}/api/interaction", data=json.dumps(payload).encode(), token=None
+        )[0]
+        == 403
+    )
+    assert fetch(f"{server}/missing")[0] == 404
+
+    rows = [
+        json.loads(line)
+        for line in (page_dir / interaction_model.INTERACTIONS_FILE)
+        .read_text()
+        .splitlines()
+    ]
+    client = [row for row in rows if row["source"] == "client"]
+    assert len(client) == 2
+    assert [(row["session"], row["type"]) for row in client] == [
+        ("tab-1", "click"),
+        ("tab-1", "input"),
+    ]
+    assert client[0]["source"] == "client"
+    assert all(row["received"] for row in client)
+    server_rows = [row for row in rows if row["source"] == "server"]
+    assert {(row["method"], row["path"], row["status"]) for row in server_rows} >= {
+        ("POST", "/api/interaction", 204),
+        ("POST", "/api/interaction", 400),
+        ("POST", "/api/interaction", 403),
+        ("GET", "/missing", 404),
+    }
+    assert all("?" not in row["path"] and row["durationMs"] >= 0 for row in server_rows)
+    assert fetch(f"{server}/interactions.jsonl")[0] == 404
+
+
+def test_diagnostic_write_failure_does_not_change_the_http_answer(
+    page_dir, monkeypatch
+):
+    def failed_append(*_args):
+        raise OSError("diagnostic disk unavailable")
+
+    monkeypatch.setattr(http_model, "append_interactions", failed_append)
+    with hosting_model.TemporaryPageServer(page_dir, token=TOKEN) as preview:
+        status, body = fetch(f"{preview.origin}/api/state")
+    assert status == 200
+    assert "events" in json.loads(body)
+
+
+def test_interaction_trace_is_writable_from_a_read_only_page_preview(page_dir):
+    publish(page_dir)
+    active = files_model.active_descriptor(page_dir, event_model.read_events(page_dir))
+    snapshot = page_snapshot_model.capture_page_snapshot(
+        page_dir,
+        artifact_model.read_revision(page_dir, active["revision"]).document,
+        active,
+    )
+    before = event_model.read_events(page_dir)
+    with hosting_model.TemporaryPageServer(
+        page_dir, token=TOKEN, page_options={"page_snapshot": snapshot}
+    ) as preview:
+        status, body = fetch(
+            f"{preview.origin}/api/interaction",
+            data=b'{"session":"preview","entries":[{"type":"click"}]}',
+        )
+        assert (status, body) == (204, b"")
+        assert fetch(f"{preview.origin}/api/event", data=b"{}")[0] == 403
+    assert event_model.read_events(page_dir) == before
+    assert any(
+        row["source"] == "client" and row["session"] == "preview"
+        for row in map(
+            json.loads,
+            (page_dir / interaction_model.INTERACTIONS_FILE).read_text().splitlines(),
+        )
+    )
+
+
+def test_interaction_trace_does_not_change_page_or_presence_readings(page_dir):
+    reading = served_reading.page_reading(page_dir)
+    sources = served_reading.source_readings(page_dir)
+    presence_stamp = presence_model._page_stamp(page_dir)
+
+    for sequence in range(2):
+        interaction_model.append_interactions(
+            page_dir, [{"source": "client", "sequence": sequence}]
+        )
+        assert served_reading.page_reading(page_dir) == reading
+        assert served_reading.source_readings(page_dir) == sources
+        assert presence_model._page_stamp(page_dir) == presence_stamp
+
+    (page_dir / "index.html").write_text(PAGE + "\n<!-- revised -->")
+    assert served_reading.page_reading(page_dir) != reading
+    assert served_reading.source_readings(page_dir)[0] != sources[0]
+    assert presence_model._page_stamp(page_dir) != presence_stamp
+
+
+@pytest.mark.parametrize("name", schema_model.SESSION_FILES)
+def test_a_session_write_does_not_revalidate_the_source(page_dir, monkeypatch, name):
+    """Declaring status, acknowledging a delivery, or taking a wait writes a session
+    file, and the next state read holds the activation it had rather than validating
+    the whole page again: on a large page that re-validation was most of the time a
+    status took to reach the banner."""
+    assert revisioning_model.activate_source(page_dir).error is None
+
+    def revalidated(*_args, **_kwargs):
+        raise AssertionError(f"writing {name} re-validated the source")
+
+    monkeypatch.setattr(revisioning_model, "check_source", revalidated)
+    (page_dir / name).write_text("{}")
+    assert revisioning_model.activate_source(page_dir).error is None
+
+
+def test_a_staged_write_moves_neither_the_page_nor_its_presence_reading(page_dir):
+    """An atomic write stages its bytes beside the target before the rename, and a
+    look between the two sees a file the page never has. Both readings of the page
+    directory look past it, so the write moves each once, at the rename."""
+    reading = served_reading.page_reading(page_dir)
+    presence_stamp = presence_model._page_stamp(page_dir)
+
+    (page_dir / ".0123456789abcdef.tmp").write_text("{}")
+
+    assert served_reading.page_reading(page_dir) == reading
+    assert presence_model._page_stamp(page_dir) == presence_stamp
+
+
+def test_interaction_trace_does_not_keep_an_unattended_page_active(page_dir):
+    old = time.time() - schema_model.ACTIVITY_GRACE_SECS - 60
+    for entry in page_dir.iterdir():
+        os.utime(entry, (old, old))
+    claimed_at = datetime.fromtimestamp(old).astimezone().isoformat()
+    assert not service_model._touched_recently(page_dir, claimed_at)
+
+    interaction_model.append_interactions(page_dir, [{"source": "server"}])
+    assert not service_model._touched_recently(page_dir, claimed_at)
+
+    os.utime(page_dir / "status.json", None)
+    assert service_model._touched_recently(page_dir, claimed_at)
+
+
+def test_samples_use_captured_resources_and_independent_event_logs(server, page_dir):
+    template = '<template id="practice" data-sample><h1>Practice</h1><p id="child-copy">Child text.</p><script type="module" src="/page/sample.js"></script></template>'
     (page_dir / "page").mkdir(exist_ok=True)
     module = b'document.getElementById("child-copy").dataset.module = "captured";'
-    (page_dir / "page/specimen.js").write_bytes(module)
+    (page_dir / "page/sample.js").write_bytes(module)
     (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
     publish(page_dir)
     parent_before = event_model.read_events(page_dir)
@@ -94,9 +253,9 @@ def test_specimens_use_captured_resources_and_independent_event_logs(server, pag
         artifact_model.read_artifact(page_dir, 1).resources["/theme.css"].data
     )
     (page_dir / "theme.css").write_text("/* mutable bytes must not enter the child */")
-    (page_dir / "page/specimen.js").write_text('throw Error("mutable code");')
+    (page_dir / "page/sample.js").write_text('throw Error("mutable code");')
     status, raw = fetch(
-        f"{server}/api/specimens",
+        f"{server}/api/samples",
         data=json.dumps({"template": "practice"}).encode(),
         layer=generation,
         headers={"Leaf-View-Revision": "1"},
@@ -109,15 +268,19 @@ def test_specimens_use_captured_resources_and_independent_event_logs(server, pag
     root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
     assert f'data-lf-entry="{root}/leaf.js"'.encode() in document
     assert f'data-lf-page-root="{child.removeprefix(server)}"'.encode() in document
-    assert b"<html data-lf-contained" in document
-    assert re.search(rb"<body[^>]*\binert", document)
+    served = structure_model.SourceDocument(document.decode()).tree
+    assert "inert" in served.find("body").attrs
     assert fetch(child + "/theme.css") == (200, captured_theme)
-    [module_path] = re.findall(rb'src="([^"]+/page/specimen.js)"', document)
-    assert module_path == f"{root}/page/specimen.js".encode()
+    [module_path] = re.findall(rb'src="([^"]+/page/sample.js)"', document)
+    assert module_path == f"{root}/page/sample.js".encode()
     assert fetch(server + module_path.decode()) == (200, module)
     status, raw = fetch(child + "/api/state")
     assert status == 200, raw
     assert json.loads(raw)["events"] == []
+    assert fetch(
+        child + "/api/interaction",
+        data=b'{"session":"child-tab","entries":[{"type":"click"}]}',
+    ) == (204, b"")
     status, answer = fetch(
         child + "/api/event",
         layer=generation,
@@ -127,7 +290,7 @@ def test_specimens_use_captured_resources_and_independent_event_logs(server, pag
                 "revision": 1,
                 "text": "A child comment",
                 "anchor": {"section": "child-copy"},
-                "attempt": "specimen-comment",
+                "attempt": "child-sample-comment",
             }
         ).encode(),
     )
@@ -143,12 +306,21 @@ def test_specimens_use_captured_resources_and_independent_event_logs(server, pag
     assert status == 400, answer
     assert fetch(child + "/api/release", layer=generation, data=b"{}")[0] == 200
     assert fetch(child + "/api/state")[0] == 404
+    assert any(
+        row["source"] == "client"
+        and row["session"] == "child-tab"
+        and row["page"] == child.removeprefix(server)
+        for row in map(
+            json.loads,
+            (page_dir / interaction_model.INTERACTIONS_FILE).read_text().splitlines(),
+        )
+    )
 
 
-def test_specimen_allocations_share_no_parent_lock_and_keep_one_log_reading(
+def test_sample_allocations_share_no_parent_lock_and_keep_one_log_reading(
     server, page_dir, monkeypatch
 ):
-    template = '<template id="practice" data-specimen data-specimen-threads="aabb0011"><h1>Practice</h1></template>'
+    template = '<template id="practice" data-sample data-sample-threads="aabb0011"><h1>Practice</h1></template>'
     (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
     event_model.append_event(
         page_dir,
@@ -163,18 +335,18 @@ def test_specimen_allocations_share_no_parent_lock_and_keep_one_log_reading(
     publish(page_dir)
     allocating = threading.Barrier(3)
     release = threading.Event()
-    original = specimens_model.Specimens.create
+    original = samples_model.Samples.create
 
     def held_allocation(self, *args):
         allocating.wait(timeout=5)
         assert release.wait(5)
         return original(self, *args)
 
-    monkeypatch.setattr(specimens_model.Specimens, "create", held_allocation)
+    monkeypatch.setattr(samples_model.Samples, "create", held_allocation)
     with ThreadPoolExecutor(max_workers=2) as executor:
         allocations = [
             executor.submit(
-                fetch, server + "/api/specimens", data=b'{"template":"practice"}'
+                fetch, server + "/api/samples", data=b'{"template":"practice"}'
             )
             for _ in range(2)
         ]
@@ -205,34 +377,34 @@ def test_specimen_allocations_share_no_parent_lock_and_keep_one_log_reading(
         assert [event["text"] for event in state["events"]] == ["Before allocation"]
 
 
-def test_specimens_seed_only_the_declared_conversations_and_reset_by_recreation(
+def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
     server, page_dir
 ):
-    template = '<template id="practice" data-specimen data-specimen-threads="aabb0011"><h1>Practice</h1><p id="plan">The cutoff lives in the plan.</p><p><lf-suggestion id="revision" resolves="aabb0011"><lf-old>Friday</lf-old><lf-new>Monday</lf-new></lf-suggestion></p></template>'
-    unseeded = '<template id="unseeded" data-specimen data-specimen-threads="aabb0011"><h1>Unseeded</h1><p id="note">Nothing here names the conversation.</p></template>'
+    template = '<template id="practice" data-sample data-sample-threads="aabb0011"><h1>Practice</h1><p id="plan">The cutoff lives in the plan.</p><p><lf-suggestion id="revision" resolves="aabb0011"><lf-old>Friday</lf-old><lf-new>Monday</lf-new></lf-suggestion></p></template>'
+    unseeded = '<template id="unseeded" data-sample data-sample-threads="aabb0011"><h1>Unseeded</h1><p id="note">Nothing here names the thread.</p></template>'
     (page_dir / "index.html").write_text(
         PAGE.replace("</main>", template + unseeded + "</main>")
     )
     publish(page_dir)
     # The declaration selects from the standing log rather than requiring it, so a
     # page whose log holds none of it yet — a first version, or a copy made from the
-    # source alone — still opens its specimens. What a child may not do is name a
-    # conversation it does not have, and the ordinary child-document check says so
+    # source alone — still opens its samples. What a child may not do is name a
+    # thread it does not have, and the ordinary child-document check says so
     # about the element that names it.
-    status, raw = fetch(f"{server}/api/specimens", data=b'{"template":"unseeded"}')
+    status, raw = fetch(f"{server}/api/samples", data=b'{"template":"unseeded"}')
     assert status == 200, raw
     assert (
         json.loads(fetch(server + json.loads(raw)["url"] + "api/state")[1])["events"]
         == []
     )
-    status, raw = fetch(f"{server}/api/specimens", data=b'{"template":"practice"}')
+    status, raw = fetch(f"{server}/api/samples", data=b'{"template":"practice"}')
     assert (
         status == 400
-        and "resolves='aabb0011' names no comment" in json.loads(raw)["error"]
+        and "resolves='aabb0011' names no thread" in json.loads(raw)["error"]
     )
     for identity, text in (
-        ("aabb0011", "Selected conversation"),
-        ("aabb0022", "Outside conversation"),
+        ("aabb0011", "Selected thread"),
+        ("aabb0022", "Outside thread"),
     ):
         event_model.append_event(
             page_dir,
@@ -261,7 +433,7 @@ def test_specimens_seed_only_the_declared_conversations_and_reset_by_recreation(
     children = []
     for _ in range(2):
         status, raw = fetch(
-            f"{server}/api/specimens", data=b'{"template":"practice","passive":true}'
+            f"{server}/api/samples", data=b'{"template":"practice","passive":true}'
         )
         assert status == 200, raw
         child = server + json.loads(raw)["url"].rstrip("/")
@@ -269,29 +441,29 @@ def test_specimens_seed_only_the_declared_conversations_and_reset_by_recreation(
         status, raw = fetch(child + "/api/state")
         assert status == 200, raw
         assert [event["text"] for event in json.loads(raw)["events"]] == [
-            "Selected conversation",
+            "Selected thread",
             "Seeded reply",
         ]
-        assert b"data-lf-specimen-passive" in fetch(child + "/")[1]
+        assert b"data-lf-sample-passive" in fetch(child + "/")[1]
     assert children[0] != children[1]
     assert event_model.read_events(page_dir) == before
-    status, raw = fetch(f"{server}/api/specimens", data=b'{"template":"missing"}')
-    assert status == 400 and "unknown specimen template" in json.loads(raw)["error"]
+    status, raw = fetch(f"{server}/api/samples", data=b'{"template":"missing"}')
+    assert status == 400 and "unknown sample template" in json.loads(raw)["error"]
     assert fetch(children[0] + "/api/state", token=None)[0] == 403
 
 
-def test_specimen_template_lookup_stays_within_the_requesting_page(server, page_dir):
-    templates = """<template id="outer" data-specimen><h1>Outer page</h1>
-      <template id="practice" data-specimen><h1>Nested practice</h1></template>
-      <template id="nested-only" data-specimen><h1>Nested only</h1></template>
+def test_sample_template_lookup_stays_within_the_requesting_page(server, page_dir):
+    templates = """<template id="outer" data-sample><h1>Outer page</h1>
+      <template id="practice" data-sample><h1>Nested practice</h1></template>
+      <template id="nested-only" data-sample><h1>Nested only</h1></template>
     </template>
-    <template id="practice" data-specimen><h1>Parent practice</h1></template>"""
+    <template id="practice" data-sample><h1>Parent practice</h1></template>"""
     (page_dir / "index.html").write_text(PAGE.replace("</main>", templates + "</main>"))
     publish(page_dir)
 
     def create(parent, template):
         status, body = fetch(
-            parent + "/api/specimens", data=json.dumps({"template": template}).encode()
+            parent + "/api/samples", data=json.dumps({"template": template}).encode()
         )
         assert status == 200, body
         return server + json.loads(body)["url"].rstrip("/")
@@ -304,15 +476,13 @@ def test_specimen_template_lookup_stays_within_the_requesting_page(server, page_
     assert b"Nested practice" in nested_document
     root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
     assert f'data-lf-entry="{root}/leaf.js"'.encode() in nested_document
-    assert (
-        fetch(server + "/api/specimens", data=b'{"template":"nested-only"}')[0] == 400
-    )
+    assert fetch(server + "/api/samples", data=b'{"template":"nested-only"}')[0] == 400
     assert fetch(outer + "/api/release", data=b"{}")[0] == 200
     assert fetch(nested + "/")[0] == 404
 
 
 @pytest.mark.parametrize("explicit_revision", [False, True])
-def test_frozen_preview_specimens_use_snapshot_inputs_without_parent_writes(
+def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
     page_dir, explicit_revision
 ):
     declare_data_input(page_dir, "builds", {"type": "array"})
@@ -328,7 +498,7 @@ def test_frozen_preview_specimens_use_snapshot_inputs_without_parent_writes(
         },
     )
     data_model.cmd_data_set(page_dir, "builds", ["checked"])
-    template = '<template id="practice" data-specimen data-specimen-threads="aabb0011"><h1>Frozen child</h1></template>'
+    template = '<template id="practice" data-sample data-sample-threads="aabb0011"><h1>Frozen child</h1></template>'
     document = structure_model.SourceDocument(
         PAGE.replace("</main>", template + "</main>")
     )
@@ -352,7 +522,7 @@ def test_frozen_preview_specimens_use_snapshot_inputs_without_parent_writes(
         page_dir, token=TOKEN, page_options={"page_snapshot": snapshot}
     ) as preview:
         status, raw = fetch(
-            preview.origin + "/api/specimens",
+            preview.origin + "/api/samples",
             data=b'{"template":"practice"}',
             layer=snapshot.layer["generation"],
             headers={"Leaf-View-Revision": "2"} if explicit_revision else {},
@@ -793,7 +963,7 @@ def test_historical_deferred_reads_keep_the_document_revision_and_layer(
         '@@ -1 +1 @@\n-return "old"\n+return "new"\n'
     )
     data_model.cmd_data_set(page_dir, "review-patch", patch_manifest(patch))
-    first_layer = artifact_model.read_artifact(page_dir, first.revision).registry[
+    first_layer = artifact_model.read_revision(page_dir, first.revision).registry[
         "$layer"
     ]["generation"]
 
@@ -802,7 +972,7 @@ def test_historical_deferred_reads_keep_the_document_revision_and_layer(
     (page_dir / "index.html").write_text(source.replace("<h1>A</h1>", "<h1>B</h1>"))
     second = revisioning_model.activate_source(page_dir)
     assert second.error is None and second.revision != first.revision
-    second_layer = artifact_model.read_artifact(page_dir, second.revision).registry[
+    second_layer = artifact_model.read_revision(page_dir, second.revision).registry[
         "$layer"
     ]["generation"]
     assert second_layer != first_layer
@@ -851,7 +1021,7 @@ def test_a_bad_source_save_keeps_the_last_revision_live_and_reports_the_error(
 
     stamp = CliRunner().invoke(
         cli_model.cli,
-        ["version", "stamp", str(page_dir), "--text", "must not fall back"],
+        ["page", "stamp", str(page_dir), "--text", "must not fall back"],
     )
     assert stamp.exit_code != 0
     assert files_model.list_revisions(page_dir) == [1]
@@ -869,7 +1039,7 @@ def test_a_bad_source_save_keeps_the_last_revision_live_and_reports_the_error(
 def test_state_validation_follows_css_edits_and_recovers_cached_readings(
     server, page_dir, monkeypatch
 ):
-    """State reads reuse CSS work, while edits still change syntax and width checks."""
+    """State reads reuse CSS work, while edits still change the syntax check."""
     parsed = []
     parse_stylesheet = tinycss2.parse_stylesheet
 
@@ -900,15 +1070,6 @@ def test_state_validation_follows_css_edits_and_recovers_cached_readings(
     assert json.loads(body)["state"]["events"][-1]["text"] == comment["text"]
     assert len(parsed) == parsed_count, "a new event reparsed unchanged CSS"
 
-    theme_path = page_dir / "theme.css"
-    theme = theme_path.read_text()
-    theme_path.write_text(theme.replace("--col: 720px", "--col: 600px"))
-    assert (
-        "column is 600px" in json.loads(fetch(f"{server}/api/state")[1])["source_error"]
-    )
-    theme_path.write_text(theme)
-    assert json.loads(fetch(f"{server}/api/state")[1])["source_error"] is None
-
     path.write_text(source.replace("--probe-width: 700px", "--probe-width  700px"))
     assert (
         "page <style> syntax error"
@@ -927,7 +1088,7 @@ def test_a_stamped_restatement_remains_the_valid_live_source(server, page_dir):
     (page_dir / "index.html").write_text(baseline)
     first = CliRunner().invoke(
         cli_model.cli,
-        ["version", "stamp", "--json", str(page_dir), "--text", "baseline"],
+        ["page", "stamp", str(page_dir), "--text", "baseline"],
     )
     assert first.exit_code == 0, first.output
     first_revision = json.loads(first.output)["revision"]
@@ -951,7 +1112,7 @@ def test_a_stamped_restatement_remains_the_valid_live_source(server, page_dir):
     )
     second = CliRunner().invoke(
         cli_model.cli,
-        ["version", "stamp", "--json", str(page_dir), "--text", "corrected"],
+        ["page", "stamp", str(page_dir), "--text", "corrected"],
     )
     assert second.exit_code == 0, second.output
     stamped = json.loads(second.output)
@@ -1023,7 +1184,7 @@ def test_server_round_trip(server, page_dir):
     assert status == 404
     stamped = CliRunner().invoke(
         cli_model.cli,
-        ["version", "stamp", str(page_dir), "--text", "cut"],
+        ["page", "stamp", str(page_dir), "--text", "cut"],
     )
     assert stamped.exit_code == 0, stamped.output
     # The handover address is the live page, not a pinned revision address.
@@ -1142,26 +1303,28 @@ def test_server_round_trip(server, page_dir):
     assert status == 200
     moved = event_model.read_events(page_dir)[-1]
     assert moved["author"] == "user" and moved["detail"]["to"] == "col-doing"
-    # A design comment is anchored on a runtime part the version never holds, naming
-    # the control the press landed on. The door takes its design intent as posted, and
-    # the transcript says which kind of comment it was.
+    # A design comment names the control the press landed on beside the widget it is
+    # about. The door takes its design intent as posted, and the transcript says which
+    # kind of comment it was.
     status, _ = fetch(
         f"{server}/api/event",
         data=json.dumps(
             {
                 "kind": "comment",
                 "revision": 2,
-                "text": "the button reads dim",
+                "text": "the grip reads dim",
                 "about": "design",
-                "anchor": {"section": "lf-banner", "part": "Threads"},
+                "anchor": {"section": "feeder-board", "part": "grip"},
             }
         ).encode(),
     )
     assert status == 200
     design = event_model.read_events(page_dir)[-1]
-    assert design["about"] == "design" and design["anchor"]["part"] == "Threads"
-    transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
-    assert "> § lf-banner · Threads  — about the design" in transcript.output
+    assert design["about"] == "design" and design["anchor"]["part"] == "grip"
+    transcript = CliRunner().invoke(
+        cli_model.cli, ["page", "transcript", str(page_dir)]
+    )
+    assert "> § feeder-board · grip  — about the design" in transcript.output
     drawing = {
         "format": "leaf-drawing/2",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
@@ -1192,7 +1355,9 @@ def test_server_round_trip(server, page_dir):
     assert status == 200
     page_drawing = event_model.read_events(page_dir)[-1]
     assert "anchor" not in page_drawing and page_drawing["drawing"] == drawing
-    transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+    transcript = CliRunner().invoke(
+        cli_model.cli, ["page", "transcript", str(page_dir)]
+    )
     assert (
         "_(drawing attached over “to reap every process … before exporting”)_"
         in transcript.output
@@ -1374,8 +1539,8 @@ def test_server_round_trip(server, page_dir):
         },
         {"kind": "reply", "parent": "nope", "revision": 2, "text": "hi"},
         {"kind": "resolve", "parent": "nope"},
-        # A report is agent-authored: its one door is `leaf report`, so the
-        # browser door refuses the kind outright rather than minting user
+        # A report is agent-authored: its one door is `leaf page report`,
+        # so the browser door refuses the kind outright rather than minting user
         # events that outrank nothing.
         {
             "kind": "report",
@@ -1418,7 +1583,7 @@ def test_a_page_serves_one_document_at_each_of_its_three_addresses(server, page_
     them, and a crawler that finds all three, arrive at one page.
     """
     stamped = CliRunner().invoke(
-        cli_model.cli, ["version", "stamp", str(page_dir), "--text", "cut"]
+        cli_model.cli, ["page", "stamp", str(page_dir), "--text", "cut"]
     )
     assert stamped.exit_code == 0, stamped.output
     revision = files_model.latest_revision(page_dir)
@@ -1609,10 +1774,9 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     reply = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
-            "--to",
-            "approval-question",
             "--for",
             "approval-question",
             "--text",
@@ -1672,7 +1836,9 @@ def test_the_transcript_reports_only_an_approval_that_stands(page_dir):
     )
 
     def transcript():
-        result = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+        result = CliRunner().invoke(
+            cli_model.cli, ["page", "transcript", str(page_dir)]
+        )
         assert result.exit_code == 0, result.output
         return result.output
 
@@ -2048,16 +2214,19 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
     registry = registry_storage.require_registry(page_dir)
 
     def reading(active_revision):
-        return served_browser.browser_state(
-            documents,
+        state, _reading = served_browser.browser_state(
+            {
+                revision: passages_model.SourceReading(document, registry)
+                for revision, document in documents.items()
+            },
             events,
-            registry,
             active_revision,
             presence_model.presence(page_dir, events),
             {},
             {1, 2},
             event_model.now_iso(),
         )
+        return state
 
     # The same log really does admit the reaction if read against the old page.
     # This control makes the containment difference observable rather than nominal.
@@ -2104,16 +2273,135 @@ def test_undo_candidates_keep_only_standing_user_gestures():
             "text": "answered",
         },
     ]
-    empty = projection_model.StateProjection({}, {}, {}, {}, {}, frozenset())
+    empty = projection_model.StateProjection(
+        {}, {}, {}, {}, {}, frozenset(), frozenset()
+    )
+    document = document_reading_model.DocumentReading(None, empty, {}, None, {}, {}, {})
     undo_reading = event_folds_model.UndoReading(
         events, within={}, absorbed=frozenset()
     )
 
     candidates = served_document.browser_undo_candidates(
-        events, empty, empty, undo_reading=undo_reading
+        events, document, empty, undo_reading=undo_reading, stamp=None
     )
 
     assert [candidate["event"]["id"] for candidate in candidates] == ["rx1", "r2"]
+    # The user's newest gesture, rx2, is answered and cannot be taken back, so `z`
+    # takes nothing; the entries stay for the exact controls that name them.
+    assert not any(candidate.get("newest") for candidate in candidates)
+
+
+def test_undo_walk_ends_at_the_users_newest_gesture():
+    """`z` takes the head only while it is the user's newest gesture. Bookkeeping
+    and gestures already withdrawn do not end the walk; a sent reply does."""
+    events = [
+        {"id": "c1", "kind": "comment", "author": "user", "text": "question"},
+        {"id": "r1", "kind": "resolve", "author": "user", "parent": "c1"},
+        {"id": "read", "kind": "read", "author": "user", "messages": ["c1"]},
+        {"id": "c2", "kind": "comment", "author": "user", "text": "another"},
+        {"id": "r2", "kind": "resolve", "author": "user", "parent": "c2"},
+        {"id": "u2", "kind": "undo", "author": "user", "undoes": "r2"},
+    ]
+    empty = projection_model.StateProjection(
+        {}, {}, {}, {}, {}, frozenset(), frozenset()
+    )
+    document = document_reading_model.DocumentReading(None, empty, {}, None, {}, {}, {})
+
+    def walk(log):
+        candidates = served_document.browser_undo_candidates(
+            log,
+            document,
+            empty,
+            undo_reading=event_folds_model.UndoReading(
+                log, within={}, absorbed=frozenset()
+            ),
+            stamp=None,
+        )
+        return [(item["event"]["id"], item.get("newest", False)) for item in candidates]
+
+    # c2 was said after r1 and r2 is withdrawn: the newest standing gesture is c2.
+    assert walk(events) == [("r1", False)]
+    # Without c2, the read and the withdrawn r2 leave r1 the newest gesture.
+    assert walk([e for e in events if e["id"] != "c2"]) == [("r1", True)]
+
+
+def test_each_view_offers_only_the_gestures_it_paints(page_dir):
+    """The view's undo list is final: `z` takes its head and a widget filters it.
+
+    A decision carried into a later revision stays undoable there. One that revision
+    restated, one whose widget it dropped, and an approval of another stamp are
+    offered only by the view that still paints them.
+    """
+    old_page = PAGE.replace("<lf-options>", '<lf-options id="picks">').replace(
+        "</section>",
+        '<lf-ask id="kept-decision"><h3>Kept</h3><lf-options id="kept">'
+        '<lf-option id="kept-one">One</lf-option></lf-options></lf-ask>'
+        '<lf-ask id="gone-decision"><h3>Gone</h3><lf-options id="gone">'
+        '<lf-option id="gone-one">One</lf-option></lf-options></lf-ask></section>',
+    )
+    new_page = re.sub(
+        r'<lf-ask id="gone-decision">.*?</lf-ask>', "", old_page, flags=re.DOTALL
+    )
+    documents = {
+        1: structure_model.SourceDocument(old_page),
+        2: structure_model.SourceDocument(new_page),
+    }
+    (page_dir / "index.html").write_text(old_page)
+    publish(page_dir, 1)
+
+    def choose(widget, option):
+        return event_model.append_event(
+            page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": widget,
+                "action": "choose",
+                "detail": {"options": [option]},
+                "meaning": {"scope": "page", "unit": widget, "depends": [widget]},
+            },
+        )
+
+    kept = choose("kept", "kept-one")
+    gone = choose("gone", "gone-one")
+    restated = choose("picks", "flag-first")
+    approval = event_model.append_event(
+        page_dir, {"kind": "done", "author": "user", "version": 1}
+    )
+    # The fold reads revision 2 from `documents`; it is never written to disk, since
+    # the door refuses to activate a revision that drops a standing decision.
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "note",
+            "author": "agent",
+            "version": 2,
+            "revision": 2,
+            "text": "Rewrote the plan choice.",
+            "restated": ["picks"],
+        },
+    )
+    events = event_model.read_events(page_dir)
+    registry = registry_storage.require_registry(page_dir)
+    views = served_browser.browser_state(
+        {
+            revision: passages_model.SourceReading(document, registry)
+            for revision, document in documents.items()
+        },
+        events,
+        2,
+        presence_model.presence(page_dir, events),
+        {},
+        {1, 2},
+        event_model.now_iso(),
+    )[0]["views"]
+
+    def offered(revision):
+        return [item["event"]["id"] for item in views[str(revision)]["undo"]]
+
+    assert offered(1) == [approval["id"], restated["id"], gone["id"], kept["id"]]
+    assert offered(2) == [kept["id"]]
 
 
 def test_a_comparison_view_explains_an_unpublished_page(server, page_dir):
@@ -2444,651 +2732,6 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
     assert fetch(f"{server}/api/event", data=json.dumps(valid).encode())[0] == 200
 
 
-def test_server_admits_only_a_widget_declared_host_request(server, page_dir):
-    """A package verb reaches the host as typed intent, never as prose the
-    coordinator has to interpret. The browser door resolves the widget against the
-    revision the user used and validates its complete detail there."""
-    operation = (
-        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
-        "<strong>Goal</strong>"
-        + COMMAND_SUBJECTS
-        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
-        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
-        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask></lf-task></lf-command>"
-    )
-    version = page_dir / "index.html"
-    version.write_text(
-        version.read_text().replace("</section>", operation + "</section>")
-    )
-    publish(page_dir)
-
-    invalid = [
-        (
-            {
-                "target": "goal",
-                "worker": "worker",
-                "worktree": "tree",
-                "extra": "guess",
-            },
-            "detail is invalid",
-        ),
-        ({}, "detail is invalid"),
-        (
-            {"target": "other-goal", "worker": "worker", "worktree": "tree"},
-            "must match its authored `target`",
-        ),
-    ]
-    for detail, message in invalid:
-        status, body = fetch(
-            f"{server}/api/event",
-            data=json.dumps(
-                {
-                    "kind": "request",
-                    "revision": 1,
-                    "widget": "commands",
-                    "action": "restart",
-                    "detail": detail,
-                }
-            ).encode(),
-        )
-        assert status == 400, body
-        assert message in json.loads(body)["error"]
-
-    # The task's status is the worker's verb; the browser door refuses a user's.
-    status, body = fetch(
-        f"{server}/api/event",
-        data=json.dumps(
-            {
-                "kind": "action",
-                "revision": 1,
-                "widget": "goal",
-                "action": "status",
-                "detail": {"status": "done"},
-            }
-        ).encode(),
-    )
-    assert status == 400, body
-    assert (
-        "'status' is a verb the agent writes; this action came from the user"
-        in (json.loads(body)["error"])
-    )
-
-    status, body = fetch(
-        f"{server}/api/event",
-        data=json.dumps(
-            {
-                "kind": "request",
-                "revision": 1,
-                "widget": "commands",
-                "action": "restart",
-                "detail": {
-                    "target": "goal",
-                    "worker": "worker",
-                    "worktree": "tree",
-                },
-            }
-        ).encode(),
-    )
-
-    assert status == 200, body
-    request = event_model.read_events(page_dir)[-1]
-    assert request["kind"] == "request" and request["author"] == "user"
-    assert (request["widget"], request["action"], request["detail"]) == (
-        "commands",
-        "restart",
-        {"target": "goal", "worker": "worker", "worktree": "tree"},
-    )
-
-
-def test_server_refuses_a_host_verb_the_widget_instance_did_not_offer(server, page_dir):
-    """The package declaration names every verb the widget family can speak, while
-    the authored children name the commands this particular target offers. A crafted
-    POST must not turn a restart-only surface into a request to land the target."""
-    operation = (
-        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
-        "<strong>Goal</strong>"
-        + COMMAND_SUBJECTS
-        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
-        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
-        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask></lf-task></lf-command>"
-    )
-    version = page_dir / "index.html"
-    version.write_text(
-        version.read_text().replace("</section>", operation + "</section>")
-    )
-    publish(page_dir)
-
-    status, body = fetch(
-        f"{server}/api/event",
-        data=json.dumps(
-            {
-                "kind": "request",
-                "revision": 1,
-                "widget": "commands",
-                "action": "land",
-                "detail": {
-                    "target": "goal",
-                    "worker": "worker",
-                    "worktree": "tree",
-                },
-            }
-        ).encode(),
-    )
-
-    assert status == 400, body
-    assert "not offered" in json.loads(body)["error"]
-    assert not [
-        event
-        for event in event_model.read_events(page_dir)
-        if event["kind"] == "request"
-    ]
-
-
-def test_server_refuses_a_second_request_while_the_first_is_pending(server, page_dir):
-    """The operation holder is one atomic choice surface. Its browser lock is only
-    presentation: a stale second tab can still POST before seeing the first request,
-    so the append boundary must serialize the pending lifecycle."""
-    operation = (
-        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
-        "<strong>Goal</strong>"
-        + COMMAND_SUBJECTS
-        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
-        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
-        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        '<lf-operation verb="drop"><strong>Drop</strong></lf-operation>'
-        "</lf-operations></lf-ask></lf-task></lf-command>"
-    )
-    version = page_dir / "index.html"
-    version.write_text(
-        version.read_text().replace("</section>", operation + "</section>")
-    )
-    publish(page_dir)
-
-    first_status, first_body = fetch(
-        f"{server}/api/event",
-        data=json.dumps(
-            {
-                "kind": "request",
-                "revision": 1,
-                "widget": "commands",
-                "action": "restart",
-                "detail": {
-                    "target": "goal",
-                    "worker": "worker",
-                    "worktree": "tree",
-                },
-            }
-        ).encode(),
-    )
-    assert first_status == 200, first_body
-    second_status, second_body = fetch(
-        f"{server}/api/event",
-        data=json.dumps(
-            {
-                "kind": "request",
-                "revision": 1,
-                "widget": "commands",
-                "action": "drop",
-                "detail": {
-                    "target": "goal",
-                    "worker": "worker",
-                    "worktree": "tree",
-                },
-            }
-        ).encode(),
-    )
-
-    assert second_status == 400, second_body
-    assert "pending request" in json.loads(second_body)["error"]
-    requests = [
-        event
-        for event in event_model.read_events(page_dir)
-        if event["kind"] == "request"
-    ]
-    assert [(event["action"], event["detail"]) for event in requests] == [
-        ("restart", {"target": "goal", "worker": "worker", "worktree": "tree"})
-    ]
-
-
-def test_request_lifecycle_reopens_on_failure_and_resets_in_a_later_revision(
-    server, page_dir
-):
-    """Failure makes another attempt meaningful, success closes the instruction, and
-    a later authored revision is a new surface. These are protocol facts at POST, not
-    assumptions made only by the package's current browser module."""
-    operation = (
-        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
-        "<strong>Goal</strong>"
-        + COMMAND_SUBJECTS
-        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
-        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
-        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        '<lf-operation verb="drop"><strong>Drop</strong></lf-operation>'
-        "</lf-operations></lf-ask></lf-task></lf-command>"
-    )
-    version = page_dir / "index.html"
-    version.write_text(
-        version.read_text().replace("</section>", operation + "</section>")
-    )
-    publish(page_dir)
-
-    def ask(revision, action):
-        return fetch(
-            f"{server}/api/event",
-            data=json.dumps(
-                {
-                    "kind": "request",
-                    "revision": revision,
-                    "widget": "commands",
-                    "action": action,
-                    "detail": {
-                        "target": "goal",
-                        "worker": "worker",
-                        "worktree": "tree",
-                    },
-                }
-            ).encode(),
-        )
-
-    first_status, first_body = ask(1, "restart")
-    assert first_status == 200, first_body
-    first = event_model.read_events(page_dir)[-1]
-    event_model.append_event(
-        page_dir,
-        {
-            "kind": "receipt",
-            "author": "agent",
-            "request": first["id"],
-            "status": "failed",
-            "text": "Worker lease disappeared",
-        },
-    )
-
-    retry_status, retry_body = ask(1, "drop")
-    assert retry_status == 200, retry_body
-    retry = event_model.read_events(page_dir)[-1]
-    event_model.append_event(
-        page_dir,
-        {
-            "kind": "receipt",
-            "author": "agent",
-            "request": retry["id"],
-            "status": "succeeded",
-            "text": "Archived the branch",
-        },
-    )
-
-    closed_status, closed_body = ask(1, "restart")
-    assert closed_status == 400, closed_body
-    assert "already completed request" in json.loads(closed_body)["error"]
-
-    (page_dir / "index.html").write_text(
-        version.read_text().replace("What next?", "What next now?")
-    )
-    publish(page_dir, 2)
-    next_status, next_body = ask(2, "restart")
-    assert next_status == 200, next_body
-
-
-def test_projected_record_requests_have_independent_typed_seats(server, page_dir):
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["$data"]["contracts"]["job-rows"] = {
-        "description": "Jobs displayed by the request widget.",
-        "records": {"items": "rows", "key": "id"},
-        "schema": {
-            "type": "object",
-            "properties": {
-                "rows": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "id": {"type": "string", "minLength": 1},
-                            "state": {"type": "string"},
-                        },
-                        "required": ["id", "state"],
-                        "additionalProperties": False,
-                    },
-                }
-            },
-            "required": ["rows"],
-            "additionalProperties": False,
-        },
-    }
-    registry["lf-row-requests"] = {
-        "description": "A typed request for each displayed job.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
-        },
-        "required": ["id", "source"],
-        "additionalProperties": False,
-        "x-content": "members",
-        "x-upgrade": True,
-        "x-data": {"jobs": {"contract": "job-rows", "source": "source"}},
-        "x-request": {
-            "ask": True,
-            "region": True,
-            "records": "jobs",
-            "verbs": {
-                "restart": {
-                    "unit": "target",
-                    "detail": {
-                        "type": "object",
-                        "properties": {
-                            "target": {"type": "string"},
-                            "state": {"type": "string"},
-                        },
-                        "required": ["target", "state"],
-                        "additionalProperties": False,
-                    },
-                    "bind": {"target": "id", "state": "state"},
-                }
-            },
-        },
-    }
-    registry_path.write_text(json.dumps(registry))
-    widget_module = page_dir / "page/widgets/lf-row-requests.js"
-    widget_module.parent.mkdir(parents=True, exist_ok=True)
-    widget_module.write_text(
-        'customElements.define("lf-row-requests", class extends HTMLElement {});'
-    )
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "</section>",
-            '<lf-ask id="jobs-question"><h2>Restart a job?</h2>'
-            '<lf-row-requests id="jobs" source="jobs"></lf-row-requests>'
-            "</lf-ask></section>",
-        )
-    )
-    assert check(page_dir).exit_code == 0, check(page_dir).output
-    publish(page_dir)
-    data_model.cmd_data_set(
-        page_dir,
-        "jobs",
-        {
-            "rows": [
-                {"id": "alpha", "state": "stopped"},
-                {"id": "beta", "state": "stopped"},
-            ]
-        },
-    )
-
-    first = read_page_data(page_dir)["sources"]["jobs"]["revision"]
-
-    def send(unit, state="stopped", revision=first):
-        return fetch(
-            f"{server}/api/event",
-            data=json.dumps(
-                {
-                    "kind": "request",
-                    "revision": 1,
-                    "widget": "jobs",
-                    "action": "restart",
-                    "source_revision": revision,
-                    "detail": {"target": unit, "state": state},
-                }
-            ).encode(),
-        )
-
-    for unit, state, revision in [
-        ("missing", "stopped", first),
-        ("alpha", "running", first),
-        ("alpha", "stopped", "0123456789abcdef"),
-    ]:
-        status, _body = send(unit, state, revision)
-        assert status == 400
-    assert send("alpha")[0] == 200
-    assert send("alpha")[0] == 400
-    status, raw = fetch(f"{server}/api/state")
-    assert status == 200
-    state = json.loads(raw)
-    seats = state["browser"]["views"]["1"]["document"]["requests"]
-    assert {(seat["seat"]["unit"], seat["phase"]) for seat in seats} == {
-        ("alpha", "pending"),
-        ("beta", "ready"),
-    }
-    assert [
-        ask["id"] for ask in state["browser"]["views"]["1"]["document"]["asks"]["user"]
-    ] == ["jobs-question"]
-    assert send("beta")[0] == 200
-    events = event_model.read_events(page_dir)
-    requests = [event for event in events if event["kind"] == "request"]
-    assert [event["meaning"]["unit"] for event in requests] == ["alpha", "beta"]
-    status, raw = fetch(f"{server}/api/state")
-    assert status == 200
-    assert not json.loads(raw)["browser"]["views"]["1"]["document"]["asks"]["user"]
-    event_model.append_event(
-        page_dir,
-        {
-            "kind": "receipt",
-            "author": "agent",
-            "request": requests[0]["id"],
-            "status": "failed",
-            "text": "Try again",
-        },
-    )
-    assert send("alpha")[0] == 200
-    event_model.append_event(
-        page_dir,
-        {
-            "kind": "receipt",
-            "author": "agent",
-            "request": requests[1]["id"],
-            "status": "succeeded",
-            "text": "Restarted",
-        },
-    )
-    assert send("beta")[0] == 400
-    retry = [
-        event
-        for event in event_model.read_events(page_dir)
-        if event["kind"] == "request"
-    ][-1]
-    event_model.append_event(
-        page_dir,
-        {
-            "kind": "receipt",
-            "author": "agent",
-            "request": retry["id"],
-            "status": "succeeded",
-            "text": "Restarted",
-        },
-    )
-    with pytest.raises(data_model.DataError, match="keys must be unique"):
-        data_model.cmd_data_set(
-            page_dir,
-            "jobs",
-            {
-                "rows": [
-                    {"id": "beta", "state": "stopped"},
-                    {"id": "beta", "state": "stopped"},
-                ],
-            },
-        )
-    data_model.cmd_data_set(
-        page_dir,
-        "jobs",
-        {
-            "rows": [
-                {"id": "beta", "state": "stopped"},
-                {"id": "gamma", "state": "stopped"},
-            ],
-        },
-    )
-    status, raw = fetch(f"{server}/api/state")
-    assert status == 200
-    seats = json.loads(raw)["browser"]["views"]["1"]["document"]["requests"]
-    assert {(seat["seat"]["unit"], seat["phase"]) for seat in seats} == {
-        ("alpha", "completed"),
-        ("beta", "completed"),
-        ("gamma", "ready"),
-    }
-    second = read_page_data(page_dir)["sources"]["jobs"]["revision"]
-    assert send("gamma", revision=first)[0] == 400
-    assert send("beta", revision=second)[0] == 400
-    assert send("gamma", revision=second)[0] == 200
-    gamma = next(
-        event
-        for event in event_model.read_events(page_dir)
-        if event["kind"] == "request" and event["meaning"]["unit"] == "gamma"
-    )
-    event_model.append_event(
-        page_dir,
-        {
-            "kind": "receipt",
-            "author": "agent",
-            "request": gamma["id"],
-            "status": "failed",
-            "text": "Try again",
-        },
-    )
-    data_model.cmd_data_set(page_dir, "jobs", {"rows": []})
-    status, raw = fetch(f"{server}/api/state")
-    assert status == 200
-    document = json.loads(raw)["browser"]["views"]["1"]["document"]
-    assert document["asks"]["user"] == []
-    assert {
-        (seat["seat"]["unit"], seat["phase"], seat["seat"].get("offered", True))
-        for seat in document["requests"]
-    } == {
-        ("alpha", "completed", False),
-        ("beta", "completed", False),
-        ("gamma", "ready", False),
-    }
-
-
-def test_a_thread_request_does_not_reset_when_the_page_revision_changes(
-    server, page_dir
-):
-    """Thread markup is a frozen second document, not part of each page revision. Its
-    one-shot operation therefore remains pending when the authored page advances."""
-    subjects = (
-        '<lf-command id="hub"><lf-task id="goal" status="active">'
-        "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
-    )
-    (page_dir / "index.html").write_text(
-        PAGE.replace("</section>", subjects + "</section>")
-    )
-    publish(page_dir)
-    root = event_model.append_event(
-        page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "What should happen to this branch?",
-        },
-    )
-    event_model.append_event(
-        page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "agent": "Codex",
-            "parent": root["id"],
-            "text": "Choose the host operation.",
-            "markup": (
-                '<lf-ask id="thread-command-decision"><h3>What next?</h3>'
-                '<lf-operations id="thread-commands" target="goal" worker="worker" '
-                'worktree="tree">'
-                '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-                "</lf-operations></lf-ask>"
-            ),
-        },
-    )
-
-    def ask(revision):
-        return fetch(
-            f"{server}/api/event",
-            data=json.dumps(
-                {
-                    "kind": "request",
-                    "revision": revision,
-                    "widget": "thread-commands",
-                    "action": "restart",
-                    "detail": {
-                        "target": "goal",
-                        "worker": "worker",
-                        "worktree": "tree",
-                    },
-                }
-            ).encode(),
-        )
-
-    first_status, first_body = ask(1)
-    assert first_status == 200, first_body
-    (page_dir / "index.html").write_text(
-        (page_dir / "index.html")
-        .read_text()
-        .replace("<h2>Plan</h2>", "<h2>Updated plan</h2>")
-    )
-    publish(page_dir, 2)
-
-    repeated_status, repeated_body = ask(2)
-    assert repeated_status == 400, repeated_body
-    assert "pending request" in json.loads(repeated_body)["error"]
-
-
-def test_server_refuses_a_thread_request_that_swaps_typed_page_subjects(
-    server, page_dir
-):
-    """Frozen thread markup may point into the page, so POST checks the combined
-    document after the fragment-only door has verified its local structure."""
-    subjects = (
-        '<lf-command id="hub"><lf-task id="goal" status="active">'
-        "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
-    )
-    (page_dir / "index.html").write_text(
-        PAGE.replace("</section>", subjects + "</section>")
-    )
-    publish(page_dir)
-    root = event_model.append_event(
-        page_dir,
-        {"kind": "comment", "author": "user", "revision": 1, "text": "Act?"},
-    )
-    event_model.append_event(
-        page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "agent": "Codex",
-            "parent": root["id"],
-            "text": "Choose.",
-            "markup": (
-                '<lf-operations id="thread-commands" target="worker" worker="tree" '
-                'worktree="goal" label="Next">'
-                '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-                "</lf-operations>"
-            ),
-        },
-    )
-
-    status, body = fetch(
-        f"{server}/api/event",
-        data=json.dumps(
-            {
-                "kind": "request",
-                "revision": 1,
-                "widget": "thread-commands",
-                "action": "restart",
-                "detail": {
-                    "target": "worker",
-                    "worker": "tree",
-                    "worktree": "goal",
-                },
-            }
-        ).encode(),
-    )
-
-    assert status == 400, body
-    assert "where role='goal'" in json.loads(body)["error"]
-
-
 @pytest.mark.parametrize(
     ("corrupt", "message"),
     [
@@ -3145,10 +2788,9 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
     reply = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
-            "--to",
-            "c1",
             "--for",
             "c1",
             "--text",
@@ -3159,10 +2801,10 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
                 '<lf-options id="thread-pick" choose>'
                 '<lf-option id="thread-a"><strong>A</strong></lf-option>'
                 "</lf-options></lf-ask>"
-                '<lf-specimen id="sample">'
+                '<lf-sample id="sample">'
                 '<lf-options id="exhibited-pick" choose>'
                 '<lf-option id="exhibited-a"><strong>A</strong></lf-option>'
-                "</lf-options></lf-specimen>"
+                "</lf-options></lf-sample>"
             ),
         ],
     )
@@ -3247,7 +2889,7 @@ def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring
     noted = CliRunner().invoke(
         cli_model.cli,
         [
-            "version",
+            "page",
             "stamp",
             str(page_dir),
             "--text",
@@ -3317,23 +2959,21 @@ def test_concurrent_posts_never_tear_the_log(server, page_dir):
 
 def test_every_kind_of_user_move_is_named_in_eight_characters(server, page_dir):
     """An id is something the agent reads back and retypes. One user comment
-    shows the agent its id five times over and is answered with `leaf reply --for
-    <id>`, so an id is eight hex characters. No kind is carved out of that: a
-    `request` id reaches a host, but its uniqueness is within this page either
-    way, so the host pairs it with the page rather than being handed a wider id
-    and left to assume it is distinctive on its own."""
-    operation = (
-        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
-        "<strong>Goal</strong>"
-        + COMMAND_SUBJECTS
-        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
-        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
-        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask></lf-task></lf-command>"
-    )
+    shows the agent its id five times over and is answered with `leaf thread reply --for
+    <id>`, so an id is eight hex characters. No kind is carved out of that: an
+    id a host keys an operation on is unique within this page either way, so the
+    host pairs it with the page rather than being handed a wider id and left to
+    assume it is distinctive on its own."""
     version = page_dir / "index.html"
     version.write_text(
-        version.read_text().replace("</section>", operation + "</section>")
+        version.read_text().replace(
+            "</section>",
+            '<lf-ask id="worker-decision"><h3>What next?</h3>'
+            '<lf-options id="worker" choose>'
+            '<lf-option id="worker-restart">Restart the worker</lf-option>'
+            '<lf-option id="worker-park">Park it</lf-option>'
+            "</lf-options></lf-ask></section>",
+        )
     )
     publish(page_dir)
 
@@ -3350,20 +2990,20 @@ def test_every_kind_of_user_move_is_named_in_eight_characters(server, page_dir):
         f"{server}/api/event",
         data=json.dumps(
             {
-                "kind": "request",
+                "kind": "action",
                 "revision": 1,
-                "widget": "commands",
-                "action": "restart",
-                "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
+                "widget": "worker",
+                "action": "choose",
+                "detail": {"options": ["worker-restart"]},
             }
         ).encode(),
     )
     assert status == 200, body
-    request = event_model.read_events(page_dir)[-1]
+    action = event_model.read_events(page_dir)[-1]
 
-    assert comment["kind"] == "comment" and request["kind"] == "request"
+    assert comment["kind"] == "comment" and action["kind"] == "action"
     assert re.fullmatch(r"[0-9a-f]{8}", comment["id"]), comment["id"]
-    assert re.fullmatch(r"[0-9a-f]{8}", request["id"]), request["id"]
+    assert re.fullmatch(r"[0-9a-f]{8}", action["id"]), action["id"]
 
 
 def test_event_ids_are_unique_within_the_log_whatever_the_mint_returns(
@@ -3393,20 +3033,7 @@ def test_event_ids_are_unique_within_the_log_whatever_the_mint_returns(
     with pytest.raises(ValueError, match="event id .* already exists"):
         event_model.append_event(
             page_dir,
-            {
-                "id": first["id"],
-                "meaning": {"scope": "page"},
-                "kind": "request",
-                "author": "user",
-                "revision": 1,
-                "widget": "commands",
-                "action": "restart",
-                "detail": {
-                    "target": "goal",
-                    "worker": "worker",
-                    "worktree": "tree",
-                },
-            },
+            {"id": first["id"], "kind": "comment", "author": "user", "text": "third"},
         )
 
 
@@ -3430,7 +3057,7 @@ def test_a_stated_host_restates_the_address_and_nothing_else(page_dir):
     assert access["lifetime"] == "standing"
 
 
-def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir):
+def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir, sessionless):
     """kind "error" through the browser door: the page's runtime reporting a
     live-session fault. Stamped author "page" (the machine speaking, not the
     user), heard by the watcher beside comments and reports, acknowledged
@@ -3859,7 +3486,7 @@ def test_a_comment_carrying_line_separators_survives_the_log(server, page_dir):
     events = [e for e in event_model.read_events(page_dir) if e["kind"] == "comment"]
     assert [e["text"] for e in events] == [text]
     # One physical line per event under any line-splitting reader, so what
-    # `wait` and `events` print stays one event per line for every consumer.
+    # `wait` and `page events` print stays one event per line for every consumer.
     raw = (page_dir / "events.jsonl").read_text()
     assert raw.splitlines() == raw.rstrip("\n").split("\n")
 
@@ -3996,7 +3623,7 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     active = files_model.active_descriptor(page_dir, event_model.read_events(page_dir))
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
-        structure_model.parse_revision(page_dir, active["revision"]),
+        artifact_model.read_revision(page_dir, active["revision"]).document,
         active,
     )
     preview = hosting_model.LeafHTTPServer(
@@ -4222,7 +3849,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
     active = files_model.active_descriptor(page_dir, events)
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
-        structure_model.parse_revision(page_dir, active["revision"]),
+        artifact_model.read_revision(page_dir, active["revision"]).document,
         active,
     )
     projection = served_service.PageStateService(
@@ -4385,7 +4012,9 @@ def test_the_key_arrives_in_the_query_and_stays_in_the_cookie(server, page_dir):
 
     with opener.open(f"{server}/versions/v1.html?t={TOKEN}") as arrival:
         assert arrival.status == 200
-    assert [c.value for c in jar] == [TOKEN]
+    # Persistent rather than a session cookie: the tab holds only the bare address,
+    # which has to open again after the browser restarts.
+    assert [(c.value, c.discard) for c in jar] == [(TOKEN, False)]
 
     # No query this time: the runtime's own fetches never carry one.
     with opener.open(f"{server}/api/state") as polled:
@@ -4490,6 +4119,36 @@ def test_server_start_names_the_page_layer_and_running_payload(page_dir):
         assert stopped.exit_code == 0, stopped.output
 
 
+def test_a_server_refuses_a_page_another_leaf_vendored_until_it_is_re_vendored(
+    page_dir,
+):
+    """A server speaks the contract of the Leaf that started it, and the page speaks
+    the one its last `page init` copied in. Served across the two, the page breaks in
+    the browser on every read, so the start is refused before it claims the page or
+    records a service, and the refusal names the re-vendor that ends it."""
+    runner = CliRunner()
+    foreign = vendored_by_another_leaf(page_dir)
+
+    refused = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
+
+    assert refused.exit_code != 0, refused.output
+    assert foreign in refused.output
+    assert f"leaf page init {page_dir}" in refused.output
+    assert not service_model.claim_path(page_dir).exists()
+    assert files_model.read_json(page_dir / "service.json") is None
+    assert not leases_model.lock_is_held(page_dir / "server.lock")
+
+    reinitialized = runner.invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    assert reinitialized.exit_code == 0, reinitialized.output
+    started = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
+    try:
+        assert started.exit_code == 0, started.output
+        assert server_model.running_server(page_dir)
+    finally:
+        stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
+        assert stopped.exit_code == 0, stopped.output
+
+
 def test_an_unidentified_old_service_is_not_mislabeled_as_the_calling_leaf(page_dir):
     files_model.write_json(
         page_dir / "service.json",
@@ -4580,7 +4239,7 @@ def test_a_stop_ends_a_server_whose_caller_left_while_it_announced(page_dir, spa
     finally:
         caller.close()
     stopping.join(timeout=30)
-    assert stopped == ["stopped server"]
+    assert stopped == [True]
     assert child.wait(timeout=10) is not None
     assert not json.loads(service.read_text())["enabled"]
 
@@ -4647,7 +4306,7 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
         assert hosting_model.start_server(page_dir, standing=True)
         resume.set()
         stopping.join(timeout=3)
-        assert stopped == ["stopped server"]
+        assert stopped == [True]
     finally:
         resume.set()
         files_model.write_json(
@@ -4955,6 +4614,20 @@ def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
             assert onward.status == 200
 
 
+def test_a_claimed_page_without_a_declaration_serves_its_state(page_dir, server):
+    """A claimed page whose agent has declared nothing yet, such as a copy served
+    before any `leaf status`, answers `/api/state` as a page waiting on its
+    user."""
+    publish(page_dir)
+    service_model.claim_page(page_dir)
+    (page_dir / schema_model.STATUS_FILE).unlink()
+
+    status, raw = fetch(f"{server}/api/state")
+
+    assert status == 200, raw
+    assert json.loads(raw)["status"] == {"state": "waiting", "detail": "", "after": 0}
+
+
 def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     """`others` on /api/state is every page a live server holds up, found through
     both places pages are written down — the conventional pages/ home and the
@@ -4975,6 +4648,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
         id="s9",
         agent="Codex",
         cwd="/work/api",
+        turn_opened="2026-01-01T00:00:00-08:00",
     )
     # A server that died leaves its record behind and its lock with the kernel:
     # the file says served and nothing holds it, which is what reads as stale.
@@ -4987,7 +4661,8 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     corrupt_url = neighbour_page(pages / "corrupt", title="A corrupted page")
     (pages / "corrupt" / "events.jsonl").write_text('{"kind": "note", "author"')
     # Presence belongs to the same isolation boundary as the log and version. A
-    # malformed private claim on another page must not make this page's poll fail.
+    # malformed private claim on another page must not make this page's poll fail:
+    # it is absent from that page's reading, which lists the page with no claims.
     malformed = pages / "malformed-status"
     neighbour_page(malformed, title="Malformed status")
     files_model.write_json(
@@ -5004,7 +4679,11 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     # list. Untitled, so the title falls back to the directory's name.
     scratch = tmp_path / "scratch"
     claimed_url = neighbour_page(scratch)
-    record_claim(scratch, released="2026-01-01T00:00:00-08:00")
+    record_claim(
+        scratch,
+        released="2026-01-01T00:00:00-08:00",
+        turn_opened="2026-01-01T00:00:00-08:00",
+    )
 
     state = json.loads(fetch(f"{server}/api/state")[1])
     # A directory holding no claims at all is still a complete answer: every
@@ -5013,20 +4692,22 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
         "status": {"state": "idle", "detail": "", "ts": None, "after": 0},
         "claims": [],
         "listening": False,
+        "session_alive": None,
+        "live_turn": None,
         "cursor": 0,
         "pending": 0,
         "agent": "Agent",
-        "session_alive": None,
         "claim_session": None,
         "claim_turn": None,
         "turn_closed": None,
+        "turn_opened": None,
+        "turn_takes_input": False,
         "viewed": None,
         "session_cwd": None,
         "workflows": [],
         "activity": {
             "kind": "closed",
             "held": True,
-            "quiet": False,
             "dropped": False,
             "detail": "",
             "observed": "",
@@ -5037,6 +4718,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
                 "queued": 0,
                 "picked_up": 0,
                 "pending": 0,
+                "overdue": 0,
                 "total": 0,
             },
             "ts": None,
@@ -5044,7 +4726,12 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
             "obligations": [],
         },
     }
-    assert state["others"] == [
+    [malformed_row] = [
+        row for row in state["others"] if row["title"] == "Malformed status"
+    ]
+    assert malformed_row["status"]["state"] == "working"
+    assert malformed_row["claims"] == [] and malformed_row["workflows"] == []
+    assert [row for row in state["others"] if row is not malformed_row] == [
         {
             "title": "A corrupted page",
             "url": corrupt_url,
@@ -5063,6 +4750,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
             "session_alive": False,
             "claim_session": "s1",
             "claim_turn": "turn-1",
+            "turn_opened": "2026-01-01T00:00:00-08:00",
             "session_cwd": str(Path.cwd()),
             "activity": {**unclaimed["activity"], "held": False},
         },
@@ -5080,11 +4768,11 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
             "session_alive": True,
             "claim_session": "s9",
             "claim_turn": "turn-1",
+            "turn_opened": "2026-01-01T00:00:00-08:00",
             "session_cwd": "/work/api",
             "activity": {
                 "kind": "away",
                 "held": True,
-                "quiet": True,
                 "dropped": False,
                 "detail": "measuring",
                 "observed": "",
@@ -5095,6 +4783,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
                     "queued": 0,
                     "picked_up": 0,
                     "pending": 0,
+                    "overdue": 0,
                     "total": 0,
                 },
                 "ts": "2026-01-01T00:00:00-08:00",
@@ -5194,7 +4883,7 @@ def test_state_reads_claims_and_their_log_floor_in_one_transaction(
                 "working",
                 "checking",
                 work={
-                    "subject": {"kind": "conversation", "id": "c1"},
+                    "subject": {"kind": "thread", "id": "c1"},
                     "after": page.events[-1]["seq"],
                 },
             )
@@ -5232,19 +4921,17 @@ def test_a_bare_ipv6_address_is_bracketed_in_the_url():
     )
 
 
-def test_a_conversation_predicate_cannot_follow_replayed_value_state(page_dir):
-    """Conversation seats are installed from authored predicates once. Refuse a
+def test_a_thread_predicate_cannot_follow_replayed_value_state(page_dir):
+    """Thread seats are installed from authored predicates once. Refuse a
     declaration that would make replay and the POST hold gate disagree about one."""
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-task"]["x-conversation"]["when"] = {"status": ["blocked"]}
+    registry["lf-task"]["x-thread-seat"]["when"] = {"status": ["blocked"]}
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
 
     assert result.exit_code == 1
-    assert (
-        "x-conversation predicate attributes are authored and static" in result.output
-    )
+    assert "x-thread-seat predicate attributes are authored and static" in result.output
 
 
 def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_dir):
@@ -5292,7 +4979,7 @@ def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_di
         }
         status, body = fetch(f"{server}/api/event", data=json.dumps(bad).encode())
         assert status == 400
-        assert "matching x-conversation hold target" in json.loads(body)["error"]
+        assert "matching x-thread-seat hold target" in json.loads(body)["error"]
 
 
 def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_dir):
@@ -5362,15 +5049,23 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     `read_events` skips a torn line and keeps reading, so a reply can outlive the
     message it answers — the one way the log tears from inside the product's own
     grammar rather than from someone editing the file. Two readings walk that
-    relation: `thread_roots`, which resolves a reply to the conversation it is in,
-    and `build_threads`, which builds the conversation itself. The first was made to
+    relation: `thread_names`, which resolves a reply to the thread it is in,
+    and `build_threads`, which builds the thread itself. The first was made to
     degrade and the second went on raising, so a page that had lost one line answered
     `page state` with a KeyError and handed the session picking it up nothing at all —
     the reply included, which was still perfectly readable.
 
     Both now put the surviving reply under the id the lost message was known by, so an
     action naming that id in `resolves` still finds its thread and the two readings
-    cannot disagree about which conversation a message is in."""
+    cannot disagree about which thread a message is in. Every reading that names the
+    thread names it by that id, and one that looked the thread up through its opening
+    message found nothing there."""
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace(
+            "</main>", '<lf-activity id="feed"></lf-activity></main>'
+        )
+    )
     publish(page_dir)
     event_model.append_event(
         page_dir,
@@ -5409,17 +5104,23 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     assert [e["id"] for e in events if e["kind"] == "reply"] == ["r-kept"], (
         "the tear took the reply with it, so nothing below is being read"
     )
-    assert thread_context_model.thread_roots(events)["r-kept"] == "c-lost"
+    names = thread_context_model.thread_names(events)
+    assert (names["r-kept"], names["c-lost"]) == ("c-lost", "c-lost")
     threads = event_folds_model.build_threads(events, {})  # nothing published to sit on
     assert list(threads) == ["c-lost"], (
-        f"the two readings put the reply in different conversations: {list(threads)}"
+        f"the two readings put the reply in different threads: {list(threads)}"
     )
     assert [m["id"] for m in threads["c-lost"]["msgs"]] == ["r-kept"]
+    # The lost id names the thread; its root is the reply that survived, under that
+    # reply's own id, because a reply or resolve addressed to the root has to name a
+    # message the append door can find.
+    assert threads["c-lost"]["id"] == "c-lost"
+    assert threads["c-lost"]["root"] is threads["c-lost"]["msgs"][0]
 
     # The surviving message is still the frozen document that owns its widgets.
     # Reading only the thread shell would miss this harder half of the torn-root case:
     # its question has to remain actionable and every element still names the lost
-    # root as its conversation.
+    # root as its thread.
     open_state = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
     assert open_state.exit_code == 0, open_state.output
     open_reading = json.loads(open_state.output)
@@ -5429,19 +5130,22 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
             "tag": "lf-ask",
             "source": "orphan-choice",
             "source_tag": "lf-options",
-            "conversation": "c-lost",
+            "thread": "c-lost",
         }
     ]
     orphan_elements = [
-        element
-        for element in open_reading["elements"]
-        if element["conversation"] == "c-lost"
+        element for element in open_reading["elements"] if element["thread"] == "c-lost"
     ]
     assert [element["id"] for element in orphan_elements] == [
         "orphan-decision",
         "orphan-choice",
         "orphan-retry",
     ]
+    # The browser reads the same thread under the same id, so its open Ask makes the
+    # thread the user's turn.
+    [served_thread] = page_state(page_dir)["browser"]["thread"]["threads"]
+    assert served_thread["id"] == "c-lost"
+    assert served_thread["attention"]["kind"] == "needs_user"
 
     closed = event_model.append_event(
         page_dir,
@@ -5453,7 +5157,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     state = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
     assert state.exit_code == 0, state.output
     closed_reading = json.loads(state.output)
-    [thread] = closed_reading["conversations"]
+    [thread] = closed_reading["threads"]
     assert thread == {
         "id": "c-lost",
         "title": None,
@@ -5466,12 +5170,38 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     assert [
         element["id"]
         for element in closed_reading["elements"]
-        if element["conversation"] == "c-lost"
+        if element["thread"] == "c-lost"
     ] == [element["id"] for element in orphan_elements]
+    assert thread_records(page_dir, "c-lost") == ["r-kept", closed["id"]]
     history = CliRunner().invoke(
-        cli_model.cli, ["events", str(page_dir), "--conversation", "c-lost"]
+        cli_model.cli, ["page", "state", str(page_dir), "c-lost"]
     )
     assert history.exit_code == 0, history.output
-    records = [json.loads(line) for line in history.output.splitlines()]
-    assert [record["id"] for record in records] == ["r-kept", closed["id"]]
-    assert records[0]["text"] == "the answer that survived it"
+    [kept] = json.loads(history.output)["content"]
+    assert (kept["message"], kept["text"]) == ("r-kept", "the answer that survived it")
+
+    # The history feed names the thread each row was made in, with the words of the
+    # first message it still holds.
+    rows = {row["id"]: row for row in page_state(page_dir)["browser"]["history"]}
+    lost_thread = {
+        "id": "c-lost",
+        "title": None,
+        "opening": "the answer that survived it",
+    }
+    assert rows["r-kept"]["thread"] == lost_thread
+    assert rows[closed["id"]]["thread"] == lost_thread
+
+    # The thread's id still names the thread to the writers, as it does for any
+    # thread whose opening comment survives; the reply is addressed through the
+    # first message the thread still holds, since the id names no event.
+    replied = CliRunner().invoke(
+        cli_model.cli,
+        ["thread", "reply", str(page_dir), "c-lost", "--text", "Retrying."],
+    )
+    assert replied.exit_code == 0, replied.output
+    assert json.loads(replied.output)["parent"] == "r-kept"
+    resolved = CliRunner().invoke(
+        cli_model.cli, ["thread", "resolve", str(page_dir), "c-lost"]
+    )
+    assert resolved.exit_code == 0, resolved.output
+    assert json.loads(resolved.output)["parent"] == "r-kept"

@@ -8,11 +8,11 @@ elements, register structured state with its playground, and derive the output.
 
 The playground draws its own regions: the preview is a stage, and the controls and the
 instruction to the agent stand in a rail beside it, on the same `2fr 1fr` tracks as a
-sheet's body and rail, wherever it has 50rem; narrower, they stack. A preview that needs
-width, such as two candidates side by side, belongs on a sheet (`<main
-data-width="available">`), where later body content can stand under the stage in an
-`lf-grid columns="2fr 1fr"`. Draw candidates on the stage without a card of their own;
-the stage is their surface.
+wide page's body and rail, wherever it has 43.5rem; narrower, they stack. A preview that needs
+width, such as two candidates side by side, belongs on a wide page (`<main
+class="layout-wide">`), or on a workspace page (`<main class="layout-workspace">`) whose
+body is the playground's Ask, where the stage grows to the window's height. Draw
+candidates on the stage without a card of their own; the stage is their surface.
 
 The preview is the surface the user operates. An A/B comparison keeps both candidates
 mounted in that preview and renders both from one interaction state, so each control
@@ -103,6 +103,16 @@ custom property is a quoted CSS string; its data attribute contains the unquoted
 #notification-playground[data-playground-format="status strip"]
   [data-candidate="status strip"] { outline: 2px solid var(--accent); }
 ```
+
+A candidate that restyles a whole page, such as Leaf's own Asks, focus rings, or chrome,
+or a library whose stylesheet is global, needs a page of its own: put an `lf-sample` in
+the preview (`references/page-authoring.md`, "Live samples"), a `window` one when the
+candidate reaches Leaf's chrome, and the candidate's CSS in a `<style>` inside its
+template, keyed on the child's root
+(`:root[data-playground-format="status strip"]`). Each child the sample presents,
+including after Reset, wears the same properties and attributes on its root from its
+first paint. The surrounding page holds the playground the user is operating, so its
+root and stylesheets never carry a candidate.
 
 The output is the instruction the user copies and the host receives. Write a complete
 task with an object, destination, and requested evidence. Use `lf-playground-value` only

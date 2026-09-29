@@ -35,8 +35,13 @@ import sys
 import tempfile
 import threading
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
+# The stream-activity writers are called as `codex.<name>`, so `leaf.codex` holds their
+# one binding: whatever takes a turn's readings there takes every carrier's too.
+from . import codex
 from .codex import (
     START_TIMEOUT,
     AppServerDeliveryUncertain,
@@ -50,24 +55,17 @@ from .codex import (
     append_batch,
     archive_record,
     check_app_server_endpoint,
-    clear_stream_activity,
     delivery_lock_path,
     delivery_record_state,
     delivery_records,
     delivery_stream_reply_target,
     offer_delivery,
-    open_stream_turn,
-    record_path,
     retire_gone_task_records,
     retry_delay,
-    set_stream_activity,
     start_app_server_delivery,
     stop_app_server,
     stream_reply_target,
     write_record,
-)
-from .conversation import (
-    delivery_reply_reserved,
 )
 from .delivery import ReceiptRefused, receive_batch, record_pickup
 from .detached import Handshake, start_detached
@@ -89,6 +87,10 @@ from .service import (
     starting_claim,
 )
 from .session import Watch, read_watch_pass
+from .thread import (
+    delivery_reply_reserved,
+)
+from .thread_titles import app_server_title, name_untitled_threads
 
 QUEUE_TIMEOUT = 20
 APP_SERVER_ENV = "LEAF_CODEX_APP_SERVER"
@@ -140,7 +142,7 @@ class TaskObserver:
     turn is, and each notification goes to the fold of the turn it names. A fold
     binds a reply only for an App Server delivery whose follower is gone, because
     no follower of Leaf's ever will write it. A queued pointer's reply is not the
-    turn's to write: that delivery names a plain reply for `leaf reply`, so its
+    turn's to write: that delivery names a plain reply for `leaf thread reply`, so its
     turn is watched and opened on its pages but binds nothing.
 
     What is this carrier's own is the subscription. One connection outlives the
@@ -264,38 +266,30 @@ class TaskObserver:
         """Reconcile every turn against a resumed snapshot of the task."""
         # A followed turn the snapshot does not list — a paginated thread's `turns`
         # can leave it out — stays disconnected until it says something.
-        turns = {turn["id"]: turn for turn in thread.get("turns", [])}
-        for turn in turns.values():
+        turns = thread.get("turns", [])
+        for turn in turns:
             self._reconcile(turn)
 
-        active = next(
+        # Only a turn this can name. A resume that reports the task active without
+        # naming its turn leaves nothing a `turn/completed` could ever clear.
+        self.running = next(
             (
-                turn
-                for turn in reversed(list(turns.values()))
+                turn["id"]
+                for turn in reversed(turns)
                 if turn.get("status") == "inProgress"
             ),
             None,
         )
-        # Only a turn this can name. A resume that reports the task active without
-        # naming its turn leaves nothing a `turn/completed` could ever clear.
-        self.running = active["id"] if active is not None else None
-        fold = self.turns.get(self.running) if self.running is not None else None
-        if (
-            fold is None
-            and active is not None
-            and not self._is_carried(_turn_delivery_id(active))
-        ):
-            fold = self.turns[active["id"]] = TurnFold(self.thread_id, active["id"])
-            fold.restore(active)
         status = thread.get("status", {})
-        if status.get("type") == "active" and active is not None:
+        fold = self.turns.get(self.running) if self.running is not None else None
+        if status.get("type") == "active" and self.running is not None:
             if fold is not None:
                 fold.absorb(
                     {
                         "method": "thread/status/changed",
                         "params": {
                             "threadId": self.thread_id,
-                            "turnId": active["id"],
+                            "turnId": self.running,
                             "status": status,
                         },
                     }
@@ -305,45 +299,28 @@ class TaskObserver:
             # This snapshot does not establish a current provider turn, so an
             # old thinking, tool, waiting, or replying observation cannot prove
             # one is still live.
-            clear_stream_activity(self.thread_id)
+            codex.clear_stream_activity(self.thread_id)
 
     def _reconcile(self, turn: dict) -> None:
         """Bring one snapshot turn's fold up to what the snapshot says of it.
 
-        The snapshot can name a delivery the fold has not seen: its item was
-        written while this connection was down. A carried one gives its turn to
-        the follower. Any other is accepted and bound as `_read` binds one, so the
-        answer is written whether the turn is still running or ended meanwhile.
-
-        A turn with no fold is taken up only for a delivery that owes a `turn`
-        answer, which is a turn nobody is following: its carrier process died while
-        the turn ran on. The snapshot's other turns are history, save the running
-        one, which `_resume` follows.
+        A running turn is followed, whether or not it was before the connection
+        dropped. An ended one is committed if something here was following it, or
+        if it carries a delivery: its item was written while this connection was
+        down, or its carrier process died while the turn ran on, and its answer
+        is still to write. Its turn is closed, never reopened. The snapshot's other
+        turns are history.
         """
-        turn_id = turn["id"]
-        fold = self.turns.get(turn_id)
-        delivery_id = _turn_delivery_id(turn)
         running = turn.get("status") == "inProgress"
-        if delivery_id is not None and (fold is None or fold.delivery_id is None):
-            if self._is_carried(delivery_id):
-                self.turns.pop(turn_id, None)
-                return
-            accept_offered_delivery(self.thread_id, delivery_id, turn_id)
-            target = delivery_stream_reply_target(self.thread_id, delivery_id)
-            if fold is None:
-                if target is None:
-                    return
-                fold = TurnFold(self.thread_id, turn_id)
-                if running:
-                    open_stream_turn(self.thread_id, turn_id)
-                    self.turns[turn_id] = fold
-            fold.bind(delivery_id, target)
+        fold = self._fold(
+            turn["id"], _turn_delivery_id(turn), follow=running, ended=not running
+        )
         if fold is None:
             return
         if running:
             fold.restore(turn)
         else:
-            self.turns.pop(turn_id, None)
+            self.turns.pop(turn["id"], None)
             fold.commit(turn)
 
     def _read(self, message: dict) -> None:
@@ -364,36 +341,58 @@ class TaskObserver:
         if turn_id is None:
             return
 
-        fold = self.turns.get(turn_id)
         delivery_id = app_server_delivery_id(message)
-        if delivery_id is not None and (fold is None or fold.delivery_id is None):
-            if self._is_carried(delivery_id):
-                # Its follower answers for this turn, so nothing here writes it twice.
-                self.turns.pop(turn_id, None)
-                return
-            if (
-                fold is None
-                and method != "turn/started"
-                and delivery_record_state(self.thread_id, delivery_id) == "offering"
-            ):
-                # The offered delivery names this turn, whose `turn/started` reached
-                # the task before this subscription was open to see it.
-                self.running = turn_id
-                fold = self.turns[turn_id] = TurnFold(self.thread_id, turn_id)
-        if fold is None and method == "turn/started":
-            open_stream_turn(self.thread_id, turn_id)
-            fold = self.turns[turn_id] = TurnFold(self.thread_id, turn_id)
+        # An offered delivery can name a turn whose `turn/started` reached the task
+        # before this subscription was open to see it.
+        adopting = (
+            delivery_id is not None
+            and turn_id not in self.turns
+            and delivery_record_state(self.thread_id, delivery_id) == "offering"
+        )
+        fold = self._fold(
+            turn_id, delivery_id, follow=method == "turn/started" or adopting
+        )
         if fold is None:
             return
-        if delivery_id is not None and fold.delivery_id is None:
-            accept_offered_delivery(self.thread_id, delivery_id, turn_id)
-            fold.bind(
-                delivery_id, delivery_stream_reply_target(self.thread_id, delivery_id)
-            )
+        if adopting:
+            self.running = turn_id
         update = fold.absorb(message)
         if (terminal := fold.finished(message, update)) is not None:
             del self.turns[turn_id]
             fold.commit(terminal)
+
+    def _fold(
+        self,
+        turn_id: str,
+        delivery_id: str | None,
+        *,
+        follow: bool,
+        ended: bool = False,
+    ) -> TurnFold | None:
+        """The fold of one turn, taking the turn up where `follow` says it runs.
+
+        This is the one place the observer opens a turn and binds a delivery to
+        it. A turn carrying a delivery this process's own follower carries is
+        that follower's, so it gets no fold here and any fold it had is dropped.
+        An `ended` turn nothing here followed gets a fold only to commit a
+        delivery it carries, and is never opened for it.
+        """
+        if delivery_id is not None and self._is_carried(delivery_id):
+            # Its follower answers for this turn, so nothing here writes it twice.
+            self.turns.pop(turn_id, None)
+            return None
+        fold = self.turns.get(turn_id)
+        if fold is None and follow:
+            fold = self.turns[turn_id] = TurnFold(self.thread_id, turn_id)
+            fold.open()
+        elif fold is None and ended and delivery_id is not None:
+            fold = TurnFold(self.thread_id, turn_id)
+        if fold is not None and delivery_id is not None and fold.delivery_id is None:
+            accept_offered_delivery(self.thread_id, delivery_id, turn_id)
+            fold.bind(
+                delivery_id, delivery_stream_reply_target(self.thread_id, delivery_id)
+            )
+        return fold
 
     def _disconnect_turns(self) -> None:
         """Take every fold's reading down without breaking the recovery boundary."""
@@ -438,19 +437,15 @@ def _turn_delivery_id(turn: dict) -> str | None:
     return app_server_delivery_id({"method": "turn/started", "params": {"turn": turn}})
 
 
-def accept_offered_delivery(
-    session_id: str,
-    delivery_id: str,
-    turn_id: str,
-    record: dict | None = None,
-) -> None:
+def accept_offered_delivery(session_id: str, delivery_id: str, turn_id: str) -> None:
     """Accept the offered delivery against the provider turn known to carry it."""
-    if record is None:
-        path = record_path(session_id, delivery_id)
-        with flocked(delivery_lock_path(session_id)):
-            record = read_json(path)
-    if record is not None and record["state"] == "offering":
-        accept_codex_delivery(session_id, turn=turn_id)
+    if delivery_record_state(session_id, delivery_id) == "offering":
+        accept_codex_delivery(session_id, turn_id)
+
+
+def _log_record(event: str, **fields) -> None:
+    """One structured line in the adapter's log."""
+    print(json.dumps({"event": event, **fields}), file=sys.stderr, flush=True)
 
 
 def start_delivery_turn(
@@ -507,6 +502,11 @@ def start_delivery_turn(
         # turn the moment it says anything; every other failure has given it back.
         socket.close()
         raise
+    # On the task's configured model: a user's App Server offers no model this
+    # process could name for every account.
+    name_untitled_threads(
+        app_server_title(observer.endpoint, None), payload, session_id, _log_record
+    )
     return DeliveryTurn(
         observer,
         session_id,
@@ -545,10 +545,10 @@ class DeliveryTurn(CarriedTurn):
 
     def begin(self) -> None:
         """Record the delivery against this turn, and bind the answer it will give."""
-        open_stream_turn(self.session_id, self.turn_id)
+        self.open()
         accept_offered_delivery(self.session_id, self.delivery_id, self.turn_id)
         self.open_reply()
-        set_stream_activity(self.session_id, self.turn_id, {"kind": "working"})
+        codex.set_stream_activity(self.session_id, self.turn_id, {"kind": "working"})
 
     def ended(self, error: BaseException) -> dict | None:
         """Account for the turn the stream stopped carrying, unless it is not over.
@@ -917,8 +917,9 @@ def cmd_codex_start(
     page_dir: Path,
     codex_path: str | None = None,
     app_server: str | None = None,
-) -> str:
-    """Claim PAGE and start one detached delivery carrier for this task."""
+) -> dict:
+    """Claim PAGE and start one detached delivery carrier for this task, or find
+    the one already running; return which, with its task and transport."""
     harness = session_harness()
     if harness is None or harness.name != CodexHarness.name:
         raise RuntimeError("`leaf codex start` must run inside a Codex task")
@@ -938,12 +939,10 @@ def cmd_codex_start(
             if app_server is not None and app_server != running:
                 raise RuntimeError(
                     f"Codex delivery is already active for task {session_id}"
-                    f"{_transport(running)}, not through App Server {app_server}"
+                    + (f" through App Server {running}" if running else "")
+                    + f", not through App Server {app_server}"
                 )
-            return (
-                f"Codex delivery is already active for task {session_id}"
-                f"{_transport(running)}"
-            )
+            return {"task": session_id, "app_server": running, "started": False}
         start_detached(
             [
                 "codex",
@@ -957,7 +956,7 @@ def cmd_codex_start(
             cwd=state_home(),
             timeout=START_TIMEOUT,
         )
-    return f"Codex delivery started for task {session_id}{_transport(app_server)}"
+    return {"task": session_id, "app_server": app_server, "started": True}
 
 
 def _running_adapter(session_id: str) -> dict | None:
@@ -973,12 +972,6 @@ def _running_adapter(session_id: str) -> dict | None:
         return None
 
 
-def _transport(app_server: str | None) -> str:
-    """How `leaf codex start` names a transport: the App Server's endpoint, or
-    nothing for the queue, which is how the host contracts tell the two apart."""
-    return f" through App Server {app_server}" if app_server else ""
-
-
 def _wait_for_app_server(path: Path, process: subprocess.Popen, log) -> None:
     deadline = time.monotonic() + START_TIMEOUT
     while time.monotonic() < deadline:
@@ -992,19 +985,20 @@ def _wait_for_app_server(path: Path, process: subprocess.Popen, log) -> None:
     raise RuntimeError("Codex App Server did not become ready")
 
 
-def cmd_codex_launch(codex_path: str | None = None) -> int:
-    """Run one private App Server and its Codex terminal client."""
-    executable = codex_path or shutil.which("codex")
-    if executable is None:
-        raise RuntimeError("cannot find the `codex` executable on PATH")
+@contextmanager
+def private_app_server(executable: str) -> Iterator[str]:
+    """Run one App Server on a Unix socket only this user can reach, and yield its
+    endpoint until the block ends and the server stops.
+
+    The server's environment names that endpoint as `LEAF_CODEX_APP_SERVER`, so a
+    task it runs hands its pages to this server when it runs `leaf codex start`."""
     with tempfile.TemporaryDirectory(prefix="leaf-codex-", dir="/tmp") as directory:
         path = Path(directory) / "app-server.sock"
         endpoint = f"unix://{path}"
-        environment = os.environ | {APP_SERVER_ENV: endpoint}
         with tempfile.TemporaryFile() as log:
             server = subprocess.Popen(
                 [executable, "app-server", "--listen", endpoint],
-                env=environment,
+                env=os.environ | {APP_SERVER_ENV: endpoint},
                 stdin=subprocess.DEVNULL,
                 stdout=log,
                 stderr=subprocess.STDOUT,
@@ -1012,9 +1006,18 @@ def cmd_codex_launch(codex_path: str | None = None) -> int:
             )
             try:
                 _wait_for_app_server(path, server, log)
-                return subprocess.call(
-                    [executable, "--remote", endpoint],
-                    env=environment,
-                )
+                yield endpoint
             finally:
                 stop_app_server(server)
+
+
+def cmd_codex_launch(codex_path: str | None = None) -> int:
+    """Run one private App Server and its Codex terminal client."""
+    executable = codex_path or shutil.which("codex")
+    if executable is None:
+        raise RuntimeError("cannot find the `codex` executable on PATH")
+    with private_app_server(executable) as endpoint:
+        return subprocess.call(
+            [executable, "--remote", endpoint],
+            env=os.environ | {APP_SERVER_ENV: endpoint},
+        )

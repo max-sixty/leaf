@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { summaryRanges } from "/runtime/conversation/summary-ranges.js";
-import { threadSearchReading } from "/runtime/conversation/narrowing.js";
+import { summaryRanges } from "/runtime/thread/summary-ranges.js";
+import { threadSearchReading } from "/runtime/thread/narrowing.js";
 
 const messages = ["a", "b", "c", "d", "e"].map((id) => ({ id, key: id }));
 

@@ -1,12 +1,12 @@
 /* Shared mechanical runtime context and read-only views of the semantic root.
    Accepted facts are never installed here independently of application publication. */
 import { readApplication } from "./semantic-state.js";
+import { PAGE_ROOT } from "./storage.js";
 
-// Code may be shared by several documents, including a specimen and its parent.
-// Page operations belong to the document, never to the module's asset URL.
-export const pageUrl = (path) =>
-  new URL(path, document.querySelector('link[rel="canonical"][data-lf-runtime]').href)
-    .href;
+// Code may be shared by several documents, including a sample and its parent.
+// Page operations belong to the document's declared root, never to the module's asset
+// URL.
+export const pageUrl = (path) => new URL(path, PAGE_ROOT).href;
 
 const offlineMarker = document.querySelector(
   'script[type="application/json"][data-lf-runtime][data-lf-offline]',
@@ -32,8 +32,18 @@ export const offlineState = () =>
 export const offlineData = () => (offlineInteractive ? offlinePayload.data : null);
 export const runtimeModule = (path) =>
   offlineInteractive ? `leaf:${path.startsWith("/") ? path : `/${path}`}` : path;
+// A layer file by its rooted path in the page directory (`/icon.svg`,
+// `/widgets/lf-tabs.js`), at the address this document's layer is served from. A
+// served document declares its registry's address beside the runtime's other entry
+// points, and the layer is that file's directory; a document nothing declared one for
+// takes the layer at its own root.
+const layerRegistry = document.querySelector("script[data-lf-runtime][data-lf-probe]")
+  ?.dataset.lfProbe;
 export const runtimeResource = (path) => {
-  if (!offlineInteractive) return path;
+  if (!offlineInteractive)
+    return layerRegistry
+      ? new URL(`.${path}`, new URL(layerRegistry, document.baseURI)).href
+      : path;
   const resource = offlinePayload.resources[path];
   if (typeof resource !== "string")
     throw new Error(`Leaf's interactive export is missing ${path}`);
@@ -46,13 +56,6 @@ export const runtime = {
   },
   get activity() {
     return readApplication().effective.activity;
-  },
-  get agent() {
-    // The claimant's own name where a claim answers for the page. Nothing has
-    // claimed an exported or never-served page, and "Agent" is what the
-    // conversation already calls a message whose author left no name
-    // (`UNCLAIMED_AGENT`, `conversation/messages.js`).
-    return readApplication().authoritative?.agent || "Agent";
   },
   get browser() {
     return readApplication().authoritative?.browser ?? null;
@@ -81,13 +84,8 @@ export const runtime = {
     return readApplication().authoritative?.events ?? [];
   },
   get lastEventSeq() {
-    return readApplication().authoritative?.browser.basis.through_seq ?? -1;
+    return readApplication().authoritative?.browser.basis.through_seq ?? null;
   },
-  // A chrome placement is moving a box the user may be standing in, so the focus it
-  // takes off and hands straight back is the layer's own, not the user going
-  // anywhere. Standing here rather than beside the one placer, because what has to know
-  // is every reader of where the user stands.
-  placingChrome: false,
   get reading() {
     return readApplication().authoritative?.reading ?? null;
   },
@@ -107,17 +105,16 @@ export const runtime = {
   get workflows() {
     return readApplication().effective.workflows;
   },
+  // The shown revision's server view, less its basis, as the publisher resolved it.
   get view() {
-    return runtime.browser?.views[String(runtime.currentRevision)] ?? null;
+    return readApplication().effective.view;
   },
 };
 
-// A specimen arrives without the surrounding user's arrangements. Passive gallery
-// replays stay inert and take one state reading; operable specimens run the ordinary
+// A sample arrives without the surrounding user's arrangements. Passive gallery
+// replays stay inert and take one state reading; operable samples run the ordinary
 // live feed.
-export const passiveSpecimen = document.body.hasAttribute("data-lf-specimen-passive");
-
-export const agentName = () => runtime.agent;
+export const passiveSample = document.body.hasAttribute("data-lf-sample-passive");
 
 export const revisionLabel = (revision) => {
   const stamped = runtime.versions.find((candidate) => candidate.revision === revision);

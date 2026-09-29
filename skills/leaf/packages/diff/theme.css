@@ -10,7 +10,9 @@
 lf-diff { display: block; margin: 14px 0;
           font-family: var(--mono); font-size: var(--code-size);
           line-height: var(--code-line); font-variant-ligatures: none;
-          color: var(--code-muted); overflow-x: auto; }
+          color: var(--code-muted); overflow-x: auto;
+          /* The diff scrolls its own lines, so they never size what holds it. */
+          contain: inline-size; }
 /* The diff renders its evidence inside a shadow tree, so its host keeps the code scale
  * above while giving up only the pre-upgrade colour and overflow. */
 lf-diff.lf-rendered { color: inherit; overflow: visible; }

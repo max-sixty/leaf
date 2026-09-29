@@ -53,9 +53,33 @@ other page files and the external state listed below.
 
 - `media/` — content-addressed page images, shared across revisions. `media.py` owns
   ingestion through `page media` and `/api/media`. Browser drafts and messages refer to
-  them with Markdown; a public filename always identifies the same bytes.
+  them with Markdown; a public filename always identifies the same bytes. That name is
+  `schema.MEDIA_DIGEST`'s, the one `media.media_name` mints and the server serves;
+  `page check` and the agent's message doors refuse any other name under `/media/`,
+  and the browser and the Worker read a reference by its directory alone. A revision
+  captures the media its document names, but every host serves media at the page root,
+  and documents, messages, and the runtime all address it there.
 
 - `events.jsonl` — append-only event log; an event's seq is its line number (1-based)
+
+- `interactions.jsonl` — diagnostic JSON-lines trace of server requests and browser
+  interactions, including refused requests. It is separate from `events.jsonl` and
+  never enters page state or acknowledgement, and no command reads it: a reader
+  follows the file itself (`tail -F`). The server appends request method, path without query, status, and
+  duration; `/api/interaction` appends browser batches with a session id, scoped
+  page address, and server receipt time. Sample activity remains in its parent
+  page's trace. The diagnostic file changes neither page/source reading nor
+  presence cache keys. It is private page data and is never served as an asset.
+  A tab retries failed batches and may resend an in-flight batch on page hide;
+  `(session, sequence)` identifies duplicates. Large browser records arrive as
+  `interaction_part` rows whose `json` fields concatenate in `part` order.
+  A tab retains at most 512 pending browser records: when delivery falls behind,
+  it sheds repeated observations first, then older actions only to admit new
+  actions. New repeated observations yield to pending actions. Sequence gaps show
+  where records were lost; a single record too large to fit is marked
+  `interaction_omitted`. This is a best-effort diagnostic trace, not an audit
+  guarantee: an offline tab closed with unsent data may lose it. The semantic
+  event log remains the durable record of accepted decisions.
 
 - `data.json` — the contract each external-data source id was first set under.
   `data.py` owns storage and updates.
@@ -64,9 +88,10 @@ other page files and the external state listed below.
   Any process may rewrite one; readings validate it against the recorded contract.
   Deferred record fields served by `/api/deferred` come from these same files.
 
-- `status.json` — work declarations and transient delivery handling, observed activity,
-  and reply bindings. [session-lifetime.md](session-lifetime.md) owns their writers and
-  lifetimes; `conversation.py` owns response reservations and their release.
+- `status.json` — work declarations, observed activity, and reply bindings.
+  [session-lifetime.md](session-lifetime.md) owns their writers and lifetimes;
+  `thread.py` owns response reservations and their release. Every reader loads it
+  through `service.read_status`, which reads a missing file as no declaration.
 
 - `waiter.lock` — bare-shell wait lease, present only while held; host sessions instead
   use `<state-home>/sessions/<session>.wait`. See [session-lifetime.md](session-lifetime.md).
@@ -78,11 +103,13 @@ other page files and the external state listed below.
   log replacement rules are defined in [session-lifetime.md](session-lifetime.md).
 
 - `preview.json` — the preview identity browser chrome labels, written by
-  `scripts/preview.py`, which decides what a preview tells the browser: the server
+  `leaf-dev preview`, which decides what a preview tells the browser: the server
   hands the file to the page whole. Its presence exempts the page from the handoff's watcher guard.
 
 - `service.json` — desired server address, enabled state, lifetime, and runtime
-  provenance. `hosting.py` owns start/stop and revival;
+  provenance, plus a `restart` mark while `page init` holds a served page down to
+  re-vendor it, which any other stop replaces so the restart leaves that stop
+  alone. `hosting.py` owns start/stop, restart, and revival;
   [session-lifetime.md, “Lifetime”](session-lifetime.md#lifetime) owns the lifetime rule.
   The URL's access key belongs to the machine's state home.
 
@@ -119,34 +146,32 @@ value fails its contract.
 nullable executable digest. Delivery emits `<meta name="lf-executable">` when a
 digest is available; `../../assets/runtime/version.js` owns the resulting install choice.
 `event_seq` is the last event folded into the snapshot and can be passed to
-`leaf events --after`; it is distinct from the acknowledgement cursor.
+`leaf page events --after`; it is distinct from the acknowledgement cursor.
 
-`content` joins the authored tree with standing state and declared data inputs.
-It includes ordinary HTML and content in disclosures or inactive tabs. An authored node
-keeps its `tag`, effective `attrs` and `content`, and `source` line and column.
-`content_source` supplies their shared immutable `file`, `revision`, mutable
-`edit_file`, `matches_active`, and vocabulary-file path. A node's `vocabulary`
-is its tag key in that file. A standing event supplies its exact `state` and origin;
-`authored` preserves the input it replaced. An opaque widget exposes its authored
-source and vocabulary entry rather than claiming to reproduce its rendered text.
+The page's document is not repeated in the reading: an agent reads the HTML at
+`active.file` beside `state`, which lists each standing user move by widget, unit and
+verb with the detail it carries, so where the two differ the page shows the move.
+`data_bindings` names each bound source and the widgets that read it, and
+`data/<source>.json` holds its value.
 
-Each node's `edit` identifies its mutation owner. A source edit carries its stable
-id when present and `matches_active`; the target file is inherited from
-`content_source.edit_file`. Source locations apply to that mutable file only when
-it matches the active revision. Generated children name their originating event and
-the widget in which their markup can be authored. `leaf conversation read <page> <id>`
-reads one conversation's current messages and frozen markup under `content`, with
-bounded history selected by `--after` and `--limit`. Its `content_source` names the
-conversation and vocabulary file; message identities locate the frozen source. Default
-`page state` conversation entries stay compact.
-
-Widget `inputs` join each binding to its source's current value, contract, source
-id, and revision, or to the `error` a failing value reads as. Each input's `edit`
-names the value file to rewrite. Contracts with a deferred record field expose the
-manifest plus that file and its revision for their payload. The compact
-`elements`, `state`, and lifecycle indexes remain available for machine queries.
-Raw diagnostic history belongs to `leaf events --conversation`, and the page's
-`registry.json` owns the vocabulary.
+`leaf page state <page> <id>` narrows the reading to what `<id>` names. A message,
+or a widget frozen into one, names its thread: the reading is that thread's current
+messages, with bounded history selected by `--after` and `--limit`, and each
+message's frozen markup under
+`content` (`construction.py`), since that markup has no file of its own. An authored
+node keeps its `tag`, effective `attrs` and `content`, and `source` line and column; a
+standing event supplies its exact `state` and origin, and `authored` preserves the
+input it replaced. Widget `inputs` join each binding to its source's current value,
+contract, source id and revision, or to the `error` a failing value reads as;
+contracts with a deferred record field expose the manifest plus the value file and
+its revision for their payload. The reading's `content_source` names the thread and
+vocabulary file. A widget on the page names itself: the reading is its `widget`
+element, the `state` and `updates` standing on it, the `asks` it holds or answers,
+and the `workflows` it is the subject of, with their `activity` obligations. Page ids
+and event ids share one address space, which is why `page check` refuses an authored
+id shaped like an event id. Default `page state` thread entries stay compact. Raw
+diagnostic history belongs to `leaf page events`, and the page's `registry.json` owns
+the vocabulary.
 
 Immutable deliveries live outside page directories at
 `<state-home>/deliveries/<id>.json`, because one envelope can contain complete

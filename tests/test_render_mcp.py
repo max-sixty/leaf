@@ -4,7 +4,6 @@ import json
 import shutil
 import threading
 from urllib.error import HTTPError
-from urllib.parse import urlsplit
 from urllib.request import urlopen
 
 from interact_support import ROOT
@@ -26,6 +25,7 @@ from render_harness import (
     consume_browser_errors,
     leaf_page,
     open_page,
+    write,
 )
 
 HOST = """<!doctype html>
@@ -238,19 +238,19 @@ def test_process_page_route_runs_the_complete_leaf_interface(
     )
 
     page.locator(".lf-threads-toggle").click()
-    general = page.locator(".lf-general textarea")
+    general = page.locator(".lf-general leaf-text")
     expect(general).to_be_visible()
     with page.expect_response(
         lambda response: response.url.endswith(f"{root}/api/media")
     ):
         general.evaluate(
-            """async (textarea, source) => {
+            """async (box, source) => {
                   const pixels = await (await fetch(source)).arrayBuffer();
                   const transfer = new DataTransfer();
                   transfer.items.add(new File(
                     [pixels], 'mcp-paste.png', {type: 'image/png'}
                   ));
-                  textarea.dispatchEvent(new ClipboardEvent('paste', {
+                  box.dispatchEvent(new ClipboardEvent('paste', {
                     bubbles: true,
                     cancelable: true,
                     clipboardData: transfer,
@@ -258,15 +258,14 @@ def test_process_page_route_runs_the_complete_leaf_interface(
                 }""",
             f"{root}/media/051bee487bfb5d13.png",
         )
-    expect(general).to_have_value("")
+    expect(general).to_have_js_property("value", "")
     draft_image = page.locator(".lf-general .lf-composer-media img")
     expect(draft_image).to_have_attribute("src", f"{root}/media/051bee487bfb5d13.png")
     complete = general.evaluate(
-        """async textarea => {
-              const entry = document.querySelector('script[type="module"][src$="leaf.js"]');
-              const input = await import(new URL('runtime/composing/input.js', entry.src));
-              const application = await import(new URL('runtime/application.js', entry.src));
-              return {draft: input.draftOf(textarea), composing: application.midComposition()};
+        """async box => {
+              const input = await window.__lfRuntimeImport('/runtime/composing/input.js');
+              const application = await window.__lfRuntimeImport('/runtime/application.js');
+              return {draft: input.draftOf(box), composing: application.midComposition()};
             }"""
     )
     assert complete == {
@@ -283,10 +282,9 @@ def test_process_page_route_runs_the_complete_leaf_interface(
     ).to_have_attribute("aria-disabled", "true")
     assert (
         general.evaluate(
-            """async textarea => {
-              const entry = document.querySelector('script[type="module"][src$="leaf.js"]');
-              const input = await import(new URL('runtime/composing/input.js', entry.src));
-              return input.draftOf(textarea);
+            """async box => {
+              const input = await window.__lfRuntimeImport('/runtime/composing/input.js');
+              return input.draftOf(box);
             }"""
         )
         == ""
@@ -354,7 +352,7 @@ def test_process_page_route_runs_the_complete_leaf_interface(
     )
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
-    page.locator(".lf-composer textarea").fill("Delivered through the MCP page.")
+    write(page.locator(".lf-composer leaf-text"), "Delivered through the MCP page.")
     with page.expect_response(lambda response: response.url.endswith("/api/event")):
         page.keyboard.press("ControlOrMeta+Enter")
 
@@ -380,8 +378,9 @@ def test_process_page_route_runs_the_complete_leaf_interface(
     assert revised.error is None and revised.revision == 3
     page.locator("#late").wait_for()
     page.wait_for_function("() => document.querySelector('#late').naturalWidth > 0")
+    # Media is the page's, so a revision's document names it at the page root.
     assert page.locator("#late").get_attribute("src") == (
-        f"{root}/revisions/{revision_path(page_dir, 3).stem}/media/051bee487bfb5d13.png"
+        f"{root}/media/051bee487bfb5d13.png"
     )
     assert all(
         resource.startswith(f"{page_server.origin}{root}/")
@@ -461,8 +460,9 @@ window.authoredModulePattern = (/api/);
     assert nested.url == private["inline_url"]
     assert nested.title() == "t"
     assert "Ship dark" in nested.locator("body").text_content()
-    expected_root = urlsplit(private["inline_url"]).path.rstrip("/")
-    assert nested.evaluate("window.authoredModulePath") == f"{expected_root}/api/state"
+    # An authored module's own values are what its author wrote, as its prose is:
+    # delivery addresses only its imports, which is how it reaches Leaf.
+    assert nested.evaluate("window.authoredModulePath") == "/api/state"
     assert nested.evaluate("window.authoredModulePattern.source") == "api"
     banner_control(nested, ".lf-version").click()
     expect(nested.locator(".lf-version-row").first).to_be_focused()
@@ -553,6 +553,16 @@ def test_adaptive_app_skips_a_frame_the_host_did_not_approve(
         if call["method"] == "tools/call"
     ] == ["leaf_snapshot_refresh"]
     assert "did not approve" in app.locator("#status").text_content()
+    # The host sizes its frame to the height the app's content takes.
+    height = app.evaluate(
+        "Math.ceil(document.documentElement.getBoundingClientRect().height)"
+    )
+    page.wait_for_function(
+        """height => window.calls
+              .filter(call => call.method === 'ui/notifications/size-changed')
+              .at(-1)?.params.height === height""",
+        arg=height,
+    )
 
 
 def test_adaptive_app_falls_back_when_the_complete_page_never_signals_ready(
@@ -1087,7 +1097,7 @@ def test_the_snapshot_posts_the_passage_the_version_holds_not_the_one_it_paints(
     the version can find, so the user is told the page never said the words in front of
     them. The app therefore reads the document's own text nodes, posts that and nothing
     else, and the append gate — the one resolver — writes the neighbours and stores the
-    same anchor `leaf comment` would. The full page then paints those exact passages."""
+    same anchor `leaf thread open` would. The full page then paints those exact passages."""
     url = serve(SNAPSHOT_READING_PAGE)
     page_dir = serve.page_dir
     source = revision_path(page_dir, 1).read_text(encoding="utf-8")

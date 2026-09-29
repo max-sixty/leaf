@@ -5,9 +5,9 @@
    first reaction. With no composer open, `e` contributes the reaction margin entries to the
    selected element's existing margin cluster. While that explicit mode stands, its
    contribution owns all six margin entries; standing readings and unrelated actions remain
-   in Page Map and return when the mode closes. Those temporary margin entries dock with the
-   cluster when necessary and claim no permanent rail width. A thread-local `e` opens
-   the conversation-owned row on the latest agent message. `REACT` claims the keyboard
+   in Page Map and return when the mode closes. Those temporary margin entries unfold the
+   cluster where it stands, in the rail or as a pin, and claim no permanent rail width. A thread-local `e` opens
+   the thread-owned row on the latest agent message. `REACT` claims the keyboard
    only for those margin and message lists; the composer's response scope owns its
    local list. Arrow keys wrap through the visible margin entries in the active list.
    Tab and Shift-Tab follow that same order. The Page Map dialog remains part of the
@@ -22,14 +22,14 @@
    choices therefore name the same complete set. The choices do not widen the rail or
    open a separate palette below the target. The compact response bar's More controller
    owns its state, focus return, and geometry independently.
-   Conversation reactions remain in their conversation-owned strip. The event still
+   Thread reactions remain in their thread-owned strip. The event still
    carries its durable authored anchor, while
    the temporary addressable resolves selected text to the first rendered block, matching the
    target where replay later seats its standing reaction.
 
    Token rendering and per-press submission helpers are passive exports. Boot
    constructs the reaction controller with auxiliary-surface, composer, and travel
-   capabilities; conversation views register their template-owned trigger and palette.
+   capabilities; thread views register their template-owned trigger and palette.
    mount installs the mode teardown listeners after composition. */
 
 import { nextRender } from "./rendering.js";
@@ -48,15 +48,15 @@ import {
 } from "./anchor-resolution.js";
 import { announce, notice } from "./notifications.js";
 import { claimsEsc, focused, saying } from "./keyboard/scopes.js";
-import { letGo } from "./focus.js";
+import { handBack } from "./focus.js";
 import { repaint } from "./repaint.js";
 
 import { allButCommandReference, pageCommand, pageScope } from "./keyboard/register.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
-import { anchorLabel } from "./conversation/messages.js";
-import { reactionsAt } from "./conversation/model.js";
-import { allThreads } from "./conversation/state.js";
+import { anchorLabel } from "./thread/messages.js";
+import { reactionsAt } from "./thread/model.js";
+import { allThreads } from "./thread/state.js";
 import { watchProjection } from "./projection-watch.js";
 
 // Standing tokens wear their emoji wherever they stand, and `aria-pressed` is the whole
@@ -71,19 +71,125 @@ const reactionVocabulary = () => registry.$reactions?.tokens;
 // row's bindings as the module evaluates, before the vocabulary is known.
 export const reactionTokens = () => Object.entries(reactionVocabulary() ?? {});
 
-// One token as a press, built the same way wherever it stands. The token names the
-// control; a layer may add an explanation without making prose part of the platform's
-// vocabulary. The compact face stays the declared mark. Digits remain keyboard
+// Press and hold to read, release to commit. A reaction's word is otherwise only its
+// tooltip and accessible name, which a finger never sees, so every reaction choice —
+// the response bar's, a reply strip's, the margin's under `e` — answers a press the same
+// way. The choice under the pointer wears `data-lf-held-word`, whose paint says its word
+// (shadow.css; theme.css for a margin entry's label), for as long as the press is held;
+// sliding onto a neighbouring choice of the same list reads that one instead; and the
+// release presses the choice it ends on, or none when it ends off the list. So a tap
+// still reacts, and a finger that reads the wrong word slides off before letting go.
+//
+// The release presses by dispatching the choice's click, counted as the pointer's
+// (surfaces read the count to tell a pointer from the keyboard), and the browser's own
+// click after it is swallowed: a finger held long enough to read may get none, so the
+// release, not the click, is the commit. A keyboard press carries no count and passes
+// untouched; the keyboard reads a word by focusing its choice, which paints the same.
+// Touch capture is released at the press so the slide is heard over each choice.
+//
+// A press or release with a modifier held is not this gesture: ctrl-click is the Mac's
+// context menu, and Option/Alt aims at the item. Such a press is left to the platform
+// and the choice's own click handling, and a modifier arriving before the release takes
+// the hold back without reacting.
+const REACTION_CHOICE = ".lf-react";
+const modified = (event) =>
+  event.ctrlKey || event.metaKey || event.altKey || event.shiftKey;
+function holdToRead() {
+  let hold = null;
+  let released = null;
+  const choiceIn = (event) =>
+    event
+      .composedPath()
+      .find((node) => node instanceof Element && node.matches(REACTION_CHOICE));
+  const read = (choice) => {
+    if (hold.reading === choice) return;
+    hold.reading?.removeAttribute("data-lf-held-word");
+    hold.reading = choice;
+    choice?.setAttribute("data-lf-held-word", "");
+  };
+  const under = (event) => {
+    const choice = choiceIn(event);
+    return choice?.parentElement === hold.list ? choice : null;
+  };
+  const end = (event, commit) => {
+    if (hold?.pointerId !== event.pointerId) return;
+    const choice = commit && !modified(event) ? under(event) : null;
+    read(null);
+    hold = null;
+    if (!choice) return;
+    released = choice;
+    choice.dispatchEvent(
+      new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        detail: 1,
+        clientX: event.clientX,
+        clientY: event.clientY,
+      }),
+    );
+  };
+  document.addEventListener(
+    "pointerdown",
+    (event) => {
+      released = null;
+      if (hold) read(null);
+      hold = null;
+      if (!event.isPrimary || event.button !== 0 || modified(event)) return;
+      const choice = choiceIn(event);
+      if (!choice || choice.matches(":disabled, [aria-disabled='true']")) return;
+      const origin = event.composedPath()[0];
+      if (origin.hasPointerCapture?.(event.pointerId))
+        origin.releasePointerCapture(event.pointerId);
+      hold = { pointerId: event.pointerId, list: choice.parentElement, reading: null };
+      read(choice);
+    },
+    { capture: true },
+  );
+  document.addEventListener(
+    "pointermove",
+    (event) => {
+      if (hold?.pointerId === event.pointerId) read(under(event));
+    },
+    { capture: true },
+  );
+  document.addEventListener("pointerup", (event) => end(event, true), {
+    capture: true,
+  });
+  document.addEventListener("pointercancel", (event) => end(event, false), {
+    capture: true,
+  });
+  document.addEventListener(
+    "click",
+    (event) => {
+      if (!released || !event.isTrusted || !event.detail || !choiceIn(event)) return;
+      released = null;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    },
+    { capture: true },
+  );
+  // A held choice would offer the platform's own long-press menu instead.
+  document.addEventListener(
+    "contextmenu",
+    (event) => {
+      if (hold) event.preventDefault();
+    },
+    { capture: true },
+  );
+}
+
+// One token as a press in the response bar; a reply's strip builds its own
+// (thread/reaction-strips.js). The token names the control; a layer may add an
+// explanation without making prose part of the platform's vocabulary. The compact face stays the declared mark. Digits remain keyboard
 // accelerators without changing the shape of every chip.
-function reactionChip(name, entry, pressed, { response = false } = {}) {
-  const chip = offer("button", `${response ? "" : "lf-chip "}lf-react`);
+function reactionChip(name, entry, pressed) {
+  const chip = offer("button", "lf-react");
   const meaning = entry.means ? `${name} — ${entry.means}` : name;
   chip.dataset.token = name;
   chip.title = meaning;
   chip.setAttribute("aria-label", meaning);
-  if (response)
-    responseAction(chip, { glyph: entry.glyph, label: name, collapse: true });
-  else chip.append(el("span", "lf-react-glyph", entry.glyph));
+  responseAction(chip, { glyph: entry.glyph, label: name, collapse: true });
   chip.onclick = () => pressed(name, chip);
   return chip;
 }
@@ -104,7 +210,7 @@ export function createReactionController({
   showFab,
   showFabOptions,
   updateFab,
-  standingConversation,
+  standingThread,
   standingElement,
 }) {
   const surfaces = new WeakMap();
@@ -132,9 +238,7 @@ export function createReactionController({
     palette.setAttribute("aria-label", "Reactions for this selection or element");
     for (const [name, entry] of reactionTokens())
       palette.append(
-        reactionChip(name, entry, (token, chip) => reactHere(token, chip, commands), {
-          response: true,
-        }),
+        reactionChip(name, entry, (token, chip) => reactHere(token, chip, commands)),
       );
     fabOptions.append(palette);
     syncResponseOptions();
@@ -157,19 +261,16 @@ export function createReactionController({
     anchor = fabAnchorAt(),
   ) {
     // Read before the bar goes, because the reading is about the bar that is standing.
-    // `showFab(null)` lands the user on this same answer, but `setReact(false)` runs
-    // after it and the palette makes a return of its own, so the landing is asserted once
-    // more once everything has settled. The bar owns what that answer is.
+    // The bar owns what that answer is. `setReact(false)` runs after the bar goes and the
+    // palette makes a return of its own, so the user lands once, when everything has
+    // settled, rather than once as the bar goes and again after the palette.
     const returnTo = fabReturnTo();
-    const restoreTargetFocus = () => {
-      if (returnTo?.isConnected) returnTo.focus({ preventScroll: true });
-      else letGo();
-    };
+    const restoreTargetFocus = () => handBack(returnTo);
     if (!anchor) return;
     if (standing) {
       await commands.withdrawReaction(standing);
       hideComposer();
-      showFab(null);
+      showFab(null, null, { returnFocus: "none" });
       setReact(false);
       restoreTargetFocus();
       return;
@@ -183,7 +284,7 @@ export function createReactionController({
     if (designModeActive()) event.about = "design";
     const sent = sendReaction(event, chip, anchorWord(anchor), commands.postReaction);
     hideComposer();
-    showFab(null);
+    showFab(null, null, { returnFocus: "none" });
     setReact(false);
     restoreTargetFocus();
     getSelection()?.removeAllRanges();
@@ -206,7 +307,7 @@ export function createReactionController({
   const pickerFor = (surface) => surfaces.get(surface);
 
   function reactionTarget() {
-    const said = standingConversation();
+    const said = standingThread();
     const strip = said && latestAgentStrip(said.held);
     if (strip) return { kind: "surface", surface: strip };
     if (fabAnchorAt()) return { kind: "anchor" };
@@ -258,7 +359,7 @@ export function createReactionController({
         ),
     });
     marginTarget = target;
-    if (openMarginEntryOptions(target, { owner: "responses" })) {
+    if (openMarginEntryOptions(target, "responses")) {
       marginUnfolded = !standing;
       return true;
     }
@@ -325,8 +426,8 @@ export function createReactionController({
         if (target?.kind === "surface") reactSurface = target.surface;
         else if (target?.kind === "anchor" || target?.kind === "addressable") {
           if (target.kind === "addressable") {
-            // The addressable element may be represented by a docked row after its containing block,
-            // with the target itself off screen. Keep the semantic anchor without
+            // The addressable element's margin row may stand where the target itself is
+            // off screen. Keep the semantic anchor without
             // asking a floating bar to find geometry; the shared element is the surface.
             showFab({ section: target.addressable.id }, null, {
               origin: reactFrom,
@@ -446,6 +547,11 @@ export function createReactionController({
     // the liveness captured at that boundary rather than listing every conditional choice.
     liveInCommandReference: true,
     at: () => reactArmed,
+    // The open list is where the mode stands, so a surface covering the page keeps it
+    // when the list is inside that surface: a reply's strip in a covering Threads panel
+    // lost every row to the panel's floor, and the stray key closed the list. The
+    // margin's list has no node of its own and stands wherever its entry does.
+    root: () => (reactSurface instanceof Element ? reactSurface : document),
     claims: allButCommandReference,
     rows: [
       {
@@ -517,6 +623,7 @@ export function createReactionController({
     marginEntryContextContains(fabTargetAt(), node);
 
   function mount() {
+    holdToRead();
     document.addEventListener("lf-margin-entry-options-closed", () => {
       if (reactArmed && reactSurface === marginSurface) setReact(false);
     });
@@ -536,6 +643,7 @@ export function createReactionController({
   // order, and the mode's own scope above owns them once the list is open.
   pageCommand({
     id: "reaction.open",
+    touch: false,
     keys: ["e"],
     does: () =>
       `Open reactions — ${reactionTokens()

@@ -171,7 +171,7 @@
       }
     </style>
     <script type="module">
-      import { keeps, layoutChanged, once } from "/runtime/widget-api.js";
+      import { keeps, keepsText, layoutChanged, once } from "/runtime/widget-api.js";
 
       const EVENTS = [
         {
@@ -285,6 +285,7 @@
           #playground = null;
           #change = null;
           #values = null;
+          #cards = "";
 
           connectedCallback() {
             if (once(this)) this.#build();
@@ -335,18 +336,34 @@
               "data-selected",
               this.#values.format === "status strip",
             );
-            this.#banner.feed.replaceChildren(
-              ...events.map((event, index) =>
-                notification(event, "banner", index, this.#values),
-              ),
+            // The cards read only the event count, the first title and the owner line;
+            // a colour or a radius leaves them standing.
+            const cards = JSON.stringify([
+              this.#values.events,
+              this.#values.title,
+              this.#values["show-owner"],
+            ]);
+            if (cards !== this.#cards) {
+              this.#cards = cards;
+              this.#banner.feed.replaceChildren(
+                ...events.map((event, index) =>
+                  notification(event, "banner", index, this.#values),
+                ),
+              );
+              this.#strip.feed.replaceChildren(
+                ...events.map((event, index) =>
+                  notification(event, "status strip", index, this.#values),
+                ),
+              );
+            }
+            keepsText(
+              this.#banner.metric,
+              `${this.#values.events} cards · full detail`,
             );
-            this.#strip.feed.replaceChildren(
-              ...events.map((event, index) =>
-                notification(event, "status strip", index, this.#values),
-              ),
+            keepsText(
+              this.#strip.metric,
+              `${this.#values.events} rows · compact summary`,
             );
-            this.#banner.metric.textContent = `${this.#values.events} cards · full detail`;
-            this.#strip.metric.textContent = `${this.#values.events} rows · compact summary`;
             layoutChanged(this);
           }
         },
@@ -354,148 +371,125 @@
     </script>
   </head>
   <body>
-    <main data-width="available">
-      <lf-workspace id="notification-workspace">
-        <lf-ask id="notification-ask">
-          <h1>Stress-test the deployment notification</h1>
-          <lf-playground
-            id="notification-playground"
-            submit-label="Create notification"
+    <main class="layout-workspace" id="notification-workspace">
+      <lf-ask id="notification-ask">
+        <h1>Stress-test the deployment notification</h1>
+        <lf-playground id="notification-playground" submit-label="Create notification">
+          <lf-playground-control
+            name="events"
+            label="Concurrent release events"
+            kind="range"
+            value="2"
+            min="1"
+            max="4"
+            step="1"
+          ></lf-playground-control>
+          <lf-playground-control
+            name="radius"
+            label="Corner radius"
+            kind="range"
+            value="10"
+            min="0"
+            max="24"
+            step="1"
+            unit="px"
+          ></lf-playground-control>
+          <lf-playground-control
+            name="compact"
+            label="Compact spacing"
+            kind="toggle"
+            value="false"
+          ></lf-playground-control>
+          <lf-playground-control
+            name="format"
+            label="Format"
+            kind="choice"
+            value="banner"
           >
-            <lf-playground-control
-              name="events"
-              label="Concurrent release events"
-              kind="range"
-              value="2"
-              min="1"
-              max="4"
-              step="1"
-            ></lf-playground-control>
-            <lf-playground-control
-              name="radius"
-              label="Corner radius"
-              kind="range"
-              value="10"
-              min="0"
-              max="24"
-              step="1"
-              unit="px"
-            ></lf-playground-control>
-            <lf-playground-control
-              name="compact"
-              label="Compact spacing"
-              kind="toggle"
-              value="false"
-            ></lf-playground-control>
-            <lf-playground-control
-              name="format"
-              label="Format"
-              kind="choice"
-              value="banner"
-            >
-              <lf-playground-choice
-                value="banner"
-                label="Banner"
-              ></lf-playground-choice>
-              <lf-playground-choice
-                value="status strip"
-                label="Status strip"
-              ></lf-playground-choice>
-            </lf-playground-control>
-            <lf-playground-control name="tone" label="Tone" kind="choice" value="calm">
-              <lf-playground-choice value="calm" label="Calm"></lf-playground-choice>
-              <lf-playground-choice
-                value="urgent"
-                label="Urgent"
-              ></lf-playground-choice>
-            </lf-playground-control>
-            <lf-playground-control
-              name="show-owner"
-              label="Show service owner"
-              kind="toggle"
-              value="true"
-            ></lf-playground-control>
-            <lf-playground-control
-              name="accent"
-              label="Accent"
-              kind="color"
-              value="#4f766f"
-            ></lf-playground-control>
-            <lf-playground-control
-              name="title"
-              label="Notification title"
-              kind="text"
-              value="Checkout deployed"
-              placeholder="Notification heading"
-            ></lf-playground-control>
+            <lf-playground-choice value="banner" label="Banner"></lf-playground-choice>
+            <lf-playground-choice
+              value="status strip"
+              label="Status strip"
+            ></lf-playground-choice>
+          </lf-playground-control>
+          <lf-playground-control name="tone" label="Tone" kind="choice" value="calm">
+            <lf-playground-choice value="calm" label="Calm"></lf-playground-choice>
+            <lf-playground-choice value="urgent" label="Urgent"></lf-playground-choice>
+          </lf-playground-control>
+          <lf-playground-control
+            name="show-owner"
+            label="Show service owner"
+            kind="toggle"
+            value="true"
+          ></lf-playground-control>
+          <lf-playground-control
+            name="accent"
+            label="Accent"
+            kind="color"
+            value="#4f766f"
+          ></lf-playground-control>
+          <lf-playground-control
+            name="title"
+            label="Notification title"
+            kind="text"
+            value="Checkout deployed"
+            placeholder="Notification heading"
+          ></lf-playground-control>
 
-            <lf-playground-preset label="Routine release">
-              <lf-playground-setting for="events" value="2"></lf-playground-setting>
-              <lf-playground-setting for="tone" value="calm"></lf-playground-setting>
-              <lf-playground-setting
-                for="compact"
-                value="false"
-              ></lf-playground-setting>
-              <lf-playground-setting
-                for="format"
-                value="banner"
-              ></lf-playground-setting>
-              <lf-playground-setting
-                for="accent"
-                value="#4f766f"
-              ></lf-playground-setting>
-            </lf-playground-preset>
-            <lf-playground-preset label="Needs attention">
-              <lf-playground-setting for="events" value="4"></lf-playground-setting>
-              <lf-playground-setting for="tone" value="urgent"></lf-playground-setting>
-              <lf-playground-setting for="compact" value="true"></lf-playground-setting>
-              <lf-playground-setting
-                for="format"
-                value="status strip"
-              ></lf-playground-setting>
-              <lf-playground-setting
-                for="accent"
-                value="#b6533c"
-              ></lf-playground-setting>
-            </lf-playground-preset>
+          <lf-playground-preset label="Routine release">
+            <lf-playground-setting for="events" value="2"></lf-playground-setting>
+            <lf-playground-setting for="tone" value="calm"></lf-playground-setting>
+            <lf-playground-setting for="compact" value="false"></lf-playground-setting>
+            <lf-playground-setting for="format" value="banner"></lf-playground-setting>
+            <lf-playground-setting for="accent" value="#4f766f"></lf-playground-setting>
+          </lf-playground-preset>
+          <lf-playground-preset label="Needs attention">
+            <lf-playground-setting for="events" value="4"></lf-playground-setting>
+            <lf-playground-setting for="tone" value="urgent"></lf-playground-setting>
+            <lf-playground-setting for="compact" value="true"></lf-playground-setting>
+            <lf-playground-setting
+              for="format"
+              value="status strip"
+            ></lf-playground-setting>
+            <lf-playground-setting for="accent" value="#b6533c"></lf-playground-setting>
+          </lf-playground-preset>
 
-            <lf-playground-preview id="notification-preview">
-              <p>
-                Drag event pressure from a routine release to a burst. Both formats
-                receive the same updates, so their scan cost stays comparable. The
-                Format control selects the requested output while leaving both
-                candidates visible for comparison.
-              </p>
-              <notification-simulator
-                id="notification-simulator"
-              ></notification-simulator>
-              <section id="notification-artifact" hidden>
-                <lf-text-document
-                  id="notification-artifact-source"
-                  source="notification-artifact"
-                  language="html"
-                ></lf-text-document>
-              </section>
-            </lf-playground-preview>
+          <lf-playground-preview id="notification-preview">
+            <p>
+              Drag event pressure from a routine release to a burst. Both formats
+              receive the same updates, so their scan cost stays comparable. The Format
+              control selects the requested output while leaving both candidates visible
+              for comparison.
+            </p>
+            <notification-simulator
+              id="notification-simulator"
+            ></notification-simulator>
+            <section id="notification-artifact" hidden>
+              <lf-text-document
+                id="notification-artifact-source"
+                source="notification-artifact"
+                language="html"
+              ></lf-text-document>
+            </section>
+          </lf-playground-preview>
 
-            <lf-playground-output id="notification-instruction">
-              Build the
-              <lf-playground-value for="format"></lf-playground-value> deployment
-              notification as <code>deployment-notification.html</code>. Use
-              <lf-playground-value for="tone"></lf-playground-value> styling,
-              <lf-playground-value for="radius"></lf-playground-value> corners,
-              <lf-playground-value for="accent"></lf-playground-value> accents, compact
-              spacing set to <lf-playground-value for="compact"></lf-playground-value>,
-              owner visibility set to
-              <lf-playground-value for="show-owner"></lf-playground-value>, and title it
-              <lf-playground-value for="title"></lf-playground-value>. Exercise
-              <lf-playground-value for="events"></lf-playground-value> concurrent
-              release events in its browser test, then show me the generated source here
-              for review.
-            </lf-playground-output>
-          </lf-playground>
-        </lf-ask>
-      </lf-workspace>
+          <lf-playground-output id="notification-instruction">
+            Build the
+            <lf-playground-value for="format"></lf-playground-value> deployment
+            notification as <code>deployment-notification.html</code>. Use
+            <lf-playground-value for="tone"></lf-playground-value> styling,
+            <lf-playground-value for="radius"></lf-playground-value> corners,
+            <lf-playground-value for="accent"></lf-playground-value> accents, compact
+            spacing set to <lf-playground-value for="compact"></lf-playground-value>,
+            owner visibility set to
+            <lf-playground-value for="show-owner"></lf-playground-value>, and title it
+            <lf-playground-value for="title"></lf-playground-value>. Exercise
+            <lf-playground-value for="events"></lf-playground-value> concurrent release
+            events in its browser test, then show me the generated source here for
+            review.
+          </lf-playground-output>
+        </lf-playground>
+      </lf-ask>
     </main>
   </body>
 </html>

@@ -8,26 +8,32 @@ import {
   semanticNewsNotice,
   semanticNewsReading,
 } from "/runtime/semantic-news.js";
+import { servedThread, servedWorkflow } from "../served.mjs";
 
 // `unread: false` leaves a message out of its thread's server `unread` reading: read
-// already, or not agent content at all (a reaction, a reply still streaming).
+// already, or not agent content at all (a reaction, a reply still streaming). `agent`
+// is the name the server serves an agent's message under.
 const message = (id, extra = {}) => ({
   id,
   seq: 1,
   author: "agent",
+  agent: "Agent",
   kind: "reply",
   ...extra,
 });
-const thread = (id, msgs, attention = null, userPrompt = null) => ({
-  root: { id },
-  msgs,
-  attention,
-  user_prompt: userPrompt,
-  unread: msgs
-    .filter((item) => item.unread !== false)
-    .map((item) => ({ message: item.id, version: item.edited?.id ?? item.id })),
-});
-const ask = (id, conversation = null) => ({ id, conversation });
+const thread = (id, msgs, attention = null, userPrompt = null) =>
+  servedThread(
+    msgs.map(({ unread: _unread, ...served }) => served),
+    {
+      id,
+      attention,
+      user_prompt: userPrompt,
+      unread: msgs
+        .filter((item) => item.unread !== false)
+        .map((item) => ({ message: item.id, version: item.edited?.id ?? item.id })),
+    },
+  );
+const ask = (id, thread = null) => ({ id, thread });
 const activity = (kind = "away", extra = {}) => ({
   kind,
   held: true,
@@ -38,27 +44,32 @@ const reading = ({
   threads = [],
   pageAsks = [],
   threadAsks = [],
-  requestOutcomes = [],
   workflows = [],
   pageActivity = activity(),
 } = {}) => ({
   page: { asks: { user: pageAsks } },
-  conversation: {
+  thread: {
     threads,
     asks: { user: threadAsks },
   },
   workflows,
   activity: pageActivity,
-  requestOutcomes,
 });
 const kinds = (result) => result.news.map((item) => item.kind);
-const responseFailure = (source, kind = "failed") => ({
-  condition: { kind, operation: "response" },
-  response: source,
-  input: "input",
-  subject: { kind: "conversation", id: "t" },
-  seq: 3,
-});
+const responseFailure = (source, kind = "failed") =>
+  servedWorkflow({
+    id: "input",
+    input: "input",
+    subject: { kind: "thread", id: "t" },
+    thread: "t",
+    coordinate: ["thread", "t"],
+    seq: 3,
+    answer: null,
+    stage: "answered",
+    condition: { kind, operation: "response" },
+    next_actor: "user",
+    response: source,
+  });
 
 test("accepted messages and user obligations arrive together after a quiet baseline", () => {
   const old = reading({
@@ -198,42 +209,19 @@ test("current content versions and admitted messages determine arrivals", () => 
   assert.deepEqual(same.news, []);
 });
 
-test("every canonical receipt survives one read and failed requests reopen asks", () => {
+test("a failed answer to a move in a thread's markup is news about that thread", () => {
   const baseline = observeSemanticNews(null, reading());
-  const receipt = (id, requestId, seq, status) => ({
-    id,
-    request: requestId,
-    seq,
-    status,
-  });
-  const outcome = (request, result) => ({
-    request,
-    widget: "approval",
-    receipt: result,
-  });
-  const first = outcome("first", receipt("failed", "first", 3, "failed"));
-  const second = outcome("second", receipt("succeeded", "second", 5, "succeeded"));
-  const complete = observeSemanticNews(
-    baseline.observed,
-    reading({ requestOutcomes: [first, second] }),
-  );
+  // The server stamps the thread the widget was frozen into.
+  const move = {
+    ...responseFailure({ attempt: "attempt" }),
+    subject: { kind: "widget", id: "pick" },
+    coordinate: ["pick", "pick", "choose"],
+  };
+  const failed = observeSemanticNews(baseline.observed, reading({ workflows: [move] }));
   assert.deepEqual(
-    complete.news.map((item) => item.key),
-    ["request:failed", "request:succeeded"],
+    failed.news.map(({ kind, thread }) => [kind, thread]),
+    [["response_failure", "t"]],
   );
-  const reopened = observeSemanticNews(
-    complete.observed,
-    reading({
-      requestOutcomes: [
-        first,
-        second,
-        outcome("third", receipt("failed-again", "third", 7, "failed")),
-      ],
-      pageAsks: [ask("approval")],
-    }),
-  );
-  assert.deepEqual(kinds(reopened), ["request_outcome", "user_obligation"]);
-  assert.equal(reopened.news[0].receipt.id, "failed-again");
 });
 
 test("response failures have exact episodes and recovery needs an accepted answer", () => {
@@ -333,22 +321,22 @@ test("agent availability is an episode, not a work-stage notice", () => {
   );
 });
 
-test("the adapter selects the active server document for page obligations", () => {
-  const current = reading({ pageAsks: [ask("current")] });
+test("page obligations come from the shown revision, not a waiting activation", () => {
+  const shown = reading({ pageAsks: [ask("shown")] });
+  const waiting = reading({ pageAsks: [ask("waiting")] });
   const selected = semanticNewsReading({
-    active: { revision: 2 },
-    browser: {
-      views: {
-        1: { document: reading({ pageAsks: [ask("historical")] }).page },
-        2: { document: current.page },
+    effective: { view: { document: shown.page } },
+    authoritative: {
+      active: { revision: 2 },
+      browser: {
+        views: { 1: { document: shown.page }, 2: { document: waiting.page } },
+        thread: shown.thread,
       },
-      conversation: current.conversation,
-      request_outcomes: [],
+      workflows: [],
+      activity: shown.activity,
     },
-    workflows: [],
-    activity: current.activity,
   });
-  assert.deepEqual([...selected.page.asks.user], [ask("current")]);
+  assert.deepEqual([...selected.page.asks.user], [ask("shown")]);
 });
 
 test("one producer notice states a reply and new obligation as separate facts", () => {
@@ -371,18 +359,11 @@ test("one producer notice states a reply and new obligation as separate facts", 
   assert.deepEqual(combineSemanticNews(result.news, result.news), result.news);
 });
 
-test("deferred news drops superseded failures and edits but keeps historical receipts", () => {
+test("deferred news drops superseded failures and edits", () => {
   const baseline = observeSemanticNews(null, reading());
   const failedReading = reading({
     threads: [thread("t", [message("answer", { edited: { id: "edit-a", seq: 2 } })])],
     workflows: [responseFailure({ attempt: "attempt" })],
-    requestOutcomes: [
-      {
-        request: "req",
-        widget: "control",
-        receipt: { id: "receipt", status: "failed" },
-      },
-    ],
   });
   const failed = observeSemanticNews(baseline.observed, failedReading);
   const answeredReading = reading({
@@ -392,16 +373,15 @@ test("deferred news drops superseded failures and edits but keeps historical rec
         message("recovered", { seq: 4 }),
       ]),
     ],
-    requestOutcomes: failedReading.requestOutcomes,
   });
   const answered = observeSemanticNews(failed.observed, answeredReading);
   const queued = combineSemanticNews(failed.news, answered.news);
   const current = currentSemanticNews(queued, answeredReading, answered.observed);
   assert.deepEqual(
     current.map((item) => item.key),
-    ["request:receipt", "content:edit-b", "content:recovered"],
+    ["content:edit-b", "content:recovered"],
   );
-  assert.equal(semanticNewsNotice(current), "2 replies in 1 thread; Request failed");
+  assert.equal(semanticNewsNotice(current), "2 replies in 1 thread");
 });
 
 test("deferred failure wording follows its current condition and stale availability disappears", () => {

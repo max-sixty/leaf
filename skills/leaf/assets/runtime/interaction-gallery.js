@@ -1,7 +1,7 @@
 /* The developer interaction gallery replays focused demonstrations against real Leaf
  * surfaces in the product gallery. It owns only the illustrative pointer, timing
  * controls, and ephemeral orchestration of each surface's canonical transition.
- * Document-global chrome runs in a same-origin frame so it remains inside the specimen;
+ * Document-global chrome runs in a same-origin frame so it remains inside the sample;
  * a package-specific sequence comes from that package's widget module. No sequence
  * dispatches a gesture or writes to the page's event log. The product gallery opts in
  * with data-interaction-gallery, so ordinary Leaf pages pay no runtime or behavior cost
@@ -9,7 +9,7 @@
  *
  * A package sequence lets the gallery replay a package widget's production motion
  * without moving that package into the default layer. The figure carries the contained
- * page's markup in `template[data-specimen]` and names the widget module with
+ * page's markup in `template[data-sample]` and names the widget module with
  * `data-interaction-module`; that module exports `interactionGalleryScenario` with
  * `reset(root)` and `play(context)`. `reset` receives the contained `Document` and
  * restores its authored starting state without animation. `play` receives a frozen
@@ -21,11 +21,12 @@
  * transition while still reaching complete state when the caller ignores it. The swipe
  * package's deck module is the worked example. */
 
-import { nextFrame } from "./rendering.js";
+import { afterScript, nextFrame } from "./rendering.js";
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
-import { mountSpecimen } from "./specimen.js";
+import { mountSample } from "./sample.js";
 import { deferredArrival } from "./presentation.js";
 import { offer, reserve } from "./widget-elements.js";
+import { keeps, keepsHidden, keepsText } from "./keeps.js";
 
 class StaleDemo extends Error {}
 
@@ -94,18 +95,18 @@ class Demo {
   }
 
   async load() {
-    const template = this.figure.querySelector(":scope > template[data-specimen]");
-    this.specimen = mountSpecimen(this.frameElement, {
+    const template = this.figure.querySelector(":scope > template[data-sample]");
+    this.sample = mountSample(this.frameElement, {
       template: template?.id,
       passive: true,
     });
-    await this.specimen.ready;
+    await this.sample.ready;
     const frameApi = this.frameElement.contentWindow?.leafInteractionGalleryFrame;
     if (!frameApi)
       throw new Error("the contained Leaf page did not expose its gallery adapter");
     this.frameApi = frameApi;
     this.frameApi.resetThreads();
-    this.frameElement.dataset.interactionReady = "";
+    this.frameElement.toggleAttribute("data-interaction-ready", true);
     const modulePath = this.figure.dataset.interactionModule;
     if (modulePath) {
       const loaded = await import(modulePath);
@@ -142,8 +143,8 @@ class Demo {
   // travels as an attribute and lives in the caption for as long as the caption stands.
   keypressCaption(shown) {
     if (!this.keypress) return;
-    this.keypress.textContent = shown ? this.keypress.dataset.interactionKeypress : "";
-    this.keypress.hidden = !shown;
+    keepsText(this.keypress, shown ? this.keypress.dataset.interactionKeypress : "");
+    keepsHidden(this.keypress, !shown);
   }
 
   setState(state) {
@@ -158,7 +159,7 @@ class Demo {
   reset() {
     this.generation += 1;
     this.stopAnimations();
-    this.pointer.hidden = true;
+    keepsHidden(this.pointer, true);
     this.keypressCaption(false);
     this.pointerPosition = null;
     this.pausedByView = false;
@@ -323,7 +324,7 @@ class Demo {
       y: this.stage.clientHeight * 0.82,
     };
     this.pointerPosition = from;
-    this.pointer.hidden = false;
+    keepsHidden(this.pointer, false);
     this.pointer.style.transform = `translate(${from.x}px, ${from.y}px)`;
     this.pointer.style.opacity = "1";
   }
@@ -387,7 +388,7 @@ class Demo {
       generation,
     );
     animation.cancel();
-    this.pointer.hidden = true;
+    keepsHidden(this.pointer, true);
   }
 }
 
@@ -459,7 +460,7 @@ const scenarios = {
     reset(demo) {
       demo.frameApi.resetComment(
         demo.figure.dataset.interactionTarget,
-        "Gallery conversation: should the practice exercise come before lunch? " +
+        "Gallery thread: should the practice exercise come before lunch? " +
           "Try replying here; the agenda is fictional.",
       );
     },
@@ -524,19 +525,19 @@ export function installInteractionGallery() {
   gallery.dataset.interactionInstalled = "1";
   const tabs = gallery.querySelector("lf-tabs");
   const panels = [...tabs.querySelectorAll(":scope > lf-tab")];
-  const controls = offer("div", "interaction-controls");
+  const controls = offer("div", "lf-interaction-controls");
   controls.setAttribute("aria-label", "Animation controls");
-  const toggle = offer("button", "lf-btn interaction-control", "Loading…");
+  const toggle = offer("button", "lf-btn lf-interaction-control", "Loading…");
   toggle.dataset.interactionToggle = "";
-  const loopLabel = offer("label", "interaction-setting");
-  const loop = offer("input", "interaction-loop", undefined, "checkbox");
-  loop.name = "interaction-loop";
+  const loopLabel = offer("label", "lf-interaction-setting");
+  const loop = offer("input", "lf-interaction-loop", undefined, "checkbox");
+  loop.name = "lf-interaction-loop";
   loop.dataset.interactionLoop = "";
   loopLabel.append(loop, " Loop");
-  const viewportLabel = offer("label", "interaction-setting");
+  const viewportLabel = offer("label", "lf-interaction-setting");
   viewportLabel.append("Viewport ");
-  const viewport = offer("select", "interaction-viewport");
-  viewport.name = "interaction-viewport";
+  const viewport = offer("select", "lf-interaction-viewport");
+  viewport.name = "lf-interaction-viewport";
   viewport.dataset.interactionViewportSelect = "";
   for (const size of VIEWPORT_SIZES) {
     const option = document.createElement("option");
@@ -548,7 +549,7 @@ export function installInteractionGallery() {
     throw new Error("interaction gallery has an invalid viewport size");
   viewport.value = gallery.dataset.interactionViewport;
   viewportLabel.append(viewport);
-  const status = offer("span", "interaction-status", "Loading…");
+  const status = offer("span", "lf-interaction-status", "Loading…");
   status.dataset.interactionStatus = "";
   status.setAttribute("aria-live", "polite");
   controls.append(toggle, loopLabel, viewportLabel, status);
@@ -558,9 +559,11 @@ export function installInteractionGallery() {
   let active = null;
   let onScreen = false;
 
-  const demos = new Map(
-    panels.map((panel) => [panel, new Demo(panel, () => renderControls())]),
-  );
+  // A step through the demonstration can pass through states in one script (a switch
+  // deactivates one demo, readies the next and starts it), so the controls are painted
+  // once, from where the script leaves them.
+  const paintControls = () => afterScript(renderControls);
+  const demos = new Map(panels.map((panel) => [panel, new Demo(panel, paintControls)]));
 
   function selectedPanel() {
     return panels.find((panel) => !panel.hasAttribute("hidden"));
@@ -569,8 +572,8 @@ export function installInteractionGallery() {
   function renderControls() {
     if (!active) return;
     const words = TOGGLE_WORDS;
-    toggle.textContent = words[active.state];
-    toggle.disabled = ["idle", "error"].includes(active.state);
+    keepsText(toggle, words[active.state]);
+    toggle.toggleAttribute("disabled", ["idle", "error"].includes(active.state));
     const label = active.panel.getAttribute("label");
     const states = {
       idle: "Loading",
@@ -582,8 +585,8 @@ export function installInteractionGallery() {
       finished: "Complete",
       error: "Could not play",
     };
-    status.textContent = states[active.state];
-    toggle.setAttribute("aria-label", `${words[active.state]} ${label} animation`);
+    keepsText(status, states[active.state]);
+    keeps(toggle, "aria-label", `${words[active.state]} ${label} animation`);
     if (active.state === "finished" && loop.checked && onScreen) {
       const completed = active;
       queueMicrotask(() => {
@@ -613,7 +616,7 @@ export function installInteractionGallery() {
       active = next;
     }
     if (active.loadState === "ready" && active.state === "idle") active.activate();
-    renderControls();
+    paintControls();
     maybePlay();
   }
 
@@ -664,14 +667,14 @@ export function installInteractionGallery() {
   const stopMotionPreference = onMotionPreferenceChange((reduced) => {
     if (reduced) active?.pause();
     else maybePlay();
-    renderControls();
+    paintControls();
   });
 
   uninstallGallery = () => {
     active?.deactivate();
     for (const demo of demos.values()) {
       demo.stopAnimations();
-      void demo.specimen?.destroy();
+      void demo.sample?.destroy();
     }
     tabObserver.disconnect();
     viewObserver.disconnect();

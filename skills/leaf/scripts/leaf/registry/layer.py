@@ -1,15 +1,15 @@
 """Layer registry composition and contract validation."""
 
 import re
-from functools import cache
+from copy import deepcopy
 
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
 from leaf.schema import (
     ANSWER_KINDS,
-    ASSETS,
     DATA_CONTRACT_NAME,
+    DECLARED_MARKS,
     EXTENSION_SCHEMA,
     GUIDANCE_SCHEMA,
     HTML_NAME,
@@ -18,25 +18,10 @@ from leaf.schema import (
 from .contract import (
     RegistryError,
     json_validator,
-    read_registry_declarations,
     unresolved_schema_reference,
 )
-
-
-def kernel_event_kinds() -> dict:
-    """The fixed event records produced and consumed by Leaf's kernel."""
-    return read_registry_declarations(ASSETS / "registry.json")["$events"]["kinds"]
-
-
-@cache
-def bookkeeping_kinds() -> frozenset[str]:
-    """The kinds `$events` declares `bookkeeping`: facts about the user's view of
-    the page, kept for the page's own readings and never a move the agent answers."""
-    return frozenset(
-        kind
-        for kind, contract in kernel_event_kinds().items()
-        if contract.get("bookkeeping")
-    )
+from .kernel import kernel_event_kinds
+from .state import stamp_decisions
 
 
 def merge_layer_declarations(merged: dict, declarations: dict) -> None:
@@ -80,6 +65,20 @@ def merge_layer_declarations(merged: dict, declarations: dict) -> None:
                     k: v for k, v in {**earlier[key], **value}.items() if v is not None
                 }
         merged[name] = {k: v for k, v in combined.items() if v is not None}
+
+
+def stamp_composition(registry: dict) -> dict:
+    """Write into a validated vocabulary what the browser reads rather than derives:
+    `$decisions` (`registry.state.stamp_decisions`) and `$marks`, the declared marks
+    (`schema.DECLARED_MARKS`) it paints on a message it renders.
+
+    Each composition that ends in a vocabulary stamps it, `page init`'s layer and a
+    page's own declarations over it, overwriting whatever a layer declared under
+    either name.
+    """
+    stamp_decisions(registry)
+    registry["$marks"] = deepcopy(DECLARED_MARKS)
+    return registry
 
 
 def required_layer_declarations(registry: dict, path):

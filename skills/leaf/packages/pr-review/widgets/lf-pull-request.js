@@ -4,44 +4,37 @@
 import {
   ago,
   clocked,
+  el,
   highlightBlocks,
+  keeps,
+  keepsText,
   loadMarkdown,
   projectData,
   renderMarkdown,
   watchData,
 } from "/runtime/widget-api.js";
 
-const setText = (element, value) => {
-  if (element.textContent !== value) element.textContent = value;
-};
-
-function make(tag, className) {
-  const element = document.createElement(tag);
-  element.className = className;
-  return element;
-}
-
 function buildCard() {
-  const card = make("article", "lf-pr-card");
-  const header = make("header", "lf-pr-head");
-  const identity = make("p", "lf-pr-identity");
-  const identityLabel = make("span", "lf-pr-identity-label");
-  const status = make("span", "lf-pr-status");
-  const title = make("strong", "lf-pr-title");
-  const byline = make("p", "lf-pr-byline");
-  const route = make("p", "lf-pr-route");
-  const facts = make("ul", "lf-pr-facts");
-  const description = make("section", "lf-pr-description");
-  const descriptionLabel = make("h3", "lf-pr-description-label");
-  const descriptionBody = make("div", "lf-pr-description-body");
-  const checks = make("section", "lf-pr-checks");
-  const checksTable = make("table", "lf-pr-check-table");
-  const checksLabel = make("caption", "lf-pr-checks-label");
+  const card = el("article", "lf-pr-card");
+  const header = el("header", "lf-pr-head");
+  const identity = el("p", "lf-pr-identity");
+  const identityLabel = el("span", "lf-pr-identity-label");
+  const status = el("span", "lf-pr-status");
+  const title = el("strong", "lf-pr-title");
+  const byline = el("p", "lf-pr-byline");
+  const route = el("p", "lf-pr-route");
+  const facts = el("ul", "lf-pr-facts");
+  const description = el("section", "lf-pr-description");
+  const descriptionLabel = el("h3", "lf-pr-description-label");
+  const descriptionBody = el("div", "lf-pr-description-body");
+  const checks = el("section", "lf-pr-checks");
+  const checksTable = el("table", "lf-pr-check-table");
+  const checksLabel = el("caption", "lf-pr-checks-label");
   const checksBody = document.createElement("tbody");
-  const observed = make("p", "lf-pr-observed");
+  const observed = el("p", "lf-pr-observed");
 
-  setText(descriptionLabel, "Author's description");
-  setText(checksLabel, "Checks");
+  keepsText(descriptionLabel, "Author's description");
+  keepsText(checksLabel, "Checks");
   identity.append(identityLabel, status);
   header.append(identity, title, byline, route);
   description.append(descriptionLabel, descriptionBody);
@@ -59,18 +52,18 @@ function renderFacts(card, record) {
     ["Deleted", `−${record.diff.deletions}`],
     ["Commits", record.diff.commits],
   ];
-  while (facts.children.length < values.length) facts.append(make("li", "lf-pr-fact"));
+  while (facts.children.length < values.length) facts.append(el("li", "lf-pr-fact"));
   for (const [index, [label, value]] of values.entries()) {
     const item = facts.children[index];
     let name = item.querySelector(".lf-pr-fact-name");
     let amount = item.querySelector(".lf-pr-fact-value");
     if (!name) {
-      name = make("span", "lf-pr-fact-name");
-      amount = make("strong", "lf-pr-fact-value");
+      name = el("span", "lf-pr-fact-name");
+      amount = el("strong", "lf-pr-fact-value");
       item.append(name, amount);
     }
-    setText(name, label);
-    setText(amount, String(value));
+    keepsText(name, label);
+    keepsText(amount, String(value));
   }
 }
 
@@ -81,19 +74,19 @@ function renderChecks(card, checks) {
   for (const [checkName, checkStatus] of Object.entries(checks).sort(([a], [b]) =>
     a.localeCompare(b),
   )) {
-    const item = prior.get(checkName) ?? make("tr", "lf-pr-check");
-    item.dataset.check = checkName;
-    item.dataset.status = checkStatus;
+    const item = prior.get(checkName) ?? el("tr", "lf-pr-check");
+    keeps(item, "data-check", checkName);
+    keeps(item, "data-status", checkStatus);
     let name = item.querySelector(".lf-pr-check-name");
     let status = item.querySelector(".lf-pr-check-status");
     if (!name) {
-      name = make("th", "lf-pr-check-name");
+      name = el("th", "lf-pr-check-name");
       name.scope = "row";
-      status = make("td", "lf-pr-check-status");
+      status = el("td", "lf-pr-check-status");
       item.append(name, status);
     }
-    setText(name, checkName);
-    setText(status, checkStatus);
+    keepsText(name, checkName);
+    keepsText(status, checkStatus);
     wanted.push(item);
   }
   let cursor = body.firstElementChild;
@@ -103,11 +96,11 @@ function renderChecks(card, checks) {
   }
   for (const item of [...body.children]) if (!wanted.includes(item)) item.remove();
   if (!wanted.length) {
-    const empty = make("tr", "lf-pr-check lf-pr-check-empty");
+    const empty = el("tr", "lf-pr-check lf-pr-check-empty");
     const cell = document.createElement("td");
     cell.colSpan = 2;
     empty.append(cell);
-    setText(cell, "No checks reported");
+    keepsText(cell, "No checks reported");
     body.append(empty);
   }
 }
@@ -138,16 +131,17 @@ function renderCard(record, prior, descriptionChanged) {
   const description = card.querySelector(".lf-pr-description-body");
   const observed = card.querySelector(".lf-pr-observed");
 
-  card.setAttribute(
+  keeps(
+    card,
     "aria-label",
     `${record.repository} pull request ${record.number}: ${record.title}`,
   );
-  status.dataset.status = record.status;
-  setText(identityLabel, `${record.repository} · PR #${record.number}`);
-  setText(status, record.status);
-  setText(title, record.title);
-  setText(byline, `Opened by ${record.author}`);
-  setText(route, `${record.base} → ${record.head} · revision ${record.revision}`);
+  keeps(status, "data-status", record.status);
+  keepsText(identityLabel, `${record.repository} · PR #${record.number}`);
+  keepsText(status, record.status);
+  keepsText(title, record.title);
+  keepsText(byline, `Opened by ${record.author}`);
+  keepsText(route, `${record.base} → ${record.head} · revision ${record.revision}`);
   if (
     renderDescription(
       description,
@@ -155,17 +149,17 @@ function renderCard(record, prior, descriptionChanged) {
     )
   )
     descriptionChanged.value = true;
-  setText(observed, `Observed ${ago(record.observedAt)}`);
-  observed.title = record.observedAt;
+  keepsText(observed, `Observed ${ago(record.observedAt)}`);
+  keeps(observed, "title", record.observedAt);
   renderFacts(card, record);
   renderChecks(card, record.checks);
   return card;
 }
 
 function renderMissing(prior) {
-  const card = prior ?? make("article", "lf-pr-card lf-pr-missing");
-  setText(card, "Waiting for pull request data.");
-  card.setAttribute("aria-label", "Pull request data unavailable");
+  const card = prior ?? el("article", "lf-pr-card lf-pr-missing");
+  keepsText(card, "Waiting for pull request data.");
+  keeps(card, "aria-label", "Pull request data unavailable");
   return card;
 }
 
@@ -191,7 +185,7 @@ customElements.define(
             next.missing
               ? renderMissing(prior)
               : renderCard(next, prior, descriptionChanged),
-          { snapshot },
+          { snapshot, identify: record ? ({ key }) => key : null },
         );
         return descriptionChanged.value;
       });

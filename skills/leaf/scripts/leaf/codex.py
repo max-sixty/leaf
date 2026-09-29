@@ -2,7 +2,7 @@
 
 A carrier is whatever keeps a Codex task reachable on Leaf's behalf: the detached
 process in `codex_adapter.py`, which observes a task it does not own, and the
-website's embedded host in `worker/server.py`, which owns the tasks it starts.
+website's embedded host in `leaf_website` (`worker/`), which owns the tasks it starts.
 What both need is here — the App Server connection and the request shapes one Leaf
 turn is opened with, the per-turn fold from a turn's notifications into its
 activity, its reply and its ending (`TurnFold`), the loop that reads a started
@@ -35,11 +35,6 @@ from xml.etree import ElementTree
 
 from websockets.sync.client import connect, unix_connect
 
-from .conversation import (
-    DeliveryReply,
-    release_delivery_reply,
-    reserve_delivery_reply,
-)
 from .delivery import (
     DELIVERY_FORMAT,
     DeliveryIdConflict,
@@ -61,12 +56,46 @@ from .leases import session_state_path, sessions_home
 from .schema import THREAD_ANSWER_KINDS
 from .service import (
     PageTransaction,
+    close_session_turn,
+    open_session_turn,
     owned_pages,
     restore_page_claim,
     unacknowledged,
 )
+from .thread import (
+    DeliveryReply,
+    release_delivery_reply,
+    reserve_delivery_reply,
+)
 
 START_TIMEOUT = 20
+# The `config` of a thread Leaf starts, less what Codex loads by default and no such
+# thread uses: the skills list, plugin and app suggestions, other agents, memories,
+# browser and computer use, image generation and web search. Each is context the
+# model reads on every request, and web search reaches the network the hosted task
+# is told to stay off.
+LEAF_THREAD_CONFIG = {
+    "features": {
+        feature: False
+        for feature in (
+            "apps",
+            "browser_use",
+            "computer_use",
+            "goals",
+            "image_generation",
+            "in_app_browser",
+            "memories",
+            "multi_agent",
+            "plugins",
+            "skill_mcp_dependency_install",
+            "skill_search",
+            "tool_suggest",
+            "workspace_dependencies",
+        )
+    },
+    "skills": {"include_instructions": False},
+    "web_search": "disabled",
+}
 # A collecting record holds captured events in the delivery's own shape, so the
 # version moves with it; a record of another version is dropped, and the events
 # its page has not acknowledged are captured afresh.
@@ -854,20 +883,6 @@ def clear_stream_activity(session_id: str, turn_id: str | None = None) -> None:
             page.clear_stream_activity(session_id, turn_id)
 
 
-def open_stream_turn(session_id: str, turn_id: str) -> None:
-    """Open one observed provider turn on every page this task claims."""
-    with _locked_task_pages(session_id) as pages:
-        for page in pages:
-            page.open_turn(session_id, turn_id)
-
-
-def close_stream_turn(session_id: str, turn_id: str) -> None:
-    """Close one observed provider turn on the pages holding it open."""
-    with _locked_task_pages(session_id) as pages:
-        for page in pages:
-            page.close_turn(session_id, turn_id)
-
-
 class TurnFold:
     """One Codex turn, folded onto the pages its task claims from its first
     notification to its ending.
@@ -878,6 +893,12 @@ class TurnFold:
     the seat of the delivery the turn carries, when that delivery owes a `turn`
     answer. The completion commits the answer, or gives the seat back, and then
     closes the turn on the page.
+
+    The fold is Leaf's one account of the turn's lifecycle on a page. `open` opens
+    the claim's turn under the provider's own turn id, which Codex's hooks name
+    too, and `close` closes that id; delivery acceptance only records which turn
+    took the moves. A carrier opens a fold's turn only while it runs, so a turn
+    read back from a snapshot after it ended is committed without reopening it.
 
     What differs between carriers is only how notifications reach the fold.
     `CarriedTurn` reads a connection the turn owns, from the start that made the
@@ -908,6 +929,10 @@ class TurnFold:
         self.events = AppServerEvents(session_id, turn_id)
         self.reply_stream: AppServerReplyStream | None = None
         self.last_activity_update = 0.0
+
+    def open(self) -> None:
+        """Open this turn on every page its task claims."""
+        open_session_turn(self.session_id, self.turn_id)
 
     def bind(self, delivery_id: str, reply_target: dict | None) -> None:
         """Name the delivery this turn carries, and open the reply it owes."""
@@ -993,7 +1018,7 @@ class TurnFold:
                 file=sys.stderr,
                 flush=True,
             )
-        close_stream_turn(self.session_id, self.turn_id)
+        close_session_turn(self.session_id, self.turn_id)
         clear_stream_activity(self.session_id, self.turn_id)
 
     def disconnect(self) -> None:
@@ -1337,9 +1362,9 @@ def stream_reply_target(payload: dict) -> dict | None:
     """The one reply address a delivery's turn writes with its own messages.
 
     It is the delivery's `turn` answer, which only a delivery frozen for App
-    Server holds: a pointer queued for `leaf reply` names a plain reply even when
+    Server holds: a pointer queued for `leaf thread reply` names a plain reply even when
     a turn Leaf observes picks it up. A move's response address is not the move: a
-    widget gesture inside a frozen conversation is answered on the conversation
+    widget gesture inside a frozen thread is answered on the thread
     that holds it. Reading both halves from the delivery keeps every writer — the
     provider's own final answer and a host receipt written when there will be no
     final answer — addressing the same place.
@@ -1423,15 +1448,12 @@ def prepare_codex_delivery(page_dir: Path, harness: Harness) -> PreparedDelivery
         raise
 
 
-def accept_codex_delivery(
-    session_id: str,
-    *,
-    phase: str = "opened",
-    turn: str | None = None,
-) -> list[dict]:
-    """Record and describe batches accepted by one Codex carrier."""
-    if phase not in {"queued", "opened"}:
-        raise ValueError(f"unknown delivery phase {phase!r}")
+def accept_codex_delivery(session_id: str, turn: str) -> list[dict]:
+    """Record the offered delivery's batches as opened in the provider turn that
+    took them.
+
+    Acceptance names the turn and opens nothing: whoever follows that turn opens
+    it (`TurnFold.open`), and a turn read back after it ended stays ended."""
     lock = delivery_lock_path(session_id)
     with flocked(lock):
         offered = [
@@ -1447,24 +1469,17 @@ def accept_codex_delivery(
     accepted = []
     for batch in batches:
         page_dir = Path(batch["page"])
-        expected = {event["seq"]: event["id"] for event in batch["events"]}
         with (
             PageTransaction(page_dir) as page,
             receive_batch(page, batch, session_id=session_id) as delivered,
         ):
-            claim_turn = page.open_turn(session_id, turn) if phase == "opened" else None
             record_pickup(
-                page,
-                delivered,
-                phase=phase,
-                session=session_id,
-                turn=claim_turn,
+                page, delivered, phase="opened", session=session_id, turn=turn
             )
             accepted.append(
                 {
                     "page": page_dir,
-                    "events": tuple(expected.values()),
-                    "turn": claim_turn,
+                    "events": tuple(event["id"] for event in batch["events"]),
                 }
             )
 
@@ -1475,36 +1490,9 @@ def accept_codex_delivery(
         for batch in record["batches"]:
             batch["receipted"] = True
         record["state"] = "accepted"
-        record["transport"] = {"phase": phase, "turn": turn}
+        record["transport"] = {"phase": "opened", "turn": turn}
         write_record(path, record)
     return accepted
-
-
-def open_queued_codex_delivery(
-    page_dir: Path,
-    session_id: str,
-    event_ids: tuple[str, ...],
-    turn: str,
-) -> str:
-    """Record when a durable queued delivery actually enters its Codex turn."""
-    with PageTransaction(page_dir) as page:
-        claim = page.active_claim
-        if claim is None or claim["id"] != session_id:
-            raise RuntimeError("the queued Codex delivery no longer owns its page")
-        by_id = {event["id"]: event for event in page.events}
-        if any(event_id not in by_id for event_id in event_ids):
-            raise RuntimeError("the queued Codex delivery no longer matches its page")
-        leaf_turn = page.open_turn(session_id, turn)
-        if leaf_turn is None:
-            raise RuntimeError("the queued Codex turn could not open its page claim")
-        record_pickup(
-            page,
-            [by_id[event_id] for event_id in event_ids],
-            phase="opened",
-            session=session_id,
-            turn=leaf_turn,
-        )
-        return leaf_turn
 
 
 def open_app_server_delivery(
@@ -1513,21 +1501,32 @@ def open_app_server_delivery(
     delivery_id: str,
     event_ids: tuple[str, ...],
     turn: str,
-) -> str:
-    """Bind a provider-observed App Server delivery to its turn."""
+) -> None:
+    """Record a provider-observed App Server delivery as opened in its turn,
+    accepting it when its record is still offering."""
     if delivery_record_state(session_id, delivery_id) == "offering":
-        accepted = accept_codex_delivery(session_id, turn=turn)
-        matching = [
-            delivery
-            for delivery in accepted
-            if delivery["page"] == page_dir and delivery["events"] == event_ids
-        ]
-        if len(matching) != 1:
+        accepted = accept_codex_delivery(session_id, turn)
+        if [
+            delivery["events"] for delivery in accepted if delivery["page"] == page_dir
+        ] != [event_ids]:
             raise RuntimeError(
                 "the recovered App Server turn accepted an unexpected page batch"
             )
-        return matching[0]["turn"]
-    return open_queued_codex_delivery(page_dir, session_id, event_ids, turn)
+        return
+    with PageTransaction(page_dir) as page:
+        claim = page.active_claim
+        if claim is None or claim["id"] != session_id:
+            raise RuntimeError("the App Server delivery no longer owns its page")
+        by_id = {event["id"]: event for event in page.events}
+        if any(event_id not in by_id for event_id in event_ids):
+            raise RuntimeError("the App Server delivery no longer matches its page")
+        record_pickup(
+            page,
+            [by_id[event_id] for event_id in event_ids],
+            phase="opened",
+            session=session_id,
+            turn=turn,
+        )
 
 
 def abandon_codex_delivery(session_id: str, event_id: str) -> None:

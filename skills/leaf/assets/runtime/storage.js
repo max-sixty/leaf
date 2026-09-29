@@ -1,30 +1,26 @@
-// ---------- where a page's public version addresses are ----------
-// A page's mapped revisions are served at sibling addresses under its own root:
-// versions/v1.html, v2.html… Three things read that path — which version this document
-// is, where another version of it is, and which page a tab's working state belongs
-// to — so the shape is spelled once here rather than three times, and a document served
-// under a directory of its own cannot have one of them agreeing with its URL while the
-// next two contradict it.
-export const VERSION_PATH = /\/versions\/v([1-9]\d*)\.html$/;
-export const PAGE_PATH = location.pathname;
-// Where another version is: beside this one. It was "/versions/vN.html" at the three
-// seats that travel, which is a claim about where the page directory sits — true of a
-// server serving one page at a root of its own, and of nothing else. The published site
-// serves every example from one vendored layer with each page under its own directory,
-// and there each absolute jump left the page for a root that serves nothing. Resolved
-// against the document, the travel agrees with the path the version number itself was
-// read off, which is the one form that cannot disagree with what this document is.
-export const versionUrl = (version) =>
-  `${PAGE_PATH.match(VERSION_PATH) ? "" : "versions/"}v${version}.html`;
-// The live root follows the active revision in place; a virtual version address under
-// the path above stays pinned to its mapped revision.
+// ---------- which address this document is ----------
+// Which version a document is comes from its served `lf-version` marker
+// (`document-identity.js`), and where another version is from that version's `url` in
+// the state reading, which the server addresses at the page root. Neither is read off
+// this path.
+const PAGE_PATH = location.pathname;
+// The live root follows the active revision in place; a virtual version address
+// (`versions/vN.html`) stays pinned to its mapped revision.
 export const LIVE_ROOT = PAGE_PATH.endsWith("/");
-// Which page this document belongs to, as a prefix for what the tab keeps: "" wherever a
-// server serves one page at its own root, so every key below is spelled exactly as it was.
-// Two leaf pages on one origin is what needs it — web storage is the origin's, so the
-// reading position a user left on one example was handed back on the next, at an offset
-// that meant nothing there.
-export const PAGE_SCOPE = PAGE_PATH === "/" ? "" : PAGE_PATH.replace(VERSION_PATH, "");
+// Which page this document belongs to. The server declares the page's root in the
+// canonical link it adds to every document it serves, the live root and each version
+// address alike, and every page operation resolves against it. An interactive export
+// has no server and no link, so no root: the file is the page.
+export const PAGE_ROOT =
+  document.querySelector('link[rel="canonical"][data-lf-runtime]')?.href ?? null;
+// The same page as a prefix for what the tab keeps. Two leaf pages on one origin is what
+// needs it — web storage is the origin's, so the reading position a user left on one
+// example was handed back on the next, at an offset that meant nothing there. Read off
+// the declared root, a draft typed on the live root is the draft on each of its version
+// addresses. "" where that root is the origin's own, so a server serving one page keeps
+// every key below unprefixed; an export's own address where it has none.
+const rootPath = PAGE_ROOT ? new URL(PAGE_ROOT).pathname : PAGE_PATH;
+export const PAGE_SCOPE = rootPath === "/" ? "" : rootPath;
 
 // ---------- what the page keeps, and what a store may refuse ----------
 // Reading or writing web storage throws outright where the browser has it switched off —
@@ -68,9 +64,11 @@ const stored = (open, name, scope = "") => ({
     }
   },
   // Where this store puts a key, as the platform's own two names for its stores plus
-  // the key the backing actually holds. Only the browser gate asks: it seeds a store
+  // the key the backing actually holds. The browser gate asks: it seeds a store
   // before the page has run, so it cannot ask a store that does not exist yet, and the
-  // alternative is a second copy of the scope rule kept over there to go stale.
+  // alternative is a second copy of the scope rule kept over there to go stale. So do
+  // the drafts (`whereDraft`), whose storage listener reads another tab's key raw, and
+  // the tests that seed or read a stored draft.
   where(key) {
     return {
       store: name,

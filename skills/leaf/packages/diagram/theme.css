@@ -28,21 +28,33 @@ lf-diagram[data-lf-space="available"]:not(.lf-rendered) {
   --lf-room: 0px;
   display: block;
 }
-lf-diagram.lf-rendered { font: inherit; color: inherit; overflow: visible; }
-/* The drawing keeps its natural size. Flexible spacers spend the allocation on each
- * side so a drawing that fits remains on the prose axis; when it does not fit they give
- * way before the drawing and this box scrolls. This arrangement belongs to the diagram,
- * independently of the `available` capacity it requests from core. */
-lf-diagram[data-lf-space="available"] {
-  --lf-natural-inline-size: 1;
-  display: flex; justify-content: safe center; overflow-x: auto;
-}
-lf-diagram[data-lf-space="available"]::before,
-lf-diagram[data-lf-space="available"]::after { content: ""; flex: 0 1 auto; }
-lf-diagram[data-lf-space="available"]::before { width: calc(2 * var(--lf-grow-l)); }
-lf-diagram[data-lf-space="available"]::after { width: calc(2 * var(--lf-grow-r)); }
-lf-diagram[data-lf-space="available"] > * { flex: none; }
-lf-diagram[data-lf-space="available"] > .lf-error { flex: auto; min-width: 0; }
+/* The drawing keeps its natural size, between two spacers. Where the runtime allocated
+ * room, the spacers spend it on each side so a drawing that fits remains on the prose
+ * axis; when it does not fit they give way before the drawing and this box scrolls.
+ * Where nothing allocated room — a thread's message — they are empty and the drawing
+ * centres. This arrangement belongs to the diagram, independently of the `available`
+ * capacity it requests from core. */
+lf-diagram.lf-rendered { font: inherit; color: inherit; display: flex;
+                         justify-content: safe center; overflow-x: auto; }
+lf-diagram.lf-rendered::before,
+lf-diagram.lf-rendered::after { content: ""; flex: 0 1 auto; width: 0; }
+lf-diagram.lf-rendered[data-lf-space="available"]::before {
+  width: calc(2 * var(--lf-grow-l)); }
+lf-diagram.lf-rendered[data-lf-space="available"]::after {
+  width: calc(2 * var(--lf-grow-r)); }
+lf-diagram.lf-rendered > * { flex: none; }
+/* The layer marks each edge a scrolled box has more beyond (shadow.css, at
+ * [data-lf-more-before/after]) by fading the content there toward the page's ground, and
+ * a drawing takes that fade with two settings of its own. A fade all the way to the
+ * ground reads as the drawing's end: three agent-written plans drawn `flowchart LR`
+ * showed two and a half of five steps at 1440px, the third fading out, and every reader
+ * took the plan for three steps. What says "cut" is the drawing touching the edge: a
+ * node's fill and rules, or an arrow's line, running into the scrollport's side rather
+ * than stopping short of it. So the fade stops at 30% of the drawing, and is 32px wide,
+ * a few letters of a label, so the cut node's words stay readable up to where they are
+ * cut. A grey shadow over the edge said the same and read as a stray shadow instead.
+ * The drawing itself is never scaled or re-laid out. */
+lf-diagram.lf-rendered { --lf-more-fade: 32px; --lf-more-fade-to: rgb(0 0 0 / .3); }
 /* The authored body, before the module replaces it. Nothing here says white-space: the
    body is a <pre>, which is the whole reason it is one. Everything here undoes the rule
    that dresses a <pre> as evidence the page is showing — a box, a rule, a mono face, an
@@ -56,12 +68,8 @@ lf-diagram:not(.lf-rendered) > pre {
  * labels below legibility, so a wide one
  * scrolls in its own box, the same answer a wide table gets, instead of painting over
  * the margin. max-width: none escapes the page-wide svg rule in the kernel theme, which
- * would scale it right back down. Where the runtime has marked the element wide, the
- * package's `[data-lf-space="available"]` rule owns the box; these two are for the diagram
- * standing where nothing marks it — a thread's message — and agree with it.
- * Paper cannot scroll, so print restores the fit: width and viewBox stay in the markup,
- * and max-width alone scales the drawing whole. */
-lf-diagram.lf-rendered { overflow-x: auto; }
+ * would scale it right back down. Paper cannot scroll, so print restores the fit: width
+ * and viewBox stay in the markup, and max-width alone scales the drawing whole. */
 lf-diagram svg { display: block; margin: 0 auto; max-width: none; }
 @media print {
   lf-diagram svg { max-width: 100%; }

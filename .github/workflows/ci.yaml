@@ -1,6 +1,7 @@
 name: ci
 
-# Pull requests and main run the small landing gate. Pull requests also run the
+# Pull requests and main run the small landing gate, which on a pull request also runs
+# the nightly-marked tests in the test files it changes. Pull requests also run the
 # website gate; relevant pushes to main run that gate in publish-site before deploy.
 # A green push to main, the daily schedule, and a manual dispatch each run the
 # complete browser surface.
@@ -42,8 +43,12 @@ jobs:
       PYTEST_ADDOPTS: --durations=25 --durations-min=1
 
     steps:
+      # A pull request's checkout is its merge commit, whose first parent is the base:
+      # the second commit is what the nightly selection below diffs against.
       - name: 📂 Checkout code
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
 
       - uses: astral-sh/setup-uv@v7
 
@@ -65,7 +70,9 @@ jobs:
         run: npm ci
 
       - name: 🧪 Core and browser-smoke tests
-        run: uv run pytest tests -v --junitxml=.tmp/test-results/everyday.xml
+        run: >-
+          uv run pytest tests -v --junitxml=.tmp/test-results/everyday.xml
+          ${{ github.event_name == 'pull_request' && '--nightly-changed-since HEAD^1' || '' }}
 
       - name: Check committed browser framework
         run: npm run check:browser && npm run test:browser
@@ -74,7 +81,7 @@ jobs:
       # tracked bytes exactly and any difference is a lock nobody rebuilt from.
       - name: Check vendored bundles
         run: |
-          uv run scripts/vendor.py > /dev/null
+          uv run build/vendor.py > /dev/null
           git status --porcelain
           test -z "$(git status --porcelain)"
 
@@ -88,7 +95,7 @@ jobs:
 
       - name: Build website
         if: github.event_name == 'pull_request'
-        run: uv run scripts/site.py
+        run: uv run leaf-dev site
 
       - name: 🧪 Website worker tests
         if: github.event_name == 'pull_request'
@@ -100,13 +107,13 @@ jobs:
 
       - name: Measure the bundled release in Chrome
         if: github.event_name == 'pull_request'
-        run: scripts/verify-site-local.sh
+        run: uv run leaf-dev verify-site wrangler
 
       - name: Upload pytest results
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: pytest-results-everyday-${{ github.run_id }}-${{ github.run_attempt }}
+          name: pytest-results-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/test-results/everyday.xml
           if-no-files-found: ignore
           retention-days: 30
@@ -171,7 +178,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: pytest-results-nightly-${{ github.run_id }}-${{ github.run_attempt }}
+          name: pytest-results-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/test-results/nightly.xml
           if-no-files-found: ignore
           retention-days: 30

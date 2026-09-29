@@ -5,9 +5,9 @@
  * a horizontal board cannot expose a distant drop target while the pointer is held.
  * The grip is a press (`offer`), so the keyboard path needs no pointer: Enter grabs,
  * arrows restate the card's placement (announced through the live region), Enter drops,
- * and Escape or focus loss restores the origin. During a gesture the board wears
- * .lf-dragging for the whole gesture — the runtime's poll gates on it (no
- * version-follow, no foreign-action replay mid-gesture) — and a completed move
+ * and Escape or focus loss restores the origin. For the whole gesture the board holds
+ * the page's drag (`dragging`) — the runtime's poll gates on it (no version-follow,
+ * no foreign-action replay mid-gesture) — and a completed move
  * reports through #send as one ranked `move` action, indistinguishable on
  * the wire. renderState receives every column's final ordered card ids. One render
  * preserves native nodes, syncs a second tab, and no-ops on the sender. Presentation is theme CSS; authored content
@@ -35,6 +35,7 @@ import {
   saying,
   widgetController,
   dragging,
+  holdFocus,
   motion,
   scrollerFor,
   PRESS,
@@ -42,6 +43,9 @@ import {
   rankAt,
   reducedMotion,
   scrollBehavior,
+  keeps,
+  keepsHidden,
+  keepsText,
 } from "/runtime/widget-api.js";
 
 customElements.define(
@@ -79,17 +83,16 @@ customElements.define(
       }
       // The room a card's text keeps clear of its grip, measured off the grip's own
       // box rather than stated as a number (the pick column's answer): the theme
-      // spends it (--lf-grip-room), and only a board that grew grips states it, so
-      // paper, copies and quoted boards hold no dead column.
+      // spends it (--lf-grip-room across, --lf-grip-block down), and only a board
+      // that grew grips states it, so paper, copies and quoted boards hold no room.
       // Off the grip's own box, so it waits for one (`measure`): a board quoted into
       // a reply is built into the thread panel, which may not be open yet.
       measure(this, () => {
         const grip = this.querySelector(":scope > lf-column > lf-card > .lf-grip");
-        if (grip)
-          this.style.setProperty(
-            "--lf-grip-room",
-            Math.ceil(grip.getBoundingClientRect().width) + "px",
-          );
+        if (!grip) return;
+        const box = grip.getBoundingClientRect();
+        this.style.setProperty("--lf-grip-room", Math.ceil(box.width) + "px");
+        this.style.setProperty("--lf-grip-block", Math.ceil(box.height) + "px");
       });
       for (const col of this.querySelectorAll(":scope > lf-column"))
         this.#sortable(col);
@@ -153,8 +156,7 @@ customElements.define(
     #counts() {
       for (const col of this.querySelectorAll(":scope > lf-column")) {
         const count = col.querySelector(":scope > .lf-column-count");
-        const n = String(this.#cards(col).length);
-        if (count && count.textContent !== n) count.textContent = n;
+        keepsText(count, this.#cards(col).length);
       }
     }
 
@@ -169,12 +171,11 @@ customElements.define(
         for (const card of this.#cards(col)) {
           const name = `Move: ${this.#title(card)} — ${where}`;
           const grip = card.querySelector(":scope > .lf-grip");
-          if (grip && grip.getAttribute("aria-label") !== name)
-            grip.setAttribute("aria-label", name);
+          keeps(grip, "aria-label", name);
           for (const button of card.querySelectorAll(
             ":scope > .lf-board-destinations > .lf-board-destination",
           ))
-            button.hidden = button.dataset.lfBoardTarget === col.id;
+            keepsHidden(button, button.dataset.lfBoardTarget === col.id);
         }
       }
     }
@@ -182,8 +183,8 @@ customElements.define(
     // A board inside a Claude reply detaches when its thread's node is rebuilt —
     // resolving is the occasion the reconciled panel leaves, its cached body
     // re-adopted into the new node — and no blur fires for a detached grip, so
-    // drop a live grab here or it wedges the .lf-dragging gate open — freezing
-    // action replay and version-follow.
+    // drop a live grab here or it holds the page's drag for good — freezing action
+    // replay and version-follow.
     disconnectedCallback() {
       this.#stopActions?.();
       this.#stopActions = null;
@@ -214,13 +215,13 @@ customElements.define(
       for (const grip of this.querySelectorAll(
         ":scope > lf-column > lf-card > .lf-grip",
       )) {
-        grip.setAttribute("aria-disabled", String(!available));
-        grip.tabIndex = available ? 0 : -1;
+        keeps(grip, "aria-disabled", !available);
+        keeps(grip, "tabindex", available ? 0 : -1);
       }
       for (const button of this.querySelectorAll(
         ":scope > lf-column > lf-card > .lf-board-destinations button",
       ))
-        button.disabled = !available;
+        button.toggleAttribute("disabled", !available);
     };
 
     #available() {
@@ -263,9 +264,8 @@ customElements.define(
         keys: PRESS,
         does: "Grab the card",
         line: "grab the card",
-        // .lf-dragging without a grab is a live pointer drag — one gesture at a time.
-        when: () =>
-          this.#available() && !held() && !this.classList.contains("lf-dragging"),
+        // One gesture at a time: a grab, or a pointer drag under way, holds the board.
+        when: () => this.#available() && !this.#resumeProjection,
         run: () => this.#grab(card, grip),
       };
       // The tooltip names the keys the row binds rather than a letter typed beside it: the
@@ -612,7 +612,7 @@ customElements.define(
           return [card, card.getBoundingClientRect()];
         }),
       );
-      const focus = document.activeElement;
+      const restoreFocus = holdFocus(this);
       for (const [id, order] of Object.entries(columns)) {
         const column = document.getElementById(id);
         if (!column || column.closest("lf-board") !== this) continue;
@@ -622,8 +622,7 @@ customElements.define(
             column.insertBefore(card, this.#cards(column)[index] ?? null);
         });
       }
-      if (focus?.isConnected && document.activeElement !== focus)
-        focus.focus({ preventScroll: true });
+      restoreFocus?.();
       const movements = [];
       for (const card of cards) {
         const last = card.getBoundingClientRect();

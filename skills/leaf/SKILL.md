@@ -22,7 +22,8 @@ envelope a `leaf wait` printed. A delivery starts at step 5 below; do
 not initialize or hand the page over again. With no subject in `$ARGUMENTS`,
 present the work already under discussion. Leaf's writing guidance supplies
 defaults only; any user-specific guidance on tone, structure, depth, or format
-takes precedence.
+takes precedence. When the user states a preference meant for every page, save it
+in your host's memory, where later sessions will read it; Leaf keeps none.
 
 $ARGUMENTS
 
@@ -51,16 +52,20 @@ directory explicitly; export or copy anything that must outlive the page directo
    `page/`; Leaf alone writes revisions and version mappings.
 3. Check the page by its intended lifetime, whatever its shape and whether or
    not it asks a question. A quick page that will be revised or dropped after an
-   immediate reaction needs only `leaf version check <page>`; fix every failure,
+   immediate reaction needs only `leaf page check <page>`; fix every failure,
    and do not stamp it or delay its handoff for a browser review. For a finished
-   record that work will rely on after the conversation, run the pre-handover
-   review in `references/page-authoring.md`, including
-   `leaf version check <page> --render`, then
-   `leaf version stamp <page> --text "<changelog>"` before its URL first reaches
-   the user. A page declaring `<meta name="lf-review" content="sign-off">`
-   is a record whatever else it looks like, since sign-off is offered only on a
-   stamped version. A later stamp that turns a quick page into a record takes
-   that review first.
+   record that work will rely on after the conversation, run
+   `leaf page check <page> --render`, read the page as "Pre-handover review"
+   in `references/page-authoring.md` says, and fix what the reading finds before
+   `leaf page stamp <page> --text "<changelog>"`. The reading comes between
+   the check and the stamp: the check sees whether the page renders, and only
+   the reading sees whether it shows the user what it should, such as a view
+   that describes what it should have drawn. A record takes this review before
+   its URL first reaches the user and again at each later stamp, for the views
+   and Asks that stamp adds; a quick page takes it at the stamp that makes it a
+   record. A page declaring `<meta name="lf-review" content="sign-off">` is a
+   record whatever else it looks like, since sign-off is offered only on a
+   stamped version.
 4. Read `references/conversation-loop.md` and exactly one host contract:
    `references/host-claude-code.md` in Claude Code; in Codex,
    `references/host-codex-app-server.md` when `LEAF_CODEX_APP_SERVER` is set or the
@@ -71,7 +76,9 @@ directory explicitly; export or copy anything that must outlive the page directo
    exact URL, or with what the host contract hands over instead.
 5. When a delivery arrives, read `references/event-batches.md`, the host
    contract, and, for user messages,
-   `references/conversation-threads.md`, and answer every event as they say.
+   `references/threads.md`, and answer every event as they say.
+   Say what you are doing before doing it, as `references/conversation-loop.md`,
+   "When to write", orders it.
 6. Stamp checkpoints and end the page as `references/page-checkpoints.md` says.
 
 From the first hand-over on, every chat message repeats the page's exact URL,
@@ -85,7 +92,7 @@ move the page can draw shows its result at once. Sometimes the game is Snap,
 where the match is there and they pick it; sometimes it is Factorio, where the
 system is laid out and they move its pieces. It is never a chore.
 
-Unless the user specifies the page's form or depth, a Leaf is a short sequence
+Unless the user specifies the page's shape or depth, a Leaf is a short sequence
 of visually distinct, self-contained views. Each view makes one point, shows one
 state, or offers one move, so the user can grasp it at a glance and continue;
 disclosures keep supporting detail available without putting it in that path.
@@ -93,14 +100,15 @@ Where a view's point has a shape, it shows the point in a picture and uses words
 for what the picture cannot say; `references/page-authoring.md`, "Draw the
 subject", says which points have one. A page that is mostly paragraphs and tables
 has usually described what it should have drawn.
-The visible page follows the subject's shape: a document read in order, a sheet of
-regions read side by side, or a workspace holding regions in view together;
-`references/page-authoring.md` owns the concrete choices, and
+The visible page follows the subject's shape: prose read in order, regions read side
+by side on a wide page, or a workspace holding regions in view together. A Layout class
+on `main` or a block arranges each of these, and the page's own CSS adjusts it;
+`references/page-authoring.md`, "Composing a page", owns the concrete choices, and
 `references/authoring-asks.md` owns where each Ask goes.
 
 The page contract and widget capabilities are choices, not a checklist. Include
 only controls and gestures whose results advance the user's task. A widget
-move, a resolution and a sign-off can be taken back; words and requests stand.
+move, a resolution and a sign-off can be taken back; words stand.
 
 ## Keep the user current
 
@@ -117,7 +125,7 @@ page and rewrite whatever the change reaches, its title, headings, and order
 included. A status note added where the page already mentions the subject leaves
 everything around it as it was written before the change.
 `references/authoring-revisions.md` says what a rewrite carries across. The
-`version stamp` changelog and the event log hold the history, so the page does not
+`page stamp` changelog and the event log hold the history, so the page does not
 retell it: correct a wrong figure in place and drop a superseded claim. Save
 freely as the subject changes and stamp meaningful checkpoints.
 
@@ -170,7 +178,7 @@ so a phase does not depend on discovering a chain of references.
 ### Continue after input
 
 - `references/event-batches.md`: after delivery and before processing its events.
-- `references/conversation-threads.md`: before opening, naming, replying to,
+- `references/threads.md`: before opening, naming, replying to,
   editing, summarizing, or resolving a thread.
 - `references/page-checkpoints.md`: before stamping or ending a page.
 

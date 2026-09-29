@@ -3,9 +3,10 @@
  * degrades readably if rendering fails. The optional renderer loads lazily, once, and
  * only on pages that use this package. */
 import {
-  dataBody,
+  bodyText,
   once,
   failSoft,
+  keeps,
   registerVisualParts,
   widgetController,
 } from "/runtime/widget-api.js";
@@ -52,7 +53,7 @@ customElements.define(
     }
 
     async render() {
-      const source = dataBody(this).trim();
+      const source = bodyText(this);
       const renderId = `lf-diagram-${++seq}`;
       try {
         const { renderMermaidSVG } = await loadRenderer();
@@ -85,7 +86,7 @@ customElements.define(
         // the widget instead of scaling its labels below legibility.
         const natural = drawn.viewBox.baseVal.width;
         if (natural) {
-          drawn.setAttribute("width", natural);
+          keeps(drawn, "width", natural);
           drawn.style.maxWidth = "";
         }
 

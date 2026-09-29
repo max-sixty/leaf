@@ -9,13 +9,14 @@ from .structure import SourceDocument
 # so this side cannot come to store a neighbourhood the browser would never have
 # written. The quote itself is stored whole, however long the passage: it is the extent
 # the page marks, and a cap on it was a comment quietly made on less than was quoted
-# (see selectionAnchor, wherever the capture lives).
+# (see `selectionAnchor` in the runtime's composing/capture.js).
 CONTEXT = 24
 
 
 def enclosing_section(owner: list, lo: int, hi: int):
-    """The innermost id enclosing every character of [lo, hi) — the runtime's
-    `closest("[id]")` on the passage's common ancestor."""
+    """The innermost id in this reading that encloses every character of [lo, hi):
+    the file's side of the section `selectionAnchor` takes from the nearest id around
+    the passage's common ancestor."""
     first, last = owner[lo], owner[hi - 1]
     shared = 0
     while shared < min(len(first), len(last)) and first[shared] == last[shared]:
@@ -51,7 +52,7 @@ def capture_anchor(
     what to do about it — a quote the file doesn't hold, or holds twice, is a question
     with an answer, and asking now beats posting a comment that lands nowhere.
 
-    Two readers meet that refusal: the agent running `leaf comment`, and the person
+    Two readers meet that refusal: the agent running `leaf thread open`, and the person
     selecting text in the MCP snapshot's panel, who has no flags to reach for. So a
     refusal about a quote or a section names what the reading found and a recourse both
     have — quote more of the surrounding text, or name the section. Only a refusal about

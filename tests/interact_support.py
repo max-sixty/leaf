@@ -22,7 +22,8 @@ import threading
 import time
 import urllib.parse
 import urllib.request
-from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, wait
 from contextlib import contextmanager
 from functools import cache
 from pathlib import Path
@@ -33,6 +34,7 @@ import yaml
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from leaf import cli as cli_model
+from leaf import codex as codex_model
 from leaf import data as data_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
@@ -40,6 +42,7 @@ from leaf import files as files_model
 from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
+from leaf import packages as packages_model
 from leaf import passages as passages_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
@@ -47,8 +50,10 @@ from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import structure as structure_model
+from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
 from leaf.registry.storage import load_registry
+from leaf.revision_artifact import active_enclosing
 from leaf.served_state import page as served_page
 from leaf.validation import compatibility as compatibility_model
 from leaf.validation import instances as validation_model
@@ -113,21 +118,23 @@ def append_command(page_dir, command):
 def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
     """Write revision `revision` of `data` under the page's current registry.
 
-    A shortcut past `version stamp` for a test that stages history directly: it
+    A shortcut past `page stamp` for a test that stages history directly: it
     runs no gate and no activation, and refuses a revision number already taken."""
+    from leaf.passages import SourceReading
     from leaf.registry.storage import read_page_registry
     from leaf.revision_artifact import capture_artifact, write_artifact
     from leaf.structure import SourceDocument
 
     candidate = read_page_registry(page_dir)
+    reading = SourceReading(SourceDocument(data.decode("utf-8")), candidate.registry)
     artifact = capture_artifact(
         page_dir,
-        SourceDocument(data.decode("utf-8")),
+        reading.document,
         candidate.registry,
         declaration_sources=candidate.declaration_sources,
         widget_sources=candidate.widget_sources,
     )
-    return write_artifact(page_dir, revision, artifact)
+    return write_artifact(page_dir, revision, artifact, reading)
 
 
 @cache
@@ -179,6 +186,9 @@ class ModelPage:
 
     def document(self, revision: int):
         return self.documents[revision]
+
+    def reading(self, revision: int, registry: dict):
+        return passages_model.SourceReading(self.documents[revision], registry)
 
     def registry(self, revision: int | None) -> dict:
         """One layer for every revision: a stated page never re-vendors, so no
@@ -243,16 +253,47 @@ worker happens to be driving Chrome. `SERVED_TIMEOUT_MS` is the browser side's
 counterpart, more generous again for the work a page does."""
 
 
-def wait_for(read, accepts, *, failure: str, timeout: float = STATED_TIMEOUT):
-    """Return the first accepted reading, or fail with the last one observed."""
+def wait_for(
+    read,
+    accepts,
+    *,
+    failure: str | Callable[[], str],
+    timeout: float = STATED_TIMEOUT,
+):
+    """Return the first accepted reading, or fail with the last one observed.
+
+    `failure` is the message, or a function that composes it at the timeout, for a
+    poll whose diagnosis needs state read only once it has failed (a log, a record).
+
+    For pure-Python state polls. Keep a local loop where process exit, cancellation,
+    or a deadline shared across several transitions is the contract."""
     deadline = time.monotonic() + timeout
     while True:
         reading = read()
         if accepts(reading):
             return reading
         if time.monotonic() >= deadline:
-            pytest.fail(f"{failure}; last reading was {reading!r}")
+            said = failure() if callable(failure) else failure
+            pytest.fail(f"{said}; last reading was {reading!r}")
         time.sleep(0.05)
+
+
+def take_stream_activity(monkeypatch, updates: list, clears: list) -> None:
+    """Collect every activity reading a turn writes, instead of a page taking it.
+
+    Every carrier and host calls the writers through `leaf.codex`, so that one binding
+    takes them all. Pass empty lists for a test that wants them to touch nothing.
+    """
+    monkeypatch.setattr(
+        codex_model,
+        "set_stream_activity",
+        lambda session, turn, detail: updates.append((session, turn, detail)),
+    )
+    monkeypatch.setattr(
+        codex_model,
+        "clear_stream_activity",
+        lambda session, turn=None: clears.append((session, turn)),
+    )
 
 
 @contextmanager
@@ -325,6 +366,24 @@ def install_payload(destination):
     return destination
 
 
+def vendored_by_another_leaf(page_dir: Path) -> str:
+    """Record another Leaf's runtime identity in the page's layer, and return it.
+
+    The state a plugin update, or a runtime edit in a checkout, leaves a page in:
+    its runtime modules are the ones an earlier `page init` copied, and this Leaf's
+    own are something else. Only the stamp changes, which is all a comparison of
+    identities reads, and it is replaced rather than written through, as every
+    file a lent page may share with its template has to be.
+    """
+    stamp = page_dir / "registry.json"
+    registry = json.loads(stamp.read_text(encoding="utf-8"))
+    foreign = "sha256:" + "b" * 64
+    assert registry["$layer"]["runtime"] != foreign
+    registry["$layer"]["runtime"] = foreign
+    files_model.write_json(stamp, registry)
+    return foreign
+
+
 PAGE = """<!doctype html>
 <html lang="en">
 <head>
@@ -388,13 +447,13 @@ def page_dir(tmp_path, monkeypatch, initialized_page):
 
 
 def check(d):
-    """`version check`, in-process. A page that runs its own code has the check start
+    """`page check`, in-process. A page that runs its own code has the check start
     Playwright, whose sync API refuses a thread already driving another instance —
     which a worker holding the session `browser` fixture is — so the command gets a
     thread of its own."""
     with ThreadPoolExecutor(1) as pool:
         return pool.submit(
-            CliRunner().invoke, cli_model.cli, ["version", "check", str(d)]
+            CliRunner().invoke, cli_model.cli, ["page", "check", str(d)]
         ).result()
 
 
@@ -425,7 +484,7 @@ def declare_data_input(
         "description": "A test widget with one external-data input.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "id": {"type": "string", "pattern": f"^{schema_model.ELEMENT_ID}$"},
             "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
         },
         "required": ["id", "source"],
@@ -449,7 +508,7 @@ def declare_data_input(
 
 
 def stamp_activation(d):
-    """Activate the source as `version stamp` does: checked against the standing
+    """Activate the source as `page stamp` does: checked against the standing
     log with transitions allowed, ahead of the note that records them."""
     from leaf.validation.source import check_source
 
@@ -459,7 +518,7 @@ def stamp_activation(d):
 
 def publish(d, version=1):
     """Append the note event that makes a version the user-seen baseline:
-    `version check` compares against the last *published* version, and an action
+    `page check` compares against the last *published* version, and an action
     can only ever be made against one the server exposed."""
     activated = stamp_activation(d)
     assert activated.error is None and activated.revision is not None
@@ -508,7 +567,7 @@ def stamp(d, text="stamped", completes=()):
     return CliRunner().invoke(
         cli_model.cli,
         [
-            "version",
+            "page",
             "stamp",
             str(d),
             "--text",
@@ -538,6 +597,7 @@ def record_claim(page, harness="claude-code", **fields):
         "ts": "t",
         "released": None,
         "turn": "turn-1",
+        "turn_opened": events_model.now_iso(),
         "turn_closed": None,
         **fields,
     }
@@ -604,7 +664,7 @@ def decide(page_dir, outcome, widget="sug-refill"):
 
 def _decided(page_dir, words):
     """v1 carrying a draft the user has since rewritten, and the log that
-    says so. Whatever v2 does about it, `version check` is what has to notice."""
+    says so. Whatever v2 does about it, `page check` is what has to notice."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
@@ -648,7 +708,7 @@ def _tasks_version(page_dir, status, extra=""):
 
 def _report(page_dir, *args):
     """Report as a worker, with the posted event on stdout for the caller to read."""
-    return CliRunner().invoke(cli_model.cli, ["report", "--json", str(page_dir), *args])
+    return CliRunner().invoke(cli_model.cli, ["page", "report", str(page_dir), *args])
 
 
 def _board(todo, done):
@@ -674,6 +734,24 @@ OPTIONS = """<lf-ask id="g1-decision">
     <lf-option id="o-stage"{b}><strong>Migrate in stages</strong> {stage}</lf-option>
   </lf-options>
 </lf-ask>"""
+
+
+def thread_records(page_dir, name: str) -> list[str]:
+    """The logged records that change the history of the thread `name` reaches, in
+    log order: the join a delivery reads to say which threads an event lands in
+    (`thread_context.thread_memberships`)."""
+    events = events_model.read_events(page_dir)
+    names = thread_context_model.thread_names(events)
+    memberships = thread_context_model.thread_memberships(
+        events,
+        names,
+        thread_context_model.thread_widgets(
+            thread_context_model.thread_structure(events), names
+        ),
+        active_enclosing(page_dir),
+    )
+    thread = names[name]
+    return [event["id"] for event in events if thread in memberships[event["id"]]]
 
 
 def state_json(d):
@@ -716,24 +794,21 @@ ACCEPT = {
 
 
 def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
-    """Hold one admitted writer at append and prove re-vendor cannot pass it."""
+    """Hold one admitted writer at append and prove re-vendor cannot pass it.
+
+    A re-vendor decides twice: once in a dry run, with the page still served and
+    its log read as it stands, and again under the page transaction before it
+    writes. The dry run may pass the held writer; the decision that writes may not,
+    so the init waits for the append and refuses what it wrote."""
     entering = threading.Event()
     resume = threading.Event()
-    checked_without_writer = threading.Event()
-    finish_vendoring = threading.Event()
     original_append_record = service_model.PageTransaction._append_record
-    original_composed_sheets = layer_model.composed_sheets
 
     def held_append_record(page, event):
         if event.get("kind") == kind:
             entering.set()
             assert resume.wait(timeout=10), "re-vendor never observed the writer"
         return original_append_record(page, event)
-
-    def held_composed_sheets(sources):
-        checked_without_writer.set()
-        assert finish_vendoring.wait(timeout=10), "the writer never resumed"
-        return original_composed_sheets(sources)
 
     def init_result():
         try:
@@ -745,20 +820,18 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     monkeypatch.setattr(
         service_model.PageTransaction, "_append_record", held_append_record
     )
-    monkeypatch.setattr(layer_model, "composed_sheets", held_composed_sheets)
     with ThreadPoolExecutor(max_workers=2) as executor:
         writing = executor.submit(write)
         assert entering.wait(timeout=10), f"{kind} never passed old-layer validation"
         vendoring = executor.submit(init_result)
-        passed_check = checked_without_writer.wait(timeout=2)
-        # Release either acquisition order without relying on a scheduler: a
-        # broken re-vendor may already own the page lease at composed_sheets.
-        finish_vendoring.set()
+        # A re-vendor that writes without the page transaction finishes here, with
+        # the writer still held.
+        passed_writer, _ = wait([vendoring], timeout=2)
         resume.set()
         written = writing.result(timeout=10)
         refusal = vendoring.result(timeout=10)
 
-    assert not passed_check, f"re-vendor passed a validated {kind} writer"
+    assert not passed_writer, f"re-vendor passed a validated {kind} writer"
     assert refusal is not None
     return written, refusal
 
@@ -842,13 +915,13 @@ def _body_record_with_nested_widget(registry):
     registry["lf-option"]["x-owners"].append("lf-draft")
 
 
-# A holder/slot family core has never heard of. <lf-trial> is decided by `adopt`
-# or `shelve`: `adopt` retires the <lf-current> it would replace, `shelve` the
-# <lf-proposed> it offers, and taking an undecided one back leaves the page where
-# a `shelve` would. <lf-pilot> holds the same <lf-proposed> under the same verb and
-# declares no withdrawal at all — the pair, not the slot, is what the licensing is
-# keyed on. Three instances, because a page needs one to decide, one to withdraw
-# and one that can't be, and a decision is in the log for good once it is made.
+# A holder/slot family core has never heard of. <lf-trial> is decided by `adopt`,
+# `shelve` or `pause`: `adopt` retires the <lf-current> it would replace, `shelve` the
+# <lf-proposed> it offers, `pause` nothing, and taking an undecided one back leaves the
+# page where a `shelve` would. <lf-pilot> holds the same <lf-proposed> under the same
+# verb and declares no withdrawal at all — the pair, not the slot, is what the
+# licensing is keyed on. Three instances, because a page needs one to decide, one to
+# withdraw and one that can't be, and a decision is in the log for good once it is made.
 TRIAL_CACHE = """<lf-trial id="trial-cache">
   <lf-current id="cache-now"><p id="cache-daily">The cache is rebuilt nightly.</p></lf-current>
   <lf-proposed><p id="cache-hourly">Rebuild the cache each hour.</p></lf-proposed>
@@ -881,29 +954,25 @@ def trial_version(*markup):
     return PAGE.replace("<lf-options>", "\n".join([*markup, "<lf-options>"]))
 
 
-@pytest.fixture
-def trial_page(tmp_path, monkeypatch):
-    """A page whose vocabulary a project layer widened with holder/slot families
-    of its own. Declared in `.leaf/` and vendored by `page init` — the door the
-    shipped suggestion comes through too, so what the licensing does here is what
-    a project gets rather than what a fixture arranged."""
-    monkeypatch.chdir(tmp_path)
-    runner = CliRunner()
-    created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
-    assert created.exit_code == 0, created.output
-    widgets = (
+def trial_family(root: Path) -> None:
+    """Declare the trial family in the project package at `root / ".leaf"`.
+
+    Registry declarations relate its owners and slots, and each owner's module is the
+    product's starter, which renders nothing of its own: anything a test sees settle is
+    the layer's doing, and the holders' bodies are the authored words (`x-verbatim`).
+    Only <lf-proposed> names two owners, for the selector case that needs one."""
+    package = root / ".leaf"
+    for tag, upgrade in (
         ("lf-trial", True),
         ("lf-pilot", True),
         ("lf-current", False),
         ("lf-proposed", False),
-    )
-    for tag, upgrade in widgets:
-        add_test_widget(tmp_path / ".leaf", tag, upgrade)
-
-    source = tmp_path / ".leaf" / "registry.json"
+    ):
+        add_test_widget(package, tag, upgrade=upgrade)
+    source = package / "registry.json"
     declarations = json.loads(source.read_text())
     for tag, outcomes, example in (
-        ("lf-trial", ["adopt", "shelve"], TRIAL_CACHE),
+        ("lf-trial", ["adopt", "shelve", "pause"], TRIAL_CACHE),
         ("lf-pilot", ["run", "shelve"], PILOT_PURGE),
     ):
         declarations[tag] |= {
@@ -912,7 +981,6 @@ def trial_page(tmp_path, monkeypatch):
             "x-example": example,
         }
         declarations[tag]["properties"]["restated"] = {"type": "boolean"}
-        del declarations[tag]["x-verbatim"]  # a module renders the slots
     # Only the trial says what taking it back would mean.
     declarations["lf-trial"]["x-withdrawn-as"] = "shelve"
     for tag, owners, outcome in (
@@ -923,11 +991,30 @@ def trial_page(tmp_path, monkeypatch):
         del declarations[tag]["x-example"]  # a slot has no standing of its own
         del declarations[tag]["required"]  # nor an id it must carry
     source.write_text(json.dumps(declarations))
+    # add_test_widget frames every tag as a card. The slots draw no box of their own;
+    # clearing their paragraph margins keeps a retired sibling from leaving a margin
+    # trapped against the holder's frame. Geometry is not this family's subject.
+    with (package / "theme.css").open("a") as theme:
+        theme.write(
+            "\nlf-current, lf-proposed "
+            "{ display: block; margin: 0; padding: 0; border: none; "
+            "--lf-block-frame: initial; }\n"
+            "lf-current p, lf-proposed p { margin-block: 0; }\n"
+        )
 
+
+@pytest.fixture
+def trial_page(tmp_path, monkeypatch):
+    """A published page whose vocabulary a project layer widened with the trial
+    family. Declared in `.leaf/` and vendored by `page init` — the door the shipped
+    suggestion comes through too, so what the licensing does here is what a project
+    gets rather than what a fixture arranged."""
+    monkeypatch.chdir(tmp_path)
+    trial_family(tmp_path)
     page = tmp_path / "page"
     # The version is built out of PAGE, which holds an lf-diagram; the project package
     # under test is explicitly selected beside it.
-    initialized = runner.invoke(
+    initialized = CliRunner().invoke(
         cli_model.cli,
         ["page", "init", "--package", "diagram", "--package", "./.leaf", str(page)],
     )
@@ -1039,6 +1126,17 @@ def fifo_writer(path: Path, failure: str) -> int:
             time.sleep(0.05)
     path.unlink()
     pytest.fail(failure)
+
+
+def hold_status_read(path: Path) -> None:
+    """Replace a live status file with a FIFO without exposing a missing path.
+
+    Watchers may read the status between test setup steps. A gap between unlink
+    and mkfifo lets one exit before it reaches the read this fixture holds.
+    """
+    staged = path.with_name(f".{path.name}.fifo")
+    os.mkfifo(staged)
+    os.replace(staged, path)
 
 
 @pytest.fixture(autouse=True)
@@ -1246,7 +1344,7 @@ def codex_claimed_page(tmp_path, under_codex, codex_env):
     )
     out, err = started.communicate(timeout=60)
     assert started.returncode == 0, f"{out}{err}"
-    assert out.startswith("http://127.0.0.1:")
+    assert json.loads(out)["url"].startswith("http://127.0.0.1:")
     # The fake codex wrapper exits with this one command; a real Codex session
     # stays above later hook calls. Keep that session lifetime true for tests
     # using this fixture after the launch itself has been verified.
@@ -1295,7 +1393,9 @@ def managed_server(spawn):
             stderr=subprocess.PIPE,
             text=True,
         )
-        assert process.stdout.readline().startswith("http://127.0.0.1:")
+        assert json.loads(process.stdout.readline())["url"].startswith(
+            "http://127.0.0.1:"
+        )
         assert process.stderr.readline().strip() == (
             "server   session (stops with its agent session)"
         )
@@ -1345,7 +1445,9 @@ def standing_server(spawn, sessionless):
             stderr=subprocess.PIPE,
             text=True,
         )
-        assert process.stdout.readline().startswith("http://127.0.0.1:")
+        assert json.loads(process.stdout.readline())["url"].startswith(
+            "http://127.0.0.1:"
+        )
         assert process.stderr.readline().strip() == "server   standing"
         return process
 
@@ -1363,9 +1465,7 @@ def published(page_dir):
 
 def comment(page_dir, *args):
     """Open a thread, with the posted event on stdout for the caller to read."""
-    return CliRunner().invoke(
-        cli_model.cli, ["comment", "--json", str(page_dir), *args]
-    )
+    return CliRunner().invoke(cli_model.cli, ["thread", "open", str(page_dir), *args])
 
 
 DRAFTED = PAGE.replace(
@@ -1407,36 +1507,46 @@ def suggested(page_dir):
     return published(page_dir)
 
 
-def add_test_widget(package: Path, tag: str, upgrade: bool = False) -> dict:
-    """Author one widget in an initialized package fixture."""
+def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
+    """Author one widget in a package, creating the package first if it is missing.
+
+    What a package author gets from `package init --widget`: the product's starter
+    declaration and, for an upgraded widget, its starter module, plus a framed block in
+    the theme. A test specializes the declaration in `registry.json` and rewrites the
+    module where its subject needs behavior of its own."""
+    created = CliRunner().invoke(cli_model.cli, ["package", "init", str(package)])
+    assert created.exit_code == 0, created.output
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())
-    declaration = element_declaration(tag, upgrade)
+    declaration = element_declaration(tag, upgrade=upgrade)
     registry[tag] = declaration
-    registry_path.write_text(json.dumps(registry))
+    registry_path.write_text(json.dumps(registry, indent=2))
     with (package / "theme.css").open("a") as theme:
-        theme.write(f"\n{tag} {{ display: block; }}\n")
+        theme.write(
+            f"\n{tag} {{\n"
+            "  display: block;\n"
+            "  margin: var(--sp-3) 0;\n"
+            "  padding: var(--sp-3);\n"
+            "  border: 1px solid var(--rule);\n"
+            "  border-radius: var(--r);\n"
+            "  background: var(--card);\n"
+            "  --lf-block-frame: 1;\n"
+            "}\n"
+        )
     if upgrade:
-        (package / "widgets" / f"{tag}.js").write_text(
-            f'customElements.define("{tag}", class extends HTMLElement {{}});\n'
+        (package / "widgets" / f"{tag}.js").write_bytes(
+            packages_model.starter_widget_module(tag)
         )
     return declaration
 
 
-def element_declaration(tag: str, upgrade: bool = False) -> dict:
-    """A minimal package widget declaration for composition fixtures."""
-    declaration = {
-        "description": f"A <{tag}> test block.",
-        "type": "object",
-        "properties": {"id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "markup",
-        "x-upgrade": upgrade,
-        "x-example": f'<{tag} id="example">Example</{tag}>',
-    }
-    if upgrade:
-        declaration["x-verbatim"] = True
+def element_declaration(tag: str, *, upgrade: bool = False) -> dict:
+    """The product's starter declaration for `tag`, or, without `upgrade`, the same
+    markup block with no module behind it."""
+    declaration = packages_model.starter_element_declaration(tag)
+    if not upgrade:
+        declaration["x-upgrade"] = False
+        del declaration["x-verbatim"]
     return declaration
 
 

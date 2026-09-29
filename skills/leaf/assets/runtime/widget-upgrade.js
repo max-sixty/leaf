@@ -23,6 +23,14 @@ export function once(el) {
 // and note anchors all point one line off.
 export const dataBody = (el) => el.querySelector(":scope > pre").textContent;
 
+// The body's text as a module reads its lines: leading blank lines and trailing
+// whitespace are the <pre>'s layout, not lines. `page check` holds an x-numbering to
+// the lines of this same trim (`_body_text`, validation/instances.py). trimEnd removes
+// the class collapse.js's COLLAPSE spells, which Python names outright because its own
+// \s differs at the edges. A notation whose trailing whitespace is content, a diff's,
+// reads `dataBody` instead.
+export const bodyText = (el) => dataBody(el).replace(/^\n+/, "").trimEnd();
+
 // A failed upgrade becomes a visible error box rather than a blank page. A widget failure
 // may failSoft its own element so the rest of the page and Threads remain usable, but it
 // does not convert a partial state read into a committed one (reportPageError,

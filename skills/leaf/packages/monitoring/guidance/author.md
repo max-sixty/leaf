@@ -1,15 +1,18 @@
-Build a release page as a document with grids. Lead with the release's current state in
-the lede and a callout: what is live, what stopped it or what comes next, and the hold
-or escalation policy with its deadline. Put the headline numbers in an `lf-grid` of
-`lf-metric` tiles, and the evidence the state rests on in a second grid: the named
-checks with their observed and required values in one cell, and the run log
-in the other, bound with `data-bound="end"` so it stays on its newest line. Keep the
-release identity, steps, notes, owners and rollback procedure below in ordinary flow,
-with the reference material in `details`. Keep release identity and summary in
+Build a release page as a body beside its `aside`, `<main class="layout-sidebar">`
+with the `aside` written after the body.
+Lead with the release's current state in the lede and a callout: what is live, what
+stopped it or what comes next, and the hold or escalation policy with its deadline.
+Open the body with the headline numbers as `lf-metric` tiles in a `layout-tiles` block,
+and put the evidence the state rests on under them: the run log, bound with
+`data-bound="end"` so it stays on its newest line, beside the named checks with their
+observed and required values in the `aside`. Keep the release identity, steps,
+notes, owners and rollback procedure in the `aside` or below in ordinary flow, with
+the reference material in `details`. Keep release identity and summary in
 authored markup so a feed update cannot silently change the page's conclusion.
 
-When rollback is genuinely available, put one `lf-release-actions` holder around an
-`lf-release-action verb="rollback"` beside the current state; set the holder's
-`candidate` and `stable` to the exact releases, and state the consequence in the action's prose.
-This sends a durable host request and waits for its receipt. Do not present a local
-choice or decorative button as rollback.
+When rollback is genuinely available, ask for it beside the current state: an
+`lf-ask` whose heading asks whether to roll back, holding an `lf-options choose` group
+with a rollback option and the alternative the release policy allows, such as holding
+until its deadline. Name the exact candidate and stable releases in the rollback
+option and state its consequence. The pick reaches the coordinator as the operator's
+answer. Do not present a decorative button as rollback.

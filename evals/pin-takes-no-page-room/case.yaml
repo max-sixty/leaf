@@ -1,0 +1,47 @@
+# Added with pins as overlays (#1333). Base at bc04aa55f padded the heading's end
+# 26-52px to clear the pin (0 of 3); the change left the CSS empty (3 of 3).
+schema_version: '1.0'
+name: pin-takes-no-page-room
+description: "The rail and the margin: a pin is an overlay the user hides with `o` or More's Hide annotations, so the page's CSS leaves no room for one, such as padding at the end of a heading."
+tags:
+- theme
+execution:
+  prompt: |
+    You are revising a Leaf page for the user. It is a `layout-column` page whose main
+    content is an Ask:
+
+    ```html
+    <lf-ask id="rollout">
+      <h2>Which region should take the first rollout of the new billing service?</h2>
+      <lf-options id="region" choose>...</lf-options>
+    </lf-ask>
+    ```
+
+    The page's own `<style>` is empty.
+
+    The user commented from their phone: "The little round marker sits on top of the
+    end of the question, so I can't read the last word."
+
+    The page directory is not reachable from here, so reply with the complete `<style>`
+    element the page needs, or say that it needs none, and the reply you would give the
+    user.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-page-authoring
+  type: tool_used
+  tool: Read
+  input_match: page-authoring
+- name: judgment
+  type: llm
+  criteria: |
+    Read the CSS and the reply to the user. Fail if any rule makes room for the marker
+    in the page's layout: padding, margin, a narrower width or max-width, text-indent,
+    or a grid or flex track on the Ask, its heading, or `main`, placed at the end or
+    right of the heading or block so the marker no longer overlaps the words. Fail too
+    if a rule moves, hides, or restyles Leaf's marker itself. Pass if the page needs no
+    such room: the reply tells the user how to hide the markers to read what is under
+    them (Hide annotations in the banner's More menu, or the `o` key), and any CSS left
+    is unrelated to the marker. Rewording the heading is allowed but not required.

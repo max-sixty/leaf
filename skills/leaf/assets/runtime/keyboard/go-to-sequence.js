@@ -50,7 +50,7 @@
    so its ordinary Escape rung remains the route back.
 
    A destination declares no way back. `g T`, `g A` and `g L` may exchange a standing
-   panel or tray for another, and the surface the user ends in owns the one step that
+   panel or drawer for another, and the surface the user ends in owns the one step that
    takes it off again — the same step whichever door opened it, and the same for a
    surface they already had. Exchanging one for another is lateral, so the one replaced
    is not put back; the user reaches it the way they reached it the first time.
@@ -67,26 +67,25 @@ import {
 } from "./presentation.js";
 import { html, nothing } from "../../vendor/browser-runtime.js";
 import { isExternalPageLink, PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
-import { targetElement } from "../resolved-target.js";
 import { focusDestination } from "../focus.js";
 import { el, PRESSABLE } from "../widget-elements.js";
 import { allButCommandReference, pageCommand, pageScope } from "./register.js";
-import { focusedThreadTarget } from "../conversation/focus.js";
+import { focusedThreadTarget } from "../thread/focus.js";
 import { letGo } from "../focus.js";
 import { pageParts } from "../passages.js";
-import { fragmentId, addressableSays, resolveAnchor } from "../anchor-resolution.js";
+import { addressableSays, fragmentTarget } from "../anchor-resolution.js";
 import { announce, notice } from "../notifications.js";
+import { retainUserIntent } from "../user-intent.js";
 import { closestAcross, pageQueryAll } from "../passages.js";
-import { threadsBox } from "../conversation/panel-elements.js";
 import {
-  currentTray,
+  currentDrawer,
   askRows,
   asksOffered,
   asksPanel,
   asksBtn,
   othersBtn,
   othersPanel,
-} from "../trays.js";
+} from "../drawers.js";
 import { mapButton } from "../page-map-dialog.js";
 
 import { claimsEsc, focused, saying } from "./scopes.js";
@@ -101,11 +100,11 @@ goToHintLayer.setAttribute("aria-hidden", "true");
 // the chrome is attached. All travel and auxiliary-surface effects are explicit capabilities.
 export function createGoToSequence({
   panelIsOpen,
-  elements: { banner, toggleBtn },
+  elements: { banner, toggleBtn, threadsBox },
   hintChrome,
   directDestinations,
   setPanel,
-  setOpenTray,
+  setOpenDrawer,
   scrollToElement,
   leavesOffered,
   othersLinks,
@@ -158,10 +157,11 @@ export function createGoToSequence({
   const pageControls = () => pageParts(PRESSABLE);
 
   // A link keeps the platform activation that its author wrote. The sequence adds only the
-  // arrival it otherwise lacks: a local fragment hands focus to the place the browser just
-  // revealed, while an external link names the new tab that Leaf opens. A cancelled click
-  // does neither, because its handler has replaced the link's trip with one of its own.
-  function fragmentSection(link) {
+  // arrival it otherwise lacks: a local fragment hands focus to the place travel just
+  // revealed and landed, while an external link names the new tab that Leaf opens. A
+  // cancelled click does neither, because its handler has replaced the link's trip with
+  // one of its own.
+  function sameDocumentFragment(link) {
     try {
       const url = new URL(link.getAttribute("href"), document.baseURI);
       if (!url.hash) return null;
@@ -172,27 +172,17 @@ export function createGoToSequence({
         url.search !== here.search
       )
         return null;
-      return fragmentId(url.hash);
+      return url.hash;
     } catch {
       return null;
     }
   }
 
-  // A generated native-fragment sentinel can carry the scroll coordinate while remaining
-  // absent from the accessibility tree. Such a point sits immediately before the content it
-  // names. Never put keyboard focus on aria-hidden apparatus; after the browser follows the
-  // fragment, place the user on that visible content instead.
-  function fragmentFocusTarget(destination) {
-    if (!destination || destination.getAttribute("aria-hidden") !== "true")
-      return destination;
-    const content = destination.nextElementSibling;
-    return content?.checkVisibility() && !closestAcross(content, '[aria-hidden="true"]')
-      ? content
-      : null;
-  }
-
   function followLink(link) {
-    const section = fragmentSection(link);
+    const fragment = sameDocumentFragment(link);
+    // Held from the hint's own press, so a newer gesture during the landing keeps the
+    // focus it took, as travel keeps the scroll it took.
+    const mayFocus = retainUserIntent();
     let activation = null;
     link.addEventListener("click", (event) => (activation = event), {
       capture: true,
@@ -200,10 +190,20 @@ export function createGoToSequence({
     });
     link.click();
     if (!activation || activation.defaultPrevented) return;
-    const destination = fragmentFocusTarget(
-      section && targetElement(resolveAnchor({ section })),
-    );
-    if (destination) return focusDestination(destination);
+    if (fragmentTarget(fragment)) {
+      // Travel lands the fragment once it has revealed the way (history.js). Standing the
+      // user there before that would be a focus move the landing reads as a newer one.
+      const landed = window.navigation?.transition?.finished ?? Promise.resolve();
+      landed.then(
+        () => {
+          if (!mayFocus()) return;
+          const destination = fragmentTarget(fragment);
+          if (destination) focusDestination(destination);
+        },
+        () => {},
+      );
+      return;
+    }
     if (isExternalPageLink(link) && link.target === "_blank") {
       const name =
         link.getAttribute("aria-label")?.trim() || addressableSays(link) || "Link";
@@ -236,35 +236,38 @@ export function createGoToSequence({
       toggle: true,
     },
     {
-      id: "navigation.tray.asks",
+      id: "navigation.drawer.asks",
       key: "Shift+a",
       does: () =>
-        currentTray() === "asks" ? "Close the Asks tray" : "Go to the Asks tray",
-      line: () => (currentTray() === "asks" ? "close Asks tray" : "Asks tray"),
+        currentDrawer() === "asks" ? "Close the Asks drawer" : "Go to the Asks drawer",
+      line: () => (currentDrawer() === "asks" ? "close Asks drawer" : "Asks drawer"),
       control: () => asksBtn,
       when: (...args) => asksOffered(...args),
       go: () => {
-        setOpenTray("asks");
+        setOpenDrawer("asks");
         (askRows()[0] ?? asksPanel).focus({ preventScroll: true });
       },
-      active: () => currentTray() === "asks",
-      close: () => setOpenTray(null),
+      active: () => currentDrawer() === "asks",
+      close: () => setOpenDrawer(null),
       toggle: true,
     },
     {
-      id: "navigation.tray.leaves",
+      id: "navigation.drawer.leaves",
       key: "Shift+l",
       does: () =>
-        currentTray() === "leaves" ? "Close the Leaves tray" : "Go to the Leaves tray",
-      line: () => (currentTray() === "leaves" ? "close Leaves tray" : "Leaves tray"),
+        currentDrawer() === "leaves"
+          ? "Close the Leaves drawer"
+          : "Go to the Leaves drawer",
+      line: () =>
+        currentDrawer() === "leaves" ? "close Leaves drawer" : "Leaves drawer",
       control: () => othersBtn,
       when: (...args) => leavesOffered(...args),
       go: () => {
-        setOpenTray("leaves");
+        setOpenDrawer("leaves");
         (othersLinks()[0] ?? othersPanel).focus({ preventScroll: true });
       },
-      active: () => currentTray() === "leaves",
-      close: () => setOpenTray(null),
+      active: () => currentDrawer() === "leaves",
+      close: () => setOpenDrawer(null),
       toggle: true,
     },
     {
@@ -805,6 +808,7 @@ export function createGoToSequence({
   // The page-level row promises the sequence rather than any particular ephemeral hint.
   const OPEN_GO_TO = {
     id: "navigation.go-to.open",
+    touch: false,
     keys: ["g"],
     does: "Go to a visible target, panel, page, or edge",
     line: "go to",

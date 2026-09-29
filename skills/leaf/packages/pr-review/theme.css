@@ -43,11 +43,11 @@ lf-pull-request {
 
 .lf-pr-status {
   flex: none;
-  padding: 2px 8px;
+  padding: var(--chip-pad);
   border: 1px solid var(--rule);
   border-radius: var(--chip-r);
   color: var(--ink-2);
-  font: var(--t-6) var(--sans);
+  font: var(--t-6) / var(--chip-lh) var(--sans);
   text-transform: capitalize;
   white-space: nowrap;
 }
@@ -237,6 +237,7 @@ lf-call-diff {
   --lf-block-frame: 1;
   display: block;
   max-width: 100%;
+  contain: inline-size;
   margin: var(--sp-3) 0;
   overflow: hidden;
   border: 1px solid var(--code-border);

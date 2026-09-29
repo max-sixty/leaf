@@ -1,18 +1,22 @@
 /* Leaf runtime boot and application composition root. */
 import "./vendor/browser-runtime.js";
+import "./runtime/interaction-log.js";
 // Restored panels and the first keyboard gesture share the ordinary synchronous
 // control routes, so their controls must be upgraded before those routes mount.
 import "./vendor/webawesome-chrome.js";
-import { passiveSpecimen, offlineInteractive, runtime } from "./runtime/context.js";
+import { passiveSample, offlineInteractive, runtime } from "./runtime/context.js";
 import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot } from "./runtime/chrome.js";
 import { readingBlock } from "./runtime/reading-place.js";
 import { mountHistory } from "./runtime/history.js";
+import { holdArrivingBounds } from "./runtime/bounds.js";
 import { chromeSheet, marksSheet } from "./runtime/stylesheets.js";
+import { keepPageRulesOffLayer } from "./runtime/page-sheets.js";
 import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
 import { upgradeWidgets } from "./runtime/widget-loader.js";
 import {
-  pageArrived,
+  markPagePresented,
+  pageReadiness,
   settlePageInterface,
   PAGE_INTERFACE,
   PAGE_PAINT_ATTRIBUTE,
@@ -22,7 +26,6 @@ import { renderingSettled } from "./runtime/rendering.js";
 import { mountApplication } from "./runtime/application.js";
 import {
   applicationState,
-  applicationPresented,
   whenApplicationPresented,
 } from "./runtime/semantic-state.js";
 import { createEngagement } from "./runtime/composing/engagement.js";
@@ -42,10 +45,10 @@ import { createDrawingController } from "./runtime/composing/drawing.js";
 import { createDrawingPaint } from "./runtime/composing/drawing-paint.js";
 import { createAim } from "./runtime/composing/aim.js";
 import {
-  createTargetChooser,
-  targetChooserHintLayer,
+  createTargetPicker,
+  targetPickerHintLayer,
   pageSearchSurface,
-} from "./runtime/composing/target-chooser.js";
+} from "./runtime/composing/target-picker.js";
 import { createStandingElement } from "./runtime/composing/standing.js";
 import {
   createReactionController,
@@ -63,47 +66,40 @@ import {
 import { createPageGeometry } from "./runtime/page-geometry.js";
 import * as targetPaint from "./runtime/target-paint.js";
 import { pointerAt } from "./runtime/pointer.js";
-import { allThreads } from "./runtime/conversation/state.js";
-import { anchorLabel } from "./runtime/conversation/messages.js";
+import { allThreads, threadList } from "./runtime/thread/state.js";
+import { anchorLabel } from "./runtime/thread/messages.js";
 import {
-  createConversationLanding,
+  createThreadLanding,
   declareThreadKeys,
-  revealConversation,
-  retainConversationFocus,
+  scrollThreadIntoView,
   retainPanelLanding,
-  standingConversation,
+  standingThread,
   wireThreadLanding,
-} from "./runtime/conversation/landing.js";
-import { createPanelComposer } from "./runtime/conversation/panel.js";
-import { focusSurface } from "./runtime/conversation/surfaces.js";
-import { focusedThreadOf } from "./runtime/conversation/focus.js";
-import { mountThreadList } from "./runtime/conversation/thread-list.js";
-import {
-  mountNarrowing,
-  retainNarrowing,
-  revealThread,
-  widen,
-} from "./runtime/conversation/narrowing.js";
-import {
-  panel,
-  closeBtn,
-  panelFoot,
-  threadsBox,
-  mountPanelReadingRegion,
-} from "./runtime/conversation/panel-elements.js";
+} from "./runtime/thread/landing.js";
+import { createPanelComposer } from "./runtime/thread/panel.js";
+import { focusSurface } from "./runtime/thread/surfaces.js";
+import { heldThreadId } from "./runtime/thread/focus.js";
+import { createThreadListController } from "./runtime/thread/thread-list.js";
+import { createThreadNarrowing } from "./runtime/thread/narrowing.js";
+import { createThreadPanelElements } from "./runtime/thread/panel-elements.js";
 import { createMarginProjection } from "./runtime/margin-projection.js";
 import { createPageMapDialog } from "./runtime/page-map-dialog.js";
 import { createAskView } from "./runtime/asks/view.js";
 import { askActionLayer, ASK_CONTROL } from "./runtime/asks/view-elements.js";
 import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
 import { createChromeLayout } from "./runtime/chrome-layout.js";
-import { createThreadPanelController, panelIsOpen } from "./runtime/thread-panel.js";
-import { createTrays, asksPanel, currentTray, othersPanel } from "./runtime/trays.js";
+import { createThreadPanelController } from "./runtime/thread-panel.js";
+import {
+  createDrawers,
+  asksPanel,
+  currentDrawer,
+  othersPanel,
+} from "./runtime/drawers.js";
 import { createAuxiliarySurfaces } from "./runtime/auxiliary-surfaces.js";
 import { restoreUserView } from "./runtime/restore-state.js";
 import { watchProjection } from "./runtime/projection-watch.js";
 import { createVersionController } from "./runtime/version.js";
-import { versionMenu, versionMenuIsOpen } from "./runtime/version-chooser.js";
+import { versionMenu, versionMenuIsOpen } from "./runtime/version-picker.js";
 import {
   banner,
   isSignoffDeclared,
@@ -117,20 +113,21 @@ import {
 } from "./runtime/banner.js";
 
 initializeServedDocument();
+keepPageRulesOffLayer();
+holdArrivingBounds();
 
 // A published shell may bundle the entry without publishing its source modules beside
 // it. Keep the synchronous validation seam on Leaf's own bootstrap element so render
-// checks can inspect either distribution without turning it into a package API. The three
-// readings answer different questions: whether the current epoch is presented, whether
-// the page has also finished the arrivals it deliberately placed after presenting, and
-// whether its chrome and geometry have caught up with everything handled so far.
+// checks can inspect either distribution without turning it into a package API. The two
+// readings answer different questions: which readiness fact the page has yet to state
+// (`pageReadiness`), and whether its chrome and geometry have caught up with the input
+// handled since.
 const validationEntry = document.querySelector("script[data-lf-entry]");
 if (validationEntry) {
-  validationEntry.lfCurrentPresentationReady = applicationPresented;
-  validationEntry.lfPageArrived = pageArrived;
+  validationEntry.lfReadiness = pageReadiness;
   validationEntry.lfRenderingSettled = renderingSettled;
 }
-import { overflowMenu } from "./runtime/banner-shelf.js";
+import { overflowMenu } from "./runtime/banner-toolbar.js";
 import {
   leavesOffered,
   othersLinks,
@@ -143,16 +140,17 @@ import {
   createGoToSequence,
   goToHintLayer,
 } from "./runtime/keyboard/go-to-sequence.js";
-import { chromeTop } from "./runtime/keyboard/key-badge-placement.js";
+import { bannerFoot } from "./runtime/geometry.js";
 // The page's own keyboard parts join the register as this module evaluates; every other
 // owner contributes its own as it is constructed below.
 import { declareStanding } from "./runtime/keyboard/page.js";
 import { mountKeyboard } from "./runtime/keyboard/controller.js";
 import { paintCoreControls } from "./runtime/keyboard/control-keys.js";
+import { paintTouchControls } from "./runtime/keyboard/touch-controls.js";
 import { commandReferenceDialog } from "./runtime/keyboard/command-reference.js";
 import {
   bottomChromeBoxes,
-  closeShortcutShelf,
+  collapseShortcutBar,
   mountShortcutBar,
   renderShortcutBar,
   shortcutBarEl,
@@ -175,14 +173,25 @@ import {
   declareReading,
   focusDestination,
   releaseFocus,
+  tabStops,
 } from "./runtime/focus.js";
-import { setRuntimeRootAttribute } from "./runtime/root-state.js";
 import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
 import { offer } from "./runtime/widget-elements.js";
-import { FOCUSABLE } from "./runtime/reach.js";
+
+const panelElements = createThreadPanelElements({ id: "lf-threads" });
+const { panel, closeBtn, panelFoot, threadsBox, narrowingView } = panelElements;
+const threadListController = createThreadListController(panelElements);
+const panelIsOpen = () => auxiliarySurfaces.selectedSurface() === panel;
 
 let app;
+const narrowing = createThreadNarrowing({
+  view: narrowingView,
+  listRoot: threadsBox,
+  readThreads: threadList,
+  ready: () => runtime.statePhase === "ready",
+  repaint: () => app.presentThread(),
+});
 const paintVersionApproval = () =>
   paintApproval(
     app.pendingApprovals(),
@@ -190,7 +199,7 @@ const paintVersionApproval = () =>
     app.acceptedApprovals(),
   );
 let threadPanelController;
-let trays;
+let drawers;
 let layout;
 let landing;
 let pageMapDialog;
@@ -207,7 +216,7 @@ let goToSequence;
 
 const auxiliarySurfaces = createAuxiliarySurfaces({
   chromeRoot,
-  focusable: FOCUSABLE,
+  band: shortcutBarEl,
   syncLayout: () => layout.syncLayout(),
   afterChange: () => {
     app.margin.renderMargin();
@@ -217,12 +226,16 @@ const auxiliarySurfaces = createAuxiliarySurfaces({
   },
 });
 const navigation = createNavigation({
+  panelElements,
+  openThreads: threadListController.openThreads,
   panelIsOpen,
+  narrowing,
   coveringAuxiliaryScroller: auxiliarySurfaces.coveringScroller,
   threadDestinations: {
     openPageThread: (...args) => app.margin.openPageThread(...args),
     scrollToThread: (...args) => anchorTravel.scrollToThread(...args),
-    activeInlineThread: () => app.margin.activeInlineThread(),
+    threadHere: () => app.margin.threadHere(),
+    threadTarget: (...args) => app.margin.threadTarget(...args),
     inlineThreadView: () => app.margin.inlineThreadView,
   },
 });
@@ -241,15 +254,12 @@ const targetPaintCaps = {
 const hintChrome = {
   barriers: standingStatusBoxes,
   lineBox: () => shortcutBarEl.getBoundingClientRect(),
-  viewportTop: chromeTop,
+  viewportTop: bannerFoot,
 };
-const focusedAnchorThreadId = () =>
-  focused()?.closest?.(".lf-conversation-thread")?.dataset.thread ??
-  focusedThreadOf()?.dataset.id;
 const anchorPaint = createAnchorPaint({
   targetPaint: targetPaintCaps,
   pointer: pointerAt,
-  focusedAnchorThreadId,
+  focusedAnchorThreadId: heldThreadId,
   hoveredPanelThreadId: () => {
     const { x, y } = pointerAt();
     const thread = document.elementFromPoint(x, y)?.closest(".lf-thread");
@@ -277,17 +287,21 @@ const designMode = createDesignMode({
   },
   closePreview: (...args) => app.margin.closePreview(...args),
   marginTargetAt: (...args) => app.margin.marginTargetAt(...args),
+  closeDrawMode: () => drawing.setDrawMode(false, { spoken: false }),
+  closeTargetPicker: () => targets.closeTargetPicker(),
+  closeReactionMode: () => reactions.setReact(false),
   banner,
   announce,
   repaint,
 });
 aim = createAim({
+  marginTargetAt: (...args) => app.margin.marginTargetAt(...args),
   refreshAim: () => pageGeometry.refreshAim(),
   commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
   standDown: (...args) => responseSurface.standDown(...args),
   drawModeActive: () => drawing.drawModeActive(),
   designMode,
-  targetChooser: {
+  targetPicker: {
     active: () => targets.pointerChoosing(),
     choose: (...args) => targets.chooseTarget(...args),
   },
@@ -307,23 +321,22 @@ const anchorTravel = createAnchorTravel({
   anchors: anchorPaint,
   surfaces: auxiliarySurfaces,
   currentThreads: allThreads,
-  refreshConversation: () => app.refreshConversation(),
+  refreshThread: () => app.refreshThread(),
   announce,
 });
-landing = createConversationLanding({
+landing = createThreadLanding({
+  threadsBox,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   scrollToThread: anchorTravel.scrollToThread,
-  revealThread: (id) => revealThread(id, app.presentConversation),
+  revealThread: narrowing.revealThread,
 });
-declareThreadKeys(landing.landIn, {
-  markThread: (id) => app.read.markThread(id),
-});
+declareThreadKeys(landing.landIn, narrowing);
 const anchorControls = createAnchorControls({
   commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
   openThread: (...args) => app.margin.openPageThread(...args),
   withdrawReaction: (...args) => app.withdraw(...args),
   labelAnchor: anchorLabel,
-  invalidateConversation: () => app.refreshConversation(),
+  invalidateThread: () => app.refreshThread(),
   invalidatePageGeometry: pageGeometry.invalidate,
   messageReferenceRoot: panel,
   draftQuote: composerQuote,
@@ -345,10 +358,6 @@ const version = createVersionController({
   captureAskStanding: () => asks.captureStanding(),
   restoreAskStanding: (standing) => asks.restoreStanding(standing),
 });
-// Body is the stable programmatic destination when the user lets go of a control.
-// Register the stop after version.js snapshots source attributes, so later authored
-// revisions do not mistake it for source state and remove it.
-setRuntimeRootAttribute(document.body, "tabindex", "-1");
 
 const inputs = createCompositionInputs({
   uploadMedia,
@@ -356,10 +365,14 @@ const inputs = createCompositionInputs({
 });
 
 app = mountApplication({
-  conversationAvailable: !offlineInteractive,
+  panel,
+  firstUnreadBtn: panelElements.firstUnreadBtn,
+  accompaniedThread: (...args) => landing.accompaniedThread(...args),
+  accompanyThread: (...args) => landing.accompanyThread(...args),
+  threadAvailable: !offlineInteractive,
   reportPageError,
   createEngagement,
-  targetChooserOpen: () => targets.targetChooserOpen(),
+  targetPickerOpen: () => targets.targetPickerOpen(),
   pageComposerDrawing: () => panelComposer.pageComposerDrawing(),
   wireInput: inputs.wireInput,
   anchorPaint,
@@ -367,7 +380,7 @@ app = mountApplication({
   drawingPaint,
   pageGeometry,
   anchorTravel,
-  readConversationDraft: () => ({
+  readThreadDraft: () => ({
     open: composerOpen,
     anchor: pendingAnchor,
     about: pendingAbout,
@@ -385,27 +398,14 @@ app = mountApplication({
     seat: (...args) => responseSurface.seatFab(...args),
     restore: (...args) => responseSurface?.restoreFab(...args) ?? false,
   },
-  landInConversation: (...args) => landing.landInConversation(...args),
+  landInThread: (...args) => landing.landInThread(...args),
   showThread: (...args) => landing.showThread(...args),
   panelIsOpen,
-  onConversationChanged: repaint,
-  retainPanelLanding: (source) => retainPanelLanding(source, panelIsOpen),
-  retainThreadNarrowing: () => retainNarrowing(app.presentConversation),
-  retainConversationFocus: () => retainConversationFocus(panelIsOpen),
-  revealReplyEditor: (input, { behavior, block } = {}) =>
-    revealConversation(
-      input.closest(".lf-thread, .lf-conversation-thread, .lf-conversation"),
-      input,
-      behavior,
-      block,
-    ),
-  setThreadCounts,
   registerReactSurface: (...args) => reactions.registerReactSurface(...args),
   sendReaction,
   updateFab: (...args) => responseSurface.updateFab(...args),
   createMarginProjection,
   margin: {
-    bottomChromeBoxes,
     designModeActive: designMode.active,
     pointerModeActive: () => designMode.active() || drawing.drawModeActive(),
     comparisonBase: version.comparisonBase,
@@ -416,8 +416,7 @@ app = mountApplication({
     openPageMap: (...args) => pageMapDialog.openPageMap(...args),
     pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
     renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
-    standsWith: (...args) => asks.standsWith(...args),
-    revealConversation,
+    scrollThreadIntoView,
     goToAsk: (...args) => asks.goToAsk(...args),
   },
   state: {
@@ -436,6 +435,25 @@ app = mountApplication({
     renderStatus,
   },
 });
+app.registerThreadPanel({
+  required: true,
+  controller: threadListController,
+  threadsBox,
+  view: {
+    narrowing,
+    panelIsOpen,
+    scrollToElement: anchorTravel.scrollToElement,
+    setThreadCounts,
+    onListChanged: repaint,
+    refreshAnchorHover: anchorPaint.refreshHover,
+    travel: {
+      showThread: (...args) => landing.showThread(...args),
+      retainPanelLanding: (source) =>
+        retainPanelLanding(source, panelIsOpen, threadsBox),
+      retainNarrowing: narrowing.retainNarrowing,
+    },
+  },
+});
 if (offlineInteractive) applicationState.setHostAvailable(false);
 
 // Where a landing in the document goes, which is version continuity's reading of what is
@@ -446,7 +464,7 @@ declareReading(readingBlock);
 // And where it goes instead while a surface covers the page: the page is inert under one,
 // so the reading above cannot take the user and a step that let go would leave them
 // wherever the closing layer happened to drop them. The modality that covers already
-// answers both halves for whichever surface is standing — the panel, either tray — and
+// answers both halves for whichever surface is standing — the panel, either drawer — and
 // the keyboard register carries the same pair to the dispatcher.
 declareCovering({
   surface: auxiliarySurfaces.coveringSurface,
@@ -456,7 +474,8 @@ declareCovering({
 // The let-go's external readings stand by now, so the scope is declared before anything
 // reads the register.
 declareStanding({
-  askHeld: () => Boolean(asks?.heldAsk()),
+  threadsBox,
+  narrowing,
   pageState: () =>
     Boolean(
       responseSurface.fabAnchorAt() ||
@@ -470,8 +489,8 @@ pageMapDialog = createPageMapDialog({
   activeInMargin: app.margin.pageMapActive,
   activateItem: app.margin.activateMapItem,
   faceFor: app.margin.faceForMap,
+  mapControlPlaces: app.margin.mapControlPlaces,
   targetFor: app.margin.targetFor,
-  focusFallback: app.margin.focusMapControl,
 });
 
 // Ask view is constructed below by its owner factory; all accesses above are inert closures.
@@ -480,23 +499,23 @@ asks = createAskView({
   readingBlock,
   focusForNavigation: app.margin.focusForNavigation,
   presentedControl: app.margin.presentedControl,
-  projectionTarget: app.margin.marginTargetAt,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   trip: anchorTravel.trip,
   scrollToElement: anchorTravel.scrollToElement,
-  refreshConversation: () => app.refreshConversation(),
+  refreshThread: () => app.refreshThread(),
   announce,
   repaint,
 });
 
 const standingElement = createStandingElement({
   isAskControl: (node) => node?.matches?.(ASK_CONTROL),
-  askPlace: asks.askPlace,
   standingIn: asks.standingIn,
-  projectionTarget: app.margin.marginTargetAt,
 });
 
 panelComposer = createPanelComposer({
+  elements: panelElements,
+  openThreads: threadListController.openThreads,
+  narrowing,
   designModeActive: designMode.active,
   wireInput: inputs.wireInput,
   createPageComment: app.createPageComment,
@@ -520,24 +539,27 @@ selectionComposer = createSelectionComposer({
   anchorTargetAt: (...args) => responseSurface.anchorTargetAt(...args),
   bringForward: (...args) => responseSurface.bringForward(...args),
   fabAnchorAt: (...args) => responseSurface.fabAnchorAt(...args),
+  fabPointAt: (...args) => responseSurface.fabPointAt(...args),
   fabPositioned: (...args) => responseSurface.fabPositioned(...args),
   beginFabFocus: (...args) => responseSurface.beginFabFocus(...args),
   endFabFocus: (...args) => responseSurface.endFabFocus(...args),
   landFabFocus: (...args) => responseSurface.landFabFocus(...args),
-  refreshFab: (...args) => responseSurface.refreshFab(...args),
   showFab: (...args) => responseSurface.showFab(...args),
   formatGoToAddress: (...args) => goToSequence.formatGoToAddress(...args),
   createComment: app.createComment,
   focusSurface,
   showThread: landing.showThread,
-  refreshConversation: app.refreshConversation,
+  refreshThread: app.refreshThread,
   wireInput: inputs.wireInput,
 });
 responseSurface = createResponseSurface({
+  panelElements,
   panelIsOpen,
   landIn: landing.landIn,
   setPanel: (...args) => threadPanelController.setPanel(...args),
-  activeInlineThread: () => app.margin.activeInlineThread(),
+  threadHere: () => app.margin.threadHere(),
+  threadTarget: (thread) =>
+    app.margin.threadTarget(thread.dataset.thread ?? thread.dataset.id),
   standingElement,
   composerHolds: selectionComposer.composerHolds,
   responseOptionsAreOpen: selectionComposer.responseOptionsAreOpen,
@@ -558,14 +580,13 @@ responseSurface = createResponseSurface({
   reactionContextContains: (...args) => reactions.reactionContextContains(...args),
   reactionTokens,
   setReact: (...args) => reactions.setReact(...args),
-  banner,
-  bottomChromeBoxes,
-  closeShortcutShelf: (...args) => closeShortcutShelf(...args),
+  collapseShortcutBar: (...args) => collapseShortcutBar(...args),
   closeVersionMenu: version.closeVersionMenu,
   versionMenuIsOpen,
   openPageThread: app.margin.openPageThread,
   drawModeActive: () => drawing.drawModeActive(),
-  refreshConversation: app.refreshConversation,
+  refreshThread: app.refreshThread,
+  dismissThreadView: () => app.margin.inlineThreadView.dismiss(),
   responseHome: chromeRoot,
 });
 reactions = createReactionController({
@@ -584,10 +605,10 @@ reactions = createReactionController({
   showFab: responseSurface.showFab,
   showFabOptions: responseSurface.showFabOptions,
   updateFab: responseSurface.updateFab,
-  standingConversation,
+  standingThread,
   standingElement,
 });
-targets = createTargetChooser({
+targets = createTargetPicker({
   scrollToRange: anchorTravel.scrollToRange,
   hintChrome,
   commentOnTarget: responseSurface.commentOnTarget,
@@ -611,7 +632,7 @@ drawing = createDrawingController({
     selectionComposer.openComposer(anchor, "", { carry: true, drawing }),
   openPageDrawing: panelComposer.openPageDrawing,
   setDesignMode: designMode.setActive,
-  closeTargetChooser: targets.closeTargetChooser,
+  closeTargetPicker: targets.closeTargetPicker,
   closeReactionMode: () => reactions.setReact(false),
   banner,
   announce,
@@ -632,27 +653,26 @@ layout = createChromeLayout({
   },
   scheduleThreadPreviewPosition: app.margin.scheduleThreadPreviewPosition,
   bottomChromeBoxes,
-  restateTrayEdge: () => trays.traysEdge.state(),
+  restateDrawerEdge: () => drawers.drawersEdge.state(),
   syncAuxiliarySurfaces: auxiliarySurfaces.sync,
   syncReactLayout: reactions.syncReactLayout,
   refreshFab: responseSurface.refreshFab,
-  dockSeats: anchorControls.dockSeats,
   pageShifted: pageGeometry.pageShifted,
   repaint,
   repaintPage,
 });
 threadPanelController = createThreadPanelController({
+  narrowing,
   auxiliarySurfaces,
-  elements: { panel, toggleBtn, threadsBox },
-  widen: () => widen(app.presentConversation),
-  activeInlineThread: app.margin.activeInlineThread,
+  elements: { panel, toggleBtn, threadsBox, inPanel: panelElements.inPanel },
+  threadHere: app.margin.threadHere,
   showThread: landing.showThread,
-  refreshConversation: app.refreshConversation,
+  refreshThread: app.refreshThread,
   closeReactionMode: () => reactions.setReact(false),
   closePreview: app.margin.closePreview,
   syncGeneral: panelComposer.syncGeneral,
 });
-trays = createTrays({
+drawers = createDrawers({
   landEdge: layout.landEdge,
   auxiliarySurfaces,
   closePreview: app.margin.closePreview,
@@ -662,11 +682,11 @@ trays = createTrays({
 });
 goToSequence = createGoToSequence({
   panelIsOpen,
-  elements: { banner, toggleBtn },
+  elements: { banner, toggleBtn, threadsBox },
   hintChrome,
-  directDestinations: () => [version.CHOOSER, selectionComposer.KEPT_DRAFT],
+  directDestinations: () => [version.PICKER, selectionComposer.KEPT_DRAFT],
   setPanel: threadPanelController.setPanel,
-  setOpenTray: trays.setOpenTray,
+  setOpenDrawer: drawers.setOpenDrawer,
   scrollToElement: anchorTravel.scrollToElement,
   leavesOffered,
   othersLinks,
@@ -690,12 +710,13 @@ const standing = createStanding({
       { kind: "ask", target: asks.standingIn() },
       {
         kind: "comment",
-        target: anchorPaint.placedAt(focusedAnchorThreadId())?.element,
+        target: anchorPaint.placedAt(heldThreadId())?.element,
       },
     ]),
+  paintTouchControls,
   renderShortcutBar: () => renderShortcutBar(goToSequence.goToStatus),
   paintGoToHints: goToSequence.paintGoToHints,
-  paintTargetChooserHints: targets.paintTargetChooserHints,
+  paintTargetPickerHints: targets.paintTargetPickerHints,
   paintCoreControls,
   paintVersionShortcuts: version.paintShortcuts,
   paintInputs: inputs.paintInputs,
@@ -703,7 +724,7 @@ const standing = createStanding({
 
 const skipToChrome = offer("button", "lf-skip", "Skip to Leaf controls");
 skipToChrome.onclick = () => {
-  for (const control of banner.querySelectorAll(FOCUSABLE)) {
+  for (const control of tabStops(banner)) {
     control.focus({ preventScroll: true });
     if (control.matches(":focus")) return;
   }
@@ -726,7 +747,7 @@ if (!offlineInteractive) {
     legendRoot,
     goToHintLayer,
     askActionLayer,
-    targetChooserHintLayer,
+    targetPickerHintLayer,
     pageSearchSurface,
     targetPaint.visualMarkLayer,
     drawingPaint.layer,
@@ -743,7 +764,8 @@ if (!offlineInteractive) {
   );
   document.body.prepend(skipToChrome);
   document.body.append(chromeRoot);
-  mountPanelReadingRegion();
+  panelElements.mountReadingRegion();
+  panelElements.mountOverlay();
   version.mount();
   mountBanner({
     approveVersion: () => app.post({ kind: "done", version: runtime.currentStamp }),
@@ -752,7 +774,7 @@ if (!offlineInteractive) {
   auxiliarySurfaces.mount();
   // Connect the search field before mount awaits its rendered input: Lit does not
   // resolve updateComplete until connection, and keyboard registration needs that input.
-  mountNarrowing(app.presentConversation);
+  narrowing.mount();
   await panelComposer.mount();
   selectionComposer.mount();
   responseSurface.mount();
@@ -767,11 +789,11 @@ if (!offlineInteractive) {
   pageMapDialog.mount(chromeRoot);
   asks.mount();
   app.margin.mount();
-  app.mountConversation();
+  app.mountThread();
   app.mountRead();
-  mountThreadList(panelIsOpen);
-  wireThreadLanding();
-  trays.mountTrays();
+  threadListController.mountThreadList(panelIsOpen);
+  wireThreadLanding(threadsBox);
+  drawers.mountDrawers();
   threadPanelController.mountThreadPanel();
   layout.mountLayoutObservers();
   goToSequence.mountGoToSequence();
@@ -779,7 +801,6 @@ if (!offlineInteractive) {
     setGoToSequence: goToSequence.setGoToSequence,
     setReact: reactions.setReact,
   });
-  inputs.mount();
   mountKeyboard({
     goToSequenceActive: goToSequence.goToSequenceActive,
     setGoToSequence: goToSequence.setGoToSequence,
@@ -795,9 +816,13 @@ if (!offlineInteractive) {
     pageShifted: pageGeometry.pageShifted,
     paintStandingGeometry: standing.paintStandingGeometry,
   });
+} else {
+  // An interactive export attaches no chrome, so its standing is only what a widget's
+  // own box shows: an options group's addition field paints there as it does live.
+  mountRepaint({ paintStandingGeometry: inputs.paintInputs });
 }
 
-const replayReady = passiveSpecimen
+const replayReady = passiveSample
   ? import("./runtime/interaction-gallery-frame.js").then(({ mountReplay }) =>
       mountReplay({
         toggleBtn,
@@ -809,8 +834,8 @@ const replayReady = passiveSpecimen
         closePreview: app.margin.closePreview,
         openInlineThread: app.margin.openInlineThread,
         threadTransitionOrigin: app.margin.threadTransitionOrigin,
-        currentTray,
-        setOpenTray: trays.setOpenTray,
+        currentDrawer,
+        setOpenDrawer: drawers.setOpenDrawer,
       }),
     )
   : Promise.resolve();
@@ -842,10 +867,10 @@ if (!offlineInteractive) {
   );
 }
 
-if (!passiveSpecimen && !offlineInteractive) {
+if (!passiveSample && !offlineInteractive) {
   restoreUserView({
     commentsEdge: layout.commentsEdge,
-    traysEdge: trays.traysEdge,
+    drawersEdge: drawers.drawersEdge,
     restoreAuxiliarySurface: auxiliarySurfaces.restore,
     setDesignMode: designMode.setActive,
   });
@@ -854,7 +879,10 @@ if (!passiveSpecimen && !offlineInteractive) {
   // for the browser to carry on from.
   releaseFocus();
 }
-mountHistory();
+mountHistory({
+  followFragment: anchorTravel.followFragment,
+  returnToFragment: anchorTravel.returnToFragment,
+});
 const landFragment = version.aimArrival();
 const { landArrival, savedView } = offlineInteractive
   ? { landArrival: () => {}, savedView: null }
@@ -867,8 +895,8 @@ async function presentPage() {
   if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
   setAnchoringReady(true);
   try {
-    await app.presentConversation();
-    // Anchoring changes where conversation chrome is painted. That final paint is part
+    await app.presentThread();
+    // Anchoring changes where thread chrome is painted. That final paint is part
     // of initial presentation too: opening interaction before it commits can expose a
     // malformed page that the unanchored provisional pass could not yet inspect.
     await whenApplicationPresented();
@@ -876,7 +904,7 @@ async function presentPage() {
     setAnchoringReady(false);
     throw error;
   }
-  document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.presented, "1");
+  markPagePresented();
   anchorControls.publishVisualActions();
   if (offlineInteractive) {
     landFragment();

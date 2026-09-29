@@ -6,6 +6,7 @@
  */
 import { html, nothing, render } from "../vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
+import { keeps } from "./keeps.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-banner-status";
@@ -37,7 +38,7 @@ class BannerStatusView extends HTMLElement {
     this.#detail.lfInvoker = this.#button;
     this.#detail.addEventListener("toggle", (event) => {
       const open = event.newState === "open";
-      this.#button.setAttribute("aria-expanded", String(open));
+      keeps(this.#button, "aria-expanded", open);
       // Focus the scrollable explanation so keyboard users can reach long details.
       if (open && document.activeElement === this.#button)
         this.#detail.focus({ preventScroll: true });
@@ -63,9 +64,9 @@ class BannerStatusView extends HTMLElement {
     if (model.publication && this.#detail.matches(":popover-open"))
       this.#detail.hidePopover();
 
-    this.#dot.className = "lf-dot" + (model.tone ? " " + model.tone : "");
-    this.#button.title = model.explanation;
-    this.#text.title = model.explanation;
+    keeps(this.#dot, "class", "lf-dot" + (model.tone ? " " + model.tone : ""));
+    keeps(this.#button, "title", model.explanation);
+    keeps(this.#text, "title", model.explanation);
     render(model.explanation, this.#detail);
 
     if (model.publication) {

@@ -2,30 +2,30 @@
 
    The draft and event log keep one representation: ordinary Markdown naming immutable
    page media. A composer projects the generated image blocks as thumbnails beside its
-   textarea, then materializes the same Markdown again when its visible words change or
+   text field, then materializes the same Markdown again when its visible words change or
    Send reads the draft. Sent-message images open one native modal viewer. The document
    declares its public page root because a website module may live under an immutable
-   release URL shared with a specimen. All three resolve
+   release URL shared with a sample. All three resolve
    the same canonical `/media/…` text without rewriting durable content. The viewer's
    native dialog remains a direct chrome child while its light-DOM Lit face owns the
    generated title, control, and image. */
 
-// Joined rather than written whole: the MCP boundary's route scoper rewrites a quoted
-// media root in served JS (http.py's _ROOTED_PAGE_ROUTE), and this constant has to keep
-// speaking the canonical text that drafts and events carry. MEDIA_PATH's escaped form
-// below dodges the same rewrite; neither may be spelled the obvious way.
 import { LitElement, html } from "../vendor/browser-runtime.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
+import { handBack } from "./focus.js";
+import { closeControl } from "./widget-elements.js";
 
-const CANONICAL_MEDIA_ROOT = "/" + "media/";
-const MEDIA_NAME = /^[a-f0-9]{16}\.(?:png|jpe?g|gif|webp|svg)$/;
-const MEDIA_PATH = String.raw`\/media\/[a-f0-9]{16}\.(?:png|jpe?g|gif|webp|svg)`;
-const PASTED_MEDIA = new RegExp(String.raw`!\[Pasted image\]\((${MEDIA_PATH})\)`, "g");
+// Page media is whatever a reference names under this directory. The name a file there
+// takes is the server's (Python's `schema.MEDIA_DIGEST`), which answers no other, so the
+// browser reads a reference by its directory, as Python's own readings do, and leaves the
+// name to the server.
+const CANONICAL_MEDIA_ROOT = "/media/";
+const PASTED_MEDIA = new RegExp(
+  String.raw`!\[Pasted image\]\((${CANONICAL_MEDIA_ROOT}[^\s)]+)\)`,
+  "g",
+);
 
-export const isCanonicalMediaUrl = (href) => {
-  if (!href.startsWith(CANONICAL_MEDIA_ROOT)) return false;
-  return MEDIA_NAME.test(href.slice(CANONICAL_MEDIA_ROOT.length));
-};
+export const isCanonicalMediaUrl = (href) => href.startsWith(CANONICAL_MEDIA_ROOT);
 
 export const scopedMediaUrl = (href) =>
   offlineInteractive ? runtimeResource(href) : new URL(pageUrl(href.slice(1))).pathname;
@@ -57,10 +57,15 @@ class MediaViewerFace extends LitElement {
     model: { attribute: false },
   };
 
+  #close = closeControl({
+    name: "Close image preview",
+    title: "Close image preview (Esc)",
+  });
+
   constructor() {
     super();
     this.model = null;
-    this.closeViewer = null;
+    this.#close.onclick = () => this.closeViewer();
   }
 
   createRenderRoot() {
@@ -73,16 +78,14 @@ class MediaViewerFace extends LitElement {
   }
 
   focusClose() {
-    this.querySelector(".lf-media-viewer-head > button").focus({
-      preventScroll: true,
-    });
+    this.#close.focus({ preventScroll: true });
   }
 
   render() {
     return html`
       <div class="lf-media-viewer-head">
         <strong id="lf-media-viewer-title">Image preview</strong>
-        <button class="lf-btn" type="button" @click=${this.closeViewer}>Close</button>
+        ${this.#close}
       </div>
       <div class="lf-media-viewer-stage">
         ${this.model ? html`<img src=${this.model.url} alt=${this.model.alt} />` : null}
@@ -114,13 +117,18 @@ const open = (url, alt, from) => {
 };
 mediaViewer.addEventListener("close", () => {
   viewerFace.present(null);
-  if (origin?.isConnected) origin.focus({ preventScroll: true });
+  if (origin) handBack(origin);
   origin = null;
 });
 document.addEventListener("click", (event) => {
+  // The path ends at the document and the window, and an element whose id is
+  // `matches` puts an object at `window.matches`, so only elements are asked.
   const trigger = event
     .composedPath()
-    .find((node) => node?.matches?.(".lf-media-open[data-lf-media-url]"));
+    .find(
+      (node) =>
+        node instanceof Element && node.matches(".lf-media-open[data-lf-media-url]"),
+    );
   if (trigger)
     open(
       trigger.dataset.lfMediaUrl,

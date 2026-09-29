@@ -10,31 +10,27 @@ from leaf.data_contracts import (
     measurement_lag,
     working_data_document_readings,
 )
+from leaf.passages import SourceReading
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import read_page_registry
 from leaf.revision_artifact import ArtifactError, RevisionArtifact, capture_artifact
 from leaf.schema import VENDORED_FILES
 from leaf.structure import LF_META, SourceDocument, links_with_rel
 from leaf.styles import (
-    _column_width,
-    _overwide_elements,
     css_syntax_errors,
     inline_presentation_override_errors,
     inline_style_at,
-    layout_css_advice,
-    root_tokens,
+    scroller_css_advice,
 )
-from leaf.thread_context import comment_ids, specimen_events, thread_structure
+from leaf.thread_context import sample_events, thread_ids, thread_structure
 from leaf.validation.compatibility import candidate_vocabulary_gaps
 from leaf.validation.instances import (
     addressable_instance_errors,
     ask_surface_errors,
     declared_word_errors,
-    language_class_errors,
     layout_errors,
     line_ref_errors,
     reference_errors,
-    request_offer_errors,
     suggestion_errors,
     visual_part_errors,
     widget_errors,
@@ -43,30 +39,38 @@ from leaf.validation.markup import (
     authored_allocation_errors,
     id_errors,
     media_errors,
-    missing_outline,
     page_boundary_errors,
     structure_errors,
+    unarranged_main,
     unpointable_blocks,
-    workspace_sheet_errors,
 )
 from leaf.validation.source_history import (
-    RevisionReading,
+    EMPTY_READING,
+    NO_PREDECESSOR,
+    PredecessorReading,
     continuity_errors,
-    revision_reading,
+    predecessor_reading,
     transition_errors,
     transition_reading,
 )
 
 
 class SourceCheck(NamedTuple):
-    """One complete reading of the exact source bytes."""
+    """One complete reading of the exact source bytes.
 
-    document: SourceDocument
+    `reading` is the document under `registry` (none where the page has no
+    vocabulary), read once for the whole check; the revision activation writes from
+    it adopts it (`revision_artifact.write_artifact`)."""
+
+    reading: SourceReading
     registry: dict | None
     errors: list[str]
     advice: list[str]
-    column: int
     artifact: RevisionArtifact | None = None
+
+    @property
+    def document(self) -> SourceDocument:
+        return self.reading.document
 
 
 def _source_bytes(page_dir: Path) -> tuple[bytes, str | None]:
@@ -172,7 +176,7 @@ def _instance_errors(
     events: list,
     parser,
     registry: dict | None,
-    comment_ids: set[str],
+    thread_ids: set[str],
 ) -> list[str]:
     """Validate authored instances against their document's event and id namespace."""
     errors = []
@@ -180,18 +184,15 @@ def _instance_errors(
         return errors
     errors.extend(widget_errors(parser.lf_elements, registry))
     errors.extend(layout_errors(parser.lf_elements, registry))
-    errors.extend(workspace_sheet_errors(parser, registry))
     errors.extend(visual_part_errors(parser.lf_elements, registry))
     errors.extend(addressable_instance_errors(parser.lf_elements, registry))
     errors.extend(ask_surface_errors(parser.lf_elements, registry))
-    errors.extend(request_offer_errors(parser.lf_elements, registry))
     errors.extend(
         reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
     )
-    errors.extend(language_class_errors(parser.language_blocks, registry))
     errors.extend(declared_word_errors(parser.lf_elements, registry))
     errors.extend(line_ref_errors(parser.lf_elements, registry))
-    errors.extend(suggestion_errors(parser.lf_elements, registry, comment_ids))
+    errors.extend(suggestion_errors(parser.lf_elements, registry, thread_ids))
     taken = sorted(parser.ids & thread_structure(events).ids)
     if taken:
         errors.append(f"ids already taken by widget markup in a reply: {taken}")
@@ -199,54 +200,35 @@ def _instance_errors(
 
 
 def _authored_document_checks(
-    page_dir, document, events, registry, contracts, readings, comment_ids
+    page_dir, document, events, registry, contracts, readings, thread_ids
 ):
     """The same authored-page gate for the root and each isolated child document."""
     errors = _document_errors(page_dir, document)
-    errors.extend(_instance_errors(events, document, registry, comment_ids))
+    errors.extend(_instance_errors(events, document, registry, thread_ids))
     if registry is not None:
         errors.extend(data_document_errors(readings, contracts))
     errors.extend(media_errors(document, page_dir))
-    column, presentation_errors = _presentation_errors(page_dir, document)
-    errors.extend(presentation_errors)
-    return column, errors
+    errors.extend(_presentation_errors(document))
+    return errors
 
 
-def _presentation_errors(page_dir: Path, parser) -> tuple[int, list[str]]:
-    """Validate authored and vendored CSS and return the readable column width.
-
-    Every sheet the page vendors is checked, not theme.css alone: shadow.css is the
-    one each widget's shadow root adopts, so a malformed rule there reaches a user
-    as an unstyled widget with nothing said about it. The column and its tokens are
-    the theme's, which is the sheet the document itself is laid out by.
-    """
-    vendored = {
-        name: (page_dir / name).read_text(encoding="utf-8")
-        if (page_dir / name).exists()
-        else ""
-        for name in VENDORED_FILES
-        if name.endswith(".css")
-    }
-    theme_css = vendored["theme.css"]
+def _presentation_errors(parser) -> list[str]:
+    """Validate the page's own CSS: its <style> and each inline style."""
     errors = list(css_syntax_errors(parser.css, "page <style>"))
     for inline in parser.inline_styles:
         errors.extend(
             css_syntax_errors(inline["style"], inline_style_at(inline), block=True)
         )
-    for name, css in vendored.items():
-        errors.extend(css_syntax_errors(css, name))
-    errors.extend(inline_presentation_override_errors(parser))
-    column = _column_width(parser.css, theme_css)
-    errors.extend(_overwide_elements(parser, column, root_tokens(theme_css)))
-    return column, errors
+    return errors + inline_presentation_override_errors(parser)
 
 
 def _source_advice(
     parser,
     registry: dict | None,
     stored_data: dict,
-    revision: RevisionReading,
+    revision: PredecessorReading,
     dropped_ids: list[str],
+    artifact: RevisionArtifact | None,
 ) -> list[str]:
     """Report non-blocking drift after every error-producing phase has run."""
     return [
@@ -265,8 +247,10 @@ def _source_advice(
         ),
         *(f"data source unreadable: {error}" for error in data_errors(stored_data)),
         *unpointable_blocks(parser),
-        *missing_outline(parser, registry or {}),
-        *layout_css_advice(parser, registry or {}),
+        *unarranged_main(parser),
+        *scroller_css_advice(
+            parser, artifact.page_stylesheets if artifact is not None else {}
+        ),
     ]
 
 
@@ -279,7 +263,7 @@ def check_source(
     """Check ``index.html`` against the last activated revision."""
     data, source_error = _source_bytes(page_dir)
     if source_error:
-        return SourceCheck(SourceDocument(""), None, [source_error], [], 0)
+        return SourceCheck(EMPTY_READING, None, [source_error], [])
     html = data.decode("utf-8")
     document = SourceDocument(html)
     errors = []
@@ -290,6 +274,7 @@ def check_source(
     except RegistryError as error:
         registry = None
         errors.append(str(error))
+    reading = SourceReading(document, registry)
     stored_data = read_data(page_dir, registry)
     contracts = read_contracts(page_dir)
     readings = (
@@ -299,38 +284,36 @@ def check_source(
         if registry is not None
         else []
     )
-    column, document_errors = _authored_document_checks(
+    document_errors = _authored_document_checks(
         page_dir,
         document,
         events,
         registry,
         contracts,
         readings,
-        comment_ids(events),
+        thread_ids(events),
     )
     errors.extend(document_errors)
     documents = [(document, events, "")]
     for parent, parent_events, parent_name in documents:
-        for specimen in parent.specimens:
-            name = (
-                parent_name + f"specimen {specimen['attrs'].get('id', '<unnamed>')!r}: "
-            )
-            child = specimen["document"]
-            selected = set(specimen["attrs"].get("data-specimen-threads", "").split())
+        for sample in parent.samples:
+            name = parent_name + f"sample {sample['attrs'].get('id', '<unnamed>')!r}: "
+            child = sample["document"]
+            selected = set(sample["attrs"].get("data-sample-threads", "").split())
             # A template may precede its seed log, and the selection reads against
             # whatever the log holds — so the child checked here is the child
             # allocation would build from this document and this history.
             child_events = [
                 {**event, "seq": index}
                 for index, event in enumerate(
-                    specimen_events(parent, parent_events, selected), 1
+                    sample_events(parent, parent_events, selected), 1
                 )
             ]
             documents.append((child, child_events, name))
             child_readings = initial_data_document_readings(
                 child.lf_elements, child_events, registry
             )
-            _, child_errors = _authored_document_checks(
+            child_errors = _authored_document_checks(
                 page_dir,
                 child,
                 child_events,
@@ -339,10 +322,11 @@ def check_source(
                 child_readings,
                 selected,
             )
-            initial = RevisionReading(0, False, False, 0, SourceDocument(""), {}, {})
-            transition = transition_reading(child, child_events, registry, initial)
+            transition = transition_reading(
+                SourceReading(child, registry), child_events, NO_PREDECESSOR
+            )
             child_errors.extend(
-                transition_errors(child, registry, initial, transition, False)
+                transition_errors(child, registry, NO_PREDECESSOR, transition, False)
             )
             errors.extend(name + error for error in child_errors)
     artifact = None
@@ -357,7 +341,7 @@ def check_source(
             )
         except ArtifactError as error:
             errors.append(str(error))
-    revision = revision_reading(page_dir, data, events, artifact)
+    revision = predecessor_reading(page_dir, data, events, artifact)
 
     source_history_errors, dropped_advice = continuity_errors(
         events, document, registry, revision
@@ -379,7 +363,7 @@ def check_source(
                     revision.predecessor,
                 )
             )
-        transition = transition_reading(document, events, registry, revision)
+        transition = transition_reading(reading, events, revision)
         errors.extend(
             transition_errors(
                 document, registry, revision, transition, allow_transition
@@ -392,5 +376,6 @@ def check_source(
         stored_data,
         revision,
         dropped_advice,
+        artifact,
     )
-    return SourceCheck(document, registry, errors, advice, column, artifact)
+    return SourceCheck(reading, registry, errors, advice, artifact)

@@ -21,8 +21,8 @@
  * in a shut panel has no box, so measure holds its draw, and the 384KB bundle waits with
  * it instead of loading in front of a user who never opens that panel. */
 import {
+  bodyText,
   cancelRender,
-  dataBody,
   failSoft,
   layerFact,
   measure,
@@ -32,12 +32,11 @@ import {
   widgetController,
 } from "/runtime/widget-api.js";
 
-/* A calendar day or month, which is the whole of what an x column may say about time. A
- * finer instant would need a timezone to mean anything, and a page that carries one writes
- * it as a category. The month and day are spelled out rather than left as two digits
- * because a label like 2021-22 — a winter, on a chart of winters — otherwise reads as
- * month 22 and lands in the autumn of the following year. */
-const ISO_DATE = /^(\d{4})-(0[1-9]|1[0-2])(?:-(0[1-9]|[12]\d|3[01]))?$/;
+/* A moment with no zone after it (2026-06-01T14:00). autoType reads it through Date, and
+ * Date reads this one ISO form in the viewer's own zone where it reads a month, a day, or
+ * a moment that states its zone as the instant it names. Plot labels a Date in UTC, so the
+ * axis would say 14:00 to a reader in London and 07:00 to one in Los Angeles. */
+const ZONELESS = /T[\d:.]+$/;
 
 let plotReady;
 const loadPlot = () => (plotReady ??= import("/vendor/plot.esm.js"));
@@ -49,9 +48,9 @@ const loadPlot = () => (plotReady ??= import("/vendor/plot.esm.js"));
  * series in one colour is worse than a drawing that says it will not draw. */
 const seriesCap = () => layerFact("$series").steps;
 
-/* The body → {xName, labels, series}. Every refusal here names the row or the cell,
+/* The body → {xName, labels, xs, series}. Every refusal here names the row or the cell,
  * because failSoft shows the author this message over their own source. */
-function readTable(text) {
+function readTable(text, autoType) {
   const rows = text
     .split("\n")
     .map((line) => line.trim())
@@ -89,14 +88,19 @@ function readTable(text) {
   const twice = labels.find((label, i) => labels.indexOf(label) !== i);
   if (twice) throw new Error(`two rows share the x value ${twice}`);
 
+  // Every cell is typed by d3's autoType, which is how Plot's own ecosystem reads CSV text
+  // into the values Plot draws: blank is null, a number a number, an ISO date or moment a
+  // Date, and anything else the text.
+  const cells = rows.slice(1).map((row) => autoType(row.slice()));
   const series = names.map((name, column) => ({
     name,
-    values: rows.slice(1).map((row, index) => {
-      const cell = row[column + 1];
-      if (!cell) return null; // a gap the author left, drawn as a gap
-      const value = Number(cell);
+    values: cells.map((row, index) => {
+      const value = row[column + 1];
+      if (value === null) return null; // a gap the author left, drawn as a gap
       if (!Number.isFinite(value))
-        throw new Error(`row ${index + 2}, ${name}: "${cell}" is not a number`);
+        throw new Error(
+          `row ${index + 2}, ${name}: "${rows[index + 1][column + 1]}" is not a number`,
+        );
       return value;
     }),
   }));
@@ -104,31 +108,26 @@ function readTable(text) {
   // a colour and a line in the key, so the chart claims a series it never shows.
   const empty = series.find((s) => s.values.every((v) => v === null));
   if (empty) throw new Error(`${empty.name} has no numbers in it`);
-  return { xName: rows[0][0], labels, series };
+  return { xName: rows[0][0], labels, xs: cells.map((row) => row[0]), series };
 }
 
-/* What the x column is, which the column itself answers: every value a calendar date, or
- * every value a number, or neither — and neither is a category. Dates are read into UTC
- * from their own parts rather than through Date's string parsing, which reads a bare
- * `2026-06-01` as UTC midnight and then draws it under May 31 for a user west of
- * Greenwich. A UTC scale keeps the axis saying what the body says.
+/* What the x column is, which autoType has already answered cell by cell: a column it
+ * read as all Dates or all numbers is handed to Plot as those, and Plot's own inference
+ * gives the first a UTC time scale and the second a linear one. Anything else is handed
+ * over as the text, a category. That covers a column autoType read two ways, which Plot
+ * would type by its first value and drop the rest of, and a label shaped like a month
+ * that names none, such as 2021-22 (a winter, on a chart of winters), which autoType
+ * reads as an Invalid Date. A zoneless moment stays text too (ZONELESS).
  *
  * Only a line and a scatter ask. A bar chart's x is one slot per row by construction, so
  * bars, rows and stack band the labels exactly as written, whatever they look like. */
-function readAxis(labels) {
-  const dates = labels.map((label) => ISO_DATE.exec(label));
-  // All to the same granularity or none: a column holding both 2026-01 and 2026-01-01
-  // would read the month as the first of it and put two rows on one instant.
-  const months = dates.filter(Boolean).filter(([, , , day]) => !day).length;
-  if (dates.every(Boolean) && (months === 0 || months === dates.length))
-    return {
-      type: "utc",
-      values: dates.map(
-        ([, year, month, day]) => new Date(Date.UTC(+year, +month - 1, day ? +day : 1)),
-      ),
-    };
-  const numbers = labels.map(Number);
-  if (numbers.every(Number.isFinite)) return { type: "linear", values: numbers };
+function readAxis({ labels, xs }) {
+  if (
+    xs.every((x) => x instanceof Date && !Number.isNaN(+x)) &&
+    !labels.some((label) => ZONELESS.test(label))
+  )
+    return { type: "utc", values: xs };
+  if (xs.every(Number.isFinite)) return { type: "linear", values: xs };
   return { type: "band", values: labels };
 }
 
@@ -199,6 +198,9 @@ const barDomain = (values) => {
  * that never changes gives Plot a domain of [500, 500], whose one tick it writes as
  * 500.000000 because six decimal places is what it takes to tell that domain apart from
  * itself. A line through the middle of a plain span says the true thing — nothing moved. */
+// Room a dot keeps from the frame's edges: its 3.2px radius and a little air.
+const DOT_ROOM = 6;
+
 const spread = (values) => {
   const [lo, hi] = [Math.min(...values), Math.max(...values)];
   if (lo !== hi) return undefined; // the ordinary case: Plot reads the extent itself
@@ -212,10 +214,12 @@ const spread = (values) => {
  * over four days it chooses hours: a chart of four daily totals came out under eight ticks
  * reading 12 AM and 12 PM, naming instants the body never mentions. A short run says its
  * own ticks — the user's dates, and no others — and a long one keeps Plot's choosing
- * while being held to a day at the finest. */
+ * while being held to a day at the finest. More than ten rows inside ten days can only be
+ * moments, so there Plot's hours are the body's own grain and it chooses freely. */
 function timeTicks(values) {
   if (values.length <= 10) return values;
   const days = (Math.max(...values) - Math.min(...values)) / 86400000;
+  if (days < 10) return undefined;
   return days > 730 ? "year" : days > 180 ? "month" : days > 45 ? "week" : "day";
 }
 
@@ -241,8 +245,12 @@ const marked = (index, options) => ({
 
 function build(Plot, { kind, table, axis, label, width, font, line, grow, held }) {
   const { labels, series, xName } = table;
-  const points = (s) =>
-    axis.values.map((x, i) => ({ x, v: s.values[i] })).filter((d) => d.v !== null);
+  // A series as (x, value) pairs, at the x the axis reads: the labels as written on a
+  // band, and the Dates or numbers autoType read on a continuous axis. A row chart bands
+  // its labels whatever they say, so handed a continuous reading its domain of labels
+  // matched none of its values and it drew no bars at all.
+  const points = (s, xs) =>
+    xs.map((x, i) => ({ x, v: s.values[i] })).filter((d) => d.v !== null);
   const room = (values) =>
     textWidth(
       values.map((v) => `${v}`),
@@ -301,7 +309,7 @@ function build(Plot, { kind, table, axis, label, width, font, line, grow, held }
         ...series.map((s, i) => {
           const [before, after] = inset(i);
           return Plot.barX(
-            points(s),
+            points(s, labels),
             marked(i, { y: "x", x: "v", insetTop: before, insetBottom: after }),
           );
         }),
@@ -383,6 +391,16 @@ function build(Plot, { kind, table, axis, label, width, font, line, grow, held }
     });
   }
 
+  // A continuous axis puts each row at its value, so two labels with one value, such as
+  // 2026-06 and 2026-06-01, or 1 and 1.0, would draw two rows at one x: the refusal
+  // readTable gives two rows that share a label. A bar keeps a slot per label, so only
+  // a line or a scatter reaches this.
+  if (axis.type !== "band") {
+    const at = axis.values.map(Number);
+    const twice = at.findIndex((x, i) => at.indexOf(x) !== i);
+    if (twice >= 0) throw new Error(`${labels[twice]} is the same x as another row`);
+  }
+
   const marginLeft = Math.round(room(drawn)) + 14 + grow.left;
   // A band domain is stated rather than left to Plot, which sorts an ordinal domain it was
   // not given: a run written Nov, Dec, Jan, Feb came out Dec, Feb, Jan, Nov — drawn in an
@@ -397,7 +415,7 @@ function build(Plot, { kind, table, axis, label, width, font, line, grow, held }
           ticks: bandTicks(labels, width - marginLeft - common.marginRight, font),
         }
       : {}),
-    ...(axis.type === "utc" ? { type: "utc", ticks: timeTicks(axis.values) } : {}),
+    ...(axis.type === "utc" ? { ticks: timeTicks(axis.values) } : {}),
   };
 
   if (kind === "line")
@@ -410,7 +428,7 @@ function build(Plot, { kind, table, axis, label, width, font, line, grow, held }
       y: { ...y, domain: spread(drawn) },
       marks: series.map((s, i) =>
         Plot.lineY(
-          points(s),
+          points(s, axis.values),
           marked(i, {
             x: "x",
             y: "v",
@@ -433,11 +451,21 @@ function build(Plot, { kind, table, axis, label, width, font, line, grow, held }
       // a dated x included, where the dates say which day and not which measurement.
       marginBottom: line + 16 + line + grow.bottom,
       marginLeft,
-      x: { ...x, label: xName, grid: true, nice: true, domain: spread(axis.values) },
-      y: { ...y, domain: spread(drawn) },
+      // A dot is a disc, not a line's vertex: at the extent's own value it sat centred
+      // on the axis, half of it under the frame. Both scales round out to ticks and
+      // keep a dot's width clear of each edge.
+      x: {
+        ...x,
+        label: xName,
+        grid: true,
+        nice: true,
+        inset: DOT_ROOM,
+        domain: spread(axis.values),
+      },
+      y: { ...y, nice: true, inset: DOT_ROOM, domain: spread(drawn) },
       marks: series.map((s, i) =>
         Plot.dot(
-          points(s),
+          points(s, axis.values),
           marked(i, { x: "x", y: "v", r: 3.2, fill: "currentColor" }),
         ),
       ),
@@ -524,15 +552,15 @@ customElements.define(
     }
 
     async draw() {
-      // Inside the try with everything else: dataBody reaches for a <pre> both markup
+      // Inside the try with everything else: bodyText reaches for a <pre> both markup
       // doors require, and an authored document hand-edited past them threw out of here instead
       // of failing soft, leaving the user the body's raw text and no error at all.
       let source = "";
       try {
-        source = dataBody(this).trim();
-        const table = readTable(source);
-        const axis = readAxis(table.labels);
+        source = bodyText(this);
         const Plot = await loadPlot();
+        const table = readTable(source, Plot.autoType);
+        const axis = readAxis(table);
         // The widget's own children, built once: the key, then the box each drawing goes
         // in. A redraw replaces what is in that box and nothing else, because by then the
         // runtime may have hung its own words on the widget — the line saying a comment
@@ -547,7 +575,7 @@ customElements.define(
         this.paint(Plot, table, axis);
         this.classList.add("lf-rendered");
         // Everything after the first draw is the room changing under it: a window
-        // resized, the Asks tray opening and taking its strip out of the column. The
+        // resized, the Asks drawer opening and taking its strip out of the column. The
         // drawing would scale with the box and take its labels below legibility with it,
         // while a diagram keeps its renderer-defined geometry. A chart can simply be
         // drawn again. Only the width is watched, and only when it lands on a new

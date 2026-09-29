@@ -1,10 +1,9 @@
 """The website route adapter preserves Leaf's canonical served-page contract."""
 
 import hashlib
-import importlib.util
+import itertools
 import json
 import os
-import re
 import shutil
 import signal
 import subprocess
@@ -15,59 +14,51 @@ import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
+from dataclasses import replace
 from email.message import Message
 from pathlib import Path
 from types import SimpleNamespace
 
+import leaf_website as website_server
 import pytest
-import verify_site
 from click.testing import CliRunner
 from interact_support import (
-    COMMAND_SUBJECTS,
     PAGE,
     STATED_TIMEOUT,
     Prose,
     append_command,
     publish,
     running_http_server,
+    take_stream_activity,
     yaml_document,
 )
 from leaf import codex as leaf_codex
-from leaf.cli import cli
 from leaf.codex import AppServerRequestRejected, accept_codex_delivery, delivery_records
-from leaf.conversation import cmd_reply, cmd_resolve
 from leaf.delivery import current_responses
 from leaf.event_log import append_event, read_events
 from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
-from leaf.http import supervised_document
+from leaf.http import page_delivery
 from leaf.machine import pid_alive
-from leaf.requests import request_lifecycles
 from leaf.revision_artifact import Resource
-from leaf.revisioning import activate_source
-from leaf.schema import ASSETS, VENDORED_FILES
+from leaf.revision_delivery import compose_document
+from leaf.schema import ASSETS
 from leaf.served_state import page as served_page
-from leaf.service import delivery_reply_attempt
+from leaf.service import delivery_reply_attempt, open_session_turn
+from leaf.thread import cmd_reply, cmd_resolve
+from leaf_dev import example_previews, verify_site
 from playwright.sync_api import expect
-from render_harness import LONG_PAGE, consume_browser_errors, open_page, told
+from render_harness import LONG_PAGE, consume_browser_errors, open_page, told, write
 from websockets.exceptions import ConnectionClosedError
 
 ROOT = Path(__file__).parent.parent
-_spec = importlib.util.spec_from_file_location(
-    "website_server", ROOT / "worker" / "server.py"
-)
-website_server = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(website_server)
-_previews_spec = importlib.util.spec_from_file_location(
-    "example_previews", ROOT / "scripts" / "example-previews.py"
-)
-example_previews = importlib.util.module_from_spec(_previews_spec)
-_previews_spec.loader.exec_module(example_previews)
-_benchmark_spec = importlib.util.spec_from_file_location(
-    "benchmark_site", ROOT / "scripts" / "benchmark-site.py"
-)
-benchmark_site = importlib.util.module_from_spec(_benchmark_spec)
-_benchmark_spec.loader.exec_module(benchmark_site)
+
+
+def accept_in_turn(thread_id: str, turn: str = "app-server-turn") -> None:
+    """Open the provider turn and accept the offered delivery into it, as
+    `HostedTurn.begin` does."""
+    open_session_turn(thread_id, turn)
+    accept_codex_delivery(thread_id, turn)
 
 
 @pytest.fixture(autouse=True)
@@ -131,23 +122,6 @@ def write_manifest(site: Path, pages: dict[str, tuple[str, str]]) -> None:
     target = site / website_server.SITE_MANIFEST
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(manifest), encoding="utf-8")
-
-
-def take_stream_activity(monkeypatch, updates: list, clears: list) -> None:
-    """Collect every activity reading a turn writes, instead of a page taking it.
-
-    Two bindings of the same two functions write them: the host calls them for a
-    turn it is starting or giving up on, and `leaf.codex` calls them for everything
-    the projection reads off the stream. A test that wants the readings, or wants
-    them to touch nothing, has to say so at both.
-    """
-    for module in (website_server, leaf_codex):
-        monkeypatch.setattr(
-            module, "set_stream_activity", lambda *args: updates.append(args)
-        )
-        monkeypatch.setattr(
-            module, "clear_stream_activity", lambda *args: clears.append(args)
-        )
 
 
 def hosted_follower(
@@ -254,25 +228,27 @@ def test_a_published_document_names_its_page_to_a_crawler(page_root, kind, url):
         "image": "/media/card.png",
     }
     addition = website_server.site_metadata(page_root, page)
-    served = supervised_document(
+    resources = {
+        path: Resource((ASSETS / path.lstrip("/")).read_bytes(), mime)
+        for path, mime in (
+            ("/runtime/bootstrap.js", "application/javascript"),
+            ("/runtime/chrome.css", "text/css"),
+            ("/runtime/marks.css", "text/css"),
+        )
+    }
+    delivery = page_delivery(
+        resources, server_id="server", layer_id="layer", page_root=page_root
+    )
+    served = compose_document(
         PAGE_SOURCE,
         1,
         1,
         executable="sha256:executable",
         widgets={},
-        server_id="server",
-        layer_id="layer",
-        resources={
-            path: Resource((ASSETS / path.lstrip("/")).read_bytes(), mime)
-            for path, mime in (
-                ("/runtime/bootstrap.js", "application/javascript"),
-                ("/runtime/chrome.css", "text/css"),
-                ("/runtime/marks.css", "text/css"),
-            )
-        },
-        page_root=page_root,
-        before_runtime=addition,
-    ).decode()
+        resources=resources,
+        registry={},
+        delivery=replace(delivery, head=addition),
+    )
     head = served[: served.index("</head>")]
     assert f'<link rel="canonical" href="{page_root}/" data-lf-runtime>' in head
     assert f'<meta property="og:url" content="{url}" data-lf-runtime>' in head
@@ -468,7 +444,7 @@ def test_an_active_thread_has_its_unwatched_turn_stopped_before_the_next_starts(
         {"kind": "comment", "author": "user", "text": "first"},
     )
     website_server.prepare_codex_delivery(page_dir, harness)
-    accept_codex_delivery("hosted-thread", turn="active-turn")
+    accept_in_turn("hosted-thread", "active-turn")
     second = append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "second"},
@@ -538,7 +514,7 @@ def test_attach_accepts_its_named_event_after_an_older_reply_slice(
     process = Process()
     deliveries = []
 
-    def accept(phase, turn):
+    def accept(turn):
         prepared = website_server.prepare_codex_delivery(
             page_dir, website_server.website_harness("hosted-thread", process.pid)
         )
@@ -549,14 +525,14 @@ def test_attach_accepts_its_named_event_after_an_older_reply_slice(
                 for event in batch["events"]
             ]
         )
-        accept_codex_delivery("hosted-thread", phase=phase, turn=turn)
+        accept_in_turn("hosted-thread", turn)
 
     def start_thread(*args):
-        accept("opened", "first-turn")
+        accept("first-turn")
         return "hosted-thread"
 
     def resume_and_start(*args):
-        accept("queued", None)
+        accept("second-turn")
         return True
 
     monkeypatch.setattr(host, "_ensure_server", lambda: process)
@@ -812,43 +788,17 @@ def test_a_start_that_fails_on_its_connection_is_recorded_like_any_other(
     )
 
 
-@pytest.mark.parametrize("response_kind", ["reply", "receipt"])
 def test_hosted_agent_receives_the_response_instructions_and_delivery(
-    page_dir, monkeypatch, snapshot, response_kind
+    page_dir, monkeypatch, snapshot
 ):
     """Capture real instructions and deliveries at the App Server wire boundary.
 
     Only the external App Server connection is replaced. Event admission, delivery
     preparation, response addressing, and both request builders run normally.
     """
-    command = {"kind": "comment", "author": "user", "text": "Use backfill first."}
-    if response_kind == "receipt":
-        source = page_dir / "index.html"
-        controls = (
-            '<lf-command id="hub"><lf-task id="goal" status="active">'
-            "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
-            '<lf-ask id="recovery"><h3>Restart the worker?</h3>'
-            '<lf-operations id="commands" target="goal" worker="worker" '
-            'worktree="tree">'
-            '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-            "</lf-operations></lf-ask>"
-        )
-        source.write_text(
-            source.read_text().replace("</section>", controls + "</section>")
-        )
-        activated = activate_source(page_dir)
-        assert activated.error is None
-        command = {
-            "kind": "request",
-            "author": "user",
-            "revision": activated.revision,
-            "widget": "commands",
-            "action": "restart",
-            "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
-        }
-        event = append_command(page_dir, command)
-    else:
-        event = append_event(page_dir, command)
+    event = append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "Use backfill first."}
+    )
     host = website_server.WebsiteCodexHost("codex")
     outgoing = {}
 
@@ -871,10 +821,7 @@ def test_hosted_agent_receives_the_response_instructions_and_delivery(
     payload = json.loads(outgoing["turn/start"]["toolOutput"]["output"])
     [delivered] = payload["batches"][0]["events"]
     # Frozen for App Server, a reply is the turn's to write with its messages.
-    assert (
-        delivered["answer"]["kind"]
-        == {"reply": "turn", "receipt": "receipt"}[response_kind]
-    )
+    assert delivered["answer"]["kind"] == "turn"
     replacements = {
         str(page_dir): "/page",
         event["id"]: "user-event",
@@ -899,30 +846,6 @@ def test_hosted_agent_receives_the_response_instructions_and_delivery(
             recorded,
         )
     )
-    if response_kind == "receipt":
-        # The host's scope forbids restarting a worker outside this page. Its
-        # command route must still let it report failure and reopen the request.
-        result = CliRunner().invoke(
-            cli,
-            [
-                "receipt",
-                str(page_dir),
-                event["id"],
-                "failed",
-                "--text",
-                "The worker is outside this hosted page's scope.",
-                "--json",
-            ],
-        )
-        assert result.exit_code == 0, result.output
-        receipt = json.loads(result.output)
-        assert (receipt["request"], receipt["status"]) == (event["id"], "failed")
-        assert (
-            website_server.full_state(page_dir, read_events(page_dir))["activity"][
-                "obligations"
-            ]
-            == []
-        )
 
 
 def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
@@ -951,7 +874,7 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
         lambda *args: (
             prepared.append(args)
             or SimpleNamespace(
-                payload={"id": "delivery-1", "batches": [{"events": []}]}
+                payload={"id": "delivery-1", "batches": [{"events": [], "threads": []}]}
             )
         ),
     )
@@ -967,7 +890,10 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
                 "approvalPolicy": "never",
                 "sandbox": "danger-full-access",
                 "developerInstructions": website_server.CODEX_INSTRUCTIONS,
-                "config": {"model_reasoning_effort": "low"},
+                "config": {
+                    **website_server.LEAF_THREAD_CONFIG,
+                    "model_reasoning_effort": "low",
+                },
             },
         )
     ]
@@ -982,7 +908,7 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
                 "input": [],
                 "toolOutput": {
                     "name": "leaf_delivery",
-                    "output": '{"id":"delivery-1","batches":[{"events":[]}]}',
+                    "output": '{"id":"delivery-1","batches":[{"events":[],"threads":[]}]}',
                 },
                 "turnTrigger": "leaf",
             },
@@ -997,20 +923,22 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
 ):
     """Exercise real build/process/file ownership with a stand-in for the hosted agent."""
     root = tmp_path / "checkout"
-    (root / "scripts").mkdir(parents=True)
-    (root / "worker").mkdir()
+    (root / "worker").mkdir(parents=True)
     host_home = tmp_path / "host-codex"
     host_home.mkdir()
     (host_home / "auth.json").write_text('{"test": "login"}')
     (root / "worker" / "codex-config.toml").write_text('model = "test"')
-    (root / "scripts" / "site.py").write_text(
+    # The build is its own process, run from the checkout, writing `.tmp/site` there.
+    build_site = tmp_path / "build_site.py"
+    build_site.write_text(
         "from pathlib import Path\n"
         "site = Path('.tmp/site/_leaf')\n"
         "site.mkdir(parents=True)\n"
         "(site / 'site.json').write_text('{\"release\": \"' + 'a' * 40 + '\"}')\n"
         "print('built the site')\n"
     )
-    (root / "worker" / "server.py").write_text(
+    serve_site = tmp_path / "serve_site.py"
+    serve_site.write_text(
         "import json, os\n"
         "from pathlib import Path\n"
         "from http.server import BaseHTTPRequestHandler, HTTPServer\n"
@@ -1021,17 +949,20 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
         "        self.wfile.write(json.dumps(dict(pid=os.getpid(), home=os.environ['CODEX_HOME'], site=os.environ['LEAF_SITE_ROOT'])).encode())\n"
         "server = HTTPServer(('127.0.0.1', 0), Handler)\n"
         "Path('port').write_text(str(server.server_port))\n"
-        "print('startup diagnostic', flush=True)\n"
-        "print(json.dumps(dict(component='leaf-agent', event='container_http_ready')), flush=True)\n"
         "server.serve_forever()\n"
     )
     monkeypatch.setattr(verify_site, "ROOT", root)
+    monkeypatch.setattr(verify_site, "BUILD_SITE", [sys.executable, str(build_site)])
+    monkeypatch.setattr(verify_site, "SERVE_SITE", [sys.executable, str(serve_site)])
     monkeypatch.setenv("CODEX_HOME", str(host_home))
     urlopen = urllib.request.urlopen
 
     def local_health(url, **kwargs):
         assert url == "http://127.0.0.1:8080/health"
-        port = (root / "port").read_text()
+        try:
+            port = (root / "port").read_text()
+        except FileNotFoundError:
+            raise urllib.error.URLError("not listening yet") from None
         return urlopen(f"http://127.0.0.1:{port}/health", **kwargs)
 
     monkeypatch.setattr(verify_site.urllib.request, "urlopen", local_health)
@@ -1060,7 +991,10 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
         os.kill(running["pid"], 0)
 
 
-def test_the_benchmark_passes_local_and_remote_targets_explicitly(monkeypatch):
+def test_the_agent_pass_emits_one_json_sample_for_local_and_remote_targets(
+    tmp_path, monkeypatch
+):
+    """The gate's agent pass is also the benchmark: stdout is only its JSON sample."""
     calls = []
     lifecycle = []
 
@@ -1072,22 +1006,31 @@ def test_the_benchmark_passes_local_and_remote_targets_explicitly(monkeypatch):
         finally:
             lifecycle.append("stop")
 
-    def measure(origin, release=None, *, direct_agent=False):
+    @contextmanager
+    def browser():
+        yield None
+
+    def turn(browser, release, *, origin, direct_agent=False):
         calls.append((origin, release, direct_agent))
         return {"origin": origin, "release": release}
 
-    monkeypatch.setattr(benchmark_site, "local_adapter", local)
-    monkeypatch.setattr(benchmark_site, "measure", measure)
+    # A remote agent pass needs no local build: the origin names its release.
+    monkeypatch.setattr(verify_site, "MANIFEST", tmp_path / "unbuilt" / "site.json")
+    monkeypatch.setattr(verify_site, "local_adapter", local)
+    monkeypatch.setattr(verify_site, "chrome", browser)
+    monkeypatch.setattr(verify_site, "verify_agent_turn", turn)
     runner = CliRunner()
-    local_result = runner.invoke(benchmark_site.main, ["local"])
+    local_result = runner.invoke(verify_site.verify_site, ["local"])
     assert local_result.exit_code == 0, local_result.output
-    assert json.loads(local_result.output) == {
+    assert json.loads(local_result.stdout) == {
         "origin": "http://127.0.0.1:8080",
         "release": "a" * 40,
     }
-    remote_result = runner.invoke(benchmark_site.main, ["https://leaf-dev.example/"])
+    remote_result = runner.invoke(
+        verify_site.verify_site, ["https://leaf-dev.example/", "--agent"]
+    )
     assert remote_result.exit_code == 0, remote_result.output
-    assert json.loads(remote_result.output) == {
+    assert json.loads(remote_result.stdout) == {
         "origin": "https://leaf-dev.example",
         "release": None,
     }
@@ -1096,9 +1039,21 @@ def test_the_benchmark_passes_local_and_remote_targets_explicitly(monkeypatch):
         ("http://127.0.0.1:8080", "a" * 40, True),
         ("https://leaf-dev.example", None, False),
     ]
-    invalid = runner.invoke(benchmark_site.main, ["https://leaf-dev.example/a-page"])
-    assert invalid.exit_code == 2
-    assert len(calls) == 2
+
+    # Through the local Worker the pass holds the container to the built release.
+    @contextmanager
+    def worker():
+        lifecycle.append("worker")
+        yield "http://127.0.0.1:8787"
+
+    manifest = tmp_path / "site.json"
+    manifest.write_text(json.dumps({"release": "b" * 40}))
+    monkeypatch.setattr(verify_site, "MANIFEST", manifest)
+    monkeypatch.setattr(verify_site, "local_worker", worker)
+    wrangler_result = runner.invoke(verify_site.verify_site, ["wrangler", "--agent"])
+    assert wrangler_result.exit_code == 0, wrangler_result.output
+    assert calls[-1] == ("http://127.0.0.1:8787", "b" * 40, False)
+    assert lifecycle == ["start", "stop", "worker"]
 
 
 def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatch):
@@ -1149,14 +1104,14 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
         host.endpoint,
     ]
     # Measured 2026-09-17: adding a "declare each step" instruction here made the turn
-    # run a closing `resolve` and never reply, which `verify_site.py local` caught. The
+    # run a closing `resolve` and never reply, which `leaf-dev verify-site local` caught. The
     # hosted page's sentence comes from the steps App Server watches instead, which the
     # activity fold prefers over Leaf's own claim wording for exactly this reason. The
     # shared contract describes `leaf status`, so what the agent receives has to hand
     # the status to the host.
     instructions = " ".join(website_server.CODEX_INSTRUCTIONS.split())
     assert "Leave the page's status to the host" in instructions
-    assert "leaf version check" not in instructions
+    assert "leaf page check" not in instructions
 
 
 def test_a_timed_out_app_server_is_stopped_before_startup_retries(
@@ -1395,7 +1350,7 @@ def test_the_adapter_takes_its_app_server_with_it_when_it_is_told_to_stop(
     """The stop signal reaches the App Server, not only the adapter that started it.
 
     `close` covers the ordinary return, and inside a container nothing else is
-    needed. On a host it is: `scripts/verify_site.py local` runs this adapter and
+    needed. On a host it is: `leaf-dev verify-site local` runs this adapter and
     stops it with SIGTERM, and uvicorn answers that signal by stopping its loop and
     re-raising it, so the process dies before any `finally`. The App Server is in a
     session of its own, which is what makes it the one child that survives that —
@@ -1430,15 +1385,10 @@ while True:
             sys.executable,
             "-c",
             f"""
-import importlib.util, sys
 from pathlib import Path
 
-spec = importlib.util.spec_from_file_location(
-    "website_server", {str(ROOT / "worker" / "server.py")!r}
-)
-module = importlib.util.module_from_spec(spec)
-sys.modules["website_server"] = module
-spec.loader.exec_module(module)
+import leaf_website as module
+
 module.PORT = 0
 module._agent_host = module.WebsiteCodexHost(
     {str(codex)!r}, Path({str(socket_dir / "app-server.sock")!r}),
@@ -1746,34 +1696,6 @@ def _page_pick(page_dir: Path) -> dict:
     )
 
 
-def _request(page_dir: Path) -> dict:
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "</section>",
-            '<lf-command id="hub"><lf-task id="goal" status="blocked">'
-            "<strong>Goal</strong>"
-            + COMMAND_SUBJECTS
-            + '<lf-ask id="commands-decision"><h3>What next?</h3>'
-            '<lf-operations id="commands" target="goal" worker="worker" '
-            'worktree="tree">'
-            '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-            "</lf-operations></lf-ask></lf-task></lf-command></section>",
-        )
-    )
-    publish(page_dir)
-    return append_command(
-        page_dir,
-        {
-            "kind": "request",
-            "author": "user",
-            "revision": 1,
-            "widget": "commands",
-            "action": "restart",
-            "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
-        },
-    )
-
-
 def _message(page_dir: Path) -> dict:
     publish(page_dir)
     return append_event(
@@ -1789,20 +1711,19 @@ def _message(page_dir: Path) -> dict:
 
 @pytest.mark.parametrize(
     ("answer", "owed_move"),
-    (("markup", _page_pick), ("receipt", _request), ("reply", _message)),
+    (("markup", _page_pick), ("reply", _message)),
 )
 def test_a_failed_turn_hands_every_kind_of_owed_move_back(
     page_dir, monkeypatch, answer, owed_move
 ):
     """A turn that ends without answering settles what it was given, whatever it was.
 
-    The hosted site starts a turn for every move that owes an answer: a message, a
-    request, an answer to a page Ask. Each takes the failure its own answer takes,
-    and each leaves the next step with the user, so none stays owed with no turn
-    coming for it. A request's failed receipt is its lifecycle's own outcome and
-    reopens its seat. A pick keeps standing on the page, and the workflow says it was
+    The hosted site starts a turn for every move that owes an answer: a message or
+    an answer to a page Ask. Each takes the failure its own answer takes, and each
+    leaves the next step with the user, so none stays owed with no turn coming for
+    it. A pick keeps standing on the page, and the workflow says it was
     not answered until the user answers again. A message is told in its own
-    conversation.
+    thread.
     """
     move = owed_move(page_dir)
     assert current_responses(page_dir, read_events(page_dir))[move["id"]]["kind"] == (
@@ -1843,18 +1764,6 @@ def test_a_failed_turn_hands_every_kind_of_owed_move_back(
     returned = [
         workflow for workflow in state["workflows"] if workflow["input"] == move["id"]
     ]
-    if answer == "receipt":
-        [receipt] = [event for event in events if event["kind"] == "receipt"]
-        assert (
-            receipt["request"],
-            receipt["status"],
-            receipt["failure"],
-            receipt["agent"],
-        ) == (move["id"], "failed", "turn_failed", website_server.WEBSITE_AGENT)
-        [lifecycle] = request_lifecycles(events)
-        assert lifecycle["phase"] == "ready"
-        assert returned == []
-        return
     if answer == "markup":
         [gave_up] = [
             event
@@ -1986,7 +1895,6 @@ def test_a_turn_whose_stream_drops_is_stopped_and_its_move_receipted(
     activity = website_server.full_state(page_dir, events)["activity"]
 
     assert interrupts == [("hosted-thread", "app-server-turn")]
-    assert follow.leaf_turn is not None
     [reply] = [event for event in events if event["kind"] == "reply"]
     assert (reply["responds"], reply["failure"]) == (comment["id"], "turn_failed")
     assert reply["text"] == website_server.FAILURE_RECEIPTS["turn_failed"]
@@ -1995,13 +1903,13 @@ def test_a_turn_whose_stream_drops_is_stopped_and_its_move_receipted(
     assert activity["obligations"] == []
 
 
-def test_a_host_failure_receipt_answers_a_gesture_on_its_conversation(page_dir):
+def test_a_host_failure_receipt_answers_a_gesture_on_its_thread(page_dir):
     """The Worker's last-resort receipt reaches a widget gesture too, twice over.
 
     `/_leaf/agent/fail` is what the Worker calls when it is rate limited or its
     dispatch throws, with whatever event `/api/event` accepted — which can be a
     gesture on a widget frozen into thread markup. That is answered on the
-    conversation holding it, so addressing the receipt at the gesture refuses the
+    thread holding it, so addressing the receipt at the gesture refuses the
     one write whose whole job is to leave the user something.
 
     The Worker repeats that request, so the second call has to answer with the first
@@ -2079,12 +1987,10 @@ def test_a_fault_record_keeps_the_end_of_an_oversized_message():
     assert reported == {"detail": bounded["detail"]}
 
 
-def test_an_unanswered_widget_gesture_is_receipted_on_its_conversation(
-    page_dir, monkeypatch
-):
+def test_an_unanswered_widget_gesture_is_receipted_on_its_thread(page_dir, monkeypatch):
     """A receipt is addressed where the gesture is answered, not at the gesture.
 
-    A widget frozen into thread markup is answered on the conversation holding it,
+    A widget frozen into thread markup is answered on the thread holding it,
     so the address a reply is written to and the move it settles are two different
     events. Writing the receipt at the gesture refuses instead of settling it. The
     turn below starts, takes the gesture, and then loses its stream, which is the
@@ -2262,7 +2168,6 @@ def test_notifications_before_start_response_reach_the_turn_follower(
         (
             page_dir,
             "hosted-thread",
-            "leaf-turn",
             {"id": "initial-turn", "status": "completed"},
         )
     ]
@@ -2300,7 +2205,7 @@ def test_the_website_host_keeps_its_claim_listening_through_the_agent_turn(
         assert state["activity"]["observed_kind"] == "working"
         assert state["activity"]["obligations"][0]["input"] == comment["id"]
 
-        website_server.set_stream_activity(
+        leaf_codex.set_stream_activity(
             "hosted-thread",
             "app-server-turn",
             {"kind": "tool", "detail": "Editing index.html"},
@@ -2338,7 +2243,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
                         "item": {
                             "id": "command-1",
                             "type": "commandExecution",
-                            "command": "leaf version check .",
+                            "command": "leaf page check .",
                         },
                     },
                 }
@@ -2353,7 +2258,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
                         "item": {
                             "id": "command-1",
                             "type": "commandExecution",
-                            "command": "leaf version check .",
+                            "command": "leaf page check .",
                             "status": "completed",
                             "exitCode": 0,
                         },
@@ -2457,7 +2362,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
         (
             "hosted-thread",
             "initial-turn",
-            {"kind": "tool", "detail": "Running leaf version check ."},
+            {"kind": "tool", "detail": "Running leaf page check ."},
         ),
         ("hosted-thread", "initial-turn", {"kind": "working"}),
         ("hosted-thread", "initial-turn", {"kind": "replying"}),
@@ -2516,7 +2421,6 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
         (
             page_dir,
             "hosted-thread",
-            website_server.page_claim(page_dir)["turn"],
             {
                 "id": "initial-turn",
                 "status": "completed",
@@ -2710,18 +2614,17 @@ def test_a_native_final_message_never_becomes_a_leaf_reply(page_dir):
         page_dir,
         website_server.website_harness("hosted-thread", os.getpid()),
     )
-    [delivery] = accept_codex_delivery("hosted-thread")
+    accept_in_turn("hosted-thread")
     website_server.WebsiteCodexHost("codex")._finish_turn(
         page_dir,
         "hosted-thread",
-        delivery["turn"],
         {"id": "app-server-turn", "status": "completed", "error": None},
     )
 
     events = read_events(page_dir)
     assert not any(event["kind"] == "reply" for event in events)
     claim = website_server.page_claim(page_dir)
-    assert claim["turn"] == delivery["turn"]
+    assert claim["turn"] == "app-server-turn"
     assert claim["turn_closed"] is not None
     assert [
         obligation["input"]
@@ -2740,19 +2643,18 @@ def test_an_invalid_source_still_releases_a_finished_website_turn(page_dir):
         page_dir,
         website_server.website_harness("hosted-thread", os.getpid()),
     )
-    [delivery] = accept_codex_delivery("hosted-thread")
+    accept_in_turn("hosted-thread")
     (page_dir / "index.html").write_text("<main>unfinished")
 
     with pytest.raises(ValueError):
         website_server.WebsiteCodexHost("codex")._finish_turn(
             page_dir,
             "hosted-thread",
-            delivery["turn"],
             {"id": "app-server-turn", "status": "completed", "error": None},
         )
 
     claim = website_server.page_claim(page_dir)
-    assert claim["turn"] == delivery["turn"]
+    assert claim["turn"] == "app-server-turn"
     assert claim["turn_closed"] is not None
     assert website_server.PageTransaction(page_dir).status["state"] == "waiting"
     assert [
@@ -2842,8 +2744,8 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     told(page)
     page.locator(".lf-threads-toggle").click()
     page.evaluate("window.__leafVerifier.startVisibleReplyClock")
-    box = page.locator(".lf-general textarea")
-    box.fill("edit the page")
+    box = page.locator(".lf-general leaf-text")
+    write(box, "edit the page")
     box.press("ControlOrMeta+Enter")
     told(page)
     [comment] = [event for event in read_events(page_dir) if event["kind"] == "comment"]
@@ -2861,7 +2763,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     thread = page.locator(f'.lf-thread[data-id="{comment["id"]}"]')
     expect(thread).to_be_hidden()
     if read_elsewhere:
-        box.fill("A separate conversation")
+        write(box, "A separate thread")
         box.press("ControlOrMeta+Enter")
         told(page)
         [other] = [
@@ -2900,7 +2802,6 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     assert answer["parent"] == comment["id"]
     assert answer["text"] == "deployment verified"
     assert answer["responds"] == comment["id"]
-    assert "initiates" not in answer
     # Retrying the same delivery keeps one answer and its original response scope.
     assert (
         cmd_reply(
@@ -2962,7 +2863,7 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
         page_dir,
         website_server.website_harness("hosted-thread", os.getpid()),
     )
-    [delivery] = accept_codex_delivery("hosted-thread")
+    accept_in_turn("hosted-thread")
     cmd_reply(
         page_dir,
         comment["id"],
@@ -2978,7 +2879,6 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
     website_server.WebsiteCodexHost("codex")._finish_turn(
         page_dir,
         "hosted-thread",
-        delivery["turn"],
         {"id": "app-server-turn", "status": "completed", "error": None},
     )
 
@@ -2995,7 +2895,7 @@ def test_a_host_receipt_does_not_answer_input_an_agent_turn_already_claimed(
     )
     harness = website_server.website_harness("hosted-thread", os.getpid())
     website_server.prepare_codex_delivery(page_dir, harness)
-    accept_codex_delivery("hosted-thread")
+    accept_in_turn("hosted-thread")
 
     reply = website_server.write_failure_receipt(
         page_dir, comment["id"], "startup_failed"
@@ -3053,7 +2953,7 @@ def test_a_receipt_waits_for_external_turn_acceptance_to_be_recorded(
         )
         turn_started.set()
         record_acceptance.wait(timeout=STATED_TIMEOUT)
-        accept_codex_delivery("hosted-thread")
+        accept_in_turn("hosted-thread")
         return "hosted-thread"
 
     monkeypatch.setattr(host, "_start_thread", start_thread)
@@ -3085,24 +2985,23 @@ def test_an_old_website_completion_does_not_close_the_new_leaf_turn(page_dir):
     )
     harness = website_server.website_harness("hosted-thread", os.getpid())
     website_server.prepare_codex_delivery(page_dir, harness)
-    [old_delivery] = accept_codex_delivery("hosted-thread")
+    accept_in_turn("hosted-thread", "old-app-turn")
     website_server.close_session_turn("hosted-thread")
     second = append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "second"},
     )
     website_server.prepare_codex_delivery(page_dir, harness)
-    [new_delivery] = accept_codex_delivery("hosted-thread")
+    accept_in_turn("hosted-thread", "new-app-turn")
 
     website_server.WebsiteCodexHost("codex")._finish_turn(
         page_dir,
         "hosted-thread",
-        old_delivery["turn"],
         {"id": "old-app-turn", "status": "failed", "error": None},
     )
 
     claim = website_server.page_claim(page_dir)
-    assert claim["turn"] == new_delivery["turn"]
+    assert claim["turn"] == "new-app-turn"
     assert claim["turn_closed"] is None
     replies = {
         event["parent"]: event["text"]
@@ -3166,7 +3065,7 @@ def test_a_page_fault_is_recorded_where_an_operator_reads_it(
 def test_a_child_page_fault_is_recorded_like_the_page_it_was_opened_from(
     page_dir, tmp_path, monkeypatch, capsys
 ):
-    """A specimen is a page, and its 500 is as unreadable as any other page's.
+    """A sample is a page, and its 500 is as unreadable as any other page's.
 
     The kernel builds the child endpoint itself, so a host that keeps a copy of its
     faults only keeps it for the routes it built the parent for unless the child is
@@ -3175,7 +3074,7 @@ def test_a_child_page_fault_is_recorded_like_the_page_it_was_opened_from(
     """
     source = (page_dir / "index.html").read_text()
     template = (
-        '<template id="practice" data-specimen><h1>Practice</h1>'
+        '<template id="practice" data-sample><h1>Practice</h1>'
         '<p id="child-text">A private child page.</p></template>'
     )
     (page_dir / "index.html").write_text(
@@ -3198,7 +3097,7 @@ def test_a_child_page_fault_is_recorded_like_the_page_it_was_opened_from(
         parent = f"{origin}/examples/decision/"
         state = json.loads(get(f"{parent}api/state")[0])
         child, _ = post(
-            f"{parent}api/specimens",
+            f"{parent}api/samples",
             {"template": "practice"},
             {"Leaf-Layer": state["layer"]["generation"]},
         )
@@ -3215,24 +3114,24 @@ def test_a_child_page_fault_is_recorded_like_the_page_it_was_opened_from(
         for line in capsys.readouterr().out.splitlines()
         if '"page_fault"' in line
     ]
-    specimen = child["url"].removeprefix("/examples/decision")
+    sample = child["url"].removeprefix("/examples/decision")
     assert recorded == {
         "component": "leaf-agent",
         "event": "page_fault",
         "route": "/examples/decision",
         "method": "GET",
-        "path": f"{specimen}api/state",
+        "path": f"{sample}api/state",
         "error": "RuntimeError",
         "detail": "the child projection could not be read",
     }
 
 
 @pytest.mark.parametrize("published_revision", [False, True])
-def test_website_specimens_serve_private_pages_without_starting_an_agent(
+def test_website_samples_serve_private_pages_without_starting_an_agent(
     page_dir, tmp_path, published_revision
 ):
     source = (page_dir / "index.html").read_text()
-    template = '<template id="practice" data-specimen><h1>Practice</h1><p id="child-text">A private child page.</p></template>'
+    template = '<template id="practice" data-sample><h1>Practice</h1><p id="child-text">A private child page.</p></template>'
     (page_dir / "index.html").write_text(
         source.replace("</main>", template + "</main>")
     )
@@ -3255,7 +3154,7 @@ def test_website_specimens_serve_private_pages_without_starting_an_agent(
         parent = origin + "/examples/decision/"
         state = json.loads(get(parent + "api/state")[0])
         child, _ = post(
-            parent + "api/specimens",
+            parent + "api/samples",
             {"template": "practice"},
             {"Leaf-Layer": state["layer"]["generation"]},
         )
@@ -3619,7 +3518,7 @@ def test_a_retried_agent_start_returns_the_accepted_task(page_dir, tmp_path):
         published,
         website_server.website_harness("already-started-thread", os.getpid()),
     )
-    accept_codex_delivery("already-started-thread")
+    accept_in_turn("already-started-thread")
     agent_host = FakeCodexHost()
     httpd = LeafHTTPServer(
         ("127.0.0.1", 0), website_server.site_endpoint(site, agent_host)
@@ -3699,26 +3598,27 @@ def test_the_preview_generator_uses_the_live_website_route(page_dir, tmp_path):
 
 
 def test_the_preview_generator_bootstraps_a_new_catalog_entry(tmp_path, monkeypatch):
+    pinned = example_previews.pinned_assets()
     current = tmp_path / "current"
-    current.mkdir()
-    existing = current / "example-existing.jpg"
-    source_preview = next(example_previews.locked_previews().glob("example-*.jpg"))
-    shutil.copy2(source_preview, existing)
+    (current / "examples").mkdir(parents=True)
+    shutil.copytree(pinned / "demo", current / "demo")
+    existing = current / "examples" / "example-existing.jpg"
+    shutil.copy2(next((pinned / "examples").glob("example-*.jpg")), existing)
     source = ROOT / "examples" / "ideas-to-implement.html"
     sources = [source]
-    monkeypatch.setattr(example_previews, "locked_previews", lambda: current)
+    monkeypatch.setattr(example_previews, "pinned_assets", lambda: current)
     monkeypatch.setattr(example_previews, "catalog_sources", lambda: sources)
     monkeypatch.setattr(example_previews.site_build, "catalog_sources", lambda: sources)
     monkeypatch.setattr(
         example_previews.site_build, "published_page_sources", lambda: sources
     )
 
-    previews = example_previews.bootstrap_previews(tmp_path / "previews")
+    assets = example_previews.bootstrap_assets(tmp_path / "assets")
     site = tmp_path / "site"
-    example_previews.site_build.build_examples(site, catalog_previews=previews)
+    example_previews.site_build.build_examples(site, assets=assets)
 
     assert (
-        previews / "example-ideas-to-implement.jpg"
+        assets / "examples" / "example-ideas-to-implement.jpg"
     ).read_bytes() == existing.read_bytes()
     with example_previews.serve_examples(site) as root:
         state = json.loads(get(f"{root}/examples/ideas-to-implement/api/state")[0])
@@ -3782,6 +3682,49 @@ def test_a_failed_verifier_page_reports_its_browser_errors(browser):
     )
 
 
+@pytest.mark.parametrize("agent", [False, True])
+def test_local_verification_settles_host_network_only_for_release(monkeypatch, agent):
+    @contextmanager
+    def worker():
+        yield "http://127.0.0.1:8787"
+
+    attempts = []
+
+    def verify(origin, release, *, agent, settle_after_activation=None):
+        attempts.append((agent, settle_after_activation))
+        raise RuntimeError("page did not present: net::ERR_NETWORK_CHANGED")
+
+    monkeypatch.setattr(verify_site, "built_release", lambda: "release")
+    monkeypatch.setattr(verify_site, "local_worker", worker)
+    monkeypatch.setattr(verify_site, "run_verification", verify)
+
+    result = CliRunner().invoke(
+        verify_site.verify_site, ["wrangler", *(["--agent"] if agent else [])]
+    )
+
+    assert isinstance(result.exception, RuntimeError)
+    assert len(attempts) == 1
+    assert attempts[0] == (
+        agent,
+        None if agent else verify_site.wait_for_host_network,
+    )
+
+
+def test_host_network_waits_for_addresses_to_stop_changing(monkeypatch):
+    now = [0.0]
+    readings = itertools.chain(["before", "before"], itertools.repeat("after"))
+    monkeypatch.setattr(verify_site.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(
+        verify_site.time, "sleep", lambda seconds: now.__setitem__(0, now[0] + seconds)
+    )
+    monkeypatch.setattr(verify_site, "host_addresses", lambda: next(readings))
+
+    verify_site.wait_for_host_network()
+
+    # Quiet for 2.5 s from the change at 0.2 s.
+    assert now[0] > 2.6
+
+
 def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):
     page = browser.new_page()
     verify_site.observe_startup(page)
@@ -3806,104 +3749,20 @@ def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):
     assert page.evaluate("window.__leafVerifier.visibleReplyAt") is not None
 
 
-def test_a_page_that_never_presents_names_itself_and_how_far_it_got():
-    """The site gate's own timeout says nothing; the message it raises has to.
-
-    A red `Measure the bundled release in Chrome` step carried only Playwright's
-    wait, so a user could not tell which of the three pages stalled, nor whether
-    widget upgrade or the first state read was the one that never answered.
-    """
-    stalled = verify_site.unpresented(
-        "https://leaf.page/examples/triage-board/", ["upgraded"], []
-    )
-    assert "examples/triage-board" in stalled
-    assert "upgraded" in stalled
-
-    early = verify_site.unpresented("https://leaf.page/", [], ["widget module 404"])
-    assert "no startup milestone" in early
-    assert "widget module 404" in early
-
-
 def test_a_refused_answer_carries_what_the_server_said_about_it():
-    """A status alone cannot separate one 500 from another.
-
-    Run 35906886800 stopped on `api/state returned 500` and left nothing else. The
-    page had written `<class>: <message>` into that body at its one fault boundary,
-    which is where a fault says which boundary refused and why, and the check read
-    the status past it. The server's own words travel with the status instead.
-    """
+    """A status alone cannot separate one 500 from another, so the body travels with
+    it, bounded so a page of HTML served by mistake does not become the run log."""
     url = "https://leaf.page/examples/triage-board/api/state"
     assert verify_site.answered(_answered(200), url).status == 200
 
+    fault = json.dumps({"error": "KeyError: 'browser'"})
     with pytest.raises(RuntimeError) as faulted:
-        verify_site.answered(
-            _answered(500, body=json.dumps({"error": "KeyError: 'browser'"})), url
-        )
-    assert str(faulted.value) == f"{url} returned 500: KeyError: 'browser'"
+        verify_site.answered(_answered(500, body=fault), url)
+    assert str(faulted.value) == f"{url} returned 500: {fault}"
 
-    # The edge refuses in prose rather than in Leaf's fault shape, and a body no
-    # boundary bounded would become the run log rather than a reading in it.
     with pytest.raises(RuntimeError) as refused:
         verify_site.answered(_answered(502, body="b" * 4000), url)
-    assert str(refused.value).endswith("…")
     assert len(str(refused.value)) < len(url) + 600
-
-
-def test_an_undrawn_reply_says_whether_the_page_took_the_answer_in():
-    """A reply the container admitted and the panel never drew has one open question.
-
-    `publish-site` failed on a turn whose every server record was healthy — it published
-    its revision, replied, and went back to listening — while the user's panel held an
-    agent bubble with no words in it. The gate reported the message nodes and nothing
-    else, and that snapshot is the same whether the page stopped asking, asked and never
-    got an answer, or took the answer in and drew nothing. The page paints the reading it
-    last applied, so the message says which.
-    """
-    drew_nothing = verify_site.undrawn_reply(
-        "https://leaf.page/examples/triage-board/",
-        {
-            "panel": True,
-            "visibility": "visible",
-            "presented": True,
-            "reading": "abc123.p1",
-            "traffic": '{"asked":9,"heard":9}',
-            "revision": "1",
-            "status": "Codex is listening",
-            "messages": [
-                {
-                    "classes": ["lf-msg", "agent"],
-                    "mid": "stream:leaf-turn",
-                    "attempt": "leaf-delivery-1",
-                    "stream": "active",
-                    "busy": True,
-                    "hasText": False,
-                    "visible": True,
-                }
-            ],
-        },
-        "abc123.p2",
-    )
-    assert "the answer reached it and was not drawn" in drew_nothing
-    # The identity the panel is standing on, which says a stream placeholder outlived
-    # the durable reply that was meant to complete it.
-    assert "stream:leaf-turn" in drew_nothing
-    assert "attempt=leaf-delivery-1" in drew_nothing
-    assert '{"asked":9,"heard":9}' in drew_nothing
-
-    behind = verify_site.undrawn_reply(
-        "https://leaf.page/examples/triage-board/",
-        {"reading": "older.p1", "messages": []},
-        "abc123.p1",
-    )
-    assert "never took the answer in" in behind
-    assert "older.p1" in behind and "abc123.p1" in behind
-
-    silent = verify_site.undrawn_reply(
-        "https://leaf.page/examples/triage-board/",
-        {"reading": None, "messages": []},
-        "abc123.p1",
-    )
-    assert "applied no state at all" in silent
 
 
 def test_the_deploy_gate_waits_on_the_page_rather_than_its_own_clock(page_dir):
@@ -3923,7 +3782,7 @@ def test_the_deploy_gate_waits_on_the_page_rather_than_its_own_clock(page_dir):
         page_dir,
         website_server.website_harness("hosted-thread", os.getpid()),
     )
-    [delivery] = accept_codex_delivery("hosted-thread")
+    accept_in_turn("hosted-thread")
 
     handling = website_server.full_state(page_dir, read_events(page_dir))
     assert handling["activity"]["kind"] == "working"
@@ -3934,7 +3793,6 @@ def test_the_deploy_gate_waits_on_the_page_rather_than_its_own_clock(page_dir):
     website_server.WebsiteCodexHost("codex")._finish_turn(
         page_dir,
         "hosted-thread",
-        delivery["turn"],
         {"id": "app-server-turn", "status": "completed", "error": None},
     )
 
@@ -3952,14 +3810,14 @@ def test_the_deploy_gate_stops_waiting_on_a_page_with_no_agent_on_the_comment():
     behind it. Extending the wait there would spend the step's whole budget to raise
     the failure it could already raise.
     """
-    obligation = {"event": "comment-id", "dropped": False}
+    obligation = {"input": "comment-id", "dropped": False}
     for kind in ("away", "unheld", "stalled", "closed", "listening"):
         state = {"activity": {"kind": kind, "obligations": [obligation]}}
         assert not verify_site.still_answering(state, "comment-id")
     dropped = {
         "activity": {
             "kind": "working",
-            "obligations": [{"event": "comment-id", "dropped": True}],
+            "obligations": [{"input": "comment-id", "dropped": True}],
         }
     }
     assert not verify_site.still_answering(dropped, "comment-id")
@@ -4042,15 +3900,19 @@ class _FailedFirstTurn:
         self.failure = failure
         self.heading = heading
         self.request = self
+        self.keyboard = self
         self.comments: list[dict] = []
         self.draft = ""
         self.last_response = None
 
     def locator(self, selector: str):
-        assert selector == ".lf-general textarea"
+        assert selector == ".lf-general leaf-text"
         return self
 
-    def fill(self, text: str) -> None:
+    def focus(self) -> None:
+        pass
+
+    def insert_text(self, text: str) -> None:
         self.draft = text
 
     def evaluate(self, script: str) -> float:
@@ -4705,14 +4567,9 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     # milestone" as one whose modules never arrived.
     assert page.init_scripts == [verify_site.VERIFIER_SCRIPT]
     # A green run reports startup and the post-presentation revision follow separately.
-    reported = capsys.readouterr().out
-    assert "presented in 28444 ms" in reported
-    assert "followed revision 2 2500 ms after presentation" in reported
-    assert "request acknowledged 250 ms" in reported
-    assert "activity working: Editing the page at 1.0 s" in reported
-    assert "published at 12.0 s" in reported
-    assert "response visible at 12.5 s" in reported
-    assert "changed page — HTML first byte 100 ms" in reported
+    reported = capsys.readouterr().err
+    assert "followed it 2500 ms after presentation" in reported
+    assert '"responseVisibleMs": 12500.0' in reported
     assert benchmark == {
         "origin": "https://leaf.page",
         "release": release,
@@ -4745,6 +4602,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
                 },
                 {"atMs": 12500.0, "kind": "away", "detail": ""},
             ],
+            "titledMs": None,
             "publishedMs": 12000.0,
             "responseVisibleMs": 12500.0,
             "repliedMs": 12500.0,
@@ -4859,17 +4717,3 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
     assert "Claude is handling 1 update" in str(named.value)
     assert "Server offline" not in str(named.value)
     assert told.revision_waits == [(2, verify_site.TURN_PRESENTATION)]
-
-
-def test_the_worker_routes_every_file_a_page_vendors():
-    """A page asks for its layer files at the page's own path, and the Worker answers
-    only the paths its route list names. The Python adapter builds its list from
-    schema.VENDORED_FILES; the Worker's copy in routing.ts cannot import that, so it is
-    held to the same contract here. A file missing from it is a 404 on every published
-    page that asks for it."""
-    source = (ROOT / "worker" / "src" / "routing.ts").read_text()
-    literal = re.search(r"const PAGE_RESOURCE =\s*/(.+)/;", source)
-    assert literal, "routing.ts no longer states PAGE_RESOURCE as a regex literal"
-    routed = re.compile(literal[1].replace("\\/", "/"))
-    missing = [name for name in VENDORED_FILES if not routed.match(name)]
-    assert not missing, f"routing.ts does not route {missing}"

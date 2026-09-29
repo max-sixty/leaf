@@ -15,6 +15,7 @@
         margin-block: 96px 80px;
         padding-top: 36px;
         border-top: 1px solid var(--border-2);
+        --lf-block-frame: 1;
       }
       .developer-galleries-copy > p:last-of-type {
         max-width: 62ch;
@@ -65,8 +66,8 @@
         transform: translate(2px, -2px);
       }
       .developer-gallery-link:focus-visible {
-        outline: var(--here-ring);
-        outline-offset: var(--here-ring-gap);
+        outline: var(--focus-ring);
+        outline-offset: var(--focus-ring-gap);
       }
       .example-catalog {
         display: grid;
@@ -151,8 +152,8 @@
         outline: none;
       }
       .example-link:focus-visible .example-preview {
-        outline: var(--here-ring);
-        outline-offset: var(--here-ring-gap);
+        outline: var(--focus-ring);
+        outline-offset: var(--focus-ring-gap);
       }
       @media (prefers-reduced-motion: reduce) {
         .example-preview,
@@ -179,7 +180,7 @@
     </style>
   </head>
   <body class="site-page">
-    <main>
+    <main class="layout-column">
       <nav class="sitenav" aria-label="Site">
         <a class="brand" href="/">leaf</a>
         <a href="/examples/" aria-current="page">Examples</a>
@@ -206,7 +207,7 @@
           <li>
             <a class="example-link" href="/examples/review-a-plan/">
               <span class="example-preview">
-                <img src="/media/f9e3bafe9bdde187.jpg" alt="" fetchpriority="high" />
+                <img src="/media/89691fcd514d0efd.jpg" alt="" fetchpriority="high" />
               </span>
               <span class="example-caption">
                 <span class="example-index">Implementation planning</span>
@@ -227,7 +228,7 @@
           <li>
             <a class="example-link" href="/examples/triage-board/">
               <span class="example-preview">
-                <img src="/media/e9f1762b6aa60c95.jpg" alt="" loading="lazy" />
+                <img src="/media/532b75067edf9faa.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
                 <span class="example-index">Release planning</span>
@@ -248,7 +249,7 @@
           <li>
             <a class="example-link" href="/examples/ideas-to-implement/">
               <span class="example-preview">
-                <img src="/media/d713535b8b1abacf.jpg" alt="" loading="lazy" />
+                <img src="/media/6fd0fe165fb168d5.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
                 <span class="example-index">Product review</span>
@@ -269,7 +270,7 @@
           <li>
             <a class="example-link" href="/examples/release-notes/">
               <span class="example-preview">
-                <img src="/media/93a3bb0252cc33e2.jpg" alt="" loading="lazy" />
+                <img src="/media/004e85ce9d1aa770.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
                 <span class="example-index">Release notes</span>
@@ -290,7 +291,7 @@
           <li>
             <a class="example-link" href="/examples/log-retention/">
               <span class="example-preview">
-                <img src="/media/6fef2fb21e167f35.jpg" alt="" loading="lazy" />
+                <img src="/media/90975ace97c363bf.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
                 <span class="example-index">Retention policy</span>
@@ -311,7 +312,7 @@
           <li>
             <a class="example-link" href="/examples/ship-review/">
               <span class="example-preview">
-                <img src="/media/ed99ac725e64883a.jpg" alt="" loading="lazy" />
+                <img src="/media/2875174a745b58de.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
                 <span class="example-index">Offline editing</span>
@@ -332,7 +333,7 @@
           <li>
             <a class="example-link" href="/examples/heat-loss/">
               <span class="example-preview">
-                <img src="/media/206757e079429a0c.jpg" alt="" loading="lazy" />
+                <img src="/media/0b288ba4a2a810b1.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
                 <span class="example-index">Home heating</span>
@@ -353,7 +354,7 @@
           <li>
             <a class="example-link" href="/examples/notification-playground/">
               <span class="example-preview">
-                <img src="/media/281084f04a435e14.jpg" alt="" loading="lazy" />
+                <img src="/media/6f05891a06eae6c5.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
                 <span class="example-index">Deployment notice</span>
@@ -387,7 +388,7 @@
           <li>
             <a class="example-link" href="/examples/live-progress/">
               <span class="example-preview">
-                <img src="/media/1a326124fef7141d.jpg" alt="" loading="lazy" />
+                <img src="/media/2ab7c1bf2e0dbda3.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
                 <span class="example-index">Active deployment</span>
@@ -396,7 +397,7 @@
                 >
                 <span class="example-description">
                   Keep the rollout state, release steps, named checks, live log,
-                  rollback request, notes, and code changes in one operational page.
+                  rollback decision, notes, and code changes in one operational page.
                 </span>
                 <span class="example-open"
                   >Open full page <span aria-hidden="true">↗</span></span
@@ -408,7 +409,7 @@
           <li>
             <a class="example-link" href="/examples/alert-review/">
               <span class="example-preview">
-                <img src="/media/e7721c52216fff3b.jpg" alt="" loading="lazy" />
+                <img src="/media/9cb2786601f57b73.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
                 <span class="example-index">On-call review</span>
@@ -429,7 +430,7 @@
           <li>
             <a class="example-link" href="/examples/pr-walkthrough/">
               <span class="example-preview">
-                <img src="/media/177bdc1fb159e3fb.jpg" alt="" loading="lazy" />
+                <img src="/media/3547f3a6db21d747.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
                 <span class="example-index">Worktrunk change</span>
@@ -450,7 +451,7 @@
           <li>
             <a class="example-link" href="/examples/wt-merge/">
               <span class="example-preview">
-                <img src="/media/0e73ad5c31d0d36f.jpg" alt="" loading="lazy" />
+                <img src="/media/b60e25c4c7848b3d.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
                 <span class="example-index">Animated explainer</span>
@@ -471,7 +472,7 @@
           <li>
             <a class="example-link" href="/examples/rust-sort/">
               <span class="example-preview">
-                <img src="/media/d87ab6814bc00f59.jpg" alt="" loading="lazy" />
+                <img src="/media/34c7e6822281f706.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
                 <span class="example-index">Animated explainer</span>
@@ -525,9 +526,9 @@
           <p class="eyebrow">developer tools</p>
           <h2 id="developer-galleries-title">Inspect the product</h2>
           <p>
-            This developer view is for debugging Leaf itself. The core product gallery
-            keeps Leaf’s controls and focused interaction replays on one page; optional
-            widgets live with their working examples in the
+            These developer pages are for debugging Leaf itself. The core product
+            gallery keeps Leaf’s controls and focused interaction replays on one page;
+            optional widgets live with their working examples in the
             <a href="/extending/#bundled">extension guide</a>.
           </p>
           <a
@@ -540,6 +541,22 @@
               <span class="developer-gallery-description"
                 >Leaf chrome and every default-package widget on one synthetic page,
                 with focused core interaction replays.</span
+              >
+            </span>
+            <span class="developer-gallery-open"
+              >Open gallery <span aria-hidden="true">↗</span></span
+            >
+          </a>
+          <a
+            class="developer-gallery-link"
+            id="thread-panel-gallery"
+            href="/examples/thread-panel-gallery/"
+          >
+            <span>
+              <strong>Threads panel gallery</strong>
+              <span class="developer-gallery-description"
+                >Four live panel views: open threads, On you, resolved, and a summarized
+                discussion.</span
               >
             </span>
             <span class="developer-gallery-open"

@@ -10,7 +10,8 @@
  * and call the returned notifier after a gesture. Every working-state change then
  * dispatches `lf-playground-change` with the same aggregate snapshot at
  * `event.detail.values`. Simple previews need neither: they read the reflected
- * `--playground-NAME` properties and `data-playground-NAME` attributes.
+ * `--playground-NAME` properties and `data-playground-NAME` attributes, which this
+ * element carries and the root of each sample child under it wears (`dressSamples`).
  *
  * Projection is deliberately separate from working state. A repeated projection must
  * not erase local edits, while a newly chosen action or its undo must replace them.
@@ -19,8 +20,11 @@
 import {
   commands,
   compoundReadingRegionId,
+  dressSamples,
   failSoft,
+  holdFocus,
   keeps,
+  keepsText,
   layoutChanged,
   measure,
   notice,
@@ -32,6 +36,7 @@ import {
   reserve,
   says,
   tabStore,
+  wear,
   widgetController,
 } from "/runtime/widget-api.js";
 import "./lf-playground-output.js";
@@ -41,6 +46,13 @@ const NAME = /^[a-z][a-z0-9-]*$/;
 const COLOR = /^#[0-9a-f]{6}$/i;
 const KINDS = new Set(["range", "toggle", "choice", "color", "text"]);
 const CHANGE = "lf-playground-change";
+// What one pointer press operates: a preset, Reset, and the controls whose press or
+// drag is the whole gesture.
+const ONE_PRESS = [
+  ".lf-playground-preset",
+  ".lf-playground-reset",
+  ...["choice", "toggle", "range"].map((kind) => `.lf-playground-${kind}`),
+].join(", ");
 const COPY_LABELS = Object.freeze([
   ["rest", "Copy instruction"],
   ["success", "Copied"],
@@ -96,6 +108,7 @@ customElements.define(
     #storedCandidate = null;
     #instructionProvider = null;
     #output = null;
+    #preview = null;
     #submit = null;
     #copy = null;
     #reset = null;
@@ -192,6 +205,7 @@ customElements.define(
       if (previews.length !== 1) throw new Error("needs exactly one preview");
       if (outputs.length !== 1) throw new Error("needs exactly one output");
       this.#output = outputs[0];
+      this.#preview = previews[0];
       this.#interactive = !quoted(this);
       this.classList.toggle("lf-playground-quoted", !this.#interactive);
 
@@ -233,6 +247,11 @@ customElements.define(
         for (const preset of presets) this.#buildPreset(preset);
         const actions = this.#buildActions();
         this.#buildLayout({ panel, presetBar, preview: previews[0], actions });
+        this.addEventListener("mousedown", (event) => {
+          const pressed = event.target.closest(ONE_PRESS);
+          if (pressed?.closest("lf-playground") === this && this.#standsInPreview())
+            event.preventDefault();
+        });
       }
 
       this.#storedCandidate = this.#readStoredCandidate();
@@ -406,6 +425,15 @@ customElements.define(
         input.size = "s";
         input.append(heading);
         input.addEventListener("change", () => this.#takeInputs());
+        // A press's mousedown decides where focus goes, and the switch's label would
+        // then focus the switch as it passes the press on, so the switch toggles the
+        // way a script's click does. That click reaches the switch's own input, which a
+        // pointer never does, and passes through.
+        input.addEventListener("click", (event) => {
+          if (event.composedPath()[0].localName === "input") return;
+          event.preventDefault();
+          input.click();
+        });
         control.append(input);
         return;
       }
@@ -497,7 +525,7 @@ customElements.define(
           ([name, value]) => Object.is(this.#values[name], value),
         );
         button.classList.toggle("on", active);
-        button.setAttribute("aria-pressed", String(active));
+        keeps(button, "aria-pressed", active);
       }
     }
 
@@ -505,7 +533,7 @@ customElements.define(
       const actions = offer("footer", "lf-playground-actions");
       this.#reset = offer("button", "lf-btn lf-playground-reset", "Reset");
       this.#copy = offer("wa-copy-button", "lf-playground-copy");
-      const copyTrigger = offer("button", "lf-playground-copy-trigger");
+      const copyTrigger = offer("button", "lf-btn lf-playground-copy-trigger");
       if (this.id) copyTrigger.id = `${this.id}-copy`;
       for (const [className, text] of COPY_LABELS) {
         const label = document.createElement("span");
@@ -539,9 +567,9 @@ customElements.define(
 
     // The playground is a workspace whose relationship is declared: the controls, and the
     // instruction they write, operate the preview. It composes the layout layer's own
-    // grammar out of boxes it generates, a grid of three panes (packages/default/theme.css,
-    // at lf-workspace), so the theme alone decides whether each pane's body scrolls or the
-    // page does. The playground theme places them: the preview is the stage, and the
+    // grammar out of boxes it generates, a grid of three generated panes (the kernel's
+    // theme.css and layouts.css), so the stylesheet alone decides whether each pane's body
+    // scrolls or the page does. The playground theme places them: the preview is the stage, and the
     // controls stand above the instruction and its actions in a rail beside it. Each pane
     // is a reading region under the playground's id.
     #buildLayout({ panel, presetBar, preview, actions }) {
@@ -549,6 +577,7 @@ customElements.define(
         const host = document.createElement("div");
         host.className = `lf-playground-${name}-region`;
         host.dataset.lfReadingRole = "pane";
+        host.dataset.lfGenerated = "";
         host.setAttribute("role", "region");
         host.setAttribute("aria-label", label);
         if (header) host.append(header);
@@ -564,7 +593,6 @@ customElements.define(
 
       const split = document.createElement("div");
       split.className = "lf-playground-split";
-      split.dataset.lfReadingRole = "grid";
       split.append(
         pane("preview", "Preview", null, previewBody),
         pane("controls", "Controls", presetBar, panel),
@@ -578,6 +606,20 @@ customElements.define(
       );
       this.append(split);
       this.#registerRegions();
+    }
+
+    // Whether the user stands in the preview, where a candidate can draw on the element
+    // they stand at: a sample child's focus treatment, for one. A pointer press on a
+    // control that changes the candidate in one gesture leaves them standing there, since
+    // taking focus to the control would put that state away as the candidate changed.
+    // Text and colour controls take focus to be operated, and a key reaches any control
+    // by moving focus onto it first, so the keyboard still acts where it stands.
+    #standsInPreview() {
+      let at = document.activeElement;
+      if (!this.#preview.contains(at)) return false;
+      // A sample's frame holds focus for its child page, which may stand on nothing.
+      while (at?.contentDocument) at = at.contentDocument.activeElement;
+      return Boolean(at) && at !== at.ownerDocument.body;
     }
 
     #registerRegions() {
@@ -641,17 +683,32 @@ customElements.define(
       if (!input) return;
       if (kind === "toggle") input.checked = value;
       else input.value = kind === "range" ? value : String(value);
-      input.setAttribute("value", String(value));
+      keeps(input, "value", value);
       if (kind === "toggle") input.toggleAttribute("checked", value);
       if (kind === "range") {
         const reading = control.querySelector(":scope > output");
-        keeps(reading, "value", String(value));
-        reading.textContent = this.#formatted(control, value);
+        keeps(reading, "value", value);
+        keepsText(reading, this.#formatted(control, value));
       }
     }
 
     #formatted(control, value) {
       return `${value}${control.getAttribute("unit") ?? ""}`;
+    }
+
+    // One reflection of the values: this element carries it for candidates in this
+    // document, and the root of each sample child under it wears it, so a candidate that
+    // restyles a whole page keys on that child's root and never reaches this page.
+    #reflection() {
+      const attributes = {};
+      const properties = {};
+      for (const [name, value] of Object.entries(this.#values)) {
+        const control = this.#controlByName.get(name);
+        if (!control) continue;
+        attributes[`data-playground-${name}`] = String(value);
+        properties[`--playground-${name}`] = this.#cssValue(control, value);
+      }
+      return { attributes, properties };
     }
 
     #cssValue(control, value) {
@@ -670,11 +727,11 @@ customElements.define(
         contributor.apply(structuredClone(values[name]));
       for (const [name, value] of Object.entries(values)) {
         const control = this.#controlByName.get(name);
-        if (!control) continue;
-        this.#setInput(control, value);
-        this.style.setProperty(`--playground-${name}`, this.#cssValue(control, value));
-        keeps(this, `data-playground-${name}`, value);
+        if (control) this.#setInput(control, value);
       }
+      const reflection = this.#reflection();
+      wear(this, reflection);
+      dressSamples(this, reflection);
       this.#renderOutput();
       this.#syncCopy();
       this.#paintPresets();
@@ -733,15 +790,17 @@ customElements.define(
       // Copy feedback belongs to the text copied. A different instruction starts
       // a fresh control, including upstream's in-flight/feedback lock.
       const previous = this.#copy;
-      const focused = previous.contains(document.activeElement);
+      const restoreFocus = holdFocus(previous);
       this.#copy = previous.cloneNode(true);
-      this.#copy.value = instruction;
+      // As an attribute, so the replacement says what it copies where the one it
+      // replaces said something else.
+      this.#copy.setAttribute("value", instruction);
       previous.replaceWith(this.#copy);
       const copy = this.#copy;
       copy.updateComplete.then(() => {
         const trigger = copy.querySelector(".lf-playground-copy-trigger");
         measure(trigger, () => reserve(trigger, COPY_WORDS));
-        if (focused) trigger.focus();
+        restoreFocus?.(trigger);
       });
     }
 
@@ -766,7 +825,7 @@ customElements.define(
 
     #paintAvailability() {
       if (!this.#submit) return;
-      this.#submit.disabled = this.#choosing || !this.#available();
+      this.#submit.toggleAttribute("disabled", this.#choosing || !this.#available());
       paintKeys();
     }
 

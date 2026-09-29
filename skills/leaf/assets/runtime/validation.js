@@ -1,14 +1,11 @@
-/* Internal render-check adaptation over the semantic and presentation publishers.
+/* Internal render-check adaptation over the semantic publisher.
 
    Validation may temporarily paint authored, carried, and current projections to prove
    replay causality. It selects those snapshots from the publisher and adapts body
-   records to the DOM. It also exposes the coordinator's synchronous current-readiness
-   fact. Package modules receive neither validation-only reading. */
-import { applicationPresented, selectWidgets } from "./semantic-state.js";
+   records to the DOM. Package modules do not receive this validation-only reading. */
+import { selectWidgets } from "./semantic-state.js";
 import { domValue } from "./projection/authored.js";
 import { elementById } from "./passages.js";
-
-export const validationPresentationReady = applicationPresented;
 
 export function validationWidgetStates(eventIds = null) {
   return [...selectWidgets(eventIds)].map(([id, { state, specs }]) => ({

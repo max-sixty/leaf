@@ -2,7 +2,7 @@
  *
  * Draw mode claims primary-pointer drags anywhere on the page until the user leaves it.
  * Every drawing belongs to a comment draft. A semantic target under or horizontally
- * alongside a stroke's first point names its anchored draft and remains the conversation
+ * alongside a stroke's first point names its anchored draft and remains the thread
  * coordinate; a stroke with none belongs to the page draft. A stroke joins the drawing its
  * draft already holds, in that drawing's frame, so neither putting the box away nor
  * leaving Draw mode loses ink; once the draft is sent or discarded, the next stroke starts
@@ -15,19 +15,20 @@
  * whoever reads the comment without the page.
  */
 
-import { clippedContents, documentPoint, overlaps, shownBox } from "../geometry.js";
+import { clippedContents, documentPoint, shownBox } from "../geometry.js";
+import { clamp, overlaps } from "../rect.js";
+import { COLLAPSE } from "../collapse.js";
 import {
   closestAcross,
-  COLLAPSE,
   cut,
   elementFromPointAcross,
   elementOver,
   inChrome,
+  pageText,
   quoteFrom,
-  textNodesUnder,
 } from "../passages.js";
 import { anchoringIsReady } from "../anchor-resolution.js";
-import { pressIsKeyboardActivation } from "../pointer.js";
+import { coarsePointer, pressIsKeyboardActivation } from "../pointer.js";
 import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 import {
   DRAWING_COORDINATE_LIMIT,
@@ -41,7 +42,6 @@ const MIN_DISTANCE = 2;
 const MIN_GESTURE = 4;
 const PRESS_EVENTS = ["mousedown", "mouseup", "click", "dblclick"];
 
-const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const rounded = (value) => Number(value.toFixed(4));
 
 // Where each word of a text node starts and ends, split on the class the page's own
@@ -77,7 +77,7 @@ function wordsUnder(ink) {
   };
   const clips = new Map();
   const range = document.createRange();
-  const segments = textNodesUnder(document.body);
+  const { segments } = pageText();
   let first = null;
   let last = null;
   segments.forEach(({ node }, at) => {
@@ -98,10 +98,10 @@ function wordsUnder(ink) {
   });
   if (!first) return "";
   return quoteFrom(
-    segments.slice(first.at, last.at + 1).map(({ node }, index, all) => ({
-      node,
-      start: index ? 0 : first.start,
-      end: index === all.length - 1 ? last.end : node.data.length,
+    segments.slice(first.at, last.at + 1).map((segment, index, all) => ({
+      ...segment,
+      start: index ? segment.start : first.start,
+      end: index === all.length - 1 ? last.end : segment.end,
     })),
   );
 }
@@ -117,7 +117,7 @@ export function createDrawingController({
   openAnchoredDrawing,
   openPageDrawing,
   setDesignMode,
-  closeTargetChooser,
+  closeTargetPicker,
   closeReactionMode,
   banner,
   announce,
@@ -148,7 +148,7 @@ export function createDrawingController({
     on = Boolean(on);
     if (on) {
       setDesignMode(false, { spoken: false });
-      closeTargetChooser();
+      closeTargetPicker();
       closeReactionMode();
     }
     drawModeOn = on;
@@ -159,13 +159,17 @@ export function createDrawingController({
       // press through its compatibility click; only the drawing itself stops.
       if (claimedPointer === null) claimThroughClick = false;
     }
-    document.body.toggleAttribute("data-lf-draw-mode", on);
+    document.documentElement.toggleAttribute("data-lf-draw-mode", on);
     banner.toggleAttribute("data-lf-draw-mode", on);
     refreshAim();
     if (spoken)
       announce(
         on
-          ? "Draw mode: draw anywhere on the page; each stroke adds to one drawing. Escape leaves."
+          ? `Draw mode: draw anywhere on the page; each stroke adds to one drawing. ${
+              coarsePointer.matches
+                ? "Exit Draw mode on the banner leaves."
+                : "Escape leaves."
+            }`
           : "Draw mode off",
       );
     paintDrawings();
@@ -302,9 +306,9 @@ export function createDrawingController({
   function begin(event) {
     if (!drawModeOn || !event.isPrimary || event.button !== 0) return;
     const origin = event.composedPath()[0];
-    // Inline conversations remain comment controls even when a shadow host seats them
+    // Inline threads remain comment controls even when a shadow host seats them
     // in the page, so ownership follows the composed origin.
-    if (inChrome(origin) || closestAcross(origin, ".lf-conversation")) return;
+    if (inChrome(origin) || closestAcross(origin, ".lf-thread-seat")) return;
     claimThroughClick = true;
     claimedPointer = event.pointerId;
     claim(event);
@@ -461,7 +465,7 @@ export function createDrawingController({
     session = null;
     claimThroughClick = false;
     claimedPointer = null;
-    document.body.removeAttribute("data-lf-draw-mode");
+    document.documentElement.removeAttribute("data-lf-draw-mode");
     banner.removeAttribute("data-lf-draw-mode");
   }
 
@@ -483,6 +487,7 @@ export function createDrawingController({
         keys: ["w"],
         does: "Exit Draw mode",
         line: "exit Draw mode",
+        touch: "Exit Draw mode",
         run: () => setDrawMode(false),
       },
     ],
@@ -503,7 +508,8 @@ export function createDrawingController({
     keys: ["w"],
     does: "Draw on the page and attach the drawing to a comment",
     line: "draw",
-    when: () => anchoringIsReady(),
+    touch: "Draw mode",
+    when: () => anchoringIsReady() && !drawModeOn,
     run: () => setDrawMode(true),
   });
 

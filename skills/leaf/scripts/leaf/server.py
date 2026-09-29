@@ -11,7 +11,12 @@ from pathlib import Path
 from .files import json_bytes, read_json
 from .leases import lock_is_held
 from .machine import state_home
-from .schema import ORPHAN_GRACE_SECS, PREVIEW_FILE, SERVER_LOCK, SERVICE_FILE
+from .schema import (
+    ORPHAN_GRACE_SECS,
+    PREVIEW_FILE,
+    SERVER_LOCK,
+    SERVICE_FILE,
+)
 from .service import PageTransaction, claim_is_active, page_claim
 
 
@@ -30,7 +35,7 @@ def running_server(page_dir: Path):
 
 def preview_metadata(page_dir: Path) -> dict | None:
     """The identity a developer preview shows in browser chrome, as
-    `scripts/preview.py` wrote it, or None for a page that is not a preview.
+    `leaf-dev preview` wrote it, or None for a page that is not a preview.
     The script writes only what the chrome shows."""
     return read_json(page_dir / PREVIEW_FILE)
 
@@ -179,7 +184,9 @@ def page_access(page_dir: Path, host: str | None = None) -> dict:
 def host_key() -> str:
     """The key every page this machine serves is read with, minted at the first
     `server run` and kept in the state home. It rides in the URL Claude hands
-    over, and `authorized` puts it in a cookie on arrival.
+    over, `authorized` puts it in a cookie on arrival, and the runtime's bootstrap
+    takes it back out of the address bar, so the link a user copies from the tab
+    is the bare address and reaches only a browser already holding the cookie.
 
     The key exists because serving anywhere but loopback puts an unauthenticated
     writer on whatever network reached us, and `POST /api/event` appends to a log
@@ -206,6 +213,12 @@ def host_key() -> str:
     the redirect-following request has. The boundary is the host string; a
     user on a shared or hostile-local-service machine narrows it by serving
     on a name other servers don't share (--host).
+
+    The cookie outlives the browser session (`KEY_COOKIE_MAX_AGE`), because the
+    address bar no longer holds the key: a restored tab or a bookmarked bare
+    address after a restart would otherwise be refused. Each handover link renews
+    it, so the added cost is that same-host servers keep receiving the key for
+    that long after the last handover, rather than until the browser quits.
 
     Linked into place rather than written over, so two first serves racing on a
     fresh machine agree on whichever won. Each keeping its own would have their

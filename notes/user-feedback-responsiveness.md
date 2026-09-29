@@ -1,8 +1,12 @@
 # Responsive user feedback
 
-Status: target contract. The lifecycle exists in parts, but the complete ordering and
-latency objectives are not yet implemented or measured. Move each stable rule into its
-owning runtime, protocol reference, skill, or test as it lands, then delete this note.
+Status: target contract. The lifecycle exists in parts. Under Claude Code, turn entry
+records **Picked up** without waiting for model output (the prompt and Stop hooks carry
+and confirm the delivery), and the reply answering clause asks for the work claim first.
+`leaf-dev delivery-eval` measures the agent-side objectives with a real agent, and
+`leaf-dev bench-latency` the in-tab ones; neither is a gate. Move each stable rule into
+its owning runtime, protocol reference, skill, or test as it lands, then delete this
+note.
 
 ## Goal
 
@@ -55,7 +59,7 @@ The transport owns **Queued** and **Picked up** because it can prove them withou
 judgment. The agent owns **Active** and the work detail because selecting the work and
 describing it require context. A provisional chat message is not needed merely to show
 activity; the receipt and banner provide that feedback without adding noise to the
-durable conversation.
+durable thread.
 
 ## Agent ordering contract
 

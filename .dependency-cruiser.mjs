@@ -24,22 +24,24 @@ const isOneOf = (names) => `^${runtime}(?:${names.map(escaped).join("|")})$`;
 
 // Each root reaches these modules and nothing else. The pure record folds take values
 // and return values; the keyboard dispatcher resolves a key against the register and
-// the focused scope. If either reached a painter or an application service, every
-// caller would acquire that owner's initialization graph.
+// the focused scope. If one of them reached a painter or an application service, every
+// caller would acquire that owner's initialization graph. image-difference.js reaches
+// nothing because `leaf-dev stills` loads it into a blank page on its own.
 const exactClosures = {
+  "image-difference.js": [],
   "margin-entry-model.js": [],
   "margin-model.js": ["margin-entry-model.js"],
   "margin-map-model.js": ["margin-entry-model.js"],
-  "projection/model.js": [],
+  "projection/model.js": ["collapse.js"],
   "projection/state.js": ["semantic-state.js"],
-  "conversation/model.js": [
+  "thread/model.js": [
     "anchor-coordinate.js",
-    "conversation/identity.js",
-    "conversation/workflow.js",
+    "thread/identity.js",
+    "thread/workflow.js",
   ],
-  "conversation/state.js": ["semantic-state.js"],
-  "conversation/workflow.js": [],
-  "pending/model.js": ["conversation/identity.js"],
+  "thread/state.js": ["semantic-state.js"],
+  "thread/workflow.js": [],
+  "pending/model.js": ["thread/identity.js"],
   "pending/state.js": ["semantic-state.js"],
   "keyboard/dispatch.js": [
     "context.js",
@@ -50,11 +52,13 @@ const exactClosures = {
     "keyboard/register.js",
     "keyboard/scopes.js",
     "keyboard/text-entry.js",
+    "pointer.js",
     "user-intent.js",
     "registry.js",
     "rendering.js",
     "repaint.js",
     "shadow.js",
+    "storage.js",
   ],
 };
 
@@ -72,24 +76,24 @@ const applicationOwners = [
 
 // The renderers. Each receives the semantic commands it uses; one that reaches an
 // application owner, through however many helpers, owns state instead of drawing it.
-// The geometry and paint group adds the conversation's own presenter, which composes
+// The geometry and paint group adds the thread's own presenter, which composes
 // them and must stay above them.
 const forbiddenClosures = Object.fromEntries([
   ...[
-    "conversation/box.js",
-    "conversation/folding.js",
-    "conversation/inline.js",
-    "conversation/landing.js",
-    "conversation/messages.js",
-    "conversation/narrowing.js",
-    "conversation/panel.js",
-    "conversation/placement.js",
-    "conversation/presentation.js",
-    "conversation/reaction-strips.js",
-    "conversation/replies.js",
-    "conversation/surfaces.js",
-    "conversation/thread-card.js",
-    "conversation/thread-list.js",
+    "thread/box.js",
+    "thread/folding.js",
+    "thread/inline.js",
+    "thread/landing.js",
+    "thread/messages.js",
+    "thread/narrowing.js",
+    "thread/panel.js",
+    "thread/placement.js",
+    "thread/presentation.js",
+    "thread/reaction-strips.js",
+    "thread/replies.js",
+    "thread/surfaces.js",
+    "thread/thread-card.js",
+    "thread/thread-list.js",
     "projection/data.js",
     "projection/presentation.js",
   ].map((root) => [root, applicationOwners]),
@@ -104,7 +108,7 @@ const forbiddenClosures = Object.fromEntries([
     "margin-layout.js",
     "page-geometry.js",
     "target-paint.js",
-  ].map((root) => [root, [...applicationOwners, "conversation/presentation.js"]]),
+  ].map((root) => [root, [...applicationOwners, "thread/presentation.js"]]),
 ]);
 
 // A rule naming a module that no longer exists matches nothing and passes, so the

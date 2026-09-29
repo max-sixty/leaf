@@ -5,8 +5,7 @@ standing log, and a command. `append_admitted` performs that reading and write
 under `service.PageTransaction`'s lease.
 
 This module selects each kind's gates. Their implementations stay with their
-domains: request lifecycles in `requests`, undo in `events`, and widget meaning
-in `event_meaning`.
+domains: undo in `events` and widget meaning in `event_meaning`.
 """
 
 from leaf.anchor_capture import capture_anchor
@@ -41,12 +40,8 @@ from leaf.registry.contract import (
     visual_parts,
 )
 from leaf.registry.reactions import reaction_tokens
-from leaf.requests import (
-    receipt_contract_error,
-    request_contract_error,
-)
 from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
-from leaf.served_state.conversation import browser_conversation
+from leaf.served_state.thread import browser_thread
 from leaf.structure import review_mode
 
 # The envelope the append lease itself assigns. Admission validates the complete
@@ -249,19 +244,17 @@ def held_comment_error(event: dict, page_by_id: dict, registry: dict):
     if not target:
         return None
     rec = page_by_id.get(target)
-    conversation = (
-        (registry.get(rec["tag"]) or {}).get("x-conversation") if rec else None
-    )
+    thread = (registry.get(rec["tag"]) or {}).get("x-thread-seat") if rec else None
     if (
         rec is None
-        or not conversation
-        or not conversation.get("hold")
-        or not asking(rec["attrs"], conversation.get("when"))
+        or not thread
+        or not thread.get("hold")
+        or not asking(rec["attrs"], thread.get("when"))
         or event.get("anchor") != {"section": target}
     ):
         return (
             "comment holds must name its exact-section anchor on a matching "
-            "x-conversation hold target"
+            "x-thread-seat hold target"
         )
     return None
 
@@ -351,7 +344,7 @@ def action_contract_error(view, event: dict, readings: AdmissionReadings):
         return None
 
     if page_rec:
-        reading = readings.page(document, revision)
+        reading = readings.page(revision)
         if record_kind == "position" and (
             stale := stale_move_error(view, event, spec, reading, readings)
         ):
@@ -361,7 +354,7 @@ def action_contract_error(view, event: dict, readings: AdmissionReadings):
         current = parser.by_id[event["widget"]]
     else:
         # Thread markup is frozen in the log: it has no version retraction floor
-        # and its actions read the whole conversation window.
+        # and its actions read the whole thread window.
         projection, byid, spk = thread_projection, thread_by_id, thread.spoken
         current = byid[event["widget"]]
 
@@ -393,7 +386,7 @@ def stale_move_error(view, event: dict, spec: dict, reading, readings):
     record = spec["record"]
     owner, container = event["widget"], event["detail"][record["value"]]
     registry = readings.registry
-    now = readings.page(view.document(newest), newest)
+    now = readings.page(newest)
     if authored_positions(
         owner, record, reading.document.by_id, reading.spoken, registry
     ).get(container) == authored_positions(
@@ -436,7 +429,7 @@ def admitting_registry(view, event: dict, events: list) -> dict:
     reads the recorded side from that same capture. A sign-off names its version
     instead, and admits under the revision that version stamped. An event naming
     neither takes the newest, which is the document any writer of one is looking
-    at, and a page with no revision yet has only the layer it carries.
+    at, and a page with no revision yet has the candidate's vocabulary.
 
     Read through `PageView.registry`, which opens the one captured file rather
     than materializing the whole bundle: this runs on every append."""
@@ -478,13 +471,13 @@ def _approval_error(view, event: dict, events: list, registry: dict):
             '<meta name="lf-review" content="sign-off">, so it has no '
             "approval to record"
         )
-    page = page_reading(document, events, registry, revision)
+    page = page_reading(view.reading(revision, registry), events, revision)
     threads = build_threads(events, page.within)
-    document_state = read_document(page, threads, view.data(registry))
-    conversation, _reading = browser_conversation(events, registry, threads)
+    document_state = read_document(page, threads)
+    thread, _reading = browser_thread(events, registry, threads)
     unanswered = [
         *document_state.asks["unanswered"],
-        *conversation["asks"]["unanswered"],
+        *thread["asks"]["unanswered"],
     ]
     if unanswered:
         identities = ", ".join(ask["id"] for ask in unanswered)
@@ -498,22 +491,10 @@ def _action_error(view, event: dict, readings: AdmissionReadings):
     return action_contract_error(view, event, readings)
 
 
-def _request_error(view, event: dict, events: list, registry: dict):
-    if event["kind"] != "request":
-        return None
-    return request_contract_error(view, event, events, registry)
-
-
 def _report_error(view, event: dict, registry: dict) -> str | None:
     if event["kind"] != "report":
         return None
     return report_contract_error(event, view.document(event["revision"]), registry)
-
-
-def _receipt_error(view, event: dict, events: list) -> str | None:
-    if event["kind"] != "receipt":
-        return None
-    return receipt_contract_error(view, event, events)
 
 
 def _reaction_error(event: dict, registry: dict) -> str | None:
@@ -539,7 +520,7 @@ def _anchored_comment_error(
     whitespace this reading collapses away. Reading it back off the file would
     refuse both. A transport that resolves nothing (the MCP surface, which renders
     the authored source with no runtime behind it) asks for the capture here
-    instead; `leaf comment` has already made it against the same reading.
+    instead; `leaf thread open` has already made it against the same reading.
     """
     if event["kind"] != "comment":
         return None
@@ -562,7 +543,9 @@ def _anchored_comment_error(
             return error
     if not recapture:
         return None
-    page = page_reading(document, events, registry, event["revision"])
+    page = page_reading(
+        view.reading(event["revision"], registry), events, event["revision"]
+    )
     try:
         canonical = capture_anchor(
             document,
@@ -595,23 +578,23 @@ def _parent_error(event: dict, events: list) -> str | None:
     return None
 
 
-def _conversation_presentation_error(view, event: dict, events: list) -> str | None:
-    if event["kind"] not in {"summary", "conversation_title"}:
+def _thread_presentation_error(view, event: dict, events: list) -> str | None:
+    if event["kind"] not in {"summary", "thread_title"}:
         return None
     threads = build_threads(events, view.within, withdrawn=taken_back(events))
-    thread = threads.get(event["conversation"])
+    thread = threads.get(event["thread"])
     if thread is None:
-        return f"unknown conversation {event['conversation']!r}"
-    if event["kind"] == "conversation_title":
+        return f"unknown thread {event['thread']!r}"
+    if event["kind"] == "thread_title":
         return None
     messages = [message["id"] for message in spoken_turns(thread)]
     try:
         start = messages.index(event["from"])
         end = messages.index(event["through"])
     except ValueError:
-        return "summary endpoints must name spoken turns in the named conversation"
+        return "summary endpoints must name spoken turns in one thread"
     if start >= end:
-        return "summary must cover at least two messages in conversation order"
+        return "summary must cover at least two messages in thread order"
     return None
 
 
@@ -621,7 +604,7 @@ def _withdrawal_error(
     if event["kind"] != "undo":
         return None
     newest = view.revisions[-1]
-    absorbed = readings.page(view.document(newest), newest).projection.absorbed
+    absorbed = readings.page(newest).projection.absorbed
     return undo_error(event, events, view.within, absorbed)
 
 
@@ -646,13 +629,11 @@ def admission_error(
         _revision_error(view, event)
         or _approval_error(view, event, events, registry)
         or _action_error(view, event, readings)
-        or _request_error(view, event, events, registry)
         or _report_error(view, event, registry)
-        or _receipt_error(view, event, events)
         or _reaction_error(event, registry)
         or _anchored_comment_error(view, event, events, registry, capture_anchors)
         or _parent_error(event, events)
-        or _conversation_presentation_error(view, event, events)
+        or _thread_presentation_error(view, event, events)
         or read_contract_error(event, events)
         or _withdrawal_error(view, event, events, readings)
     )
@@ -673,7 +654,7 @@ def admitted_event(
     kind = event.get("kind")
     if kind not in contracts:
         raise EventRefused(f"kind must be one of {sorted(contracts)}")
-    readings = AdmissionReadings(events, registry)
+    readings = AdmissionReadings(view, events, registry)
     if error := admission_error(
         view, events, event, registry, readings, capture_anchors=capture_anchors
     ):

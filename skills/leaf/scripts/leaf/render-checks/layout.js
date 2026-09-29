@@ -1,9 +1,77 @@
-import { pageScroller, shownBand, uiInside } from "/runtime/widget-api.js";
+import { pageScroller, shownBand, TEXT_BOX, uiInside } from "/runtime/widget-api.js";
+import { laidOutItems } from "./framing.js";
 import { at as element } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
 export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.clientWidth;
 const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
+
+// How the page's own arrangement stands: for each flex or grid box the page wrote (a
+// Layout, or the page's own grid), how many of its items stand in each row. The walk goes
+// through the widgets named in `open`, those whose content is the page's own markup or
+// members, since a pane's or a tab's content is the page's; a widget's own box is the
+// widget's business and is not read, and nothing Leaf generates is. Each box comes back
+// with its place under `main`, a selector another load of the same page resolves to the
+// same box, and the name every finding uses (locate.js).
+export function arrangedBoxes(open) {
+  const main = document.querySelector("main");
+  if (!main) return [];
+  const opens = new Set(open);
+  const boxes = [];
+  const walk = (el, path) => {
+    if (el.matches(".lf-ui, [data-lf-gen]")) return;
+    const widget = el.localName.includes("-");
+    if (widget && !opens.has(el.localName)) return;
+    if (!widget) boxes.push([el, path]);
+    [...el.children].forEach((child, i) =>
+      walk(child, `${path} > :nth-child(${i + 1})`),
+    );
+  };
+  walk(main, "main");
+  return boxes.flatMap(([box, path]) => {
+    if (!/flex|grid/.test(getComputedStyle(box).display)) return [];
+    const tops = laidOutItems(box)
+      .map((item) => item.getBoundingClientRect())
+      .filter((r) => r.width > 0 && r.height > 0)
+      .map((r) => Math.round(r.top));
+    if (tops.length < 2) return [];
+    const rows = [];
+    for (const top of tops) {
+      const row = rows.find((r) => Math.abs(r.top - top) <= 2);
+      if (row) row.count++;
+      else rows.push({ top, count: 1 });
+    }
+    return [{ path, at: element(box), rows: rows.map((r) => r.count).join("+") }];
+  });
+}
+
+// How a workspace holds the page's own panes: for each body of a `main.layout-workspace`
+// that has panes the page wrote as its cells, whether the Layout fills the window
+// (`--lf-full-height`, layouts.css) and the most of those panes that stand side by side, meaning
+// how many share some stretch of the page's height. One is a column of panes; a grid with
+// two stacked on the left of a tall third is two.
+export function heldPanes() {
+  const main = document.querySelector("main.layout-workspace");
+  if (!main) return [];
+  const held =
+    getComputedStyle(main).getPropertyValue("--lf-full-height").trim() === "1";
+  return [...main.children].flatMap((body) => {
+    if (body.matches("header, footer")) return [];
+    const rects = [...body.children]
+      .filter((el) =>
+        el.matches('[data-lf-reading-role="pane"]:not([data-lf-generated])'),
+      )
+      .map((pane) => pane.getBoundingClientRect())
+      .filter((r) => r.width > 0 && r.height > 0);
+    if (rects.length < 2) return [];
+    const beside = Math.max(
+      ...rects.map(
+        (r) => rects.filter((o) => o.top < r.bottom - 1 && r.top < o.bottom - 1).length,
+      ),
+    );
+    return [{ at: element(body), held, panes: rects.length, beside }];
+  });
+}
 
 // Every box is drawn somewhere, and something has to answer for where. Three
 // readings ask it — of the column, of the room the page keeps for a wide widget,
@@ -13,21 +81,14 @@ const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
 // The column first: content set outside the one it belongs to. The
 // sideways-scroll reading is the same question asked of the window, and the
 // window is the wider of the two: the gate renders at 1200px against a 720px
-// column, so 200px of margin on each side absorbs a spill that scrolls nothing.
-// What is out there is the margin, where a suggestion's controls hang, and the
+// column, so about 200px of margin beside it absorbs a spill that scrolls nothing.
+// What is out there is the margin, where Leaf's rail and a page's notes stand, and the
 // user's own window is free to be narrower than this one — so a page that passed
 // here scrolls sideways on the machine it was written for.
 //
-// The static lint asks about the column too (_column_width), and asks it of the
-// stylesheet, because that is all a linter has: a width the author pinned in
-// pixels, against a number parsed out of a max-width. This is the same column
-// with a layout engine behind it, so it is measured rather than parsed, and it
-// catches what no declaration states — a vw width, an unbreakable table, a
-// widget that came out wider than its content.
-//
 // Two kinds of element answer for their own width and not to this, and both say
-// so in their computed style. The margin has legitimate residents — a
-// suggestion's controls, a sidenote, the hidden line the paint pass writes — and
+// so in their computed style. The margin has legitimate residents — a sidenote,
+// the hidden line the paint pass writes, a page's own furniture — and
 // each is out there by its own declaration: placed absolutely or fixed, or floated
 // clear of the column. Where the box sits is what separates a resident from a spill,
 // which crosses the column's edge rather than clearing it, having started inside
@@ -48,12 +109,9 @@ const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
 // because everything inside one inherits its box and would name the same fault a
 // dozen times over.
 // What stands in the page's margin by its own declaration — placed absolutely or fixed,
-// or floated clear of the column — is one reading shared by the two passes that decision:
-// MISPLACED_BOXES, deciding whether a wide widget was drawn over one, and
-// WITHHELD_ROOM, deciding whether an exhibit's sideways scroll answers to a margin's
-// occupant or to room the layer withheld. A resident is whatever answered for itself
-// out there, so a project hanging its own furniture in the margin is covered without
-// declaring anything to either pass. `marginReading` keeps that geometry shared.
+// or floated clear of the column — for MISPLACED_BOXES, deciding whether a wide widget
+// was drawn over one. A resident is whatever answered for itself out there, so a
+// project hanging its own furniture in the margin is covered without declaring anything.
 
 function marginReading(main) {
   const style = getComputedStyle(main);
@@ -69,13 +127,23 @@ function marginReading(main) {
         ? "left"
         : "right";
   const isResident = (el, s = getComputedStyle(el), b = el.getBoundingClientRect()) => {
+    // A fixed overlay that takes no presses at rest, such as the contents map, stands over
+    // the page by design and reveals over it; it is a resident of the margin it starts in.
+    if (s.position === "fixed" && s.pointerEvents === "none")
+      return b.left < left - 1 || b.right > right + 1;
     if (s.position === "absolute" || s.position === "fixed")
       return b.right <= left + 1 || b.left >= right - 1;
     if (s.float === "none") return false;
     return floatSide(s) === "left" ? b.right <= left + 1 : b.left >= right - 1;
   };
   const residents = [...main.querySelectorAll("*")].filter((el) => {
-    if (!el.checkVisibility() || el.hasAttribute("data-lf-space")) return false;
+    // A map's labels have boxes while its spine is at rest, but opacity and
+    // pointer events keep them from occupying the margin until it opens.
+    if (
+      !el.checkVisibility({ opacityProperty: true, visibilityProperty: true }) ||
+      el.hasAttribute("data-lf-space")
+    )
+      return false;
     const style = getComputedStyle(el);
     const box = el.getBoundingClientRect();
     // Clipped to nothing is not standing in the margin: the words a page paints for
@@ -116,7 +184,7 @@ export function misplacedBoxes() {
   // A widget the registry declares wide is answered for out here, the way an
   // absolutely-positioned resident is: standing past the column is what it was
   // declared for. What still has to hold is the page's own box — the room the layout
-  // measured is the column's leftover and the rail a suggestion hangs in, and an
+  // measured is the column's leftover and the rail margin rows stand in, and an
   // exhibit over that edge is in the margin whether or not the window happened to
   // scroll for it. So the question is the same one, asked
   // against the wider bound: this gate renders at one viewport with no panel open, and
@@ -238,27 +306,28 @@ export function misplacedBoxes() {
       );
   }
   // The room being the page's own box is not the whole of what a wide widget owes,
-  // because the page hangs things in that box. A suggestion's controls stand 22px off
-  // the column and a sidenote a gutter off it on the other side, while the strip each
-  // is reserved out of comes off the far edge of the page — and those are the same
-  // place only when the column is flush against the strip, which it never is, since it
-  // centres in what the strip leaves. So the reservation says where the room ends and
-  // the occupancy says where the furniture is, and between them is a band that is
-  // inside the page's box and already spoken for. A board grown to the box was drawn
-  // 134px over the controls that decide the change above it, which is the change made
-  // undecidable by the page's own exhibit.
+  // because the page hangs things in that box. A sidenote stands a gutter off the
+  // column, while the strip it is reserved out of comes off the far edge of the page —
+  // and those are the same place only when the column is flush against the strip, which
+  // it never is, since it centres in what the strip leaves. So the reservation says
+  // where the room ends and the occupancy says where the furniture is, and between them
+  // is a band that is inside the page's box and already spoken for.
   //
-  // The theme is where a margin's claimant gives up that side (--lf-grow-l, --lf-grow-r),
-  // and this is what says so when one of them doesn't — the same bargain the framing
-  // rule above has, and the reason neither has to be a list anybody maintains. A
-  // resident is whatever answered for itself in the margin above (MARGIN_RESIDENTS),
-  // so a project hanging its own furniture out there is covered without declaring
-  // anything to this pass.
+  // The theme holds a wide widget's growth to what is free beside the page (--lf-free-l,
+  // --lf-free-r), and this is what says so when a widget grows past it anyway — the same
+  // bargain the framing rule above has, and the reason neither has to be a list anybody
+  // maintains. A resident is whatever `marginReading` finds standing past the column, so
+  // a project hanging its own furniture out there is covered without declaring anything
+  // to this pass.
   for (const el of main.querySelectorAll("[data-lf-space]")) {
     if (!el.checkVisibility()) continue;
     const b = el.getBoundingClientRect();
     const hit = residents.find((r) => {
       if (el.contains(r) || r.contains(el)) return false;
+      // An overlay that takes no presses at rest reveals over the page by design; the
+      // room it takes at rest is what it states to the column's free room.
+      const rs = getComputedStyle(r);
+      if (rs.position === "fixed" && rs.pointerEvents === "none") return false;
       const c = r.getBoundingClientRect();
       return (
         b.left < c.right - 1 &&
@@ -377,200 +446,6 @@ export function misplacedBoxes() {
   return found.filter(({ text }) => !texts.has(text) && texts.add(text));
 }
 
-// Whether a page's grids stand on one set of vertical lines. A sheet reads as one
-// structure when every region shares the same tracks (page-authoring.md, the sheet), and
-// reads as a jumble when each row is a grid of its own whose split lands somewhere new.
-// So each split — the midpoint of the gutter between two cells side by side — is a line
-// the page draws, and the count that matters is how many lines the page draws beyond what
-// its busiest grid needs: `unshared` is the distinct splits across the page, clustered at
-// 2px, less the most any one grid has. A page of one grid, or of grids that repeat one
-// grid's tracks, reads 0.
-//
-// Only layout grids are walked into: `main`'s own children, and the cells of each grid
-// among them, recursively. What a widget lays out inside itself — a board's columns, a
-// table — is the widget's structure rather than the page's. Only gutters count, and only
-// in a grid given tracks (a template, or `1` to stack a track's regions): a count grid is a
-// row of equal tiles, whose gutters are wherever its tile count puts them rather than a
-// region boundary the reader is meant to follow down the page. A box placed absolutely,
-// fixed or floated answers for its own position and stands on no track.
-export function misalignedSplits() {
-  const main = document.querySelector("main");
-  if (!main) return { unshared: 0, grids: [] };
-  const layoutGrid = (el) => el.matches('lf-grid, [data-lf-reading-role="grid"]');
-  const tracked = (el) =>
-    /fr/.test(el.getAttribute("columns") || "") || el.getAttribute("columns") === "1";
-  const standing = (el) => {
-    if (!el.checkVisibility()) return false;
-    const s = getComputedStyle(el);
-    if (s.position === "absolute" || s.position === "fixed" || s.float !== "none")
-      return false;
-    const b = el.getBoundingClientRect();
-    return b.width >= 2 && b.height >= 2;
-  };
-  const grids = [];
-  const walk = (parent) => {
-    for (const el of parent.children) {
-      if (!standing(el)) continue;
-      // A workspace and its panes are the page's regions, so the grids they hold are
-      // the page's tracks too.
-      if (!layoutGrid(el) || !tracked(el)) {
-        if (
-          el.matches(
-            '[data-lf-reading-role="workspace"], [data-lf-reading-role="pane"]',
-          )
-        )
-          walk(el);
-        continue;
-      }
-      const rows = new Map();
-      for (const cell of el.children) {
-        if (!standing(cell)) continue;
-        const b = cell.getBoundingClientRect();
-        const top = Math.round(b.top);
-        rows.set(top, [...(rows.get(top) ?? []), b]);
-      }
-      const splits = [];
-      for (const row of rows.values()) {
-        row.sort((a, b) => a.left - b.left);
-        for (let i = 1; i < row.length; i++)
-          splits.push(Math.round((row[i - 1].right + row[i].left) / 2));
-      }
-      if (splits.length) grids.push({ at: at(el), splits: [...new Set(splits)] });
-      walk(el);
-    }
-  };
-  walk(main);
-  // Chained, so a run of splits each within 2px of the last is one line.
-  let lines = 0,
-    last = -Infinity;
-  for (const x of grids.flatMap((g) => g.splits).sort((a, b) => a - b)) {
-    if (x - last > 2) lines++;
-    last = x;
-  }
-  const busiest = Math.max(0, ...grids.map((g) => g.splits.length));
-  return { unshared: lines - busiest, grids };
-}
-
-// A drawing scrolling beside room that would have shown it whole. Scrolling is the
-// theme's honest degrade when even the room runs short, so every reading above calls
-// such a page well — nothing is clipped without a scrollbar, nothing stands outside any
-// box — and that is exactly how both margin claims went wrong before: a claim spent
-// page-wide held a diagram to the column with the margin beside it empty, a diagram in
-// the room's terms merely "scrolling". So the question is the visible result, asked
-// without trusting the mechanisms that decide it (`clear` for a note, the margin layout
-// stepping a rail row past an exhibit): a drawing that scrolls, inside room that would have held it,
-// with nothing standing in the margin at its own band, is room withheld from the one
-// widget whose width is its own fact. Drawings alone, because "would the room have held
-// it" needs the exhibit's own width, which a box (a board laying columns into whatever
-// it is given) does not state. A drawing inside a frame reads the frame's withheld room
-// (--lf-room: 0) and is excused the way it is granted — by the declaration it inherits.
-export function withheldRoom() {
-  const main = document.querySelector("main");
-  if (!main) return [];
-  const { residents } = marginReading(main);
-  // The shell resolves --lf-room in CSS, so the property's computed value is the
-  // expression and not a length: parseFloat on it is NaN, and every comparison against
-  // NaN is false, which is this whole check going quiet without failing. A probe standing
-  // where the drawing stands inherits the same declaration — the frame's zero included —
-  // and answers in the pixels the drawing would actually have been given.
-  const roomAt = (el) => {
-    const probe = document.createElement("i");
-    probe.style.cssText =
-      "position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(--lf-room)";
-    el.append(probe);
-    const width = probe.getBoundingClientRect().width;
-    probe.remove();
-    return width;
-  };
-
-  const found = [];
-  for (const el of main.querySelectorAll('[data-lf-space="available"]')) {
-    if (!el.checkVisibility()) continue;
-    if (
-      getComputedStyle(el).getPropertyValue("--lf-natural-inline-size").trim() !== "1"
-    )
-      continue;
-    const short = el.scrollWidth - el.clientWidth;
-    if (short <= 1) continue;
-    const room = roomAt(el);
-    if (!(room > 0) || el.scrollWidth > room + 1) continue;
-    const b = el.getBoundingClientRect();
-    // A resident at the drawing's own band is the margin spoken for, whichever
-    // side it stands on: the exhibit owes it the side it holds, and what is left
-    // can genuinely run short.
-    if (
-      residents.some((r) => {
-        const c = r.getBoundingClientRect();
-        return c.top < b.bottom - 1 && c.bottom > b.top + 1;
-      })
-    )
-      continue;
-    found.push(
-      `${at(el)} scrolls ${short}px of a drawing sideways inside ` +
-        `${Math.round(room)}px of room that would have held its ${el.scrollWidth}px ` +
-        `whole, with nothing standing in the margin beside it`,
-    );
-  }
-  return found;
-}
-
-// A box showing less than it holds across, with nothing on it that says so. Every
-// reading above ends at the same excuse: a scroller answers for what ran out of it,
-// because the user can reach the rest. That excuse is worth exactly what the user
-// can tell, and on a platform drawing overlay scrollbars it is worth nothing at rest —
-// measured, a twelve-node flowchart in a tab panel showed seven of them at 1200, 1440
-// and 1920, cut 356px of 1026, and every reading here called the page well. It is where
-// WITHHELD_ROOM stops too, that one asking whether the room was there to give and
-// excusing a drawing inside a frame by the zero it inherits: a drawing that genuinely
-// could not fit is a page the layer is content with, and a user who cannot tell it
-// was cut is not.
-//
-// So the marks are what is asked for, not the scrollbar: the layer paints them on every
-// box its own sweep finds cut (reachScrollers and the data-lf-more-* masks in theme.css).
-// Those marks are the platform-independent half of the answer and the half a copy keeps.
-// A finding here is a scroller the sweep never reached — a tree handed to no caller, a
-// box that started scrolling after the last layout the sweep saw — and the box is named
-// rather than the rule, because the rule is the layer's and there is only one.
-//
-// Across and not down, the axis every reading of a cut here takes, and out of `main` and
-// its declared trees: the panel is shut while the gate reads and a shut box has no
-// boxes. Not a textarea, which scrolls a value its user is writing.
-export function silentCuts() {
-  const main = document.querySelector("main");
-  if (!main) return [];
-  const found = [];
-  for (const root of openRoots(main))
-    for (const el of root.querySelectorAll("*")) {
-      if (!el.checkVisibility() || el.matches("textarea")) continue;
-      const style = getComputedStyle(el);
-      if (!/^(auto|scroll)$/.test(style.overflowX)) continue;
-      const short = el.scrollWidth - el.clientWidth;
-      if (short <= 1) continue;
-      // The mark is a promise about what the user can see, so this asks the promise
-      // and not the attribute. A class can outrank the mask while leaving the mark
-      // written, which reads as a clean gate and a page that cuts a drawing at its edge
-      // saying nothing, the state this reading exists for.
-      if (
-        el.hasAttribute("data-lf-more-before") ||
-        el.hasAttribute("data-lf-more-after")
-      ) {
-        if (style.maskImage !== "none" || style.webkitMaskImage !== "none") continue;
-        found.push(
-          `${at(el)} wears a continuation mark for the ${short}px it is hiding ` +
-            `across but draws nothing for it: something outranks the mark's own ` +
-            `rule, so the mark is written and the user still has no sign`,
-        );
-        continue;
-      }
-      found.push(
-        `${at(el)} shows ${el.clientWidth}px of the ${el.scrollWidth}px it holds ` +
-          `across and wears no mark for the ${short}px it is hiding — the platform's ` +
-          `scrollbar is the only sign, and it draws none at rest`,
-      );
-    }
-  return found;
-}
-
 // A table scrolling sideways with a cell in it wrapped. The theme's three cases for a
 // table — take the measure only when asked, wrap the cells past that, scroll when even
 // wrapping can't fit — are in order, and the third is reached through the second: a
@@ -595,7 +470,7 @@ export function silentCuts() {
 // setting cells `pre-wrap`; `flex-wrap: nowrap` beside it, because a milestone's chips
 // stacked seven deep in a 114px cell with no text wrapping at all; `!important` on the
 // descendants too, because a widget's own rule beats an inherited value — a draft's
-// body is `pre-wrap` by the default package's sheet; and not on a textarea, whose
+// body is `pre-wrap` by the default package's sheet; and not on a text box, whose
 // value wraps inside a box the table never sized. The gate reads its own page, so the
 // probe changes nothing a user sees, and later readings measured the same before
 // and after it.
@@ -715,7 +590,7 @@ export function squeezedTables() {
   const probe = document.createElement("style");
   probe.textContent =
     "th:not([colspan]), td:not([colspan])," +
-    " th:not([colspan]) *:not(textarea), td:not([colspan]) *:not(textarea)" +
+    ` th:not([colspan]) *:not(${TEXT_BOX}), td:not([colspan]) *:not(${TEXT_BOX})` +
     " { text-wrap: nowrap !important; flex-wrap: nowrap !important }";
   document.head.append(probe);
   for (const columns of read.values())
@@ -740,4 +615,18 @@ export function squeezedTables() {
     );
   }
   return found;
+}
+
+// A margin marker with nowhere to stand. The layout withholds a row whose anchor the
+// browser will not take — an element behind the page's own `anchor-scope`, say — and marks
+// it `data-lf-parked`, so the user has no marker for that element and the page has no
+// way to show its thread or its decision beside it. Only the page can fix it: anchor the
+// thread or the widget to an element in the page's flow.
+export function strandedMargins() {
+  return [...document.querySelectorAll(".lf-margin-cluster[data-lf-parked]")].map(
+    (row) =>
+      `the margin marker for ${row.lfTarget ? at(row.lfTarget) : row.dataset.lfMarginFor} ` +
+      "has nowhere to stand: its element sits where a marker cannot anchor to it " +
+      "(behind an anchor-scope, say), so the user sees no marker for it",
+  );
 }

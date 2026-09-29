@@ -8,17 +8,16 @@ from leaf.data import read_contracts
 from leaf.data_contracts import data_binding_errors
 from leaf.files import list_revisions
 from leaf.registry.storage import require_registry
-from leaf.revision_artifact import read_registry
+from leaf.revision_artifact import read_revision
 from leaf.schema import MESSAGE_KINDS, THREAD_ANSWER_KINDS
-from leaf.structure import SourceDocument, parse_revision
-from leaf.thread_context import thread_roots, thread_structure
+from leaf.structure import SourceDocument
+from leaf.thread_context import thread_names, thread_structure
 
 from .instances import reference_errors, thread_markup_contract_errors
 from .markup import (
     fragment_style_errors,
+    id_errors,
     media_errors,
-    reserved_ids_error,
-    reserved_marker_errors,
     text_media_errors,
 )
 
@@ -37,31 +36,31 @@ def read_text_arg(page_dir: Path, text) -> str:
         sys.exit("empty text (pass --text or pipe via stdin)")
     if errs := text_media_errors(body, page_dir):
         sys.exit(
-            "text names media the page directory hasn't got:\n"
+            "text names media the page won't show:\n"
             + "\n".join(f"  - {e}" for e in errs)
         )
     return body
 
 
 def thread_obligation(events: list, responses: dict, message: str) -> dict | None:
-    """What the conversation holding one message still owes, if anything.
+    """What the thread holding one message still owes, if anything.
 
     A thread's response is owed by the thread rather than by the message inside it
     that happens to carry it, so a message with nothing against its own id can still
-    sit in a conversation waiting on one. Every writer that asks "does this message
-    take `--initiates`?" asks this, because two readings of the same question drift:
-    the refusal that named `--initiates` for a message owed nothing sent agents to a
-    writer refusing it on the thread's obligation, which is the dead end a refusal is
-    supposed to end.
+    sit in a thread waiting on one. Every writer that asks "may a new message
+    go to this one without `--for`?" asks this, because two readings of the same
+    question drift: a refusal that sent an agent to name a thread for a message owed
+    nothing sent it to a writer refusing it on the thread's obligation, which is the
+    dead end a refusal is supposed to end.
     """
-    roots = thread_roots(events)
-    root = roots.get(message, message)
+    names = thread_names(events)
+    thread = names.get(message, message)
     return next(
         (
             response
             for response in responses.values()
             if response["kind"] in THREAD_ANSWER_KINDS
-            and roots.get(response["to"], response["to"]) == root
+            and names.get(response["to"], response["to"]) == thread
         ),
         None,
     )
@@ -71,24 +70,33 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
     """Say what the page's log holds a bare id as, and which writer takes it now.
 
     The CLI names several kinds of id with bare strings — an element id anchors a
-    thread, a message id answers one, a request id takes its receipt, and a delivered
-    event id addresses the response it owes — and nothing about a value says which
-    namespace it came from. An agent holding the id of the move it was handed reaches
-    for whichever writer it is using, and a refusal that only repeats the value leaves
-    it nothing to change but the guess. So every writer that refuses an id says what
-    the log holds it as, and where it goes instead.
+    thread, a message id answers one, and a delivered event id addresses the response
+    it owes — and nothing about a value says which namespace it came from. An agent
+    holding the id of the move it was handed reaches for whichever writer it is using,
+    and a refusal that only repeats the value leaves it nothing to change but the
+    guess. So every writer that refuses an id says what the log holds it as, and where
+    it goes instead.
 
     Where it goes is what the log still owes, which is `current_responses`: a
-    user's press is answered through `--for` until it is answered and not after, a
-    request through its receipt, and a resolve or an undo is owed nothing at all. A
-    message is the one id whose writer turns on its conversation rather than on
-    itself — `--initiates` is refused while the thread owes a response, whichever of
-    its messages is owed it — so it is read through `thread_obligation`, the same
-    reading `cmd_reply`'s guard refuses on.
+    user's press is answered through `--for` until it is answered and not after, and
+    a resolve or an undo is owed nothing at all. A
+    message is the one id whose writer turns on its thread rather than on
+    itself — naming the thread without `--for` is refused while the thread owes a
+    response, whichever of its messages is owed it — so it is read through
+    `thread_obligation`, the same reading `cmd_reply`'s guard refuses on.
+
+    A thread's id is its opening comment's, so an agent holding a thread id names
+    it as a message. Where the log lost that comment the id names no event, yet
+    still names the thread to every thread command (`thread.thread_addressed`).
     """
     event = next((event for event in events if event.get("id") == value), None)
     if event is None:
-        return None
+        if value not in thread_names(events):
+            return None
+        return (
+            f"{value} is a thread whose opening message this page's log lost — "
+            f"`leaf thread reply <page> {value}` replies in it"
+        )
     kind = event["kind"]
     article = "an" if kind[:1] in "aeiou" else "a"
     held = f"{value} is {article} {kind} in this page's log"
@@ -98,10 +106,10 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
         if owed is None:
             return (
                 f"{held}, and nothing is owed for it — "
-                f"`leaf reply <page> --to {value} --initiates` replies to it"
+                f"`leaf thread reply <page> {value}` replies to it"
             )
         return (
-            f"{held}, and its conversation is owed a reply — "
+            f"{held}, and its thread is owed a reply — "
             f"{answer_command(owed)} answers it"
         )
     if owed is None:
@@ -112,14 +120,14 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
 def version_ids(page_dir: Path) -> set:
     ids = set()
     for revision in list_revisions(page_dir):
-        ids |= parse_revision(page_dir, revision).ids
+        ids |= read_revision(page_dir, revision).document.ids
     return ids
 
 
 def pinned_thread_markup_errors(page_dir: Path, fragment: SourceDocument) -> list[str]:
     """Refuse thread markup an immutable page cannot render.
 
-    Conversation markup has no revision boundary: every open historical document
+    Thread markup has no revision boundary: every open historical document
     receives it.  Admission against only the active registry can therefore freeze a
     newly introduced widget into the log even though an older pinned document has no
     declaration or implementation for it.  Ask every captured registry at the append
@@ -129,7 +137,7 @@ def pinned_thread_markup_errors(page_dir: Path, fragment: SourceDocument) -> lis
     failures: dict[str, list[int]] = {}
     revisions = list_revisions(page_dir)
     for revision in revisions[:-1]:
-        registry = read_registry(page_dir, revision)
+        registry = read_revision(page_dir, revision).registry
         for error in thread_markup_contract_errors(fragment, registry):
             failures.setdefault(error, []).append(revision)
     return [
@@ -150,7 +158,7 @@ def check_markup(
     page: SourceDocument | None = None,
 ) -> SourceDocument:
     """A message's widget markup, validated against the vendored registry at post
-    time — the discussion-side `version check`, and the field's one gate: the browser
+    time — the discussion-side `page check`, and the field's one gate: the browser
     door refuses `markup` outright, so nothing reaches the log under that name
     unvalidated. Text needs no vocabulary gate — the runtime renders it with every tag
     escaped, so it cannot claim a widget — but its Markdown can still point at a file,
@@ -197,19 +205,15 @@ def check_markup(
         )
     if not frag.lf_elements:
         sys.exit("--markup carries no widget; put prose in --text")
-    if frag.duplicate_ids:
-        sys.exit(
-            f"{kind} widget markup reuses an id within itself: {frag.duplicate_ids}"
-        )
-    if frag.reserved_ids:
-        sys.exit(f"{kind} widget markup takes " + reserved_ids_error(frag.reserved_ids))
-    if marker_errors := reserved_marker_errors(frag):
-        sys.exit(f"{kind} widget markup: " + "; ".join(marker_errors))
+    if names := id_errors(frag):
+        sys.exit(f"{kind} widget markup: " + "; ".join(names))
     thread = thread_structure(events)
     revisions = list_revisions(page_dir)
     if page is None:
         page = (
-            parse_revision(page_dir, revisions[-1]) if revisions else SourceDocument("")
+            read_revision(page_dir, revisions[-1]).document
+            if revisions
+            else SourceDocument("")
         )
     clash = sorted(frag.ids & (version_ids(page_dir) | page.ids | thread.ids))
     if clash:

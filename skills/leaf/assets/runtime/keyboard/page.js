@@ -15,10 +15,9 @@ import { letGo, release, takesLetters } from "../focus.js";
 import { inChrome, pageQueryAll } from "../passages.js";
 import { inUi } from "../shadow.js";
 import { pageSelection } from "../composing/capture.js";
-import { focusedThreadOf, standingThreadOf } from "../conversation/focus.js";
-import { threadsBox } from "../conversation/panel-elements.js";
-import { threadSearchActive } from "../conversation/narrowing.js";
-import { boxHandsBack } from "../conversation/landing.js";
+import { heldThread } from "../thread/focus.js";
+import { heldAsk } from "../standing-target.js";
+import { boxHandsBack } from "../thread/landing.js";
 import { claimsEsc, documentFocused, focused } from "./scopes.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed } from "./disclosure.js";
 import { nativeLayers } from "./layer-stack.js";
@@ -33,9 +32,9 @@ import { pageCommand, pageRung, pageScope } from "./register.js";
 // arrived, with the press that finishes the motion unnamed.
 //
 // The page's parts and not every one, which is the reading the target map takes as well:
-// the chrome's own links are the leaves tray's and its resolved comments are the panel's,
+// the chrome's own links are the leaves drawer's and its resolved comments are the panel's,
 // and both of those declare what they answer themselves. Asked of the document at large,
-// "On a link" was had by every page — a machine with one neighbour has a tray full of
+// "On a link" was had by every page — a machine with one neighbour has a drawer full of
 // links — so the reference named it wherever the user went, on pages holding none to
 // stand on. One derivation and not a copy apiece: what a scope here asks is the same pair
 // of questions of a different selector, and the day the chrome rule changes is the day a
@@ -97,6 +96,7 @@ standingOn("disclosure", "On a disclosure", DISCLOSURE_SELECTOR, [
 
 pageCommand({
   id: "browser.caret",
+  touch: false,
   keys: ["F7"],
   does: "Caret browsing (the browser's): select text by keyboard, then c",
 });
@@ -115,16 +115,17 @@ const holding = () => {
   return Boolean(active) && active !== document.body;
 };
 let standingFloor = () => null;
-export function declareStanding({ askHeld, pageState }) {
+export function declareStanding({ pageState, narrowing, threadsBox }) {
   standingFloor = () => {
     if (!holding()) return null;
     if (nativeLayers().length) return null;
     if (takesLetters(focused()) && boxHandsBack()) return null;
     if (claimsEsc(focused())) return null;
-    if (focusedThreadOf()) return threadsBox;
+    const thread = heldThread();
+    if (thread?.matches(".lf-thread")) return threadsBox;
     if (inChrome(documentFocused())) return null;
     if (pageSelection() || pageState()) return null;
-    return standingThreadOf() || askHeld() || !inUi(focused()) ? document.body : null;
+    return thread || heldAsk() || !inUi(focused()) ? document.body : null;
   };
   pageScope("standing", {
     title: "Standing on something",
@@ -137,7 +138,8 @@ export function declareStanding({ askHeld, pageState }) {
         keys: ["Escape"],
         does: "Let go of what you are standing on",
         line: () => (standingFloor() === threadsBox ? "back to panel" : "let go"),
-        lineWhen: () => !threadSearchActive() || standingFloor() !== threadsBox,
+        lineWhen: () =>
+          !narrowing.threadSearchActive() || standingFloor() !== threadsBox,
         when: () => Boolean(standingFloor()),
         run: () => {
           const floor = standingFloor();
@@ -150,29 +152,29 @@ export function declareStanding({ askHeld, pageState }) {
 }
 
 // The foot of Escape's ladder, the page's own. Above it stand the surfaces a user can
-// put on — a captured target, a tray, a narrowing, the thread panel, a page mode — each
+// put on — a captured target, a drawer, a narrowing, the thread panel, a page mode — each
 // contributed by its owner, so the ladder is read off `RUNG_LADDER` rather than written
 // out anywhere. This step leaves the chrome, after every surface has had its turn, and
 // stands down while the let-go above answers, so the reference names one press rather
 // than two spellings of it. It stands down under a native layer too: a popover or a
 // modal is the browser's own mode, its own scope is the way out of it, and the page
 // beneath is not somewhere a press can reach from inside it.
-// AGENTS.md's "The user has to be standing somewhere" holds the rest.
+// keyboard/AGENTS.md's "Escape unwinds the hierarchy, not the history" holds the rest.
 pageRung("page", () => {
   if (nativeLayers().length) return null;
   if (holding())
     return standingFloor()
       ? null
       : { says: "back to the page", does: "Back out onto the page", out: letGo };
-  // A specimen has one more containing page. Its own controls and standing unwind
+  // A sample has one more containing page. Its own controls and standing unwind
   // first; the frame's owner takes the focus back, not another keyboard listener
   // competing with this register.
   const frame = window.frameElement;
   return frame?.hasAttribute("data-lf-contained")
     ? {
         says: "return to containing page",
-        does: "Leave this specimen and return to its containing page",
-        out: () => frame.dispatchEvent(new Event("lf-specimen-return")),
+        does: "Leave this sample and return to its containing page",
+        out: () => frame.dispatchEvent(new Event("lf-sample-return")),
       }
     : null;
 });

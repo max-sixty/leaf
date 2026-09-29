@@ -11,7 +11,15 @@
    selection, agent workflow, and whose turn a reading waits on are independent
    presentation fields, written by the projection rather than declared. Ordering follows
    interaction state, then rank, contribution key, and entry key. Registration and DOM
-   order never decide which unrelated action becomes primary. */
+   order never decide which unrelated action becomes primary.
+
+   The changes one task makes reach the projections once, when its synchronous work is
+   done: a publication that updates several contributions, or a widget moved from one
+   parent to another, would otherwise paint every state it passes through. A render the
+   task asked for anyway takes the change (`presentingMarginContributions`) and leaves
+   nothing owed, and a registration asked for a control to reach (its focus, its layout) settles
+   first. Asked whether it holds a node, it answers from what stands: the node the caller
+   holds is in the controls presented now. */
 
 import { html, render } from "../vendor/browser-runtime.js";
 import { layoutMarginRows } from "./margin-layout.js";
@@ -85,11 +93,23 @@ const controlContributions = new WeakMap();
 const iconNodes = new WeakMap();
 const contributorClasses = new WeakMap();
 
+let owed = false;
 const changed = () => {
-  for (const listener of listeners) listener();
+  if (owed) return;
+  owed = true;
+  queueMicrotask(settle);
 };
+function settle() {
+  if (!owed) return;
+  owed = false;
+  for (const listener of listeners) listener();
+}
 
 export const marginContributionEntries = () => contributions.values();
+// A render that reads every contribution presents whatever change was owed.
+export function presentingMarginContributions() {
+  owed = false;
+}
 export function watchMarginContributions(listener) {
   listeners.add(listener);
   return () => listeners.delete(listener);
@@ -401,6 +421,7 @@ export function registerMarginContribution({
   const entry = (entryKey) =>
     offered.reading.entries.find((candidate) => candidate.key === entryKey) ?? null;
   const control = (entryKey, surface = null, visible = false) => {
+    settle();
     const surfaces = presented.get(offered);
     const preferred = surface ? [surface] : ["margin", "map", "inline"];
     for (const name of preferred) {
@@ -458,7 +479,10 @@ export function registerMarginContribution({
     update({ immediate = false, focus = null } = {}) {
       publishReading(offered);
       changed();
-      if (immediate) layoutMarginRows();
+      if (immediate) {
+        settle();
+        layoutMarginRows();
+      }
       if (focus != null) registration.focus(focus);
     },
     unregister() {

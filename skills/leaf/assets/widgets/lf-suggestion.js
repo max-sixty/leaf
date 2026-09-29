@@ -538,9 +538,6 @@ customElements.define(
       // method on the gesture's own tab, so it hides the slot in the frame the
       // decision lands; the layer then writes the same mark unconditionally.
       renderRetired(this, outcome);
-      // The only remaining circle is Undo, which still acts; the fold and surviving
-      // content carry the outcome without leaving another status beside them.
-      this.#refreshMargin();
       // The emphasis goes with the pending state: a decided suggestion is plain
       // prose. So does the word naming each slot, which is the same fact said to
       // whoever is listening.
@@ -548,6 +545,11 @@ customElements.define(
       repaintEmphasis();
       this.#voice();
       fold?.();
+      // The only remaining circle is Undo, which still acts; the fold and surviving
+      // content carry the outcome without leaving another status beside them. Asked
+      // once the page stands as the decision leaves it, since a margin entry says
+      // where down the page its target is.
+      this.#refreshMargin();
     }
 
     // The retired slot's room, given back as motion rather than taken in a frame. Only

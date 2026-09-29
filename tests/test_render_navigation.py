@@ -8401,7 +8401,8 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
           const { commands } = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const { activeRows, answers: bindingAnswers, canonicalBinding } =
             await window.__lfRuntimeImport('/runtime/keyboard/bindings.js');
-          const { paintKeys } = await window.__lfRuntimeImport('/runtime/keyboard/scopes.js');
+          const { elementScopes, paintKeys } =
+            await window.__lfRuntimeImport('/runtime/keyboard/scopes.js');
           const declare = (id, rows) => {
             const button = document.createElement('button');
             button.id = id;
@@ -8423,7 +8424,15 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
               return error.message;
             }
           };
-          const firstPaint = (id, rows, when) => {
+          // A paint lands once the task's synchronous work is done, so each is read after
+          // a microtask; the second finds the refused scope gone rather than refusing it
+          // again.
+          const painted = async (button) => {
+            paintKeys();
+            await Promise.resolve();
+            return button.getAttribute('aria-keyshortcuts');
+          };
+          const firstPaint = async (id, rows, when) => {
             const button = document.createElement('button');
             button.id = id;
             document.querySelector('main').append(button);
@@ -8434,18 +8443,11 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
               declaration = error.message;
             }
             const declared = button.getAttribute('aria-keyshortcuts');
-            const paints = [];
-            for (let i = 0; i < 2; i++) {
-              try {
-                paintKeys();
-                paints.push('painted');
-              } catch (error) {
-                paints.push(error.message);
-              }
-            }
-            const painted = button.getAttribute('aria-keyshortcuts');
+            const first = await painted(button);
+            const standing = Boolean(elementScopes.get(button));
+            const second = await painted(button);
             button.remove();
-            return {declaration, declared, paints, painted};
+            return {declaration, declared, first, standing, second};
           };
           const atTheFrame = async (id, rows) => {
             const button = document.createElement('button');
@@ -8477,15 +8479,15 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             return {framed, standing};
           };
           return {
-            ambiguous: firstPaint('ambiguous', [
+            ambiguous: await firstPaint('ambiguous', [
               {id: 'test.first', keys: ['F2'], does: 'First meaning', line: 'first', run: () => {}},
               {id: 'test.second', keys: ['F2'], does: 'Second meaning', line: 'second', run: () => {}},
             ]),
-            gatedAmbiguous: firstPaint('gated-ambiguous', [
+            gatedAmbiguous: await firstPaint('gated-ambiguous', [
               {id: 'test.gated-first', keys: ['F4'], does: 'First gated meaning', line: 'first', run: () => {}},
               {id: 'test.gated-second', keys: ['F4'], does: 'Second gated meaning', line: 'second', run: () => {}},
             ], () => true),
-            exclusive: firstPaint('exclusive', [
+            exclusive: await firstPaint('exclusive', [
               {id: 'test.first-state', keys: ['F2'], does: 'First state', line: 'first',
                when: () => true, run: () => {}},
               {id: 'test.second-state', keys: ['F2'], does: 'Second state', line: 'second',
@@ -8579,18 +8581,23 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
           };
         }"""
     )
-    for name, binding in (("ambiguous", "F2"), ("gatedAmbiguous", "F4")):
-        refused = answers[name]
-        assert refused["declaration"] == "declared", answers
-        assert refused["declared"] is None, answers
-        assert f"two live meanings for {binding}" in refused["paints"][0], answers
-        assert refused["paints"][1] == "painted", answers
-        assert refused["painted"] is None, answers
+    for name in ("ambiguous", "gatedAmbiguous"):
+        assert answers[name] == {
+            "declaration": "declared",
+            "declared": None,
+            "first": None,
+            "standing": False,
+            "second": None,
+        }, answers
+    refusals = consume_browser_errors(page, "two live meanings for")
+    for binding in ("F2", "F4"):
+        assert any(f"meanings for {binding}" in error for error in refusals), refusals
     assert answers["exclusive"] == {
         "declaration": "declared",
         "declared": None,
-        "paints": ["painted", "painted"],
-        "painted": "F2",
+        "first": "F2",
+        "standing": True,
+        "second": "F2",
     }, answers
     assert "has no stable command id" in answers["missingIdentity"], answers
     assert "is not a stable command id" in answers["malformedIdentity"], answers

@@ -106,9 +106,13 @@ def hint_code(page, selector, hints):
 
 
 def focus_item(page, selector):
-    """Stand on an item without opening its margin disclosure."""
+    """Stand on an item without opening its margin disclosure. A second stand on one
+    item leaves the stop the first lent it, which a restated value would rewrite."""
     item = page.locator(selector)
-    item.evaluate("node => { node.tabIndex = -1; node.focus({preventScroll: true}); }")
+    item.evaluate(
+        "node => { if (node.getAttribute('tabindex') !== '-1') node.tabIndex = -1;"
+        " node.focus({preventScroll: true}); }"
+    )
     expect(item).to_be_focused()
 
 

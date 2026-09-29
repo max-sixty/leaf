@@ -1265,22 +1265,57 @@ flowchart TD
                   </g>
                   <rect class="line" x="14" y="37" width="80" height="8" rx="2" />
                   <g id="kind-wide-text">
-                    <rect class="line soft" x="14" y="51" width="130" height="4" rx="2" />
-                    <rect class="line soft" x="14" y="59" width="120" height="4" rx="2" />
+                    <rect
+                      class="line soft"
+                      x="14"
+                      y="51"
+                      width="130"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="14"
+                      y="59"
+                      width="120"
+                      height="4"
+                      rx="2"
+                    />
                   </g>
                   <g id="kind-wide-body">
-                    <rect class="box hot" x="14" y="70" width="212" height="54" rx="3" />
+                    <rect
+                      class="box hot"
+                      x="14"
+                      y="70"
+                      width="212"
+                      height="54"
+                      rx="3"
+                    />
                     <text x="120" y="101" text-anchor="middle">wide widget</text>
                   </g>
                   <g id="kind-wide-more">
-                    <rect class="line soft" x="14" y="132" width="130" height="4" rx="2" />
-                    <rect class="line soft" x="14" y="140" width="104" height="4" rx="2" />
+                    <rect
+                      class="line soft"
+                      x="14"
+                      y="132"
+                      width="130"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="14"
+                      y="140"
+                      width="104"
+                      height="4"
+                      rx="2"
+                    />
                   </g>
                 </svg>
                 <figcaption id="cap-kind-wide">
                   <strong>A wide page</strong><code>layout-wide</code> on
-                  <code>main</code> widens the page. Every block starts at one left edge,
-                  and text keeps its measure.
+                  <code>main</code> widens the page. Every block starts at one left
+                  edge, and text keeps its measure.
                 </figcaption>
               </figure>
               <figure id="kind-workspace">
@@ -1447,9 +1482,9 @@ flowchart TD
             <p id="one-kind-arrange">
               Two more Layouts arrange a box's children rather than the page, so they go
               on any block: <code>layout-sidebar</code> sets a body beside its
-              <code>aside</code>, and <code>layout-tiles</code> sets equal cells, as many
-              to a row as fit. On <code>main</code>, either one also makes the page wide,
-              so a dashboard is <code>&lt;main class="layout-sidebar"&gt;</code>.
+              <code>aside</code>, and <code>layout-tiles</code> sets equal cells, as
+              many to a row as fit. On <code>main</code>, either one also makes the page
+              wide, so a dashboard is <code>&lt;main class="layout-sidebar"&gt;</code>.
             </p>
             <p id="one-kind-grows">
               A page grows without changing its Layout: a report that gains live status
@@ -2242,10 +2277,10 @@ flowchart TD
           <section id="narrow">
             <h2>On a phone, every page is one column</h2>
             <p id="narrow-what">
-              A sidebar's body and aside stack, tiles fit fewer to a row,
-              and a workspace's panes flow once the window cannot hold them, so on a
-              phone every page becomes one scrolling column in source order. Write
-              regions in an order that reads top to bottom.
+              A sidebar's body and aside stack, tiles fit fewer to a row, and a
+              workspace's panes flow once the window cannot hold them, so on a phone
+              every page becomes one scrolling column in source order. Write regions in
+              an order that reads top to bottom.
             </p>
             <figure class="fig" id="narrow-figure">
               <svg class="drawing" viewBox="0 0 360 190" role="img">
